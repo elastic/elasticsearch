@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -28,7 +28,7 @@ import org.elasticsearch.index.field.data.FieldDataType;
 import java.io.IOException;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 // LUCENE MONITOR: Monitor against FieldComparator#String
 public class StringValFieldDataComparator extends FieldComparator {
@@ -49,7 +49,8 @@ public class StringValFieldDataComparator extends FieldComparator {
         values = new String[numHits];
     }
 
-    @Override public int compare(int slot1, int slot2) {
+    @Override
+    public int compare(int slot1, int slot2) {
         final String val1 = values[slot1];
         final String val2 = values[slot2];
         if (val1 == null) {
@@ -64,7 +65,8 @@ public class StringValFieldDataComparator extends FieldComparator {
         return val1.compareTo(val2);
     }
 
-    @Override public int compareBottom(int doc) {
+    @Override
+    public int compareBottom(int doc) {
         final String val2 = currentFieldData.stringValue(doc);
         if (bottom == null) {
             if (val2 == null) {
@@ -77,19 +79,23 @@ public class StringValFieldDataComparator extends FieldComparator {
         return bottom.compareTo(val2);
     }
 
-    @Override public void copy(int slot, int doc) {
+    @Override
+    public void copy(int slot, int doc) {
         values[slot] = currentFieldData.stringValue(doc);
     }
 
-    @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
+    @Override
+    public void setNextReader(IndexReader reader, int docBase) throws IOException {
         currentFieldData = fieldDataCache.cache(FieldDataType.DefaultTypes.STRING, reader, fieldName);
     }
 
-    @Override public void setBottom(final int bottom) {
+    @Override
+    public void setBottom(final int bottom) {
         this.bottom = values[bottom];
     }
 
-    @Override public Comparable value(int slot) {
+    @Override
+    public Comparable value(int slot) {
         return values[slot];
     }
 }

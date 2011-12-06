@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.support.broadcast;
 
+import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -29,12 +29,12 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.action.support.DefaultShardOperationFailedException.*;
+import static org.elasticsearch.action.support.DefaultShardOperationFailedException.readShardOperationFailed;
 
 /**
  * Base class for all broadcast operation based responses.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public abstract class BroadcastOperationResponse implements ActionResponse {
 
@@ -118,7 +118,8 @@ public abstract class BroadcastOperationResponse implements ActionResponse {
         return shardFailures;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         totalShards = in.readVInt();
         successfulShards = in.readVInt();
         failedShards = in.readVInt();
@@ -131,7 +132,8 @@ public abstract class BroadcastOperationResponse implements ActionResponse {
         }
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(totalShards);
         out.writeVInt(successfulShards);
         out.writeVInt(failedShards);

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -38,7 +38,7 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class BoundedValueScriptHistogramFacetCollector extends AbstractFacetCollector {
 
@@ -89,20 +89,24 @@ public class BoundedValueScriptHistogramFacetCollector extends AbstractFacetColl
         histoProc = new HistogramProc(from, to, interval, offset, size, this.valueScript);
     }
 
-    @Override protected void doCollect(int doc) throws IOException {
+    @Override
+    protected void doCollect(int doc) throws IOException {
         fieldData.forEachValueInDoc(doc, histoProc);
     }
 
-    @Override public void setScorer(Scorer scorer) throws IOException {
+    @Override
+    public void setScorer(Scorer scorer) throws IOException {
         valueScript.setScorer(scorer);
     }
 
-    @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
+    @Override
+    protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
         fieldData = (NumericFieldData) fieldDataCache.cache(fieldDataType, reader, indexFieldName);
         valueScript.setNextReader(reader);
     }
 
-    @Override public Facet facet() {
+    @Override
+    public Facet facet() {
         return new InternalBoundedFullHistogramFacet(facetName, comparatorType, histoProc.interval, -histoProc.offset, histoProc.size, histoProc.entries, true);
     }
 
@@ -135,7 +139,8 @@ public class BoundedValueScriptHistogramFacetCollector extends AbstractFacetColl
             this.valueScript = valueScript;
         }
 
-        @Override public void onValue(int docId, long value) {
+        @Override
+        public void onValue(int docId, long value) {
             if (value <= from || value > to) { // bounds check
                 return;
             }

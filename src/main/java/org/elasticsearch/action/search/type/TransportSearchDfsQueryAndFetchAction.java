@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -20,11 +20,7 @@
 package org.elasticsearch.action.search.type;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.ReduceSearchPhaseException;
-import org.elasticsearch.action.search.SearchOperationThreading;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.search.*;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -46,19 +42,21 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.action.search.type.TransportSearchHelper.*;
+import static org.elasticsearch.action.search.type.TransportSearchHelper.buildScrollId;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAction {
 
-    @Inject public TransportSearchDfsQueryAndFetchAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                                         TransportSearchCache transportSearchCache, SearchServiceTransportAction searchService, SearchPhaseController searchPhaseController) {
+    @Inject
+    public TransportSearchDfsQueryAndFetchAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+                                                 TransportSearchCache transportSearchCache, SearchServiceTransportAction searchService, SearchPhaseController searchPhaseController) {
         super(settings, threadPool, clusterService, transportSearchCache, searchService, searchPhaseController);
     }
 
-    @Override protected void doExecute(SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
+    @Override
+    protected void doExecute(SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
         new AsyncAction(searchRequest, listener).start();
     }
 
@@ -73,19 +71,23 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
             super(request, listener);
         }
 
-        @Override protected String firstPhaseName() {
+        @Override
+        protected String firstPhaseName() {
             return "dfs";
         }
 
-        @Override protected void sendExecuteFirstPhase(DiscoveryNode node, InternalSearchRequest request, SearchServiceListener<DfsSearchResult> listener) {
+        @Override
+        protected void sendExecuteFirstPhase(DiscoveryNode node, InternalSearchRequest request, SearchServiceListener<DfsSearchResult> listener) {
             searchService.sendExecuteDfs(node, request, listener);
         }
 
-        @Override protected void processFirstPhaseResult(ShardRouting shard, DfsSearchResult result) {
+        @Override
+        protected void processFirstPhaseResult(ShardRouting shard, DfsSearchResult result) {
             dfsResults.add(result);
         }
 
-        @Override protected void moveToSecondPhase() {
+        @Override
+        protected void moveToSecondPhase() {
             final AggregatedDfs dfs = searchPhaseController.aggregateDfs(dfsResults);
             final AtomicInteger counter = new AtomicInteger(dfsResults.size());
 
@@ -102,7 +104,8 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
             if (localOperations > 0) {
                 if (request.operationThreading() == SearchOperationThreading.SINGLE_THREAD) {
                     threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
-                        @Override public void run() {
+                        @Override
+                        public void run() {
                             for (final DfsSearchResult dfsResult : dfsResults) {
                                 DiscoveryNode node = nodes.get(dfsResult.shardTarget().nodeId());
                                 if (node.id().equals(nodes.localNodeId())) {
@@ -120,7 +123,8 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
                             final QuerySearchRequest querySearchRequest = new QuerySearchRequest(dfsResult.id(), dfs);
                             if (localAsync) {
                                 threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
-                                    @Override public void run() {
+                                    @Override
+                                    public void run() {
                                         executeSecondPhase(dfsResult, counter, node, querySearchRequest);
                                     }
                                 });
@@ -135,7 +139,8 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
 
         void executeSecondPhase(final DfsSearchResult dfsResult, final AtomicInteger counter, DiscoveryNode node, final QuerySearchRequest querySearchRequest) {
             searchService.sendExecuteFetch(node, querySearchRequest, new SearchServiceListener<QueryFetchSearchResult>() {
-                @Override public void onResult(QueryFetchSearchResult result) {
+                @Override
+                public void onResult(QueryFetchSearchResult result) {
                     result.shardTarget(dfsResult.shardTarget());
                     queryFetchResults.put(result.shardTarget(), result);
                     if (counter.decrementAndGet() == 0) {
@@ -143,7 +148,8 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
                     }
                 }
 
-                @Override public void onFailure(Throwable t) {
+                @Override
+                public void onFailure(Throwable t) {
                     if (logger.isDebugEnabled()) {
                         logger.debug("[{}] Failed to execute query phase", t, querySearchRequest.id());
                     }

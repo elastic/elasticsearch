@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -36,20 +36,23 @@ import org.testng.annotations.Test;
 import java.io.IOException;
 
 import static org.elasticsearch.client.Requests.*;
-import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.hamcrest.MatcherAssert.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class BroadcastActionsTests extends AbstractNodesTests {
 
-    @AfterMethod public void closeServers() {
+    @AfterMethod
+    public void closeServers() {
         closeAllNodes();
     }
 
-    @Test public void testBroadcastOperations() throws IOException {
+    @Test
+    public void testBroadcastOperations() throws IOException {
         startNode("server1");
 
         client("server1").admin().indices().prepareCreate("test").execute().actionGet(5000);

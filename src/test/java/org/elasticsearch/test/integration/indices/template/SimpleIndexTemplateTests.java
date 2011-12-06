@@ -29,24 +29,26 @@ import org.testng.annotations.Test;
 
 import java.util.Arrays;
 
-import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.hamcrest.MatcherAssert.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class SimpleIndexTemplateTests extends AbstractNodesTests {
 
     private Client client;
 
-    @BeforeClass public void createNodes() throws Exception {
+    @BeforeClass
+    public void createNodes() throws Exception {
         startNode("node1");
         startNode("node2");
         client = getClient();
     }
 
-    @AfterClass public void closeNodes() {
+    @AfterClass
+    public void closeNodes() {
         client.close();
         closeAllNodes();
     }
@@ -55,7 +57,8 @@ public class SimpleIndexTemplateTests extends AbstractNodesTests {
         return client("node2");
     }
 
-    @Test public void simpleIndexTemplateTests() throws Exception {
+    @Test
+    public void simpleIndexTemplateTests() throws Exception {
         clean();
 
         client.admin().indices().preparePutTemplate("template_1")

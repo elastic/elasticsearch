@@ -32,20 +32,23 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class HasChildFilterParser implements FilterParser {
 
     public static final String NAME = "has_child";
 
-    @Inject public HasChildFilterParser() {
+    @Inject
+    public HasChildFilterParser() {
     }
 
-    @Override public String[] names() {
+    @Override
+    public String[] names() {
         return new String[]{NAME, Strings.toCamelCase(NAME)};
     }
 
-    @Override public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    @Override
+    public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
         Query query = null;

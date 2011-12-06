@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -25,13 +25,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.ThrowableObjectInputStream;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.CachedStreamInput;
-import org.elasticsearch.common.io.stream.CachedStreamOutput;
-import org.elasticsearch.common.io.stream.HandlesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.*;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -46,10 +40,10 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.*;
+import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class LocalTransport extends AbstractLifecycleComponent<Transport> implements Transport {
 
@@ -71,26 +65,31 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         this(ImmutableSettings.Builder.EMPTY_SETTINGS, threadPool);
     }
 
-    @Inject public LocalTransport(Settings settings, ThreadPool threadPool) {
+    @Inject
+    public LocalTransport(Settings settings, ThreadPool threadPool) {
         super(settings);
         this.threadPool = threadPool;
     }
 
-    @Override public TransportAddress[] addressesFromString(String address) {
+    @Override
+    public TransportAddress[] addressesFromString(String address) {
         return new TransportAddress[]{new LocalTransportAddress(address)};
     }
 
-    @Override public boolean addressSupported(Class<? extends TransportAddress> address) {
+    @Override
+    public boolean addressSupported(Class<? extends TransportAddress> address) {
         return LocalTransportAddress.class.equals(address);
     }
 
-    @Override protected void doStart() throws ElasticSearchException {
+    @Override
+    protected void doStart() throws ElasticSearchException {
         localAddress = new LocalTransportAddress(Long.toString(transportAddressIdGenerator.incrementAndGet()));
         transports.put(localAddress, this);
         boundAddress = new BoundTransportAddress(localAddress, localAddress);
     }
 
-    @Override protected void doStop() throws ElasticSearchException {
+    @Override
+    protected void doStop() throws ElasticSearchException {
         transports.remove(localAddress);
         // now, go over all the transports connected to me, and raise disconnected event
         for (final LocalTransport targetTransport : transports.values()) {
@@ -102,26 +101,32 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         }
     }
 
-    @Override protected void doClose() throws ElasticSearchException {
+    @Override
+    protected void doClose() throws ElasticSearchException {
     }
 
-    @Override public void transportServiceAdapter(TransportServiceAdapter transportServiceAdapter) {
+    @Override
+    public void transportServiceAdapter(TransportServiceAdapter transportServiceAdapter) {
         this.transportServiceAdapter = transportServiceAdapter;
     }
 
-    @Override public BoundTransportAddress boundAddress() {
+    @Override
+    public BoundTransportAddress boundAddress() {
         return boundAddress;
     }
 
-    @Override public boolean nodeConnected(DiscoveryNode node) {
+    @Override
+    public boolean nodeConnected(DiscoveryNode node) {
         return connectedNodes.containsKey(node);
     }
 
-    @Override public void connectToNodeLight(DiscoveryNode node) throws ConnectTransportException {
+    @Override
+    public void connectToNodeLight(DiscoveryNode node) throws ConnectTransportException {
         connectToNode(node);
     }
 
-    @Override public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
+    @Override
+    public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
         synchronized (this) {
             if (connectedNodes.containsKey(node)) {
                 return;
@@ -135,7 +140,8 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         }
     }
 
-    @Override public void disconnectFromNode(DiscoveryNode node) {
+    @Override
+    public void disconnectFromNode(DiscoveryNode node) {
         synchronized (this) {
             LocalTransport removed = connectedNodes.remove(node);
             if (removed != null) {
@@ -144,11 +150,13 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         }
     }
 
-    @Override public long serverOpen() {
+    @Override
+    public long serverOpen() {
         return 0;
     }
 
-    @Override public <T extends Streamable> void sendRequest(final DiscoveryNode node, final long requestId, final String action, final Streamable message, TransportRequestOptions options) throws IOException, TransportException {
+    @Override
+    public <T extends Streamable> void sendRequest(final DiscoveryNode node, final long requestId, final String action, final Streamable message, TransportRequestOptions options) throws IOException, TransportException {
         CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
         try {
             HandlesStreamOutput stream = cachedEntry.cachedHandlesBytes();
@@ -171,7 +179,8 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
             transportServiceAdapter.sent(data.length);
 
             threadPool.cached().execute(new Runnable() {
-                @Override public void run() {
+                @Override
+                public void run() {
                     targetTransport.messageReceived(data, action, LocalTransport.this, requestId);
                 }
             });
@@ -250,7 +259,9 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
             return;
         }
         threadPool.executor(handler.executor()).execute(new Runnable() {
-            @SuppressWarnings({"unchecked"}) @Override public void run() {
+            @SuppressWarnings({"unchecked"})
+            @Override
+            public void run() {
                 try {
                     handler.handleResponse(streamable);
                 } catch (Exception e) {

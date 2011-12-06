@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -50,10 +50,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
-import static org.elasticsearch.common.collect.Lists.*;
+import static com.google.common.collect.Lists.newArrayList;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class TransportIndicesStatusAction extends TransportBroadcastOperationAction<IndicesStatusRequest, IndicesStatusResponse, TransportIndicesStatusAction.IndexShardStatusRequest, ShardStatus> {
 
@@ -61,41 +61,49 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
 
     private final RecoveryTarget peerRecoveryTarget;
 
-    @Inject public TransportIndicesStatusAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                                IndicesService indicesService, RecoveryTarget peerRecoveryTarget) {
+    @Inject
+    public TransportIndicesStatusAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
+                                        IndicesService indicesService, RecoveryTarget peerRecoveryTarget) {
         super(settings, threadPool, clusterService, transportService);
         this.peerRecoveryTarget = peerRecoveryTarget;
         this.indicesService = indicesService;
     }
 
-    @Override protected String executor() {
+    @Override
+    protected String executor() {
         return ThreadPool.Names.MANAGEMENT;
     }
 
-    @Override protected String transportAction() {
+    @Override
+    protected String transportAction() {
         return TransportActions.Admin.Indices.STATUS;
     }
 
-    @Override protected String transportShardAction() {
+    @Override
+    protected String transportShardAction() {
         return "indices/status/shard";
     }
 
-    @Override protected IndicesStatusRequest newRequest() {
+    @Override
+    protected IndicesStatusRequest newRequest() {
         return new IndicesStatusRequest();
     }
 
-    @Override protected boolean ignoreNonActiveExceptions() {
+    @Override
+    protected boolean ignoreNonActiveExceptions() {
         return true;
     }
 
     /**
      * Status goes across *all* shards.
      */
-    @Override protected GroupShardsIterator shards(IndicesStatusRequest request, String[] concreteIndices, ClusterState clusterState) {
+    @Override
+    protected GroupShardsIterator shards(IndicesStatusRequest request, String[] concreteIndices, ClusterState clusterState) {
         return clusterState.routingTable().allAssignedShardsGrouped(concreteIndices, true);
     }
 
-    @Override protected IndicesStatusResponse newResponse(IndicesStatusRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
+    @Override
+    protected IndicesStatusResponse newResponse(IndicesStatusRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
         int successfulShards = 0;
         int failedShards = 0;
         List<ShardOperationFailedException> shardFailures = null;
@@ -118,19 +126,23 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
         return new IndicesStatusResponse(shards.toArray(new ShardStatus[shards.size()]), clusterState, shardsResponses.length(), successfulShards, failedShards, shardFailures);
     }
 
-    @Override protected IndexShardStatusRequest newShardRequest() {
+    @Override
+    protected IndexShardStatusRequest newShardRequest() {
         return new IndexShardStatusRequest();
     }
 
-    @Override protected IndexShardStatusRequest newShardRequest(ShardRouting shard, IndicesStatusRequest request) {
+    @Override
+    protected IndexShardStatusRequest newShardRequest(ShardRouting shard, IndicesStatusRequest request) {
         return new IndexShardStatusRequest(shard.index(), shard.id(), request);
     }
 
-    @Override protected ShardStatus newShardResponse() {
+    @Override
+    protected ShardStatus newShardResponse() {
         return new ShardStatus();
     }
 
-    @Override protected ShardStatus shardOperation(IndexShardStatusRequest request) throws ElasticSearchException {
+    @Override
+    protected ShardStatus shardOperation(IndexShardStatusRequest request) throws ElasticSearchException {
         InternalIndexService indexService = (InternalIndexService) indicesService.indexServiceSafe(request.index());
         InternalIndexShard indexShard = (InternalIndexShard) indexService.shardSafe(request.shardId());
         ShardStatus shardStatus = new ShardStatus(indexShard.routingEntry());
@@ -264,13 +276,15 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
             snapshot = request.snapshot();
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             recovery = in.readBoolean();
             snapshot = in.readBoolean();
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeBoolean(recovery);
             out.writeBoolean(snapshot);

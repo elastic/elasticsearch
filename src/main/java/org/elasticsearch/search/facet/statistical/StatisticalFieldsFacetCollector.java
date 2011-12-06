@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -32,7 +32,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class StatisticalFieldsFacetCollector extends AbstractFacetCollector {
 
@@ -65,19 +65,22 @@ public class StatisticalFieldsFacetCollector extends AbstractFacetCollector {
         }
     }
 
-    @Override protected void doCollect(int doc) throws IOException {
+    @Override
+    protected void doCollect(int doc) throws IOException {
         for (NumericFieldData fieldData : fieldsData) {
             fieldData.forEachValueInDoc(doc, statsProc);
         }
     }
 
-    @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
+    @Override
+    protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
         for (int i = 0; i < indexFieldsNames.length; i++) {
             fieldsData[i] = (NumericFieldData) fieldDataCache.cache(fieldsDataType[i], reader, indexFieldsNames[i]);
         }
     }
 
-    @Override public Facet facet() {
+    @Override
+    public Facet facet() {
         return new InternalStatisticalFacet(facetName, statsProc.min(), statsProc.max(), statsProc.total(), statsProc.sumOfSquares(), statsProc.count());
     }
 
@@ -95,7 +98,8 @@ public class StatisticalFieldsFacetCollector extends AbstractFacetCollector {
 
         int missing;
 
-        @Override public void onValue(int docId, double value) {
+        @Override
+        public void onValue(int docId, double value) {
             if (value < min) {
                 min = value;
             }
@@ -107,7 +111,8 @@ public class StatisticalFieldsFacetCollector extends AbstractFacetCollector {
             count++;
         }
 
-        @Override public void onMissing(int docId) {
+        @Override
+        public void onMissing(int docId) {
             missing++;
         }
 

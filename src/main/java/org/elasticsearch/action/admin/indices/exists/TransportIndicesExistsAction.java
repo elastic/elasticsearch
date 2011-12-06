@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -35,42 +35,50 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Indices exists action.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class TransportIndicesExistsAction extends TransportMasterNodeOperationAction<IndicesExistsRequest, IndicesExistsResponse> {
 
-    @Inject public TransportIndicesExistsAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                                ThreadPool threadPool) {
+    @Inject
+    public TransportIndicesExistsAction(Settings settings, TransportService transportService, ClusterService clusterService,
+                                        ThreadPool threadPool) {
         super(settings, transportService, clusterService, threadPool);
     }
 
-    @Override protected String executor() {
+    @Override
+    protected String executor() {
         return ThreadPool.Names.MANAGEMENT;
     }
 
-    @Override protected String transportAction() {
+    @Override
+    protected String transportAction() {
         return TransportActions.Admin.Indices.EXISTS;
     }
 
-    @Override protected IndicesExistsRequest newRequest() {
+    @Override
+    protected IndicesExistsRequest newRequest() {
         return new IndicesExistsRequest();
     }
 
-    @Override protected IndicesExistsResponse newResponse() {
+    @Override
+    protected IndicesExistsResponse newResponse() {
         return new IndicesExistsResponse();
     }
 
-    @Override protected void doExecute(IndicesExistsRequest request, ActionListener<IndicesExistsResponse> listener) {
+    @Override
+    protected void doExecute(IndicesExistsRequest request, ActionListener<IndicesExistsResponse> listener) {
         // don't call this since it will throw IndexMissingException
         //request.indices(clusterService.state().metaData().concreteIndices(request.indices()));
         super.doExecute(request, listener);
     }
 
-    @Override protected ClusterBlockException checkBlock(IndicesExistsRequest request, ClusterState state) {
+    @Override
+    protected ClusterBlockException checkBlock(IndicesExistsRequest request, ClusterState state) {
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, request.indices());
     }
 
-    @Override protected IndicesExistsResponse masterOperation(IndicesExistsRequest request, ClusterState state) throws ElasticSearchException {
+    @Override
+    protected IndicesExistsResponse masterOperation(IndicesExistsRequest request, ClusterState state) throws ElasticSearchException {
         boolean exists = true;
         for (String index : request.indices()) {
             if (!state.metaData().hasConcreteIndex(index)) {

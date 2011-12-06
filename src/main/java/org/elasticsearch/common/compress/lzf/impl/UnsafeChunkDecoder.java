@@ -12,7 +12,7 @@ import java.lang.reflect.Field;
  * Highly optimized {@link ChunkDecoder} implementation that uses
  * Sun JDK's Unsafe class (which may be included by other JDK's as well;
  * IBM's apparently does).
- * <p>
+ * <p/>
  * Credits for the idea go to Dain Sundstrom, who kindly suggested this use,
  * and is all-around great source for optimization tips and tricks.
  */

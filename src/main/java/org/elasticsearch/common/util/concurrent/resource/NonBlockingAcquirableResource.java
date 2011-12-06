@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -27,11 +27,11 @@ import java.util.concurrent.atomic.AtomicStampedReference;
 /**
  * A wrapper around a resource that can be released. Note, release should not be
  * called directly on the resource itself.
- *
+ * <p/>
  * <p>Yea, I now, the fact that the resource itself is releasable basically means that
  * users of this class should take care... .
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class NonBlockingAcquirableResource<T extends Releasable> implements AcquirableResource<T> {
 
@@ -45,11 +45,13 @@ public class NonBlockingAcquirableResource<T extends Releasable> implements Acqu
         this.resource = resource;
     }
 
-    @Override public T resource() {
+    @Override
+    public T resource() {
         return resource;
     }
 
-    @Override public boolean acquire() {
+    @Override
+    public boolean acquire() {
         while (true) {
             int stamp = counter.getStamp();
             boolean result = counter.compareAndSet(false, false, stamp, stamp + 1);
@@ -62,7 +64,8 @@ public class NonBlockingAcquirableResource<T extends Releasable> implements Acqu
         }
     }
 
-    @Override public void release() {
+    @Override
+    public void release() {
         while (true) {
             boolean currentReference = counter.getReference();
             int stamp = counter.getStamp();
@@ -76,7 +79,8 @@ public class NonBlockingAcquirableResource<T extends Releasable> implements Acqu
         }
     }
 
-    @Override public void markForClose() {
+    @Override
+    public void markForClose() {
         while (true) {
             int stamp = counter.getStamp();
             boolean result = counter.compareAndSet(false, true, stamp, stamp);
@@ -91,7 +95,8 @@ public class NonBlockingAcquirableResource<T extends Releasable> implements Acqu
         }
     }
 
-    @Override public void forceClose() {
+    @Override
+    public void forceClose() {
         close();
     }
 

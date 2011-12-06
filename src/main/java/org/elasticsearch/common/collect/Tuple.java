@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -20,7 +20,7 @@
 package org.elasticsearch.common.collect;
 
 /**
- * @author kimchy (Shay Banon)
+ *
  */
 public class Tuple<V1, V2> {
 
@@ -44,7 +44,8 @@ public class Tuple<V1, V2> {
         return v2;
     }
 
-    @Override public boolean equals(Object o) {
+    @Override
+    public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
@@ -56,21 +57,21 @@ public class Tuple<V1, V2> {
         return true;
     }
 
-    @Override public int hashCode() {
+    @Override
+    public int hashCode() {
         int result = v1 != null ? v1.hashCode() : 0;
         result = 31 * result + (v2 != null ? v2.hashCode() : 0);
         return result;
     }
 
-   /**
-   * Helper function to create a tuple.
-   *
-   * @param v1 the first element for the resulting tuple
-   * @param v2 the second element for the resulting tuple
-   * @return the tuple (<code>v1</code>,<code>v2</code>)
-   */
-  public static <V1, V2> Tuple<V1, V2> create(V1 v1, V2 v2)
-  {
-    return new Tuple<V1, V2>(v1, v2);
-  }
+    /**
+     * Helper function to create a tuple.
+     *
+     * @param v1 the first element for the resulting tuple
+     * @param v2 the second element for the resulting tuple
+     * @return the tuple (<code>v1</code>,<code>v2</code>)
+     */
+    public static <V1, V2> Tuple<V1, V2> create(V1 v1, V2 v2) {
+        return new Tuple<V1, V2>(v1, v2);
+    }
 }

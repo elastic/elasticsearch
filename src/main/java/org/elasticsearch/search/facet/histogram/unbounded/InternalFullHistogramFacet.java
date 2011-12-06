@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,10 +19,10 @@
 
 package org.elasticsearch.search.facet.histogram.unbounded;
 
+import gnu.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.facet.Facet;
@@ -33,7 +33,7 @@ import java.io.IOException;
 import java.util.*;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class InternalFullHistogramFacet extends InternalHistogramFacet {
 
@@ -44,12 +44,14 @@ public class InternalFullHistogramFacet extends InternalHistogramFacet {
     }
 
     static Stream STREAM = new Stream() {
-        @Override public Facet readFacet(String type, StreamInput in) throws IOException {
+        @Override
+        public Facet readFacet(String type, StreamInput in) throws IOException {
             return readHistogramFacet(in);
         }
     };
 
-    @Override public String streamType() {
+    @Override
+    public String streamType() {
         return STREAM_TYPE;
     }
 
@@ -74,59 +76,73 @@ public class InternalFullHistogramFacet extends InternalHistogramFacet {
             this.total = total;
         }
 
-        @Override public long key() {
+        @Override
+        public long key() {
             return key;
         }
 
-        @Override public long getKey() {
+        @Override
+        public long getKey() {
             return key();
         }
 
-        @Override public long count() {
+        @Override
+        public long count() {
             return count;
         }
 
-        @Override public long getCount() {
+        @Override
+        public long getCount() {
             return count();
         }
 
-        @Override public double total() {
+        @Override
+        public double total() {
             return total;
         }
 
-        @Override public double getTotal() {
+        @Override
+        public double getTotal() {
             return total();
         }
 
-        @Override public long totalCount() {
+        @Override
+        public long totalCount() {
             return totalCount;
         }
 
-        @Override public long getTotalCount() {
+        @Override
+        public long getTotalCount() {
             return this.totalCount;
         }
 
-        @Override public double mean() {
+        @Override
+        public double mean() {
             return total / totalCount;
         }
 
-        @Override public double getMean() {
+        @Override
+        public double getMean() {
             return total / totalCount;
         }
 
-        @Override public double min() {
+        @Override
+        public double min() {
             return this.min;
         }
 
-        @Override public double getMin() {
+        @Override
+        public double getMin() {
             return this.min;
         }
 
-        @Override public double max() {
+        @Override
+        public double max() {
             return this.max;
         }
 
-        @Override public double getMax() {
+        @Override
+        public double getMax() {
             return this.max;
         }
     }
@@ -150,34 +166,41 @@ public class InternalFullHistogramFacet extends InternalHistogramFacet {
         this.entries = entries.valueCollection();
     }
 
-    @Override public String name() {
+    @Override
+    public String name() {
         return this.name;
     }
 
-    @Override public String getName() {
+    @Override
+    public String getName() {
         return name();
     }
 
-    @Override public String type() {
+    @Override
+    public String type() {
         return TYPE;
     }
 
-    @Override public String getType() {
+    @Override
+    public String getType() {
         return type();
     }
 
-    @Override public List<FullEntry> entries() {
+    @Override
+    public List<FullEntry> entries() {
         if (!(entries instanceof List)) {
             entries = new ArrayList<FullEntry>(entries);
         }
         return (List<FullEntry>) entries;
     }
 
-    @Override public List<FullEntry> getEntries() {
+    @Override
+    public List<FullEntry> getEntries() {
         return entries();
     }
 
-    @Override public Iterator<Entry> iterator() {
+    @Override
+    public Iterator<Entry> iterator() {
         return (Iterator) entries().iterator();
     }
 
@@ -189,7 +212,8 @@ public class InternalFullHistogramFacet extends InternalHistogramFacet {
         }
     }
 
-    @Override public Facet reduce(String name, List<Facet> facets) {
+    @Override
+    public Facet reduce(String name, List<Facet> facets) {
         if (facets.size() == 1) {
             // we need to sort it
             InternalFullHistogramFacet internalFacet = (InternalFullHistogramFacet) facets.get(0);
@@ -256,7 +280,8 @@ public class InternalFullHistogramFacet extends InternalHistogramFacet {
         static final XContentBuilderString MAX = new XContentBuilderString("max");
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
         builder.field(Fields._TYPE, HistogramFacet.TYPE);
         builder.startArray(Fields.ENTRIES);
@@ -282,7 +307,8 @@ public class InternalFullHistogramFacet extends InternalHistogramFacet {
         return facet;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         name = in.readUTF();
         comparatorType = ComparatorType.fromId(in.readByte());
 
@@ -294,7 +320,8 @@ public class InternalFullHistogramFacet extends InternalHistogramFacet {
         }
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(name);
         out.writeByte(comparatorType.id());
         out.writeVInt(entries.size());

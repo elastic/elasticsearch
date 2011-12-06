@@ -9,7 +9,7 @@ import org.elasticsearch.common.compress.lzf.impl.VanillaChunkDecoder;
  * Simple helper class used for loading
  * {@link ChunkDecoder} implementations, based on criteria
  * such as "fastest available".
- * <p>
+ * <p/>
  * Yes, it looks butt-ugly, but does the job. Nonetheless, if anyone
  * has lipstick for this pig, let me know.
  *

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -24,14 +24,15 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.thread.ThreadLocals;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class MultiValueStringFieldData extends StringFieldData {
 
     private static final int VALUE_CACHE_SIZE = 100;
 
     private static ThreadLocal<ThreadLocals.CleanableValue<String[][]>> valuesCache = new ThreadLocal<ThreadLocals.CleanableValue<String[][]>>() {
-        @Override protected ThreadLocals.CleanableValue<String[][]> initialValue() {
+        @Override
+        protected ThreadLocals.CleanableValue<String[][]> initialValue() {
             String[][] value = new String[VALUE_CACHE_SIZE][];
             for (int i = 0; i < value.length; i++) {
                 value[i] = new String[i];
@@ -48,7 +49,8 @@ public class MultiValueStringFieldData extends StringFieldData {
         this.ordinals = ordinals;
     }
 
-    @Override protected long computeSizeInBytes() {
+    @Override
+    protected long computeSizeInBytes() {
         long size = super.computeSizeInBytes();
         size += RamUsage.NUM_BYTES_ARRAY_HEADER; // for the top level array
         for (int[] ordinal : ordinals) {
@@ -57,11 +59,13 @@ public class MultiValueStringFieldData extends StringFieldData {
         return size;
     }
 
-    @Override public boolean multiValued() {
+    @Override
+    public boolean multiValued() {
         return true;
     }
 
-    @Override public boolean hasValue(int docId) {
+    @Override
+    public boolean hasValue(int docId) {
         for (int[] ordinal : ordinals) {
             if (ordinal[docId] != 0) {
                 return true;
@@ -70,7 +74,8 @@ public class MultiValueStringFieldData extends StringFieldData {
         return false;
     }
 
-    @Override public void forEachValueInDoc(int docId, StringValueInDocProc proc) {
+    @Override
+    public void forEachValueInDoc(int docId, StringValueInDocProc proc) {
         boolean found = false;
         for (int[] ordinal : ordinals) {
             int loc = ordinal[docId];
@@ -84,7 +89,8 @@ public class MultiValueStringFieldData extends StringFieldData {
         }
     }
 
-    @Override public void forEachOrdinalInDoc(int docId, OrdinalInDocProc proc) {
+    @Override
+    public void forEachOrdinalInDoc(int docId, OrdinalInDocProc proc) {
         boolean found = false;
         for (int[] ordinal : ordinals) {
             int loc = ordinal[docId];
@@ -98,7 +104,8 @@ public class MultiValueStringFieldData extends StringFieldData {
         }
     }
 
-    @Override public String value(int docId) {
+    @Override
+    public String value(int docId) {
         for (int[] ordinal : ordinals) {
             int loc = ordinal[docId];
             if (loc != 0) {
@@ -108,7 +115,8 @@ public class MultiValueStringFieldData extends StringFieldData {
         return null;
     }
 
-    @Override public String[] values(int docId) {
+    @Override
+    public String[] values(int docId) {
         int length = 0;
         for (int[] ordinal : ordinals) {
             if (ordinal[docId] != 0) {

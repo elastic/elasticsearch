@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -21,13 +21,7 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.MutableShardRouting;
-import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingNodes;
-import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocators;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -41,11 +35,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
-import static org.elasticsearch.common.collect.Sets.*;
+import static com.google.common.collect.Sets.newHashSet;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class AllocationService extends AbstractComponent {
 
@@ -64,7 +58,8 @@ public class AllocationService extends AbstractComponent {
         );
     }
 
-    @Inject public AllocationService(Settings settings, AllocationDeciders allocationDeciders, ShardsAllocators shardsAllocators) {
+    @Inject
+    public AllocationService(Settings settings, AllocationDeciders allocationDeciders, ShardsAllocators shardsAllocators) {
         super(settings);
         this.allocationDeciders = allocationDeciders;
         this.shardsAllocators = shardsAllocators;
@@ -72,7 +67,7 @@ public class AllocationService extends AbstractComponent {
 
     /**
      * Applies the started shards. Note, shards can be called several times within this method.
-     *
+     * <p/>
      * <p>If the same instance of the routing table is returned, then no change has been made.
      */
     public RoutingAllocation.Result applyStartedShards(ClusterState clusterState, List<? extends ShardRouting> startedShards) {
@@ -89,7 +84,7 @@ public class AllocationService extends AbstractComponent {
 
     /**
      * Applies the failed shards. Note, shards can be called several times within this method.
-     *
+     * <p/>
      * <p>If the same instance of the routing table is returned, then no change has been made.
      */
     public RoutingAllocation.Result applyFailedShard(ClusterState clusterState, ShardRouting failedShard) {
@@ -106,7 +101,7 @@ public class AllocationService extends AbstractComponent {
 
     /**
      * Reroutes the routing table based on the live nodes.
-     *
+     * <p/>
      * <p>If the same instance of the routing table is returned, then no change has been made.
      */
     public RoutingAllocation.Result reroute(ClusterState clusterState) {

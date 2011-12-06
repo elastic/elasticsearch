@@ -50,8 +50,9 @@ public abstract class TransportIndicesReplicationOperationAction<Request extends
 
     final String transportAction;
 
-    @Inject public TransportIndicesReplicationOperationAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                                              TransportIndexReplicationOperationAction<IndexRequest, IndexResponse, ShardRequest, ShardReplicaRequest, ShardResponse> indexAction) {
+    @Inject
+    public TransportIndicesReplicationOperationAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
+                                                      TransportIndexReplicationOperationAction<IndexRequest, IndexResponse, ShardRequest, ShardReplicaRequest, ShardResponse> indexAction) {
         super(settings, threadPool);
         this.clusterService = clusterService;
         this.indexAction = indexAction;
@@ -61,7 +62,8 @@ public abstract class TransportIndicesReplicationOperationAction<Request extends
         transportService.registerHandler(transportAction, new TransportHandler());
     }
 
-    @Override protected void doExecute(final Request request, final ActionListener<Response> listener) {
+    @Override
+    protected void doExecute(final Request request, final ActionListener<Response> listener) {
         ClusterState clusterState = clusterService.state();
 
         // get actual indices
@@ -85,14 +87,16 @@ public abstract class TransportIndicesReplicationOperationAction<Request extends
             // no threading needed, all is done on the index replication one
             indexRequest.listenerThreaded(false);
             indexAction.execute(indexRequest, new ActionListener<IndexResponse>() {
-                @Override public void onResponse(IndexResponse result) {
+                @Override
+                public void onResponse(IndexResponse result) {
                     indexResponses.set(indexCounter.getAndIncrement(), result);
                     if (completionCounter.decrementAndGet() == 0) {
                         listener.onResponse(newResponseInstance(request, indexResponses));
                     }
                 }
 
-                @Override public void onFailure(Throwable e) {
+                @Override
+                public void onFailure(Throwable e) {
                     e.printStackTrace();
                     int index = indexCounter.getAndIncrement();
                     if (accumulateExceptions()) {
@@ -122,19 +126,23 @@ public abstract class TransportIndicesReplicationOperationAction<Request extends
 
     private class TransportHandler extends BaseTransportRequestHandler<Request> {
 
-        @Override public Request newInstance() {
+        @Override
+        public Request newInstance() {
             return newRequestInstance();
         }
 
-        @Override public String executor() {
+        @Override
+        public String executor() {
             return ThreadPool.Names.SAME;
         }
 
-        @Override public void messageReceived(final Request request, final TransportChannel channel) throws Exception {
+        @Override
+        public void messageReceived(final Request request, final TransportChannel channel) throws Exception {
             // no need for a threaded listener, since we just send a response
             request.listenerThreaded(false);
             execute(request, new ActionListener<Response>() {
-                @Override public void onResponse(Response result) {
+                @Override
+                public void onResponse(Response result) {
                     try {
                         channel.sendResponse(result);
                     } catch (Exception e) {
@@ -142,7 +150,8 @@ public abstract class TransportIndicesReplicationOperationAction<Request extends
                     }
                 }
 
-                @Override public void onFailure(Throwable e) {
+                @Override
+                public void onFailure(Throwable e) {
                     try {
                         channel.sendResponse(e);
                     } catch (Exception e1) {

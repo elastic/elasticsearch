@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -28,8 +28,8 @@ import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.*;
-import static org.hamcrest.MatcherAssert.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 public class SimpleTTLTests extends AbstractNodesTests {
@@ -37,14 +37,16 @@ public class SimpleTTLTests extends AbstractNodesTests {
     static private final long purgeInterval = 200;
     private Client client;
 
-    @BeforeClass public void createNodes() throws Exception {
+    @BeforeClass
+    public void createNodes() throws Exception {
         Settings settings = settingsBuilder().put("indices.ttl.interval", purgeInterval).build();
         startNode("node1", settings);
         startNode("node2", settings);
         client = getClient();
     }
 
-    @AfterClass public void closeNodes() {
+    @AfterClass
+    public void closeNodes() {
         client.close();
         closeAllNodes();
     }
@@ -53,7 +55,8 @@ public class SimpleTTLTests extends AbstractNodesTests {
         return client("node1");
     }
 
-    @Test public void testSimpleTTL() throws Exception {
+    @Test
+    public void testSimpleTTL() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
 
         client.admin().indices().prepareCreate("test")

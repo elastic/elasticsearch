@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -40,16 +40,19 @@ import java.util.Map;
 
 public class TermsStatsFacetProcessor extends AbstractComponent implements FacetProcessor {
 
-    @Inject public TermsStatsFacetProcessor(Settings settings) {
+    @Inject
+    public TermsStatsFacetProcessor(Settings settings) {
         super(settings);
         InternalTermsStatsFacet.registerStreams();
     }
 
-    @Override public String[] types() {
+    @Override
+    public String[] types() {
         return new String[]{TermsStatsFacet.TYPE, "termsStats"};
     }
 
-    @Override public FacetCollector parse(String facetName, XContentParser parser, SearchContext context) throws IOException {
+    @Override
+    public FacetCollector parse(String facetName, XContentParser parser, SearchContext context) throws IOException {
         String keyField = null;
         String valueField = null;
         int size = 10;
@@ -119,7 +122,8 @@ public class TermsStatsFacetProcessor extends AbstractComponent implements Facet
         return new TermsStatsStringFacetCollector(facetName, keyField, valueField, size, comparatorType, context, scriptLang, script, params);
     }
 
-    @Override public Facet reduce(String name, List<Facet> facets) {
+    @Override
+    public Facet reduce(String name, List<Facet> facets) {
         InternalTermsStatsFacet first = (InternalTermsStatsFacet) facets.get(0);
         return first.reduce(name, facets);
     }

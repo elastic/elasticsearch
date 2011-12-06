@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -44,11 +44,11 @@ import java.util.Map;
 /**
  * A request to count the number of documents matching a specific query. Best created with
  * {@link org.elasticsearch.client.Requests#countRequest(String...)}.
- *
+ * <p/>
  * <p>The request requires the query source to be set either using {@link #query(org.elasticsearch.index.query.QueryBuilder)},
  * or {@link #query(byte[])}.
  *
- * @author kimchy (shay.banon)
+ *
  * @see CountResponse
  * @see org.elasticsearch.client.Client#count(CountRequest)
  * @see org.elasticsearch.client.Requests#countRequest(String...)
@@ -61,8 +61,10 @@ public class CountRequest extends BroadcastOperationRequest {
 
     private float minScore = DEFAULT_MIN_SCORE;
 
-    @Nullable protected String queryHint;
-    @Nullable protected String routing;
+    @Nullable
+    protected String queryHint;
+    @Nullable
+    protected String routing;
 
     private byte[] querySource;
     private int querySourceOffset;
@@ -83,7 +85,8 @@ public class CountRequest extends BroadcastOperationRequest {
         this.queryHint = null;
     }
 
-    @Override public ActionRequestValidationException validate() {
+    @Override
+    public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
         return validationException;
     }
@@ -95,12 +98,14 @@ public class CountRequest extends BroadcastOperationRequest {
     /**
      * Controls the operation threading model.
      */
-    @Override public CountRequest operationThreading(BroadcastOperationThreading operationThreading) {
+    @Override
+    public CountRequest operationThreading(BroadcastOperationThreading operationThreading) {
         super.operationThreading(operationThreading);
         return this;
     }
 
-    @Override protected void beforeStart() {
+    @Override
+    protected void beforeStart() {
         if (querySourceUnsafe) {
             querySource = Arrays.copyOfRange(querySource, querySourceOffset, querySourceOffset + querySourceLength);
             querySourceOffset = 0;
@@ -111,7 +116,8 @@ public class CountRequest extends BroadcastOperationRequest {
     /**
      * Should the listener be called on a separate thread if needed.
      */
-    @Override public CountRequest listenerThreaded(boolean threadedListener) {
+    @Override
+    public CountRequest listenerThreaded(boolean threadedListener) {
         super.listenerThreaded(threadedListener);
         return this;
     }
@@ -165,7 +171,8 @@ public class CountRequest extends BroadcastOperationRequest {
      *
      * @see org.elasticsearch.index.query.QueryBuilders
      */
-    @Required public CountRequest query(QueryBuilder queryBuilder) {
+    @Required
+    public CountRequest query(QueryBuilder queryBuilder) {
         BytesStream bos = queryBuilder.buildAsUnsafeBytes();
         this.querySource = bos.underlyingBytes();
         this.querySourceOffset = 0;
@@ -177,7 +184,8 @@ public class CountRequest extends BroadcastOperationRequest {
     /**
      * The query source to execute in the form of a map.
      */
-    @Required public CountRequest query(Map querySource) {
+    @Required
+    public CountRequest query(Map querySource) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             builder.map(querySource);
@@ -187,7 +195,8 @@ public class CountRequest extends BroadcastOperationRequest {
         }
     }
 
-    @Required public CountRequest query(XContentBuilder builder) {
+    @Required
+    public CountRequest query(XContentBuilder builder) {
         try {
             this.querySource = builder.underlyingBytes();
             this.querySourceOffset = 0;
@@ -203,7 +212,8 @@ public class CountRequest extends BroadcastOperationRequest {
      * The query source to execute. It is preferable to use either {@link #query(byte[])}
      * or {@link #query(org.elasticsearch.index.query.QueryBuilder)}.
      */
-    @Required public CountRequest query(String querySource) {
+    @Required
+    public CountRequest query(String querySource) {
         UnicodeUtil.UTF8Result result = Unicode.fromStringAsUtf8(querySource);
         this.querySource = result.result;
         this.querySourceOffset = 0;
@@ -215,14 +225,16 @@ public class CountRequest extends BroadcastOperationRequest {
     /**
      * The query source to execute.
      */
-    @Required public CountRequest query(byte[] querySource) {
+    @Required
+    public CountRequest query(byte[] querySource) {
         return query(querySource, 0, querySource.length, false);
     }
 
     /**
      * The query source to execute.
      */
-    @Required public CountRequest query(byte[] querySource, int offset, int length, boolean unsafe) {
+    @Required
+    public CountRequest query(byte[] querySource, int offset, int length, boolean unsafe) {
         this.querySource = querySource;
         this.querySourceOffset = offset;
         this.querySourceLength = length;
@@ -268,7 +280,8 @@ public class CountRequest extends BroadcastOperationRequest {
         return this;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         minScore = in.readFloat();
 
@@ -294,7 +307,8 @@ public class CountRequest extends BroadcastOperationRequest {
         }
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeFloat(minScore);
 
@@ -320,7 +334,8 @@ public class CountRequest extends BroadcastOperationRequest {
         }
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return "[" + Arrays.toString(indices) + "]" + Arrays.toString(types) + ", querySource[" + Unicode.fromBytes(querySource) + "]";
     }
 }

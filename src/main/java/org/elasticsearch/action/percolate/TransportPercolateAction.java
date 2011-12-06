@@ -35,44 +35,52 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class TransportPercolateAction extends TransportSingleCustomOperationAction<PercolateRequest, PercolateResponse> {
 
     private final IndicesService indicesService;
 
-    @Inject public TransportPercolateAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                            IndicesService indicesService) {
+    @Inject
+    public TransportPercolateAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
+                                    IndicesService indicesService) {
         super(settings, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
     }
 
-    @Override protected String executor() {
+    @Override
+    protected String executor() {
         return ThreadPool.Names.PERCOLATE;
     }
 
-    @Override protected PercolateRequest newRequest() {
+    @Override
+    protected PercolateRequest newRequest() {
         return new PercolateRequest();
     }
 
-    @Override protected PercolateResponse newResponse() {
+    @Override
+    protected PercolateResponse newResponse() {
         return new PercolateResponse();
     }
 
-    @Override protected String transportAction() {
+    @Override
+    protected String transportAction() {
         return TransportActions.PERCOLATE;
     }
 
-    @Override protected String transportShardAction() {
+    @Override
+    protected String transportShardAction() {
         return "indices/percolate/shard";
     }
 
-    @Override protected ShardsIterator shards(ClusterState clusterState, PercolateRequest request) {
+    @Override
+    protected ShardsIterator shards(ClusterState clusterState, PercolateRequest request) {
         request.index(clusterState.metaData().concreteIndex(request.index()));
         return clusterState.routingTable().index(request.index()).randomAllActiveShardsIt();
     }
 
-    @Override protected PercolateResponse shardOperation(PercolateRequest request, int shardId) throws ElasticSearchException {
+    @Override
+    protected PercolateResponse shardOperation(PercolateRequest request, int shardId) throws ElasticSearchException {
         IndexService indexService = indicesService.indexServiceSafe(request.index());
         PercolatorService percolatorService = indexService.percolateService();
 

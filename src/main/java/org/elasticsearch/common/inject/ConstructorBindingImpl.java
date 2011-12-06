@@ -16,14 +16,8 @@
 
 package org.elasticsearch.common.inject;
 
-import org.elasticsearch.common.collect.ImmutableSet;
-import org.elasticsearch.common.inject.internal.BindingImpl;
-import org.elasticsearch.common.inject.internal.Errors;
-import org.elasticsearch.common.inject.internal.ErrorsException;
-import org.elasticsearch.common.inject.internal.InternalContext;
-import org.elasticsearch.common.inject.internal.InternalFactory;
-import org.elasticsearch.common.inject.internal.Scoping;
-import org.elasticsearch.common.inject.internal.ToStringBuilder;
+import com.google.common.collect.ImmutableSet;
+import org.elasticsearch.common.inject.internal.*;
 import org.elasticsearch.common.inject.spi.BindingTargetVisitor;
 import org.elasticsearch.common.inject.spi.ConstructorBinding;
 import org.elasticsearch.common.inject.spi.Dependency;
@@ -31,7 +25,7 @@ import org.elasticsearch.common.inject.spi.InjectionPoint;
 
 import java.util.Set;
 
-import static org.elasticsearch.common.base.Preconditions.*;
+import static com.google.common.base.Preconditions.checkState;
 
 class ConstructorBindingImpl<T> extends BindingImpl<T> implements ConstructorBinding<T> {
 
@@ -82,7 +76,8 @@ class ConstructorBindingImpl<T> extends BindingImpl<T> implements ConstructorBin
         throw new UnsupportedOperationException("This element represents a synthetic binding.");
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return new ToStringBuilder(ConstructorBinding.class)
                 .add("key", getKey())
                 .add("source", getSource())

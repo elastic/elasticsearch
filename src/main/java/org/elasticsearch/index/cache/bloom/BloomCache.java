@@ -25,7 +25,7 @@ import org.elasticsearch.common.component.CloseableComponent;
 import org.elasticsearch.index.IndexComponent;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public interface BloomCache extends IndexComponent, CloseableComponent {
 

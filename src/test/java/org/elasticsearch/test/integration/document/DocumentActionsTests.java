@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -47,19 +47,21 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.client.Requests.*;
-import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.hamcrest.MatcherAssert.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class DocumentActionsTests extends AbstractNodesTests {
 
     protected Client client1;
     protected Client client2;
 
-    @BeforeClass public void startNodes() {
+    @BeforeClass
+    public void startNodes() {
         startNode("server1");
         startNode("server2");
         client1 = getClient1();
@@ -89,7 +91,8 @@ public class DocumentActionsTests extends AbstractNodesTests {
         return "test";
     }
 
-    @AfterClass public void closeNodes() {
+    @AfterClass
+    public void closeNodes() {
         client1.close();
         client2.close();
         closeAllNodes();
@@ -103,7 +106,8 @@ public class DocumentActionsTests extends AbstractNodesTests {
         return client("server2");
     }
 
-    @Test public void testIndexActions() throws Exception {
+    @Test
+    public void testIndexActions() throws Exception {
         createIndex();
         logger.info("Running Cluster Health");
         ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
@@ -257,7 +261,8 @@ public class DocumentActionsTests extends AbstractNodesTests {
         }
     }
 
-    @Test public void testBulk() throws Exception {
+    @Test
+    public void testBulk() throws Exception {
         createIndex();
         logger.info("-> running Cluster Health");
         ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();

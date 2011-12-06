@@ -44,10 +44,10 @@ import org.elasticsearch.threadpool.ThreadPoolModule;
 
 import java.util.concurrent.CountDownLatch;
 
-import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class EmbeddedPercolatorBenchmarkTest {
 
@@ -74,7 +74,8 @@ public class EmbeddedPercolatorBenchmarkTest {
                 new IndexQueryParserModule(settings),
                 new IndexNameModule(index),
                 new AbstractModule() {
-                    @Override protected void configure() {
+                    @Override
+                    protected void configure() {
                         bind(PercolatorExecutor.class).asEagerSingleton();
                     }
                 }
@@ -109,7 +110,8 @@ public class EmbeddedPercolatorBenchmarkTest {
         Thread[] threads = new Thread[NUMBER_OF_THREADS];
         for (int i = 0; i < threads.length; i++) {
             threads[i] = new Thread(new Runnable() {
-                @Override public void run() {
+                @Override
+                public void run() {
                     for (long i = 0; i < NUMBER_OF_ITERATIONS; i++) {
                         PercolatorExecutor.Response percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest("type1", source));
                     }

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -34,10 +34,10 @@ import org.elasticsearch.jmx.ManagedAttribute;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.IndexServiceManagement.*;
+import static org.elasticsearch.index.IndexServiceManagement.buildIndexGroupName;
 
 /**
- * @author kimchy (Shay Banon)
+ *
  */
 @MBean(objectName = "", description = "")
 public class IndexShardManagement extends AbstractIndexShardComponent implements CloseableComponent {
@@ -54,8 +54,9 @@ public class IndexShardManagement extends AbstractIndexShardComponent implements
 
     private final Translog translog;
 
-    @Inject public IndexShardManagement(ShardId shardId, @IndexSettings Settings indexSettings, JmxService jmxService, IndexShard indexShard,
-                                        Store store, Translog translog) {
+    @Inject
+    public IndexShardManagement(ShardId shardId, @IndexSettings Settings indexSettings, JmxService jmxService, IndexShard indexShard,
+                                Store store, Translog translog) {
         super(shardId, indexSettings);
         this.jmxService = jmxService;
         this.indexShard = indexShard;

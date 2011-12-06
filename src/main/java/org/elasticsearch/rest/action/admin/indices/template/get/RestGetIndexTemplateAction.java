@@ -39,25 +39,27 @@ import org.elasticsearch.rest.action.support.RestXContentBuilder;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.rest.RestRequest.Method.*;
-import static org.elasticsearch.rest.RestStatus.*;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class RestGetIndexTemplateAction extends BaseRestHandler {
 
     private final SettingsFilter settingsFilter;
 
-    @Inject public RestGetIndexTemplateAction(Settings settings, Client client, RestController controller,
-                                              SettingsFilter settingsFilter) {
+    @Inject
+    public RestGetIndexTemplateAction(Settings settings, Client client, RestController controller,
+                                      SettingsFilter settingsFilter) {
         super(settings, client);
         this.settingsFilter = settingsFilter;
 
         controller.registerHandler(GET, "/_template/{name}", this);
     }
 
-    @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
+    @Override
+    public void handleRequest(final RestRequest request, final RestChannel channel) {
         ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest()
                 .filterRoutingTable(true)
                 .filterNodes(true)
@@ -65,7 +67,8 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
                 .filteredIndices("_na");
 
         client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
-            @Override public void onResponse(ClusterStateResponse response) {
+            @Override
+            public void onResponse(ClusterStateResponse response) {
                 try {
                     MetaData metaData = response.state().metaData();
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
@@ -109,7 +112,8 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
                 }
             }
 
-            @Override public void onFailure(Throwable e) {
+            @Override
+            public void onFailure(Throwable e) {
                 try {
                     channel.sendResponse(new XContentThrowableRestResponse(request, e));
                 } catch (IOException e1) {

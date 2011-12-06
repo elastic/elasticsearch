@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,12 +19,12 @@
 
 package org.elasticsearch.index.cache.filter.support;
 
+import com.googlecode.concurrentlinkedhashmap.EvictionListener;
+import com.googlecode.concurrentlinkedhashmap.Weigher;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.common.concurrentlinkedhashmap.EvictionListener;
-import org.elasticsearch.common.concurrentlinkedhashmap.Weigher;
 import org.elasticsearch.common.lucene.docset.DocSet;
 import org.elasticsearch.common.lucene.search.NoCacheFilter;
 import org.elasticsearch.common.metrics.CounterMetric;
@@ -53,11 +53,13 @@ public abstract class AbstractWeightedFilterCache extends AbstractIndexComponent
 
     protected abstract ConcurrentMap<FilterCacheKey, FilterCacheValue<DocSet>> cache();
 
-    @Override public void close() throws ElasticSearchException {
+    @Override
+    public void close() throws ElasticSearchException {
         clear();
     }
 
-    @Override public void clear() {
+    @Override
+    public void clear() {
         for (Object readerKey : seenReaders.keySet()) {
             Boolean removed = seenReaders.remove(readerKey);
             if (removed == null) {
@@ -76,11 +78,13 @@ public abstract class AbstractWeightedFilterCache extends AbstractIndexComponent
         }
     }
 
-    @Override public void finished(IndexReader reader) {
+    @Override
+    public void finished(IndexReader reader) {
         clear(reader);
     }
 
-    @Override public void clear(IndexReader reader) {
+    @Override
+    public void clear(IndexReader reader) {
         // we add the seen reader before we add the first cache entry for this reader
         // so, if we don't see it here, its won't be in the cache
         Boolean removed = seenReaders.remove(reader.getCoreCacheKey());
@@ -99,16 +103,19 @@ public abstract class AbstractWeightedFilterCache extends AbstractIndexComponent
         }
     }
 
-    @Override public EntriesStats entriesStats() {
+    @Override
+    public EntriesStats entriesStats() {
         long seenReadersCount = this.seenReadersCount.count();
         return new EntriesStats(totalMetric.sum(), seenReadersCount == 0 ? 0 : totalMetric.count() / seenReadersCount);
     }
 
-    @Override public long evictions() {
+    @Override
+    public long evictions() {
         return evictionsMetric.count();
     }
 
-    @Override public Filter cache(Filter filterToCache) {
+    @Override
+    public Filter cache(Filter filterToCache) {
         if (filterToCache instanceof NoCacheFilter) {
             return filterToCache;
         }
@@ -118,7 +125,8 @@ public abstract class AbstractWeightedFilterCache extends AbstractIndexComponent
         return new FilterCacheFilterWrapper(filterToCache, this);
     }
 
-    @Override public boolean isCached(Filter filter) {
+    @Override
+    public boolean isCached(Filter filter) {
         return filter instanceof FilterCacheFilterWrapper;
     }
 
@@ -133,7 +141,8 @@ public abstract class AbstractWeightedFilterCache extends AbstractIndexComponent
             this.cache = cache;
         }
 
-        @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
+        @Override
+        public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
             Object filterKey = filter;
             if (filter instanceof CacheKeyFilter) {
                 filterKey = ((CacheKeyFilter) filter).cacheKey();
@@ -183,13 +192,15 @@ public abstract class AbstractWeightedFilterCache extends AbstractIndexComponent
 
         public static final long FACTOR = 10l;
 
-        @Override public int weightOf(FilterCacheValue<DocSet> value) {
+        @Override
+        public int weightOf(FilterCacheValue<DocSet> value) {
             int weight = (int) Math.min(value.value().sizeInBytes() / 10, Integer.MAX_VALUE);
             return weight == 0 ? 1 : weight;
         }
     }
 
-    @Override public void onEviction(FilterCacheKey filterCacheKey, FilterCacheValue<DocSet> docSetFilterCacheValue) {
+    @Override
+    public void onEviction(FilterCacheKey filterCacheKey, FilterCacheValue<DocSet> docSetFilterCacheValue) {
         if (filterCacheKey != null) {
             if (seenReaders.containsKey(filterCacheKey.readerKey())) {
                 evictionsMetric.inc();
@@ -217,14 +228,16 @@ public abstract class AbstractWeightedFilterCache extends AbstractIndexComponent
             return filterKey;
         }
 
-        @Override public boolean equals(Object o) {
+        @Override
+        public boolean equals(Object o) {
             if (this == o) return true;
 //            if (o == null || getClass() != o.getClass()) return false;
             FilterCacheKey that = (FilterCacheKey) o;
             return (readerKey == that.readerKey && filterKey.equals(that.filterKey));
         }
 
-        @Override public int hashCode() {
+        @Override
+        public int hashCode() {
             return readerKey.hashCode() + 31 * filterKey.hashCode();
         }
     }

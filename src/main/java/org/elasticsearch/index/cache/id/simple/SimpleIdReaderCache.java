@@ -19,13 +19,13 @@
 
 package org.elasticsearch.index.cache.id.simple;
 
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.BytesWrap;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.index.cache.id.IdReaderCache;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class SimpleIdReaderCache implements IdReaderCache {
 
@@ -38,15 +38,18 @@ public class SimpleIdReaderCache implements IdReaderCache {
         this.types = types;
     }
 
-    @Override public Object readerCacheKey() {
+    @Override
+    public Object readerCacheKey() {
         return this.readerCacheKey;
     }
 
-    @Override public IdReaderTypeCache type(String type) {
+    @Override
+    public IdReaderTypeCache type(String type) {
         return types.get(type);
     }
 
-    @Override public BytesWrap parentIdByDoc(String type, int docId) {
+    @Override
+    public BytesWrap parentIdByDoc(String type, int docId) {
         SimpleIdReaderTypeCache typeCache = types.get(type);
         if (typeCache != null) {
             return typeCache.parentIdByDoc(docId);
@@ -54,7 +57,8 @@ public class SimpleIdReaderCache implements IdReaderCache {
         return null;
     }
 
-    @Override public int docById(String type, BytesWrap id) {
+    @Override
+    public int docById(String type, BytesWrap id) {
         SimpleIdReaderTypeCache typeCache = types.get(type);
         if (typeCache != null) {
             return typeCache.docById(id);

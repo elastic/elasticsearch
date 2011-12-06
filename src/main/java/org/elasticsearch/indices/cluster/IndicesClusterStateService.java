@@ -19,28 +19,20 @@
 
 package org.elasticsearch.indices.cluster;
 
+import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.action.index.NodeAliasesUpdatedAction;
-import org.elasticsearch.cluster.action.index.NodeIndexCreatedAction;
-import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
-import org.elasticsearch.cluster.action.index.NodeMappingCreatedAction;
-import org.elasticsearch.cluster.action.index.NodeMappingRefreshAction;
+import org.elasticsearch.cluster.action.index.*;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.MutableShardRouting;
-import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.compress.CompressedString;
@@ -73,11 +65,11 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
-import static org.elasticsearch.ExceptionsHelper.*;
-import static org.elasticsearch.common.collect.Sets.*;
+import static com.google.common.collect.Sets.newHashSet;
+import static org.elasticsearch.ExceptionsHelper.detailedMessage;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class IndicesClusterStateService extends AbstractLifecycleComponent<IndicesClusterStateService> implements ClusterStateListener {
 
@@ -109,12 +101,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
 
     private final FailedEngineHandler failedEngineHandler = new FailedEngineHandler();
 
-    @Inject public IndicesClusterStateService(Settings settings, IndicesService indicesService, ClusterService clusterService,
-                                              ThreadPool threadPool, RecoveryTarget recoveryTarget,
-                                              ShardStateAction shardStateAction,
-                                              NodeIndexCreatedAction nodeIndexCreatedAction, NodeIndexDeletedAction nodeIndexDeletedAction,
-                                              NodeMappingCreatedAction nodeMappingCreatedAction, NodeMappingRefreshAction nodeMappingRefreshAction,
-                                              NodeAliasesUpdatedAction nodeAliasesUpdatedAction) {
+    @Inject
+    public IndicesClusterStateService(Settings settings, IndicesService indicesService, ClusterService clusterService,
+                                      ThreadPool threadPool, RecoveryTarget recoveryTarget,
+                                      ShardStateAction shardStateAction,
+                                      NodeIndexCreatedAction nodeIndexCreatedAction, NodeIndexDeletedAction nodeIndexDeletedAction,
+                                      NodeMappingCreatedAction nodeMappingCreatedAction, NodeMappingRefreshAction nodeMappingRefreshAction,
+                                      NodeAliasesUpdatedAction nodeAliasesUpdatedAction) {
         super(settings);
         this.indicesService = indicesService;
         this.clusterService = clusterService;
@@ -128,18 +121,22 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         this.nodeAliasesUpdatedAction = nodeAliasesUpdatedAction;
     }
 
-    @Override protected void doStart() throws ElasticSearchException {
+    @Override
+    protected void doStart() throws ElasticSearchException {
         clusterService.add(this);
     }
 
-    @Override protected void doStop() throws ElasticSearchException {
+    @Override
+    protected void doStop() throws ElasticSearchException {
         clusterService.remove(this);
     }
 
-    @Override protected void doClose() throws ElasticSearchException {
+    @Override
+    protected void doClose() throws ElasticSearchException {
     }
 
-    @Override public void clusterChanged(final ClusterChangedEvent event) {
+    @Override
+    public void clusterChanged(final ClusterChangedEvent event) {
         if (!indicesService.changesAllowed())
             return;
 
@@ -592,14 +589,17 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 boolean indexShouldExists = indexShardRouting.allocatedPostApi();
                 IndexShardGatewayService shardGatewayService = indexService.shardInjector(shardId).getInstance(IndexShardGatewayService.class);
                 shardGatewayService.recover(indexShouldExists, new IndexShardGatewayService.RecoveryListener() {
-                    @Override public void onRecoveryDone() {
+                    @Override
+                    public void onRecoveryDone() {
                         shardStateAction.shardStarted(shardRouting, "after recovery from gateway");
                     }
 
-                    @Override public void onIgnoreRecovery(String reason) {
+                    @Override
+                    public void onIgnoreRecovery(String reason) {
                     }
 
-                    @Override public void onRecoveryFailed(IndexShardGatewayRecoveryException e) {
+                    @Override
+                    public void onRecoveryFailed(IndexShardGatewayRecoveryException e) {
                         handleRecoveryFailure(indexService, shardRouting, true, e);
                     }
                 });
@@ -632,19 +632,23 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             this.indexService = indexService;
         }
 
-        @Override public void onRecoveryDone() {
+        @Override
+        public void onRecoveryDone() {
             shardStateAction.shardStarted(shardRouting, "after recovery (replica) from node [" + request.sourceNode() + "]");
         }
 
-        @Override public void onRetryRecovery(TimeValue retryAfter) {
+        @Override
+        public void onRetryRecovery(TimeValue retryAfter) {
             threadPool.schedule(retryAfter, ThreadPool.Names.CACHED, new Runnable() {
-                @Override public void run() {
+                @Override
+                public void run() {
                     recoveryTarget.startRecovery(request, true, PeerRecoveryListener.this);
                 }
             });
         }
 
-        @Override public void onIgnoreRecovery(boolean removeShard, String reason) {
+        @Override
+        public void onIgnoreRecovery(boolean removeShard, String reason) {
             if (!removeShard) {
                 return;
             }
@@ -664,7 +668,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             }
         }
 
-        @Override public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+        @Override
+        public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
             handleRecoveryFailure(indexService, shardRouting, sendShardFailure, e);
         }
     }
@@ -692,7 +697,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     }
 
     private class FailedEngineHandler implements Engine.FailedEngineListener {
-        @Override public void onFailedEngine(final ShardId shardId, final Throwable failure) {
+        @Override
+        public void onFailedEngine(final ShardId shardId, final Throwable failure) {
             ShardRouting shardRouting = null;
             final IndexService indexService = indicesService.indexService(shardId.index().name());
             if (indexService != null) {
@@ -707,7 +713,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             }
             final ShardRouting fShardRouting = shardRouting;
             threadPool.cached().execute(new Runnable() {
-                @Override public void run() {
+                @Override
+                public void run() {
                     synchronized (mutex) {
                         if (indexService.hasShard(shardId.id())) {
                             try {

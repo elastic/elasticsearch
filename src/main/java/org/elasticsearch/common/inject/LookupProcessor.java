@@ -33,7 +33,8 @@ class LookupProcessor extends AbstractProcessor {
         super(errors);
     }
 
-    @Override public <T> Boolean visit(MembersInjectorLookup<T> lookup) {
+    @Override
+    public <T> Boolean visit(MembersInjectorLookup<T> lookup) {
         try {
             MembersInjector<T> membersInjector
                     = injector.membersInjectorStore.get(lookup.getType(), errors);
@@ -45,7 +46,8 @@ class LookupProcessor extends AbstractProcessor {
         return true;
     }
 
-    @Override public <T> Boolean visit(ProviderLookup<T> lookup) {
+    @Override
+    public <T> Boolean visit(ProviderLookup<T> lookup) {
         // ensure the provider can be created
         try {
             Provider<T> provider = injector.getProviderOrThrow(lookup.getKey(), errors);

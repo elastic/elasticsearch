@@ -25,7 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.cache.bloom.simple.SimpleBloomCache;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class BloomCacheModule extends AbstractModule {
 
@@ -39,7 +39,8 @@ public class BloomCacheModule extends AbstractModule {
         this.settings = settings;
     }
 
-    @Override protected void configure() {
+    @Override
+    protected void configure() {
         bind(BloomCache.class)
                 .to(settings.getAsClass(BloomCacheSettings.TYPE, SimpleBloomCache.class, "org.elasticsearch.index.cache.bloom.", "BloomCache"))
                 .in(Scopes.SINGLETON);

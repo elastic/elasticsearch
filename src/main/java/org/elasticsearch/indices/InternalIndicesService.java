@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,30 +19,21 @@
 
 package org.elasticsearch.indices;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.UnmodifiableIterator;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.ImmutableSet;
-import org.elasticsearch.common.collect.UnmodifiableIterator;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.CreationException;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.common.inject.Injectors;
-import org.elasticsearch.common.inject.ModulesBuilder;
+import org.elasticsearch.common.inject.*;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.Gateway;
-import org.elasticsearch.index.CloseableIndexComponent;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.index.IndexNameModule;
-import org.elasticsearch.index.IndexServiceManagement;
-import org.elasticsearch.index.LocalNodeIdModule;
+import org.elasticsearch.index.*;
 import org.elasticsearch.index.aliases.IndexAliasesServiceModule;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -89,14 +80,15 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
-import static org.elasticsearch.common.collect.MapBuilder.*;
-import static org.elasticsearch.common.collect.Maps.*;
-import static org.elasticsearch.common.collect.Sets.*;
-import static org.elasticsearch.common.settings.ImmutableSettings.*;
+import static com.google.common.collect.Maps.newHashMap;
+import static com.google.common.collect.Sets.newHashSet;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 @ThreadSafe
 public class InternalIndicesService extends AbstractLifecycleComponent<IndicesService> implements IndicesService {
@@ -121,7 +113,8 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
 
     private final OldShardsStats oldShardsStats = new OldShardsStats();
 
-    @Inject public InternalIndicesService(Settings settings, NodeEnvironment nodeEnv, ThreadPool threadPool, IndicesLifecycle indicesLifecycle, IndicesAnalysisService indicesAnalysisService, IndicesStore indicesStore, Injector injector) {
+    @Inject
+    public InternalIndicesService(Settings settings, NodeEnvironment nodeEnv, ThreadPool threadPool, IndicesLifecycle indicesLifecycle, IndicesAnalysisService indicesAnalysisService, IndicesStore indicesStore, Injector injector) {
         super(settings);
         this.nodeEnv = nodeEnv;
         this.threadPool = threadPool;
@@ -135,10 +128,12 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         this.indicesLifecycle.addListener(oldShardsStats);
     }
 
-    @Override protected void doStart() throws ElasticSearchException {
+    @Override
+    protected void doStart() throws ElasticSearchException {
     }
 
-    @Override protected void doStop() throws ElasticSearchException {
+    @Override
+    protected void doStop() throws ElasticSearchException {
         ImmutableSet<String> indices = ImmutableSet.copyOf(this.indices.keySet());
         final CountDownLatch latch = new CountDownLatch(indices.size());
 
@@ -147,7 +142,8 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
 
         for (final String index : indices) {
             indicesStopExecutor.execute(new Runnable() {
-                @Override public void run() {
+                @Override
+                public void run() {
                     try {
                         deleteIndex(index, false, "shutdown", shardsStopExecutor);
                     } catch (Exception e) {
@@ -168,17 +164,20 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         }
     }
 
-    @Override protected void doClose() throws ElasticSearchException {
+    @Override
+    protected void doClose() throws ElasticSearchException {
         injector.getInstance(RecoverySettings.class).close();
         indicesStore.close();
         indicesAnalysisService.close();
     }
 
-    @Override public IndicesLifecycle indicesLifecycle() {
+    @Override
+    public IndicesLifecycle indicesLifecycle() {
         return this.indicesLifecycle;
     }
 
-    @Override public NodeIndicesStats stats(boolean includePrevious) {
+    @Override
+    public NodeIndicesStats stats(boolean includePrevious) {
         DocsStats docsStats = new DocsStats();
         StoreStats storeStats = new StoreStats();
         IndexingStats indexingStats = new IndexingStats();
@@ -222,7 +221,8 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         return lifecycle.started();
     }
 
-    @Override public UnmodifiableIterator<IndexService> iterator() {
+    @Override
+    public UnmodifiableIterator<IndexService> iterator() {
         return indices.values().iterator();
     }
 
@@ -238,7 +238,8 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         return indices.get(index);
     }
 
-    @Override public IndexService indexServiceSafe(String index) throws IndexMissingException {
+    @Override
+    public IndexService indexServiceSafe(String index) throws IndexMissingException {
         IndexService indexService = indexService(index);
         if (indexService == null) {
             throw new IndexMissingException(new Index(index));
@@ -301,11 +302,13 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         return indexService;
     }
 
-    @Override public synchronized void cleanIndex(String index, String reason) throws ElasticSearchException {
+    @Override
+    public synchronized void cleanIndex(String index, String reason) throws ElasticSearchException {
         deleteIndex(index, false, reason, null);
     }
 
-    @Override public synchronized void deleteIndex(String index, String reason) throws ElasticSearchException {
+    @Override
+    public synchronized void deleteIndex(String index, String reason) throws ElasticSearchException {
         deleteIndex(index, true, reason, null);
     }
 
@@ -365,7 +368,8 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         final RefreshStats refreshStats = new RefreshStats();
         final FlushStats flushStats = new FlushStats();
 
-        @Override public synchronized void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, boolean delete) {
+        @Override
+        public synchronized void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, boolean delete) {
             if (indexShard != null) {
                 getStats.add(indexShard.getStats());
                 indexingStats.add(indexShard.indexingStats(), false);

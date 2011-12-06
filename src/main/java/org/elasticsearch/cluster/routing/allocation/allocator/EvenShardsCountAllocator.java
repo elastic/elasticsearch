@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import gnu.trove.map.hash.TObjectIntHashMap;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -29,30 +30,34 @@ import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.trove.map.hash.TObjectIntHashMap;
 
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 
-import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 
 /**
  */
 public class EvenShardsCountAllocator extends AbstractComponent implements ShardsAllocator {
 
-    @Inject public EvenShardsCountAllocator(Settings settings) {
+    @Inject
+    public EvenShardsCountAllocator(Settings settings) {
         super(settings);
     }
 
-    @Override public void applyStartedShards(StartedRerouteAllocation allocation) {
+    @Override
+    public void applyStartedShards(StartedRerouteAllocation allocation) {
     }
 
-    @Override public void applyFailedShards(FailedRerouteAllocation allocation) {
+    @Override
+    public void applyFailedShards(FailedRerouteAllocation allocation) {
     }
 
-    @Override public boolean allocateUnassigned(RoutingAllocation allocation) {
+    @Override
+    public boolean allocateUnassigned(RoutingAllocation allocation) {
         boolean changed = false;
         RoutingNodes routingNodes = allocation.routingNodes();
 
@@ -102,7 +107,8 @@ public class EvenShardsCountAllocator extends AbstractComponent implements Shard
         return changed;
     }
 
-    @Override public boolean rebalance(RoutingAllocation allocation) {
+    @Override
+    public boolean rebalance(RoutingAllocation allocation) {
         boolean changed = false;
         RoutingNode[] sortedNodesLeastToHigh = sortedNodesLeastToHigh(allocation);
         if (sortedNodesLeastToHigh.length == 0) {
@@ -157,7 +163,8 @@ public class EvenShardsCountAllocator extends AbstractComponent implements Shard
         return changed;
     }
 
-    @Override public boolean move(MutableShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+    @Override
+    public boolean move(MutableShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         assert shardRouting.started();
         boolean changed = false;
         RoutingNode[] sortedNodesLeastToHigh = sortedNodesLeastToHigh(allocation);
@@ -196,7 +203,8 @@ public class EvenShardsCountAllocator extends AbstractComponent implements Shard
         }
         RoutingNode[] nodes = allocation.routingNodes().nodesToShards().values().toArray(new RoutingNode[allocation.routingNodes().nodesToShards().values().size()]);
         Arrays.sort(nodes, new Comparator<RoutingNode>() {
-            @Override public int compare(RoutingNode o1, RoutingNode o2) {
+            @Override
+            public int compare(RoutingNode o1, RoutingNode o2) {
                 return nodeCounts.get(o1.nodeId()) - nodeCounts.get(o2.nodeId());
             }
         });

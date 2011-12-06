@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -31,7 +31,7 @@ import java.io.Reader;
  * Named analyzer is an analyzer wrapper around an actual analyzer ({@link #analyzer} that is associated
  * with a name ({@link #name()}.
  *
- * @author kimchy (shay.banon)
+ *
  */
 @Immutable
 public final class NamedAnalyzer extends Analyzer {
@@ -73,27 +73,33 @@ public final class NamedAnalyzer extends Analyzer {
         return this.analyzer;
     }
 
-    @Override public final TokenStream tokenStream(String fieldName, Reader reader) {
+    @Override
+    public final TokenStream tokenStream(String fieldName, Reader reader) {
         return analyzer.tokenStream(fieldName, reader);
     }
 
-    @Override public final TokenStream reusableTokenStream(String fieldName, Reader reader) throws IOException {
+    @Override
+    public final TokenStream reusableTokenStream(String fieldName, Reader reader) throws IOException {
         return analyzer.reusableTokenStream(fieldName, reader);
     }
 
-    @Override public int getPositionIncrementGap(String fieldName) {
+    @Override
+    public int getPositionIncrementGap(String fieldName) {
         return analyzer.getPositionIncrementGap(fieldName);
     }
 
-    @Override public int getOffsetGap(Fieldable field) {
+    @Override
+    public int getOffsetGap(Fieldable field) {
         return analyzer.getOffsetGap(field);
     }
 
-    @Override public void close() {
+    @Override
+    public void close() {
         analyzer.close();
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return "analyzer name[" + name + "], analyzer [" + analyzer + "]";
     }
 }

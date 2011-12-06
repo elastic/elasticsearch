@@ -25,7 +25,7 @@ import org.elasticsearch.common.inject.spi.InstanceBinding;
 import java.lang.annotation.Annotation;
 import java.util.List;
 
-import static org.elasticsearch.common.base.Preconditions.*;
+import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
  * Bind a value or constant.

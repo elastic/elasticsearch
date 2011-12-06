@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,30 +19,18 @@
 
 package org.elasticsearch.gateway.blobstore;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetaData;
-import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.blobstore.ImmutableBlobContainer;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.blobstore.*;
 import org.elasticsearch.common.compress.lzf.LZF;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
-import org.elasticsearch.common.io.stream.CachedStreamInput;
-import org.elasticsearch.common.io.stream.CachedStreamOutput;
-import org.elasticsearch.common.io.stream.LZFStreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.*;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.gateway.GatewayException;
 import org.elasticsearch.gateway.shared.SharedStorageGateway;
 import org.elasticsearch.index.gateway.CommitPoint;
@@ -55,7 +43,7 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public abstract class BlobStoreGateway extends SharedStorageGateway {
 
@@ -85,7 +73,8 @@ public abstract class BlobStoreGateway extends SharedStorageGateway {
         logger.debug("Latest metadata found at index [" + currentIndex + "]");
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return type() + "://" + blobStore + "/" + basePath;
     }
 
@@ -101,11 +90,13 @@ public abstract class BlobStoreGateway extends SharedStorageGateway {
         return this.chunkSize;
     }
 
-    @Override public void reset() throws Exception {
+    @Override
+    public void reset() throws Exception {
         blobStore.delete(BlobPath.cleanPath());
     }
 
-    @Override public MetaData read() throws GatewayException {
+    @Override
+    public MetaData read() throws GatewayException {
         try {
             this.currentIndex = findLatestIndex();
         } catch (IOException e) {
@@ -149,7 +140,8 @@ public abstract class BlobStoreGateway extends SharedStorageGateway {
     }
 
 
-    @Override public void write(MetaData metaData) throws GatewayException {
+    @Override
+    public void write(MetaData metaData) throws GatewayException {
         final String newMetaData = "metadata-" + (currentIndex + 1);
         CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
         try {
@@ -175,7 +167,8 @@ public abstract class BlobStoreGateway extends SharedStorageGateway {
 
         try {
             metaDataBlobContainer.deleteBlobsByFilter(new BlobContainer.BlobNameFilter() {
-                @Override public boolean accept(String blobName) {
+                @Override
+                public boolean accept(String blobName) {
                     return blobName.startsWith("metadata-") && !newMetaData.equals(blobName);
                 }
             });

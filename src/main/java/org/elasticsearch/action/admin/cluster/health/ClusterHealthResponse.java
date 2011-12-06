@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.admin.cluster.health;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Maps;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -30,11 +30,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.action.admin.cluster.health.ClusterIndexHealth.*;
-import static org.elasticsearch.common.collect.Lists.*;
+import static com.google.common.collect.Lists.newArrayList;
+import static org.elasticsearch.action.admin.cluster.health.ClusterIndexHealth.readClusterIndexHealth;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class ClusterHealthResponse implements ActionResponse, Iterable<ClusterIndexHealth> {
 
@@ -194,11 +194,13 @@ public class ClusterHealthResponse implements ActionResponse, Iterable<ClusterIn
         return indices();
     }
 
-    @Override public Iterator<ClusterIndexHealth> iterator() {
+    @Override
+    public Iterator<ClusterIndexHealth> iterator() {
         return indices.values().iterator();
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         clusterName = in.readUTF();
         activePrimaryShards = in.readVInt();
         activeShards = in.readVInt();
@@ -224,7 +226,8 @@ public class ClusterHealthResponse implements ActionResponse, Iterable<ClusterIn
         }
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(clusterName);
         out.writeVInt(activePrimaryShards);
         out.writeVInt(activeShards);

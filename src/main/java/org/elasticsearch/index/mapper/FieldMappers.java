@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.collect.UnmodifiableIterator;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterators;
+import com.google.common.collect.UnmodifiableIterator;
 import org.elasticsearch.common.util.concurrent.Immutable;
 
 import java.util.List;
@@ -29,7 +29,7 @@ import java.util.List;
 /**
  * A holder for several {@link FieldMapper}.
  *
- * @author kimchy (Shay Banon)
+ *
  */
 @Immutable
 public class FieldMappers implements Iterable<FieldMapper> {
@@ -70,7 +70,8 @@ public class FieldMappers implements Iterable<FieldMapper> {
         return this.fieldMappers;
     }
 
-    @Override public UnmodifiableIterator<FieldMapper> iterator() {
+    @Override
+    public UnmodifiableIterator<FieldMapper> iterator() {
         return fieldMappers.iterator();
     }
 

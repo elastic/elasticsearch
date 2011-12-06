@@ -23,25 +23,26 @@ import org.elasticsearch.common.inject.internal.ToStringBuilder;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
 
-import static org.elasticsearch.common.base.Preconditions.*;
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
  * Binding key consisting of an injection type and an optional annotation.
  * Matches the type and annotation at a point of injection.
- *
+ * <p/>
  * <p>For example, {@code Key.get(Service.class, Transactional.class)} will
  * match:
- *
+ * <p/>
  * <pre>
  *   {@literal @}Inject
  *   public void setService({@literal @}Transactional Service service) {
  *     ...
  *   }
  * </pre>
- *
+ * <p/>
  * <p>{@code Key} supports generic types via subclassing just like {@link
  * TypeLiteral}.
- *
+ * <p/>
  * <p>Keys do not differentiate between primitive types (int, char, etc.) and
  * their correpsonding wrapper types (Integer, Character, etc.). Primitive
  * types will be replaced with their wrapper types when keys are created.
@@ -57,14 +58,14 @@ public class Key<T> {
 
     /**
      * Constructs a new key. Derives the type from this class's type parameter.
-     *
+     * <p/>
      * <p>Clients create an empty anonymous subclass. Doing so embeds the type
      * parameter in the anonymous class's type hierarchy so we can reconstitute it
      * at runtime despite erasure.
-     *
+     * <p/>
      * <p>Example usage for a binding of type {@code Foo} annotated with
      * {@code @Bar}:
-     *
+     * <p/>
      * <p>{@code new Key<Foo>(Bar.class) {}}.
      */
     @SuppressWarnings("unchecked")
@@ -76,14 +77,14 @@ public class Key<T> {
 
     /**
      * Constructs a new key. Derives the type from this class's type parameter.
-     *
+     * <p/>
      * <p>Clients create an empty anonymous subclass. Doing so embeds the type
      * parameter in the anonymous class's type hierarchy so we can reconstitute it
      * at runtime despite erasure.
-     *
+     * <p/>
      * <p>Example usage for a binding of type {@code Foo} annotated with
      * {@code @Bar}:
-     *
+     * <p/>
      * <p>{@code new Key<Foo>(new Bar()) {}}.
      */
     @SuppressWarnings("unchecked")
@@ -96,13 +97,13 @@ public class Key<T> {
 
     /**
      * Constructs a new key. Derives the type from this class's type parameter.
-     *
+     * <p/>
      * <p>Clients create an empty anonymous subclass. Doing so embeds the type
      * parameter in the anonymous class's type hierarchy so we can reconstitute it
      * at runtime despite erasure.
-     *
+     * <p/>
      * <p>Example usage for a binding of type {@code Foo}:
-     *
+     * <p/>
      * <p>{@code new Key<Foo>() {}}.
      */
     @SuppressWarnings("unchecked")
@@ -181,7 +182,8 @@ public class Key<T> {
         return ofType(typeLiteral.providerType());
     }
 
-    @Override public final boolean equals(Object o) {
+    @Override
+    public final boolean equals(Object o) {
         if (o == this) {
             return true;
         }
@@ -193,11 +195,13 @@ public class Key<T> {
                 && typeLiteral.equals(other.typeLiteral);
     }
 
-    @Override public final int hashCode() {
+    @Override
+    public final int hashCode() {
         return this.hashCode;
     }
 
-    @Override public final String toString() {
+    @Override
+    public final String toString() {
         return new ToStringBuilder(Key.class)
                 .add("type", typeLiteral)
                 .add("annotation", annotationStrategy)
@@ -394,7 +398,8 @@ public class Key<T> {
             return null;
         }
 
-        @Override public String toString() {
+        @Override
+        public String toString() {
             return "[none]";
         }
     }
@@ -424,7 +429,8 @@ public class Key<T> {
             return annotation.annotationType();
         }
 
-        @Override public boolean equals(Object o) {
+        @Override
+        public boolean equals(Object o) {
             if (!(o instanceof AnnotationInstanceStrategy)) {
                 return false;
             }
@@ -433,11 +439,13 @@ public class Key<T> {
             return annotation.equals(other.annotation);
         }
 
-        @Override public int hashCode() {
+        @Override
+        public int hashCode() {
             return annotation.hashCode();
         }
 
-        @Override public String toString() {
+        @Override
+        public String toString() {
             return annotation.toString();
         }
     }
@@ -471,7 +479,8 @@ public class Key<T> {
             return annotationType;
         }
 
-        @Override public boolean equals(Object o) {
+        @Override
+        public boolean equals(Object o) {
             if (!(o instanceof AnnotationTypeStrategy)) {
                 return false;
             }
@@ -480,11 +489,13 @@ public class Key<T> {
             return annotationType.equals(other.annotationType);
         }
 
-        @Override public int hashCode() {
+        @Override
+        public int hashCode() {
             return annotationType.hashCode();
         }
 
-        @Override public String toString() {
+        @Override
+        public String toString() {
             return "@" + annotationType.getName();
         }
     }

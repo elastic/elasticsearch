@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -32,24 +32,27 @@ import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.unit.TimeValue.*;
-import static org.elasticsearch.rest.RestStatus.*;
+import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class RestCloseIndexAction extends BaseRestHandler {
 
-    @Inject public RestCloseIndexAction(Settings settings, Client client, RestController controller) {
+    @Inject
+    public RestCloseIndexAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
         controller.registerHandler(RestRequest.Method.POST, "/{index}/_close", this);
     }
 
-    @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
+    @Override
+    public void handleRequest(final RestRequest request, final RestChannel channel) {
         CloseIndexRequest closeIndexRequest = new CloseIndexRequest(request.param("index"));
         closeIndexRequest.timeout(request.paramAsTime("timeout", timeValueSeconds(10)));
         client.admin().indices().close(closeIndexRequest, new ActionListener<CloseIndexResponse>() {
-            @Override public void onResponse(CloseIndexResponse response) {
+            @Override
+            public void onResponse(CloseIndexResponse response) {
                 try {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject()
@@ -62,7 +65,8 @@ public class RestCloseIndexAction extends BaseRestHandler {
                 }
             }
 
-            @Override public void onFailure(Throwable e) {
+            @Override
+            public void onFailure(Throwable e) {
                 try {
                     channel.sendResponse(new XContentThrowableRestResponse(request, e));
                 } catch (IOException e1) {

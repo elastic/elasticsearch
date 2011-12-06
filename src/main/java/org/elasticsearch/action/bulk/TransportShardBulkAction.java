@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -56,57 +56,68 @@ import java.io.IOException;
 /**
  * Performs the index operation.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class TransportShardBulkAction extends TransportShardReplicationOperationAction<BulkShardRequest, BulkShardRequest, BulkShardResponse> {
 
     private final MappingUpdatedAction mappingUpdatedAction;
 
-    @Inject public TransportShardBulkAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                            IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
-                                            MappingUpdatedAction mappingUpdatedAction) {
+    @Inject
+    public TransportShardBulkAction(Settings settings, TransportService transportService, ClusterService clusterService,
+                                    IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
+                                    MappingUpdatedAction mappingUpdatedAction) {
         super(settings, transportService, clusterService, indicesService, threadPool, shardStateAction);
         this.mappingUpdatedAction = mappingUpdatedAction;
     }
 
-    @Override protected String executor() {
+    @Override
+    protected String executor() {
         return ThreadPool.Names.INDEX;
     }
 
-    @Override protected boolean checkWriteConsistency() {
+    @Override
+    protected boolean checkWriteConsistency() {
         return true;
     }
 
-    @Override protected TransportRequestOptions transportOptions() {
+    @Override
+    protected TransportRequestOptions transportOptions() {
         // low type since we don't want the large bulk requests to cause high latency on typical requests
         return TransportRequestOptions.options().withCompress(true).withLowType();
     }
 
-    @Override protected BulkShardRequest newRequestInstance() {
+    @Override
+    protected BulkShardRequest newRequestInstance() {
         return new BulkShardRequest();
     }
 
-    @Override protected BulkShardRequest newReplicaRequestInstance() {
+    @Override
+    protected BulkShardRequest newReplicaRequestInstance() {
         return new BulkShardRequest();
     }
 
-    @Override protected BulkShardResponse newResponseInstance() {
+    @Override
+    protected BulkShardResponse newResponseInstance() {
         return new BulkShardResponse();
     }
 
-    @Override protected String transportAction() {
+    @Override
+    protected String transportAction() {
         return "indices/index/shard/bulk";
     }
 
-    @Override protected void checkBlock(BulkShardRequest request, ClusterState state) {
+    @Override
+    protected void checkBlock(BulkShardRequest request, ClusterState state) {
         state.blocks().indexBlockedRaiseException(ClusterBlockLevel.WRITE, request.index());
     }
 
-    @Override protected ShardIterator shards(ClusterState clusterState, BulkShardRequest request) {
+    @Override
+    protected ShardIterator shards(ClusterState clusterState, BulkShardRequest request) {
         return clusterState.routingTable().index(request.index()).shard(request.shardId()).shardsIt();
     }
 
-    @Override protected PrimaryResponse<BulkShardResponse, BulkShardRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) {
+    @Override
+    protected PrimaryResponse<BulkShardResponse, BulkShardRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) {
         final BulkShardRequest request = shardRequest.request;
         IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.index()).shardSafe(shardRequest.shardId);
 
@@ -209,7 +220,8 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
         return new PrimaryResponse<BulkShardResponse, BulkShardRequest>(shardRequest.request, response, ops);
     }
 
-    @Override protected void postPrimaryOperation(BulkShardRequest request, PrimaryResponse<BulkShardResponse, BulkShardRequest> response) {
+    @Override
+    protected void postPrimaryOperation(BulkShardRequest request, PrimaryResponse<BulkShardResponse, BulkShardRequest> response) {
         IndexService indexService = indicesService.indexServiceSafe(request.index());
         Engine.IndexingOperation[] ops = (Engine.IndexingOperation[]) response.payload();
         if (ops == null) {
@@ -241,7 +253,8 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
         }
     }
 
-    @Override protected void shardOperationOnReplica(ReplicaOperationRequest shardRequest) {
+    @Override
+    protected void shardOperationOnReplica(ReplicaOperationRequest shardRequest) {
         IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.index()).shardSafe(shardRequest.shardId);
         final BulkShardRequest request = shardRequest.request;
         for (int i = 0; i < request.items().length; i++) {
@@ -295,11 +308,13 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
             documentMapper.refreshSource();
 
             mappingUpdatedAction.execute(new MappingUpdatedAction.MappingUpdatedRequest(request.index(), request.type(), documentMapper.mappingSource()), new ActionListener<MappingUpdatedAction.MappingUpdatedResponse>() {
-                @Override public void onResponse(MappingUpdatedAction.MappingUpdatedResponse mappingUpdatedResponse) {
+                @Override
+                public void onResponse(MappingUpdatedAction.MappingUpdatedResponse mappingUpdatedResponse) {
                     // all is well
                 }
 
-                @Override public void onFailure(Throwable e) {
+                @Override
+                public void onFailure(Throwable e) {
                     try {
                         logger.warn("Failed to update master on updated mapping for index [" + request.index() + "], type [" + request.type() + "] and source [" + documentMapper.mappingSource().string() + "]", e);
                     } catch (IOException e1) {

@@ -31,7 +31,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.util.Map;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class PutIndexTemplateRequestBuilder extends BaseIndicesRequestBuilder<PutIndexTemplateRequest, PutIndexTemplateResponse> {
 
@@ -171,7 +171,8 @@ public class PutIndexTemplateRequestBuilder extends BaseIndicesRequestBuilder<Pu
         return this;
     }
 
-    @Override protected void doExecute(ActionListener<PutIndexTemplateResponse> listener) {
+    @Override
+    protected void doExecute(ActionListener<PutIndexTemplateResponse> listener) {
         client.putTemplate(request, listener);
     }
 }

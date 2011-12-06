@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -38,49 +38,58 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * Delete index action.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class TransportOpenIndexAction extends TransportMasterNodeOperationAction<OpenIndexRequest, OpenIndexResponse> {
 
     private final MetaDataStateIndexService stateIndexService;
 
-    @Inject public TransportOpenIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                            ThreadPool threadPool, MetaDataStateIndexService stateIndexService) {
+    @Inject
+    public TransportOpenIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
+                                    ThreadPool threadPool, MetaDataStateIndexService stateIndexService) {
         super(settings, transportService, clusterService, threadPool);
         this.stateIndexService = stateIndexService;
     }
 
-    @Override protected String executor() {
+    @Override
+    protected String executor() {
         return ThreadPool.Names.MANAGEMENT;
     }
 
-    @Override protected String transportAction() {
+    @Override
+    protected String transportAction() {
         return TransportActions.Admin.Indices.OPEN;
     }
 
-    @Override protected OpenIndexRequest newRequest() {
+    @Override
+    protected OpenIndexRequest newRequest() {
         return new OpenIndexRequest();
     }
 
-    @Override protected OpenIndexResponse newResponse() {
+    @Override
+    protected OpenIndexResponse newResponse() {
         return new OpenIndexResponse();
     }
 
-    @Override protected ClusterBlockException checkBlock(OpenIndexRequest request, ClusterState state) {
+    @Override
+    protected ClusterBlockException checkBlock(OpenIndexRequest request, ClusterState state) {
         return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA, request.index());
     }
 
-    @Override protected OpenIndexResponse masterOperation(OpenIndexRequest request, ClusterState state) throws ElasticSearchException {
+    @Override
+    protected OpenIndexResponse masterOperation(OpenIndexRequest request, ClusterState state) throws ElasticSearchException {
         final AtomicReference<OpenIndexResponse> responseRef = new AtomicReference<OpenIndexResponse>();
         final AtomicReference<Throwable> failureRef = new AtomicReference<Throwable>();
         final CountDownLatch latch = new CountDownLatch(1);
         stateIndexService.openIndex(new MetaDataStateIndexService.Request(request.index()).timeout(request.timeout()), new MetaDataStateIndexService.Listener() {
-            @Override public void onResponse(MetaDataStateIndexService.Response response) {
+            @Override
+            public void onResponse(MetaDataStateIndexService.Response response) {
                 responseRef.set(new OpenIndexResponse(response.acknowledged()));
                 latch.countDown();
             }
 
-            @Override public void onFailure(Throwable t) {
+            @Override
+            public void onFailure(Throwable t) {
                 failureRef.set(t);
                 latch.countDown();
             }

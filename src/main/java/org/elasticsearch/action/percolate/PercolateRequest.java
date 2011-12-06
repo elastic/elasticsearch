@@ -35,10 +35,10 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
-import static org.elasticsearch.action.Actions.*;
+import static org.elasticsearch.action.Actions.addValidationError;
 
 /**
- * @author kimchy
+ *
  */
 public class PercolateRequest extends SingleCustomOperationRequest {
 
@@ -86,7 +86,8 @@ public class PercolateRequest extends SingleCustomOperationRequest {
     /**
      * Before we fork on a local thread, make sure we copy over the bytes if they are unsafe
      */
-    @Override public void beforeLocalFork() {
+    @Override
+    public void beforeLocalFork() {
         if (sourceUnsafe) {
             source();
         }
@@ -113,11 +114,13 @@ public class PercolateRequest extends SingleCustomOperationRequest {
         return this.sourceLength;
     }
 
-    @Required public PercolateRequest source(Map source) throws ElasticSearchGenerationException {
+    @Required
+    public PercolateRequest source(Map source) throws ElasticSearchGenerationException {
         return source(source, XContentType.SMILE);
     }
 
-    @Required public PercolateRequest source(Map source, XContentType contentType) throws ElasticSearchGenerationException {
+    @Required
+    public PercolateRequest source(Map source, XContentType contentType) throws ElasticSearchGenerationException {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             builder.map(source);
@@ -127,7 +130,8 @@ public class PercolateRequest extends SingleCustomOperationRequest {
         }
     }
 
-    @Required public PercolateRequest source(String source) {
+    @Required
+    public PercolateRequest source(String source) {
         UnicodeUtil.UTF8Result result = Unicode.fromStringAsUtf8(source);
         this.source = result.result;
         this.sourceOffset = 0;
@@ -136,7 +140,8 @@ public class PercolateRequest extends SingleCustomOperationRequest {
         return this;
     }
 
-    @Required public PercolateRequest source(XContentBuilder sourceBuilder) {
+    @Required
+    public PercolateRequest source(XContentBuilder sourceBuilder) {
         try {
             source = sourceBuilder.underlyingBytes();
             sourceOffset = 0;
@@ -152,11 +157,13 @@ public class PercolateRequest extends SingleCustomOperationRequest {
         return source(source, 0, source.length);
     }
 
-    @Required public PercolateRequest source(byte[] source, int offset, int length) {
+    @Required
+    public PercolateRequest source(byte[] source, int offset, int length) {
         return source(source, offset, length, false);
     }
 
-    @Required public PercolateRequest source(byte[] source, int offset, int length, boolean unsafe) {
+    @Required
+    public PercolateRequest source(byte[] source, int offset, int length, boolean unsafe) {
         this.source = source;
         this.sourceOffset = offset;
         this.sourceLength = length;
@@ -168,12 +175,14 @@ public class PercolateRequest extends SingleCustomOperationRequest {
      * if this operation hits a node with a local relevant shard, should it be preferred
      * to be executed on, or just do plain round robin. Defaults to <tt>true</tt>
      */
-    @Override public PercolateRequest preferLocal(boolean preferLocal) {
+    @Override
+    public PercolateRequest preferLocal(boolean preferLocal) {
         super.preferLocal(preferLocal);
         return this;
     }
 
-    @Override public ActionRequestValidationException validate() {
+    @Override
+    public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
         if (index == null) {
             validationException = addValidationError("index is missing", validationException);
@@ -187,7 +196,8 @@ public class PercolateRequest extends SingleCustomOperationRequest {
         return validationException;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         index = in.readUTF();
         type = in.readUTF();
@@ -199,7 +209,8 @@ public class PercolateRequest extends SingleCustomOperationRequest {
         in.readFully(source);
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeUTF(index);
         out.writeUTF(type);

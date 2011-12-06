@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -63,7 +63,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 
 /**
- * @author kimchy (Shay Banon)
+ *
  */
 public class InternalTransportClient extends AbstractClient implements InternalClient {
 
@@ -95,12 +95,13 @@ public class InternalTransportClient extends AbstractClient implements InternalC
 
     private final ClientTransportPercolateAction percolateAction;
 
-    @Inject public InternalTransportClient(Settings settings, ThreadPool threadPool,
-                                           TransportClientNodesService nodesService, InternalTransportAdminClient adminClient,
-                                           ClientTransportIndexAction indexAction, ClientTransportDeleteAction deleteAction, ClientTransportBulkAction bulkAction, ClientTransportGetAction getAction, ClientTransportMultiGetAction multiGetAction,
-                                           ClientTransportDeleteByQueryAction deleteByQueryAction, ClientTransportCountAction countAction,
-                                           ClientTransportSearchAction searchAction, ClientTransportSearchScrollAction searchScrollAction,
-                                           ClientTransportMoreLikeThisAction moreLikeThisAction, ClientTransportPercolateAction percolateAction) {
+    @Inject
+    public InternalTransportClient(Settings settings, ThreadPool threadPool,
+                                   TransportClientNodesService nodesService, InternalTransportAdminClient adminClient,
+                                   ClientTransportIndexAction indexAction, ClientTransportDeleteAction deleteAction, ClientTransportBulkAction bulkAction, ClientTransportGetAction getAction, ClientTransportMultiGetAction multiGetAction,
+                                   ClientTransportDeleteByQueryAction deleteByQueryAction, ClientTransportCountAction countAction,
+                                   ClientTransportSearchAction searchAction, ClientTransportSearchScrollAction searchScrollAction,
+                                   ClientTransportMoreLikeThisAction moreLikeThisAction, ClientTransportPercolateAction percolateAction) {
         this.threadPool = threadPool;
         this.nodesService = nodesService;
         this.adminClient = adminClient;
@@ -118,189 +119,236 @@ public class InternalTransportClient extends AbstractClient implements InternalC
         this.percolateAction = percolateAction;
     }
 
-    @Override public void close() {
+    @Override
+    public void close() {
         // nothing to do here
     }
 
-    @Override public ThreadPool threadPool() {
+    @Override
+    public ThreadPool threadPool() {
         return this.threadPool;
     }
 
-    @Override public AdminClient admin() {
+    @Override
+    public AdminClient admin() {
         return adminClient;
     }
 
-    @Override public ActionFuture<IndexResponse> index(final IndexRequest request) {
+    @Override
+    public ActionFuture<IndexResponse> index(final IndexRequest request) {
         return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<IndexResponse>>() {
-            @Override public ActionFuture<IndexResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
+            @Override
+            public ActionFuture<IndexResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
                 return indexAction.execute(node, request);
             }
         });
     }
 
-    @Override public void index(final IndexRequest request, final ActionListener<IndexResponse> listener) {
+    @Override
+    public void index(final IndexRequest request, final ActionListener<IndexResponse> listener) {
         nodesService.execute(new TransportClientNodesService.NodeListenerCallback<IndexResponse>() {
-            @Override public void doWithNode(DiscoveryNode node, ActionListener<IndexResponse> listener) throws ElasticSearchException {
+            @Override
+            public void doWithNode(DiscoveryNode node, ActionListener<IndexResponse> listener) throws ElasticSearchException {
                 indexAction.execute(node, request, listener);
             }
         }, listener);
     }
 
-    @Override public ActionFuture<DeleteResponse> delete(final DeleteRequest request) {
+    @Override
+    public ActionFuture<DeleteResponse> delete(final DeleteRequest request) {
         return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<DeleteResponse>>() {
-            @Override public ActionFuture<DeleteResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
+            @Override
+            public ActionFuture<DeleteResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
                 return deleteAction.execute(node, request);
             }
         });
     }
 
-    @Override public void delete(final DeleteRequest request, final ActionListener<DeleteResponse> listener) {
+    @Override
+    public void delete(final DeleteRequest request, final ActionListener<DeleteResponse> listener) {
         nodesService.execute(new TransportClientNodesService.NodeListenerCallback<DeleteResponse>() {
-            @Override public void doWithNode(DiscoveryNode node, ActionListener<DeleteResponse> listener) throws ElasticSearchException {
+            @Override
+            public void doWithNode(DiscoveryNode node, ActionListener<DeleteResponse> listener) throws ElasticSearchException {
                 deleteAction.execute(node, request, listener);
             }
         }, listener);
     }
 
-    @Override public ActionFuture<BulkResponse> bulk(final BulkRequest request) {
+    @Override
+    public ActionFuture<BulkResponse> bulk(final BulkRequest request) {
         return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<BulkResponse>>() {
-            @Override public ActionFuture<BulkResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
+            @Override
+            public ActionFuture<BulkResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
                 return bulkAction.execute(node, request);
             }
         });
     }
 
-    @Override public void bulk(final BulkRequest request, final ActionListener<BulkResponse> listener) {
+    @Override
+    public void bulk(final BulkRequest request, final ActionListener<BulkResponse> listener) {
         nodesService.execute(new TransportClientNodesService.NodeListenerCallback<BulkResponse>() {
-            @Override public void doWithNode(DiscoveryNode node, ActionListener<BulkResponse> listener) throws ElasticSearchException {
+            @Override
+            public void doWithNode(DiscoveryNode node, ActionListener<BulkResponse> listener) throws ElasticSearchException {
                 bulkAction.execute(node, request, listener);
             }
         }, listener);
     }
 
-    @Override public ActionFuture<DeleteByQueryResponse> deleteByQuery(final DeleteByQueryRequest request) {
+    @Override
+    public ActionFuture<DeleteByQueryResponse> deleteByQuery(final DeleteByQueryRequest request) {
         return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<DeleteByQueryResponse>>() {
-            @Override public ActionFuture<DeleteByQueryResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
+            @Override
+            public ActionFuture<DeleteByQueryResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
                 return deleteByQueryAction.execute(node, request);
             }
         });
     }
 
-    @Override public void deleteByQuery(final DeleteByQueryRequest request, final ActionListener<DeleteByQueryResponse> listener) {
+    @Override
+    public void deleteByQuery(final DeleteByQueryRequest request, final ActionListener<DeleteByQueryResponse> listener) {
         nodesService.execute(new TransportClientNodesService.NodeListenerCallback<DeleteByQueryResponse>() {
-            @Override public void doWithNode(DiscoveryNode node, ActionListener<DeleteByQueryResponse> listener) throws ElasticSearchException {
+            @Override
+            public void doWithNode(DiscoveryNode node, ActionListener<DeleteByQueryResponse> listener) throws ElasticSearchException {
                 deleteByQueryAction.execute(node, request, listener);
             }
         }, listener);
     }
 
-    @Override public ActionFuture<GetResponse> get(final GetRequest request) {
+    @Override
+    public ActionFuture<GetResponse> get(final GetRequest request) {
         return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<GetResponse>>() {
-            @Override public ActionFuture<GetResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
+            @Override
+            public ActionFuture<GetResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
                 return getAction.execute(node, request);
             }
         });
     }
 
-    @Override public void get(final GetRequest request, final ActionListener<GetResponse> listener) {
+    @Override
+    public void get(final GetRequest request, final ActionListener<GetResponse> listener) {
         nodesService.execute(new TransportClientNodesService.NodeListenerCallback<GetResponse>() {
-            @Override public void doWithNode(DiscoveryNode node, ActionListener<GetResponse> listener) throws ElasticSearchException {
+            @Override
+            public void doWithNode(DiscoveryNode node, ActionListener<GetResponse> listener) throws ElasticSearchException {
                 getAction.execute(node, request, listener);
             }
         }, listener);
     }
 
-    @Override public ActionFuture<MultiGetResponse> multiGet(final MultiGetRequest request) {
+    @Override
+    public ActionFuture<MultiGetResponse> multiGet(final MultiGetRequest request) {
         return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<MultiGetResponse>>() {
-            @Override public ActionFuture<MultiGetResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
+            @Override
+            public ActionFuture<MultiGetResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
                 return multiGetAction.execute(node, request);
             }
         });
     }
 
-    @Override public void multiGet(final MultiGetRequest request, final ActionListener<MultiGetResponse> listener) {
+    @Override
+    public void multiGet(final MultiGetRequest request, final ActionListener<MultiGetResponse> listener) {
         nodesService.execute(new TransportClientNodesService.NodeListenerCallback<MultiGetResponse>() {
-            @Override public void doWithNode(DiscoveryNode node, ActionListener<MultiGetResponse> listener) throws ElasticSearchException {
+            @Override
+            public void doWithNode(DiscoveryNode node, ActionListener<MultiGetResponse> listener) throws ElasticSearchException {
                 multiGetAction.execute(node, request, listener);
             }
         }, listener);
     }
 
-    @Override public ActionFuture<CountResponse> count(final CountRequest request) {
+    @Override
+    public ActionFuture<CountResponse> count(final CountRequest request) {
         return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<CountResponse>>() {
-            @Override public ActionFuture<CountResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
+            @Override
+            public ActionFuture<CountResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
                 return countAction.execute(node, request);
             }
         });
     }
 
-    @Override public void count(final CountRequest request, final ActionListener<CountResponse> listener) {
+    @Override
+    public void count(final CountRequest request, final ActionListener<CountResponse> listener) {
         nodesService.execute(new TransportClientNodesService.NodeListenerCallback<CountResponse>() {
-            @Override public void doWithNode(DiscoveryNode node, ActionListener<CountResponse> listener) throws ElasticSearchException {
+            @Override
+            public void doWithNode(DiscoveryNode node, ActionListener<CountResponse> listener) throws ElasticSearchException {
                 countAction.execute(node, request, listener);
             }
         }, listener);
     }
 
-    @Override public ActionFuture<SearchResponse> search(final SearchRequest request) {
+    @Override
+    public ActionFuture<SearchResponse> search(final SearchRequest request) {
         return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<SearchResponse>>() {
-            @Override public ActionFuture<SearchResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
+            @Override
+            public ActionFuture<SearchResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
                 return searchAction.execute(node, request);
             }
         });
     }
 
-    @Override public void search(final SearchRequest request, final ActionListener<SearchResponse> listener) {
+    @Override
+    public void search(final SearchRequest request, final ActionListener<SearchResponse> listener) {
         nodesService.execute(new TransportClientNodesService.NodeListenerCallback<SearchResponse>() {
-            @Override public void doWithNode(DiscoveryNode node, ActionListener<SearchResponse> listener) throws ElasticSearchException {
+            @Override
+            public void doWithNode(DiscoveryNode node, ActionListener<SearchResponse> listener) throws ElasticSearchException {
                 searchAction.execute(node, request, listener);
             }
         }, listener);
     }
 
-    @Override public ActionFuture<SearchResponse> searchScroll(final SearchScrollRequest request) {
+    @Override
+    public ActionFuture<SearchResponse> searchScroll(final SearchScrollRequest request) {
         return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<SearchResponse>>() {
-            @Override public ActionFuture<SearchResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
+            @Override
+            public ActionFuture<SearchResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
                 return searchScrollAction.execute(node, request);
             }
         });
     }
 
-    @Override public void searchScroll(final SearchScrollRequest request, final ActionListener<SearchResponse> listener) {
+    @Override
+    public void searchScroll(final SearchScrollRequest request, final ActionListener<SearchResponse> listener) {
         nodesService.execute(new TransportClientNodesService.NodeListenerCallback<SearchResponse>() {
-            @Override public void doWithNode(DiscoveryNode node, ActionListener<SearchResponse> listener) throws ElasticSearchException {
+            @Override
+            public void doWithNode(DiscoveryNode node, ActionListener<SearchResponse> listener) throws ElasticSearchException {
                 searchScrollAction.execute(node, request, listener);
             }
         }, listener);
     }
 
-    @Override public ActionFuture<SearchResponse> moreLikeThis(final MoreLikeThisRequest request) {
+    @Override
+    public ActionFuture<SearchResponse> moreLikeThis(final MoreLikeThisRequest request) {
         return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<SearchResponse>>() {
-            @Override public ActionFuture<SearchResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
+            @Override
+            public ActionFuture<SearchResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
                 return moreLikeThisAction.execute(node, request);
             }
         });
     }
 
-    @Override public void moreLikeThis(final MoreLikeThisRequest request, final ActionListener<SearchResponse> listener) {
+    @Override
+    public void moreLikeThis(final MoreLikeThisRequest request, final ActionListener<SearchResponse> listener) {
         nodesService.execute(new TransportClientNodesService.NodeListenerCallback<SearchResponse>() {
-            @Override public void doWithNode(DiscoveryNode node, ActionListener<SearchResponse> listener) throws ElasticSearchException {
+            @Override
+            public void doWithNode(DiscoveryNode node, ActionListener<SearchResponse> listener) throws ElasticSearchException {
                 moreLikeThisAction.execute(node, request, listener);
             }
         }, listener);
     }
 
-    @Override public ActionFuture<PercolateResponse> percolate(final PercolateRequest request) {
+    @Override
+    public ActionFuture<PercolateResponse> percolate(final PercolateRequest request) {
         return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<PercolateResponse>>() {
-            @Override public ActionFuture<PercolateResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
+            @Override
+            public ActionFuture<PercolateResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
                 return percolateAction.execute(node, request);
             }
         });
     }
 
-    @Override public void percolate(final PercolateRequest request, final ActionListener<PercolateResponse> listener) {
+    @Override
+    public void percolate(final PercolateRequest request, final ActionListener<PercolateResponse> listener) {
         nodesService.execute(new TransportClientNodesService.NodeListenerCallback<PercolateResponse>() {
-            @Override public void doWithNode(DiscoveryNode node, ActionListener<PercolateResponse> listener) throws ElasticSearchException {
+            @Override
+            public void doWithNode(DiscoveryNode node, ActionListener<PercolateResponse> listener) throws ElasticSearchException {
                 percolateAction.execute(node, request, listener);
             }
         }, listener);

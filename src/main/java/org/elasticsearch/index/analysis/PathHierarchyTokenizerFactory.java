@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -40,7 +40,8 @@ public class PathHierarchyTokenizerFactory extends AbstractTokenizerFactory {
     private final int skip;
     private final boolean reverse;
 
-    @Inject public PathHierarchyTokenizerFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
+    @Inject
+    public PathHierarchyTokenizerFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
         bufferSize = settings.getAsInt("buffer_size", 1024);
         String delimiter = settings.get("delimiter");
@@ -64,7 +65,8 @@ public class PathHierarchyTokenizerFactory extends AbstractTokenizerFactory {
         this.reverse = settings.getAsBoolean("reverse", false);
     }
 
-    @Override public Tokenizer create(Reader reader) {
+    @Override
+    public Tokenizer create(Reader reader) {
         if (reverse) {
             return new ReversePathHierarchyTokenizer(reader, bufferSize, delimiter, replacement, skip);
         }

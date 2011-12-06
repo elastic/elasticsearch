@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,13 +19,13 @@
 
 package org.elasticsearch.test.integration.search.basic;
 
+import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Unicode;
-import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchHit;
@@ -44,16 +44,17 @@ import java.util.Set;
 
 import static org.elasticsearch.action.search.SearchType.*;
 import static org.elasticsearch.client.Requests.*;
-import static org.elasticsearch.common.settings.ImmutableSettings.*;
-import static org.elasticsearch.common.unit.TimeValue.*;
-import static org.elasticsearch.common.xcontent.XContentFactory.*;
-import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.search.builder.SearchSourceBuilder.*;
-import static org.hamcrest.MatcherAssert.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class TransportTwoNodesSearchTests extends AbstractNodesTests {
 
@@ -61,7 +62,8 @@ public class TransportTwoNodesSearchTests extends AbstractNodesTests {
 
     private Set<String> fullExpectedIds = Sets.newHashSet();
 
-    @BeforeClass public void createNodes() throws Exception {
+    @BeforeClass
+    public void createNodes() throws Exception {
         startNode("server1");
         startNode("server2");
         client = getClient();
@@ -79,7 +81,8 @@ public class TransportTwoNodesSearchTests extends AbstractNodesTests {
         client.admin().indices().refresh(refreshRequest("test")).actionGet();
     }
 
-    @AfterClass public void closeServers() {
+    @AfterClass
+    public void closeServers() {
         client.close();
         closeAllNodes();
     }
@@ -88,7 +91,8 @@ public class TransportTwoNodesSearchTests extends AbstractNodesTests {
         return client("server1");
     }
 
-    @Test public void testDfsQueryThenFetch() throws Exception {
+    @Test
+    public void testDfsQueryThenFetch() throws Exception {
         SearchSourceBuilder source = searchSource()
                 .query(termQuery("multi", "test"))
                 .from(0).size(60).explain(true);
@@ -116,7 +120,8 @@ public class TransportTwoNodesSearchTests extends AbstractNodesTests {
         }
     }
 
-    @Test public void testDfsQueryThenFetchWithSort() throws Exception {
+    @Test
+    public void testDfsQueryThenFetchWithSort() throws Exception {
         SearchSourceBuilder source = searchSource()
                 .query(termQuery("multi", "test"))
                 .from(0).size(60).explain(true).sort("age", SortOrder.ASC);
@@ -142,7 +147,8 @@ public class TransportTwoNodesSearchTests extends AbstractNodesTests {
         }
     }
 
-    @Test public void testQueryThenFetch() throws Exception {
+    @Test
+    public void testQueryThenFetch() throws Exception {
         SearchSourceBuilder source = searchSource()
                 .query(termQuery("multi", "test"))
                 .sort("nid", SortOrder.DESC) // we have to sort here to have some ordering with dist scoring
@@ -169,7 +175,8 @@ public class TransportTwoNodesSearchTests extends AbstractNodesTests {
         }
     }
 
-    @Test public void testQueryThenFetchWithFrom() throws Exception {
+    @Test
+    public void testQueryThenFetchWithFrom() throws Exception {
         SearchSourceBuilder source = searchSource()
                 .query(matchAllQuery())
                 .explain(true);
@@ -195,7 +202,8 @@ public class TransportTwoNodesSearchTests extends AbstractNodesTests {
         assertThat(collectedIds, equalTo(fullExpectedIds));
     }
 
-    @Test public void testQueryThenFetchWithSort() throws Exception {
+    @Test
+    public void testQueryThenFetchWithSort() throws Exception {
         SearchSourceBuilder source = searchSource()
                 .query(termQuery("multi", "test"))
                 .from(0).size(60).explain(true).sort("age", SortOrder.ASC);
@@ -221,7 +229,8 @@ public class TransportTwoNodesSearchTests extends AbstractNodesTests {
         }
     }
 
-    @Test public void testQueryAndFetch() throws Exception {
+    @Test
+    public void testQueryAndFetch() throws Exception {
         SearchSourceBuilder source = searchSource()
                 .query(termQuery("multi", "test"))
                 .from(0).size(20).explain(true);
@@ -257,7 +266,8 @@ public class TransportTwoNodesSearchTests extends AbstractNodesTests {
         assertThat("make sure we got all [" + expectedIds + "]", expectedIds.size(), equalTo(0));
     }
 
-    @Test public void testDfsQueryAndFetch() throws Exception {
+    @Test
+    public void testDfsQueryAndFetch() throws Exception {
         SearchSourceBuilder source = searchSource()
                 .query(termQuery("multi", "test"))
                 .from(0).size(20).explain(true);
@@ -294,7 +304,8 @@ public class TransportTwoNodesSearchTests extends AbstractNodesTests {
         assertThat("make sure we got all [" + expectedIds + "]", expectedIds.size(), equalTo(0));
     }
 
-    @Test public void testSimpleFacets() throws Exception {
+    @Test
+    public void testSimpleFacets() throws Exception {
         SearchSourceBuilder sourceBuilder = searchSource()
                 .query(termQuery("multi", "test"))
                 .from(0).size(20).explain(true)
@@ -309,12 +320,14 @@ public class TransportTwoNodesSearchTests extends AbstractNodesTests {
         assertThat(searchResponse.facets().facet(QueryFacet.class, "all").count(), equalTo(100l));
     }
 
-    @Test public void testSimpleFacetsTwice() throws Exception {
+    @Test
+    public void testSimpleFacetsTwice() throws Exception {
         testSimpleFacets();
         testSimpleFacets();
     }
 
-    @Test public void testFailedSearchWithWrongQuery() throws Exception {
+    @Test
+    public void testFailedSearchWithWrongQuery() throws Exception {
         logger.info("Start Testing failed search with wrong query");
         try {
             SearchResponse searchResponse = client.search(searchRequest("test").source(Unicode.fromStringAsBytes("{ xxx }"))).actionGet();
@@ -329,7 +342,8 @@ public class TransportTwoNodesSearchTests extends AbstractNodesTests {
         logger.info("Done Testing failed search");
     }
 
-    @Test public void testFailedSearchWithWrongFrom() throws Exception {
+    @Test
+    public void testFailedSearchWithWrongFrom() throws Exception {
         logger.info("Start Testing failed search with wrong from");
         SearchSourceBuilder source = searchSource()
                 .query(termQuery("multi", "test"))

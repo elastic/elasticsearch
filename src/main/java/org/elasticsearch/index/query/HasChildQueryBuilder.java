@@ -24,7 +24,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class HasChildQueryBuilder extends BaseQueryBuilder {
 
@@ -59,7 +59,8 @@ public class HasChildQueryBuilder extends BaseQueryBuilder {
         return this;
     }
 
-    @Override protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(HasChildQueryParser.NAME);
         builder.field("query");
         queryBuilder.toXContent(builder, params);

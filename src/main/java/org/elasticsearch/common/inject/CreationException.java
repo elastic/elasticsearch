@@ -16,13 +16,13 @@
 
 package org.elasticsearch.common.inject;
 
-import org.elasticsearch.common.collect.ImmutableSet;
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.spi.Message;
 
 import java.util.Collection;
 
-import static org.elasticsearch.common.base.Preconditions.*;
+import static com.google.common.base.Preconditions.checkArgument;
 
 /**
  * Thrown when errors occur while creating a {@link Injector}. Includes a list of encountered
@@ -50,7 +50,8 @@ public class CreationException extends RuntimeException {
         return messages;
     }
 
-    @Override public String getMessage() {
+    @Override
+    public String getMessage() {
         return Errors.format("Guice creation errors", messages);
     }
 

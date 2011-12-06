@@ -1,0 +1,30 @@
+{
+    "span_or":{
+        "clauses":[
+            {
+                "span_term":{
+                    "age":{
+                        "value":34,
+                        "boost":1.0
+                    }
+                }
+            },
+            {
+                "span_term":{
+                    "age":{
+                        "value":35,
+                        "boost":1.0
+                    }
+                }
+            },
+            {
+                "span_term":{
+                    "age":{
+                        "value":36,
+                        "boost":1.0
+                    }
+                }
+            }
+        ]
+    }
+}

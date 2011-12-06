@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,8 +19,8 @@
 
 package org.elasticsearch.common.xcontent.smile;
 
-import org.elasticsearch.common.jackson.JsonGenerator;
-import org.elasticsearch.common.jackson.smile.SmileParser;
+import org.codehaus.jackson.JsonGenerator;
+import org.codehaus.jackson.smile.SmileParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContentGenerator;
 
@@ -29,7 +29,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class SmileXContentGenerator extends JsonXContentGenerator {
 
@@ -37,11 +37,13 @@ public class SmileXContentGenerator extends JsonXContentGenerator {
         super(generator);
     }
 
-    @Override public XContentType contentType() {
+    @Override
+    public XContentType contentType() {
         return XContentType.SMILE;
     }
 
-    @Override public void writeRawField(String fieldName, InputStream content, OutputStream bos) throws IOException {
+    @Override
+    public void writeRawField(String fieldName, InputStream content, OutputStream bos) throws IOException {
         writeFieldName(fieldName);
         SmileParser parser = SmileXContent.smileFactory.createJsonParser(content);
         try {
@@ -52,7 +54,8 @@ public class SmileXContentGenerator extends JsonXContentGenerator {
         }
     }
 
-    @Override public void writeRawField(String fieldName, byte[] content, OutputStream bos) throws IOException {
+    @Override
+    public void writeRawField(String fieldName, byte[] content, OutputStream bos) throws IOException {
         writeFieldName(fieldName);
         SmileParser parser = SmileXContent.smileFactory.createJsonParser(content);
         try {
@@ -63,7 +66,8 @@ public class SmileXContentGenerator extends JsonXContentGenerator {
         }
     }
 
-    @Override public void writeRawField(String fieldName, byte[] content, int offset, int length, OutputStream bos) throws IOException {
+    @Override
+    public void writeRawField(String fieldName, byte[] content, int offset, int length, OutputStream bos) throws IOException {
         writeFieldName(fieldName);
         SmileParser parser = SmileXContent.smileFactory.createJsonParser(content, offset, length);
         try {

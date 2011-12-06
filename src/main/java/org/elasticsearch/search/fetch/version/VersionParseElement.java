@@ -24,11 +24,12 @@ import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.SearchContext;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class VersionParseElement implements SearchParseElement {
 
-    @Override public void parse(XContentParser parser, SearchContext context) throws Exception {
+    @Override
+    public void parse(XContentParser parser, SearchContext context) throws Exception {
         XContentParser.Token token = parser.currentToken();
         if (token.isValue()) {
             context.version(parser.booleanValue());

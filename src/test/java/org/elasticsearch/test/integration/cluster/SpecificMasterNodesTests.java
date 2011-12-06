@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -23,20 +23,23 @@ import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.Test;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.*;
-import static org.hamcrest.MatcherAssert.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class SpecificMasterNodesTests extends AbstractZenNodesTests {
 
-    @AfterMethod public void closeNodes() {
+    @AfterMethod
+    public void closeNodes() {
         closeAllNodes();
     }
 
-    @Test public void simpleOnlyMasterNodeElection() {
+    @Test
+    public void simpleOnlyMasterNodeElection() {
         logger.info("--> start data node / non master node");
         startNode("data1", settingsBuilder().put("node.data", true).put("node.master", false).put("discovery.initial_state_timeout", "1s"));
         try {
@@ -70,7 +73,8 @@ public class SpecificMasterNodesTests extends AbstractZenNodesTests {
         closeNode("master1");
     }
 
-    @Test public void electOnlyBetweenMasterNodes() {
+    @Test
+    public void electOnlyBetweenMasterNodes() {
         logger.info("--> start data node / non master node");
         startNode("data1", settingsBuilder().put("node.data", true).put("node.master", false).put("discovery.initial_state_timeout", "1s"));
         try {

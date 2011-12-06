@@ -23,7 +23,8 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Method;
 
-import static org.elasticsearch.common.base.Preconditions.*;
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
  * Matcher implementations. Supports matching classes and methods.
@@ -48,7 +49,8 @@ public class Matchers {
             return true;
         }
 
-        @Override public String toString() {
+        @Override
+        public String toString() {
             return "any()";
         }
 
@@ -77,16 +79,19 @@ public class Matchers {
             return !delegate.matches(t);
         }
 
-        @Override public boolean equals(Object other) {
+        @Override
+        public boolean equals(Object other) {
             return other instanceof Not
                     && ((Not) other).delegate.equals(delegate);
         }
 
-        @Override public int hashCode() {
+        @Override
+        public int hashCode() {
             return -delegate.hashCode();
         }
 
-        @Override public String toString() {
+        @Override
+        public String toString() {
             return "not(" + delegate + ")";
         }
 
@@ -122,16 +127,19 @@ public class Matchers {
             return element.getAnnotation(annotationType) != null;
         }
 
-        @Override public boolean equals(Object other) {
+        @Override
+        public boolean equals(Object other) {
             return other instanceof AnnotatedWithType
                     && ((AnnotatedWithType) other).annotationType.equals(annotationType);
         }
 
-        @Override public int hashCode() {
+        @Override
+        public int hashCode() {
             return 37 * annotationType.hashCode();
         }
 
-        @Override public String toString() {
+        @Override
+        public String toString() {
             return "annotatedWith(" + annotationType.getSimpleName() + ".class)";
         }
 
@@ -161,16 +169,19 @@ public class Matchers {
             return fromElement != null && annotation.equals(fromElement);
         }
 
-        @Override public boolean equals(Object other) {
+        @Override
+        public boolean equals(Object other) {
             return other instanceof AnnotatedWith
                     && ((AnnotatedWith) other).annotation.equals(annotation);
         }
 
-        @Override public int hashCode() {
+        @Override
+        public int hashCode() {
             return 37 * annotation.hashCode();
         }
 
-        @Override public String toString() {
+        @Override
+        public String toString() {
             return "annotatedWith(" + annotation + ")";
         }
 
@@ -197,16 +208,19 @@ public class Matchers {
             return superclass.isAssignableFrom(subclass);
         }
 
-        @Override public boolean equals(Object other) {
+        @Override
+        public boolean equals(Object other) {
             return other instanceof SubclassesOf
                     && ((SubclassesOf) other).superclass.equals(superclass);
         }
 
-        @Override public int hashCode() {
+        @Override
+        public int hashCode() {
             return 37 * superclass.hashCode();
         }
 
-        @Override public String toString() {
+        @Override
+        public String toString() {
             return "subclassesOf(" + superclass.getSimpleName() + ".class)";
         }
 
@@ -232,16 +246,19 @@ public class Matchers {
             return value.equals(other);
         }
 
-        @Override public boolean equals(Object other) {
+        @Override
+        public boolean equals(Object other) {
             return other instanceof Only
                     && ((Only) other).value.equals(value);
         }
 
-        @Override public int hashCode() {
+        @Override
+        public int hashCode() {
             return 37 * value.hashCode();
         }
 
-        @Override public String toString() {
+        @Override
+        public String toString() {
             return "only(" + value + ")";
         }
 
@@ -267,16 +284,19 @@ public class Matchers {
             return value == other;
         }
 
-        @Override public boolean equals(Object other) {
+        @Override
+        public boolean equals(Object other) {
             return other instanceof IdenticalTo
                     && ((IdenticalTo) other).value == value;
         }
 
-        @Override public int hashCode() {
+        @Override
+        public int hashCode() {
             return 37 * System.identityHashCode(value);
         }
 
-        @Override public String toString() {
+        @Override
+        public String toString() {
             return "identicalTo(" + value + ")";
         }
 
@@ -304,16 +324,19 @@ public class Matchers {
             return c.getPackage().equals(targetPackage);
         }
 
-        @Override public boolean equals(Object other) {
+        @Override
+        public boolean equals(Object other) {
             return other instanceof InPackage
                     && ((InPackage) other).targetPackage.equals(targetPackage);
         }
 
-        @Override public int hashCode() {
+        @Override
+        public int hashCode() {
             return 37 * targetPackage.hashCode();
         }
 
-        @Override public String toString() {
+        @Override
+        public String toString() {
             return "inPackage(" + targetPackage.getName() + ")";
         }
 
@@ -347,16 +370,19 @@ public class Matchers {
                     || classPackageName.startsWith(targetPackageName + ".");
         }
 
-        @Override public boolean equals(Object other) {
+        @Override
+        public boolean equals(Object other) {
             return other instanceof InSubpackage
                     && ((InSubpackage) other).targetPackageName.equals(targetPackageName);
         }
 
-        @Override public int hashCode() {
+        @Override
+        public int hashCode() {
             return 37 * targetPackageName.hashCode();
         }
 
-        @Override public String toString() {
+        @Override
+        public String toString() {
             return "inSubpackage(" + targetPackageName + ")";
         }
 
@@ -382,16 +408,19 @@ public class Matchers {
             return returnType.matches(m.getReturnType());
         }
 
-        @Override public boolean equals(Object other) {
+        @Override
+        public boolean equals(Object other) {
             return other instanceof Returns
                     && ((Returns) other).returnType.equals(returnType);
         }
 
-        @Override public int hashCode() {
+        @Override
+        public int hashCode() {
             return 37 * returnType.hashCode();
         }
 
-        @Override public String toString() {
+        @Override
+        public String toString() {
             return "returns(" + returnType + ")";
         }
 

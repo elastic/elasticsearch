@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -24,7 +24,7 @@ import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.support.NumericFieldDataComparator;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 // LUCENE MONITOR - Monitor against FieldComparator.Int
 public class IntFieldDataComparator extends NumericFieldDataComparator {
@@ -38,11 +38,13 @@ public class IntFieldDataComparator extends NumericFieldDataComparator {
         values = new int[numHits];
     }
 
-    @Override public FieldDataType fieldDataType() {
+    @Override
+    public FieldDataType fieldDataType() {
         return FieldDataType.DefaultTypes.INT;
     }
 
-    @Override public int compare(int slot1, int slot2) {
+    @Override
+    public int compare(int slot1, int slot2) {
         // TODO: there are sneaky non-branch ways to compute
         // -1/+1/0 sign
         // Cannot return values[slot1] - values[slot2] because that
@@ -58,7 +60,8 @@ public class IntFieldDataComparator extends NumericFieldDataComparator {
         }
     }
 
-    @Override public int compareBottom(int doc) {
+    @Override
+    public int compareBottom(int doc) {
         // TODO: there are sneaky non-branch ways to compute
         // -1/+1/0 sign
         // Cannot return bottom - values[slot2] because that
@@ -74,15 +77,18 @@ public class IntFieldDataComparator extends NumericFieldDataComparator {
         }
     }
 
-    @Override public void copy(int slot, int doc) {
+    @Override
+    public void copy(int slot, int doc) {
         values[slot] = currentFieldData.intValue(doc);
     }
 
-    @Override public void setBottom(final int bottom) {
+    @Override
+    public void setBottom(final int bottom) {
         this.bottom = values[bottom];
     }
 
-    @Override public Comparable value(int slot) {
+    @Override
+    public Comparable value(int slot) {
         return Integer.valueOf(values[slot]);
     }
 }

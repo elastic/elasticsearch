@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,16 +19,16 @@
 
 package org.elasticsearch.action.support;
 
+import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ListenableActionFuture;
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public abstract class AbstractListenableActionFuture<T, L> extends AdapterActionFuture<T, L> implements ListenableActionFuture<T> {
 
@@ -86,7 +86,8 @@ public abstract class AbstractListenableActionFuture<T, L> extends AdapterAction
         }
     }
 
-    @Override protected void done() {
+    @Override
+    protected void done() {
         super.done();
         synchronized (this) {
             executedListeners = true;
@@ -110,7 +111,8 @@ public abstract class AbstractListenableActionFuture<T, L> extends AdapterAction
                 threadPool.cached().execute((Runnable) listener);
             } else {
                 threadPool.cached().execute(new Runnable() {
-                    @Override public void run() {
+                    @Override
+                    public void run() {
                         ActionListener<T> lst = (ActionListener<T>) listener;
                         try {
                             lst.onResponse(actionGet());

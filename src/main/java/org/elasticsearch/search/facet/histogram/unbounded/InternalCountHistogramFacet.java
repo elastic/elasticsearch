@@ -19,11 +19,11 @@
 
 package org.elasticsearch.search.facet.histogram.unbounded;
 
+import gnu.trove.iterator.TLongLongIterator;
+import gnu.trove.map.hash.TLongLongHashMap;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.trove.iterator.TLongLongIterator;
-import org.elasticsearch.common.trove.map.hash.TLongLongHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.facet.Facet;
@@ -36,7 +36,7 @@ import java.util.Iterator;
 import java.util.List;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class InternalCountHistogramFacet extends InternalHistogramFacet {
 
@@ -47,12 +47,14 @@ public class InternalCountHistogramFacet extends InternalHistogramFacet {
     }
 
     static Stream STREAM = new Stream() {
-        @Override public Facet readFacet(String type, StreamInput in) throws IOException {
+        @Override
+        public Facet readFacet(String type, StreamInput in) throws IOException {
             return readHistogramFacet(in);
         }
     };
 
-    @Override public String streamType() {
+    @Override
+    public String streamType() {
         return STREAM_TYPE;
     }
 
@@ -69,59 +71,73 @@ public class InternalCountHistogramFacet extends InternalHistogramFacet {
             this.count = count;
         }
 
-        @Override public long key() {
+        @Override
+        public long key() {
             return key;
         }
 
-        @Override public long getKey() {
+        @Override
+        public long getKey() {
             return key();
         }
 
-        @Override public long count() {
+        @Override
+        public long count() {
             return count;
         }
 
-        @Override public long getCount() {
+        @Override
+        public long getCount() {
             return count();
         }
 
-        @Override public double total() {
+        @Override
+        public double total() {
             return Double.NaN;
         }
 
-        @Override public double getTotal() {
+        @Override
+        public double getTotal() {
             return total();
         }
 
-        @Override public long totalCount() {
+        @Override
+        public long totalCount() {
             return 0;
         }
 
-        @Override public long getTotalCount() {
+        @Override
+        public long getTotalCount() {
             return 0;
         }
 
-        @Override public double mean() {
+        @Override
+        public double mean() {
             return Double.NaN;
         }
 
-        @Override public double getMean() {
+        @Override
+        public double getMean() {
             return mean();
         }
 
-        @Override public double min() {
+        @Override
+        public double min() {
             return Double.NaN;
         }
 
-        @Override public double getMin() {
+        @Override
+        public double getMin() {
             return Double.NaN;
         }
 
-        @Override public double max() {
+        @Override
+        public double max() {
             return Double.NaN;
         }
 
-        @Override public double getMax() {
+        @Override
+        public double getMax() {
             return Double.NaN;
         }
     }
@@ -145,31 +161,38 @@ public class InternalCountHistogramFacet extends InternalHistogramFacet {
         this.cachedCounts = cachedCounts;
     }
 
-    @Override public String name() {
+    @Override
+    public String name() {
         return this.name;
     }
 
-    @Override public String getName() {
+    @Override
+    public String getName() {
         return name();
     }
 
-    @Override public String type() {
+    @Override
+    public String type() {
         return TYPE;
     }
 
-    @Override public String getType() {
+    @Override
+    public String getType() {
         return type();
     }
 
-    @Override public List<CountEntry> entries() {
+    @Override
+    public List<CountEntry> entries() {
         return Arrays.asList(computeEntries());
     }
 
-    @Override public List<CountEntry> getEntries() {
+    @Override
+    public List<CountEntry> getEntries() {
         return entries();
     }
 
-    @Override public Iterator<Entry> iterator() {
+    @Override
+    public Iterator<Entry> iterator() {
         return (Iterator) entries().iterator();
     }
 
@@ -179,7 +202,7 @@ public class InternalCountHistogramFacet extends InternalHistogramFacet {
         }
         entries = new CountEntry[counts.size()];
         int i = 0;
-        for (TLongLongIterator it = counts.iterator(); it.hasNext();) {
+        for (TLongLongIterator it = counts.iterator(); it.hasNext(); ) {
             it.advance();
             entries[i++] = new CountEntry(it.key(), it.value());
         }
@@ -196,7 +219,8 @@ public class InternalCountHistogramFacet extends InternalHistogramFacet {
         }
     }
 
-    @Override public Facet reduce(String name, List<Facet> facets) {
+    @Override
+    public Facet reduce(String name, List<Facet> facets) {
         if (facets.size() == 1) {
             return facets.get(0);
         }
@@ -204,7 +228,7 @@ public class InternalCountHistogramFacet extends InternalHistogramFacet {
 
         for (Facet facet : facets) {
             InternalCountHistogramFacet histoFacet = (InternalCountHistogramFacet) facet;
-            for (TLongLongIterator it = histoFacet.counts.iterator(); it.hasNext();) {
+            for (TLongLongIterator it = histoFacet.counts.iterator(); it.hasNext(); ) {
                 it.advance();
                 counts.adjustOrPutValue(it.key(), it.value(), it.value());
             }
@@ -221,7 +245,8 @@ public class InternalCountHistogramFacet extends InternalHistogramFacet {
         static final XContentBuilderString COUNT = new XContentBuilderString("count");
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
         builder.field(Fields._TYPE, HistogramFacet.TYPE);
         builder.startArray(Fields.ENTRIES);
@@ -242,7 +267,8 @@ public class InternalCountHistogramFacet extends InternalHistogramFacet {
         return facet;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         name = in.readUTF();
         comparatorType = ComparatorType.fromId(in.readByte());
 
@@ -255,12 +281,13 @@ public class InternalCountHistogramFacet extends InternalHistogramFacet {
         }
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(name);
         out.writeByte(comparatorType.id());
         // optimize the write, since we know we have the same buckets as keys
         out.writeVInt(counts.size());
-        for (TLongLongIterator it = counts.iterator(); it.hasNext();) {
+        for (TLongLongIterator it = counts.iterator(); it.hasNext(); ) {
             it.advance();
             out.writeLong(it.key());
             out.writeVLong(it.value());

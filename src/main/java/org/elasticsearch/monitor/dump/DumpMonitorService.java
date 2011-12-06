@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -32,14 +32,14 @@ import org.elasticsearch.monitor.dump.thread.ThreadDumpContributor;
 import java.io.File;
 import java.util.Map;
 
-import static org.elasticsearch.common.collect.Maps.*;
-import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
-import static org.elasticsearch.monitor.dump.heap.HeapDumpContributor.*;
-import static org.elasticsearch.monitor.dump.summary.SummaryDumpContributor.*;
-import static org.elasticsearch.monitor.dump.thread.ThreadDumpContributor.*;
+import static com.google.common.collect.Maps.newHashMap;
+import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
+import static org.elasticsearch.monitor.dump.heap.HeapDumpContributor.HEAP_DUMP;
+import static org.elasticsearch.monitor.dump.summary.SummaryDumpContributor.SUMMARY;
+import static org.elasticsearch.monitor.dump.thread.ThreadDumpContributor.THREAD_DUMP;
 
 /**
- * @author kimchy (Shay Banon)
+ *
  */
 public class DumpMonitorService extends AbstractComponent {
 
@@ -56,8 +56,9 @@ public class DumpMonitorService extends AbstractComponent {
         this(EMPTY_SETTINGS, new Environment(EMPTY_SETTINGS), null, null);
     }
 
-    @Inject public DumpMonitorService(Settings settings, Environment environment,
-                                      @Nullable ClusterService clusterService, @Nullable Map<String, DumpContributorFactory> contributors) {
+    @Inject
+    public DumpMonitorService(Settings settings, Environment environment,
+                              @Nullable ClusterService clusterService, @Nullable Map<String, DumpContributorFactory> contributors) {
         super(settings);
         this.clusterService = clusterService;
         this.contributors = contributors;

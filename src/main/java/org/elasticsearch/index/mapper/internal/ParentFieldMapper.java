@@ -30,14 +30,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.mapper.InternalMapper;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeContext;
-import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.RootMapper;
-import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 
@@ -45,7 +38,7 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements InternalMapper, RootMapper {
 
@@ -76,7 +69,8 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
             return builder;
         }
 
-        @Override public ParentFieldMapper build(BuilderContext context) {
+        @Override
+        public ParentFieldMapper build(BuilderContext context) {
             if (type == null) {
                 throw new MapperParsingException("Parent mapping must contain the parent type");
             }
@@ -85,7 +79,8 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
     }
 
     public static class TypeParser implements Mapper.TypeParser {
-        @Override public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        @Override
+        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             ParentFieldMapper.Builder builder = new ParentFieldMapper.Builder();
             for (Map.Entry<String, Object> entry : node.entrySet()) {
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
@@ -110,21 +105,26 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
         return type;
     }
 
-    @Override public void preParse(ParseContext context) throws IOException {
+    @Override
+    public void preParse(ParseContext context) throws IOException {
     }
 
-    @Override public void postParse(ParseContext context) throws IOException {
+    @Override
+    public void postParse(ParseContext context) throws IOException {
         parse(context);
     }
 
-    @Override public void validate(ParseContext context) throws MapperParsingException {
+    @Override
+    public void validate(ParseContext context) throws MapperParsingException {
     }
 
-    @Override public boolean includeInObject() {
+    @Override
+    public boolean includeInObject() {
         return true;
     }
 
-    @Override protected Field parseCreateField(ParseContext context) throws IOException {
+    @Override
+    protected Field parseCreateField(ParseContext context) throws IOException {
         if (context.parser().currentName() != null && context.parser().currentName().equals(Defaults.NAME)) {
             // we are in the parsing of _parent phase
             String parentId = context.parser().text();
@@ -149,19 +149,23 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
         return null;
     }
 
-    @Override public Uid value(Fieldable field) {
+    @Override
+    public Uid value(Fieldable field) {
         return Uid.createUid(field.stringValue());
     }
 
-    @Override public Uid valueFromString(String value) {
+    @Override
+    public Uid valueFromString(String value) {
         return Uid.createUid(value);
     }
 
-    @Override public String valueAsString(Fieldable field) {
+    @Override
+    public String valueAsString(Fieldable field) {
         return field.stringValue();
     }
 
-    @Override public Object valueForSearch(Fieldable field) {
+    @Override
+    public Object valueForSearch(Fieldable field) {
         String fieldValue = field.stringValue();
         if (fieldValue == null) {
             return null;
@@ -173,21 +177,24 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
         return fieldValue.substring(index + 1);
     }
 
-    @Override public String indexedValue(String value) {
+    @Override
+    public String indexedValue(String value) {
         if (value.indexOf(Uid.DELIMITER) == -1) {
             return Uid.createUid(type, value);
         }
         return value;
     }
 
-    @Override public Query fieldQuery(String value, @Nullable QueryParseContext context) {
+    @Override
+    public Query fieldQuery(String value, @Nullable QueryParseContext context) {
         if (context == null) {
             return super.fieldQuery(value, context);
         }
         return new ConstantScoreQuery(fieldFilter(value, context));
     }
 
-    @Override public Filter fieldFilter(String value, @Nullable QueryParseContext context) {
+    @Override
+    public Filter fieldFilter(String value, @Nullable QueryParseContext context) {
         if (context == null) {
             return super.fieldFilter(value, context);
         }
@@ -202,7 +209,8 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
     /**
      * We don't need to analyzer the text, and we need to convert it to UID...
      */
-    @Override public boolean useFieldQueryWithQueryString() {
+    @Override
+    public boolean useFieldQueryWithQueryString() {
         return true;
     }
 
@@ -214,18 +222,21 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
         return names().createIndexNameTerm(uid);
     }
 
-    @Override protected String contentType() {
+    @Override
+    protected String contentType() {
         return CONTENT_TYPE;
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(CONTENT_TYPE);
         builder.field("type", type);
         builder.endObject();
         return builder;
     }
 
-    @Override public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+    @Override
+    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
         // do nothing here, no merging, but also no exception
     }
 }

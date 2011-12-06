@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -33,11 +33,11 @@ import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
 import java.util.concurrent.ExecutorService;
 
-import static java.util.concurrent.Executors.*;
-import static org.elasticsearch.common.util.concurrent.EsExecutors.*;
+import static java.util.concurrent.Executors.newSingleThreadExecutor;
+import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 
 /**
- * @author kimchy (Shay Banon)
+ *
  */
 // TODO Disabled for now. Can be used to mbean proxy other nodes in the cluster from within the same console. Need the jmxruntime_optional jars though..,
 public class JmxClusterService extends AbstractComponent {
@@ -62,7 +62,8 @@ public class JmxClusterService extends AbstractComponent {
             clusterService.add(new JmxClusterEventListener());
             for (final DiscoveryNode node : clusterService.state().nodes()) {
                 clusterNodesJmxUpdater.execute(new Runnable() {
-                    @Override public void run() {
+                    @Override
+                    public void run() {
                         String nodeServiceUrl = getJmxServiceUrlAction.obtainPublishUrl(node);
                         registerNode(node, nodeServiceUrl);
                     }
@@ -99,13 +100,15 @@ public class JmxClusterService extends AbstractComponent {
     }
 
     private class JmxClusterEventListener implements ClusterStateListener {
-        @Override public void clusterChanged(ClusterChangedEvent event) {
+        @Override
+        public void clusterChanged(ClusterChangedEvent event) {
             if (!event.nodesChanged()) {
                 return;
             }
             for (final DiscoveryNode node : event.nodesDelta().addedNodes()) {
                 clusterNodesJmxUpdater.execute(new Runnable() {
-                    @Override public void run() {
+                    @Override
+                    public void run() {
                         String nodeServiceUrl = getJmxServiceUrlAction.obtainPublishUrl(node);
                         registerNode(node, nodeServiceUrl);
                     }

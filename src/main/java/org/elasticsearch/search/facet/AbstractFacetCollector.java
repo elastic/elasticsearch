@@ -19,10 +19,10 @@
 
 package org.elasticsearch.search.facet;
 
+import com.google.common.collect.ImmutableList;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Scorer;
-import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.lucene.docset.DocSet;
 import org.elasticsearch.common.lucene.docset.DocSets;
 import org.elasticsearch.common.lucene.search.AndFilter;
@@ -30,7 +30,7 @@ import org.elasticsearch.common.lucene.search.AndFilter;
 import java.io.IOException;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public abstract class AbstractFacetCollector extends FacetCollector {
 
@@ -48,7 +48,8 @@ public abstract class AbstractFacetCollector extends FacetCollector {
         return this.filter;
     }
 
-    @Override public void setFilter(Filter filter) {
+    @Override
+    public void setFilter(Filter filter) {
         if (this.filter == null) {
             this.filter = filter;
         } else {
@@ -56,15 +57,18 @@ public abstract class AbstractFacetCollector extends FacetCollector {
         }
     }
 
-    @Override public void setScorer(Scorer scorer) throws IOException {
+    @Override
+    public void setScorer(Scorer scorer) throws IOException {
         // usually, there is nothing to do here
     }
 
-    @Override public boolean acceptsDocsOutOfOrder() {
+    @Override
+    public boolean acceptsDocsOutOfOrder() {
         return true; // when working on FieldData, docs can be out of order
     }
 
-    @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
+    @Override
+    public void setNextReader(IndexReader reader, int docBase) throws IOException {
         if (filter != null) {
             docSet = DocSets.convert(reader, filter.getDocIdSet(reader));
         }
@@ -73,7 +77,8 @@ public abstract class AbstractFacetCollector extends FacetCollector {
 
     protected abstract void doSetNextReader(IndexReader reader, int docBase) throws IOException;
 
-    @Override public void collect(int doc) throws IOException {
+    @Override
+    public void collect(int doc) throws IOException {
         if (docSet == null) {
             doCollect(doc);
         } else if (docSet.get(doc)) {

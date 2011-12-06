@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,16 +19,16 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
+import com.google.common.collect.Maps;
+import gnu.trove.map.hash.TObjectIntHashMap;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.trove.map.hash.TObjectIntHashMap;
 import org.elasticsearch.node.settings.NodeSettingsService;
 
 import java.util.HashMap;
@@ -46,7 +46,8 @@ public class AwarenessAllocationDecider extends AllocationDecider {
     }
 
     class ApplySettings implements NodeSettingsService.Listener {
-        @Override public void onRefreshSettings(Settings settings) {
+        @Override
+        public void onRefreshSettings(Settings settings) {
             String[] awarenessAttributes = settings.getAsArray("cluster.routing.allocation.awareness.attributes", null);
             if (awarenessAttributes != null) {
                 logger.info("updating [cluster.routing.allocation.awareness.attributes] from [{}] to [{}]", AwarenessAllocationDecider.this.awarenessAttributes, awarenessAttributes);
@@ -70,7 +71,8 @@ public class AwarenessAllocationDecider extends AllocationDecider {
 
     private Map<String, String[]> forcedAwarenessAttributes;
 
-    @Inject public AwarenessAllocationDecider(Settings settings, NodeSettingsService nodeSettingsService) {
+    @Inject
+    public AwarenessAllocationDecider(Settings settings, NodeSettingsService nodeSettingsService) {
         super(settings);
         this.awarenessAttributes = settings.getAsArray("cluster.routing.allocation.awareness.attributes");
 
@@ -90,11 +92,13 @@ public class AwarenessAllocationDecider extends AllocationDecider {
         return this.awarenessAttributes;
     }
 
-    @Override public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+    @Override
+    public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         return underCapacity(shardRouting, node, allocation, true) ? Decision.YES : Decision.NO;
     }
 
-    @Override public boolean canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+    @Override
+    public boolean canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         return underCapacity(shardRouting, node, allocation, false);
     }
 

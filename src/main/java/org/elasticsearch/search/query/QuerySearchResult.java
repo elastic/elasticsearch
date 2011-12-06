@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -29,10 +29,11 @@ import org.elasticsearch.search.facet.InternalFacets;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.lucene.Lucene.*;
+import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
+import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class QuerySearchResult implements Streamable, QuerySearchResultProvider {
 
@@ -59,11 +60,13 @@ public class QuerySearchResult implements Streamable, QuerySearchResultProvider 
         this.shardTarget = shardTarget;
     }
 
-    @Override public boolean includeFetch() {
+    @Override
+    public boolean includeFetch() {
         return false;
     }
 
-    @Override public QuerySearchResult queryResult() {
+    @Override
+    public QuerySearchResult queryResult() {
         return this;
     }
 
@@ -75,7 +78,8 @@ public class QuerySearchResult implements Streamable, QuerySearchResultProvider 
         return shardTarget;
     }
 
-    @Override public void shardTarget(SearchShardTarget shardTarget) {
+    @Override
+    public void shardTarget(SearchShardTarget shardTarget) {
         this.shardTarget = shardTarget;
     }
 
@@ -127,7 +131,8 @@ public class QuerySearchResult implements Streamable, QuerySearchResultProvider 
         return result;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         id = in.readLong();
 //        shardTarget = readSearchShardTarget(in);
         from = in.readVInt();
@@ -139,7 +144,8 @@ public class QuerySearchResult implements Streamable, QuerySearchResultProvider 
         searchTimedOut = in.readBoolean();
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(id);
 //        shardTarget.writeTo(out);
         out.writeVInt(from);

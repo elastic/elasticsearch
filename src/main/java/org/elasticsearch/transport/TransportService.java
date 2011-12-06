@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,9 +19,9 @@
 
 package org.elasticsearch.transport;
 
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -41,10 +41,10 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class TransportService extends AbstractLifecycleComponent<TransportService> {
 
@@ -76,13 +76,15 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         this(EMPTY_SETTINGS, transport, threadPool);
     }
 
-    @Inject public TransportService(Settings settings, Transport transport, ThreadPool threadPool) {
+    @Inject
+    public TransportService(Settings settings, Transport transport, ThreadPool threadPool) {
         super(settings);
         this.transport = transport;
         this.threadPool = threadPool;
     }
 
-    @Override protected void doStart() throws ElasticSearchException {
+    @Override
+    protected void doStart() throws ElasticSearchException {
         adapter.rxMetric.clear();
         adapter.txMetric.clear();
         transport.transportServiceAdapter(adapter);
@@ -92,11 +94,13 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         }
     }
 
-    @Override protected void doStop() throws ElasticSearchException {
+    @Override
+    protected void doStop() throws ElasticSearchException {
         transport.stop();
     }
 
-    @Override protected void doClose() throws ElasticSearchException {
+    @Override
+    protected void doClose() throws ElasticSearchException {
         transport.close();
     }
 
@@ -143,7 +147,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     /**
      * Set to <tt>true</tt> to indicate that a {@link ConnectTransportException} should be thrown when
      * sending a message (otherwise, it will be passed to the response handler). Defaults to <tt>false</tt>.
-     *
+     * <p/>
      * <p>This is useful when logic based on connect failure is needed without having to wrap the handler,
      * for example, in case of retries across several nodes.
      */
@@ -195,7 +199,8 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             // want handlers to worry about stack overflows
             final SendRequestTransportException sendRequestException = new SendRequestTransportException(node, action, e);
             threadPool.executor(ThreadPool.Names.CACHED).execute(new Runnable() {
-                @Override public void run() {
+                @Override
+                public void run() {
                     handler.handleException(sendRequestException);
                 }
             });
@@ -235,19 +240,23 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         final MeanMetric rxMetric = new MeanMetric();
         final MeanMetric txMetric = new MeanMetric();
 
-        @Override public void received(long size) {
+        @Override
+        public void received(long size) {
             rxMetric.inc(size);
         }
 
-        @Override public void sent(long size) {
+        @Override
+        public void sent(long size) {
             txMetric.inc(size);
         }
 
-        @Override public TransportRequestHandler handler(String action) {
+        @Override
+        public TransportRequestHandler handler(String action) {
             return serverHandlers.get(action);
         }
 
-        @Override public TransportResponseHandler remove(long requestId) {
+        @Override
+        public TransportResponseHandler remove(long requestId) {
             RequestHolder holder = clientHandlers.remove(requestId);
             if (holder == null) {
                 // lets see if its in the timeout holder
@@ -264,9 +273,11 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             return holder.handler();
         }
 
-        @Override public void raiseNodeConnected(final DiscoveryNode node) {
+        @Override
+        public void raiseNodeConnected(final DiscoveryNode node) {
             threadPool.cached().execute(new Runnable() {
-                @Override public void run() {
+                @Override
+                public void run() {
                     for (TransportConnectionListener connectionListener : connectionListeners) {
                         connectionListener.onNodeConnected(node);
                     }
@@ -274,9 +285,11 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             });
         }
 
-        @Override public void raiseNodeDisconnected(final DiscoveryNode node) {
+        @Override
+        public void raiseNodeDisconnected(final DiscoveryNode node) {
             threadPool.cached().execute(new Runnable() {
-                @Override public void run() {
+                @Override
+                public void run() {
                     for (TransportConnectionListener connectionListener : connectionListeners) {
                         connectionListener.onNodeDisconnected(node);
                     }
@@ -289,7 +302,8 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                                 // callback that an exception happened, but on a different thread since we don't
                                 // want handlers to worry about stack overflows
                                 threadPool.cached().execute(new Runnable() {
-                                    @Override public void run() {
+                                    @Override
+                                    public void run() {
                                         holderToNotify.handler().handleException(new NodeDisconnectedException(node, holderToNotify.action()));
                                     }
                                 });
@@ -317,7 +331,8 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             return sentTime;
         }
 
-        @Override public void run() {
+        @Override
+        public void run() {
             if (future.isCancelled()) {
                 return;
             }

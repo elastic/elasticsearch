@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,22 +19,18 @@
 
 package org.elasticsearch.test.integration.search.embedded;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Sets;
+import gnu.trove.ExtTIntArrayList;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.Sets;
-import org.elasticsearch.common.trove.ExtTIntArrayList;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.internal.InternalNode;
-import org.elasticsearch.search.Scroll;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.SearchService;
-import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.*;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.controller.ShardDoc;
@@ -62,18 +58,20 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.client.Requests.*;
-import static org.elasticsearch.common.collect.Lists.*;
-import static org.elasticsearch.common.collect.Maps.*;
-import static org.elasticsearch.common.settings.ImmutableSettings.*;
-import static org.elasticsearch.common.unit.TimeValue.*;
-import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.search.builder.SearchSourceBuilder.*;
-import static org.hamcrest.MatcherAssert.*;
-import static org.hamcrest.Matchers.*;
+import static com.google.common.collect.Lists.newArrayList;
+import static com.google.common.collect.Maps.newHashMap;
+import static org.elasticsearch.client.Requests.indexRequest;
+import static org.elasticsearch.client.Requests.refreshRequest;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class ThreeShardsEmbeddedSearchTests extends AbstractNodesTests {
 
@@ -83,7 +81,8 @@ public class ThreeShardsEmbeddedSearchTests extends AbstractNodesTests {
 
     private SearchPhaseController searchPhaseController;
 
-    @BeforeClass public void createNodeAndInitWithData() throws Exception {
+    @BeforeClass
+    public void createNodeAndInitWithData() throws Exception {
         startNode("server1");
         startNode("server2");
 
@@ -108,11 +107,13 @@ public class ThreeShardsEmbeddedSearchTests extends AbstractNodesTests {
         searchPhaseController = ((InternalNode) node("server1")).injector().getInstance(SearchPhaseController.class);
     }
 
-    @AfterClass public void closeServers() {
+    @AfterClass
+    public void closeServers() {
         closeAllNodes();
     }
 
-    @Test public void testDfsQueryThenFetch() throws Exception {
+    @Test
+    public void testDfsQueryThenFetch() throws Exception {
         SearchSourceBuilder sourceBuilder = searchSource()
                 .query(termQuery("multi", "test"))
                 .from(0).size(60).explain(true).indexBoost("test", 1.0f).indexBoost("test2", 2.0f);
@@ -180,7 +181,8 @@ public class ThreeShardsEmbeddedSearchTests extends AbstractNodesTests {
         }
     }
 
-    @Test public void testDfsQueryThenFetchWithSort() throws Exception {
+    @Test
+    public void testDfsQueryThenFetchWithSort() throws Exception {
         SearchSourceBuilder sourceBuilder = searchSource()
                 .query(termQuery("multi", "test"))
                 .from(0).size(60).explain(true).sort("age", SortOrder.ASC);
@@ -269,7 +271,8 @@ public class ThreeShardsEmbeddedSearchTests extends AbstractNodesTests {
         assertThat(hits.hits().length, equalTo(0));
     }
 
-    @Test public void testQueryAndFetch() {
+    @Test
+    public void testQueryAndFetch() {
         SearchSourceBuilder sourceBuilder = searchSource()
                 .query(termQuery("multi", "test"))
                 .from(0).size(20).explain(true);
@@ -324,7 +327,8 @@ public class ThreeShardsEmbeddedSearchTests extends AbstractNodesTests {
         assertThat("make sure we got all [" + expectedIds + "]", expectedIds.size(), equalTo(0));
     }
 
-    @Test public void testSimpleFacets() {
+    @Test
+    public void testSimpleFacets() {
         SearchSourceBuilder sourceBuilder = searchSource()
                 .query(termQuery("multi", "test"))
                 .from(0).size(20).explain(true).sort("age", SortOrder.ASC)
@@ -358,7 +362,8 @@ public class ThreeShardsEmbeddedSearchTests extends AbstractNodesTests {
         assertThat(searchResponse.facets().facet(QueryFacet.class, "all").count(), equalTo(100l));
     }
 
-    @Test public void testSimpleFacetsTwice() {
+    @Test
+    public void testSimpleFacetsTwice() {
         testSimpleFacets();
         testSimpleFacets();
     }

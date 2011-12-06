@@ -32,7 +32,7 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class HasChildFilter extends Filter implements ScopePhase.CollectorPhase {
 
@@ -56,36 +56,44 @@ public class HasChildFilter extends Filter implements ScopePhase.CollectorPhase 
         this.searchContext = searchContext;
     }
 
-    @Override public Query query() {
+    @Override
+    public Query query() {
         return query;
     }
 
-    @Override public boolean requiresProcessing() {
+    @Override
+    public boolean requiresProcessing() {
         return parentDocs == null;
     }
 
-    @Override public Collector collector() {
+    @Override
+    public Collector collector() {
         return new ChildCollector(parentType, searchContext);
     }
 
-    @Override public void processCollector(Collector collector) {
+    @Override
+    public void processCollector(Collector collector) {
         this.parentDocs = ((ChildCollector) collector).parentDocs();
     }
 
-    @Override public String scope() {
+    @Override
+    public String scope() {
         return this.scope;
     }
 
-    @Override public void clear() {
+    @Override
+    public void clear() {
         parentDocs = null;
     }
 
-    @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
+    @Override
+    public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
         // ok to return null
         return parentDocs.get(reader.getCoreCacheKey());
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append("child_filter[").append(childType).append("/").append(parentType).append("](").append(query).append(')');
         return sb.toString();

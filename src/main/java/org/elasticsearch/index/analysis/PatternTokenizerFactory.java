@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -39,7 +39,8 @@ public class PatternTokenizerFactory extends AbstractTokenizerFactory {
     private final Pattern pattern;
     private final int group;
 
-    @Inject public PatternTokenizerFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
+    @Inject
+    public PatternTokenizerFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
 
         String sPattern = settings.get("pattern", "\\W+" /*PatternAnalyzer.NON_WORD_PATTERN*/);
@@ -51,7 +52,8 @@ public class PatternTokenizerFactory extends AbstractTokenizerFactory {
         this.group = settings.getAsInt("group", -1);
     }
 
-    @Override public Tokenizer create(Reader reader) {
+    @Override
+    public Tokenizer create(Reader reader) {
         try {
             return new PatternTokenizer(reader, pattern, group);
         } catch (IOException e) {

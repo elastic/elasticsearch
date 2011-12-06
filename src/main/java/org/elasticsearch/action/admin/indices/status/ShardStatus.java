@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -31,13 +31,13 @@ import org.elasticsearch.index.shard.IndexShardState;
 
 import java.io.IOException;
 
-import static org.elasticsearch.cluster.routing.ImmutableShardRouting.*;
-import static org.elasticsearch.common.unit.ByteSizeValue.*;
+import static org.elasticsearch.cluster.routing.ImmutableShardRouting.readShardRoutingEntry;
+import static org.elasticsearch.common.unit.ByteSizeValue.readBytesSizeValue;
 
 /**
  * Shard instance (actual allocated shard) status.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class ShardStatus extends BroadcastShardOperationResponse {
 
@@ -245,7 +245,8 @@ public class ShardStatus extends BroadcastShardOperationResponse {
         return shardStatus;
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         shardRouting.writeTo(out);
         out.writeByte(state.id());
@@ -322,7 +323,8 @@ public class ShardStatus extends BroadcastShardOperationResponse {
         }
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         shardRouting = readShardRoutingEntry(in);
         state = IndexShardState.fromId(in.readByte());

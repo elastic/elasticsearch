@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,7 +19,7 @@
 
 package org.elasticsearch.river.routing;
 
-import org.elasticsearch.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,7 +29,7 @@ import java.io.IOException;
 import java.util.Iterator;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class RiversRouting implements Iterable<RiverRouting> {
 
@@ -58,7 +58,8 @@ public class RiversRouting implements Iterable<RiverRouting> {
         return false;
     }
 
-    @Override public Iterator<RiverRouting> iterator() {
+    @Override
+    public Iterator<RiverRouting> iterator() {
         return rivers.values().iterator();
     }
 

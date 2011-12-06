@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -32,7 +32,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class FsChannelSnapshot implements Translog.Snapshot {
 
@@ -60,31 +60,38 @@ public class FsChannelSnapshot implements Translog.Snapshot {
         this.totalOperations = totalOperations;
     }
 
-    @Override public long translogId() {
+    @Override
+    public long translogId() {
         return this.id;
     }
 
-    @Override public long position() {
+    @Override
+    public long position() {
         return this.position;
     }
 
-    @Override public long length() {
+    @Override
+    public long length() {
         return this.length;
     }
 
-    @Override public int estimatedTotalOperations() {
+    @Override
+    public int estimatedTotalOperations() {
         return this.totalOperations;
     }
 
-    @Override public InputStream stream() throws IOException {
+    @Override
+    public InputStream stream() throws IOException {
         return new FileChannelInputStream(channel, position, lengthInBytes());
     }
 
-    @Override public long lengthInBytes() {
+    @Override
+    public long lengthInBytes() {
         return length - position;
     }
 
-    @Override public boolean hasNext() {
+    @Override
+    public boolean hasNext() {
         try {
             if (position > length) {
                 return false;
@@ -120,15 +127,18 @@ public class FsChannelSnapshot implements Translog.Snapshot {
         }
     }
 
-    @Override public Translog.Operation next() {
+    @Override
+    public Translog.Operation next() {
         return this.lastOperationRead;
     }
 
-    @Override public void seekForward(long length) {
+    @Override
+    public void seekForward(long length) {
         this.position += length;
     }
 
-    @Override public boolean release() throws ElasticSearchException {
+    @Override
+    public boolean release() throws ElasticSearchException {
         raf.decreaseRefCount(true);
         return true;
     }

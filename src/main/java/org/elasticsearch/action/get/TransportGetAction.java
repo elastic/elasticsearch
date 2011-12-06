@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -41,7 +41,7 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Performs the get operation.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class TransportGetAction extends TransportShardSingleOperationAction<GetRequest, GetResponse> {
 
@@ -49,36 +49,43 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
 
     private final boolean realtime;
 
-    @Inject public TransportGetAction(Settings settings, ClusterService clusterService, TransportService transportService,
-                                      IndicesService indicesService, ThreadPool threadPool) {
+    @Inject
+    public TransportGetAction(Settings settings, ClusterService clusterService, TransportService transportService,
+                              IndicesService indicesService, ThreadPool threadPool) {
         super(settings, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
 
         this.realtime = settings.getAsBoolean("action.get.realtime", true);
     }
 
-    @Override protected String executor() {
+    @Override
+    protected String executor() {
         return ThreadPool.Names.SEARCH;
     }
 
-    @Override protected String transportAction() {
+    @Override
+    protected String transportAction() {
         return TransportActions.GET;
     }
 
-    @Override protected String transportShardAction() {
+    @Override
+    protected String transportShardAction() {
         return "indices/get/shard";
     }
 
-    @Override protected void checkBlock(GetRequest request, ClusterState state) {
+    @Override
+    protected void checkBlock(GetRequest request, ClusterState state) {
         state.blocks().indexBlockedRaiseException(ClusterBlockLevel.READ, request.index());
     }
 
-    @Override protected ShardIterator shards(ClusterState clusterState, GetRequest request) {
+    @Override
+    protected ShardIterator shards(ClusterState clusterState, GetRequest request) {
         return clusterService.operationRouting()
                 .getShards(clusterService.state(), request.index(), request.type(), request.id(), request.routing(), request.preference());
     }
 
-    @Override protected void doExecute(GetRequest request, ActionListener<GetResponse> listener) {
+    @Override
+    protected void doExecute(GetRequest request, ActionListener<GetResponse> listener) {
         if (request.realtime == null) {
             request.realtime = this.realtime;
         }
@@ -89,7 +96,8 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
         super.doExecute(request, listener);
     }
 
-    @Override protected GetResponse shardOperation(GetRequest request, int shardId) throws ElasticSearchException {
+    @Override
+    protected GetResponse shardOperation(GetRequest request, int shardId) throws ElasticSearchException {
         IndexService indexService = indicesService.indexServiceSafe(request.index());
         IndexShard indexShard = indexService.shardSafe(shardId);
 
@@ -101,11 +109,13 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
         return new GetResponse(result);
     }
 
-    @Override protected GetRequest newRequest() {
+    @Override
+    protected GetRequest newRequest() {
         return new GetRequest();
     }
 
-    @Override protected GetResponse newResponse() {
+    @Override
+    protected GetResponse newResponse() {
         return new GetResponse();
     }
 }

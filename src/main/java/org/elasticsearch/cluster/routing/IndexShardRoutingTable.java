@@ -19,28 +19,24 @@
 
 package org.elasticsearch.cluster.routing;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.UnmodifiableIterator;
+import jsr166y.ThreadLocalRandom;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.collect.UnmodifiableIterator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.concurrent.jsr166y.ThreadLocalRandom;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.common.collect.Lists.*;
+import static com.google.common.collect.Lists.newArrayList;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
@@ -143,7 +139,8 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         return shardId();
     }
 
-    @Override public UnmodifiableIterator<ShardRouting> iterator() {
+    @Override
+    public UnmodifiableIterator<ShardRouting> iterator() {
         return shards.iterator();
     }
 
@@ -290,11 +287,13 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
             this.attributes = attributes;
         }
 
-        @Override public int hashCode() {
+        @Override
+        public int hashCode() {
             return Arrays.hashCode(attributes);
         }
 
-        @Override public boolean equals(Object obj) {
+        @Override
+        public boolean equals(Object obj) {
             return Arrays.equals(attributes, ((AttributesKey) obj).attributes);
         }
     }

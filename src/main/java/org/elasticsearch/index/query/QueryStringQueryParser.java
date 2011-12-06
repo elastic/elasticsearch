@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,41 +19,45 @@
 
 package org.elasticsearch.index.query;
 
+import com.google.common.collect.Lists;
+import gnu.trove.impl.Constants;
+import gnu.trove.map.hash.TObjectFloatHashMap;
 import org.apache.lucene.queryParser.MapperQueryParser;
 import org.apache.lucene.queryParser.MultiFieldQueryParserSettings;
 import org.apache.lucene.queryParser.ParseException;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.trove.impl.Constants;
-import org.elasticsearch.common.trove.map.hash.TObjectFloatHashMap;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.lucene.search.Queries.*;
+import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
+import static org.elasticsearch.common.lucene.search.Queries.optimizeQuery;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class QueryStringQueryParser implements QueryParser {
 
     public static final String NAME = "query_string";
 
-    @Inject public QueryStringQueryParser() {
+    @Inject
+    public QueryStringQueryParser() {
     }
 
-    @Override public String[] names() {
+    @Override
+    public String[] names() {
         return new String[]{NAME, Strings.toCamelCase(NAME)};
     }
 
-    @Override public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    @Override
+    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
         MultiFieldQueryParserSettings qpSettings = new MultiFieldQueryParserSettings();

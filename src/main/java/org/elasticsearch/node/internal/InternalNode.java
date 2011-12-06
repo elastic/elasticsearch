@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -43,6 +43,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.thread.ThreadLocals;
@@ -85,10 +86,8 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.*;
-
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public final class InternalNode implements Node {
 
@@ -105,7 +104,7 @@ public final class InternalNode implements Node {
     private final Client client;
 
     public InternalNode() throws ElasticSearchException {
-        this(Builder.EMPTY_SETTINGS, true);
+        this(ImmutableSettings.Builder.EMPTY_SETTINGS, true);
     }
 
     public InternalNode(Settings pSettings, boolean loadConfigSettings) throws ElasticSearchException {
@@ -152,11 +151,13 @@ public final class InternalNode implements Node {
         logger.info("{{}}[{}]: initialized", Version.CURRENT, JvmInfo.jvmInfo().pid());
     }
 
-    @Override public Settings settings() {
+    @Override
+    public Settings settings() {
         return this.settings;
     }
 
-    @Override public Client client() {
+    @Override
+    public Client client() {
         return client;
     }
 
@@ -198,7 +199,8 @@ public final class InternalNode implements Node {
         return this;
     }
 
-    @Override public Node stop() {
+    @Override
+    public Node stop() {
         if (!lifecycle.moveToStopped()) {
             return this;
         }
@@ -328,7 +330,8 @@ public final class InternalNode implements Node {
         logger.info("{{}}[{}]: closed", Version.CURRENT, JvmInfo.jvmInfo().pid());
     }
 
-    @Override public boolean isClosed() {
+    @Override
+    public boolean isClosed() {
         return lifecycle.closed();
     }
 
@@ -340,7 +343,8 @@ public final class InternalNode implements Node {
         final InternalNode node = new InternalNode();
         node.start();
         Runtime.getRuntime().addShutdownHook(new Thread() {
-            @Override public void run() {
+            @Override
+            public void run() {
                 node.close();
             }
         });

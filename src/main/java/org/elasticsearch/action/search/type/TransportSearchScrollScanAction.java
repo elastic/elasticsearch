@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -45,10 +45,11 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.action.search.type.TransportSearchHelper.*;
+import static org.elasticsearch.action.search.type.TransportSearchHelper.buildShardFailures;
+import static org.elasticsearch.action.search.type.TransportSearchHelper.internalScrollSearchRequest;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class TransportSearchScrollScanAction extends AbstractComponent {
 
@@ -62,9 +63,10 @@ public class TransportSearchScrollScanAction extends AbstractComponent {
 
     private final TransportSearchCache searchCache;
 
-    @Inject public TransportSearchScrollScanAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                                   TransportSearchCache searchCache,
-                                                   SearchServiceTransportAction searchService, SearchPhaseController searchPhaseController) {
+    @Inject
+    public TransportSearchScrollScanAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+                                           TransportSearchCache searchCache,
+                                           SearchServiceTransportAction searchService, SearchPhaseController searchPhaseController) {
         super(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
@@ -137,7 +139,8 @@ public class TransportSearchScrollScanAction extends AbstractComponent {
             if (localOperations > 0) {
                 if (request.operationThreading() == SearchOperationThreading.SINGLE_THREAD) {
                     threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
-                        @Override public void run() {
+                        @Override
+                        public void run() {
                             for (Tuple<String, Long> target : scrollId.context()) {
                                 DiscoveryNode node = nodes.get(target.v1());
                                 if (node != null && nodes.localNodeId().equals(node.id())) {
@@ -153,7 +156,8 @@ public class TransportSearchScrollScanAction extends AbstractComponent {
                         if (node != null && nodes.localNodeId().equals(node.id())) {
                             if (localAsync) {
                                 threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
-                                    @Override public void run() {
+                                    @Override
+                                    public void run() {
                                         executePhase(node, target.v2());
                                     }
                                 });
@@ -182,14 +186,16 @@ public class TransportSearchScrollScanAction extends AbstractComponent {
 
         private void executePhase(DiscoveryNode node, final long searchId) {
             searchService.sendExecuteScan(node, internalScrollSearchRequest(searchId, request), new SearchServiceListener<QueryFetchSearchResult>() {
-                @Override public void onResult(QueryFetchSearchResult result) {
+                @Override
+                public void onResult(QueryFetchSearchResult result) {
                     queryFetchResults.put(result.shardTarget(), result);
                     if (counter.decrementAndGet() == 0) {
                         finishHim();
                     }
                 }
 
-                @Override public void onFailure(Throwable t) {
+                @Override
+                public void onFailure(Throwable t) {
                     if (logger.isDebugEnabled()) {
                         logger.debug("[{}] Failed to execute query phase", t, searchId);
                     }

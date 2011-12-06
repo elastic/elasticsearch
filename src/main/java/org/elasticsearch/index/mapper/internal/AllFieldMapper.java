@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -30,25 +30,19 @@ import org.elasticsearch.common.lucene.all.AllField;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.InternalMapper;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeContext;
-import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.RootMapper;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.*;
-import static org.elasticsearch.index.mapper.MapperBuilders.*;
-import static org.elasticsearch.index.mapper.core.TypeParsers.*;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.index.mapper.MapperBuilders.all;
+import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class AllFieldMapper extends AbstractFieldMapper<Void> implements InternalMapper, RootMapper {
 
@@ -84,30 +78,36 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
             return this;
         }
 
-        @Override public Builder store(Field.Store store) {
+        @Override
+        public Builder store(Field.Store store) {
             return super.store(store);
         }
 
-        @Override public Builder termVector(Field.TermVector termVector) {
+        @Override
+        public Builder termVector(Field.TermVector termVector) {
             return super.termVector(termVector);
         }
 
-        @Override protected Builder indexAnalyzer(NamedAnalyzer indexAnalyzer) {
+        @Override
+        protected Builder indexAnalyzer(NamedAnalyzer indexAnalyzer) {
             return super.indexAnalyzer(indexAnalyzer);
         }
 
-        @Override protected Builder searchAnalyzer(NamedAnalyzer searchAnalyzer) {
+        @Override
+        protected Builder searchAnalyzer(NamedAnalyzer searchAnalyzer) {
             return super.searchAnalyzer(searchAnalyzer);
         }
 
-        @Override public AllFieldMapper build(BuilderContext context) {
+        @Override
+        public AllFieldMapper build(BuilderContext context) {
             return new AllFieldMapper(name, store, termVector, omitNorms, omitTermFreqAndPositions,
                     indexAnalyzer, searchAnalyzer, enabled);
         }
     }
 
     public static class TypeParser implements Mapper.TypeParser {
-        @Override public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        @Override
+        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             AllFieldMapper.Builder builder = all();
             parseField(builder, builder.name, node, parserContext);
             for (Map.Entry<String, Object> entry : node.entrySet()) {
@@ -139,33 +139,41 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
         return this.enabled;
     }
 
-    @Override public Query queryStringTermQuery(Term term) {
+    @Override
+    public Query queryStringTermQuery(Term term) {
         return new AllTermQuery(term);
     }
 
-    @Override public Query fieldQuery(String value, QueryParseContext context) {
+    @Override
+    public Query fieldQuery(String value, QueryParseContext context) {
         return new AllTermQuery(names().createIndexNameTerm(value));
     }
 
-    @Override public void preParse(ParseContext context) throws IOException {
+    @Override
+    public void preParse(ParseContext context) throws IOException {
     }
 
-    @Override public void postParse(ParseContext context) throws IOException {
+    @Override
+    public void postParse(ParseContext context) throws IOException {
         super.parse(context);
     }
 
-    @Override public void parse(ParseContext context) throws IOException {
+    @Override
+    public void parse(ParseContext context) throws IOException {
         // we parse in post parse
     }
 
-    @Override public void validate(ParseContext context) throws MapperParsingException {
+    @Override
+    public void validate(ParseContext context) throws MapperParsingException {
     }
 
-    @Override public boolean includeInObject() {
+    @Override
+    public boolean includeInObject() {
         return true;
     }
 
-    @Override protected Fieldable parseCreateField(ParseContext context) throws IOException {
+    @Override
+    protected Fieldable parseCreateField(ParseContext context) throws IOException {
         if (!enabled) {
             return null;
         }
@@ -191,27 +199,33 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
         return analyzer;
     }
 
-    @Override public Void value(Fieldable field) {
+    @Override
+    public Void value(Fieldable field) {
         return null;
     }
 
-    @Override public Void valueFromString(String value) {
+    @Override
+    public Void valueFromString(String value) {
         return null;
     }
 
-    @Override public String valueAsString(Fieldable field) {
+    @Override
+    public String valueAsString(Fieldable field) {
         return null;
     }
 
-    @Override public Object valueForSearch(Fieldable field) {
+    @Override
+    public Object valueForSearch(Fieldable field) {
         return null;
     }
 
-    @Override protected String contentType() {
+    @Override
+    protected String contentType() {
         return CONTENT_TYPE;
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // if all are defaults, no need to write it at all
         if (enabled == Defaults.ENABLED && store == Defaults.STORE && termVector == Defaults.TERM_VECTOR && indexAnalyzer == null && searchAnalyzer == null) {
             return builder;
@@ -241,7 +255,8 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
         return builder;
     }
 
-    @Override public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+    @Override
+    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
         // do nothing here, no merging, but also no exception
     }
 }

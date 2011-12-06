@@ -58,7 +58,8 @@ public final class LinkedBindingImpl<T> extends BindingImpl<T> implements Linked
         getScoping().applyTo(binder.withSource(getSource()).bind(getKey()).to(getLinkedKey()));
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return new ToStringBuilder(LinkedKeyBinding.class)
                 .add("key", getKey())
                 .add("source", getSource())

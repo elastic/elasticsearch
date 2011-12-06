@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -25,18 +25,20 @@ import org.elasticsearch.common.thread.ThreadLocals;
 import java.util.Arrays;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class Unicode {
 
     private static ThreadLocal<ThreadLocals.CleanableValue<UnicodeUtil.UTF8Result>> cachedUtf8Result = new ThreadLocal<ThreadLocals.CleanableValue<UnicodeUtil.UTF8Result>>() {
-        @Override protected ThreadLocals.CleanableValue<UnicodeUtil.UTF8Result> initialValue() {
+        @Override
+        protected ThreadLocals.CleanableValue<UnicodeUtil.UTF8Result> initialValue() {
             return new ThreadLocals.CleanableValue<UnicodeUtil.UTF8Result>(new UnicodeUtil.UTF8Result());
         }
     };
 
     private static ThreadLocal<ThreadLocals.CleanableValue<UTF16Result>> cachedUtf16Result = new ThreadLocal<ThreadLocals.CleanableValue<UTF16Result>>() {
-        @Override protected ThreadLocals.CleanableValue<UTF16Result> initialValue() {
+        @Override
+        protected ThreadLocals.CleanableValue<UTF16Result> initialValue() {
             return new ThreadLocals.CleanableValue<UTF16Result>(new UTF16Result());
         }
     };
@@ -112,7 +114,7 @@ public class Unicode {
 
     public static final class UTF16Result {
         public char[] result = new char[10];
-//        public int[] offsets = new int[10];
+        //        public int[] offsets = new int[10];
         public int length;
 
         public void setLength(int newLength) {

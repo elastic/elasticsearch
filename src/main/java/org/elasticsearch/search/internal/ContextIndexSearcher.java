@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,19 +19,12 @@
 
 package org.elasticsearch.search.internal;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import org.apache.lucene.index.ExtendedIndexSearcher;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.TimeLimitingCollector;
-import org.apache.lucene.search.TopFieldCollector;
-import org.apache.lucene.search.TopFieldDocs;
-import org.apache.lucene.search.Weight;
-import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.collect.Lists;
-import org.elasticsearch.common.collect.Maps;
+import org.apache.lucene.search.*;
 import org.elasticsearch.common.lucene.MinimumScoreCollector;
 import org.elasticsearch.common.lucene.MultiCollector;
 import org.elasticsearch.common.lucene.search.AndFilter;
@@ -44,7 +37,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class ContextIndexSearcher extends ExtendedIndexSearcher {
 
@@ -116,7 +109,8 @@ public class ContextIndexSearcher extends ExtendedIndexSearcher {
         this.processingScope = Scopes.NA;
     }
 
-    @Override public Query rewrite(Query original) throws IOException {
+    @Override
+    public Query rewrite(Query original) throws IOException {
         if (original == searchContext.query() || original == searchContext.parsedQuery().query()) {
             // optimize in case its the top level search query and we already rewrote it...
             if (searchContext.queryRewritten()) {
@@ -130,7 +124,8 @@ public class ContextIndexSearcher extends ExtendedIndexSearcher {
         }
     }
 
-    @Override public Weight createNormalizedWeight(Query query) throws IOException {
+    @Override
+    public Weight createNormalizedWeight(Query query) throws IOException {
         // if its the main query, use we have dfs data, only then do it
         if (dfSource != null && (query == searchContext.query() || query == searchContext.parsedQuery().query())) {
             return dfSource.createNormalizedWeight(query);
@@ -140,8 +135,9 @@ public class ContextIndexSearcher extends ExtendedIndexSearcher {
 
     // override from the Searcher to allow to control if scores will be tracked or not
     // LUCENE MONITOR - We override the logic here to apply our own flags for track scores
-    @Override public TopFieldDocs search(Weight weight, Filter filter, int nDocs,
-                                         Sort sort, boolean fillFields) throws IOException {
+    @Override
+    public TopFieldDocs search(Weight weight, Filter filter, int nDocs,
+                               Sort sort, boolean fillFields) throws IOException {
         int limit = reader.maxDoc();
         if (limit == 0) {
             limit = 1;
@@ -154,7 +150,8 @@ public class ContextIndexSearcher extends ExtendedIndexSearcher {
         return (TopFieldDocs) collector.topDocs();
     }
 
-    @Override public void search(Weight weight, Filter filter, Collector collector) throws IOException {
+    @Override
+    public void search(Weight weight, Filter filter, Collector collector) throws IOException {
         if (searchContext.parsedFilter() != null && Scopes.MAIN.equals(processingScope)) {
             // this will only get applied to the actual search collector and not
             // to any scoped collectors, also, it will only be applied to the main collector

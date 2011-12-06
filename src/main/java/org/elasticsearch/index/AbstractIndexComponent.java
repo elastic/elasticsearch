@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -25,10 +25,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.jmx.ManagedGroupName;
 
-import static org.elasticsearch.index.IndexServiceManagement.*;
+import static org.elasticsearch.index.IndexServiceManagement.buildIndexGroupName;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public abstract class AbstractIndexComponent implements IndexComponent {
 
@@ -69,7 +69,8 @@ public abstract class AbstractIndexComponent implements IndexComponent {
         this.logger = Loggers.getLogger(getClass(), indexSettings, index);
     }
 
-    @Override public Index index() {
+    @Override
+    public Index index() {
         return this.index;
     }
 

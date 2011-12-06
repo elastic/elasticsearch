@@ -22,7 +22,7 @@ import java.lang.annotation.Annotation;
 import java.lang.annotation.Retention;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static java.lang.annotation.RetentionPolicy.*;
+import static java.lang.annotation.RetentionPolicy.RUNTIME;
 
 /**
  * @author jessewilson@google.com (Jesse Wilson)
@@ -51,16 +51,19 @@ public class UniqueAnnotations {
                 return Internal.class;
             }
 
-            @Override public String toString() {
+            @Override
+            public String toString() {
                 return "@" + Internal.class.getName() + "(value=" + value + ")";
             }
 
-            @Override public boolean equals(Object o) {
+            @Override
+            public boolean equals(Object o) {
                 return o instanceof Internal
                         && ((Internal) o).value() == value();
             }
 
-            @Override public int hashCode() {
+            @Override
+            public int hashCode() {
                 return (127 * "value".hashCode()) ^ value;
             }
         };

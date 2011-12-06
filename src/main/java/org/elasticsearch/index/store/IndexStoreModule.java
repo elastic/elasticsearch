@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.store;
 
+import com.google.common.collect.ImmutableList;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.Modules;
@@ -34,7 +34,7 @@ import org.elasticsearch.index.store.memory.MemoryIndexStoreModule;
 import org.elasticsearch.index.store.ram.RamIndexStoreModule;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class IndexStoreModule extends AbstractModule implements SpawnModules {
 
@@ -44,7 +44,8 @@ public class IndexStoreModule extends AbstractModule implements SpawnModules {
         this.settings = settings;
     }
 
-    @Override public Iterable<? extends Module> spawnModules() {
+    @Override
+    public Iterable<? extends Module> spawnModules() {
         Class<? extends Module> indexStoreModule = NioFsIndexStoreModule.class;
         // Same logic as FSDirectory#open ...
         if ((Constants.WINDOWS || Constants.SUN_OS)
@@ -72,6 +73,7 @@ public class IndexStoreModule extends AbstractModule implements SpawnModules {
         return ImmutableList.of(Modules.createModule(indexStoreModule, settings));
     }
 
-    @Override protected void configure() {
+    @Override
+    protected void configure() {
     }
 }

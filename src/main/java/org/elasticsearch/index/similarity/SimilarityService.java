@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.similarity;
 
+import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.search.Similarity;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -31,10 +31,10 @@ import org.elasticsearch.index.settings.IndexSettings;
 
 import java.util.Map;
 
-import static org.elasticsearch.common.collect.Maps.*;
+import static com.google.common.collect.Maps.newHashMap;
 
 /**
- * @author kimchy (Shay Banon)
+ *
  */
 public class SimilarityService extends AbstractIndexComponent {
 
@@ -46,8 +46,9 @@ public class SimilarityService extends AbstractIndexComponent {
         this(index, ImmutableSettings.Builder.EMPTY_SETTINGS, null);
     }
 
-    @Inject public SimilarityService(Index index, @IndexSettings Settings indexSettings,
-                                     @Nullable Map<String, SimilarityProviderFactory> providerFactories) {
+    @Inject
+    public SimilarityService(Index index, @IndexSettings Settings indexSettings,
+                             @Nullable Map<String, SimilarityProviderFactory> providerFactories) {
         super(index, indexSettings);
 
         Map<String, SimilarityProvider> similarityProviders = newHashMap();

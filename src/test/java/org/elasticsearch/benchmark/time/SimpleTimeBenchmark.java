@@ -24,7 +24,7 @@ import org.elasticsearch.common.StopWatch;
 import java.util.concurrent.CountDownLatch;
 
 /**
- * @author kimchy (Shay Banon)
+ *
  */
 public class SimpleTimeBenchmark {
 
@@ -45,7 +45,8 @@ public class SimpleTimeBenchmark {
         Thread[] threads = new Thread[NUMBER_OF_THREADS];
         for (int i = 0; i < threads.length; i++) {
             threads[i] = new Thread(new Runnable() {
-                @Override public void run() {
+                @Override
+                public void run() {
                     if (USE_NANO_TIME) {
                         for (long i = 0; i < NUMBER_OF_ITERATIONS; i++) {
                             System.nanoTime();

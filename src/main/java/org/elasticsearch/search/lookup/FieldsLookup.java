@@ -19,10 +19,10 @@
 
 package org.elasticsearch.search.lookup;
 
+import com.google.common.collect.Maps;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchParseException;
-import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.lucene.document.SingleFieldSelector;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -33,7 +33,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class FieldsLookup implements Map {
 
@@ -69,11 +69,13 @@ public class FieldsLookup implements Map {
     }
 
 
-    @Override public Object get(Object key) {
+    @Override
+    public Object get(Object key) {
         return loadFieldData(key.toString());
     }
 
-    @Override public boolean containsKey(Object key) {
+    @Override
+    public boolean containsKey(Object key) {
         try {
             loadFieldData(key.toString());
             return true;
@@ -82,43 +84,53 @@ public class FieldsLookup implements Map {
         }
     }
 
-    @Override public int size() {
+    @Override
+    public int size() {
         throw new UnsupportedOperationException();
     }
 
-    @Override public boolean isEmpty() {
+    @Override
+    public boolean isEmpty() {
         throw new UnsupportedOperationException();
     }
 
-    @Override public Set keySet() {
+    @Override
+    public Set keySet() {
         throw new UnsupportedOperationException();
     }
 
-    @Override public Collection values() {
+    @Override
+    public Collection values() {
         throw new UnsupportedOperationException();
     }
 
-    @Override public Set entrySet() {
+    @Override
+    public Set entrySet() {
         throw new UnsupportedOperationException();
     }
 
-    @Override public Object put(Object key, Object value) {
+    @Override
+    public Object put(Object key, Object value) {
         throw new UnsupportedOperationException();
     }
 
-    @Override public Object remove(Object key) {
+    @Override
+    public Object remove(Object key) {
         throw new UnsupportedOperationException();
     }
 
-    @Override public void clear() {
+    @Override
+    public void clear() {
         throw new UnsupportedOperationException();
     }
 
-    @Override public void putAll(Map m) {
+    @Override
+    public void putAll(Map m) {
         throw new UnsupportedOperationException();
     }
 
-    @Override public boolean containsValue(Object value) {
+    @Override
+    public boolean containsValue(Object value) {
         throw new UnsupportedOperationException();
     }
 

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,11 +19,11 @@
 
 package org.elasticsearch.discovery.zen.ping;
 
+import com.google.common.collect.ImmutableList;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.network.NetworkService;
@@ -42,13 +42,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class ZenPingService extends AbstractLifecycleComponent<ZenPing> implements ZenPing {
 
     private volatile ImmutableList<? extends ZenPing> zenPings = ImmutableList.of();
 
-    @Inject public ZenPingService(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName, NetworkService networkService) {
+    @Inject
+    public ZenPingService(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName, NetworkService networkService) {
         super(settings);
 
         ImmutableList.Builder<ZenPing> zenPingsBuilder = ImmutableList.builder();
@@ -78,7 +79,8 @@ public class ZenPingService extends AbstractLifecycleComponent<ZenPing> implemen
         }
     }
 
-    @Override public void setNodesProvider(DiscoveryNodesProvider nodesProvider) {
+    @Override
+    public void setNodesProvider(DiscoveryNodesProvider nodesProvider) {
         if (lifecycle.started()) {
             throw new ElasticSearchIllegalStateException("Can't set nodes provider when started");
         }
@@ -87,19 +89,22 @@ public class ZenPingService extends AbstractLifecycleComponent<ZenPing> implemen
         }
     }
 
-    @Override protected void doStart() throws ElasticSearchException {
+    @Override
+    protected void doStart() throws ElasticSearchException {
         for (ZenPing zenPing : zenPings) {
             zenPing.start();
         }
     }
 
-    @Override protected void doStop() throws ElasticSearchException {
+    @Override
+    protected void doStop() throws ElasticSearchException {
         for (ZenPing zenPing : zenPings) {
             zenPing.stop();
         }
     }
 
-    @Override protected void doClose() throws ElasticSearchException {
+    @Override
+    protected void doClose() throws ElasticSearchException {
         for (ZenPing zenPing : zenPings) {
             zenPing.close();
         }
@@ -109,7 +114,8 @@ public class ZenPingService extends AbstractLifecycleComponent<ZenPing> implemen
         final AtomicReference<PingResponse[]> response = new AtomicReference<PingResponse[]>();
         final CountDownLatch latch = new CountDownLatch(1);
         ping(new PingListener() {
-            @Override public void onPing(PingResponse[] pings) {
+            @Override
+            public void onPing(PingResponse[] pings) {
                 response.set(pings);
                 latch.countDown();
             }
@@ -122,7 +128,8 @@ public class ZenPingService extends AbstractLifecycleComponent<ZenPing> implemen
         }
     }
 
-    @Override public void ping(PingListener listener, TimeValue timeout) throws ElasticSearchException {
+    @Override
+    public void ping(PingListener listener, TimeValue timeout) throws ElasticSearchException {
         ImmutableList<? extends ZenPing> zenPings = this.zenPings;
         CompoundPingListener compoundPingListener = new CompoundPingListener(listener, zenPings);
         for (ZenPing zenPing : zenPings) {
@@ -146,7 +153,8 @@ public class ZenPingService extends AbstractLifecycleComponent<ZenPing> implemen
             this.counter = new AtomicInteger(zenPings.size());
         }
 
-        @Override public void onPing(PingResponse[] pings) {
+        @Override
+        public void onPing(PingResponse[] pings) {
             if (pings != null) {
                 for (PingResponse pingResponse : pings) {
                     responses.put(pingResponse.target(), pingResponse);

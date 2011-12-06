@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -31,18 +31,20 @@ import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
 
-import static org.elasticsearch.client.Requests.*;
-import static org.elasticsearch.common.unit.TimeValue.*;
-import static org.elasticsearch.rest.RestRequest.Method.*;
-import static org.elasticsearch.rest.RestStatus.*;
-import static org.elasticsearch.rest.action.support.RestActions.*;
+import static org.elasticsearch.client.Requests.putMappingRequest;
+import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.rest.RestStatus.OK;
+import static org.elasticsearch.rest.action.support.RestActions.splitIndices;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class RestPutMappingAction extends BaseRestHandler {
 
-    @Inject public RestPutMappingAction(Settings settings, Client client, RestController controller) {
+    @Inject
+    public RestPutMappingAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
         controller.registerHandler(PUT, "/{index}/_mapping", this);
         controller.registerHandler(PUT, "/{index}/{type}/_mapping", this);
@@ -51,14 +53,16 @@ public class RestPutMappingAction extends BaseRestHandler {
         controller.registerHandler(POST, "/{index}/{type}/_mapping", this);
     }
 
-    @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
+    @Override
+    public void handleRequest(final RestRequest request, final RestChannel channel) {
         PutMappingRequest putMappingRequest = putMappingRequest(splitIndices(request.param("index")));
         putMappingRequest.type(request.param("type"));
         putMappingRequest.source(request.contentAsString());
         putMappingRequest.timeout(request.paramAsTime("timeout", timeValueSeconds(10)));
         putMappingRequest.ignoreConflicts(request.paramAsBoolean("ignore_conflicts", putMappingRequest.ignoreConflicts()));
         client.admin().indices().putMapping(putMappingRequest, new ActionListener<PutMappingResponse>() {
-            @Override public void onResponse(PutMappingResponse response) {
+            @Override
+            public void onResponse(PutMappingResponse response) {
                 try {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject()
@@ -71,7 +75,8 @@ public class RestPutMappingAction extends BaseRestHandler {
                 }
             }
 
-            @Override public void onFailure(Throwable e) {
+            @Override
+            public void onFailure(Throwable e) {
                 try {
                     channel.sendResponse(new XContentThrowableRestResponse(request, e));
                 } catch (IOException e1) {

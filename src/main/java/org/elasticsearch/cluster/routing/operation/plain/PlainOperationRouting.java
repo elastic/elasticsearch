@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -46,7 +46,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class PlainOperationRouting extends AbstractComponent implements OperationRouting {
 
@@ -56,34 +56,41 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
 
     private final AwarenessAllocationDecider awarenessAllocationDecider;
 
-    @Inject public PlainOperationRouting(Settings indexSettings, HashFunction hashFunction, AwarenessAllocationDecider awarenessAllocationDecider) {
+    @Inject
+    public PlainOperationRouting(Settings indexSettings, HashFunction hashFunction, AwarenessAllocationDecider awarenessAllocationDecider) {
         super(indexSettings);
         this.hashFunction = hashFunction;
         this.useType = indexSettings.getAsBoolean("cluster.routing.operation.use_type", false);
         this.awarenessAllocationDecider = awarenessAllocationDecider;
     }
 
-    @Override public ShardIterator indexShards(ClusterState clusterState, String index, String type, String id, @Nullable String routing) throws IndexMissingException, IndexShardMissingException {
+    @Override
+    public ShardIterator indexShards(ClusterState clusterState, String index, String type, String id, @Nullable String routing) throws IndexMissingException, IndexShardMissingException {
         return shards(clusterState, index, type, id, routing).shardsIt();
     }
 
-    @Override public ShardIterator deleteShards(ClusterState clusterState, String index, String type, String id, @Nullable String routing) throws IndexMissingException, IndexShardMissingException {
+    @Override
+    public ShardIterator deleteShards(ClusterState clusterState, String index, String type, String id, @Nullable String routing) throws IndexMissingException, IndexShardMissingException {
         return shards(clusterState, index, type, id, routing).shardsIt();
     }
 
-    @Override public ShardIterator getShards(ClusterState clusterState, String index, String type, String id, @Nullable String routing, @Nullable String preference) throws IndexMissingException, IndexShardMissingException {
+    @Override
+    public ShardIterator getShards(ClusterState clusterState, String index, String type, String id, @Nullable String routing, @Nullable String preference) throws IndexMissingException, IndexShardMissingException {
         return preferenceActiveShardIterator(shards(clusterState, index, type, id, routing), clusterState.nodes().localNodeId(), clusterState.nodes(), preference);
     }
 
-    @Override public ShardIterator getShards(ClusterState clusterState, String index, int shardId, @Nullable String preference) throws IndexMissingException, IndexShardMissingException {
+    @Override
+    public ShardIterator getShards(ClusterState clusterState, String index, int shardId, @Nullable String preference) throws IndexMissingException, IndexShardMissingException {
         return preferenceActiveShardIterator(shards(clusterState, index, shardId), clusterState.nodes().localNodeId(), clusterState.nodes(), preference);
     }
 
-    @Override public GroupShardsIterator broadcastDeleteShards(ClusterState clusterState, String index) throws IndexMissingException {
+    @Override
+    public GroupShardsIterator broadcastDeleteShards(ClusterState clusterState, String index) throws IndexMissingException {
         return indexRoutingTable(clusterState, index).groupByShardsIt();
     }
 
-    @Override public GroupShardsIterator deleteByQueryShards(ClusterState clusterState, String index, @Nullable Set<String> routing) throws IndexMissingException {
+    @Override
+    public GroupShardsIterator deleteByQueryShards(ClusterState clusterState, String index, @Nullable Set<String> routing) throws IndexMissingException {
         if (routing == null || routing.isEmpty()) {
             return indexRoutingTable(clusterState, index).groupByShardsIt();
         }
@@ -102,7 +109,8 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
         return new GroupShardsIterator(set);
     }
 
-    @Override public int searchShardsCount(ClusterState clusterState, String[] indices, String[] concreteIndices, @Nullable String queryHint, @Nullable Map<String, Set<String>> routing, @Nullable String preference) throws IndexMissingException {
+    @Override
+    public int searchShardsCount(ClusterState clusterState, String[] indices, String[] concreteIndices, @Nullable String queryHint, @Nullable Map<String, Set<String>> routing, @Nullable String preference) throws IndexMissingException {
         if (concreteIndices == null || concreteIndices.length == 0) {
             concreteIndices = clusterState.metaData().concreteAllOpenIndices();
         }
@@ -135,7 +143,8 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
         }
     }
 
-    @Override public GroupShardsIterator searchShards(ClusterState clusterState, String[] indices, String[] concreteIndices, @Nullable String queryHint, @Nullable Map<String, Set<String>> routing, @Nullable String preference) throws IndexMissingException {
+    @Override
+    public GroupShardsIterator searchShards(ClusterState clusterState, String[] indices, String[] concreteIndices, @Nullable String queryHint, @Nullable Map<String, Set<String>> routing, @Nullable String preference) throws IndexMissingException {
         if (concreteIndices == null || concreteIndices.length == 0) {
             concreteIndices = clusterState.metaData().concreteAllOpenIndices();
         }

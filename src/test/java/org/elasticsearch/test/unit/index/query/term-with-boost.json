@@ -1,0 +1,8 @@
+{
+    term:{
+        age:{
+            value:34,
+            boost:2.0
+        }
+    }
+}

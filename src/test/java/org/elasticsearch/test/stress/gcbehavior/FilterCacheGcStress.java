@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -27,8 +27,9 @@ import org.elasticsearch.node.NodeBuilder;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.index.query.FilterBuilders.*;
-import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.FilterBuilders.rangeFilter;
+import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 
 public class FilterCacheGcStress {
 
@@ -47,7 +48,8 @@ public class FilterCacheGcStress {
         final AtomicBoolean stop = new AtomicBoolean();
 
         Thread indexingThread = new Thread() {
-            @Override public void run() {
+            @Override
+            public void run() {
                 while (!stop.get()) {
                     client.prepareIndex("test", "type1").setSource("field", System.currentTimeMillis()).execute().actionGet();
                 }
@@ -56,7 +58,8 @@ public class FilterCacheGcStress {
         indexingThread.start();
 
         Thread searchThread = new Thread() {
-            @Override public void run() {
+            @Override
+            public void run() {
                 while (!stop.get()) {
                     client.prepareSearch()
                             .setQuery(filteredQuery(matchAllQuery(), rangeFilter("field").from(System.currentTimeMillis() - 1000000)))

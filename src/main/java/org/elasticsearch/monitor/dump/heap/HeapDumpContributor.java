@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -29,7 +29,7 @@ import org.elasticsearch.monitor.dump.DumpContributor;
 import java.lang.reflect.Method;
 
 /**
- * @author kimchy (Shay Banon)
+ *
  */
 public class HeapDumpContributor implements DumpContributor {
 
@@ -40,7 +40,8 @@ public class HeapDumpContributor implements DumpContributor {
 
     private final String name;
 
-    @Inject public HeapDumpContributor(@Assisted String name, @Assisted Settings settings) {
+    @Inject
+    public HeapDumpContributor(@Assisted String name, @Assisted Settings settings) {
         this.name = name;
         Method heapDumpMethod;
         Object diagnosticMBean;
@@ -49,8 +50,7 @@ public class HeapDumpContributor implements DumpContributor {
             Method method = managementFactoryClass.getMethod("getDiagnosticMXBean");
             diagnosticMBean = method.invoke(null);
             heapDumpMethod = diagnosticMBean.getClass().getMethod("dumpHeap", String.class, boolean.class);
-        }
-        catch (Exception _ex) {
+        } catch (Exception _ex) {
             heapDumpMethod = null;
             diagnosticMBean = null;
         }
@@ -58,11 +58,13 @@ public class HeapDumpContributor implements DumpContributor {
         this.diagnosticMBean = diagnosticMBean;
     }
 
-    @Override public String getName() {
+    @Override
+    public String getName() {
         return name;
     }
 
-    @Override public void contribute(Dump dump) throws DumpContributionFailedException {
+    @Override
+    public void contribute(Dump dump) throws DumpContributionFailedException {
         if (heapDumpMethod == null) {
             throw new DumpContributionFailedException(getName(), "Heap dump not enalbed on this JVM");
         }

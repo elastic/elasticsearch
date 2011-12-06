@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -32,23 +32,25 @@ import org.testng.annotations.Test;
 
 import java.io.IOException;
 
-import static org.hamcrest.MatcherAssert.*;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class SearchSourceCompressTests extends AbstractNodesTests {
 
     private Client client;
 
-    @BeforeClass public void createNodes() throws Exception {
+    @BeforeClass
+    public void createNodes() throws Exception {
         startNode("node1");
         startNode("node2");
         client = getClient();
     }
 
-    @AfterClass public void closeNodes() {
+    @AfterClass
+    public void closeNodes() {
         client.close();
         closeAllNodes();
     }
@@ -57,15 +59,18 @@ public class SearchSourceCompressTests extends AbstractNodesTests {
         return client("node1");
     }
 
-    @Test public void testSourceFieldCompressed() throws IOException {
+    @Test
+    public void testSourceFieldCompressed() throws IOException {
         verifySource(true);
     }
 
-    @Test public void testSourceFieldPlainExplicit() throws IOException {
+    @Test
+    public void testSourceFieldPlainExplicit() throws IOException {
         verifySource(false);
     }
 
-    @Test public void testSourceFieldPlain() throws IOException {
+    @Test
+    public void testSourceFieldPlain() throws IOException {
         verifySource(null);
     }
 

@@ -16,8 +16,8 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import org.elasticsearch.common.base.Function;
-import org.elasticsearch.common.collect.MapMaker;
+import com.google.common.base.Function;
+import com.google.common.collect.MapMaker;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Member;
@@ -28,13 +28,13 @@ import java.security.PrivilegedAction;
 import java.util.Map;
 import java.util.logging.Logger;
 
-import static org.elasticsearch.common.base.Preconditions.*;
+import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
  * Utility methods for runtime code generation and class loading. We use this stuff for {@link
  * net.sf.cglib.reflect.FastClass faster reflection}, {@link net.sf.cglib.proxy.Enhancer method
  * interceptors} and to proxy circular dependencies.
- *
+ * <p/>
  * <p>When loading classes, we need to be careful of:
  * <ul>
  * <li><strong>Memory leaks.</strong> Generated classes need to be garbage collected in long-lived
@@ -43,7 +43,7 @@ import static org.elasticsearch.common.base.Preconditions.*;
  * <li><strong>Visibility.</strong> Containers like <code>OSGi</code> use class loader boundaries
  * to enforce modularity at runtime.
  * </ul>
- *
+ * <p/>
  * <p>For each generated class, there's multiple class loaders involved:
  * <ul>
  * <li><strong>The related class's class loader.</strong> Every generated class services exactly
@@ -213,7 +213,8 @@ public final class BytecodeGen {
             super(usersClassLoader);
         }
 
-        @Override protected Class<?> loadClass(String name, boolean resolve)
+        @Override
+        protected Class<?> loadClass(String name, boolean resolve)
                 throws ClassNotFoundException {
 
             // delegate internal requests to Guice class space

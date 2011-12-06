@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -25,21 +25,17 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeContext;
-import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.MapperBuilders.*;
-import static org.elasticsearch.index.mapper.core.TypeParsers.*;
+import static org.elasticsearch.index.mapper.MapperBuilders.stringField;
+import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class StringFieldMapper extends AbstractFieldMapper<String> implements AllFieldMapper.IncludeInAll {
 
@@ -64,12 +60,14 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
             return this;
         }
 
-        @Override public Builder includeInAll(Boolean includeInAll) {
+        @Override
+        public Builder includeInAll(Boolean includeInAll) {
             this.includeInAll = includeInAll;
             return this;
         }
 
-        @Override public StringFieldMapper build(BuilderContext context) {
+        @Override
+        public StringFieldMapper build(BuilderContext context) {
             StringFieldMapper fieldMapper = new StringFieldMapper(buildNames(context),
                     index, store, termVector, boost, omitNorms, omitTermFreqAndPositions, nullValue,
                     indexAnalyzer, searchAnalyzer);
@@ -79,7 +77,8 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
     }
 
     public static class TypeParser implements Mapper.TypeParser {
-        @Override public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        @Override
+        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             StringFieldMapper.Builder builder = stringField(name);
             parseField(builder, name, node, parserContext);
             for (Map.Entry<String, Object> entry : node.entrySet()) {
@@ -104,39 +103,47 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
         this.nullValue = nullValue;
     }
 
-    @Override public void includeInAll(Boolean includeInAll) {
+    @Override
+    public void includeInAll(Boolean includeInAll) {
         if (includeInAll != null) {
             this.includeInAll = includeInAll;
         }
     }
 
-    @Override public void includeInAllIfNotSet(Boolean includeInAll) {
+    @Override
+    public void includeInAllIfNotSet(Boolean includeInAll) {
         if (includeInAll != null && this.includeInAll == null) {
             this.includeInAll = includeInAll;
         }
     }
 
-    @Override public String value(Fieldable field) {
+    @Override
+    public String value(Fieldable field) {
         return field.stringValue();
     }
 
-    @Override public String valueFromString(String value) {
+    @Override
+    public String valueFromString(String value) {
         return value;
     }
 
-    @Override public String valueAsString(Fieldable field) {
+    @Override
+    public String valueAsString(Fieldable field) {
         return value(field);
     }
 
-    @Override public String indexedValue(String value) {
+    @Override
+    public String indexedValue(String value) {
         return value;
     }
 
-    @Override protected boolean customBoost() {
+    @Override
+    protected boolean customBoost() {
         return true;
     }
 
-    @Override protected Field parseCreateField(ParseContext context) throws IOException {
+    @Override
+    protected Field parseCreateField(ParseContext context) throws IOException {
         String value = nullValue;
         float boost = this.boost;
         if (context.externalValueSet()) {
@@ -178,11 +185,13 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
         return field;
     }
 
-    @Override protected String contentType() {
+    @Override
+    protected String contentType() {
         return CONTENT_TYPE;
     }
 
-    @Override public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+    @Override
+    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
         super.merge(mergeWith, mergeContext);
         if (!this.getClass().equals(mergeWith.getClass())) {
             return;
@@ -193,7 +202,8 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
         }
     }
 
-    @Override protected void doXContentBody(XContentBuilder builder) throws IOException {
+    @Override
+    protected void doXContentBody(XContentBuilder builder) throws IOException {
         super.doXContentBody(builder);
         if (index != Defaults.INDEX) {
             builder.field("index", index.name().toLowerCase());

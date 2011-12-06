@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -39,43 +39,50 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.cluster.ClusterState.*;
+import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOperationAction<ClusterUpdateSettingsRequest, ClusterUpdateSettingsResponse> {
 
     private final AllocationService allocationService;
 
-    @Inject public TransportClusterUpdateSettingsAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                                        AllocationService allocationService) {
+    @Inject
+    public TransportClusterUpdateSettingsAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
+                                                AllocationService allocationService) {
         super(settings, transportService, clusterService, threadPool);
         this.allocationService = allocationService;
     }
 
-    @Override protected String executor() {
+    @Override
+    protected String executor() {
         return ThreadPool.Names.MANAGEMENT;
     }
 
-    @Override protected String transportAction() {
+    @Override
+    protected String transportAction() {
         return TransportActions.Admin.Cluster.UPDATE_SETTINGS;
     }
 
-    @Override protected ClusterUpdateSettingsRequest newRequest() {
+    @Override
+    protected ClusterUpdateSettingsRequest newRequest() {
         return new ClusterUpdateSettingsRequest();
     }
 
-    @Override protected ClusterUpdateSettingsResponse newResponse() {
+    @Override
+    protected ClusterUpdateSettingsResponse newResponse() {
         return new ClusterUpdateSettingsResponse();
     }
 
-    @Override protected ClusterUpdateSettingsResponse masterOperation(final ClusterUpdateSettingsRequest request, ClusterState state) throws ElasticSearchException {
+    @Override
+    protected ClusterUpdateSettingsResponse masterOperation(final ClusterUpdateSettingsRequest request, ClusterState state) throws ElasticSearchException {
         final AtomicReference<Throwable> failureRef = new AtomicReference<Throwable>();
         final CountDownLatch latch = new CountDownLatch(1);
 
         clusterService.submitStateUpdateTask("cluster_update_settings", new ProcessedClusterStateUpdateTask() {
-            @Override public ClusterState execute(ClusterState currentState) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
                 try {
                     boolean changed = false;
                     ImmutableSettings.Builder transientSettings = ImmutableSettings.settingsBuilder();
@@ -119,10 +126,12 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
                 }
             }
 
-            @Override public void clusterStateProcessed(ClusterState clusterState) {
+            @Override
+            public void clusterStateProcessed(ClusterState clusterState) {
                 // now, reroute
                 clusterService.submitStateUpdateTask("reroute_after_cluster_update_settings", new ClusterStateUpdateTask() {
-                    @Override public ClusterState execute(ClusterState currentState) {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
                         try {
                             // now, reroute in case things change that require it (like number of replicas)
                             RoutingAllocation.Result routingResult = allocationService.reroute(currentState);

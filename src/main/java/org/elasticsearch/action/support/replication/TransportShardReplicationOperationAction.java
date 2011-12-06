@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -21,11 +21,7 @@ package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.UnavailableShardsException;
-import org.elasticsearch.action.WriteConsistencyLevel;
+import org.elasticsearch.action.*;
 import org.elasticsearch.action.support.BaseAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
@@ -51,20 +47,13 @@ import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportRequestHandler;
-import org.elasticsearch.transport.BaseTransportResponseHandler;
-import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.VoidTransportResponseHandler;
+import org.elasticsearch.transport.*;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.ExceptionsHelper.*;
+import static org.elasticsearch.ExceptionsHelper.detailedMessage;
 
 /**
  */
@@ -108,7 +97,8 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         this.defaultWriteConsistencyLevel = WriteConsistencyLevel.fromString(settings.get("action.write_consistency", "quorum"));
     }
 
-    @Override protected void doExecute(Request request, ActionListener<Response> listener) {
+    @Override
+    protected void doExecute(Request request, ActionListener<Response> listener) {
         new AsyncShardOperationAction(request, listener).start();
     }
 
@@ -195,21 +185,25 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
     class OperationTransportHandler extends BaseTransportRequestHandler<Request> {
 
-        @Override public Request newInstance() {
+        @Override
+        public Request newInstance() {
             return newRequestInstance();
         }
 
-        @Override public String executor() {
+        @Override
+        public String executor() {
             return ThreadPool.Names.SAME;
         }
 
-        @Override public void messageReceived(final Request request, final TransportChannel channel) throws Exception {
+        @Override
+        public void messageReceived(final Request request, final TransportChannel channel) throws Exception {
             // no need to have a threaded listener since we just send back a response
             request.listenerThreaded(false);
             // if we have a local operation, execute it on a thread since we don't spawn
             request.operationThreaded(true);
             execute(request, new ActionListener<Response>() {
-                @Override public void onResponse(Response result) {
+                @Override
+                public void onResponse(Response result) {
                     try {
                         channel.sendResponse(result);
                     } catch (Exception e) {
@@ -217,7 +211,8 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                     }
                 }
 
-                @Override public void onFailure(Throwable e) {
+                @Override
+                public void onFailure(Throwable e) {
                     try {
                         channel.sendResponse(e);
                     } catch (Exception e1) {
@@ -230,15 +225,18 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
     class ReplicaOperationTransportHandler extends BaseTransportRequestHandler<ReplicaOperationRequest> {
 
-        @Override public ReplicaOperationRequest newInstance() {
+        @Override
+        public ReplicaOperationRequest newInstance() {
             return new ReplicaOperationRequest();
         }
 
-        @Override public String executor() {
+        @Override
+        public String executor() {
             return executor;
         }
 
-        @Override public void messageReceived(final ReplicaOperationRequest request, final TransportChannel channel) throws Exception {
+        @Override
+        public void messageReceived(final ReplicaOperationRequest request, final TransportChannel channel) throws Exception {
             shardOperationOnReplica(request);
             channel.sendResponse(VoidStreamable.INSTANCE);
         }
@@ -258,13 +256,15 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             this.request = request;
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             shardId = in.readVInt();
             request = newRequestInstance();
             request.readFrom(in);
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(shardId);
             request.writeTo(out);
         }
@@ -284,13 +284,15 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             this.request = request;
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             shardId = in.readVInt();
             request = newReplicaRequestInstance();
             request.readFrom(in);
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(shardId);
             request.writeTo(out);
         }
@@ -396,7 +398,8 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                     if (request.operationThreaded()) {
                         request.beforeLocalFork();
                         threadPool.executor(executor).execute(new Runnable() {
-                            @Override public void run() {
+                            @Override
+                            public void run() {
                                 performOnPrimary(shard.id(), fromClusterEvent, shard, clusterState);
                             }
                         });
@@ -407,19 +410,23 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                     DiscoveryNode node = nodes.get(shard.currentNodeId());
                     transportService.sendRequest(node, transportAction, request, transportOptions(), new BaseTransportResponseHandler<Response>() {
 
-                        @Override public Response newInstance() {
+                        @Override
+                        public Response newInstance() {
                             return newResponseInstance();
                         }
 
-                        @Override public String executor() {
+                        @Override
+                        public String executor() {
                             return ThreadPool.Names.SAME;
                         }
 
-                        @Override public void handleResponse(Response response) {
+                        @Override
+                        public void handleResponse(Response response) {
                             listener.onResponse(response);
                         }
 
-                        @Override public void handleException(TransportException exp) {
+                        @Override
+                        public void handleException(TransportException exp) {
                             // if we got disconnected from the node, or the node / shard is not in the right state (being closed)
                             if (exp.unwrapCause() instanceof ConnectTransportException || exp.unwrapCause() instanceof NodeClosedException ||
                                     exp.unwrapCause() instanceof IllegalIndexShardStateException) {
@@ -449,26 +456,30 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 request.beforeLocalFork();
                 request.operationThreaded(true);
                 clusterService.add(request.timeout(), new TimeoutClusterStateListener() {
-                    @Override public void postAdded() {
+                    @Override
+                    public void postAdded() {
                         if (start(true)) {
                             // if we managed to start and perform the operation on the primary, we can remove this listener
                             clusterService.remove(this);
                         }
                     }
 
-                    @Override public void onClose() {
+                    @Override
+                    public void onClose() {
                         clusterService.remove(this);
                         listener.onFailure(new NodeClosedException(nodes.localNode()));
                     }
 
-                    @Override public void clusterChanged(ClusterChangedEvent event) {
+                    @Override
+                    public void clusterChanged(ClusterChangedEvent event) {
                         if (start(true)) {
                             // if we managed to start and perform the operation on the primary, we can remove this listener
                             clusterService.remove(this);
                         }
                     }
 
-                    @Override public void onTimeout(TimeValue timeValue) {
+                    @Override
+                    public void onTimeout(TimeValue timeValue) {
                         // just to be on the safe side, see if we can start it now?
                         if (start(true)) {
                             clusterService.remove(this);
@@ -580,11 +591,13 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             if (!nodeId.equals(nodes.localNodeId())) {
                 DiscoveryNode node = nodes.get(nodeId);
                 transportService.sendRequest(node, transportReplicaAction, shardRequest, transportOptions(), new VoidTransportResponseHandler(ThreadPool.Names.SAME) {
-                    @Override public void handleResponse(VoidStreamable vResponse) {
+                    @Override
+                    public void handleResponse(VoidStreamable vResponse) {
                         finishIfPossible();
                     }
 
-                    @Override public void handleException(TransportException exp) {
+                    @Override
+                    public void handleException(TransportException exp) {
                         if (!ignoreReplicaException(exp.unwrapCause())) {
                             logger.warn("Failed to perform " + transportAction + " on replica " + shardIt.shardId(), exp);
                             shardStateAction.shardFailed(shard, "Failed to perform [" + transportAction + "] on replica, message [" + detailedMessage(exp) + "]");
@@ -602,7 +615,8 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 if (request.operationThreaded()) {
                     request.beforeLocalFork();
                     threadPool.executor(executor).execute(new Runnable() {
-                        @Override public void run() {
+                        @Override
+                        public void run() {
                             try {
                                 shardOperationOnReplica(shardRequest);
                             } catch (Exception e) {

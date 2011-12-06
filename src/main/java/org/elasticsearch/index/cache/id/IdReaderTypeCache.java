@@ -22,7 +22,7 @@ package org.elasticsearch.index.cache.id;
 import org.elasticsearch.common.BytesWrap;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public interface IdReaderTypeCache {
 

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,10 +19,10 @@
 
 package org.elasticsearch.test.integration.search.scan;
 
+import com.google.common.collect.Sets;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.SearchHit;
@@ -33,21 +33,23 @@ import org.testng.annotations.Test;
 
 import java.util.Set;
 
-import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.hamcrest.MatcherAssert.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
 
 public class SearchScanScrollingTests extends AbstractNodesTests {
 
     private Client client;
 
-    @BeforeClass public void createNodes() throws Exception {
+    @BeforeClass
+    public void createNodes() throws Exception {
         startNode("node1");
         startNode("node2");
         client = getClient();
     }
 
-    @AfterClass public void closeNodes() {
+    @AfterClass
+    public void closeNodes() {
         client.close();
         closeAllNodes();
     }
@@ -56,111 +58,138 @@ public class SearchScanScrollingTests extends AbstractNodesTests {
         return client("node1");
     }
 
-    @Test public void shard1docs100size3() throws Exception {
+    @Test
+    public void shard1docs100size3() throws Exception {
         testScroll(1, 100, 3);
     }
 
-    @Test public void shard1docs100size7() throws Exception {
+    @Test
+    public void shard1docs100size7() throws Exception {
         testScroll(1, 100, 7);
     }
 
-    @Test public void shard1docs100size13() throws Exception {
+    @Test
+    public void shard1docs100size13() throws Exception {
         testScroll(1, 100, 13);
     }
 
-    @Test public void shard1docs100size24() throws Exception {
+    @Test
+    public void shard1docs100size24() throws Exception {
         testScroll(1, 100, 24);
     }
 
-    @Test public void shard1docs100size45() throws Exception {
+    @Test
+    public void shard1docs100size45() throws Exception {
         testScroll(1, 100, 45);
     }
 
-    @Test public void shard1docs100size63() throws Exception {
+    @Test
+    public void shard1docs100size63() throws Exception {
         testScroll(1, 100, 63);
     }
 
-    @Test public void shard1docs100size89() throws Exception {
+    @Test
+    public void shard1docs100size89() throws Exception {
         testScroll(1, 100, 89);
     }
 
-    @Test public void shard1docs100size99() throws Exception {
+    @Test
+    public void shard1docs100size99() throws Exception {
         testScroll(1, 100, 99);
     }
 
-    @Test public void shard1docs100size100() throws Exception {
+    @Test
+    public void shard1docs100size100() throws Exception {
         testScroll(1, 100, 100);
     }
 
-    @Test public void shard1docs100size101() throws Exception {
+    @Test
+    public void shard1docs100size101() throws Exception {
         testScroll(1, 100, 101);
     }
 
-    @Test public void shard1docs100size120() throws Exception {
+    @Test
+    public void shard1docs100size120() throws Exception {
         testScroll(1, 100, 120);
     }
 
-    @Test public void shard3docs100size3() throws Exception {
+    @Test
+    public void shard3docs100size3() throws Exception {
         testScroll(3, 100, 3);
     }
 
-    @Test public void shard3docs100size7() throws Exception {
+    @Test
+    public void shard3docs100size7() throws Exception {
         testScroll(3, 100, 7);
     }
 
-    @Test public void shard3docs100size13() throws Exception {
+    @Test
+    public void shard3docs100size13() throws Exception {
         testScroll(3, 100, 13);
     }
 
-    @Test public void shard3docs100size24() throws Exception {
+    @Test
+    public void shard3docs100size24() throws Exception {
         testScroll(3, 100, 24);
     }
 
-    @Test public void shard3docs100size45() throws Exception {
+    @Test
+    public void shard3docs100size45() throws Exception {
         testScroll(3, 100, 45);
     }
 
-    @Test public void shard3docs100size63() throws Exception {
+    @Test
+    public void shard3docs100size63() throws Exception {
         testScroll(3, 100, 63);
     }
 
-    @Test public void shard3docs100size89() throws Exception {
+    @Test
+    public void shard3docs100size89() throws Exception {
         testScroll(3, 100, 89);
     }
 
-    @Test public void shard3docs100size120() throws Exception {
+    @Test
+    public void shard3docs100size120() throws Exception {
         testScroll(3, 100, 120);
     }
 
-    @Test public void shard3docs100size3Unbalanced() throws Exception {
+    @Test
+    public void shard3docs100size3Unbalanced() throws Exception {
         testScroll(3, 100, 3, true);
     }
 
-    @Test public void shard3docs100size7Unbalanced() throws Exception {
+    @Test
+    public void shard3docs100size7Unbalanced() throws Exception {
         testScroll(3, 100, 7, true);
     }
 
-    @Test public void shard3docs100size13Unbalanced() throws Exception {
+    @Test
+    public void shard3docs100size13Unbalanced() throws Exception {
         testScroll(3, 100, 13, true);
     }
 
-    @Test public void shard3docs100size24Unbalanced() throws Exception {
+    @Test
+    public void shard3docs100size24Unbalanced() throws Exception {
         testScroll(3, 100, 24, true);
     }
 
-    @Test public void shard3docs100size45Unbalanced() throws Exception {
+    @Test
+    public void shard3docs100size45Unbalanced() throws Exception {
         testScroll(3, 100, 45, true);
     }
 
-    @Test public void shard3docs100size63Unbalanced() throws Exception {
+    @Test
+    public void shard3docs100size63Unbalanced() throws Exception {
         testScroll(3, 100, 63, true);
     }
 
-    @Test public void shard3docs100size89Unbalanced() throws Exception {
+    @Test
+    public void shard3docs100size89Unbalanced() throws Exception {
         testScroll(3, 100, 89, true);
     }
 
-    @Test public void shard3docs100size120Unbalanced() throws Exception {
+    @Test
+    public void shard3docs100size120Unbalanced() throws Exception {
         testScroll(3, 100, 120);
     }
 

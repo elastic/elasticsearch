@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -27,7 +27,7 @@ import java.io.IOException;
  * The BoostingQuery class can be used to effectively demote results that match a given query.
  * Unlike the "NOT" clause, this still selects documents that contain undesirable terms,
  * but reduces their overall score:
- *
+ * <p/>
  * Query balancedQuery = new BoostingQuery(positiveQuery, negativeQuery, 0.01f);
  * In this scenario the positiveQuery contains the mandatory, desirable criteria which is used to
  * select all matching documents, and the negativeQuery contains the undesirable elements which
@@ -69,7 +69,8 @@ public class BoostingQueryBuilder extends BaseQueryBuilder {
         return this;
     }
 
-    @Override protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         if (positiveQuery == null) {
             throw new QueryBuilderException("boosting query requires positive query to be set");
         }

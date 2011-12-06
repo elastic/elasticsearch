@@ -31,20 +31,23 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class TopChildrenQueryParser implements QueryParser {
 
     public static final String NAME = "top_children";
 
-    @Inject public TopChildrenQueryParser() {
+    @Inject
+    public TopChildrenQueryParser() {
     }
 
-    @Override public String[] names() {
+    @Override
+    public String[] names() {
         return new String[]{NAME, Strings.toCamelCase(NAME)};
     }
 
-    @Override public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    @Override
+    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
         Query query = null;

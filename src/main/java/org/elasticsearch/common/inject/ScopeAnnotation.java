@@ -19,14 +19,14 @@ package org.elasticsearch.common.inject;
 import java.lang.annotation.Retention;
 import java.lang.annotation.Target;
 
-import static java.lang.annotation.ElementType.*;
-import static java.lang.annotation.RetentionPolicy.*;
+import static java.lang.annotation.ElementType.ANNOTATION_TYPE;
+import static java.lang.annotation.RetentionPolicy.RUNTIME;
 
 /**
  * Annotates annotations which are used for scoping. Only one such annotation
  * may apply to a single implementation class. You must also annotate scope
  * annotations with {@code @Retention(RUNTIME)}. For example:
- *
+ * <p/>
  * <pre>
  *   {@code @}Retention(RUNTIME)
  *   {@code @}Target(TYPE)

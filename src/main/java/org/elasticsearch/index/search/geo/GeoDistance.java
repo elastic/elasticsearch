@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -25,24 +25,27 @@ import org.elasticsearch.common.unit.DistanceUnit;
 /**
  * Geo distance calculation.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public enum GeoDistance {
     /**
      * Calculates distance as points on a plane. Faster, but less accurate than {@link #ARC}.
      */
     PLANE() {
-        @Override public double calculate(double sourceLatitude, double sourceLongitude, double targetLatitude, double targetLongitude, DistanceUnit unit) {
+        @Override
+        public double calculate(double sourceLatitude, double sourceLongitude, double targetLatitude, double targetLongitude, DistanceUnit unit) {
             double px = targetLongitude - sourceLongitude;
             double py = targetLatitude - sourceLatitude;
             return Math.sqrt(px * px + py * py) * unit.getDistancePerDegree();
         }
 
-        @Override public double normalize(double distance, DistanceUnit unit) {
+        @Override
+        public double normalize(double distance, DistanceUnit unit) {
             return distance;
         }
 
-        @Override public FixedSourceDistance fixedSourceDistance(double sourceLatitude, double sourceLongitude, DistanceUnit unit) {
+        @Override
+        public FixedSourceDistance fixedSourceDistance(double sourceLatitude, double sourceLongitude, DistanceUnit unit) {
             return new PlaneFixedSourceDistance(sourceLatitude, sourceLongitude, unit);
         }
     },
@@ -50,7 +53,8 @@ public enum GeoDistance {
      * Calculates distance factor.
      */
     FACTOR() {
-        @Override public double calculate(double sourceLatitude, double sourceLongitude, double targetLatitude, double targetLongitude, DistanceUnit unit) {
+        @Override
+        public double calculate(double sourceLatitude, double sourceLongitude, double targetLatitude, double targetLongitude, DistanceUnit unit) {
             // TODO: we might want to normalize longitude as we did in LatLng...
             double longitudeDifference = targetLongitude - sourceLongitude;
             double a = Math.toRadians(90D - sourceLatitude);
@@ -58,11 +62,13 @@ public enum GeoDistance {
             return (Math.cos(a) * Math.cos(c)) + (Math.sin(a) * Math.sin(c) * Math.cos(Math.toRadians(longitudeDifference)));
         }
 
-        @Override public double normalize(double distance, DistanceUnit unit) {
+        @Override
+        public double normalize(double distance, DistanceUnit unit) {
             return Math.cos(distance / unit.getEarthRadius());
         }
 
-        @Override public FixedSourceDistance fixedSourceDistance(double sourceLatitude, double sourceLongitude, DistanceUnit unit) {
+        @Override
+        public FixedSourceDistance fixedSourceDistance(double sourceLatitude, double sourceLongitude, DistanceUnit unit) {
             return new FactorFixedSourceDistance(sourceLatitude, sourceLongitude, unit);
         }
     },
@@ -70,7 +76,8 @@ public enum GeoDistance {
      * Calculates distance as points in a globe.
      */
     ARC() {
-        @Override public double calculate(double sourceLatitude, double sourceLongitude, double targetLatitude, double targetLongitude, DistanceUnit unit) {
+        @Override
+        public double calculate(double sourceLatitude, double sourceLongitude, double targetLatitude, double targetLongitude, DistanceUnit unit) {
             // TODO: we might want to normalize longitude as we did in LatLng...
             double longitudeDifference = targetLongitude - sourceLongitude;
             double a = Math.toRadians(90D - sourceLatitude);
@@ -86,11 +93,13 @@ public enum GeoDistance {
             }
         }
 
-        @Override public double normalize(double distance, DistanceUnit unit) {
+        @Override
+        public double normalize(double distance, DistanceUnit unit) {
             return distance;
         }
 
-        @Override public FixedSourceDistance fixedSourceDistance(double sourceLatitude, double sourceLongitude, DistanceUnit unit) {
+        @Override
+        public FixedSourceDistance fixedSourceDistance(double sourceLatitude, double sourceLongitude, DistanceUnit unit) {
             return new ArcFixedSourceDistance(sourceLatitude, sourceLongitude, unit);
         }
     };
@@ -167,15 +176,18 @@ public enum GeoDistance {
     public static AlwaysDistanceBoundingCheck ALWAYS_INSTANCE = new AlwaysDistanceBoundingCheck();
 
     private static class AlwaysDistanceBoundingCheck implements DistanceBoundingCheck {
-        @Override public boolean isWithin(double targetLatitude, double targetLongitude) {
+        @Override
+        public boolean isWithin(double targetLatitude, double targetLongitude) {
             return true;
         }
 
-        @Override public Point topLeft() {
+        @Override
+        public Point topLeft() {
             return null;
         }
 
-        @Override public Point bottomRight() {
+        @Override
+        public Point bottomRight() {
             return null;
         }
     }
@@ -190,16 +202,19 @@ public enum GeoDistance {
             this.bottomRight = bottomRight;
         }
 
-        @Override public boolean isWithin(double targetLatitude, double targetLongitude) {
+        @Override
+        public boolean isWithin(double targetLatitude, double targetLongitude) {
             return (targetLatitude >= bottomRight.lat && targetLatitude <= topLeft.lat) &&
                     (targetLongitude >= topLeft.lon || targetLongitude <= bottomRight.lon);
         }
 
-        @Override public Point topLeft() {
+        @Override
+        public Point topLeft() {
             return topLeft;
         }
 
-        @Override public Point bottomRight() {
+        @Override
+        public Point bottomRight() {
             return bottomRight;
         }
     }
@@ -213,16 +228,19 @@ public enum GeoDistance {
             this.bottomRight = bottomRight;
         }
 
-        @Override public boolean isWithin(double targetLatitude, double targetLongitude) {
+        @Override
+        public boolean isWithin(double targetLatitude, double targetLongitude) {
             return (targetLatitude >= bottomRight.lat && targetLatitude <= topLeft.lat) &&
                     (targetLongitude >= topLeft.lon && targetLongitude <= bottomRight.lon);
         }
 
-        @Override public Point topLeft() {
+        @Override
+        public Point topLeft() {
             return topLeft;
         }
 
-        @Override public Point bottomRight() {
+        @Override
+        public Point bottomRight() {
             return bottomRight;
         }
     }
@@ -239,7 +257,8 @@ public enum GeoDistance {
             this.distancePerDegree = unit.getDistancePerDegree();
         }
 
-        @Override public double calculate(double targetLatitude, double targetLongitude) {
+        @Override
+        public double calculate(double targetLatitude, double targetLongitude) {
             double px = targetLongitude - sourceLongitude;
             double py = targetLatitude - sourceLatitude;
             return Math.sqrt(px * px + py * py) * distancePerDegree;
@@ -265,7 +284,8 @@ public enum GeoDistance {
             this.cosA = Math.cos(a);
         }
 
-        @Override public double calculate(double targetLatitude, double targetLongitude) {
+        @Override
+        public double calculate(double targetLatitude, double targetLongitude) {
             // TODO: we might want to normalize longitude as we did in LatLng...
             double longitudeDifference = targetLongitude - sourceLongitude;
             double c = Math.toRadians(90D - targetLatitude);
@@ -293,7 +313,8 @@ public enum GeoDistance {
             this.cosA = Math.cos(a);
         }
 
-        @Override public double calculate(double targetLatitude, double targetLongitude) {
+        @Override
+        public double calculate(double targetLatitude, double targetLongitude) {
             // TODO: we might want to normalize longitude as we did in LatLng...
             double longitudeDifference = targetLongitude - sourceLongitude;
             double c = Math.toRadians(90D - targetLatitude);

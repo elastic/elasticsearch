@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -27,7 +27,7 @@ import org.elasticsearch.search.facet.AbstractFacetBuilder;
 import java.io.IOException;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class StatisticalFacetBuilder extends AbstractFacetBuilder {
     private String[] fieldsNames;
@@ -61,7 +61,8 @@ public class StatisticalFacetBuilder extends AbstractFacetBuilder {
     /**
      * Marks the facet to run in a specific scope.
      */
-    @Override public StatisticalFacetBuilder scope(String scope) {
+    @Override
+    public StatisticalFacetBuilder scope(String scope) {
         super.scope(scope);
         return this;
     }
@@ -80,7 +81,8 @@ public class StatisticalFacetBuilder extends AbstractFacetBuilder {
         return this;
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (fieldName == null && fieldsNames == null) {
             throw new SearchSourceBuilderException("field must be set on statistical facet for facet [" + name + "]");
         }

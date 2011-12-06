@@ -19,9 +19,9 @@
 
 package org.elasticsearch.search.facet.histogram.unbounded;
 
+import gnu.trove.map.hash.TLongLongHashMap;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.CacheRecycler;
-import org.elasticsearch.common.trove.map.hash.TLongLongHashMap;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.NumericFieldData;
@@ -39,7 +39,7 @@ import java.io.IOException;
  * A histogram facet collector that uses the same field as the key as well as the
  * value.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class CountHistogramFacetCollector extends AbstractFacetCollector {
 
@@ -78,15 +78,18 @@ public class CountHistogramFacetCollector extends AbstractFacetCollector {
         histoProc = new HistogramProc(interval);
     }
 
-    @Override protected void doCollect(int doc) throws IOException {
+    @Override
+    protected void doCollect(int doc) throws IOException {
         fieldData.forEachValueInDoc(doc, histoProc);
     }
 
-    @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
+    @Override
+    protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
         fieldData = (NumericFieldData) fieldDataCache.cache(fieldDataType, reader, indexFieldName);
     }
 
-    @Override public Facet facet() {
+    @Override
+    public Facet facet() {
         return new InternalCountHistogramFacet(facetName, comparatorType, histoProc.counts(), true);
     }
 
@@ -104,7 +107,8 @@ public class CountHistogramFacetCollector extends AbstractFacetCollector {
             this.interval = interval;
         }
 
-        @Override public void onValue(int docId, double value) {
+        @Override
+        public void onValue(int docId, double value) {
             long bucket = bucket(value, interval);
             counts.adjustOrPutValue(bucket, 1, 1);
         }

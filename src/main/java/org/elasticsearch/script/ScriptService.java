@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,11 +19,11 @@
 
 package org.elasticsearch.script;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.MapMaker;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.ImmutableSet;
-import org.elasticsearch.common.collect.MapMaker;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
@@ -44,7 +44,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class ScriptService extends AbstractComponent {
 
@@ -63,7 +63,8 @@ public class ScriptService extends AbstractComponent {
         );
     }
 
-    @Inject public ScriptService(Settings settings, Environment env, Set<ScriptEngineService> scriptEngines) {
+    @Inject
+    public ScriptService(Settings settings, Environment env, Set<ScriptEngineService> scriptEngines) {
         super(settings);
 
         this.defaultLang = componentSettings.get("default_lang", "mvel");
@@ -191,24 +192,28 @@ public class ScriptService extends AbstractComponent {
             this.script = script;
         }
 
-        @Override public boolean equals(Object o) {
+        @Override
+        public boolean equals(Object o) {
             CacheKey other = (CacheKey) o;
             return lang.equals(other.lang) && script.equals(other.script);
         }
 
-        @Override public int hashCode() {
+        @Override
+        public int hashCode() {
             return lang.hashCode() + 31 * script.hashCode();
         }
     }
 
     public static class DocScoreNativeScriptFactory implements NativeScriptFactory {
-        @Override public ExecutableScript newScript(@Nullable Map<String, Object> params) {
+        @Override
+        public ExecutableScript newScript(@Nullable Map<String, Object> params) {
             return new DocScoreSearchScript();
         }
     }
 
     public static class DocScoreSearchScript extends AbstractFloatSearchScript {
-        @Override public float runAsFloat() {
+        @Override
+        public float runAsFloat() {
             try {
                 return doc().score();
             } catch (IOException e) {

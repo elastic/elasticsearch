@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -42,87 +42,107 @@ import org.elasticsearch.client.action.admin.indices.template.put.PutIndexTempla
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public abstract class AbstractIndicesAdminClient implements InternalIndicesAdminClient {
 
-    @Override public IndicesExistsRequestBuilder prepareExists(String... indices) {
+    @Override
+    public IndicesExistsRequestBuilder prepareExists(String... indices) {
         return new IndicesExistsRequestBuilder(this, indices);
     }
 
-    @Override public IndicesAliasesRequestBuilder prepareAliases() {
+    @Override
+    public IndicesAliasesRequestBuilder prepareAliases() {
         return new IndicesAliasesRequestBuilder(this);
     }
 
-    @Override public ClearIndicesCacheRequestBuilder prepareClearCache(String... indices) {
+    @Override
+    public ClearIndicesCacheRequestBuilder prepareClearCache(String... indices) {
         return new ClearIndicesCacheRequestBuilder(this).setIndices(indices);
     }
 
-    @Override public CreateIndexRequestBuilder prepareCreate(String index) {
+    @Override
+    public CreateIndexRequestBuilder prepareCreate(String index) {
         return new CreateIndexRequestBuilder(this, index);
     }
 
-    @Override public DeleteIndexRequestBuilder prepareDelete(String... indices) {
+    @Override
+    public DeleteIndexRequestBuilder prepareDelete(String... indices) {
         return new DeleteIndexRequestBuilder(this, indices);
     }
 
-    @Override public CloseIndexRequestBuilder prepareClose(String index) {
+    @Override
+    public CloseIndexRequestBuilder prepareClose(String index) {
         return new CloseIndexRequestBuilder(this, index);
     }
 
-    @Override public OpenIndexRequestBuilder prepareOpen(String index) {
+    @Override
+    public OpenIndexRequestBuilder prepareOpen(String index) {
         return new OpenIndexRequestBuilder(this, index);
     }
 
-    @Override public FlushRequestBuilder prepareFlush(String... indices) {
+    @Override
+    public FlushRequestBuilder prepareFlush(String... indices) {
         return new FlushRequestBuilder(this).setIndices(indices);
     }
 
-    @Override public GatewaySnapshotRequestBuilder prepareGatewaySnapshot(String... indices) {
+    @Override
+    public GatewaySnapshotRequestBuilder prepareGatewaySnapshot(String... indices) {
         return new GatewaySnapshotRequestBuilder(this).setIndices(indices);
     }
 
-    @Override public PutMappingRequestBuilder preparePutMapping(String... indices) {
+    @Override
+    public PutMappingRequestBuilder preparePutMapping(String... indices) {
         return new PutMappingRequestBuilder(this).setIndices(indices);
     }
 
-    @Override public DeleteMappingRequestBuilder prepareDeleteMapping(String... indices) {
+    @Override
+    public DeleteMappingRequestBuilder prepareDeleteMapping(String... indices) {
         return new DeleteMappingRequestBuilder(this).setIndices(indices);
     }
 
-    @Override public OptimizeRequestBuilder prepareOptimize(String... indices) {
+    @Override
+    public OptimizeRequestBuilder prepareOptimize(String... indices) {
         return new OptimizeRequestBuilder(this).setIndices(indices);
     }
 
-    @Override public RefreshRequestBuilder prepareRefresh(String... indices) {
+    @Override
+    public RefreshRequestBuilder prepareRefresh(String... indices) {
         return new RefreshRequestBuilder(this).setIndices(indices);
     }
 
-    @Override public IndicesStatsRequestBuilder prepareStats(String... indices) {
+    @Override
+    public IndicesStatsRequestBuilder prepareStats(String... indices) {
         return new IndicesStatsRequestBuilder(this).setIndices(indices);
     }
 
-    @Override public IndicesStatusRequestBuilder prepareStatus(String... indices) {
+    @Override
+    public IndicesStatusRequestBuilder prepareStatus(String... indices) {
         return new IndicesStatusRequestBuilder(this).setIndices(indices);
     }
 
-    @Override public IndicesSegmentsRequestBuilder prepareSegments(String... indices) {
+    @Override
+    public IndicesSegmentsRequestBuilder prepareSegments(String... indices) {
         return new IndicesSegmentsRequestBuilder(this).setIndices(indices);
     }
 
-    @Override public UpdateSettingsRequestBuilder prepareUpdateSettings(String... indices) {
+    @Override
+    public UpdateSettingsRequestBuilder prepareUpdateSettings(String... indices) {
         return new UpdateSettingsRequestBuilder(this).setIndices(indices);
     }
 
-    @Override public AnalyzeRequestBuilder prepareAnalyze(String index, String text) {
+    @Override
+    public AnalyzeRequestBuilder prepareAnalyze(String index, String text) {
         return new AnalyzeRequestBuilder(this, index, text);
     }
 
-    @Override public PutIndexTemplateRequestBuilder preparePutTemplate(String name) {
+    @Override
+    public PutIndexTemplateRequestBuilder preparePutTemplate(String name) {
         return new PutIndexTemplateRequestBuilder(this, name);
     }
 
-    @Override public DeleteIndexTemplateRequestBuilder prepareDeleteTemplate(String name) {
+    @Override
+    public DeleteIndexTemplateRequestBuilder prepareDeleteTemplate(String name) {
         return new DeleteIndexTemplateRequestBuilder(this, name);
     }
 }

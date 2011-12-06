@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -36,27 +36,29 @@ import org.testng.annotations.Test;
 
 import java.util.Arrays;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.*;
-import static org.elasticsearch.common.xcontent.XContentFactory.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.hamcrest.MatcherAssert.*;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class SimpleSortTests extends AbstractNodesTests {
 
     private Client client;
 
-    @BeforeClass public void createNodes() throws Exception {
+    @BeforeClass
+    public void createNodes() throws Exception {
         Settings settings = settingsBuilder().put("number_of_shards", 3).put("number_of_replicas", 0).build();
         startNode("server1", settings);
         startNode("server2", settings);
         client = getClient();
     }
 
-    @AfterClass public void closeNodes() {
+    @AfterClass
+    public void closeNodes() {
         client.close();
         closeAllNodes();
     }
@@ -65,7 +67,8 @@ public class SimpleSortTests extends AbstractNodesTests {
         return client("server1");
     }
 
-    @Test public void testTrackScores() throws Exception {
+    @Test
+    public void testTrackScores() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
@@ -113,7 +116,8 @@ public class SimpleSortTests extends AbstractNodesTests {
         }
     }
 
-    @Test public void testScoreSortDirection() throws Exception {
+    @Test
+    public void testScoreSortDirection() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
@@ -148,15 +152,18 @@ public class SimpleSortTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().getAt(0).getId(), equalTo("1"));
     }
 
-    @Test public void testSimpleSortsSingleShard() throws Exception {
+    @Test
+    public void testSimpleSortsSingleShard() throws Exception {
         testSimpleSorts(1);
     }
 
-    @Test public void testSimpleSortsTwoShards() throws Exception {
+    @Test
+    public void testSimpleSortsTwoShards() throws Exception {
         testSimpleSorts(2);
     }
 
-    @Test public void testSimpleSortsThreeShards() throws Exception {
+    @Test
+    public void testSimpleSortsThreeShards() throws Exception {
         testSimpleSorts(3);
     }
 
@@ -416,7 +423,8 @@ public class SimpleSortTests extends AbstractNodesTests {
         assertThat(searchResponse.toString(), not(containsString("error")));
     }
 
-    @Test public void testDocumentsWithNullValue() throws Exception {
+    @Test
+    public void testDocumentsWithNullValue() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
@@ -494,7 +502,8 @@ public class SimpleSortTests extends AbstractNodesTests {
         assertThat((String) searchResponse.hits().getAt(0).field("id").value(), equalTo("2"));
     }
 
-    @Test public void testSortMissing() throws Exception {
+    @Test
+    public void testSortMissing() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {

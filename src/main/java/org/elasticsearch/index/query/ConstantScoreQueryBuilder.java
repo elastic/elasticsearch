@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -27,7 +27,7 @@ import java.io.IOException;
  * A query that wraps a filter and simply returns a constant score equal to the
  * query boost for every document in the filter.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class ConstantScoreQueryBuilder extends BaseQueryBuilder {
 
@@ -54,7 +54,8 @@ public class ConstantScoreQueryBuilder extends BaseQueryBuilder {
         return this;
     }
 
-    @Override protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(ConstantScoreQueryParser.NAME);
         builder.field("filter");
         filterBuilder.toXContent(builder, params);

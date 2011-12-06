@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -37,7 +37,7 @@ import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class MembershipAction extends AbstractComponent {
 
@@ -82,7 +82,8 @@ public class MembershipAction extends AbstractComponent {
 
     public ClusterState sendJoinRequestBlocking(DiscoveryNode masterNode, DiscoveryNode node, TimeValue timeout) throws ElasticSearchException {
         return transportService.submitRequest(masterNode, JoinRequestRequestHandler.ACTION, new JoinRequest(node, true), new FutureTransportResponseHandler<JoinResponse>() {
-            @Override public JoinResponse newInstance() {
+            @Override
+            public JoinResponse newInstance() {
                 return new JoinResponse();
             }
         }).txGet(timeout.millis(), TimeUnit.MILLISECONDS).clusterState;
@@ -102,12 +103,14 @@ public class MembershipAction extends AbstractComponent {
             this.withClusterState = withClusterState;
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             node = DiscoveryNode.readNode(in);
             withClusterState = in.readBoolean();
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             node.writeTo(out);
             out.writeBoolean(withClusterState);
         }
@@ -124,11 +127,13 @@ public class MembershipAction extends AbstractComponent {
             this.clusterState = clusterState;
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             clusterState = ClusterState.Builder.readFrom(in, nodesProvider.nodes().localNode());
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             ClusterState.Builder.writeTo(clusterState, out);
         }
     }
@@ -137,11 +142,13 @@ public class MembershipAction extends AbstractComponent {
 
         static final String ACTION = "discovery/zen/join";
 
-        @Override public JoinRequest newInstance() {
+        @Override
+        public JoinRequest newInstance() {
             return new JoinRequest();
         }
 
-        @Override public void messageReceived(JoinRequest request, TransportChannel channel) throws Exception {
+        @Override
+        public void messageReceived(JoinRequest request, TransportChannel channel) throws Exception {
             ClusterState clusterState = listener.onJoin(request.node);
             if (request.withClusterState) {
                 channel.sendResponse(new JoinResponse(clusterState));
@@ -150,7 +157,8 @@ public class MembershipAction extends AbstractComponent {
             }
         }
 
-        @Override public String executor() {
+        @Override
+        public String executor() {
             return ThreadPool.Names.CACHED;
         }
     }
@@ -166,11 +174,13 @@ public class MembershipAction extends AbstractComponent {
             this.node = node;
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             node = DiscoveryNode.readNode(in);
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             node.writeTo(out);
         }
     }
@@ -179,16 +189,19 @@ public class MembershipAction extends AbstractComponent {
 
         static final String ACTION = "discovery/zen/leave";
 
-        @Override public LeaveRequest newInstance() {
+        @Override
+        public LeaveRequest newInstance() {
             return new LeaveRequest();
         }
 
-        @Override public void messageReceived(LeaveRequest request, TransportChannel channel) throws Exception {
+        @Override
+        public void messageReceived(LeaveRequest request, TransportChannel channel) throws Exception {
             listener.onLeave(request.node);
             channel.sendResponse(VoidStreamable.INSTANCE);
         }
 
-        @Override public String executor() {
+        @Override
+        public String executor() {
             return ThreadPool.Names.SAME;
         }
     }

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.facet.geodistance;
 
-import org.elasticsearch.common.collect.Lists;
+import com.google.common.collect.Lists;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -40,20 +40,23 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class GeoDistanceFacetProcessor extends AbstractComponent implements FacetProcessor {
 
-    @Inject public GeoDistanceFacetProcessor(Settings settings) {
+    @Inject
+    public GeoDistanceFacetProcessor(Settings settings) {
         super(settings);
         InternalGeoDistanceFacet.registerStreams();
     }
 
-    @Override public String[] types() {
+    @Override
+    public String[] types() {
         return new String[]{GeoDistanceFacet.TYPE, "geoDistance"};
     }
 
-    @Override public FacetCollector parse(String facetName, XContentParser parser, SearchContext context) throws IOException {
+    @Override
+    public FacetCollector parse(String facetName, XContentParser parser, SearchContext context) throws IOException {
         String fieldName = null;
         String valueFieldName = null;
         String valueScript = null;
@@ -189,7 +192,8 @@ public class GeoDistanceFacetProcessor extends AbstractComponent implements Face
                 context);
     }
 
-    @Override public Facet reduce(String name, List<Facet> facets) {
+    @Override
+    public Facet reduce(String name, List<Facet> facets) {
         InternalGeoDistanceFacet agg = null;
         for (Facet facet : facets) {
             InternalGeoDistanceFacet geoDistanceFacet = (InternalGeoDistanceFacet) facet;

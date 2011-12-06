@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -36,32 +36,37 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class TransportNodesInfoAction extends TransportNodesOperationAction<NodesInfoRequest, NodesInfoResponse, TransportNodesInfoAction.NodeInfoRequest, NodeInfo> {
 
     private final NodeService nodeService;
 
-    @Inject public TransportNodesInfoAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
-                                            ClusterService clusterService, TransportService transportService,
-                                            NodeService nodeService) {
+    @Inject
+    public TransportNodesInfoAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
+                                    ClusterService clusterService, TransportService transportService,
+                                    NodeService nodeService) {
         super(settings, clusterName, threadPool, clusterService, transportService);
         this.nodeService = nodeService;
     }
 
-    @Override protected String executor() {
+    @Override
+    protected String executor() {
         return ThreadPool.Names.MANAGEMENT;
     }
 
-    @Override protected String transportAction() {
+    @Override
+    protected String transportAction() {
         return TransportActions.Admin.Cluster.Node.INFO;
     }
 
-    @Override protected String transportNodeAction() {
+    @Override
+    protected String transportNodeAction() {
         return "/cluster/nodes/info/node";
     }
 
-    @Override protected NodesInfoResponse newResponse(NodesInfoRequest nodesInfoRequest, AtomicReferenceArray responses) {
+    @Override
+    protected NodesInfoResponse newResponse(NodesInfoRequest nodesInfoRequest, AtomicReferenceArray responses) {
         final List<NodeInfo> nodesInfos = new ArrayList<NodeInfo>();
         for (int i = 0; i < responses.length(); i++) {
             Object resp = responses.get(i);
@@ -72,27 +77,33 @@ public class TransportNodesInfoAction extends TransportNodesOperationAction<Node
         return new NodesInfoResponse(clusterName, nodesInfos.toArray(new NodeInfo[nodesInfos.size()]));
     }
 
-    @Override protected NodesInfoRequest newRequest() {
+    @Override
+    protected NodesInfoRequest newRequest() {
         return new NodesInfoRequest();
     }
 
-    @Override protected NodeInfoRequest newNodeRequest() {
+    @Override
+    protected NodeInfoRequest newNodeRequest() {
         return new NodeInfoRequest();
     }
 
-    @Override protected NodeInfoRequest newNodeRequest(String nodeId, NodesInfoRequest request) {
+    @Override
+    protected NodeInfoRequest newNodeRequest(String nodeId, NodesInfoRequest request) {
         return new NodeInfoRequest(nodeId);
     }
 
-    @Override protected NodeInfo newNodeResponse() {
+    @Override
+    protected NodeInfo newNodeResponse() {
         return new NodeInfo();
     }
 
-    @Override protected NodeInfo nodeOperation(NodeInfoRequest nodeInfoRequest) throws ElasticSearchException {
+    @Override
+    protected NodeInfo nodeOperation(NodeInfoRequest nodeInfoRequest) throws ElasticSearchException {
         return nodeService.info();
     }
 
-    @Override protected boolean accumulateExceptions() {
+    @Override
+    protected boolean accumulateExceptions() {
         return false;
     }
 

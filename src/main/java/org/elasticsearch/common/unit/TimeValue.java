@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -24,17 +24,17 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.joda.time.Period;
-import org.elasticsearch.common.joda.time.PeriodType;
-import org.elasticsearch.common.joda.time.format.PeriodFormat;
-import org.elasticsearch.common.joda.time.format.PeriodFormatter;
+import org.joda.time.Period;
+import org.joda.time.PeriodType;
+import org.joda.time.format.PeriodFormat;
+import org.joda.time.format.PeriodFormatter;
 
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.concurrent.TimeUnit;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class TimeValue implements Serializable, Streamable {
 
@@ -192,7 +192,8 @@ public class TimeValue implements Serializable, Streamable {
         return PeriodFormat.getDefault().withParseType(type).print(period);
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         if (duration < 0) {
             return Long.toString(duration);
         }
@@ -267,16 +268,19 @@ public class TimeValue implements Serializable, Streamable {
         return timeValue;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         duration = in.readLong();
         timeUnit = TimeUnit.NANOSECONDS;
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(nanos());
     }
 
-    @Override public boolean equals(Object o) {
+    @Override
+    public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
@@ -288,7 +292,8 @@ public class TimeValue implements Serializable, Streamable {
         return true;
     }
 
-    @Override public int hashCode() {
+    @Override
+    public int hashCode() {
         int result = (int) (duration ^ (duration >>> 32));
         result = 31 * result + (timeUnit != null ? timeUnit.hashCode() : 0);
         return result;

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -32,23 +32,28 @@ public class BytesRestResponse extends AbstractRestResponse {
         this.contentType = contentType;
     }
 
-    @Override public boolean contentThreadSafe() {
+    @Override
+    public boolean contentThreadSafe() {
         return true;
     }
 
-    @Override public String contentType() {
+    @Override
+    public String contentType() {
         return contentType;
     }
 
-    @Override public byte[] content() throws IOException {
+    @Override
+    public byte[] content() throws IOException {
         return bytes;
     }
 
-    @Override public int contentLength() throws IOException {
+    @Override
+    public int contentLength() throws IOException {
         return bytes.length;
     }
 
-    @Override public RestStatus status() {
+    @Override
+    public RestStatus status() {
         return RestStatus.OK;
     }
 }

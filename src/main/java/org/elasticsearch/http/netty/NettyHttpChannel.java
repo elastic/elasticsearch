@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -20,19 +20,6 @@
 package org.elasticsearch.http.netty;
 
 import org.elasticsearch.common.io.stream.CachedStreamOutput;
-import org.elasticsearch.common.netty.buffer.ChannelBuffer;
-import org.elasticsearch.common.netty.buffer.ChannelBuffers;
-import org.elasticsearch.common.netty.channel.Channel;
-import org.elasticsearch.common.netty.channel.ChannelFuture;
-import org.elasticsearch.common.netty.channel.ChannelFutureListener;
-import org.elasticsearch.common.netty.handler.codec.http.Cookie;
-import org.elasticsearch.common.netty.handler.codec.http.CookieDecoder;
-import org.elasticsearch.common.netty.handler.codec.http.CookieEncoder;
-import org.elasticsearch.common.netty.handler.codec.http.DefaultHttpResponse;
-import org.elasticsearch.common.netty.handler.codec.http.HttpHeaders;
-import org.elasticsearch.common.netty.handler.codec.http.HttpMethod;
-import org.elasticsearch.common.netty.handler.codec.http.HttpResponseStatus;
-import org.elasticsearch.common.netty.handler.codec.http.HttpVersion;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpException;
@@ -41,25 +28,32 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.XContentRestResponse;
 import org.elasticsearch.rest.support.RestUtils;
 import org.elasticsearch.transport.netty.NettyTransport;
+import org.jboss.netty.buffer.ChannelBuffer;
+import org.jboss.netty.buffer.ChannelBuffers;
+import org.jboss.netty.channel.Channel;
+import org.jboss.netty.channel.ChannelFuture;
+import org.jboss.netty.channel.ChannelFutureListener;
+import org.jboss.netty.handler.codec.http.*;
 
 import java.io.IOException;
 import java.util.Set;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class NettyHttpChannel implements HttpChannel {
     private final NettyHttpServerTransport transport;
     private final Channel channel;
-    private final org.elasticsearch.common.netty.handler.codec.http.HttpRequest request;
+    private final org.jboss.netty.handler.codec.http.HttpRequest request;
 
-    public NettyHttpChannel(NettyHttpServerTransport transport, Channel channel, org.elasticsearch.common.netty.handler.codec.http.HttpRequest request) {
+    public NettyHttpChannel(NettyHttpServerTransport transport, Channel channel, org.jboss.netty.handler.codec.http.HttpRequest request) {
         this.transport = transport;
         this.channel = channel;
         this.request = request;
     }
 
-    @Override public void sendResponse(RestResponse response) {
+    @Override
+    public void sendResponse(RestResponse response) {
 
         // Decide whether to close the connection or not.
         boolean http10 = request.getProtocolVersion().equals(HttpVersion.HTTP_1_0);
@@ -69,7 +63,7 @@ public class NettyHttpChannel implements HttpChannel {
 
         // Build the response object.
         HttpResponseStatus status = getStatus(response.status());
-        org.elasticsearch.common.netty.handler.codec.http.HttpResponse resp;
+        org.jboss.netty.handler.codec.http.HttpResponse resp;
         if (http10) {
             resp = new DefaultHttpResponse(HttpVersion.HTTP_1_0, status);
             if (!close) {

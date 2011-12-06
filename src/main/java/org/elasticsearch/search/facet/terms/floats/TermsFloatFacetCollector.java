@@ -19,16 +19,16 @@
 
 package org.elasticsearch.search.facet.terms.floats;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
+import gnu.trove.iterator.TFloatIntIterator;
+import gnu.trove.map.hash.TFloatIntHashMap;
+import gnu.trove.set.hash.TFloatHashSet;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.collect.BoundedTreeSet;
-import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.collect.ImmutableSet;
-import org.elasticsearch.common.trove.iterator.TFloatIntIterator;
-import org.elasticsearch.common.trove.map.hash.TFloatIntHashMap;
-import org.elasticsearch.common.trove.set.hash.TFloatHashSet;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.floats.FloatFieldData;
@@ -47,7 +47,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class TermsFloatFacetCollector extends AbstractFacetCollector {
 
@@ -117,24 +117,28 @@ public class TermsFloatFacetCollector extends AbstractFacetCollector {
         }
     }
 
-    @Override public void setScorer(Scorer scorer) throws IOException {
+    @Override
+    public void setScorer(Scorer scorer) throws IOException {
         if (script != null) {
             script.setScorer(scorer);
         }
     }
 
-    @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
+    @Override
+    protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
         fieldData = (FloatFieldData) fieldDataCache.cache(fieldDataType, reader, indexFieldName);
         if (script != null) {
             script.setNextReader(reader);
         }
     }
 
-    @Override protected void doCollect(int doc) throws IOException {
+    @Override
+    protected void doCollect(int doc) throws IOException {
         fieldData.forEachValueInDoc(doc, aggregator);
     }
 
-    @Override public Facet facet() {
+    @Override
+    public Facet facet() {
         TFloatIntHashMap facets = aggregator.facets();
         if (facets.isEmpty()) {
             CacheRecycler.pushFloatIntMap(facets);
@@ -183,7 +187,8 @@ public class TermsFloatFacetCollector extends AbstractFacetCollector {
             this.script = script;
         }
 
-        @Override public void onValue(int docId, float value) {
+        @Override
+        public void onValue(int docId, float value) {
             if (excluded != null && excluded.contains(value)) {
                 return;
             }
@@ -217,16 +222,19 @@ public class TermsFloatFacetCollector extends AbstractFacetCollector {
             this.facets = facets;
         }
 
-        @Override public void onValue(float value) {
+        @Override
+        public void onValue(float value) {
             facets.putIfAbsent(value, 0);
         }
 
-        @Override public void onValue(int docId, float value) {
+        @Override
+        public void onValue(int docId, float value) {
             facets.adjustOrPutValue(value, 1, 1);
             total++;
         }
 
-        @Override public void onMissing(int docId) {
+        @Override
+        public void onMissing(int docId) {
             missing++;
         }
 

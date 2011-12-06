@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,8 +19,8 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.common.util.concurrent.jsr166y.LinkedTransferQueue;
-import org.elasticsearch.common.util.concurrent.jsr166y.TransferQueue;
+import jsr166y.LinkedTransferQueue;
+import jsr166y.TransferQueue;
 
 import java.util.*;
 import java.util.concurrent.AbstractExecutorService;
@@ -32,11 +32,11 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * A thread pool based on {@link org.elasticsearch.common.util.concurrent.jsr166y.TransferQueue}.
- *
+ * A thread pool based on {@link jsr166y.TransferQueue}.
+ * <p/>
  * <p>Limited compared to ExecutorServer in what it does, but focused on speed.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class TransferThreadPoolExecutor extends AbstractExecutorService {
 
@@ -78,17 +78,17 @@ public class TransferThreadPoolExecutor extends AbstractExecutorService {
 
     /**
      * runState provides the main lifecyle control, taking on values:
-     *
+     * <p/>
      * RUNNING:  Accept new tasks and process queued tasks
      * SHUTDOWN: Don't accept new tasks, but process queued tasks
      * STOP:     Don't accept new tasks, don't process queued tasks,
      * and interrupt in-progress tasks
      * TERMINATED: Same as STOP, plus all threads have terminated
-     *
+     * <p/>
      * The numerical order among these values matters, to allow
      * ordered comparisons. The runState monotonically increases over
      * time, but need not hit each state. The transitions are:
-     *
+     * <p/>
      * RUNNING -> SHUTDOWN
      * On invocation of shutdown(), perhaps implicitly in finalize()
      * (RUNNING or SHUTDOWN) -> STOP
@@ -168,7 +168,8 @@ public class TransferThreadPoolExecutor extends AbstractExecutorService {
     }
 
 
-    @Override public void execute(Runnable command) {
+    @Override
+    public void execute(Runnable command) {
         if (blocking) {
             executeBlocking(command);
         } else {
@@ -259,7 +260,8 @@ public class TransferThreadPoolExecutor extends AbstractExecutorService {
         }
     }
 
-    @Override public void shutdown() {
+    @Override
+    public void shutdown() {
         final ReentrantLock mainLock = this.mainLock;
         mainLock.lock();
         try {
@@ -283,7 +285,8 @@ public class TransferThreadPoolExecutor extends AbstractExecutorService {
         }
     }
 
-    @Override public List<Runnable> shutdownNow() {
+    @Override
+    public List<Runnable> shutdownNow() {
         final ReentrantLock mainLock = this.mainLock;
         mainLock.lock();
         try {
@@ -309,20 +312,23 @@ public class TransferThreadPoolExecutor extends AbstractExecutorService {
         }
     }
 
-    @Override public boolean isShutdown() {
+    @Override
+    public boolean isShutdown() {
         return runState != RUNNING;
     }
 
-    @Override public boolean isTerminated() {
+    @Override
+    public boolean isTerminated() {
         return runState == TERMINATED;
     }
 
-    @Override public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
+    @Override
+    public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
         long nanos = unit.toNanos(timeout);
         final ReentrantLock mainLock = this.mainLock;
         mainLock.lock();
         try {
-            for (; ;) {
+            for (; ; ) {
                 if (runState == TERMINATED)
                     return true;
                 if (nanos <= 0)
@@ -460,7 +466,7 @@ public class TransferThreadPoolExecutor extends AbstractExecutorService {
 
 
     Runnable getTask() {
-        for (; ;) {
+        for (; ; ) {
             try {
                 int state = runState;
                 if (state > SHUTDOWN)
@@ -545,7 +551,7 @@ public class TransferThreadPoolExecutor extends AbstractExecutorService {
      * and queue empty) or (STOP and pool empty), otherwise unless
      * stopped, ensuring that there is at least one live thread to
      * handle queued tasks.
-     *
+     * <p/>
      * This method is called from the three places in which
      * termination can occur: in workerDone on exit of the last thread
      * after pool has been shut down, or directly within calls to

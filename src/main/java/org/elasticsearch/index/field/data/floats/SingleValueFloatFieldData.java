@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -24,18 +24,20 @@ import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.index.field.data.doubles.DoubleFieldData;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class SingleValueFloatFieldData extends FloatFieldData {
 
     private ThreadLocal<ThreadLocals.CleanableValue<double[]>> doublesValuesCache = new ThreadLocal<ThreadLocals.CleanableValue<double[]>>() {
-        @Override protected ThreadLocals.CleanableValue<double[]> initialValue() {
+        @Override
+        protected ThreadLocals.CleanableValue<double[]> initialValue() {
             return new ThreadLocals.CleanableValue<double[]>(new double[1]);
         }
     };
 
     private ThreadLocal<ThreadLocals.CleanableValue<float[]>> valuesCache = new ThreadLocal<ThreadLocals.CleanableValue<float[]>>() {
-        @Override protected ThreadLocals.CleanableValue<float[]> initialValue() {
+        @Override
+        protected ThreadLocals.CleanableValue<float[]> initialValue() {
             return new ThreadLocals.CleanableValue<float[]>(new float[1]);
         }
     };
@@ -48,20 +50,24 @@ public class SingleValueFloatFieldData extends FloatFieldData {
         this.ordinals = ordinals;
     }
 
-    @Override protected long computeSizeInBytes() {
+    @Override
+    protected long computeSizeInBytes() {
         return super.computeSizeInBytes() +
                 RamUsage.NUM_BYTES_INT * ordinals.length + RamUsage.NUM_BYTES_ARRAY_HEADER;
     }
 
-    @Override public boolean multiValued() {
+    @Override
+    public boolean multiValued() {
         return false;
     }
 
-    @Override public boolean hasValue(int docId) {
+    @Override
+    public boolean hasValue(int docId) {
         return ordinals[docId] != 0;
     }
 
-    @Override public void forEachValueInDoc(int docId, StringValueInDocProc proc) {
+    @Override
+    public void forEachValueInDoc(int docId, StringValueInDocProc proc) {
         int loc = ordinals[docId];
         if (loc == 0) {
             proc.onMissing(docId);
@@ -70,7 +76,8 @@ public class SingleValueFloatFieldData extends FloatFieldData {
         proc.onValue(docId, Float.toString(values[loc]));
     }
 
-    @Override public void forEachValueInDoc(int docId, DoubleValueInDocProc proc) {
+    @Override
+    public void forEachValueInDoc(int docId, DoubleValueInDocProc proc) {
         int loc = ordinals[docId];
         if (loc == 0) {
             return;
@@ -78,7 +85,8 @@ public class SingleValueFloatFieldData extends FloatFieldData {
         proc.onValue(docId, values[loc]);
     }
 
-    @Override public void forEachValueInDoc(int docId, LongValueInDocProc proc) {
+    @Override
+    public void forEachValueInDoc(int docId, LongValueInDocProc proc) {
         int loc = ordinals[docId];
         if (loc == 0) {
             return;
@@ -86,7 +94,8 @@ public class SingleValueFloatFieldData extends FloatFieldData {
         proc.onValue(docId, (long) values[loc]);
     }
 
-    @Override public void forEachValueInDoc(int docId, MissingDoubleValueInDocProc proc) {
+    @Override
+    public void forEachValueInDoc(int docId, MissingDoubleValueInDocProc proc) {
         int loc = ordinals[docId];
         if (loc == 0) {
             proc.onMissing(docId);
@@ -95,7 +104,8 @@ public class SingleValueFloatFieldData extends FloatFieldData {
         proc.onValue(docId, values[loc]);
     }
 
-    @Override public void forEachValueInDoc(int docId, MissingLongValueInDocProc proc) {
+    @Override
+    public void forEachValueInDoc(int docId, MissingLongValueInDocProc proc) {
         int loc = ordinals[docId];
         if (loc == 0) {
             proc.onMissing(docId);
@@ -104,7 +114,8 @@ public class SingleValueFloatFieldData extends FloatFieldData {
         proc.onValue(docId, (long) values[loc]);
     }
 
-    @Override public void forEachValueInDoc(int docId, ValueInDocProc proc) {
+    @Override
+    public void forEachValueInDoc(int docId, ValueInDocProc proc) {
         int loc = ordinals[docId];
         if (loc == 0) {
             proc.onMissing(docId);
@@ -113,11 +124,13 @@ public class SingleValueFloatFieldData extends FloatFieldData {
         proc.onValue(docId, values[loc]);
     }
 
-    @Override public void forEachOrdinalInDoc(int docId, OrdinalInDocProc proc) {
+    @Override
+    public void forEachOrdinalInDoc(int docId, OrdinalInDocProc proc) {
         proc.onOrdinal(docId, ordinals[docId]);
     }
 
-    @Override public double[] doubleValues(int docId) {
+    @Override
+    public double[] doubleValues(int docId) {
         int loc = ordinals[docId];
         if (loc == 0) {
             return DoubleFieldData.EMPTY_DOUBLE_ARRAY;
@@ -127,11 +140,13 @@ public class SingleValueFloatFieldData extends FloatFieldData {
         return ret;
     }
 
-    @Override public float value(int docId) {
+    @Override
+    public float value(int docId) {
         return values[ordinals[docId]];
     }
 
-    @Override public float[] values(int docId) {
+    @Override
+    public float[] values(int docId) {
         int loc = ordinals[docId];
         if (loc == 0) {
             return EMPTY_FLOAT_ARRAY;

@@ -43,20 +43,20 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
-import static org.elasticsearch.action.Actions.*;
-import static org.elasticsearch.common.unit.TimeValue.*;
-import static org.elasticsearch.search.Scroll.*;
+import static org.elasticsearch.action.Actions.addValidationError;
+import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
+import static org.elasticsearch.search.Scroll.readScroll;
 
 /**
  * A request to execute search against one or more indices (or all). Best created using
  * {@link org.elasticsearch.client.Requests#searchRequest(String...)}.
- *
+ * <p/>
  * <p>Note, the search {@link #source(org.elasticsearch.search.builder.SearchSourceBuilder)}
  * is required. The search source is the different search options, including facets and such.
- *
+ * <p/>
  * <p>There is an option to specify an addition search source using the {@link #extraSource(org.elasticsearch.search.builder.SearchSourceBuilder)}.
  *
- * @author kimchy (shay.banon)
+ *
  * @see org.elasticsearch.client.Requests#searchRequest(String...)
  * @see org.elasticsearch.client.Client#search(SearchRequest)
  * @see SearchResponse
@@ -69,9 +69,12 @@ public class SearchRequest implements ActionRequest {
 
     private String[] indices;
 
-    @Nullable private String queryHint;
-    @Nullable private String routing;
-    @Nullable private String preference;
+    @Nullable
+    private String queryHint;
+    @Nullable
+    private String routing;
+    @Nullable
+    private String preference;
 
     private byte[] source;
     private int sourceOffset;
@@ -111,7 +114,8 @@ public class SearchRequest implements ActionRequest {
         this.source = source;
     }
 
-    @Override public ActionRequestValidationException validate() {
+    @Override
+    public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (source == null && extraSource == null) {
             validationException = addValidationError("search source is missing", validationException);
@@ -143,7 +147,8 @@ public class SearchRequest implements ActionRequest {
     /**
      * Should the listener be called on a separate thread if needed.
      */
-    @Override public boolean listenerThreaded() {
+    @Override
+    public boolean listenerThreaded() {
         return listenerThreaded;
     }
 
@@ -158,7 +163,8 @@ public class SearchRequest implements ActionRequest {
     /**
      * Should the listener be called on a separate thread if needed.
      */
-    @Override public SearchRequest listenerThreaded(boolean listenerThreaded) {
+    @Override
+    public SearchRequest listenerThreaded(boolean listenerThreaded) {
         this.listenerThreaded = listenerThreaded;
         return this;
     }
@@ -518,7 +524,8 @@ public class SearchRequest implements ActionRequest {
         return timeout(TimeValue.parseTimeValue(timeout, null));
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         operationThreading = SearchOperationThreading.fromId(in.readByte());
         searchType = SearchType.fromId(in.readByte());
 
@@ -573,7 +580,8 @@ public class SearchRequest implements ActionRequest {
         }
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeByte(operationThreading.id());
         out.writeByte(searchType.id());
 

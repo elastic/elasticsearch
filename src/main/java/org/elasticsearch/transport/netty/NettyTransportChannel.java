@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -23,21 +23,21 @@ import org.elasticsearch.common.io.ThrowableObjectOutputStream;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.CachedStreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.netty.buffer.ChannelBuffer;
-import org.elasticsearch.common.netty.buffer.ChannelBuffers;
-import org.elasticsearch.common.netty.channel.Channel;
-import org.elasticsearch.common.netty.channel.ChannelFuture;
 import org.elasticsearch.transport.NotSerializableTransportException;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponseOptions;
 import org.elasticsearch.transport.support.TransportStreams;
+import org.jboss.netty.buffer.ChannelBuffer;
+import org.jboss.netty.buffer.ChannelBuffers;
+import org.jboss.netty.channel.Channel;
+import org.jboss.netty.channel.ChannelFuture;
 
 import java.io.IOException;
 import java.io.NotSerializableException;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class NettyTransportChannel implements TransportChannel {
 
@@ -58,15 +58,18 @@ public class NettyTransportChannel implements TransportChannel {
         this.requestId = requestId;
     }
 
-    @Override public String action() {
+    @Override
+    public String action() {
         return this.action;
     }
 
-    @Override public void sendResponse(Streamable message) throws IOException {
+    @Override
+    public void sendResponse(Streamable message) throws IOException {
         sendResponse(message, TransportResponseOptions.EMPTY);
     }
 
-    @Override public void sendResponse(Streamable message, TransportResponseOptions options) throws IOException {
+    @Override
+    public void sendResponse(Streamable message, TransportResponseOptions options) throws IOException {
         if (transport.compress) {
             options.withCompress(true);
         }
@@ -77,7 +80,8 @@ public class NettyTransportChannel implements TransportChannel {
         future.addListener(new NettyTransport.CacheFutureListener(cachedEntry));
     }
 
-    @Override public void sendResponse(Throwable error) throws IOException {
+    @Override
+    public void sendResponse(Throwable error) throws IOException {
         CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
         BytesStreamOutput stream;
         try {

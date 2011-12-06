@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -53,7 +53,8 @@ public interface CacheKeyFilter {
             return Unicode.fromBytes(bytes);
         }
 
-        @Override public boolean equals(Object o) {
+        @Override
+        public boolean equals(Object o) {
             if (this == o) return true;
             if (o.getClass() != this.getClass()) {
                 return false;
@@ -62,7 +63,8 @@ public interface CacheKeyFilter {
             return Arrays.equals(bytes, bytesWrap.bytes);
         }
 
-        @Override public int hashCode() {
+        @Override
+        public int hashCode() {
             return hashCode;
         }
     }
@@ -78,23 +80,28 @@ public interface CacheKeyFilter {
             this.key = key;
         }
 
-        @Override public Key cacheKey() {
+        @Override
+        public Key cacheKey() {
             return key;
         }
 
-        @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
+        @Override
+        public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
             return filter.getDocIdSet(reader);
         }
 
-        @Override public int hashCode() {
+        @Override
+        public int hashCode() {
             return filter.hashCode();
         }
 
-        @Override public boolean equals(Object obj) {
+        @Override
+        public boolean equals(Object obj) {
             return filter.equals(obj);
         }
 
-        @Override public String toString() {
+        @Override
+        public String toString() {
             return filter.toString();
         }
     }

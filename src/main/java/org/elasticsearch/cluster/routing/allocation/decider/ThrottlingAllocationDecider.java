@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -45,7 +45,8 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
     private volatile int primariesInitialRecoveries;
     private volatile int concurrentRecoveries;
 
-    @Inject public ThrottlingAllocationDecider(Settings settings, NodeSettingsService nodeSettingsService) {
+    @Inject
+    public ThrottlingAllocationDecider(Settings settings, NodeSettingsService nodeSettingsService) {
         super(settings);
 
         this.primariesInitialRecoveries = settings.getAsInt("cluster.routing.allocation.node_initial_primaries_recoveries", settings.getAsInt("cluster.routing.allocation.node_initial_primaries_recoveries", 4));
@@ -55,7 +56,8 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
         nodeSettingsService.addListener(new ApplySettings());
     }
 
-    @Override public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+    @Override
+    public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (shardRouting.primary()) {
             boolean primaryUnassigned = false;
             for (MutableShardRouting shard : allocation.routingNodes().unassigned()) {
@@ -102,7 +104,8 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
     }
 
     class ApplySettings implements NodeSettingsService.Listener {
-        @Override public void onRefreshSettings(Settings settings) {
+        @Override
+        public void onRefreshSettings(Settings settings) {
             int primariesInitialRecoveries = settings.getAsInt("cluster.routing.allocation.node_initial_primaries_recoveries", ThrottlingAllocationDecider.this.primariesInitialRecoveries);
             if (primariesInitialRecoveries != ThrottlingAllocationDecider.this.primariesInitialRecoveries) {
                 logger.info("updating [cluster.routing.allocation.node_initial_primaries_recoveries] from [{}] to [{}]", ThrottlingAllocationDecider.this.primariesInitialRecoveries, primariesInitialRecoveries);

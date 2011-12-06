@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -31,7 +31,7 @@ import java.util.HashMap;
 import java.util.Set;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 // LUCENE MONITOR: Once the next Lucene version is out, use the built in HTML filter
 public class HTMLStripCharFilter extends BaseCharFilter {
@@ -287,19 +287,19 @@ public class HTMLStripCharFilter extends BaseCharFilter {
      * <!------ Hello -->
      * <!>
      * <!------> Hello -->
-     *
+     * <p/>
      * #comments inside of an entity decl:
      * <!ENTITY amp     CDATA "&#38;"   -- ampersand, U+0026 ISOnum -->
-     *
+     * <p/>
      * Turns out, IE & mozilla don't parse comments correctly.
      * Since this is meant to be a practical stripper, I'll just
      * try and duplicate what the browsers do.
-     *
+     * <p/>
      * <!-- (stuff_including_markup)* -->
      * <!FOO (stuff, not including markup) >
      * <! (stuff, not including markup)* >
-     *
-     *
+     * <p/>
+     * <p/>
      * *
      */
 
@@ -571,10 +571,10 @@ public class HTMLStripCharFilter extends BaseCharFilter {
     /**
      * [10]    AttValue     ::=    '"' ([^<&"] | Reference)* '"'
      * |  "'" ([^<&'] | Reference)* "'"
-     *
+     * <p/>
      * need to also handle unquoted attributes, and attributes w/o values:
      * <td id=msviGlobalToolbar height="22" nowrap align=left>
-     *
+     * <p/>
      * *
      */
 

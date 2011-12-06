@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -26,19 +26,21 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestRequest;
 
-import static org.elasticsearch.common.unit.ByteSizeValue.*;
-import static org.elasticsearch.common.unit.TimeValue.*;
+import static org.elasticsearch.common.unit.ByteSizeValue.parseBytesSizeValue;
+import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public abstract class AbstractRestRequest implements RestRequest {
 
-    @Override public final String path() {
+    @Override
+    public final String path() {
         return RestUtils.decodeComponent(rawPath());
     }
 
-    @Override public float paramAsFloat(String key, float defaultValue) {
+    @Override
+    public float paramAsFloat(String key, float defaultValue) {
         String sValue = param(key);
         if (sValue == null) {
             return defaultValue;
@@ -50,7 +52,8 @@ public abstract class AbstractRestRequest implements RestRequest {
         }
     }
 
-    @Override public int paramAsInt(String key, int defaultValue) {
+    @Override
+    public int paramAsInt(String key, int defaultValue) {
         String sValue = param(key);
         if (sValue == null) {
             return defaultValue;
@@ -62,7 +65,8 @@ public abstract class AbstractRestRequest implements RestRequest {
         }
     }
 
-    @Override public long paramAsLong(String key, long defaultValue) {
+    @Override
+    public long paramAsLong(String key, long defaultValue) {
         String sValue = param(key);
         if (sValue == null) {
             return defaultValue;
@@ -74,11 +78,13 @@ public abstract class AbstractRestRequest implements RestRequest {
         }
     }
 
-    @Override public boolean paramAsBoolean(String key, boolean defaultValue) {
+    @Override
+    public boolean paramAsBoolean(String key, boolean defaultValue) {
         return Booleans.parseBoolean(param(key), defaultValue);
     }
 
-    @Override public Boolean paramAsBooleanOptional(String key, Boolean defaultValue) {
+    @Override
+    public Boolean paramAsBooleanOptional(String key, Boolean defaultValue) {
         String sValue = param(key);
         if (sValue == null) {
             return defaultValue;
@@ -86,15 +92,18 @@ public abstract class AbstractRestRequest implements RestRequest {
         return !(sValue.equals("false") || sValue.equals("0") || sValue.equals("off"));
     }
 
-    @Override public TimeValue paramAsTime(String key, TimeValue defaultValue) {
+    @Override
+    public TimeValue paramAsTime(String key, TimeValue defaultValue) {
         return parseTimeValue(param(key), defaultValue);
     }
 
-    @Override public ByteSizeValue paramAsSize(String key, ByteSizeValue defaultValue) {
+    @Override
+    public ByteSizeValue paramAsSize(String key, ByteSizeValue defaultValue) {
         return parseBytesSizeValue(param(key), defaultValue);
     }
 
-    @Override public String[] paramAsStringArray(String key, String[] defaultValue) {
+    @Override
+    public String[] paramAsStringArray(String key, String[] defaultValue) {
         String value = param(key);
         if (value == null) {
             return defaultValue;

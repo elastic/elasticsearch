@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -29,7 +29,7 @@ import java.io.IOException;
 import java.io.Serializable;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class NetworkStats implements Streamable, Serializable, ToXContent {
 
@@ -41,7 +41,8 @@ public class NetworkStats implements Streamable, Serializable, ToXContent {
 
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("network");
         if (tcp != null) {
             builder.startObject("tcp");
@@ -67,14 +68,16 @@ public class NetworkStats implements Streamable, Serializable, ToXContent {
         return stats;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         timestamp = in.readVLong();
         if (in.readBoolean()) {
             tcp = Tcp.readNetworkTcp(in);
         }
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(timestamp);
         if (tcp == null) {
             out.writeBoolean(false);
@@ -119,7 +122,8 @@ public class NetworkStats implements Streamable, Serializable, ToXContent {
             return tcp;
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             activeOpens = in.readLong();
             passiveOpens = in.readLong();
             attemptFails = in.readLong();
@@ -132,7 +136,8 @@ public class NetworkStats implements Streamable, Serializable, ToXContent {
             outRsts = in.readLong();
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             out.writeLong(activeOpens);
             out.writeLong(passiveOpens);
             out.writeLong(attemptFails);

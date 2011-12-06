@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -43,44 +43,52 @@ import java.util.concurrent.atomic.AtomicReference;
  * Called by shards in the cluster when their mapping was dynamically updated and it needs to be updated
  * in the cluster state meta data (and broadcast to all members).
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class MappingUpdatedAction extends TransportMasterNodeOperationAction<MappingUpdatedAction.MappingUpdatedRequest, MappingUpdatedAction.MappingUpdatedResponse> {
 
     private final MetaDataMappingService metaDataMappingService;
 
-    @Inject public MappingUpdatedAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                        MetaDataMappingService metaDataMappingService) {
+    @Inject
+    public MappingUpdatedAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
+                                MetaDataMappingService metaDataMappingService) {
         super(settings, transportService, clusterService, threadPool);
         this.metaDataMappingService = metaDataMappingService;
     }
 
-    @Override protected String transportAction() {
+    @Override
+    protected String transportAction() {
         return "cluster/mappingUpdated";
     }
 
-    @Override protected String executor() {
+    @Override
+    protected String executor() {
         return ThreadPool.Names.CACHED;
     }
 
-    @Override protected MappingUpdatedRequest newRequest() {
+    @Override
+    protected MappingUpdatedRequest newRequest() {
         return new MappingUpdatedRequest();
     }
 
-    @Override protected MappingUpdatedResponse newResponse() {
+    @Override
+    protected MappingUpdatedResponse newResponse() {
         return new MappingUpdatedResponse();
     }
 
-    @Override protected MappingUpdatedResponse masterOperation(MappingUpdatedRequest request, ClusterState state) throws ElasticSearchException {
+    @Override
+    protected MappingUpdatedResponse masterOperation(MappingUpdatedRequest request, ClusterState state) throws ElasticSearchException {
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<Throwable> failure = new AtomicReference<Throwable>();
         try {
             metaDataMappingService.updateMapping(request.index(), request.type(), request.mappingSource(), new MetaDataMappingService.Listener() {
-                @Override public void onResponse(MetaDataMappingService.Response response) {
+                @Override
+                public void onResponse(MetaDataMappingService.Response response) {
                     latch.countDown();
                 }
 
-                @Override public void onFailure(Throwable t) {
+                @Override
+                public void onFailure(Throwable t) {
                     failure.set(t);
                     latch.countDown();
                 }
@@ -99,10 +107,12 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
     }
 
     public static class MappingUpdatedResponse implements ActionResponse {
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
         }
     }
 
@@ -135,18 +145,21 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
             return mappingSource;
         }
 
-        @Override public ActionRequestValidationException validate() {
+        @Override
+        public ActionRequestValidationException validate() {
             return null;
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             index = in.readUTF();
             type = in.readUTF();
             mappingSource = CompressedString.readCompressedString(in);
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeUTF(index);
             out.writeUTF(type);

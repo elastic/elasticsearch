@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -28,7 +28,7 @@ import org.elasticsearch.index.field.data.FieldDataType;
 import java.io.IOException;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 // LUCENE MONITOR: Monitor against FieldComparator#String
 public class StringOrdValFieldDataComparator extends FieldComparator {
@@ -57,7 +57,8 @@ public class StringOrdValFieldDataComparator extends FieldComparator {
         this.field = field;
     }
 
-    @Override public int compare(int slot1, int slot2) {
+    @Override
+    public int compare(int slot1, int slot2) {
         if (readerGen[slot1] == readerGen[slot2]) {
             return ords[slot1] - ords[slot2];
         }
@@ -75,7 +76,8 @@ public class StringOrdValFieldDataComparator extends FieldComparator {
         return val1.compareTo(val2);
     }
 
-    @Override public int compareBottom(int doc) {
+    @Override
+    public int compareBottom(int doc) {
         assert bottomSlot != -1;
         if (bottomSameReader) {
             // ord is precisely comparable, even in the equal case
@@ -105,7 +107,8 @@ public class StringOrdValFieldDataComparator extends FieldComparator {
         }
     }
 
-    @Override public void copy(int slot, int doc) {
+    @Override
+    public void copy(int slot, int doc) {
         final int ord = order[doc];
         ords[slot] = ord;
         assert ord >= 0;
@@ -113,7 +116,8 @@ public class StringOrdValFieldDataComparator extends FieldComparator {
         readerGen[slot] = currentReaderGen;
     }
 
-    @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
+    @Override
+    public void setNextReader(IndexReader reader, int docBase) throws IOException {
         FieldData cleanFieldData = fieldDataCache.cache(FieldDataType.DefaultTypes.STRING, reader, field);
         if (cleanFieldData instanceof MultiValueStringFieldData) {
             throw new IOException("Can't sort on string types with more than one value per doc, or more than one token per field");
@@ -128,7 +132,8 @@ public class StringOrdValFieldDataComparator extends FieldComparator {
         }
     }
 
-    @Override public void setBottom(final int bottom) {
+    @Override
+    public void setBottom(final int bottom) {
         bottomSlot = bottom;
 
         bottomValue = values[bottomSlot];
@@ -157,7 +162,8 @@ public class StringOrdValFieldDataComparator extends FieldComparator {
         }
     }
 
-    @Override public Comparable value(int slot) {
+    @Override
+    public Comparable value(int slot) {
         return values[slot];
     }
 

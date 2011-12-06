@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,17 +19,17 @@
 
 package org.elasticsearch.index.analysis;
 
+import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Fieldable;
-import org.elasticsearch.common.collect.ImmutableMap;
 
 import java.io.IOException;
 import java.io.Reader;
 import java.util.Map;
 
 /**
- * @author kimchy (Shay Banon)
+ *
  */
 public final class FieldNameAnalyzer extends Analyzer {
 
@@ -50,19 +50,23 @@ public final class FieldNameAnalyzer extends Analyzer {
         return defaultAnalyzer;
     }
 
-    @Override public final TokenStream tokenStream(String fieldName, Reader reader) {
+    @Override
+    public final TokenStream tokenStream(String fieldName, Reader reader) {
         return getAnalyzer(fieldName).tokenStream(fieldName, reader);
     }
 
-    @Override public final TokenStream reusableTokenStream(String fieldName, Reader reader) throws IOException {
+    @Override
+    public final TokenStream reusableTokenStream(String fieldName, Reader reader) throws IOException {
         return getAnalyzer(fieldName).reusableTokenStream(fieldName, reader);
     }
 
-    @Override public int getPositionIncrementGap(String fieldName) {
+    @Override
+    public int getPositionIncrementGap(String fieldName) {
         return getAnalyzer(fieldName).getPositionIncrementGap(fieldName);
     }
 
-    @Override public int getOffsetGap(Fieldable field) {
+    @Override
+    public int getOffsetGap(Fieldable field) {
         return getAnalyzer(field.name()).getOffsetGap(field);
     }
 

@@ -19,45 +19,33 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import com.google.common.collect.*;
+import gnu.trove.set.hash.THashSet;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.ImmutableSet;
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.collect.Sets;
-import org.elasticsearch.common.collect.UnmodifiableIterator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.trove.set.hash.THashSet;
 import org.elasticsearch.common.util.concurrent.Immutable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
-import static org.elasticsearch.common.collect.Lists.*;
-import static org.elasticsearch.common.collect.MapBuilder.*;
-import static org.elasticsearch.common.collect.Maps.*;
-import static org.elasticsearch.common.collect.Sets.*;
+import static com.google.common.collect.Lists.newArrayList;
+import static com.google.common.collect.Maps.newHashMap;
+import static com.google.common.collect.Sets.newHashSet;
+import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 import static org.elasticsearch.common.settings.ImmutableSettings.*;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 @Immutable
 public class MetaData implements Iterable<IndexMetaData> {
@@ -574,7 +562,7 @@ public class MetaData implements Iterable<IndexMetaData> {
     /**
      * Iterates through the list of indices and selects the effective list of filtering aliases for the
      * given index.
-     *
+     * <p/>
      * <p>Only aliases with filters are returned. If the indices list contains a non-filtering reference to
      * the index itself - null is returned. Returns <tt>null</tt> if no filtering is required.</p>
      */
@@ -630,7 +618,8 @@ public class MetaData implements Iterable<IndexMetaData> {
     }
 
 
-    @Override public UnmodifiableIterator<IndexMetaData> iterator() {
+    @Override
+    public UnmodifiableIterator<IndexMetaData> iterator() {
         return indices.values().iterator();
     }
 

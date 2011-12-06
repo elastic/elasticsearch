@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -40,12 +40,12 @@ import org.elasticsearch.transport.TransportService;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
-import static org.elasticsearch.common.collect.Lists.*;
+import static com.google.common.collect.Lists.newArrayList;
 
 /**
  * Optimize index/indices action.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class TransportOptimizeAction extends TransportBroadcastOperationAction<OptimizeRequest, OptimizeResponse, ShardOptimizeRequest, ShardOptimizeResponse> {
 
@@ -53,33 +53,40 @@ public class TransportOptimizeAction extends TransportBroadcastOperationAction<O
 
     private final Object optimizeMutex = new Object();
 
-    @Inject public TransportOptimizeAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                           TransportService transportService, IndicesService indicesService) {
+    @Inject
+    public TransportOptimizeAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+                                   TransportService transportService, IndicesService indicesService) {
         super(settings, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
     }
 
-    @Override protected String executor() {
+    @Override
+    protected String executor() {
         return ThreadPool.Names.MERGE;
     }
 
-    @Override protected String transportAction() {
+    @Override
+    protected String transportAction() {
         return TransportActions.Admin.Indices.OPTIMIZE;
     }
 
-    @Override protected String transportShardAction() {
+    @Override
+    protected String transportShardAction() {
         return "indices/optimize/shard";
     }
 
-    @Override protected OptimizeRequest newRequest() {
+    @Override
+    protected OptimizeRequest newRequest() {
         return new OptimizeRequest();
     }
 
-    @Override protected boolean ignoreNonActiveExceptions() {
+    @Override
+    protected boolean ignoreNonActiveExceptions() {
         return true;
     }
 
-    @Override protected OptimizeResponse newResponse(OptimizeRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
+    @Override
+    protected OptimizeResponse newResponse(OptimizeRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
         int successfulShards = 0;
         int failedShards = 0;
         List<ShardOperationFailedException> shardFailures = null;
@@ -100,19 +107,23 @@ public class TransportOptimizeAction extends TransportBroadcastOperationAction<O
         return new OptimizeResponse(shardsResponses.length(), successfulShards, failedShards, shardFailures);
     }
 
-    @Override protected ShardOptimizeRequest newShardRequest() {
+    @Override
+    protected ShardOptimizeRequest newShardRequest() {
         return new ShardOptimizeRequest();
     }
 
-    @Override protected ShardOptimizeRequest newShardRequest(ShardRouting shard, OptimizeRequest request) {
+    @Override
+    protected ShardOptimizeRequest newShardRequest(ShardRouting shard, OptimizeRequest request) {
         return new ShardOptimizeRequest(shard.index(), shard.id(), request);
     }
 
-    @Override protected ShardOptimizeResponse newShardResponse() {
+    @Override
+    protected ShardOptimizeResponse newShardResponse() {
         return new ShardOptimizeResponse();
     }
 
-    @Override protected ShardOptimizeResponse shardOperation(ShardOptimizeRequest request) throws ElasticSearchException {
+    @Override
+    protected ShardOptimizeResponse shardOperation(ShardOptimizeRequest request) throws ElasticSearchException {
         synchronized (optimizeMutex) {
             IndexShard indexShard = indicesService.indexServiceSafe(request.index()).shardSafe(request.shardId());
             indexShard.optimize(new Engine.Optimize()
@@ -129,7 +140,8 @@ public class TransportOptimizeAction extends TransportBroadcastOperationAction<O
     /**
      * The refresh request works against *all* shards.
      */
-    @Override protected GroupShardsIterator shards(OptimizeRequest request, String[] concreteIndices, ClusterState clusterState) {
+    @Override
+    protected GroupShardsIterator shards(OptimizeRequest request, String[] concreteIndices, ClusterState clusterState) {
         return clusterState.routingTable().allActiveShardsGrouped(concreteIndices, true);
     }
 }

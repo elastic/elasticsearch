@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,8 +19,8 @@
 
 package org.elasticsearch.monitor.jvm;
 
+import com.google.common.collect.Iterators;
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -31,12 +31,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.Serializable;
-import java.lang.management.GarbageCollectorMXBean;
-import java.lang.management.ManagementFactory;
-import java.lang.management.MemoryMXBean;
-import java.lang.management.MemoryUsage;
-import java.lang.management.RuntimeMXBean;
-import java.lang.management.ThreadMXBean;
+import java.lang.management.*;
 import java.lang.reflect.Method;
 import java.util.Iterator;
 import java.util.List;
@@ -44,7 +39,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class JvmStats implements Streamable, Serializable, ToXContent {
 
@@ -212,7 +207,8 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
         return gc();
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("jvm");
         builder.field("timestamp", timestamp);
         builder.field("uptime", uptime().format());
@@ -264,7 +260,8 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
         return jvmStats;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         timestamp = in.readVLong();
         uptime = in.readVLong();
 
@@ -273,7 +270,8 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
         gc = GarbageCollectors.readGarbageCollectors(in);
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(timestamp);
         out.writeVLong(uptime);
 
@@ -295,14 +293,16 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
             return collectors;
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             collectors = new GarbageCollector[in.readVInt()];
             for (int i = 0; i < collectors.length; i++) {
                 collectors[i] = GarbageCollector.readGarbageCollector(in);
             }
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(collectors.length);
             for (GarbageCollector gc : collectors) {
                 gc.writeTo(out);
@@ -313,7 +313,8 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
             return this.collectors;
         }
 
-        @Override public Iterator iterator() {
+        @Override
+        public Iterator iterator() {
             return Iterators.forArray(collectors);
         }
 
@@ -419,7 +420,8 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
                 return lastGc;
             }
 
-            @Override public void readFrom(StreamInput in) throws IOException {
+            @Override
+            public void readFrom(StreamInput in) throws IOException {
                 startTime = in.readVLong();
                 endTime = in.readVLong();
                 max = in.readVLong();
@@ -428,7 +430,8 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
                 duration = in.readVLong();
             }
 
-            @Override public void writeTo(StreamOutput out) throws IOException {
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
                 out.writeVLong(startTime);
                 out.writeVLong(endTime);
                 out.writeVLong(max);
@@ -452,7 +455,8 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
             return gc;
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             name = in.readUTF();
             collectionCount = in.readVLong();
             collectionTime = in.readVLong();
@@ -461,7 +465,8 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
             }
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             out.writeUTF(name);
             out.writeVLong(collectionCount);
             out.writeVLong(collectionTime);
@@ -536,12 +541,14 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
             return threads;
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             count = in.readVInt();
             peakCount = in.readVInt();
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(count);
             out.writeVInt(peakCount);
         }
@@ -563,14 +570,16 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
             return mem;
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             heapCommitted = in.readVLong();
             heapUsed = in.readVLong();
             nonHeapCommitted = in.readVLong();
             nonHeapUsed = in.readVLong();
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(heapCommitted);
             out.writeVLong(heapUsed);
             out.writeVLong(nonHeapCommitted);

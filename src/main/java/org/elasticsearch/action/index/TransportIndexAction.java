@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -56,7 +56,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Performs the index operation.
- *
+ * <p/>
  * <p>Allows for the following settings:
  * <ul>
  * <li><b>autoCreateIndex</b>: When set to <tt>true</tt>, will automatically create an index if one does not exists.
@@ -64,7 +64,7 @@ import java.util.concurrent.TimeUnit;
  * <li><b>allowIdGeneration</b>: If the id is set not, should it be generated. Defaults to <tt>true</tt>.
  * </ul>
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class TransportIndexAction extends TransportShardReplicationOperationAction<IndexRequest, IndexRequest, IndexResponse> {
 
@@ -78,9 +78,10 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
 
     private final boolean waitForMappingChange;
 
-    @Inject public TransportIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                        IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
-                                        TransportCreateIndexAction createIndexAction, MappingUpdatedAction mappingUpdatedAction) {
+    @Inject
+    public TransportIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
+                                IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
+                                TransportCreateIndexAction createIndexAction, MappingUpdatedAction mappingUpdatedAction) {
         super(settings, transportService, clusterService, indicesService, threadPool, shardStateAction);
         this.createIndexAction = createIndexAction;
         this.mappingUpdatedAction = mappingUpdatedAction;
@@ -89,15 +90,18 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         this.waitForMappingChange = settings.getAsBoolean("action.wait_on_mapping_change", true);
     }
 
-    @Override protected void doExecute(final IndexRequest request, final ActionListener<IndexResponse> listener) {
+    @Override
+    protected void doExecute(final IndexRequest request, final ActionListener<IndexResponse> listener) {
         if (autoCreateIndex && !clusterService.state().metaData().hasConcreteIndex(request.index())) {
             request.beforeLocalFork(); // we fork on another thread...
             createIndexAction.execute(new CreateIndexRequest(request.index()).cause("auto(index api)"), new ActionListener<CreateIndexResponse>() {
-                @Override public void onResponse(CreateIndexResponse result) {
+                @Override
+                public void onResponse(CreateIndexResponse result) {
                     innerExecute(request, listener);
                 }
 
-                @Override public void onFailure(Throwable e) {
+                @Override
+                public void onFailure(Throwable e) {
                     if (ExceptionsHelper.unwrapCause(e) instanceof IndexAlreadyExistsException) {
                         // we have the index, do it
                         try {
@@ -128,40 +132,49 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         super.doExecute(request, listener);
     }
 
-    @Override protected boolean checkWriteConsistency() {
+    @Override
+    protected boolean checkWriteConsistency() {
         return true;
     }
 
-    @Override protected IndexRequest newRequestInstance() {
+    @Override
+    protected IndexRequest newRequestInstance() {
         return new IndexRequest();
     }
 
-    @Override protected IndexRequest newReplicaRequestInstance() {
+    @Override
+    protected IndexRequest newReplicaRequestInstance() {
         return new IndexRequest();
     }
 
-    @Override protected IndexResponse newResponseInstance() {
+    @Override
+    protected IndexResponse newResponseInstance() {
         return new IndexResponse();
     }
 
-    @Override protected String transportAction() {
+    @Override
+    protected String transportAction() {
         return TransportActions.INDEX;
     }
 
-    @Override protected String executor() {
+    @Override
+    protected String executor() {
         return ThreadPool.Names.INDEX;
     }
 
-    @Override protected void checkBlock(IndexRequest request, ClusterState state) {
+    @Override
+    protected void checkBlock(IndexRequest request, ClusterState state) {
         state.blocks().indexBlockedRaiseException(ClusterBlockLevel.WRITE, request.index());
     }
 
-    @Override protected ShardIterator shards(ClusterState clusterState, IndexRequest request) {
+    @Override
+    protected ShardIterator shards(ClusterState clusterState, IndexRequest request) {
         return clusterService.operationRouting()
                 .indexShards(clusterService.state(), request.index(), request.type(), request.id(), request.routing());
     }
 
-    @Override protected PrimaryResponse<IndexResponse, IndexRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) {
+    @Override
+    protected PrimaryResponse<IndexResponse, IndexRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) {
         final IndexRequest request = shardRequest.request;
 
         // validate, if routing is required, that we got routing
@@ -211,7 +224,8 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         return new PrimaryResponse<IndexResponse, IndexRequest>(shardRequest.request, response, op);
     }
 
-    @Override protected void postPrimaryOperation(IndexRequest request, PrimaryResponse<IndexResponse, IndexRequest> response) {
+    @Override
+    protected void postPrimaryOperation(IndexRequest request, PrimaryResponse<IndexResponse, IndexRequest> response) {
         Engine.IndexingOperation op = (Engine.IndexingOperation) response.payload();
         if (!Strings.hasLength(request.percolate())) {
             return;
@@ -225,7 +239,8 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         }
     }
 
-    @Override protected void shardOperationOnReplica(ReplicaOperationRequest shardRequest) {
+    @Override
+    protected void shardOperationOnReplica(ReplicaOperationRequest shardRequest) {
         IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.index()).shardSafe(shardRequest.shardId);
         IndexRequest request = shardRequest.request;
         SourceToParse sourceToParse = SourceToParse.source(request.underlyingSource(), request.underlyingSourceOffset(), request.underlyingSourceLength()).type(request.type()).id(request.id())
@@ -261,12 +276,14 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
             documentMapper.refreshSource();
 
             mappingUpdatedAction.execute(new MappingUpdatedAction.MappingUpdatedRequest(request.index(), request.type(), documentMapper.mappingSource()), new ActionListener<MappingUpdatedAction.MappingUpdatedResponse>() {
-                @Override public void onResponse(MappingUpdatedAction.MappingUpdatedResponse mappingUpdatedResponse) {
+                @Override
+                public void onResponse(MappingUpdatedAction.MappingUpdatedResponse mappingUpdatedResponse) {
                     // all is well
                     latch.countDown();
                 }
 
-                @Override public void onFailure(Throwable e) {
+                @Override
+                public void onFailure(Throwable e) {
                     latch.countDown();
                     try {
                         logger.warn("Failed to update master on updated mapping for index [" + request.index() + "], type [" + request.type() + "] and source [" + documentMapper.mappingSource().string() + "]", e);

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -40,7 +40,7 @@ import java.io.IOException;
  * A numeric filter that can be much faster than {@link org.apache.lucene.search.NumericRangeFilter} at the
  * expense of loading numeric values of the field to memory using {@link org.elasticsearch.index.cache.field.data.FieldDataCache}.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public abstract class NumericRangeFieldDataFilter<T> extends Filter {
 
@@ -120,7 +120,8 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
 
     public static NumericRangeFieldDataFilter<Byte> newByteRange(FieldDataCache fieldDataCache, String field, Byte lowerVal, Byte upperVal, boolean includeLower, boolean includeUpper) {
         return new NumericRangeFieldDataFilter<Byte>(fieldDataCache, field, lowerVal, upperVal, includeLower, includeUpper) {
-            @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
+            @Override
+            public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
                 final byte inclusiveLowerPoint, inclusiveUpperPoint;
                 if (lowerVal != null) {
                     byte i = lowerVal.byteValue();
@@ -145,14 +146,16 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
                 final ByteFieldData fieldData = (ByteFieldData) this.fieldDataCache.cache(FieldDataType.DefaultTypes.BYTE, reader, field);
                 return new GetDocSet(reader.maxDoc()) {
 
-                    @Override public boolean isCacheable() {
+                    @Override
+                    public boolean isCacheable() {
                         // not cacheable for several reasons:
                         // 1. It is only relevant when _cache is set to true, and then, we really want to create in mem bitset
                         // 2. Its already fast without in mem bitset, since it works with field data
                         return false;
                     }
 
-                    @Override public boolean get(int doc) {
+                    @Override
+                    public boolean get(int doc) {
                         if (!fieldData.hasValue(doc)) {
                             return false;
                         }
@@ -177,7 +180,8 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
 
     public static NumericRangeFieldDataFilter<Short> newShortRange(FieldDataCache fieldDataCache, String field, Short lowerVal, Short upperVal, boolean includeLower, boolean includeUpper) {
         return new NumericRangeFieldDataFilter<Short>(fieldDataCache, field, lowerVal, upperVal, includeLower, includeUpper) {
-            @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
+            @Override
+            public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
                 final short inclusiveLowerPoint, inclusiveUpperPoint;
                 if (lowerVal != null) {
                     short i = lowerVal.shortValue();
@@ -202,14 +206,16 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
                 final ShortFieldData fieldData = (ShortFieldData) this.fieldDataCache.cache(FieldDataType.DefaultTypes.SHORT, reader, field);
                 return new GetDocSet(reader.maxDoc()) {
 
-                    @Override public boolean isCacheable() {
+                    @Override
+                    public boolean isCacheable() {
                         // not cacheable for several reasons:
                         // 1. It is only relevant when _cache is set to true, and then, we really want to create in mem bitset
                         // 2. Its already fast without in mem bitset, since it works with field data
                         return false;
                     }
 
-                    @Override public boolean get(int doc) {
+                    @Override
+                    public boolean get(int doc) {
                         if (!fieldData.hasValue(doc)) {
                             return false;
                         }
@@ -233,7 +239,8 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
 
     public static NumericRangeFieldDataFilter<Integer> newIntRange(FieldDataCache fieldDataCache, String field, Integer lowerVal, Integer upperVal, boolean includeLower, boolean includeUpper) {
         return new NumericRangeFieldDataFilter<Integer>(fieldDataCache, field, lowerVal, upperVal, includeLower, includeUpper) {
-            @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
+            @Override
+            public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
                 final int inclusiveLowerPoint, inclusiveUpperPoint;
                 if (lowerVal != null) {
                     int i = lowerVal.intValue();
@@ -258,14 +265,16 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
                 final IntFieldData fieldData = (IntFieldData) this.fieldDataCache.cache(FieldDataType.DefaultTypes.INT, reader, field);
                 return new GetDocSet(reader.maxDoc()) {
 
-                    @Override public boolean isCacheable() {
+                    @Override
+                    public boolean isCacheable() {
                         // not cacheable for several reasons:
                         // 1. It is only relevant when _cache is set to true, and then, we really want to create in mem bitset
                         // 2. Its already fast without in mem bitset, since it works with field data
                         return false;
                     }
 
-                    @Override public boolean get(int doc) {
+                    @Override
+                    public boolean get(int doc) {
                         if (!fieldData.hasValue(doc)) {
                             return false;
                         }
@@ -289,7 +298,8 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
 
     public static NumericRangeFieldDataFilter<Long> newLongRange(FieldDataCache fieldDataCache, String field, Long lowerVal, Long upperVal, boolean includeLower, boolean includeUpper) {
         return new NumericRangeFieldDataFilter<Long>(fieldDataCache, field, lowerVal, upperVal, includeLower, includeUpper) {
-            @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
+            @Override
+            public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
                 final long inclusiveLowerPoint, inclusiveUpperPoint;
                 if (lowerVal != null) {
                     long i = lowerVal.longValue();
@@ -314,14 +324,16 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
                 final LongFieldData fieldData = (LongFieldData) this.fieldDataCache.cache(FieldDataType.DefaultTypes.LONG, reader, field);
                 return new GetDocSet(reader.maxDoc()) {
 
-                    @Override public boolean isCacheable() {
+                    @Override
+                    public boolean isCacheable() {
                         // not cacheable for several reasons:
                         // 1. It is only relevant when _cache is set to true, and then, we really want to create in mem bitset
                         // 2. Its already fast without in mem bitset, since it works with field data
                         return false;
                     }
 
-                    @Override public boolean get(int doc) {
+                    @Override
+                    public boolean get(int doc) {
                         if (!fieldData.hasValue(doc)) {
                             return false;
                         }
@@ -345,7 +357,8 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
 
     public static NumericRangeFieldDataFilter<Float> newFloatRange(FieldDataCache fieldDataCache, String field, Float lowerVal, Float upperVal, boolean includeLower, boolean includeUpper) {
         return new NumericRangeFieldDataFilter<Float>(fieldDataCache, field, lowerVal, upperVal, includeLower, includeUpper) {
-            @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
+            @Override
+            public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
                 // we transform the floating point numbers to sortable integers
                 // using NumericUtils to easier find the next bigger/lower value
                 final float inclusiveLowerPoint, inclusiveUpperPoint;
@@ -374,14 +387,16 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
                 final FloatFieldData fieldData = (FloatFieldData) this.fieldDataCache.cache(FieldDataType.DefaultTypes.FLOAT, reader, field);
                 return new GetDocSet(reader.maxDoc()) {
 
-                    @Override public boolean isCacheable() {
+                    @Override
+                    public boolean isCacheable() {
                         // not cacheable for several reasons:
                         // 1. It is only relevant when _cache is set to true, and then, we really want to create in mem bitset
                         // 2. Its already fast without in mem bitset, since it works with field data
                         return false;
                     }
 
-                    @Override public boolean get(int doc) {
+                    @Override
+                    public boolean get(int doc) {
                         if (!fieldData.hasValue(doc)) {
                             return false;
                         }
@@ -405,7 +420,8 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
 
     public static NumericRangeFieldDataFilter<Double> newDoubleRange(FieldDataCache fieldDataCache, String field, Double lowerVal, Double upperVal, boolean includeLower, boolean includeUpper) {
         return new NumericRangeFieldDataFilter<Double>(fieldDataCache, field, lowerVal, upperVal, includeLower, includeUpper) {
-            @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
+            @Override
+            public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
                 // we transform the floating point numbers to sortable integers
                 // using NumericUtils to easier find the next bigger/lower value
                 final double inclusiveLowerPoint, inclusiveUpperPoint;
@@ -434,14 +450,16 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
                 final DoubleFieldData fieldData = (DoubleFieldData) this.fieldDataCache.cache(FieldDataType.DefaultTypes.DOUBLE, reader, field);
                 return new GetDocSet(reader.maxDoc()) {
 
-                    @Override public boolean isCacheable() {
+                    @Override
+                    public boolean isCacheable() {
                         // not cacheable for several reasons:
                         // 1. It is only relevant when _cache is set to true, and then, we really want to create in mem bitset
                         // 2. Its already fast without in mem bitset, since it works with field data
                         return false;
                     }
 
-                    @Override public boolean get(int doc) {
+                    @Override
+                    public boolean get(int doc) {
                         if (!fieldData.hasValue(doc)) {
                             return false;
                         }

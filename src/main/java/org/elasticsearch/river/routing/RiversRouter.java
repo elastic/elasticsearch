@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,6 +19,8 @@
 
 package org.elasticsearch.river.routing;
 
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.get.GetResponse;
@@ -30,8 +32,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.collect.Lists;
-import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -49,7 +49,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class RiversRouter extends AbstractLifecycleComponent<RiversRouter> implements ClusterStateListener {
 
@@ -59,7 +59,8 @@ public class RiversRouter extends AbstractLifecycleComponent<RiversRouter> imple
 
     private final RiverClusterService riverClusterService;
 
-    @Inject public RiversRouter(Settings settings, Client client, ClusterService clusterService, RiverClusterService riverClusterService) {
+    @Inject
+    public RiversRouter(Settings settings, Client client, ClusterService clusterService, RiverClusterService riverClusterService) {
         super(settings);
         this.riverIndexName = RiverIndexName.Conf.indexName(settings);
         this.riverClusterService = riverClusterService;
@@ -67,21 +68,26 @@ public class RiversRouter extends AbstractLifecycleComponent<RiversRouter> imple
         clusterService.add(this);
     }
 
-    @Override protected void doStart() throws ElasticSearchException {
+    @Override
+    protected void doStart() throws ElasticSearchException {
     }
 
-    @Override protected void doStop() throws ElasticSearchException {
+    @Override
+    protected void doStop() throws ElasticSearchException {
     }
 
-    @Override protected void doClose() throws ElasticSearchException {
+    @Override
+    protected void doClose() throws ElasticSearchException {
     }
 
-    @Override public void clusterChanged(final ClusterChangedEvent event) {
+    @Override
+    public void clusterChanged(final ClusterChangedEvent event) {
         if (!event.localNodeMaster()) {
             return;
         }
         riverClusterService.submitStateUpdateTask("reroute_rivers_node_changed", new RiverClusterStateUpdateTask() {
-            @Override public RiverClusterState execute(RiverClusterState currentState) {
+            @Override
+            public RiverClusterState execute(RiverClusterState currentState) {
                 if (!event.state().metaData().hasIndex(riverIndexName)) {
                     // if there are routings, publish an empty one (so it will be deleted on nodes), otherwise, return the same state
                     if (!currentState.routing().isEmpty()) {
@@ -157,7 +163,7 @@ public class RiversRouter extends AbstractLifecycleComponent<RiversRouter> imple
                         l.add(routing);
                     }
                 }
-                for (Iterator<RiverRouting> it = unassigned.iterator(); it.hasNext();) {
+                for (Iterator<RiverRouting> it = unassigned.iterator(); it.hasNext(); ) {
                     RiverRouting routing = it.next();
                     DiscoveryNode smallest = null;
                     int smallestSize = Integer.MAX_VALUE;

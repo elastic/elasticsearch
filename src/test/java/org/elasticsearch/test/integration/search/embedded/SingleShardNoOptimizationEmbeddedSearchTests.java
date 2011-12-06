@@ -21,7 +21,8 @@ package org.elasticsearch.test.integration.search.embedded;
 
 public class SingleShardNoOptimizationEmbeddedSearchTests extends SingleShardEmbeddedSearchTests {
 
-    @Override protected boolean optimizeSingleShard() {
+    @Override
+    protected boolean optimizeSingleShard() {
         return false;
     }
 }

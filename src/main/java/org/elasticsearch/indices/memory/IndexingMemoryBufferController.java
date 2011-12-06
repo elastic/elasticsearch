@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,8 +19,8 @@
 
 package org.elasticsearch.indices.memory;
 
+import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -44,7 +44,7 @@ import java.util.Map;
 import java.util.concurrent.ScheduledFuture;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class IndexingMemoryBufferController extends AbstractLifecycleComponent<IndexingMemoryBufferController> {
 
@@ -69,7 +69,8 @@ public class IndexingMemoryBufferController extends AbstractLifecycleComponent<I
 
     private final Object mutex = new Object();
 
-    @Inject public IndexingMemoryBufferController(Settings settings, ThreadPool threadPool, IndicesService indicesService) {
+    @Inject
+    public IndexingMemoryBufferController(Settings settings, ThreadPool threadPool, IndicesService indicesService) {
         super(settings);
         this.threadPool = threadPool;
         this.indicesService = indicesService;
@@ -105,13 +106,15 @@ public class IndexingMemoryBufferController extends AbstractLifecycleComponent<I
 
     }
 
-    @Override protected void doStart() throws ElasticSearchException {
+    @Override
+    protected void doStart() throws ElasticSearchException {
         indicesService.indicesLifecycle().addListener(listener);
         // its fine to run it on the scheduler thread, no busy work
         this.scheduler = threadPool.scheduleWithFixedDelay(new ShardsIndicesStatusChecker(), interval);
     }
 
-    @Override protected void doStop() throws ElasticSearchException {
+    @Override
+    protected void doStop() throws ElasticSearchException {
         indicesService.indicesLifecycle().removeListener(listener);
         if (scheduler != null) {
             scheduler.cancel(false);
@@ -119,11 +122,13 @@ public class IndexingMemoryBufferController extends AbstractLifecycleComponent<I
         }
     }
 
-    @Override protected void doClose() throws ElasticSearchException {
+    @Override
+    protected void doClose() throws ElasticSearchException {
     }
 
     class ShardsIndicesStatusChecker implements Runnable {
-        @Override public void run() {
+        @Override
+        public void run() {
             synchronized (mutex) {
                 boolean activeInactiveStatusChanges = false;
                 for (IndexService indexService : indicesService) {
@@ -179,14 +184,16 @@ public class IndexingMemoryBufferController extends AbstractLifecycleComponent<I
 
     class Listener extends IndicesLifecycle.Listener {
 
-        @Override public void afterIndexShardCreated(IndexShard indexShard) {
+        @Override
+        public void afterIndexShardCreated(IndexShard indexShard) {
             synchronized (mutex) {
                 calcAndSetShardIndexingBuffer("created_shard[" + indexShard.shardId().index().name() + "][" + indexShard.shardId().id() + "]");
                 shardsIndicesStatus.put(indexShard.shardId(), new ShardIndexingStatus());
             }
         }
 
-        @Override public void afterIndexShardClosed(ShardId shardId, boolean delete) {
+        @Override
+        public void afterIndexShardClosed(ShardId shardId, boolean delete) {
             synchronized (mutex) {
                 calcAndSetShardIndexingBuffer("removed_shard[" + shardId.index().name() + "][" + shardId.id() + "]");
                 shardsIndicesStatus.remove(shardId);

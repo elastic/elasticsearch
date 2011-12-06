@@ -20,7 +20,8 @@ import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Key;
 import org.elasticsearch.common.inject.Provider;
 
-import static org.elasticsearch.common.base.Preconditions.*;
+import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Preconditions.checkState;
 
 /**
  * A lookup of the provider for a type. Lookups are created explicitly in a module using
@@ -89,7 +90,8 @@ public final class ProviderLookup<T> implements Element {
                 return delegate.get();
             }
 
-            @Override public String toString() {
+            @Override
+            public String toString() {
                 return "Provider<" + key.getTypeLiteral() + ">";
             }
         };

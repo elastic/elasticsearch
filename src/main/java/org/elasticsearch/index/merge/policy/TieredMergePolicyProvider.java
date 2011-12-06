@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,11 +19,7 @@
 
 package org.elasticsearch.index.merge.policy;
 
-import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.index.MergePolicy;
-import org.apache.lucene.index.SegmentInfo;
-import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.index.TieredMergePolicy;
+import org.apache.lucene.index.*;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Inject;
@@ -57,7 +53,8 @@ public class TieredMergePolicyProvider extends AbstractIndexShardComponent imple
 
     private final ApplySettings applySettings = new ApplySettings();
 
-    @Inject public TieredMergePolicyProvider(Store store, IndexSettingsService indexSettingsService) {
+    @Inject
+    public TieredMergePolicyProvider(Store store, IndexSettingsService indexSettingsService) {
         super(store.shardId(), store.indexSettings());
         this.indexSettingsService = indexSettingsService;
 
@@ -79,7 +76,8 @@ public class TieredMergePolicyProvider extends AbstractIndexShardComponent imple
     }
 
 
-    @Override public TieredMergePolicy newMergePolicy() {
+    @Override
+    public TieredMergePolicy newMergePolicy() {
         CustomTieredMergePolicyProvider mergePolicy;
         if (asyncMerge) {
             mergePolicy = new EnableMergeTieredMergePolicyProvider(this);
@@ -97,7 +95,8 @@ public class TieredMergePolicyProvider extends AbstractIndexShardComponent imple
         return mergePolicy;
     }
 
-    @Override public void close(boolean delete) throws ElasticSearchException {
+    @Override
+    public void close(boolean delete) throws ElasticSearchException {
         indexSettingsService.removeListener(applySettings);
     }
 
@@ -115,7 +114,8 @@ public class TieredMergePolicyProvider extends AbstractIndexShardComponent imple
     }
 
     class ApplySettings implements IndexSettingsService.Listener {
-        @Override public void onRefreshSettings(Settings settings) {
+        @Override
+        public void onRefreshSettings(Settings settings) {
             double expungeDeletesPctAllowed = settings.getAsDouble("index.merge.policy.expunge_deletes_allowed", TieredMergePolicyProvider.this.forceMergeDeletesPctAllowed);
             if (expungeDeletesPctAllowed != TieredMergePolicyProvider.this.forceMergeDeletesPctAllowed) {
                 logger.info("updating [expunge_deletes_allowed] from [{}] to [{}]", TieredMergePolicyProvider.this.forceMergeDeletesPctAllowed, expungeDeletesPctAllowed);
@@ -199,7 +199,8 @@ public class TieredMergePolicyProvider extends AbstractIndexShardComponent imple
             this.provider = provider;
         }
 
-        @Override public void close() {
+        @Override
+        public void close() {
             super.close();
             provider.policies.remove(this);
         }
@@ -208,7 +209,8 @@ public class TieredMergePolicyProvider extends AbstractIndexShardComponent imple
     public static class EnableMergeTieredMergePolicyProvider extends CustomTieredMergePolicyProvider implements EnableMergePolicy {
 
         private final ThreadLocal<Boolean> enableMerge = new ThreadLocal<Boolean>() {
-            @Override protected Boolean initialValue() {
+            @Override
+            protected Boolean initialValue() {
                 return Boolean.FALSE;
             }
         };
@@ -217,38 +219,45 @@ public class TieredMergePolicyProvider extends AbstractIndexShardComponent imple
             super(provider);
         }
 
-        @Override public void enableMerge() {
+        @Override
+        public void enableMerge() {
             enableMerge.set(Boolean.TRUE);
         }
 
-        @Override public void disableMerge() {
+        @Override
+        public void disableMerge() {
             enableMerge.set(Boolean.FALSE);
         }
 
-        @Override public boolean isMergeEnabled() {
+        @Override
+        public boolean isMergeEnabled() {
             return enableMerge.get() == Boolean.TRUE;
         }
 
-        @Override public void close() {
+        @Override
+        public void close() {
             enableMerge.remove();
             super.close();
         }
 
-        @Override public MergePolicy.MergeSpecification findMerges(SegmentInfos infos) throws IOException {
+        @Override
+        public MergePolicy.MergeSpecification findMerges(SegmentInfos infos) throws IOException {
             if (enableMerge.get() == Boolean.FALSE) {
                 return null;
             }
             return super.findMerges(infos);
         }
 
-        @Override public MergeSpecification findForcedMerges(SegmentInfos infos, int maxSegmentCount, Map<SegmentInfo, Boolean> segmentsToMerge) throws IOException {
+        @Override
+        public MergeSpecification findForcedMerges(SegmentInfos infos, int maxSegmentCount, Map<SegmentInfo, Boolean> segmentsToMerge) throws IOException {
             if (enableMerge.get() == Boolean.FALSE) {
                 return null;
             }
             return super.findForcedMerges(infos, maxSegmentCount, segmentsToMerge);
         }
 
-        @Override public MergeSpecification findForcedDeletesMerges(SegmentInfos infos) throws CorruptIndexException, IOException {
+        @Override
+        public MergeSpecification findForcedDeletesMerges(SegmentInfos infos) throws CorruptIndexException, IOException {
             if (enableMerge.get() == Boolean.FALSE) {
                 return null;
             }

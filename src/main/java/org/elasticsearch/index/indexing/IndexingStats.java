@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -132,7 +132,8 @@ public class IndexingStats implements Streamable, ToXContent {
             return stats;
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             indexCount = in.readVLong();
             indexTimeInMillis = in.readVLong();
             indexCurrent = in.readVLong();
@@ -142,7 +143,8 @@ public class IndexingStats implements Streamable, ToXContent {
             deleteCurrent = in.readVLong();
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(indexCount);
             out.writeVLong(indexTimeInMillis);
             out.writeVLong(indexCurrent);
@@ -152,7 +154,8 @@ public class IndexingStats implements Streamable, ToXContent {
             out.writeVLong(deleteCurrent);
         }
 
-        @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(Fields.INDEX_TOTAL, indexCount);
             builder.field(Fields.INDEX_TIME, indexTime().toString());
             builder.field(Fields.INDEX_TIME_IN_MILLIS, indexTimeInMillis);
@@ -169,7 +172,8 @@ public class IndexingStats implements Streamable, ToXContent {
 
     private Stats totalStats;
 
-    @Nullable private Map<String, Stats> typeStats;
+    @Nullable
+    private Map<String, Stats> typeStats;
 
     public IndexingStats() {
         totalStats = new Stats();
@@ -208,11 +212,13 @@ public class IndexingStats implements Streamable, ToXContent {
         return this.totalStats;
     }
 
-    @Nullable public Map<String, Stats> typeStats() {
+    @Nullable
+    public Map<String, Stats> typeStats() {
         return this.typeStats;
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject(Fields.INDEXING);
         totalStats.toXContent(builder, params);
         if (typeStats != null && !typeStats.isEmpty()) {
@@ -247,7 +253,8 @@ public class IndexingStats implements Streamable, ToXContent {
         return indexingStats;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         totalStats = Stats.readStats(in);
         if (in.readBoolean()) {
             int size = in.readVInt();
@@ -258,7 +265,8 @@ public class IndexingStats implements Streamable, ToXContent {
         }
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         totalStats.writeTo(out);
         if (typeStats == null || typeStats.isEmpty()) {
             out.writeBoolean(false);

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -33,45 +33,55 @@ import org.elasticsearch.index.settings.IndexSettings;
 import java.io.IOException;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class NoneFieldDataCache extends AbstractIndexComponent implements FieldDataCache {
 
-    @Inject public NoneFieldDataCache(Index index, @IndexSettings Settings indexSettings) {
+    @Inject
+    public NoneFieldDataCache(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
         logger.debug("Using no field cache");
     }
 
-    @Override public FieldData cache(FieldDataType type, IndexReader reader, String fieldName) throws IOException {
+    @Override
+    public FieldData cache(FieldDataType type, IndexReader reader, String fieldName) throws IOException {
         return FieldData.load(type, reader, fieldName);
     }
 
-    @Override public String type() {
+    @Override
+    public String type() {
         return "none";
     }
 
-    @Override public void clear(String fieldName) {
+    @Override
+    public void clear(String fieldName) {
 
     }
 
-    @Override public void clear() {
+    @Override
+    public void clear() {
     }
 
-    @Override public void clear(IndexReader reader) {
+    @Override
+    public void clear(IndexReader reader) {
     }
 
-    @Override public void close() throws ElasticSearchException {
+    @Override
+    public void close() throws ElasticSearchException {
     }
 
-    @Override public long sizeInBytes() {
+    @Override
+    public long sizeInBytes() {
         return 0;
     }
 
-    @Override public long sizeInBytes(String fieldName) {
+    @Override
+    public long sizeInBytes(String fieldName) {
         return 0;
     }
 
-    @Override public long evictions() {
+    @Override
+    public long evictions() {
         return 0;
     }
 }

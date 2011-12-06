@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,30 +19,18 @@
 
 package org.elasticsearch.common.network;
 
+import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.os.OsUtils;
 
 import java.lang.reflect.Method;
-import java.net.Inet4Address;
-import java.net.Inet6Address;
-import java.net.InetAddress;
-import java.net.NetworkInterface;
-import java.net.SocketException;
-import java.net.UnknownHostException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Enumeration;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.net.*;
+import java.util.*;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public abstract class NetworkUtils {
 
@@ -122,7 +110,8 @@ public abstract class NetworkUtils {
             getIndexMethod.setAccessible(true);
 
             Collections.sort(intfsList, new Comparator<NetworkInterface>() {
-                @Override public int compare(NetworkInterface o1, NetworkInterface o2) {
+                @Override
+                public int compare(NetworkInterface o1, NetworkInterface o2) {
                     try {
                         return ((Integer) getIndexMethod.invoke(o1)).intValue() - ((Integer) getIndexMethod.invoke(o2)).intValue();
                     } catch (Exception e) {

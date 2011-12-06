@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,8 +19,8 @@
 
 package org.elasticsearch.common.lucene.all;
 
+import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.io.FastCharArrayWriter;
 import org.elasticsearch.common.io.FastStringReader;
 
@@ -30,10 +30,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.common.collect.Sets.*;
+import static com.google.common.collect.Sets.newHashSet;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class AllEntries extends Reader {
 
@@ -129,7 +129,8 @@ public class AllEntries extends Reader {
         return this.current;
     }
 
-    @Override public int read(char[] cbuf, int off, int len) throws IOException {
+    @Override
+    public int read(char[] cbuf, int off, int len) throws IOException {
         if (current == null) {
             return -1;
         }
@@ -178,7 +179,8 @@ public class AllEntries extends Reader {
         }
     }
 
-    @Override public void close() {
+    @Override
+    public void close() {
         if (current != null) {
             current.reader().close();
             current = null;
@@ -186,11 +188,13 @@ public class AllEntries extends Reader {
     }
 
 
-    @Override public boolean ready() throws IOException {
+    @Override
+    public boolean ready() throws IOException {
         return (current != null) && current.reader().ready();
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         StringBuilder sb = new StringBuilder();
         for (Entry entry : entries) {
             sb.append(entry.name()).append(',');

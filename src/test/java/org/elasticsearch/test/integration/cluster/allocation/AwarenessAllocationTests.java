@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.integration.cluster.allocation;
 
+import gnu.trove.map.hash.TObjectIntHashMap;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -28,13 +29,12 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.trove.map.hash.TObjectIntHashMap;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.Test;
 
-import static org.hamcrest.MatcherAssert.*;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
@@ -43,11 +43,13 @@ public class AwarenessAllocationTests extends AbstractNodesTests {
 
     private final ESLogger logger = Loggers.getLogger(AwarenessAllocationTests.class);
 
-    @AfterMethod public void cleanAndCloseNodes() throws Exception {
+    @AfterMethod
+    public void cleanAndCloseNodes() throws Exception {
         closeAllNodes();
     }
 
-    @Test public void testSimpleAwareness() throws Exception {
+    @Test
+    public void testSimpleAwareness() throws Exception {
         Settings commonSettings = ImmutableSettings.settingsBuilder()
                 .put("cluster.routing.schedule", "10ms")
                 .put("cluster.routing.allocation.awareness.attributes", "rack_id")

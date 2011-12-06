@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.facet.statistical;
 
-import org.elasticsearch.common.collect.Lists;
+import com.google.common.collect.Lists;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -35,20 +35,23 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class StatisticalFacetProcessor extends AbstractComponent implements FacetProcessor {
 
-    @Inject public StatisticalFacetProcessor(Settings settings) {
+    @Inject
+    public StatisticalFacetProcessor(Settings settings) {
         super(settings);
         InternalStatisticalFacet.registerStreams();
     }
 
-    @Override public String[] types() {
+    @Override
+    public String[] types() {
         return new String[]{StatisticalFacet.TYPE};
     }
 
-    @Override public FacetCollector parse(String facetName, XContentParser parser, SearchContext context) throws IOException {
+    @Override
+    public FacetCollector parse(String facetName, XContentParser parser, SearchContext context) throws IOException {
         String field = null;
         String[] fieldsNames = null;
 
@@ -96,7 +99,8 @@ public class StatisticalFacetProcessor extends AbstractComponent implements Face
         }
     }
 
-    @Override public Facet reduce(String name, List<Facet> facets) {
+    @Override
+    public Facet reduce(String name, List<Facet> facets) {
         if (facets.size() == 1) {
             return facets.get(0);
         }

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -25,10 +25,10 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import static org.elasticsearch.action.support.PlainActionFuture.*;
+import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public abstract class BaseAction<Request extends ActionRequest, Response extends ActionResponse> extends AbstractComponent implements Action<Request, Response> {
 
@@ -39,7 +39,8 @@ public abstract class BaseAction<Request extends ActionRequest, Response extends
         this.threadPool = threadPool;
     }
 
-    @Override public ActionFuture<Response> execute(Request request) throws ElasticSearchException {
+    @Override
+    public ActionFuture<Response> execute(Request request) throws ElasticSearchException {
         PlainActionFuture<Response> future = newFuture();
         // since we don't have a listener, and we release a possible lock with the future
         // there is no need to execute it under a listener thread
@@ -48,7 +49,8 @@ public abstract class BaseAction<Request extends ActionRequest, Response extends
         return future;
     }
 
-    @Override public void execute(Request request, ActionListener<Response> listener) {
+    @Override
+    public void execute(Request request, ActionListener<Response> listener) {
         if (request.listenerThreaded()) {
             listener = new ThreadedActionListener<Response>(threadPool, listener);
         }
@@ -77,9 +79,11 @@ public abstract class BaseAction<Request extends ActionRequest, Response extends
             this.listener = listener;
         }
 
-        @Override public void onResponse(final Response response) {
+        @Override
+        public void onResponse(final Response response) {
             threadPool.cached().execute(new Runnable() {
-                @Override public void run() {
+                @Override
+                public void run() {
                     try {
                         listener.onResponse(response);
                     } catch (Exception e) {
@@ -89,9 +93,11 @@ public abstract class BaseAction<Request extends ActionRequest, Response extends
             });
         }
 
-        @Override public void onFailure(final Throwable e) {
+        @Override
+        public void onFailure(final Throwable e) {
             threadPool.cached().execute(new Runnable() {
-                @Override public void run() {
+                @Override
+                public void run() {
                     listener.onFailure(e);
                 }
             });

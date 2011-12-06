@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -27,17 +29,10 @@ import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.internal.*;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
@@ -50,10 +45,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-import static org.elasticsearch.common.collect.Lists.*;
+import static com.google.common.collect.Lists.newArrayList;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class DocumentMapper implements ToXContent {
 
@@ -123,7 +118,8 @@ public class DocumentMapper implements ToXContent {
 
     public static class ParseListenerAdapter implements ParseListener {
 
-        @Override public boolean beforeFieldAdded(FieldMapper fieldMapper, Fieldable fieldable, Object parseContext) {
+        @Override
+        public boolean beforeFieldAdded(FieldMapper fieldMapper, Fieldable fieldable, Object parseContext) {
             return true;
         }
     }
@@ -138,7 +134,8 @@ public class DocumentMapper implements ToXContent {
 
         private final String index;
 
-        @Nullable private final Settings indexSettings;
+        @Nullable
+        private final Settings indexSettings;
 
         private final RootObjectMapper rootObjectMapper;
 
@@ -213,7 +210,8 @@ public class DocumentMapper implements ToXContent {
 
 
     private ThreadLocal<ParseContext> cache = new ThreadLocal<ParseContext>() {
-        @Override protected ParseContext initialValue() {
+        @Override
+        protected ParseContext initialValue() {
             return new ParseContext(index, indexSettings, docMapperParser, DocumentMapper.this, new ContentPath(0));
         }
     };
@@ -299,7 +297,8 @@ public class DocumentMapper implements ToXContent {
 
         // now traverse and get all the statically defined ones
         rootObjectMapper.traverse(new FieldMapperListener() {
-            @Override public void fieldMapper(FieldMapper fieldMapper) {
+            @Override
+            public void fieldMapper(FieldMapper fieldMapper) {
                 tempFieldMappers.add(fieldMapper);
             }
         });
@@ -308,7 +307,8 @@ public class DocumentMapper implements ToXContent {
 
         final Map<String, ObjectMapper> objectMappers = Maps.newHashMap();
         rootObjectMapper.traverse(new ObjectMapperListener() {
-            @Override public void objectMapper(ObjectMapper objectMapper) {
+            @Override
+            public void objectMapper(ObjectMapper objectMapper) {
                 objectMappers.put(objectMapper.fullPath(), objectMapper);
             }
         });
@@ -342,7 +342,8 @@ public class DocumentMapper implements ToXContent {
         return rootMapper(UidFieldMapper.class);
     }
 
-    @SuppressWarnings({"unchecked"}) public <T extends RootMapper> T rootMapper(Class<T> type) {
+    @SuppressWarnings({"unchecked"})
+    public <T extends RootMapper> T rootMapper(Class<T> type) {
         return (T) rootMappers.get(type);
     }
 
@@ -579,9 +580,11 @@ public class DocumentMapper implements ToXContent {
         }
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         rootObjectMapper.toXContent(builder, params, new ToXContent() {
-            @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 if (indexAnalyzer != null && searchAnalyzer != null && indexAnalyzer.name().equals(searchAnalyzer.name()) && !indexAnalyzer.name().startsWith("_")) {
                     if (!indexAnalyzer.name().equals("default")) {
                         // same analyzers, output it once

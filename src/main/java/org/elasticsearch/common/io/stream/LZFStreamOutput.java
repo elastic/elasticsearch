@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -26,7 +26,7 @@ import org.elasticsearch.common.compress.lzf.LZFChunk;
 import java.io.IOException;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class LZFStreamOutput extends StreamOutput {
 
@@ -43,7 +43,7 @@ public class LZFStreamOutput extends StreamOutput {
     /**
      * Configuration setting that governs whether basic 'flush()' should
      * first complete a block or not.
-     * <p>
+     * <p/>
      * Default value is 'true'
      *
      * @since 0.8
@@ -60,21 +60,24 @@ public class LZFStreamOutput extends StreamOutput {
         _outputBuffer = _recycler.allocOutputBuffer(OUTPUT_BUFFER_SIZE);
     }
 
-    @Override public void write(final int singleByte) throws IOException {
+    @Override
+    public void write(final int singleByte) throws IOException {
         if (_position >= _outputBuffer.length) {
             writeCompressedBlock();
         }
         _outputBuffer[_position++] = (byte) singleByte;
     }
 
-    @Override public void writeByte(byte b) throws IOException {
+    @Override
+    public void writeByte(byte b) throws IOException {
         if (_position >= _outputBuffer.length) {
             writeCompressedBlock();
         }
         _outputBuffer[_position++] = b;
     }
 
-    @Override public void writeBytes(byte[] buffer, int offset, int length) throws IOException {
+    @Override
+    public void writeBytes(byte[] buffer, int offset, int length) throws IOException {
         // ES, check if length is 0, and don't write in this case
         if (length == 0) {
             return;
@@ -137,7 +140,8 @@ public class LZFStreamOutput extends StreamOutput {
         _outputStream.close();
     }
 
-    @Override public void reset() throws IOException {
+    @Override
+    public void reset() throws IOException {
         _position = 0;
         _outputStream.reset();
     }

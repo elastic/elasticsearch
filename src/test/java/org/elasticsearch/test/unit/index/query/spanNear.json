@@ -1,0 +1,24 @@
+{
+    span_near:{
+        clauses:[
+            {
+                span_term:{
+                    age:34
+                }
+            },
+            {
+                span_term:{
+                    age:35
+                }
+            },
+            {
+                span_term:{
+                    age:36
+                }
+            }
+        ],
+        slop:12,
+        in_order:false,
+        collect_payloads:false
+    }
+}

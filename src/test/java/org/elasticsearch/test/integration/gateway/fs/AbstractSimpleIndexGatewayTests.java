@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -39,30 +39,33 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import static org.elasticsearch.client.Requests.*;
-import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.hamcrest.MatcherAssert.*;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests {
 
-    @AfterMethod public void closeNodes() throws Exception {
+    @AfterMethod
+    public void closeNodes() throws Exception {
         node("server1").stop();
         // since we store (by default) the index snapshot under the gateway, resetting it will reset the index data as well
         ((InternalNode) node("server1")).injector().getInstance(Gateway.class).reset();
         closeAllNodes();
     }
 
-    @BeforeMethod public void buildNode1() throws Exception {
+    @BeforeMethod
+    public void buildNode1() throws Exception {
         buildNode("server1");
         // since we store (by default) the index snapshot under the gateway, resetting it will reset the index data as well
         ((InternalNode) node("server1")).injector().getInstance(Gateway.class).reset();
         closeAllNodes();
     }
 
-    @Test public void testSnapshotOperations() throws Exception {
+    @Test
+    public void testSnapshotOperations() throws Exception {
         startNode("server1");
 
         // get the environment, so we can clear the work dir when needed
@@ -219,11 +222,13 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
         client("server1").admin().indices().delete(deleteIndexRequest("test")).actionGet();
     }
 
-    @Test public void testLoadWithFullRecovery() {
+    @Test
+    public void testLoadWithFullRecovery() {
         testLoad(true);
     }
 
-    @Test public void testLoadWithReuseRecovery() {
+    @Test
+    public void testLoadWithReuseRecovery() {
         testLoad(false);
     }
 

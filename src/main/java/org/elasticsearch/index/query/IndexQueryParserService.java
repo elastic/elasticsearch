@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,11 +19,11 @@
 
 package org.elasticsearch.index.query;
 
+import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.BytesStream;
 import org.elasticsearch.common.settings.Settings;
@@ -44,12 +44,12 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.collect.Lists.*;
-import static org.elasticsearch.common.collect.Maps.*;
-import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
+import static com.google.common.collect.Lists.newArrayList;
+import static com.google.common.collect.Maps.newHashMap;
+import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class IndexQueryParserService extends AbstractIndexComponent {
 
@@ -59,7 +59,8 @@ public class IndexQueryParserService extends AbstractIndexComponent {
     }
 
     private ThreadLocal<QueryParseContext> cache = new ThreadLocal<QueryParseContext>() {
-        @Override protected QueryParseContext initialValue() {
+        @Override
+        protected QueryParseContext initialValue() {
             return new QueryParseContext(index, IndexQueryParserService.this);
         }
     };
@@ -80,13 +81,14 @@ public class IndexQueryParserService extends AbstractIndexComponent {
 
     private final Map<String, FilterParser> filterParsers;
 
-    @Inject public IndexQueryParserService(Index index, @IndexSettings Settings indexSettings,
-                                           IndicesQueriesRegistry indicesQueriesRegistry,
-                                           ScriptService scriptService, AnalysisService analysisService,
-                                           MapperService mapperService, IndexCache indexCache, IndexEngine indexEngine,
-                                           @Nullable SimilarityService similarityService,
-                                           @Nullable Map<String, QueryParserFactory> namedQueryParsers,
-                                           @Nullable Map<String, FilterParserFactory> namedFilterParsers) {
+    @Inject
+    public IndexQueryParserService(Index index, @IndexSettings Settings indexSettings,
+                                   IndicesQueriesRegistry indicesQueriesRegistry,
+                                   ScriptService scriptService, AnalysisService analysisService,
+                                   MapperService mapperService, IndexCache indexCache, IndexEngine indexEngine,
+                                   @Nullable SimilarityService similarityService,
+                                   @Nullable Map<String, QueryParserFactory> namedQueryParsers,
+                                   @Nullable Map<String, FilterParserFactory> namedFilterParsers) {
         super(index, indexSettings);
         this.scriptService = scriptService;
         this.analysisService = analysisService;

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -24,7 +24,7 @@ import java.io.IOException;
 import java.io.InputStream;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class InputStreamStreamInput extends StreamInput {
 
@@ -34,14 +34,16 @@ public class InputStreamStreamInput extends StreamInput {
         this.is = is;
     }
 
-    @Override public byte readByte() throws IOException {
+    @Override
+    public byte readByte() throws IOException {
         int ch = is.read();
         if (ch < 0)
             throw new EOFException();
         return (byte) (ch);
     }
 
-    @Override public void readBytes(byte[] b, int offset, int len) throws IOException {
+    @Override
+    public void readBytes(byte[] b, int offset, int len) throws IOException {
         if (len < 0)
             throw new IndexOutOfBoundsException();
         int n = 0;
@@ -53,27 +55,33 @@ public class InputStreamStreamInput extends StreamInput {
         }
     }
 
-    @Override public void reset() throws IOException {
+    @Override
+    public void reset() throws IOException {
         is.reset();
     }
 
-    @Override public void close() throws IOException {
+    @Override
+    public void close() throws IOException {
         is.close();
     }
 
-    @Override public int read() throws IOException {
+    @Override
+    public int read() throws IOException {
         return is.read();
     }
 
-    @Override public int read(byte[] b) throws IOException {
+    @Override
+    public int read(byte[] b) throws IOException {
         return is.read(b);
     }
 
-    @Override public int read(byte[] b, int off, int len) throws IOException {
+    @Override
+    public int read(byte[] b, int off, int len) throws IOException {
         return is.read(b, off, len);
     }
 
-    @Override public long skip(long n) throws IOException {
+    @Override
+    public long skip(long n) throws IOException {
         return is.skip(n);
     }
 }

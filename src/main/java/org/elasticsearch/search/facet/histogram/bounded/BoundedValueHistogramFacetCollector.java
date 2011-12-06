@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -92,16 +92,19 @@ public class BoundedValueHistogramFacetCollector extends AbstractFacetCollector 
         histoProc = new HistogramProc(from, to, interval, offset, size);
     }
 
-    @Override protected void doCollect(int doc) throws IOException {
+    @Override
+    protected void doCollect(int doc) throws IOException {
         keyFieldData.forEachValueInDoc(doc, histoProc);
     }
 
-    @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
+    @Override
+    protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
         keyFieldData = (NumericFieldData) fieldDataCache.cache(keyFieldDataType, reader, keyIndexFieldName);
         histoProc.valueFieldData = (NumericFieldData) fieldDataCache.cache(valueFieldDataType, reader, valueIndexFieldName);
     }
 
-    @Override public Facet facet() {
+    @Override
+    public Facet facet() {
         return new InternalBoundedFullHistogramFacet(facetName, comparatorType, interval, -histoProc.offset, histoProc.size, histoProc.entries, true);
     }
 
@@ -131,7 +134,8 @@ public class BoundedValueHistogramFacetCollector extends AbstractFacetCollector 
             this.entries = CacheRecycler.popObjectArray(size);
         }
 
-        @Override public void onValue(int docId, long value) {
+        @Override
+        public void onValue(int docId, long value) {
             if (value <= from || value > to) { // bounds check
                 return;
             }
@@ -151,7 +155,8 @@ public class BoundedValueHistogramFacetCollector extends AbstractFacetCollector 
 
             InternalBoundedFullHistogramFacet.FullEntry entry;
 
-            @Override public void onValue(int docId, double value) {
+            @Override
+            public void onValue(int docId, double value) {
                 entry.totalCount++;
                 entry.total += value;
                 if (value < entry.min) {

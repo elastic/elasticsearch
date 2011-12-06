@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.sort;
 
-import org.elasticsearch.common.collect.Maps;
+import com.google.common.collect.Maps;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -28,7 +28,7 @@ import java.util.Map;
 /**
  * Script sort builder allows to sort based on a custom script expression.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class ScriptSortBuilder extends SortBuilder {
 
@@ -70,7 +70,8 @@ public class ScriptSortBuilder extends SortBuilder {
     /**
      * Sets the sort order.
      */
-    @Override public ScriptSortBuilder order(SortOrder order) {
+    @Override
+    public ScriptSortBuilder order(SortOrder order) {
         this.order = order;
         return this;
     }
@@ -78,7 +79,8 @@ public class ScriptSortBuilder extends SortBuilder {
     /**
      * Not really relevant.
      */
-    @Override public SortBuilder missing(Object missing) {
+    @Override
+    public SortBuilder missing(Object missing) {
         return this;
     }
 
@@ -90,7 +92,8 @@ public class ScriptSortBuilder extends SortBuilder {
         return this;
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("_script");
         builder.field("script", script);
         builder.field("type", type);

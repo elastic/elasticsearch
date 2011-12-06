@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,17 +19,17 @@
 
 package org.elasticsearch.benchmark.trove;
 
+import gnu.trove.StringIdentityHashingStrategy;
+import gnu.trove.map.custom_hash.TObjectIntCustomHashMap;
+import gnu.trove.map.hash.THashMap;
+import gnu.trove.map.hash.TIntIntHashMap;
+import gnu.trove.map.hash.TIntObjectHashMap;
+import gnu.trove.map.hash.TObjectIntHashMap;
+import gnu.trove.strategy.IdentityHashingStrategy;
+import jsr166y.ThreadLocalRandom;
 import org.elasticsearch.common.RandomStringGenerator;
 import org.elasticsearch.common.StopWatch;
-import org.elasticsearch.common.trove.StringIdentityHashingStrategy;
-import org.elasticsearch.common.trove.map.custom_hash.TObjectIntCustomHashMap;
-import org.elasticsearch.common.trove.map.hash.THashMap;
-import org.elasticsearch.common.trove.map.hash.TIntIntHashMap;
-import org.elasticsearch.common.trove.map.hash.TIntObjectHashMap;
-import org.elasticsearch.common.trove.map.hash.TObjectIntHashMap;
-import org.elasticsearch.common.trove.strategy.IdentityHashingStrategy;
 import org.elasticsearch.common.unit.SizeValue;
-import org.elasticsearch.common.util.concurrent.jsr166y.ThreadLocalRandom;
 
 import java.util.HashMap;
 import java.util.IdentityHashMap;

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -21,12 +21,7 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.TransportActions;
-import org.elasticsearch.action.search.type.TransportSearchCountAction;
-import org.elasticsearch.action.search.type.TransportSearchDfsQueryAndFetchAction;
-import org.elasticsearch.action.search.type.TransportSearchDfsQueryThenFetchAction;
-import org.elasticsearch.action.search.type.TransportSearchQueryAndFetchAction;
-import org.elasticsearch.action.search.type.TransportSearchQueryThenFetchAction;
-import org.elasticsearch.action.search.type.TransportSearchScanAction;
+import org.elasticsearch.action.search.type.*;
 import org.elasticsearch.action.support.BaseAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -44,7 +39,7 @@ import java.util.Set;
 import static org.elasticsearch.action.search.SearchType.*;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class TransportSearchAction extends BaseAction<SearchRequest, SearchResponse> {
 
@@ -64,14 +59,15 @@ public class TransportSearchAction extends BaseAction<SearchRequest, SearchRespo
 
     private final boolean optimizeSingleShard;
 
-    @Inject public TransportSearchAction(Settings settings, ThreadPool threadPool,
-                                         TransportService transportService, ClusterService clusterService,
-                                         TransportSearchDfsQueryThenFetchAction dfsQueryThenFetchAction,
-                                         TransportSearchQueryThenFetchAction queryThenFetchAction,
-                                         TransportSearchDfsQueryAndFetchAction dfsQueryAndFetchAction,
-                                         TransportSearchQueryAndFetchAction queryAndFetchAction,
-                                         TransportSearchScanAction scanAction,
-                                         TransportSearchCountAction countAction) {
+    @Inject
+    public TransportSearchAction(Settings settings, ThreadPool threadPool,
+                                 TransportService transportService, ClusterService clusterService,
+                                 TransportSearchDfsQueryThenFetchAction dfsQueryThenFetchAction,
+                                 TransportSearchQueryThenFetchAction queryThenFetchAction,
+                                 TransportSearchDfsQueryAndFetchAction dfsQueryAndFetchAction,
+                                 TransportSearchQueryAndFetchAction queryAndFetchAction,
+                                 TransportSearchScanAction scanAction,
+                                 TransportSearchCountAction countAction) {
         super(settings, threadPool);
         this.clusterService = clusterService;
         this.dfsQueryThenFetchAction = dfsQueryThenFetchAction;
@@ -86,7 +82,8 @@ public class TransportSearchAction extends BaseAction<SearchRequest, SearchRespo
         transportService.registerHandler(TransportActions.SEARCH, new TransportHandler());
     }
 
-    @Override protected void doExecute(SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
+    @Override
+    protected void doExecute(SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
         // optimize search type for cases where there is only one shard group to search on
         if (optimizeSingleShard && searchRequest.searchType() != SCAN && searchRequest.searchType() != COUNT) {
             try {
@@ -123,11 +120,13 @@ public class TransportSearchAction extends BaseAction<SearchRequest, SearchRespo
 
     private class TransportHandler extends BaseTransportRequestHandler<SearchRequest> {
 
-        @Override public SearchRequest newInstance() {
+        @Override
+        public SearchRequest newInstance() {
             return new SearchRequest();
         }
 
-        @Override public void messageReceived(SearchRequest request, final TransportChannel channel) throws Exception {
+        @Override
+        public void messageReceived(SearchRequest request, final TransportChannel channel) throws Exception {
             // no need for a threaded listener
             request.listenerThreaded(false);
             // we don't spawn, so if we get a request with no threading, change it to single threaded
@@ -135,7 +134,8 @@ public class TransportSearchAction extends BaseAction<SearchRequest, SearchRespo
                 request.operationThreading(SearchOperationThreading.SINGLE_THREAD);
             }
             execute(request, new ActionListener<SearchResponse>() {
-                @Override public void onResponse(SearchResponse result) {
+                @Override
+                public void onResponse(SearchResponse result) {
                     try {
                         channel.sendResponse(result);
                     } catch (Exception e) {
@@ -143,7 +143,8 @@ public class TransportSearchAction extends BaseAction<SearchRequest, SearchRespo
                     }
                 }
 
-                @Override public void onFailure(Throwable e) {
+                @Override
+                public void onFailure(Throwable e) {
                     try {
                         channel.sendResponse(e);
                     } catch (Exception e1) {
@@ -153,7 +154,8 @@ public class TransportSearchAction extends BaseAction<SearchRequest, SearchRespo
             });
         }
 
-        @Override public String executor() {
+        @Override
+        public String executor() {
             return ThreadPool.Names.SAME;
         }
     }

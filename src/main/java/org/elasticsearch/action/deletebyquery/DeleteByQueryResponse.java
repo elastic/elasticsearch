@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -28,13 +28,13 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
 
-import static org.elasticsearch.common.collect.Maps.*;
+import static com.google.common.collect.Maps.newHashMap;
 
 /**
  * The response of delete by query action. Holds the {@link IndexDeleteByQueryResponse}s from all the
  * different indices.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class DeleteByQueryResponse implements ActionResponse, Streamable, Iterable<IndexDeleteByQueryResponse> {
 
@@ -44,7 +44,8 @@ public class DeleteByQueryResponse implements ActionResponse, Streamable, Iterab
 
     }
 
-    @Override public Iterator<IndexDeleteByQueryResponse> iterator() {
+    @Override
+    public Iterator<IndexDeleteByQueryResponse> iterator() {
         return indices.values().iterator();
     }
 
@@ -69,7 +70,8 @@ public class DeleteByQueryResponse implements ActionResponse, Streamable, Iterab
         return indices.get(index);
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             IndexDeleteByQueryResponse response = new IndexDeleteByQueryResponse();
@@ -78,7 +80,8 @@ public class DeleteByQueryResponse implements ActionResponse, Streamable, Iterab
         }
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(indices.size());
         for (IndexDeleteByQueryResponse indexResponse : indices.values()) {
             indexResponse.writeTo(out);

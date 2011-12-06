@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -73,7 +73,8 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
     private final int bulkSize;
     private PurgerThread purgerThread;
 
-    @Inject public IndicesTTLService(Settings settings, IndicesService indicesService, NodeSettingsService nodeSettingsService, Client client) {
+    @Inject
+    public IndicesTTLService(Settings settings, IndicesService indicesService, NodeSettingsService nodeSettingsService, Client client) {
         super(settings);
         this.indicesService = indicesService;
         this.client = client;
@@ -83,17 +84,20 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
         nodeSettingsService.addListener(new ApplySettings());
     }
 
-    @Override protected void doStart() throws ElasticSearchException {
+    @Override
+    protected void doStart() throws ElasticSearchException {
         this.purgerThread = new PurgerThread(EsExecutors.threadName(settings, "[ttl_expire]"));
         this.purgerThread.start();
     }
 
-    @Override protected void doStop() throws ElasticSearchException {
+    @Override
+    protected void doStop() throws ElasticSearchException {
         this.purgerThread.doStop();
         this.purgerThread.interrupt();
     }
 
-    @Override protected void doClose() throws ElasticSearchException {
+    @Override
+    protected void doClose() throws ElasticSearchException {
     }
 
     private class PurgerThread extends Thread {
@@ -230,11 +234,13 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
         if ((force && bulkRequest.numberOfActions() > 0) || bulkRequest.numberOfActions() >= bulkSize) {
             try {
                 bulkRequest.execute(new ActionListener<BulkResponse>() {
-                    @Override public void onResponse(BulkResponse bulkResponse) {
+                    @Override
+                    public void onResponse(BulkResponse bulkResponse) {
                         logger.trace("bulk took " + bulkResponse.getTookInMillis() + "ms");
                     }
 
-                    @Override public void onFailure(Throwable e) {
+                    @Override
+                    public void onFailure(Throwable e) {
                         logger.warn("failed to execute bulk");
                     }
                 });
@@ -247,7 +253,8 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
     }
 
     class ApplySettings implements NodeSettingsService.Listener {
-        @Override public void onRefreshSettings(Settings settings) {
+        @Override
+        public void onRefreshSettings(Settings settings) {
             TimeValue interval = settings.getAsTime("indices.ttl.interval", IndicesTTLService.this.interval);
             if (!interval.equals(IndicesTTLService.this.interval)) {
                 logger.info("updating indices.ttl.interval from [{}] to [{}]", IndicesTTLService.this.interval, interval);

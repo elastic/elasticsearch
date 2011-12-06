@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -26,17 +26,19 @@ import org.elasticsearch.common.inject.PreProcessModule;
 import org.elasticsearch.gateway.Gateway;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class LocalGatewayModule extends AbstractModule implements PreProcessModule {
 
-    @Override protected void configure() {
+    @Override
+    protected void configure() {
         bind(Gateway.class).to(LocalGateway.class).asEagerSingleton();
         bind(TransportNodesListGatewayMetaState.class).asEagerSingleton();
         bind(TransportNodesListGatewayStartedShards.class).asEagerSingleton();
     }
 
-    @Override public void processModule(Module module) {
+    @Override
+    public void processModule(Module module) {
         if (module instanceof ShardsAllocatorModule) {
             ((ShardsAllocatorModule) module).setGatewayAllocator(LocalGatewayAllocator.class);
         }

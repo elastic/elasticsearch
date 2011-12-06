@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,6 +19,9 @@
 
 package org.elasticsearch.index.mapper;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Sets;
+import com.google.common.collect.UnmodifiableIterator;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Fieldable;
@@ -28,9 +31,6 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.FilterClause;
 import org.apache.lucene.search.PublicTermsFilter;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.Sets;
-import org.elasticsearch.common.collect.UnmodifiableIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.search.TermFilter;
@@ -60,10 +60,10 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.common.collect.MapBuilder.*;
+import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 @ThreadSafe
 public class MapperService extends AbstractIndexComponent implements Iterable<DocumentMapper> {
@@ -96,7 +96,8 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
 
     private final SmartIndexNameSearchAnalyzer searchAnalyzer;
 
-    @Inject public MapperService(Index index, @IndexSettings Settings indexSettings, Environment environment, AnalysisService analysisService) {
+    @Inject
+    public MapperService(Index index, @IndexSettings Settings indexSettings, Environment environment, AnalysisService analysisService) {
         super(index, indexSettings);
         this.analysisService = analysisService;
         this.documentParser = new DocumentMapperParser(index, indexSettings, analysisService);
@@ -140,7 +141,8 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         }
     }
 
-    @Override public UnmodifiableIterator<DocumentMapper> iterator() {
+    @Override
+    public UnmodifiableIterator<DocumentMapper> iterator() {
         return mappers.values().iterator();
     }
 
@@ -613,12 +615,12 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
      * Returns smart field mappers based on a smart name. A smart name is one that can optioannly be prefixed
      * with a type (and then a '.'). If it is, then the {@link MapperService.SmartNameFieldMappers}
      * will have the doc mapper set.
-     *
+     * <p/>
      * <p>It also (without the optional type prefix) try and find the {@link FieldMappers} for the specific
      * name. It will first try to find it based on the full name (with the dots if its a compound name). If
      * it is not found, will try and find it based on the indexName (which can be controlled in the mapping),
      * and last, will try it based no the name itself.
-     *
+     * <p/>
      * <p>If nothing is found, returns null.
      */
     public SmartNameFieldMappers smartName(String smartName) {
@@ -761,7 +763,8 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             this.defaultAnalyzer = defaultAnalyzer;
         }
 
-        @Override public int getPositionIncrementGap(String fieldName) {
+        @Override
+        public int getPositionIncrementGap(String fieldName) {
             int dotIndex = fieldName.indexOf('.');
             if (dotIndex != -1) {
                 String possibleType = fieldName.substring(0, dotIndex);
@@ -782,7 +785,8 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             return defaultAnalyzer.getPositionIncrementGap(fieldName);
         }
 
-        @Override public int getOffsetGap(Fieldable field) {
+        @Override
+        public int getOffsetGap(Fieldable field) {
             String fieldName = field.name();
             int dotIndex = fieldName.indexOf('.');
             if (dotIndex != -1) {
@@ -804,7 +808,8 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             return defaultAnalyzer.getOffsetGap(field);
         }
 
-        @Override public final TokenStream tokenStream(String fieldName, Reader reader) {
+        @Override
+        public final TokenStream tokenStream(String fieldName, Reader reader) {
             int dotIndex = fieldName.indexOf('.');
             if (dotIndex != -1) {
                 String possibleType = fieldName.substring(0, dotIndex);
@@ -825,7 +830,8 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             return defaultAnalyzer.tokenStream(fieldName, reader);
         }
 
-        @Override public final TokenStream reusableTokenStream(String fieldName, Reader reader) throws IOException {
+        @Override
+        public final TokenStream reusableTokenStream(String fieldName, Reader reader) throws IOException {
             int dotIndex = fieldName.indexOf('.');
             if (dotIndex != -1) {
                 String possibleType = fieldName.substring(0, dotIndex);
@@ -848,7 +854,8 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     }
 
     class InternalFieldMapperListener implements FieldMapperListener {
-        @Override public void fieldMapper(FieldMapper fieldMapper) {
+        @Override
+        public void fieldMapper(FieldMapper fieldMapper) {
             synchronized (mutex) {
                 FieldMappers mappers = nameFieldMappers.get(fieldMapper.names().name());
                 if (mappers == null) {
@@ -879,7 +886,8 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     }
 
     class InternalObjectMapperListener implements ObjectMapperListener {
-        @Override public void objectMapper(ObjectMapper objectMapper) {
+        @Override
+        public void objectMapper(ObjectMapper objectMapper) {
             ObjectMappers mappers = objectMappers.get(objectMapper.fullPath());
             if (mappers == null) {
                 mappers = new ObjectMappers(objectMapper);

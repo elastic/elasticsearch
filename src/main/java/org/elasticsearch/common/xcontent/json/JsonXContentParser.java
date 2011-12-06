@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,16 +19,16 @@
 
 package org.elasticsearch.common.xcontent.json;
 
+import org.codehaus.jackson.JsonParser;
+import org.codehaus.jackson.JsonToken;
 import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.common.jackson.JsonParser;
-import org.elasticsearch.common.jackson.JsonToken;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
 
 import java.io.IOException;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class JsonXContentParser extends AbstractXContentParser {
 
@@ -38,87 +38,108 @@ public class JsonXContentParser extends AbstractXContentParser {
         this.parser = parser;
     }
 
-    @Override public XContentType contentType() {
+    @Override
+    public XContentType contentType() {
         return XContentType.JSON;
     }
 
-    @Override public Token nextToken() throws IOException {
+    @Override
+    public Token nextToken() throws IOException {
         return convertToken(parser.nextToken());
     }
 
-    @Override public void skipChildren() throws IOException {
+    @Override
+    public void skipChildren() throws IOException {
         parser.skipChildren();
     }
 
-    @Override public Token currentToken() {
+    @Override
+    public Token currentToken() {
         return convertToken(parser.getCurrentToken());
     }
 
-    @Override public NumberType numberType() throws IOException {
+    @Override
+    public NumberType numberType() throws IOException {
         return convertNumberType(parser.getNumberType());
     }
 
-    @Override public boolean estimatedNumberType() {
+    @Override
+    public boolean estimatedNumberType() {
         return true;
     }
 
-    @Override public String currentName() throws IOException {
+    @Override
+    public String currentName() throws IOException {
         return parser.getCurrentName();
     }
 
-    @Override protected boolean doBooleanValue() throws IOException {
+    @Override
+    protected boolean doBooleanValue() throws IOException {
         return parser.getBooleanValue();
     }
 
-    @Override public String text() throws IOException {
+    @Override
+    public String text() throws IOException {
         return parser.getText();
     }
 
-    @Override public boolean hasTextCharacters() {
+    @Override
+    public boolean hasTextCharacters() {
         return parser.hasTextCharacters();
     }
 
-    @Override public char[] textCharacters() throws IOException {
+    @Override
+    public char[] textCharacters() throws IOException {
         return parser.getTextCharacters();
     }
 
-    @Override public int textLength() throws IOException {
+    @Override
+    public int textLength() throws IOException {
         return parser.getTextLength();
     }
 
-    @Override public int textOffset() throws IOException {
+    @Override
+    public int textOffset() throws IOException {
         return parser.getTextOffset();
     }
 
-    @Override public Number numberValue() throws IOException {
+    @Override
+    public Number numberValue() throws IOException {
         return parser.getNumberValue();
     }
 
-    @Override public short doShortValue() throws IOException {
+    @Override
+    public short doShortValue() throws IOException {
         return parser.getShortValue();
     }
 
-    @Override public int doIntValue() throws IOException {
+    @Override
+    public int doIntValue() throws IOException {
         return parser.getIntValue();
     }
 
-    @Override public long doLongValue() throws IOException {
+    @Override
+    public long doLongValue() throws IOException {
         return parser.getLongValue();
     }
 
-    @Override public float doFloatValue() throws IOException {
+    @Override
+    public float doFloatValue() throws IOException {
         return parser.getFloatValue();
     }
 
-    @Override public double doDoubleValue() throws IOException {
+    @Override
+    public double doDoubleValue() throws IOException {
         return parser.getDoubleValue();
     }
 
-    @Override public byte[] binaryValue() throws IOException {
+    @Override
+    public byte[] binaryValue() throws IOException {
         return parser.getBinaryValue();
     }
 
-    @Override public void close() {
+    @Override
+    public void close() {
         try {
             parser.close();
         } catch (IOException e) {

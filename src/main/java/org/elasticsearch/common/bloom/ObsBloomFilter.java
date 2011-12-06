@@ -89,7 +89,8 @@ public class ObsBloomFilter implements BloomFilter {
         return result;
     }
 
-    @Override public void add(byte[] key, int offset, int length) {
+    @Override
+    public void add(byte[] key, int offset, int length) {
         for (long bucketIndex : getHashBuckets(key, offset, length)) {
             bitset.fastSet(bucketIndex);
         }
@@ -101,7 +102,8 @@ public class ObsBloomFilter implements BloomFilter {
         }
     }
 
-    @Override public boolean isPresent(byte[] key, int offset, int length) {
+    @Override
+    public boolean isPresent(byte[] key, int offset, int length) {
         for (long bucketIndex : getHashBuckets(key, offset, length)) {
             if (!bitset.fastGet(bucketIndex)) {
                 return false;
@@ -123,7 +125,8 @@ public class ObsBloomFilter implements BloomFilter {
         bitset.clear(0, bitset.size());
     }
 
-    @Override public long sizeInBytes() {
+    @Override
+    public long sizeInBytes() {
         return bitset.getBits().length * RamUsage.NUM_BYTES_LONG + RamUsage.NUM_BYTES_ARRAY_HEADER + RamUsage.NUM_BYTES_INT /* wlen */;
     }
 }

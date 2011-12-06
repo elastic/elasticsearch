@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -32,19 +32,13 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportRequestHandler;
-import org.elasticsearch.transport.BaseTransportResponseHandler;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponseOptions;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.*;
 
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public abstract class TransportNodesOperationAction<Request extends NodesOperationRequest, Response extends NodesOperationResponse, NodeRequest extends NodeOperationRequest, NodeResponse extends NodeOperationResponse> extends BaseAction<Request, Response> {
 
@@ -58,8 +52,9 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
     final String transportNodeAction;
     final String executor;
 
-    @Inject public TransportNodesOperationAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
-                                                 ClusterService clusterService, TransportService transportService) {
+    @Inject
+    public TransportNodesOperationAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
+                                         ClusterService clusterService, TransportService transportService) {
         super(settings, threadPool);
         this.clusterName = clusterName;
         this.clusterService = clusterService;
@@ -73,7 +68,8 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
         transportService.registerHandler(transportNodeAction, new NodeTransportHandler());
     }
 
-    @Override protected void doExecute(Request request, ActionListener<Response> listener) {
+    @Override
+    protected void doExecute(Request request, ActionListener<Response> listener) {
         new AsyncAction(request, listener).start();
     }
 
@@ -134,7 +130,8 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
             if (nodesIds.length == 0) {
                 // nothing to notify
                 threadPool.cached().execute(new Runnable() {
-                    @Override public void run() {
+                    @Override
+                    public void run() {
                         listener.onResponse(newResponse(request, responses));
                     }
                 });
@@ -149,7 +146,8 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
                 final DiscoveryNode node = clusterState.nodes().nodes().get(nodeId);
                 if (nodeId.equals("_local") || nodeId.equals(clusterState.nodes().localNodeId())) {
                     threadPool.executor(executor()).execute(new Runnable() {
-                        @Override public void run() {
+                        @Override
+                        public void run() {
                             try {
                                 onOperation(nodeOperation(newNodeRequest(clusterState.nodes().localNodeId(), request)));
                             } catch (Exception e) {
@@ -159,7 +157,8 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
                     });
                 } else if (nodeId.equals("_master")) {
                     threadPool.executor(executor()).execute(new Runnable() {
-                        @Override public void run() {
+                        @Override
+                        public void run() {
                             try {
                                 onOperation(nodeOperation(newNodeRequest(clusterState.nodes().masterNodeId(), request)));
                             } catch (Exception e) {
@@ -173,19 +172,23 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
                     } else {
                         NodeRequest nodeRequest = newNodeRequest(nodeId, request);
                         transportService.sendRequest(node, transportNodeAction, nodeRequest, transportRequestOptions, new BaseTransportResponseHandler<NodeResponse>() {
-                            @Override public NodeResponse newInstance() {
+                            @Override
+                            public NodeResponse newInstance() {
                                 return newNodeResponse();
                             }
 
-                            @Override public void handleResponse(NodeResponse response) {
+                            @Override
+                            public void handleResponse(NodeResponse response) {
                                 onOperation(response);
                             }
 
-                            @Override public void handleException(TransportException exp) {
+                            @Override
+                            public void handleException(TransportException exp) {
                                 onFailure(node.id(), exp);
                             }
 
-                            @Override public String executor() {
+                            @Override
+                            public String executor() {
                                 return ThreadPool.Names.SAME;
                             }
                         });
@@ -222,14 +225,17 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
 
     private class TransportHandler extends BaseTransportRequestHandler<Request> {
 
-        @Override public Request newInstance() {
+        @Override
+        public Request newInstance() {
             return newRequest();
         }
 
-        @Override public void messageReceived(final Request request, final TransportChannel channel) throws Exception {
+        @Override
+        public void messageReceived(final Request request, final TransportChannel channel) throws Exception {
             request.listenerThreaded(false);
             execute(request, new ActionListener<Response>() {
-                @Override public void onResponse(Response response) {
+                @Override
+                public void onResponse(Response response) {
                     TransportResponseOptions options = TransportResponseOptions.options().withCompress(transportCompress());
                     try {
                         channel.sendResponse(response, options);
@@ -238,7 +244,8 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
                     }
                 }
 
-                @Override public void onFailure(Throwable e) {
+                @Override
+                public void onFailure(Throwable e) {
                     try {
                         channel.sendResponse(e);
                     } catch (Exception e1) {
@@ -248,30 +255,36 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
             });
         }
 
-        @Override public String executor() {
+        @Override
+        public String executor() {
             return ThreadPool.Names.SAME;
         }
 
-        @Override public String toString() {
+        @Override
+        public String toString() {
             return transportAction;
         }
     }
 
     private class NodeTransportHandler extends BaseTransportRequestHandler<NodeRequest> {
 
-        @Override public NodeRequest newInstance() {
+        @Override
+        public NodeRequest newInstance() {
             return newNodeRequest();
         }
 
-        @Override public void messageReceived(final NodeRequest request, final TransportChannel channel) throws Exception {
+        @Override
+        public void messageReceived(final NodeRequest request, final TransportChannel channel) throws Exception {
             channel.sendResponse(nodeOperation(request));
         }
 
-        @Override public String toString() {
+        @Override
+        public String toString() {
             return transportNodeAction;
         }
 
-        @Override public String executor() {
+        @Override
+        public String executor() {
             return executor;
         }
     }

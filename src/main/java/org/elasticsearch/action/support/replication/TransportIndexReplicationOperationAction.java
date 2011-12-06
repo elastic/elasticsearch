@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -39,7 +39,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public abstract class TransportIndexReplicationOperationAction<Request extends IndexReplicationOperationRequest, Response extends ActionResponse, ShardRequest extends ShardReplicationOperationRequest, ShardReplicaRequest extends ActionRequest, ShardResponse extends ActionResponse>
         extends BaseAction<Request, Response> {
@@ -48,8 +48,9 @@ public abstract class TransportIndexReplicationOperationAction<Request extends I
 
     protected final TransportShardReplicationOperationAction<ShardRequest, ShardReplicaRequest, ShardResponse> shardAction;
 
-    @Inject public TransportIndexReplicationOperationAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                                            TransportShardReplicationOperationAction<ShardRequest, ShardReplicaRequest, ShardResponse> shardAction) {
+    @Inject
+    public TransportIndexReplicationOperationAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
+                                                    TransportShardReplicationOperationAction<ShardRequest, ShardReplicaRequest, ShardResponse> shardAction) {
         super(settings, threadPool);
         this.clusterService = clusterService;
         this.shardAction = shardAction;
@@ -57,7 +58,8 @@ public abstract class TransportIndexReplicationOperationAction<Request extends I
         transportService.registerHandler(transportAction(), new TransportHandler());
     }
 
-    @Override protected void doExecute(final Request request, final ActionListener<Response> listener) {
+    @Override
+    protected void doExecute(final Request request, final ActionListener<Response> listener) {
 
         ClusterState clusterState = clusterService.state();
         // update to concrete index
@@ -86,14 +88,16 @@ public abstract class TransportIndexReplicationOperationAction<Request extends I
             // no need for threaded listener, we will fork when its done based on the index request
             shardRequest.listenerThreaded(false);
             shardAction.execute(shardRequest, new ActionListener<ShardResponse>() {
-                @Override public void onResponse(ShardResponse result) {
+                @Override
+                public void onResponse(ShardResponse result) {
                     shardsResponses.set(indexCounter.getAndIncrement(), result);
                     if (completionCounter.decrementAndGet() == 0) {
                         listener.onResponse(newResponseInstance(request, shardsResponses));
                     }
                 }
 
-                @Override public void onFailure(Throwable e) {
+                @Override
+                public void onFailure(Throwable e) {
                     int index = indexCounter.getAndIncrement();
                     if (accumulateExceptions()) {
                         shardsResponses.set(index, e);
@@ -124,19 +128,23 @@ public abstract class TransportIndexReplicationOperationAction<Request extends I
 
     private class TransportHandler extends BaseTransportRequestHandler<Request> {
 
-        @Override public Request newInstance() {
+        @Override
+        public Request newInstance() {
             return newRequestInstance();
         }
 
-        @Override public String executor() {
+        @Override
+        public String executor() {
             return ThreadPool.Names.SAME;
         }
 
-        @Override public void messageReceived(final Request request, final TransportChannel channel) throws Exception {
+        @Override
+        public void messageReceived(final Request request, final TransportChannel channel) throws Exception {
             // no need to use threaded listener, since we just send a response
             request.listenerThreaded(false);
             execute(request, new ActionListener<Response>() {
-                @Override public void onResponse(Response result) {
+                @Override
+                public void onResponse(Response result) {
                     try {
                         channel.sendResponse(result);
                     } catch (Exception e) {
@@ -144,7 +152,8 @@ public abstract class TransportIndexReplicationOperationAction<Request extends I
                     }
                 }
 
-                @Override public void onFailure(Throwable e) {
+                @Override
+                public void onFailure(Throwable e) {
                     try {
                         channel.sendResponse(e);
                     } catch (Exception e1) {

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,8 +19,8 @@
 
 package org.elasticsearch.common.lucene.versioned;
 
-import org.elasticsearch.common.trove.impl.Constants;
-import org.elasticsearch.common.trove.map.hash.TIntIntHashMap;
+import gnu.trove.impl.Constants;
+import gnu.trove.map.hash.TIntIntHashMap;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
 
 import java.util.concurrent.locks.ReadWriteLock;
@@ -29,7 +29,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 /**
  * An implementation of {@link VersionedMap} based on trove.
  *
- * @author kimchy (Shay Banon)
+ *
  */
 @ThreadSafe
 public class NativeVersionedMap implements VersionedMap {
@@ -67,7 +67,8 @@ public class NativeVersionedMap implements VersionedMap {
         }
     }
 
-    @Override public boolean beforeVersion(int key, int versionToCheck) {
+    @Override
+    public boolean beforeVersion(int key, int versionToCheck) {
         Segment segment = segmentFor(hash(key));
         segment.rwl.readLock().lock();
         try {
@@ -78,7 +79,8 @@ public class NativeVersionedMap implements VersionedMap {
         }
     }
 
-    @Override public void putVersion(int key, int version) {
+    @Override
+    public void putVersion(int key, int version) {
         Segment segment = segmentFor(hash(key));
         segment.rwl.writeLock().lock();
         try {
@@ -88,7 +90,8 @@ public class NativeVersionedMap implements VersionedMap {
         }
     }
 
-    @Override public void putVersionIfAbsent(int key, int version) {
+    @Override
+    public void putVersionIfAbsent(int key, int version) {
         Segment segment = segmentFor(hash(key));
         segment.rwl.writeLock().lock();
         try {
@@ -100,7 +103,8 @@ public class NativeVersionedMap implements VersionedMap {
         }
     }
 
-    @Override public void clear() {
+    @Override
+    public void clear() {
         for (Segment segment : segments) {
             segment.rwl.writeLock().lock();
             try {

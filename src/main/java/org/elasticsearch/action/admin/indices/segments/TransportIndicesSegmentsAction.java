@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -44,49 +44,57 @@ import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
-import static org.elasticsearch.common.collect.Lists.*;
+import static com.google.common.collect.Lists.newArrayList;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class TransportIndicesSegmentsAction extends TransportBroadcastOperationAction<IndicesSegmentsRequest, IndicesSegmentResponse, TransportIndicesSegmentsAction.IndexShardSegmentRequest, ShardSegments> {
 
     private final IndicesService indicesService;
 
-    @Inject public TransportIndicesSegmentsAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                                  IndicesService indicesService) {
+    @Inject
+    public TransportIndicesSegmentsAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
+                                          IndicesService indicesService) {
         super(settings, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
     }
 
-    @Override protected String executor() {
+    @Override
+    protected String executor() {
         return ThreadPool.Names.MANAGEMENT;
     }
 
-    @Override protected String transportAction() {
+    @Override
+    protected String transportAction() {
         return TransportActions.Admin.Indices.SEGMENTS;
     }
 
-    @Override protected String transportShardAction() {
+    @Override
+    protected String transportShardAction() {
         return "indices/segments/shard";
     }
 
-    @Override protected IndicesSegmentsRequest newRequest() {
+    @Override
+    protected IndicesSegmentsRequest newRequest() {
         return new IndicesSegmentsRequest();
     }
 
-    @Override protected boolean ignoreNonActiveExceptions() {
+    @Override
+    protected boolean ignoreNonActiveExceptions() {
         return true;
     }
 
     /**
      * Segments goes across *all* active shards.
      */
-    @Override protected GroupShardsIterator shards(IndicesSegmentsRequest request, String[] concreteIndices, ClusterState clusterState) {
+    @Override
+    protected GroupShardsIterator shards(IndicesSegmentsRequest request, String[] concreteIndices, ClusterState clusterState) {
         return clusterState.routingTable().allActiveShardsGrouped(concreteIndices, true);
     }
 
-    @Override protected IndicesSegmentResponse newResponse(IndicesSegmentsRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
+    @Override
+    protected IndicesSegmentResponse newResponse(IndicesSegmentsRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
         int successfulShards = 0;
         int failedShards = 0;
         List<ShardOperationFailedException> shardFailures = null;
@@ -109,19 +117,23 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastOperationA
         return new IndicesSegmentResponse(shards.toArray(new ShardSegments[shards.size()]), clusterState, shardsResponses.length(), successfulShards, failedShards, shardFailures);
     }
 
-    @Override protected IndexShardSegmentRequest newShardRequest() {
+    @Override
+    protected IndexShardSegmentRequest newShardRequest() {
         return new IndexShardSegmentRequest();
     }
 
-    @Override protected IndexShardSegmentRequest newShardRequest(ShardRouting shard, IndicesSegmentsRequest request) {
+    @Override
+    protected IndexShardSegmentRequest newShardRequest(ShardRouting shard, IndicesSegmentsRequest request) {
         return new IndexShardSegmentRequest(shard.index(), shard.id(), request);
     }
 
-    @Override protected ShardSegments newShardResponse() {
+    @Override
+    protected ShardSegments newShardResponse() {
         return new ShardSegments();
     }
 
-    @Override protected ShardSegments shardOperation(IndexShardSegmentRequest request) throws ElasticSearchException {
+    @Override
+    protected ShardSegments shardOperation(IndexShardSegmentRequest request) throws ElasticSearchException {
         InternalIndexService indexService = (InternalIndexService) indicesService.indexServiceSafe(request.index());
         InternalIndexShard indexShard = (InternalIndexShard) indexService.shardSafe(request.shardId());
         return new ShardSegments(indexShard.routingEntry(), indexShard.engine().segments());
@@ -136,11 +148,13 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastOperationA
             super(index, shardId);
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
         }
     }

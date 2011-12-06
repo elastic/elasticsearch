@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -29,44 +29,53 @@ import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.index.settings.IndexSettings;
 
 /**
- * @author kimchy (Shay Banon)
+ *
  */
 public class NoneFilterCache extends AbstractIndexComponent implements FilterCache {
 
-    @Inject public NoneFilterCache(Index index, @IndexSettings Settings indexSettings) {
+    @Inject
+    public NoneFilterCache(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
         logger.debug("Using no filter cache");
     }
 
-    @Override public String type() {
+    @Override
+    public String type() {
         return "none";
     }
 
-    @Override public void close() {
+    @Override
+    public void close() {
         // nothing to do here
     }
 
-    @Override public Filter cache(Filter filterToCache) {
+    @Override
+    public Filter cache(Filter filterToCache) {
         return filterToCache;
     }
 
-    @Override public boolean isCached(Filter filter) {
+    @Override
+    public boolean isCached(Filter filter) {
         return false;
     }
 
-    @Override public void clear() {
+    @Override
+    public void clear() {
         // nothing to do here
     }
 
-    @Override public void clear(IndexReader reader) {
+    @Override
+    public void clear(IndexReader reader) {
         // nothing to do here
     }
 
-    @Override public EntriesStats entriesStats() {
+    @Override
+    public EntriesStats entriesStats() {
         return new EntriesStats(0, 0);
     }
 
-    @Override public long evictions() {
+    @Override
+    public long evictions() {
         return 0;
     }
 }

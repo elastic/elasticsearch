@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,12 +19,12 @@
 
 package org.elasticsearch.index.aliases;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.UnmodifiableIterator;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.FilterClause;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.UnmodifiableIterator;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
@@ -40,10 +40,10 @@ import org.elasticsearch.indices.InvalidAliasNameException;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.collect.MapBuilder.*;
+import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 
 /**
- * @author imotov
+ *
  */
 public class IndexAliasesService extends AbstractIndexComponent implements Iterable<IndexAlias> {
 
@@ -53,7 +53,8 @@ public class IndexAliasesService extends AbstractIndexComponent implements Itera
 
     private final Object mutex = new Object();
 
-    @Inject public IndexAliasesService(Index index, @IndexSettings Settings indexSettings, IndexQueryParserService indexQueryParser) {
+    @Inject
+    public IndexAliasesService(Index index, @IndexSettings Settings indexSettings, IndexQueryParserService indexQueryParser) {
         super(index, indexSettings);
         this.indexQueryParser = indexQueryParser;
     }
@@ -72,7 +73,7 @@ public class IndexAliasesService extends AbstractIndexComponent implements Itera
 
     /**
      * Returns the filter associated with listed filtering aliases.
-     *
+     * <p/>
      * <p>The list of filtering aliases should be obtained by calling MetaData.filteringAliases.
      * Returns <tt>null</tt> if no filtering is required.</p>
      */
@@ -142,7 +143,8 @@ public class IndexAliasesService extends AbstractIndexComponent implements Itera
         }
     }
 
-    @Override public UnmodifiableIterator<IndexAlias> iterator() {
+    @Override
+    public UnmodifiableIterator<IndexAlias> iterator() {
         return aliases.values().iterator();
     }
 }

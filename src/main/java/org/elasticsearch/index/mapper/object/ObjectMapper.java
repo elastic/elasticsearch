@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,13 +19,13 @@
 
 package org.elasticsearch.index.mapper.object;
 
+import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.lucene.uid.UidField;
@@ -40,21 +40,17 @@ import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.multifield.MultiFieldMapper;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
+import java.util.*;
 
-import static org.elasticsearch.common.collect.ImmutableMap.*;
-import static org.elasticsearch.common.collect.Lists.*;
-import static org.elasticsearch.common.collect.MapBuilder.*;
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.*;
+import static com.google.common.collect.ImmutableMap.copyOf;
+import static com.google.common.collect.Lists.newArrayList;
+import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.index.mapper.MapperBuilders.*;
-import static org.elasticsearch.index.mapper.core.TypeParsers.*;
+import static org.elasticsearch.index.mapper.core.TypeParsers.parsePathType;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 @ThreadSafe
 public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
@@ -157,7 +153,8 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
             return this.builder;
         }
 
-        @Override public Y build(BuilderContext context) {
+        @Override
+        public Y build(BuilderContext context) {
             ContentPath.Type origPathType = context.path().pathType();
             context.path().pathType(pathType);
             context.path().add(name);
@@ -182,7 +179,8 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
     }
 
     public static class TypeParser implements Mapper.TypeParser {
-        @Override public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        @Override
+        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Map<String, Object> objectNode = node;
             ObjectMapper.Builder builder = createBuilder(name);
 
@@ -306,11 +304,13 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         this.nestedTypeFilter = new TermFilter(TypeFieldMapper.TERM_FACTORY.createTerm(nestedTypePath));
     }
 
-    @Override public String name() {
+    @Override
+    public String name() {
         return this.name;
     }
 
-    @Override public void includeInAll(Boolean includeInAll) {
+    @Override
+    public void includeInAll(Boolean includeInAll) {
         if (includeInAll == null) {
             return;
         }
@@ -323,7 +323,8 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         }
     }
 
-    @Override public void includeInAllIfNotSet(Boolean includeInAll) {
+    @Override
+    public void includeInAllIfNotSet(Boolean includeInAll) {
         if (this.includeInAll == null) {
             this.includeInAll = includeInAll;
         }
@@ -353,13 +354,15 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         return this;
     }
 
-    @Override public void traverse(FieldMapperListener fieldMapperListener) {
+    @Override
+    public void traverse(FieldMapperListener fieldMapperListener) {
         for (Mapper mapper : mappers.values()) {
             mapper.traverse(fieldMapperListener);
         }
     }
 
-    @Override public void traverse(ObjectMapperListener objectMapperListener) {
+    @Override
+    public void traverse(ObjectMapperListener objectMapperListener) {
         objectMapperListener.objectMapper(this);
         for (Mapper mapper : mappers.values()) {
             mapper.traverse(objectMapperListener);
@@ -523,12 +526,14 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                     // we need to traverse in case we have a dynamic template and need to add field mappers
                     // introduced by it
                     objectMapper.traverse(new FieldMapperListener() {
-                        @Override public void fieldMapper(FieldMapper fieldMapper) {
+                        @Override
+                        public void fieldMapper(FieldMapper fieldMapper) {
                             context.docMapper().addFieldMapper(fieldMapper);
                         }
                     });
                     objectMapper.traverse(new ObjectMapperListener() {
-                        @Override public void objectMapper(ObjectMapper objectMapper) {
+                        @Override
+                        public void objectMapper(ObjectMapper objectMapper) {
                             context.docMapper().addObjectMapper(objectMapper);
                         }
                     });
@@ -748,7 +753,8 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         }
         if (newMapper) {
             mapper.traverse(new FieldMapperListener() {
-                @Override public void fieldMapper(FieldMapper fieldMapper) {
+                @Override
+                public void fieldMapper(FieldMapper fieldMapper) {
                     context.docMapper().addFieldMapper(fieldMapper);
                 }
             });
@@ -756,7 +762,8 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         mapper.parse(context);
     }
 
-    @Override public void merge(final Mapper mergeWith, final MergeContext mergeContext) throws MergeMappingException {
+    @Override
+    public void merge(final Mapper mergeWith, final MergeContext mergeContext) throws MergeMappingException {
         if (!(mergeWith instanceof ObjectMapper)) {
             mergeContext.addConflict("Can't merge a non object mapping [" + mergeWith.name() + "] with an object mapping [" + name() + "]");
             return;
@@ -795,12 +802,14 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         // call this outside of the mutex
         for (Mapper mapper : mappersToTraverse) {
             mapper.traverse(new FieldMapperListener() {
-                @Override public void fieldMapper(FieldMapper fieldMapper) {
+                @Override
+                public void fieldMapper(FieldMapper fieldMapper) {
                     mergeContext.docMapper().addFieldMapper(fieldMapper);
                 }
             });
             mapper.traverse(new ObjectMapperListener() {
-                @Override public void objectMapper(ObjectMapper objectMapper) {
+                @Override
+                public void objectMapper(ObjectMapper objectMapper) {
                     mergeContext.docMapper().addObjectMapper(objectMapper);
                 }
             });
@@ -811,13 +820,15 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
 
     }
 
-    @Override public void close() {
+    @Override
+    public void close() {
         for (Mapper mapper : mappers.values()) {
             mapper.close();
         }
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         toXContent(builder, params, null, Mapper.EMPTY_ARRAY);
         return builder;
     }

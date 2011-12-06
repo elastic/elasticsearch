@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -39,11 +39,11 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.cluster.ClusterState.*;
-import static org.elasticsearch.cluster.metadata.MetaData.*;
+import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
+import static org.elasticsearch.cluster.metadata.MetaData.newMetaDataBuilder;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class MetaDataDeleteIndexService extends AbstractComponent {
 
@@ -57,8 +57,9 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
 
     private final MetaDataService metaDataService;
 
-    @Inject public MetaDataDeleteIndexService(Settings settings, ThreadPool threadPool, ClusterService clusterService, AllocationService allocationService,
-                                              NodeIndexDeletedAction nodeIndexDeletedAction, MetaDataService metaDataService) {
+    @Inject
+    public MetaDataDeleteIndexService(Settings settings, ThreadPool threadPool, ClusterService clusterService, AllocationService allocationService,
+                                      NodeIndexDeletedAction nodeIndexDeletedAction, MetaDataService metaDataService) {
         super(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
@@ -80,7 +81,8 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
 
         final DeleteIndexListener listener = new DeleteIndexListener(mdLock, request, userListener);
         clusterService.submitStateUpdateTask("delete-index [" + request.index + "]", new ClusterStateUpdateTask() {
-            @Override public ClusterState execute(ClusterState currentState) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
                 try {
                     if (!currentState.metaData().hasConcreteIndex(request.index)) {
                         listener.onFailure(new IndexMissingException(new Index(request.index)));
@@ -105,7 +107,8 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
                     final AtomicInteger counter = new AtomicInteger(currentState.nodes().size());
 
                     final NodeIndexDeletedAction.Listener nodeIndexDeleteListener = new NodeIndexDeletedAction.Listener() {
-                        @Override public void onNodeIndexDeleted(String index, String nodeId) {
+                        @Override
+                        public void onNodeIndexDeleted(String index, String nodeId) {
                             if (index.equals(request.index)) {
                                 if (counter.decrementAndGet() == 0) {
                                     listener.onResponse(new Response(true));
@@ -117,7 +120,8 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
                     nodeIndexDeletedAction.add(nodeIndexDeleteListener);
 
                     listener.future = threadPool.schedule(request.timeout, ThreadPool.Names.SAME, new Runnable() {
-                        @Override public void run() {
+                        @Override
+                        public void run() {
                             listener.onResponse(new Response(false));
                             nodeIndexDeletedAction.remove(nodeIndexDeleteListener);
                         }
@@ -150,7 +154,8 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
             this.listener = listener;
         }
 
-        @Override public void onResponse(final Response response) {
+        @Override
+        public void onResponse(final Response response) {
             if (notified.compareAndSet(false, true)) {
                 mdLock.unlock();
                 if (future != null) {
@@ -160,7 +165,8 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
             }
         }
 
-        @Override public void onFailure(Throwable t) {
+        @Override
+        public void onFailure(Throwable t) {
             if (notified.compareAndSet(false, true)) {
                 mdLock.unlock();
                 if (future != null) {

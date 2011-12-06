@@ -16,8 +16,8 @@
 
 package org.elasticsearch.common.inject;
 
-import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.collect.Lists;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.internal.ErrorsException;
 import org.elasticsearch.common.inject.internal.FailableCache;
@@ -39,7 +39,8 @@ class MembersInjectorStore {
 
     private final FailableCache<TypeLiteral<?>, MembersInjectorImpl<?>> cache
             = new FailableCache<TypeLiteral<?>, MembersInjectorImpl<?>>() {
-        @Override protected MembersInjectorImpl<?> create(TypeLiteral<?> type, Errors errors)
+        @Override
+        protected MembersInjectorImpl<?> create(TypeLiteral<?> type, Errors errors)
                 throws ErrorsException {
             return createWithListeners(type, errors);
         }

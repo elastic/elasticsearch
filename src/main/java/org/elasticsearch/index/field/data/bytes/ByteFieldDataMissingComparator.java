@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -24,7 +24,7 @@ import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.support.NumericFieldDataComparator;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 // LUCENE MONITOR: Monitor against FieldComparator.Short
 public class ByteFieldDataMissingComparator extends NumericFieldDataComparator {
@@ -39,15 +39,18 @@ public class ByteFieldDataMissingComparator extends NumericFieldDataComparator {
         this.missingValue = missingValue;
     }
 
-    @Override public FieldDataType fieldDataType() {
+    @Override
+    public FieldDataType fieldDataType() {
         return FieldDataType.DefaultTypes.BYTE;
     }
 
-    @Override public int compare(int slot1, int slot2) {
+    @Override
+    public int compare(int slot1, int slot2) {
         return values[slot1] - values[slot2];
     }
 
-    @Override public int compareBottom(int doc) {
+    @Override
+    public int compareBottom(int doc) {
         byte value = missingValue;
         if (currentFieldData.hasValue(doc)) {
             value = currentFieldData.byteValue(doc);
@@ -55,7 +58,8 @@ public class ByteFieldDataMissingComparator extends NumericFieldDataComparator {
         return bottom - value;
     }
 
-    @Override public void copy(int slot, int doc) {
+    @Override
+    public void copy(int slot, int doc) {
         byte value = missingValue;
         if (currentFieldData.hasValue(doc)) {
             value = currentFieldData.byteValue(doc);
@@ -63,11 +67,13 @@ public class ByteFieldDataMissingComparator extends NumericFieldDataComparator {
         values[slot] = value;
     }
 
-    @Override public void setBottom(final int bottom) {
+    @Override
+    public void setBottom(final int bottom) {
         this.bottom = values[bottom];
     }
 
-    @Override public Comparable value(int slot) {
+    @Override
+    public Comparable value(int slot) {
         return Byte.valueOf(values[slot]);
     }
 }

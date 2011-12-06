@@ -19,8 +19,8 @@
 
 package org.elasticsearch.search.fetch.version;
 
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.lucene.uid.UidField;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.search.SearchParseElement;
@@ -31,26 +31,31 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.util.Map;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class VersionFetchSubPhase implements FetchSubPhase {
 
-    @Override public Map<String, ? extends SearchParseElement> parseElements() {
+    @Override
+    public Map<String, ? extends SearchParseElement> parseElements() {
         return ImmutableMap.of("version", new VersionParseElement());
     }
 
-    @Override public boolean hitsExecutionNeeded(SearchContext context) {
+    @Override
+    public boolean hitsExecutionNeeded(SearchContext context) {
         return false;
     }
 
-    @Override public void hitsExecute(SearchContext context, InternalSearchHit[] hits) throws ElasticSearchException {
+    @Override
+    public void hitsExecute(SearchContext context, InternalSearchHit[] hits) throws ElasticSearchException {
     }
 
-    @Override public boolean hitExecutionNeeded(SearchContext context) {
+    @Override
+    public boolean hitExecutionNeeded(SearchContext context) {
         return context.version();
     }
 
-    @Override public void hitExecute(SearchContext context, HitContext hitContext) throws ElasticSearchException {
+    @Override
+    public void hitExecute(SearchContext context, HitContext hitContext) throws ElasticSearchException {
         // it might make sense to cache the TermDocs on a shared fetch context and just skip here)
         // it is going to mean we work on the high level multi reader and not the lower level reader as is
         // the case below...

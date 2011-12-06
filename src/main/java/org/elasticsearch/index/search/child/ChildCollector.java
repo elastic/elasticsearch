@@ -33,7 +33,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class ChildCollector extends Collector {
 
@@ -64,11 +64,13 @@ public class ChildCollector extends Collector {
         return this.parentDocs;
     }
 
-    @Override public void setScorer(Scorer scorer) throws IOException {
+    @Override
+    public void setScorer(Scorer scorer) throws IOException {
 
     }
 
-    @Override public void collect(int doc) throws IOException {
+    @Override
+    public void collect(int doc) throws IOException {
         BytesWrap parentId = typeCache.parentIdByDoc(doc);
         if (parentId == null) {
             return;
@@ -92,11 +94,13 @@ public class ChildCollector extends Collector {
         }
     }
 
-    @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
+    @Override
+    public void setNextReader(IndexReader reader, int docBase) throws IOException {
         typeCache = context.idCache().reader(reader).type(parentType);
     }
 
-    @Override public boolean acceptsDocsOutOfOrder() {
+    @Override
+    public boolean acceptsDocsOutOfOrder() {
         return true;
     }
 }

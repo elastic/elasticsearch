@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -22,7 +22,7 @@ package org.elasticsearch.cluster.routing.operation.hash.djb;
 import org.elasticsearch.cluster.routing.operation.hash.HashFunction;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class DjbHashFunction implements HashFunction {
 
@@ -36,11 +36,13 @@ public class DjbHashFunction implements HashFunction {
         return (int) hash;
     }
 
-    @Override public int hash(String routing) {
+    @Override
+    public int hash(String routing) {
         return DJB_HASH(routing);
     }
 
-    @Override public int hash(String type, String id) {
+    @Override
+    public int hash(String type, String id) {
         long hash = 5381;
 
         for (int i = 0; i < type.length(); i++) {

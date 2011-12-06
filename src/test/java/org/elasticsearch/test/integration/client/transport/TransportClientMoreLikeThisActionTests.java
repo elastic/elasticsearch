@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -27,14 +27,15 @@ import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.test.integration.document.MoreLikeThisActionTests;
 import org.elasticsearch.transport.TransportService;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class TransportClientMoreLikeThisActionTests extends MoreLikeThisActionTests {
 
-    @Override protected Client getClient1() {
+    @Override
+    protected Client getClient1() {
         TransportAddress server1Address = ((InternalNode) node("server1")).injector().getInstance(TransportService.class).boundAddress().publishAddress();
         TransportClient client = new TransportClient(settingsBuilder()
                 .put("cluster.name", "test-cluster-" + NetworkUtils.getLocalAddress().getHostName())
@@ -43,7 +44,8 @@ public class TransportClientMoreLikeThisActionTests extends MoreLikeThisActionTe
         return client;
     }
 
-    @Override protected Client getClient2() {
+    @Override
+    protected Client getClient2() {
         TransportAddress server1Address = ((InternalNode) node("server2")).injector().getInstance(TransportService.class).boundAddress().publishAddress();
         TransportClient client = new TransportClient(settingsBuilder()
                 .put("cluster.name", "test-cluster-" + NetworkUtils.getLocalAddress().getHostName())

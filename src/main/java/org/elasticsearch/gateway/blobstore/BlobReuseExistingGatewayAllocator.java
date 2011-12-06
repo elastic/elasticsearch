@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,6 +19,8 @@
 
 package org.elasticsearch.gateway.blobstore;
 
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -31,8 +33,6 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.GatewayAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
-import org.elasticsearch.common.collect.Maps;
-import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -54,7 +54,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class BlobReuseExistingGatewayAllocator extends AbstractComponent implements GatewayAllocator {
 
@@ -68,8 +68,9 @@ public class BlobReuseExistingGatewayAllocator extends AbstractComponent impleme
 
     private final ConcurrentMap<ShardId, Map<DiscoveryNode, TransportNodesListShardStoreMetaData.StoreFilesMetaData>> cachedStores = ConcurrentCollections.newConcurrentMap();
 
-    @Inject public BlobReuseExistingGatewayAllocator(Settings settings, Node node,
-                                                     TransportNodesListShardStoreMetaData transportNodesListShardStoreMetaData) {
+    @Inject
+    public BlobReuseExistingGatewayAllocator(Settings settings, Node node,
+                                             TransportNodesListShardStoreMetaData transportNodesListShardStoreMetaData) {
         super(settings);
         this.node = node; // YACK!, we need the Gateway, but it creates crazy circular dependency
         this.listShardStoreMetaData = transportNodesListShardStoreMetaData;
@@ -77,19 +78,22 @@ public class BlobReuseExistingGatewayAllocator extends AbstractComponent impleme
         this.listTimeout = componentSettings.getAsTime("list_timeout", TimeValue.timeValueSeconds(30));
     }
 
-    @Override public void applyStartedShards(StartedRerouteAllocation allocation) {
+    @Override
+    public void applyStartedShards(StartedRerouteAllocation allocation) {
         for (ShardRouting shardRouting : allocation.startedShards()) {
             cachedCommitPoints.remove(shardRouting.shardId());
             cachedStores.remove(shardRouting.shardId());
         }
     }
 
-    @Override public void applyFailedShards(FailedRerouteAllocation allocation) {
+    @Override
+    public void applyFailedShards(FailedRerouteAllocation allocation) {
         cachedCommitPoints.remove(allocation.failedShard().shardId());
         cachedStores.remove(allocation.failedShard().shardId());
     }
 
-    @Override public boolean allocateUnassigned(RoutingAllocation allocation) {
+    @Override
+    public boolean allocateUnassigned(RoutingAllocation allocation) {
         boolean changed = false;
 
         DiscoveryNodes nodes = allocation.nodes();

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -31,21 +31,17 @@ import org.elasticsearch.common.io.stream.LZFStreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeContext;
-import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.*;
 
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.*;
-import static org.elasticsearch.index.mapper.MapperBuilders.*;
-import static org.elasticsearch.index.mapper.core.TypeParsers.*;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.index.mapper.MapperBuilders.binaryField;
+import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
 
@@ -76,17 +72,20 @@ public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
             return this;
         }
 
-        @Override public Builder indexName(String indexName) {
+        @Override
+        public Builder indexName(String indexName) {
             return super.indexName(indexName);
         }
 
-        @Override public BinaryFieldMapper build(BuilderContext context) {
+        @Override
+        public BinaryFieldMapper build(BuilderContext context) {
             return new BinaryFieldMapper(buildNames(context), compress, compressThreshold);
         }
     }
 
     public static class TypeParser implements Mapper.TypeParser {
-        @Override public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        @Override
+        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             BinaryFieldMapper.Builder builder = binaryField(name);
             parseField(builder, name, node, parserContext);
             for (Map.Entry<String, Object> entry : node.entrySet()) {
@@ -123,7 +122,8 @@ public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
         return value(field);
     }
 
-    @Override public byte[] value(Fieldable field) {
+    @Override
+    public byte[] value(Fieldable field) {
         byte[] value = field.getBinaryValue();
         if (value != null && LZF.isCompressed(value)) {
             try {
@@ -135,7 +135,8 @@ public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
         return value;
     }
 
-    @Override public byte[] valueFromString(String value) {
+    @Override
+    public byte[] valueFromString(String value) {
         // assume its base64 (json)
         try {
             return Base64.decode(value);
@@ -144,15 +145,18 @@ public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
         }
     }
 
-    @Override public String valueAsString(Fieldable field) {
+    @Override
+    public String valueAsString(Fieldable field) {
         return null;
     }
 
-    @Override public String indexedValue(String value) {
+    @Override
+    public String indexedValue(String value) {
         return value;
     }
 
-    @Override protected Field parseCreateField(ParseContext context) throws IOException {
+    @Override
+    protected Field parseCreateField(ParseContext context) throws IOException {
         byte[] value;
         if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
             return null;
@@ -177,11 +181,13 @@ public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
         return new Field(names.indexName(), value);
     }
 
-    @Override protected String contentType() {
+    @Override
+    protected String contentType() {
         return CONTENT_TYPE;
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(names.name());
         builder.field("type", contentType());
         if (!names.name().equals(names.indexNameClean())) {
@@ -197,7 +203,8 @@ public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
         return builder;
     }
 
-    @Override public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+    @Override
+    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
         BinaryFieldMapper sourceMergeWith = (BinaryFieldMapper) mergeWith;
         if (!mergeContext.mergeFlags().simulate()) {
             if (sourceMergeWith.compress != null) {

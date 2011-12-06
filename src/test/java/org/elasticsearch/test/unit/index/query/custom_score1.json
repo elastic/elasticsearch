@@ -1,0 +1,10 @@
+{
+    "custom_score":{
+        "query":{
+            "term":{
+                "name.last":"banon"
+            }
+        },
+        "script":"score * doc['name.first']"
+    }
+}

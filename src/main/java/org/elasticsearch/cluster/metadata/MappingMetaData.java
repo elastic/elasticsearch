@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -37,10 +37,10 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.*;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class MappingMetaData {
 
@@ -73,7 +73,8 @@ public class MappingMetaData {
             return this.pathElements;
         }
 
-        @Override public boolean equals(Object o) {
+        @Override
+        public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
 
@@ -85,7 +86,8 @@ public class MappingMetaData {
             return true;
         }
 
-        @Override public int hashCode() {
+        @Override
+        public int hashCode() {
             int result = path != null ? path.hashCode() : 0;
             result = 31 * result + (pathElements != null ? Arrays.hashCode(pathElements) : 0);
             return result;
@@ -128,7 +130,8 @@ public class MappingMetaData {
             return this.pathElements;
         }
 
-        @Override public boolean equals(Object o) {
+        @Override
+        public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
 
@@ -141,7 +144,8 @@ public class MappingMetaData {
             return true;
         }
 
-        @Override public int hashCode() {
+        @Override
+        public int hashCode() {
             int result = (required ? 1 : 0);
             result = 31 * result + (path != null ? path.hashCode() : 0);
             result = 31 * result + (pathElements != null ? Arrays.hashCode(pathElements) : 0);
@@ -214,7 +218,8 @@ public class MappingMetaData {
             return this.dateTimeFormatter;
         }
 
-        @Override public boolean equals(Object o) {
+        @Override
+        public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
 
@@ -230,7 +235,8 @@ public class MappingMetaData {
             return true;
         }
 
-        @Override public int hashCode() {
+        @Override
+        public int hashCode() {
             int result = (enabled ? 1 : 0);
             result = 31 * result + (path != null ? path.hashCode() : 0);
             result = 31 * result + (format != null ? format.hashCode() : 0);
@@ -316,7 +322,7 @@ public class MappingMetaData {
         }
     }
 
-    MappingMetaData(String type, CompressedString source, Id id, Routing routing, Timestamp timestamp) {
+    public MappingMetaData(String type, CompressedString source, Id id, Routing routing, Timestamp timestamp) {
         this.type = type;
         this.source = source;
         this.id = id;
@@ -473,7 +479,8 @@ public class MappingMetaData {
         out.writeUTF(mappingMd.timestamp().format());
     }
 
-    @Override public boolean equals(Object o) {
+    @Override
+    public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
@@ -488,7 +495,8 @@ public class MappingMetaData {
         return true;
     }
 
-    @Override public int hashCode() {
+    @Override
+    public int hashCode() {
         int result = type.hashCode();
         result = 31 * result + source.hashCode();
         result = 31 * result + id.hashCode();

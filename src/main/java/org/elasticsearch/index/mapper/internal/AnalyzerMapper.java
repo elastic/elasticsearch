@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -22,23 +22,15 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.mapper.FieldMapperListener;
-import org.elasticsearch.index.mapper.InternalMapper;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeContext;
-import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.mapper.ObjectMapperListener;
-import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.RootMapper;
+import org.elasticsearch.index.mapper.*;
 
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.MapperBuilders.*;
+import static org.elasticsearch.index.mapper.MapperBuilders.analyzer;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class AnalyzerMapper implements Mapper, InternalMapper, RootMapper {
 
@@ -63,13 +55,15 @@ public class AnalyzerMapper implements Mapper, InternalMapper, RootMapper {
             return this;
         }
 
-        @Override public AnalyzerMapper build(BuilderContext context) {
+        @Override
+        public AnalyzerMapper build(BuilderContext context) {
             return new AnalyzerMapper(field);
         }
     }
 
     public static class TypeParser implements Mapper.TypeParser {
-        @Override public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        @Override
+        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             AnalyzerMapper.Builder builder = analyzer();
             for (Map.Entry<String, Object> entry : node.entrySet()) {
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
@@ -92,14 +86,17 @@ public class AnalyzerMapper implements Mapper, InternalMapper, RootMapper {
         this.path = path;
     }
 
-    @Override public String name() {
+    @Override
+    public String name() {
         return CONTENT_TYPE;
     }
 
-    @Override public void preParse(ParseContext context) throws IOException {
+    @Override
+    public void preParse(ParseContext context) throws IOException {
     }
 
-    @Override public void postParse(ParseContext context) throws IOException {
+    @Override
+    public void postParse(ParseContext context) throws IOException {
         Analyzer analyzer = context.docMapper().mappers().indexAnalyzer();
         if (path != null) {
             String value = context.doc().get(path);
@@ -117,26 +114,33 @@ public class AnalyzerMapper implements Mapper, InternalMapper, RootMapper {
         context.analyzer(analyzer);
     }
 
-    @Override public void validate(ParseContext context) throws MapperParsingException {
+    @Override
+    public void validate(ParseContext context) throws MapperParsingException {
     }
 
-    @Override public boolean includeInObject() {
+    @Override
+    public boolean includeInObject() {
         return false;
     }
 
-    @Override public void parse(ParseContext context) throws IOException {
+    @Override
+    public void parse(ParseContext context) throws IOException {
     }
 
-    @Override public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+    @Override
+    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
     }
 
-    @Override public void traverse(FieldMapperListener fieldMapperListener) {
+    @Override
+    public void traverse(FieldMapperListener fieldMapperListener) {
     }
 
-    @Override public void traverse(ObjectMapperListener objectMapperListener) {
+    @Override
+    public void traverse(ObjectMapperListener objectMapperListener) {
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (path.equals(Defaults.PATH)) {
             return builder;
         }
@@ -148,7 +152,8 @@ public class AnalyzerMapper implements Mapper, InternalMapper, RootMapper {
         return builder;
     }
 
-    @Override public void close() {
+    @Override
+    public void close() {
 
     }
 }

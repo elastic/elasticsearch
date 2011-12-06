@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,6 +19,10 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -31,10 +35,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.collect.Lists;
-import org.elasticsearch.common.collect.Maps;
-import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
@@ -61,22 +61,18 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.cluster.ClusterState.*;
+import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
-import static org.elasticsearch.cluster.metadata.MetaData.*;
-import static org.elasticsearch.common.settings.ImmutableSettings.*;
+import static org.elasticsearch.cluster.metadata.MetaData.newMetaDataBuilder;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class MetaDataCreateIndexService extends AbstractComponent {
 
@@ -96,8 +92,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
     private final String riverIndexName;
 
-    @Inject public MetaDataCreateIndexService(Settings settings, Environment environment, ThreadPool threadPool, ClusterService clusterService, IndicesService indicesService,
-                                              AllocationService allocationService, NodeIndexCreatedAction nodeIndexCreatedAction, MetaDataService metaDataService, @RiverIndexName String riverIndexName) {
+    @Inject
+    public MetaDataCreateIndexService(Settings settings, Environment environment, ThreadPool threadPool, ClusterService clusterService, IndicesService indicesService,
+                                      AllocationService allocationService, NodeIndexCreatedAction nodeIndexCreatedAction, MetaDataService metaDataService, @RiverIndexName String riverIndexName) {
         super(settings);
         this.environment = environment;
         this.threadPool = threadPool;
@@ -133,7 +130,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         final CreateIndexListener listener = new CreateIndexListener(mdLock, request, userListener);
 
         clusterService.submitStateUpdateTask("create-index [" + request.index + "], cause [" + request.cause + "]", new ProcessedClusterStateUpdateTask() {
-            @Override public ClusterState execute(ClusterState currentState) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
                 try {
                     try {
                         validate(request, currentState);
@@ -288,7 +286,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     final AtomicInteger counter = new AtomicInteger(currentState.nodes().size());
 
                     final NodeIndexCreatedAction.Listener nodeIndexCreatedListener = new NodeIndexCreatedAction.Listener() {
-                        @Override public void onNodeIndexCreated(String index, String nodeId) {
+                        @Override
+                        public void onNodeIndexCreated(String index, String nodeId) {
                             if (index.equals(request.index)) {
                                 if (counter.decrementAndGet() == 0) {
                                     listener.onResponse(new Response(true, indexMetaData));
@@ -301,7 +300,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     nodeIndexCreatedAction.add(nodeIndexCreatedListener);
 
                     listener.future = threadPool.schedule(request.timeout, ThreadPool.Names.SAME, new Runnable() {
-                        @Override public void run() {
+                        @Override
+                        public void run() {
                             listener.onResponse(new Response(false, indexMetaData));
                             nodeIndexCreatedAction.remove(nodeIndexCreatedListener);
                         }
@@ -315,7 +315,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 }
             }
 
-            @Override public void clusterStateProcessed(ClusterState clusterState) {
+            @Override
+            public void clusterStateProcessed(ClusterState clusterState) {
             }
         });
     }
@@ -338,7 +339,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             this.listener = listener;
         }
 
-        @Override public void onResponse(final Response response) {
+        @Override
+        public void onResponse(final Response response) {
             if (notified.compareAndSet(false, true)) {
                 mdLock.unlock();
                 if (future != null) {
@@ -348,7 +350,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             }
         }
 
-        @Override public void onFailure(Throwable t) {
+        @Override
+        public void onFailure(Throwable t) {
             if (notified.compareAndSet(false, true)) {
                 mdLock.unlock();
                 if (future != null) {
@@ -392,7 +395,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             }
         }
         Collections.sort(templates, new Comparator<IndexTemplateMetaData>() {
-            @Override public int compare(IndexTemplateMetaData o1, IndexTemplateMetaData o2) {
+            @Override
+            public int compare(IndexTemplateMetaData o1, IndexTemplateMetaData o2) {
                 return o2.order() - o1.order();
             }
         });

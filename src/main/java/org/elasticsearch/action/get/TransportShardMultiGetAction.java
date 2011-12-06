@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -46,8 +46,9 @@ public class TransportShardMultiGetAction extends TransportShardSingleOperationA
 
     private final boolean realtime;
 
-    @Inject public TransportShardMultiGetAction(Settings settings, ClusterService clusterService, TransportService transportService,
-                                                IndicesService indicesService, ScriptService scriptService, ThreadPool threadPool) {
+    @Inject
+    public TransportShardMultiGetAction(Settings settings, ClusterService clusterService, TransportService transportService,
+                                        IndicesService indicesService, ScriptService scriptService, ThreadPool threadPool) {
         super(settings, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
         this.scriptService = scriptService;
@@ -55,43 +56,52 @@ public class TransportShardMultiGetAction extends TransportShardSingleOperationA
         this.realtime = settings.getAsBoolean("action.get.realtime", true);
     }
 
-    @Override protected String executor() {
+    @Override
+    protected String executor() {
         return ThreadPool.Names.SEARCH;
     }
 
-    @Override protected String transportAction() {
+    @Override
+    protected String transportAction() {
         return "indices/mget/shard";
     }
 
-    @Override protected String transportShardAction() {
+    @Override
+    protected String transportShardAction() {
         return "indices/mget/shard/s";
     }
 
-    @Override protected MultiGetShardRequest newRequest() {
+    @Override
+    protected MultiGetShardRequest newRequest() {
         return new MultiGetShardRequest();
     }
 
-    @Override protected MultiGetShardResponse newResponse() {
+    @Override
+    protected MultiGetShardResponse newResponse() {
         return new MultiGetShardResponse();
     }
 
-    @Override protected void checkBlock(MultiGetShardRequest request, ClusterState state) {
+    @Override
+    protected void checkBlock(MultiGetShardRequest request, ClusterState state) {
         state.blocks().indexBlockedRaiseException(ClusterBlockLevel.READ, request.index());
     }
 
-    @Override protected ShardIterator shards(ClusterState clusterState, MultiGetShardRequest request) {
+    @Override
+    protected ShardIterator shards(ClusterState clusterState, MultiGetShardRequest request) {
         return clusterService.operationRouting()
                 .getShards(clusterService.state(), request.index(), request.shardId(), request.preference());
     }
 
-    @Override protected void doExecute(MultiGetShardRequest request, ActionListener<MultiGetShardResponse> listener) {
+    @Override
+    protected void doExecute(MultiGetShardRequest request, ActionListener<MultiGetShardResponse> listener) {
         if (request.realtime == null) {
             request.realtime = this.realtime;
         }
         super.doExecute(request, listener);
     }
 
-    @Override protected MultiGetShardResponse shardOperation(MultiGetShardRequest request, int shardId) throws ElasticSearchException {
+    @Override
+    protected MultiGetShardResponse shardOperation(MultiGetShardRequest request, int shardId) throws ElasticSearchException {
         IndexService indexService = indicesService.indexServiceSafe(request.index());
         IndexShard indexShard = indexService.shardSafe(shardId);
 

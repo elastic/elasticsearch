@@ -105,7 +105,8 @@ public abstract class BindingImpl<T> implements Binding<T> {
         throw new AssertionError();
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return new ToStringBuilder(Binding.class)
                 .add("key", key)
                 .add("scope", scoping)

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -29,14 +29,14 @@ import java.io.IOException;
 /**
  * A request to optimize one or more indices. In order to optimize on all the indices, pass an empty array or
  * <tt>null</tt> for the indices.
- *
+ * <p/>
  * <p>{@link #waitForMerge(boolean)} allows to control if the call will block until the optimize completes and
  * defaults to <tt>true</tt>.
- *
+ * <p/>
  * <p>{@link #maxNumSegments(int)} allows to control the number of segments to optimize down to. By default, will
  * cause the optimize process to optimize down to half the configured number of segments.
  *
- * @author kimchy (shay.banon)
+ *
  * @see org.elasticsearch.client.Requests#optimizeRequest(String...)
  * @see org.elasticsearch.client.IndicesAdminClient#optimize(OptimizeRequest)
  * @see OptimizeResponse
@@ -76,12 +76,14 @@ public class OptimizeRequest extends BroadcastOperationRequest {
 
     }
 
-    @Override public OptimizeRequest listenerThreaded(boolean threadedListener) {
+    @Override
+    public OptimizeRequest listenerThreaded(boolean threadedListener) {
         super.listenerThreaded(threadedListener);
         return this;
     }
 
-    @Override public OptimizeRequest operationThreading(BroadcastOperationThreading operationThreading) {
+    @Override
+    public OptimizeRequest operationThreading(BroadcastOperationThreading operationThreading) {
         super.operationThreading(operationThreading);
         return this;
     }

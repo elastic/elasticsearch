@@ -32,7 +32,7 @@ import java.util.Iterator;
 import java.util.List;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class AnalyzeResponse implements ActionResponse, Iterable<AnalyzeResponse.AnalyzeToken>, ToXContent {
 
@@ -100,7 +100,8 @@ public class AnalyzeResponse implements ActionResponse, Iterable<AnalyzeResponse
             return analyzeToken;
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             term = in.readUTF();
             startOffset = in.readInt();
             endOffset = in.readInt();
@@ -110,7 +111,8 @@ public class AnalyzeResponse implements ActionResponse, Iterable<AnalyzeResponse
             }
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             out.writeUTF(term);
             out.writeInt(startOffset);
             out.writeInt(endOffset);
@@ -141,11 +143,13 @@ public class AnalyzeResponse implements ActionResponse, Iterable<AnalyzeResponse
         return tokens();
     }
 
-    @Override public Iterator<AnalyzeToken> iterator() {
+    @Override
+    public Iterator<AnalyzeToken> iterator() {
         return tokens.iterator();
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         String format = params.param("format", "detailed");
         if ("detailed".equals(format)) {
             builder.startArray("tokens");
@@ -180,7 +184,8 @@ public class AnalyzeResponse implements ActionResponse, Iterable<AnalyzeResponse
         return builder;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         int size = in.readVInt();
         tokens = new ArrayList<AnalyzeToken>(size);
         for (int i = 0; i < size; i++) {
@@ -188,7 +193,8 @@ public class AnalyzeResponse implements ActionResponse, Iterable<AnalyzeResponse
         }
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(tokens.size());
         for (AnalyzeToken token : tokens) {
             token.writeTo(out);

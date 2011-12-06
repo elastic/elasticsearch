@@ -27,23 +27,25 @@ import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
-import static org.hamcrest.MatcherAssert.*;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class AnalyzeActionTests extends AbstractNodesTests {
 
     private Client client;
 
-    @BeforeClass public void createNodes() throws Exception {
+    @BeforeClass
+    public void createNodes() throws Exception {
         startNode("server1");
         startNode("server2");
         client = getClient();
     }
 
-    @AfterClass public void closeNodes() {
+    @AfterClass
+    public void closeNodes() {
         client.close();
         closeAllNodes();
     }
@@ -52,7 +54,8 @@ public class AnalyzeActionTests extends AbstractNodesTests {
         return client("server1");
     }
 
-    @Test public void simpleAnalyzerTests() throws Exception {
+    @Test
+    public void simpleAnalyzerTests() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
@@ -72,7 +75,8 @@ public class AnalyzeActionTests extends AbstractNodesTests {
         }
     }
 
-    @Test public void analyzerWithFieldOrTypeTests() throws Exception {
+    @Test
+    public void analyzerWithFieldOrTypeTests() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {

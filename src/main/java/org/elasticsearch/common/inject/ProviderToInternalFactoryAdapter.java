@@ -52,7 +52,8 @@ class ProviderToInternalFactoryAdapter<T> implements Provider<T> {
         }
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return internalFactory.toString();
     }
 }

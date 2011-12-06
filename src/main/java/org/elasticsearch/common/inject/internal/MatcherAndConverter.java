@@ -20,7 +20,7 @@ import org.elasticsearch.common.inject.TypeLiteral;
 import org.elasticsearch.common.inject.matcher.Matcher;
 import org.elasticsearch.common.inject.spi.TypeConverter;
 
-import static org.elasticsearch.common.base.Preconditions.*;
+import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
  * @author crazybob@google.com (Bob Lee)
@@ -50,7 +50,8 @@ public final class MatcherAndConverter {
         return source;
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return typeConverter + " which matches " + typeMatcher
                 + " (bound at " + source + ")";
     }

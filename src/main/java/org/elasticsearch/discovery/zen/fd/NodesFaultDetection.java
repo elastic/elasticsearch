@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -35,15 +35,15 @@ import java.io.IOException;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-import static org.elasticsearch.cluster.node.DiscoveryNodes.*;
-import static org.elasticsearch.common.unit.TimeValue.*;
-import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.*;
-import static org.elasticsearch.transport.TransportRequestOptions.*;
+import static org.elasticsearch.cluster.node.DiscoveryNodes.EMPTY_NODES;
+import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
+import static org.elasticsearch.transport.TransportRequestOptions.options;
 
 /**
  * A fault detection of multiple nodes.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class NodesFaultDetection extends AbstractComponent {
 
@@ -181,7 +181,8 @@ public class NodesFaultDetection extends AbstractComponent {
 
     private void notifyNodeFailure(final DiscoveryNode node, final String reason) {
         threadPool.cached().execute(new Runnable() {
-            @Override public void run() {
+            @Override
+            public void run() {
                 for (Listener listener : listeners) {
                     listener.onNodeFailure(node, reason);
                 }
@@ -197,17 +198,20 @@ public class NodesFaultDetection extends AbstractComponent {
             this.node = node;
         }
 
-        @Override public void run() {
+        @Override
+        public void run() {
             if (!running) {
                 return;
             }
             transportService.sendRequest(node, PingRequestHandler.ACTION, new PingRequest(node.id()), options().withHighType().withTimeout(pingRetryTimeout),
                     new BaseTransportResponseHandler<PingResponse>() {
-                        @Override public PingResponse newInstance() {
+                        @Override
+                        public PingResponse newInstance() {
                             return new PingResponse();
                         }
 
-                        @Override public void handleResponse(PingResponse response) {
+                        @Override
+                        public void handleResponse(PingResponse response) {
                             if (!running) {
                                 return;
                             }
@@ -221,7 +225,8 @@ public class NodesFaultDetection extends AbstractComponent {
                             }
                         }
 
-                        @Override public void handleException(TransportException exp) {
+                        @Override
+                        public void handleException(TransportException exp) {
                             // check if the master node did not get switched on us...
                             if (!running) {
                                 return;
@@ -251,7 +256,8 @@ public class NodesFaultDetection extends AbstractComponent {
                             }
                         }
 
-                        @Override public String executor() {
+                        @Override
+                        public String executor() {
                             return ThreadPool.Names.SAME;
                         }
                     });
@@ -264,10 +270,12 @@ public class NodesFaultDetection extends AbstractComponent {
     }
 
     private class FDConnectionListener implements TransportConnectionListener {
-        @Override public void onNodeConnected(DiscoveryNode node) {
+        @Override
+        public void onNodeConnected(DiscoveryNode node) {
         }
 
-        @Override public void onNodeDisconnected(DiscoveryNode node) {
+        @Override
+        public void onNodeDisconnected(DiscoveryNode node) {
             handleTransportDisconnect(node);
         }
     }
@@ -277,11 +285,13 @@ public class NodesFaultDetection extends AbstractComponent {
 
         public static final String ACTION = "discovery/zen/fd/ping";
 
-        @Override public PingRequest newInstance() {
+        @Override
+        public PingRequest newInstance() {
             return new PingRequest();
         }
 
-        @Override public void messageReceived(PingRequest request, TransportChannel channel) throws Exception {
+        @Override
+        public void messageReceived(PingRequest request, TransportChannel channel) throws Exception {
             // if we are not the node we are supposed to be pinged, send an exception
             // this can happen when a kill -9 is sent, and another node is started using the same port
             if (!latestNodes.localNodeId().equals(request.nodeId)) {
@@ -290,7 +300,8 @@ public class NodesFaultDetection extends AbstractComponent {
             channel.sendResponse(new PingResponse());
         }
 
-        @Override public String executor() {
+        @Override
+        public String executor() {
             return ThreadPool.Names.SAME;
         }
     }
@@ -308,11 +319,13 @@ public class NodesFaultDetection extends AbstractComponent {
             this.nodeId = nodeId;
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             nodeId = in.readUTF();
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             out.writeUTF(nodeId);
         }
     }
@@ -322,10 +335,12 @@ public class NodesFaultDetection extends AbstractComponent {
         private PingResponse() {
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
         }
     }
 }

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -28,7 +28,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
 /**
- * @author kimchy (Shay Banon)
+ *
  */
 public class InternalTransportAdminClient extends AbstractComponent implements AdminClient {
 
@@ -38,19 +38,22 @@ public class InternalTransportAdminClient extends AbstractComponent implements A
 
     private final InternalTransportClusterAdminClient clusterAdminClient;
 
-    @Inject public InternalTransportAdminClient(Settings settings, TransportClientNodesService nodesService,
-                                                InternalTransportIndicesAdminClient indicesAdminClient, InternalTransportClusterAdminClient clusterAdminClient) {
+    @Inject
+    public InternalTransportAdminClient(Settings settings, TransportClientNodesService nodesService,
+                                        InternalTransportIndicesAdminClient indicesAdminClient, InternalTransportClusterAdminClient clusterAdminClient) {
         super(settings);
         this.nodesService = nodesService;
         this.indicesAdminClient = indicesAdminClient;
         this.clusterAdminClient = clusterAdminClient;
     }
 
-    @Override public IndicesAdminClient indices() {
+    @Override
+    public IndicesAdminClient indices() {
         return indicesAdminClient;
     }
 
-    @Override public ClusterAdminClient cluster() {
+    @Override
+    public ClusterAdminClient cluster() {
         return clusterAdminClient;
     }
 }

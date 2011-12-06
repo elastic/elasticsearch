@@ -55,7 +55,7 @@ public class BloomFilterFactory {
     /**
      * @return The smallest BloomFilter that can provide the given false positive
      *         probability rate for the given number of elements.
-     *
+     *         <p/>
      *         Asserts that the given probability can be satisfied using this filter.
      */
     public static BloomFilter getFilter(long numElements, double maxFalsePosProbability) {

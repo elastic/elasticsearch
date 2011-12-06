@@ -20,7 +20,7 @@ import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.TypeLiteral;
 import org.elasticsearch.common.inject.matcher.Matcher;
 
-import static org.elasticsearch.common.base.Preconditions.*;
+import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
  * Registration of type converters for matching target types. Instances are created

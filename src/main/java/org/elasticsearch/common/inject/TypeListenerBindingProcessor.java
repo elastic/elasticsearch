@@ -30,7 +30,8 @@ class TypeListenerBindingProcessor extends AbstractProcessor {
         super(errors);
     }
 
-    @Override public Boolean visit(TypeListenerBinding binding) {
+    @Override
+    public Boolean visit(TypeListenerBinding binding) {
         injector.state.addTypeListener(binding);
         return true;
     }

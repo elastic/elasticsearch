@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -50,7 +50,8 @@ public class UniqueTokenFilter extends TokenFilter {
         this.onlyOnSamePosition = onlyOnSamePosition;
     }
 
-    @Override public final boolean incrementToken() throws IOException {
+    @Override
+    public final boolean incrementToken() throws IOException {
         while (input.incrementToken()) {
             final char term[] = termAttribute.buffer();
             final int length = termAttribute.length();
@@ -79,7 +80,8 @@ public class UniqueTokenFilter extends TokenFilter {
         return false;
     }
 
-    @Override public final void reset() throws IOException {
+    @Override
+    public final void reset() throws IOException {
         super.reset();
         previous.clear();
     }

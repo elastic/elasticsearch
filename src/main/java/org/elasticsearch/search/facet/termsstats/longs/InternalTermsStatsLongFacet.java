@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,24 +19,18 @@
 
 package org.elasticsearch.search.facet.termsstats.longs;
 
+import com.google.common.collect.ImmutableList;
+import gnu.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.common.CacheRecycler;
-import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.termsstats.InternalTermsStatsFacet;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 
 public class InternalTermsStatsLongFacet extends InternalTermsStatsFacet {
 
@@ -47,12 +41,14 @@ public class InternalTermsStatsLongFacet extends InternalTermsStatsFacet {
     }
 
     static Stream STREAM = new Stream() {
-        @Override public Facet readFacet(String type, StreamInput in) throws IOException {
+        @Override
+        public Facet readFacet(String type, StreamInput in) throws IOException {
             return readTermsStatsFacet(in);
         }
     };
 
-    @Override public String streamType() {
+    @Override
+    public String streamType() {
         return STREAM_TYPE;
     }
 
@@ -76,74 +72,91 @@ public class InternalTermsStatsLongFacet extends InternalTermsStatsFacet {
             this.max = max;
         }
 
-        @Override public String term() {
+        @Override
+        public String term() {
             return Long.toString(term);
         }
 
-        @Override public String getTerm() {
+        @Override
+        public String getTerm() {
             return term();
         }
 
-        @Override public Number termAsNumber() {
+        @Override
+        public Number termAsNumber() {
             return term;
         }
 
-        @Override public Number getTermAsNumber() {
+        @Override
+        public Number getTermAsNumber() {
             return termAsNumber();
         }
 
-        @Override public long count() {
+        @Override
+        public long count() {
             return count;
         }
 
-        @Override public long getCount() {
+        @Override
+        public long getCount() {
             return count();
         }
 
-        @Override public long totalCount() {
+        @Override
+        public long totalCount() {
             return this.totalCount;
         }
 
-        @Override public long getTotalCount() {
+        @Override
+        public long getTotalCount() {
             return this.totalCount;
         }
 
-        @Override public double min() {
+        @Override
+        public double min() {
             return this.min;
         }
 
-        @Override public double getMin() {
+        @Override
+        public double getMin() {
             return min();
         }
 
-        @Override public double max() {
+        @Override
+        public double max() {
             return max;
         }
 
-        @Override public double getMax() {
+        @Override
+        public double getMax() {
             return max();
         }
 
-        @Override public double total() {
+        @Override
+        public double total() {
             return total;
         }
 
-        @Override public double getTotal() {
+        @Override
+        public double getTotal() {
             return total();
         }
 
-        @Override public double mean() {
+        @Override
+        public double mean() {
             if (totalCount == 0) {
                 return 0;
             }
             return total / totalCount;
         }
 
-        @Override public double getMean() {
+        @Override
+        public double getMean() {
             return mean();
         }
 
-        @Override public int compareTo(Entry o) {
+        @Override
+        public int compareTo(Entry o) {
             LongEntry other = (LongEntry) o;
             return (term < other.term ? -1 : (term == other.term ? 0 : 1));
         }
@@ -167,23 +180,28 @@ public class InternalTermsStatsLongFacet extends InternalTermsStatsFacet {
         this.missing = missing;
     }
 
-    @Override public String name() {
+    @Override
+    public String name() {
         return this.name;
     }
 
-    @Override public String getName() {
+    @Override
+    public String getName() {
         return this.name;
     }
 
-    @Override public String type() {
+    @Override
+    public String type() {
         return TYPE;
     }
 
-    @Override public String getType() {
+    @Override
+    public String getType() {
         return type();
     }
 
-    @Override public List<LongEntry> entries() {
+    @Override
+    public List<LongEntry> entries() {
         if (!(entries instanceof List)) {
             entries = ImmutableList.copyOf(entries);
         }
@@ -197,23 +215,29 @@ public class InternalTermsStatsLongFacet extends InternalTermsStatsFacet {
         return (List<LongEntry>) entries;
     }
 
-    @Override public List<LongEntry> getEntries() {
+    @Override
+    public List<LongEntry> getEntries() {
         return entries();
     }
 
-    @SuppressWarnings({"unchecked"}) @Override public Iterator<Entry> iterator() {
+    @SuppressWarnings({"unchecked"})
+    @Override
+    public Iterator<Entry> iterator() {
         return (Iterator) entries.iterator();
     }
 
-    @Override public long missingCount() {
+    @Override
+    public long missingCount() {
         return this.missing;
     }
 
-    @Override public long getMissingCount() {
+    @Override
+    public long getMissingCount() {
         return missingCount();
     }
 
-    @Override public Facet reduce(String name, List<Facet> facets) {
+    @Override
+    public Facet reduce(String name, List<Facet> facets) {
         if (facets.size() == 1) {
             if (requiredSize == 0) {
                 // we need to sort it here!
@@ -285,7 +309,8 @@ public class InternalTermsStatsLongFacet extends InternalTermsStatsFacet {
         static final XContentBuilderString MEAN = new XContentBuilderString("mean");
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
         builder.field(Fields._TYPE, InternalTermsStatsFacet.TYPE);
         builder.field(Fields.MISSING, missing);
@@ -312,7 +337,8 @@ public class InternalTermsStatsLongFacet extends InternalTermsStatsFacet {
         return facet;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         name = in.readUTF();
         comparatorType = ComparatorType.fromId(in.readByte());
         requiredSize = in.readVInt();
@@ -325,7 +351,8 @@ public class InternalTermsStatsLongFacet extends InternalTermsStatsFacet {
         }
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(name);
         out.writeByte(comparatorType.id());
         out.writeVInt(requiredSize);

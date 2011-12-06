@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,13 +19,14 @@
 
 package org.elasticsearch.discovery.zen.ping.unicast;
 
+import com.google.common.collect.Lists;
+import jsr166y.LinkedTransferQueue;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -36,43 +37,25 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.DynamicExecutors;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.jsr166y.LinkedTransferQueue;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportRequestHandler;
-import org.elasticsearch.transport.BaseTransportResponseHandler;
-import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.*;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.Queue;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.common.collect.Lists.*;
-import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
-import static org.elasticsearch.common.unit.TimeValue.*;
-import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.*;
-import static org.elasticsearch.discovery.zen.ping.ZenPing.PingResponse.*;
+import static com.google.common.collect.Lists.newArrayList;
+import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
+import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
+import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
+import static org.elasticsearch.discovery.zen.ping.ZenPing.PingResponse.readPingResponse;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implements ZenPing {
 
@@ -136,13 +119,16 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         transportService.registerHandler(UnicastPingRequestHandler.ACTION, new UnicastPingRequestHandler());
     }
 
-    @Override protected void doStart() throws ElasticSearchException {
+    @Override
+    protected void doStart() throws ElasticSearchException {
     }
 
-    @Override protected void doStop() throws ElasticSearchException {
+    @Override
+    protected void doStop() throws ElasticSearchException {
     }
 
-    @Override protected void doClose() throws ElasticSearchException {
+    @Override
+    protected void doClose() throws ElasticSearchException {
         transportService.removeHandler(UnicastPingRequestHandler.ACTION);
     }
 
@@ -154,7 +140,8 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         hostsProviders.remove(provider);
     }
 
-    @Override public void setNodesProvider(DiscoveryNodesProvider nodesProvider) {
+    @Override
+    public void setNodesProvider(DiscoveryNodesProvider nodesProvider) {
         this.nodesProvider = nodesProvider;
     }
 
@@ -162,7 +149,8 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         final AtomicReference<PingResponse[]> response = new AtomicReference<PingResponse[]>();
         final CountDownLatch latch = new CountDownLatch(1);
         ping(new PingListener() {
-            @Override public void onPing(PingResponse[] pings) {
+            @Override
+            public void onPing(PingResponse[] pings) {
                 response.set(pings);
                 latch.countDown();
             }
@@ -175,15 +163,18 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         }
     }
 
-    @Override public void ping(final PingListener listener, final TimeValue timeout) throws ElasticSearchException {
+    @Override
+    public void ping(final PingListener listener, final TimeValue timeout) throws ElasticSearchException {
         final SendPingsHandler sendPingsHandler = new SendPingsHandler(pingIdGenerator.incrementAndGet());
         receivedResponses.put(sendPingsHandler.id(), new ConcurrentHashMap<DiscoveryNode, PingResponse>());
         sendPings(timeout, null, sendPingsHandler);
         threadPool.schedule(TimeValue.timeValueMillis(timeout.millis() / 2), ThreadPool.Names.CACHED, new Runnable() {
-            @Override public void run() {
+            @Override
+            public void run() {
                 sendPings(timeout, null, sendPingsHandler);
                 threadPool.schedule(TimeValue.timeValueMillis(timeout.millis() / 2), ThreadPool.Names.CACHED, new Runnable() {
-                    @Override public void run() {
+                    @Override
+                    public void run() {
                         sendPings(timeout, TimeValue.timeValueMillis(timeout.millis() / 2), sendPingsHandler);
                         ConcurrentMap<DiscoveryNode, PingResponse> responses = receivedResponses.remove(sendPingsHandler.id());
                         listener.onPing(responses.values().toArray(new PingResponse[responses.size()]));
@@ -266,7 +257,8 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                 sendPingsHandler.nodeToDisconnect.add(nodeToSend);
                 // fork the connection to another thread
                 sendPingsHandler.executor().execute(new Runnable() {
-                    @Override public void run() {
+                    @Override
+                    public void run() {
                         try {
                             // connect to the node, see if we manage to do it, if not, bail
                             if (!nodeFoundByAddress) {
@@ -300,15 +292,18 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         logger.trace("[{}] connecting to {}", id, nodeToSend);
         transportService.sendRequest(nodeToSend, UnicastPingRequestHandler.ACTION, pingRequest, TransportRequestOptions.options().withTimeout((long) (timeout.millis() * 1.25)), new BaseTransportResponseHandler<UnicastPingResponse>() {
 
-            @Override public UnicastPingResponse newInstance() {
+            @Override
+            public UnicastPingResponse newInstance() {
                 return new UnicastPingResponse();
             }
 
-            @Override public String executor() {
+            @Override
+            public String executor() {
                 return ThreadPool.Names.SAME;
             }
 
-            @Override public void handleResponse(UnicastPingResponse response) {
+            @Override
+            public void handleResponse(UnicastPingResponse response) {
                 logger.trace("[{}] received response from {}: {}", id, nodeToSend, Arrays.toString(response.pingResponses));
                 try {
                     DiscoveryNodes discoveryNodes = nodesProvider.nodes();
@@ -334,7 +329,8 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                 }
             }
 
-            @Override public void handleException(TransportException exp) {
+            @Override
+            public void handleException(TransportException exp) {
                 latch.countDown();
                 if (exp instanceof ConnectTransportException) {
                     // ok, not connected...
@@ -349,7 +345,8 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
     private UnicastPingResponse handlePingRequest(final UnicastPingRequest request) {
         temporalResponses.add(request.pingResponse);
         threadPool.schedule(TimeValue.timeValueMillis(request.timeout.millis() * 2), ThreadPool.Names.SAME, new Runnable() {
-            @Override public void run() {
+            @Override
+            public void run() {
                 temporalResponses.remove(request.pingResponse);
             }
         });
@@ -370,15 +367,18 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
 
         static final String ACTION = "discovery/zen/unicast";
 
-        @Override public UnicastPingRequest newInstance() {
+        @Override
+        public UnicastPingRequest newInstance() {
             return new UnicastPingRequest();
         }
 
-        @Override public String executor() {
+        @Override
+        public String executor() {
             return ThreadPool.Names.SAME;
         }
 
-        @Override public void messageReceived(UnicastPingRequest request, TransportChannel channel) throws Exception {
+        @Override
+        public void messageReceived(UnicastPingRequest request, TransportChannel channel) throws Exception {
             channel.sendResponse(handlePingRequest(request));
         }
     }
@@ -394,13 +394,15 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         UnicastPingRequest() {
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             id = in.readInt();
             timeout = readTimeValue(in);
             pingResponse = readPingResponse(in);
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             out.writeInt(id);
             timeout.writeTo(out);
             pingResponse.writeTo(out);
@@ -416,7 +418,8 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         UnicastPingResponse() {
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             id = in.readInt();
             pingResponses = new PingResponse[in.readVInt()];
             for (int i = 0; i < pingResponses.length; i++) {
@@ -424,7 +427,8 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
             }
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             out.writeInt(id);
             out.writeVInt(pingResponses.length);
             for (PingResponse pingResponse : pingResponses) {

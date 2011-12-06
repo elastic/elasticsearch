@@ -30,7 +30,7 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class SourceScoreOrderFragmentsBuilder extends ScoreOrderFragmentsBuilder {
 
@@ -45,7 +45,8 @@ public class SourceScoreOrderFragmentsBuilder extends ScoreOrderFragmentsBuilder
         this.searchContext = searchContext;
     }
 
-    @Override protected Field[] getFields(IndexReader reader, int docId, String fieldName) throws IOException {
+    @Override
+    protected Field[] getFields(IndexReader reader, int docId, String fieldName) throws IOException {
         // we know its low level reader, and matching docId, since that's how we call the highlighter with
         SearchLookup lookup = searchContext.lookup();
         lookup.setNextReader(reader);

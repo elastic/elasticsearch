@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -38,7 +38,7 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class LogDocMergePolicyProvider extends AbstractIndexShardComponent implements MergePolicyProvider<LogDocMergePolicy> {
 
@@ -55,7 +55,8 @@ public class LogDocMergePolicyProvider extends AbstractIndexShardComponent imple
 
     private final ApplySettings applySettings = new ApplySettings();
 
-    @Inject public LogDocMergePolicyProvider(Store store, IndexSettingsService indexSettingsService) {
+    @Inject
+    public LogDocMergePolicyProvider(Store store, IndexSettingsService indexSettingsService) {
         super(store.shardId(), store.indexSettings());
         Preconditions.checkNotNull(store, "Store must be provided to merge policy");
         this.indexSettingsService = indexSettingsService;
@@ -72,11 +73,13 @@ public class LogDocMergePolicyProvider extends AbstractIndexShardComponent imple
         indexSettingsService.addListener(applySettings);
     }
 
-    @Override public void close(boolean delete) throws ElasticSearchException {
+    @Override
+    public void close(boolean delete) throws ElasticSearchException {
         indexSettingsService.removeListener(applySettings);
     }
 
-    @Override public LogDocMergePolicy newMergePolicy() {
+    @Override
+    public LogDocMergePolicy newMergePolicy() {
         CustomLogDocMergePolicy mergePolicy;
         if (asyncMerge) {
             mergePolicy = new EnableMergeLogDocMergePolicy(this);
@@ -102,7 +105,8 @@ public class LogDocMergePolicyProvider extends AbstractIndexShardComponent imple
     }
 
     class ApplySettings implements IndexSettingsService.Listener {
-        @Override public void onRefreshSettings(Settings settings) {
+        @Override
+        public void onRefreshSettings(Settings settings) {
             int minMergeDocs = settings.getAsInt("index.merge.policy.min_merge_docs", LogDocMergePolicyProvider.this.minMergeDocs);
             if (minMergeDocs != LogDocMergePolicyProvider.this.minMergeDocs) {
                 logger.info("updating min_merge_docs from [{}] to [{}]", LogDocMergePolicyProvider.this.minMergeDocs, minMergeDocs);
@@ -150,7 +154,8 @@ public class LogDocMergePolicyProvider extends AbstractIndexShardComponent imple
             this.provider = provider;
         }
 
-        @Override public void close() {
+        @Override
+        public void close() {
             super.close();
             provider.policies.remove(this);
         }
@@ -159,7 +164,8 @@ public class LogDocMergePolicyProvider extends AbstractIndexShardComponent imple
     public static class EnableMergeLogDocMergePolicy extends CustomLogDocMergePolicy implements EnableMergePolicy {
 
         private final ThreadLocal<Boolean> enableMerge = new ThreadLocal<Boolean>() {
-            @Override protected Boolean initialValue() {
+            @Override
+            protected Boolean initialValue() {
                 return Boolean.FALSE;
             }
         };
@@ -168,38 +174,45 @@ public class LogDocMergePolicyProvider extends AbstractIndexShardComponent imple
             super(provider);
         }
 
-        @Override public void enableMerge() {
+        @Override
+        public void enableMerge() {
             enableMerge.set(Boolean.TRUE);
         }
 
-        @Override public void disableMerge() {
+        @Override
+        public void disableMerge() {
             enableMerge.set(Boolean.FALSE);
         }
 
-        @Override public boolean isMergeEnabled() {
+        @Override
+        public boolean isMergeEnabled() {
             return enableMerge.get() == Boolean.TRUE;
         }
 
-        @Override public void close() {
+        @Override
+        public void close() {
             enableMerge.remove();
             super.close();
         }
 
-        @Override public MergeSpecification findMerges(SegmentInfos infos) throws IOException {
+        @Override
+        public MergeSpecification findMerges(SegmentInfos infos) throws IOException {
             if (enableMerge.get() == Boolean.FALSE) {
                 return null;
             }
             return super.findMerges(infos);
         }
 
-        @Override public MergeSpecification findForcedMerges(SegmentInfos infos, int maxSegmentCount, Map<SegmentInfo, Boolean> segmentsToMerge) throws IOException {
+        @Override
+        public MergeSpecification findForcedMerges(SegmentInfos infos, int maxSegmentCount, Map<SegmentInfo, Boolean> segmentsToMerge) throws IOException {
             if (enableMerge.get() == Boolean.FALSE) {
                 return null;
             }
             return super.findForcedMerges(infos, maxSegmentCount, segmentsToMerge);
         }
 
-        @Override public MergeSpecification findForcedDeletesMerges(SegmentInfos infos) throws CorruptIndexException, IOException {
+        @Override
+        public MergeSpecification findForcedDeletesMerges(SegmentInfos infos) throws CorruptIndexException, IOException {
             if (enableMerge.get() == Boolean.FALSE) {
                 return null;
             }

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,34 +19,22 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
-import org.elasticsearch.cluster.action.index.NodeAliasesUpdatedAction;
-import org.elasticsearch.cluster.action.index.NodeIndexCreatedAction;
-import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
-import org.elasticsearch.cluster.action.index.NodeMappingCreatedAction;
-import org.elasticsearch.cluster.action.index.NodeMappingRefreshAction;
+import com.google.common.collect.ImmutableList;
+import org.elasticsearch.cluster.action.index.*;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
-import org.elasticsearch.cluster.metadata.MetaDataDeleteIndexService;
-import org.elasticsearch.cluster.metadata.MetaDataIndexAliasesService;
-import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
-import org.elasticsearch.cluster.metadata.MetaDataMappingService;
-import org.elasticsearch.cluster.metadata.MetaDataService;
-import org.elasticsearch.cluster.metadata.MetaDataStateIndexService;
-import org.elasticsearch.cluster.metadata.MetaDataUpdateSettingsService;
+import org.elasticsearch.cluster.metadata.*;
 import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.AllocationModule;
 import org.elasticsearch.cluster.routing.operation.OperationRoutingModule;
 import org.elasticsearch.cluster.service.InternalClusterService;
-import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.common.settings.Settings;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class ClusterModule extends AbstractModule implements SpawnModules {
 
@@ -56,7 +44,8 @@ public class ClusterModule extends AbstractModule implements SpawnModules {
         this.settings = settings;
     }
 
-    @Override public Iterable<? extends Module> spawnModules() {
+    @Override
+    public Iterable<? extends Module> spawnModules() {
         return ImmutableList.of(new AllocationModule(settings), new OperationRoutingModule(settings));
     }
 

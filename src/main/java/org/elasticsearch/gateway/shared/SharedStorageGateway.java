@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -33,7 +33,7 @@ import org.elasticsearch.gateway.GatewayException;
 import org.elasticsearch.threadpool.ThreadPool;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public abstract class SharedStorageGateway extends AbstractLifecycleComponent<Gateway> implements Gateway, ClusterStateListener {
 
@@ -47,20 +47,25 @@ public abstract class SharedStorageGateway extends AbstractLifecycleComponent<Ga
         this.clusterService = clusterService;
     }
 
-    @Override protected void doStart() throws ElasticSearchException {
+    @Override
+    protected void doStart() throws ElasticSearchException {
         clusterService.add(this);
     }
 
-    @Override protected void doStop() throws ElasticSearchException {
+    @Override
+    protected void doStop() throws ElasticSearchException {
         clusterService.remove(this);
     }
 
-    @Override protected void doClose() throws ElasticSearchException {
+    @Override
+    protected void doClose() throws ElasticSearchException {
     }
 
-    @Override public void performStateRecovery(final GatewayStateRecoveredListener listener) throws GatewayException {
+    @Override
+    public void performStateRecovery(final GatewayStateRecoveredListener listener) throws GatewayException {
         threadPool.cached().execute(new Runnable() {
-            @Override public void run() {
+            @Override
+            public void run() {
                 logger.debug("reading state from gateway {} ...", this);
                 StopWatch stopWatch = new StopWatch().start();
                 MetaData metaData;
@@ -81,7 +86,8 @@ public abstract class SharedStorageGateway extends AbstractLifecycleComponent<Ga
         });
     }
 
-    @Override public void clusterChanged(final ClusterChangedEvent event) {
+    @Override
+    public void clusterChanged(final ClusterChangedEvent event) {
         if (!lifecycle.started()) {
             return;
         }
@@ -96,7 +102,8 @@ public abstract class SharedStorageGateway extends AbstractLifecycleComponent<Ga
                 return;
             }
             threadPool.cached().execute(new Runnable() {
-                @Override public void run() {
+                @Override
+                public void run() {
                     logger.debug("writing to gateway {} ...", this);
                     StopWatch stopWatch = new StopWatch().start();
                     try {

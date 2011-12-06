@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,10 +19,10 @@
 
 package org.elasticsearch.search.dfs;
 
+import com.google.common.collect.ImmutableMap;
+import gnu.trove.set.hash.THashSet;
 import org.apache.lucene.index.Term;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.thread.ThreadLocals;
-import org.elasticsearch.common.trove.set.hash.THashSet;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.internal.SearchContext;
@@ -30,21 +30,24 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.util.Map;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class DfsPhase implements SearchPhase {
 
     private static ThreadLocal<ThreadLocals.CleanableValue<THashSet<Term>>> cachedTermsSet = new ThreadLocal<ThreadLocals.CleanableValue<THashSet<Term>>>() {
-        @Override protected ThreadLocals.CleanableValue<THashSet<Term>> initialValue() {
+        @Override
+        protected ThreadLocals.CleanableValue<THashSet<Term>> initialValue() {
             return new ThreadLocals.CleanableValue<THashSet<Term>>(new THashSet<Term>());
         }
     };
 
-    @Override public Map<String, ? extends SearchParseElement> parseElements() {
+    @Override
+    public Map<String, ? extends SearchParseElement> parseElements() {
         return ImmutableMap.of();
     }
 
-    @Override public void preProcess(SearchContext context) {
+    @Override
+    public void preProcess(SearchContext context) {
     }
 
     public void execute(SearchContext context) {

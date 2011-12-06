@@ -37,29 +37,33 @@ import org.testng.annotations.Test;
 import java.io.IOException;
 import java.util.Arrays;
 
-import static org.elasticsearch.action.search.SearchType.*;
-import static org.elasticsearch.client.Requests.*;
-import static org.elasticsearch.common.unit.TimeValue.*;
-import static org.elasticsearch.common.xcontent.XContentFactory.*;
+import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
+import static org.elasticsearch.client.Requests.searchRequest;
+import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.search.builder.SearchSourceBuilder.*;
-import static org.hamcrest.MatcherAssert.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.search.builder.SearchSourceBuilder.highlight;
+import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class HighlighterSearchTests extends AbstractNodesTests {
 
     private Client client;
 
-    @BeforeClass public void createNodes() throws Exception {
+    @BeforeClass
+    public void createNodes() throws Exception {
         startNode("server1");
         startNode("server2");
         client = getClient();
     }
 
-    @AfterClass public void closeNodes() {
+    @AfterClass
+    public void closeNodes() {
         client.close();
         closeAllNodes();
     }
@@ -68,7 +72,8 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         return client("server1");
     }
 
-    @Test public void testSourceLookupHighlightingUsingPlainHighlighter() throws Exception {
+    @Test
+    public void testSourceLookupHighlightingUsingPlainHighlighter() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
@@ -121,7 +126,8 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         }
     }
 
-    @Test public void testSourceLookupHighlightingUsingFastVectorHighlighter() throws Exception {
+    @Test
+    public void testSourceLookupHighlightingUsingFastVectorHighlighter() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
@@ -174,7 +180,8 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         }
     }
 
-    @Test public void testPlainHighlighter() throws Exception {
+    @Test
+    public void testPlainHighlighter() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (IndexMissingException e) {
@@ -236,7 +243,8 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().getAt(0).highlightFields().get("field2").fragments()[0], equalTo("The <xxx>quick</xxx> brown fox jumps over the lazy dog"));
     }
 
-    @Test public void testFastVectorHighlighter() throws Exception {
+    @Test
+    public void testFastVectorHighlighter() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (IndexMissingException e) {
@@ -302,7 +310,8 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().getAt(0).highlightFields().get("field2").fragments()[0], equalTo("The <xxx>quick</xxx> brown fox jumps over the lazy dog "));
     }
 
-    @Test public void testFastVectorHighlighterManyDocs() throws Exception {
+    @Test
+    public void testFastVectorHighlighterManyDocs() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (ElasticSearchException e) {
@@ -374,7 +383,8 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .endObject().endObject();
     }
 
-    @Test public void testSameContent() throws Exception {
+    @Test
+    public void testSameContent() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
@@ -407,7 +417,8 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         }
     }
 
-    @Test public void testFastVectorHighlighterOffsetParameter() throws Exception {
+    @Test
+    public void testFastVectorHighlighterOffsetParameter() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
@@ -441,7 +452,8 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         }
     }
 
-    @Test public void testEscapeHtml() throws Exception {
+    @Test
+    public void testEscapeHtml() throws Exception {
 
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
@@ -477,7 +489,8 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         }
     }
 
-    @Test public void testEscapeHtml_vector() throws Exception {
+    @Test
+    public void testEscapeHtml_vector() throws Exception {
 
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();

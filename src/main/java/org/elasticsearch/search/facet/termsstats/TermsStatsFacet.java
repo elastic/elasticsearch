@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -59,7 +59,8 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
          */
         COUNT((byte) 0, new Comparator<Entry>() {
 
-            @Override public int compare(Entry o1, Entry o2) {
+            @Override
+            public int compare(Entry o1, Entry o2) {
                 // push nulls to the end
                 if (o1 == null) {
                     return 1;
@@ -82,7 +83,8 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
          */
         REVERSE_COUNT((byte) 1, new Comparator<Entry>() {
 
-            @Override public int compare(Entry o1, Entry o2) {
+            @Override
+            public int compare(Entry o1, Entry o2) {
                 // push nulls to the end
                 if (o1 == null) {
                     return 1;
@@ -98,7 +100,8 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
          */
         TERM((byte) 2, new Comparator<Entry>() {
 
-            @Override public int compare(Entry o1, Entry o2) {
+            @Override
+            public int compare(Entry o1, Entry o2) {
                 // push nulls to the end
                 if (o1 == null) {
                     return 1;
@@ -118,7 +121,8 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
          */
         REVERSE_TERM((byte) 3, new Comparator<Entry>() {
 
-            @Override public int compare(Entry o1, Entry o2) {
+            @Override
+            public int compare(Entry o1, Entry o2) {
                 // push nulls to the end
                 if (o1 == null) {
                     return 1;
@@ -131,7 +135,8 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
         }),
 
         TOTAL((byte) 4, new Comparator<Entry>() {
-            @Override public int compare(Entry o1, Entry o2) {
+            @Override
+            public int compare(Entry o1, Entry o2) {
                 // push nulls to the end
                 if (o1 == null) {
                     return 1;
@@ -150,7 +155,8 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
         }),
 
         REVERSE_TOTAL((byte) 5, new Comparator<Entry>() {
-            @Override public int compare(Entry o1, Entry o2) {
+            @Override
+            public int compare(Entry o1, Entry o2) {
                 // push nulls to the end
                 if (o1 == null) {
                     return 1;
@@ -163,7 +169,8 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
         }),
 
         MIN((byte) 6, new Comparator<Entry>() {
-            @Override public int compare(Entry o1, Entry o2) {
+            @Override
+            public int compare(Entry o1, Entry o2) {
                 // push nulls to the end
                 if (o1 == null) {
                     return 1;
@@ -181,7 +188,8 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
             }
         }),
         REVERSE_MIN((byte) 7, new Comparator<Entry>() {
-            @Override public int compare(Entry o1, Entry o2) {
+            @Override
+            public int compare(Entry o1, Entry o2) {
                 // push nulls to the end
                 if (o1 == null) {
                     return 1;
@@ -193,7 +201,8 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
             }
         }),
         MAX((byte) 8, new Comparator<Entry>() {
-            @Override public int compare(Entry o1, Entry o2) {
+            @Override
+            public int compare(Entry o1, Entry o2) {
                 // push nulls to the end
                 if (o1 == null) {
                     return 1;
@@ -211,7 +220,8 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
             }
         }),
         REVERSE_MAX((byte) 9, new Comparator<Entry>() {
-            @Override public int compare(Entry o1, Entry o2) {
+            @Override
+            public int compare(Entry o1, Entry o2) {
                 // push nulls to the end
                 if (o1 == null) {
                     return 1;

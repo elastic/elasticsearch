@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -30,7 +30,7 @@ import org.elasticsearch.monitor.os.OsService;
 import org.elasticsearch.monitor.process.ProcessService;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class MonitorService extends AbstractLifecycleComponent<MonitorService> {
 
@@ -44,8 +44,9 @@ public class MonitorService extends AbstractLifecycleComponent<MonitorService> {
 
     private final NetworkService networkService;
 
-    @Inject public MonitorService(Settings settings, JvmMonitorService jvmMonitorService,
-                                  OsService osService, ProcessService processService, JvmService jvmService, NetworkService networkService) {
+    @Inject
+    public MonitorService(Settings settings, JvmMonitorService jvmMonitorService,
+                          OsService osService, ProcessService processService, JvmService jvmService, NetworkService networkService) {
         super(settings);
         this.jvmMonitorService = jvmMonitorService;
         this.osService = osService;
@@ -70,15 +71,18 @@ public class MonitorService extends AbstractLifecycleComponent<MonitorService> {
         return this.networkService;
     }
 
-    @Override protected void doStart() throws ElasticSearchException {
+    @Override
+    protected void doStart() throws ElasticSearchException {
         jvmMonitorService.start();
     }
 
-    @Override protected void doStop() throws ElasticSearchException {
+    @Override
+    protected void doStop() throws ElasticSearchException {
         jvmMonitorService.stop();
     }
 
-    @Override protected void doClose() throws ElasticSearchException {
+    @Override
+    protected void doClose() throws ElasticSearchException {
         jvmMonitorService.close();
     }
 }

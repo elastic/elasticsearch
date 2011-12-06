@@ -19,7 +19,7 @@ package org.elasticsearch.common.inject.name;
 import java.io.Serializable;
 import java.lang.annotation.Annotation;
 
-import static org.elasticsearch.common.base.Preconditions.*;
+import static com.google.common.base.Preconditions.checkNotNull;
 
 class NamedImpl implements Named, Serializable {
 

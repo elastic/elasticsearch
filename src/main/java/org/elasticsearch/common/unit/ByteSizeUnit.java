@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -26,49 +26,93 @@ package org.elasticsearch.common.unit;
  * helps organize and use size representations that may be maintained
  * separately across various contexts.
  *
- * @author kimchy (Shay Banon)
+ *
  */
 public enum ByteSizeUnit {
     BYTES {
-        @Override public long toBytes(long size) {
+        @Override
+        public long toBytes(long size) {
             return size;
-        }@Override public long toKB(long size) {
+        }
+
+        @Override
+        public long toKB(long size) {
             return size / (C1 / C0);
-        }@Override public long toMB(long size) {
+        }
+
+        @Override
+        public long toMB(long size) {
             return size / (C2 / C0);
-        }@Override public long toGB(long size) {
+        }
+
+        @Override
+        public long toGB(long size) {
             return size / (C3 / C0);
-        }},
+        }
+    },
     KB {
-        @Override public long toBytes(long size) {
+        @Override
+        public long toBytes(long size) {
             return x(size, C1 / C0, MAX / (C1 / C0));
-        }@Override public long toKB(long size) {
+        }
+
+        @Override
+        public long toKB(long size) {
             return size;
-        }@Override public long toMB(long size) {
+        }
+
+        @Override
+        public long toMB(long size) {
             return size / (C2 / C1);
-        }@Override public long toGB(long size) {
+        }
+
+        @Override
+        public long toGB(long size) {
             return size / (C3 / C1);
-        }},
+        }
+    },
     MB {
-        @Override public long toBytes(long size) {
+        @Override
+        public long toBytes(long size) {
             return x(size, C2 / C0, MAX / (C2 / C0));
-        }@Override public long toKB(long size) {
+        }
+
+        @Override
+        public long toKB(long size) {
             return x(size, C2 / C1, MAX / (C2 / C1));
-        }@Override public long toMB(long size) {
+        }
+
+        @Override
+        public long toMB(long size) {
             return size;
-        }@Override public long toGB(long size) {
+        }
+
+        @Override
+        public long toGB(long size) {
             return size / (C3 / C2);
-        }},
+        }
+    },
     GB {
-        @Override public long toBytes(long size) {
+        @Override
+        public long toBytes(long size) {
             return x(size, C3 / C0, MAX / (C3 / C0));
-        }@Override public long toKB(long size) {
+        }
+
+        @Override
+        public long toKB(long size) {
             return x(size, C3 / C1, MAX / (C3 / C1));
-        }@Override public long toMB(long size) {
+        }
+
+        @Override
+        public long toMB(long size) {
             return x(size, C3 / C2, MAX / (C3 / C2));
-        }@Override public long toGB(long size) {
+        }
+
+        @Override
+        public long toGB(long size) {
             return size;
-        }};
+        }
+    };
 
     static final long C0 = 1L;
     static final long C1 = C0 * 1024L;

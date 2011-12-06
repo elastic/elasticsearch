@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -28,7 +28,7 @@ import java.text.Collator;
 import java.util.Locale;
 
 /**
- * @author kimchy (Shay Banon)
+ *
  */
 // LUCENE TRACK, Had to copy over in order ot improve same order tie break to take shards into account
 public class ShardFieldDocSortedHitQueue extends PriorityQueue<ShardFieldDoc> {
@@ -110,7 +110,8 @@ public class ShardFieldDocSortedHitQueue extends PriorityQueue<ShardFieldDoc> {
      * @param b ScoreDoc
      * @return <code>true</code> if document <code>a</code> should be sorted after document <code>b</code>.
      */
-    @SuppressWarnings("unchecked") @Override
+    @SuppressWarnings("unchecked")
+    @Override
     protected final boolean lessThan(final ShardFieldDoc docA, final ShardFieldDoc docB) {
         final int n = fields.length;
         int c = 0;

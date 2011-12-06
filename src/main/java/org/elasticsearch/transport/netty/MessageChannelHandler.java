@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -25,24 +25,12 @@ import org.elasticsearch.common.io.stream.HandlesStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.netty.buffer.ChannelBuffer;
-import org.elasticsearch.common.netty.buffer.ChannelBuffers;
-import org.elasticsearch.common.netty.channel.Channel;
-import org.elasticsearch.common.netty.channel.ChannelHandlerContext;
-import org.elasticsearch.common.netty.channel.ChannelStateEvent;
-import org.elasticsearch.common.netty.channel.ExceptionEvent;
-import org.elasticsearch.common.netty.channel.MessageEvent;
-import org.elasticsearch.common.netty.channel.SimpleChannelUpstreamHandler;
-import org.elasticsearch.common.netty.channel.WriteCompletionEvent;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.ActionNotFoundTransportException;
-import org.elasticsearch.transport.RemoteTransportException;
-import org.elasticsearch.transport.ResponseHandlerFailureTransportException;
-import org.elasticsearch.transport.TransportRequestHandler;
-import org.elasticsearch.transport.TransportResponseHandler;
-import org.elasticsearch.transport.TransportSerializationException;
-import org.elasticsearch.transport.TransportServiceAdapter;
+import org.elasticsearch.transport.*;
 import org.elasticsearch.transport.support.TransportStreams;
+import org.jboss.netty.buffer.ChannelBuffer;
+import org.jboss.netty.buffer.ChannelBuffers;
+import org.jboss.netty.channel.*;
 
 import java.io.IOException;
 import java.io.StreamCorruptedException;
@@ -72,7 +60,8 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         this.logger = logger;
     }
 
-    @Override public void writeComplete(ChannelHandlerContext ctx, WriteCompletionEvent e) throws Exception {
+    @Override
+    public void writeComplete(ChannelHandlerContext ctx, WriteCompletionEvent e) throws Exception {
         transportServiceAdapter.sent(e.getWrittenAmount());
         super.writeComplete(ctx, e);
     }
@@ -81,7 +70,8 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
     // to guess the size of the cumulation buffer to allocate
     // Also strange, is that the FrameDecoder always allocated a cumulation, even if the input bufer is enough
     // so we don't allocate a cumulation buffer unless we really need to here (need to post this to the mailing list)
-    @Override public void messageReceived(ChannelHandlerContext ctx, MessageEvent e) throws Exception {
+    @Override
+    public void messageReceived(ChannelHandlerContext ctx, MessageEvent e) throws Exception {
 
         Object m = e.getMessage();
         if (!(m instanceof ChannelBuffer)) {
@@ -278,7 +268,8 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
             handler.handleException(rtx);
         } else {
             threadPool.executor(handler.executor()).execute(new Runnable() {
-                @Override public void run() {
+                @Override
+                public void run() {
                     try {
                         handler.handleException(rtx);
                     } catch (Exception e) {
@@ -317,7 +308,8 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         return action;
     }
 
-    @Override public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) throws Exception {
+    @Override
+    public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) throws Exception {
         transport.exceptionCaught(ctx, e);
     }
 
@@ -331,7 +323,9 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
             this.streamable = streamable;
         }
 
-        @SuppressWarnings({"unchecked"}) @Override public void run() {
+        @SuppressWarnings({"unchecked"})
+        @Override
+        public void run() {
             try {
                 handler.handleResponse(streamable);
             } catch (Exception e) {
@@ -353,7 +347,9 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
             this.action = action;
         }
 
-        @SuppressWarnings({"unchecked"}) @Override public void run() {
+        @SuppressWarnings({"unchecked"})
+        @Override
+        public void run() {
             try {
                 handler.messageReceived(streamable, transportChannel);
             } catch (Throwable e) {

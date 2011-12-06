@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -30,10 +30,10 @@ import org.elasticsearch.search.facet.InternalFacets;
 
 import java.io.IOException;
 
-import static org.elasticsearch.search.internal.InternalSearchHits.*;
+import static org.elasticsearch.search.internal.InternalSearchHits.readSearchHits;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class InternalSearchResponse implements Streamable, ToXContent {
 
@@ -66,7 +66,8 @@ public class InternalSearchResponse implements Streamable, ToXContent {
         return facets;
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         hits.toXContent(builder, params);
         if (facets != null) {
             facets.toXContent(builder, params);
@@ -80,7 +81,8 @@ public class InternalSearchResponse implements Streamable, ToXContent {
         return response;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         hits = readSearchHits(in);
         if (in.readBoolean()) {
             facets = InternalFacets.readFacets(in);
@@ -88,7 +90,8 @@ public class InternalSearchResponse implements Streamable, ToXContent {
         timedOut = in.readBoolean();
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         hits.writeTo(out);
         if (facets == null) {
             out.writeBoolean(false);

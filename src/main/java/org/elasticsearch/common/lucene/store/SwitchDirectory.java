@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,10 +19,10 @@
 
 package org.elasticsearch.common.lucene.store;
 
+import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.index.store.support.ForceSyncDirectory;
 
 import java.io.IOException;
@@ -31,12 +31,12 @@ import java.util.*;
 /**
  * A Directory instance that switches files between
  * two other Directory instances.
- *
+ * <p/>
  * <p>Files with the specified extensions are placed in the
  * primary directory; others are placed in the secondary
  * directory.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class SwitchDirectory extends Directory implements ForceSyncDirectory {
 
@@ -74,7 +74,8 @@ public class SwitchDirectory extends Directory implements ForceSyncDirectory {
         return secondaryDir;
     }
 
-    @Override public void close() throws IOException {
+    @Override
+    public void close() throws IOException {
         if (doClose) {
             try {
                 secondaryDir.close();
@@ -85,7 +86,8 @@ public class SwitchDirectory extends Directory implements ForceSyncDirectory {
         }
     }
 
-    @Override public String[] listAll() throws IOException {
+    @Override
+    public String[] listAll() throws IOException {
         Set<String> files = new HashSet<String>();
         for (String f : primaryDir.listAll()) {
             files.add(f);
@@ -116,31 +118,38 @@ public class SwitchDirectory extends Directory implements ForceSyncDirectory {
         }
     }
 
-    @Override public boolean fileExists(String name) throws IOException {
+    @Override
+    public boolean fileExists(String name) throws IOException {
         return getDirectory(name).fileExists(name);
     }
 
-    @Override public long fileModified(String name) throws IOException {
+    @Override
+    public long fileModified(String name) throws IOException {
         return getDirectory(name).fileModified(name);
     }
 
-    @Override public void touchFile(String name) throws IOException {
+    @Override
+    public void touchFile(String name) throws IOException {
         getDirectory(name).touchFile(name);
     }
 
-    @Override public void deleteFile(String name) throws IOException {
+    @Override
+    public void deleteFile(String name) throws IOException {
         getDirectory(name).deleteFile(name);
     }
 
-    @Override public long fileLength(String name) throws IOException {
+    @Override
+    public long fileLength(String name) throws IOException {
         return getDirectory(name).fileLength(name);
     }
 
-    @Override public IndexOutput createOutput(String name) throws IOException {
+    @Override
+    public IndexOutput createOutput(String name) throws IOException {
         return getDirectory(name).createOutput(name);
     }
 
-    @Override public void sync(Collection<String> names) throws IOException {
+    @Override
+    public void sync(Collection<String> names) throws IOException {
         List<String> primaryNames = new ArrayList<String>();
         List<String> secondaryNames = new ArrayList<String>();
 
@@ -154,11 +163,13 @@ public class SwitchDirectory extends Directory implements ForceSyncDirectory {
         secondaryDir.sync(secondaryNames);
     }
 
-    @Override public void sync(String name) throws IOException {
+    @Override
+    public void sync(String name) throws IOException {
         getDirectory(name).sync(name);
     }
 
-    @Override public void forceSync(String name) throws IOException {
+    @Override
+    public void forceSync(String name) throws IOException {
         Directory dir = getDirectory(name);
         if (dir instanceof ForceSyncDirectory) {
             ((ForceSyncDirectory) dir).forceSync(name);
@@ -167,7 +178,8 @@ public class SwitchDirectory extends Directory implements ForceSyncDirectory {
         }
     }
 
-    @Override public IndexInput openInput(String name) throws IOException {
+    @Override
+    public IndexInput openInput(String name) throws IOException {
         return getDirectory(name).openInput(name);
     }
 }

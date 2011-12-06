@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,19 +19,15 @@
 
 package org.elasticsearch.index.gateway.blobstore;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetaData;
-import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.blobstore.ImmutableBlobContainer;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.Iterables;
-import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.blobstore.*;
 import org.elasticsearch.common.io.FastByteArrayInputStream;
 import org.elasticsearch.common.io.FastByteArrayOutputStream;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
@@ -40,14 +36,7 @@ import org.elasticsearch.common.lucene.store.ThreadSafeInputStreamIndexInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
-import org.elasticsearch.index.gateway.CommitPoint;
-import org.elasticsearch.index.gateway.CommitPoints;
-import org.elasticsearch.index.gateway.IndexGateway;
-import org.elasticsearch.index.gateway.IndexShardGateway;
-import org.elasticsearch.index.gateway.IndexShardGatewayRecoveryException;
-import org.elasticsearch.index.gateway.IndexShardGatewaySnapshotFailedException;
-import org.elasticsearch.index.gateway.RecoveryStatus;
-import org.elasticsearch.index.gateway.SnapshotStatus;
+import org.elasticsearch.index.gateway.*;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
@@ -70,7 +59,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardComponent implements IndexShardGateway {
 
@@ -113,37 +102,45 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         this.recoveryStatus = new RecoveryStatus();
     }
 
-    @Override public RecoveryStatus recoveryStatus() {
+    @Override
+    public RecoveryStatus recoveryStatus() {
         return this.recoveryStatus;
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return type() + "://" + blobStore + "/" + shardPath;
     }
 
-    @Override public boolean requiresSnapshot() {
+    @Override
+    public boolean requiresSnapshot() {
         return true;
     }
 
-    @Override public boolean requiresSnapshotScheduling() {
+    @Override
+    public boolean requiresSnapshotScheduling() {
         return true;
     }
 
-    @Override public SnapshotLock obtainSnapshotLock() throws Exception {
+    @Override
+    public SnapshotLock obtainSnapshotLock() throws Exception {
         return NO_SNAPSHOT_LOCK;
     }
 
-    @Override public void close(boolean delete) throws ElasticSearchException {
+    @Override
+    public void close(boolean delete) throws ElasticSearchException {
         if (delete) {
             blobStore.delete(shardPath);
         }
     }
 
-    @Override public SnapshotStatus lastSnapshotStatus() {
+    @Override
+    public SnapshotStatus lastSnapshotStatus() {
         return this.lastSnapshotStatus;
     }
 
-    @Override public SnapshotStatus currentSnapshotStatus() {
+    @Override
+    public SnapshotStatus currentSnapshotStatus() {
         SnapshotStatus snapshotStatus = this.currentSnapshotStatus;
         if (snapshotStatus == null) {
             return snapshotStatus;
@@ -154,7 +151,8 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         return snapshotStatus;
     }
 
-    @Override public SnapshotStatus snapshot(final Snapshot snapshot) throws IndexShardGatewaySnapshotFailedException {
+    @Override
+    public SnapshotStatus snapshot(final Snapshot snapshot) throws IndexShardGatewaySnapshotFailedException {
         currentSnapshotStatus = new SnapshotStatus();
         currentSnapshotStatus.startTime(System.currentTimeMillis());
 
@@ -369,7 +367,8 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         }
     }
 
-    @Override public void recover(boolean indexShouldExists, RecoveryStatus recoveryStatus) throws IndexShardGatewayRecoveryException {
+    @Override
+    public void recover(boolean indexShouldExists, RecoveryStatus recoveryStatus) throws IndexShardGatewayRecoveryException {
         this.recoveryStatus = recoveryStatus;
 
         final ImmutableMap<String, BlobMetaData> blobs;
@@ -453,7 +452,8 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                 FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
                 boolean ignore = false;
 
-                @Override public synchronized void onPartial(byte[] data, int offset, int size) throws IOException {
+                @Override
+                public synchronized void onPartial(byte[] data, int offset, int size) throws IOException {
                     if (ignore) {
                         return;
                     }
@@ -503,7 +503,8 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                     bos = newBos;
                 }
 
-                @Override public synchronized void onCompleted() {
+                @Override
+                public synchronized void onCompleted() {
                     if (ignore) {
                         return;
                     }
@@ -514,7 +515,8 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                     blobContainer.readBlob(transIt.next().name(), this);
                 }
 
-                @Override public void onFailure(Throwable t) {
+                @Override
+                public void onFailure(Throwable t) {
                     failure.set(t);
                     latch.countDown();
                 }
@@ -649,12 +651,14 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         final AtomicInteger partIndex = new AtomicInteger();
 
         blobContainer.readBlob(firstFileToRecover, new BlobContainer.ReadBlobListener() {
-            @Override public synchronized void onPartial(byte[] data, int offset, int size) throws IOException {
+            @Override
+            public synchronized void onPartial(byte[] data, int offset, int size) throws IOException {
                 recoveryStatus.index().addCurrentFilesSize(size);
                 indexOutput.writeBytes(data, offset, size);
             }
 
-            @Override public synchronized void onCompleted() {
+            @Override
+            public synchronized void onCompleted() {
                 int part = partIndex.incrementAndGet();
                 String partName = fileInfo.name() + ".part" + part;
                 if (blobs.containsKey(partName)) {
@@ -678,7 +682,8 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                 latch.countDown();
             }
 
-            @Override public void onFailure(Throwable t) {
+            @Override
+            public void onFailure(Throwable t) {
                 failures.add(t);
                 latch.countDown();
             }
@@ -752,7 +757,8 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
 
                 final IndexInput fIndexInput = indexInput;
                 blobContainer.writeBlob(blobName, is, is.actualSizeToRead(), new ImmutableBlobContainer.WriterListener() {
-                    @Override public void onCompleted() {
+                    @Override
+                    public void onCompleted() {
                         try {
                             fIndexInput.close();
                         } catch (IOException e) {
@@ -763,7 +769,8 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                         }
                     }
 
-                    @Override public void onFailure(Throwable t) {
+                    @Override
+                    public void onFailure(Throwable t) {
                         try {
                             fIndexInput.close();
                         } catch (IOException e) {

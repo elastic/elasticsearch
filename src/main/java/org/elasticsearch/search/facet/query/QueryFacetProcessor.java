@@ -33,25 +33,29 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class QueryFacetProcessor extends AbstractComponent implements FacetProcessor {
 
-    @Inject public QueryFacetProcessor(Settings settings) {
+    @Inject
+    public QueryFacetProcessor(Settings settings) {
         super(settings);
         InternalQueryFacet.registerStreams();
     }
 
-    @Override public String[] types() {
+    @Override
+    public String[] types() {
         return new String[]{QueryFacet.TYPE};
     }
 
-    @Override public FacetCollector parse(String facetName, XContentParser parser, SearchContext context) throws IOException {
+    @Override
+    public FacetCollector parse(String facetName, XContentParser parser, SearchContext context) throws IOException {
         Query facetQuery = context.queryParserService().parse(parser).query();
         return new QueryFacetCollector(facetName, facetQuery, context.filterCache());
     }
 
-    @Override public Facet reduce(String name, List<Facet> facets) {
+    @Override
+    public Facet reduce(String name, List<Facet> facets) {
         if (facets.size() == 1) {
             return facets.get(0);
         }

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -29,18 +29,20 @@ import java.io.IOException;
 /**
  * A based request for master based operation.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public abstract class MasterNodeOperationRequest implements ActionRequest {
 
     private TimeValue masterNodeTimeout = TimeValue.timeValueSeconds(30);
 
-    @Override public boolean listenerThreaded() {
+    @Override
+    public boolean listenerThreaded() {
         // always threaded
         return true;
     }
 
-    @Override public MasterNodeOperationRequest listenerThreaded(boolean listenerThreaded) {
+    @Override
+    public MasterNodeOperationRequest listenerThreaded(boolean listenerThreaded) {
         // really, does not mean anything in this case
         return this;
     }
@@ -64,11 +66,13 @@ public abstract class MasterNodeOperationRequest implements ActionRequest {
         return this.masterNodeTimeout;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         masterNodeTimeout = TimeValue.readTimeValue(in);
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         masterNodeTimeout.writeTo(out);
     }
 }

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,35 +19,17 @@
 
 package org.elasticsearch.transport.netty;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.CachedStreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.netty.OpenChannelsHandler;
-import org.elasticsearch.common.netty.bootstrap.ClientBootstrap;
-import org.elasticsearch.common.netty.bootstrap.ServerBootstrap;
-import org.elasticsearch.common.netty.buffer.ChannelBuffer;
-import org.elasticsearch.common.netty.buffer.ChannelBuffers;
-import org.elasticsearch.common.netty.channel.Channel;
-import org.elasticsearch.common.netty.channel.ChannelFuture;
-import org.elasticsearch.common.netty.channel.ChannelFutureListener;
-import org.elasticsearch.common.netty.channel.ChannelHandlerContext;
-import org.elasticsearch.common.netty.channel.ChannelPipeline;
-import org.elasticsearch.common.netty.channel.ChannelPipelineFactory;
-import org.elasticsearch.common.netty.channel.Channels;
-import org.elasticsearch.common.netty.channel.ExceptionEvent;
-import org.elasticsearch.common.netty.channel.socket.nio.NioClientSocketChannelFactory;
-import org.elasticsearch.common.netty.channel.socket.nio.NioServerSocketChannelFactory;
-import org.elasticsearch.common.netty.channel.socket.oio.OioClientSocketChannelFactory;
-import org.elasticsearch.common.netty.channel.socket.oio.OioServerSocketChannelFactory;
-import org.elasticsearch.common.netty.logging.InternalLogger;
-import org.elasticsearch.common.netty.logging.InternalLoggerFactory;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
@@ -58,24 +40,25 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BindTransportException;
-import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.NodeNotConnectedException;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportServiceAdapter;
+import org.elasticsearch.transport.*;
 import org.elasticsearch.transport.support.TransportStreams;
+import org.jboss.netty.bootstrap.ClientBootstrap;
+import org.jboss.netty.bootstrap.ServerBootstrap;
+import org.jboss.netty.buffer.ChannelBuffer;
+import org.jboss.netty.buffer.ChannelBuffers;
+import org.jboss.netty.channel.*;
+import org.jboss.netty.channel.socket.nio.NioClientSocketChannelFactory;
+import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
+import org.jboss.netty.channel.socket.oio.OioClientSocketChannelFactory;
+import org.jboss.netty.channel.socket.oio.OioServerSocketChannelFactory;
+import org.jboss.netty.logging.InternalLogger;
+import org.jboss.netty.logging.InternalLoggerFactory;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -84,24 +67,26 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.network.NetworkService.TcpSettings.*;
-import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
-import static org.elasticsearch.common.transport.NetworkExceptionHelper.*;
-import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.*;
-import static org.elasticsearch.common.util.concurrent.EsExecutors.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
+import static org.elasticsearch.common.transport.NetworkExceptionHelper.isCloseConnectionException;
+import static org.elasticsearch.common.transport.NetworkExceptionHelper.isConnectException;
+import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
+import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 
 /**
  * There are 3 types of connections per node, low/med/high. Low if for batch oriented APIs (like recovery or
  * batch) with high payload that will cause regular request. (like search or single index) to take
  * longer. Med is for the typical search / single doc index. And High is for ping type requests (like FD).
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class NettyTransport extends AbstractLifecycleComponent<Transport> implements Transport {
 
     static {
         InternalLoggerFactory.setDefaultFactory(new NettyInternalESLoggerFactory() {
-            @Override public InternalLogger newInstance(String name) {
-                return super.newInstance(name.replace("org.elasticsearch.common.netty.", "netty.").replace("org.jboss.netty.", "netty."));
+            @Override
+            public InternalLogger newInstance(String name) {
+                return super.newInstance(name.replace("org.jboss.netty.", "netty.").replace("org.jboss.netty.", "netty."));
             }
         });
     }
@@ -164,7 +149,8 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         this(settings, threadPool, new NetworkService(settings));
     }
 
-    @Inject public NettyTransport(Settings settings, ThreadPool threadPool, NetworkService networkService) {
+    @Inject
+    public NettyTransport(Settings settings, ThreadPool threadPool, NetworkService networkService) {
         super(settings);
         this.threadPool = threadPool;
         this.networkService = networkService;
@@ -194,7 +180,8 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         return this.settings;
     }
 
-    @Override public void transportServiceAdapter(TransportServiceAdapter service) {
+    @Override
+    public void transportServiceAdapter(TransportServiceAdapter service) {
         this.transportServiceAdapter = service;
     }
 
@@ -206,7 +193,8 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         return threadPool;
     }
 
-    @Override protected void doStart() throws ElasticSearchException {
+    @Override
+    protected void doStart() throws ElasticSearchException {
         if (blockingClient) {
             clientBootstrap = new ClientBootstrap(new OioClientSocketChannelFactory(Executors.newCachedThreadPool(daemonThreadFactory(settings, "transport_client_worker"))));
         } else {
@@ -216,7 +204,8 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                     workerCount));
         }
         ChannelPipelineFactory clientPipelineFactory = new ChannelPipelineFactory() {
-            @Override public ChannelPipeline getPipeline() throws Exception {
+            @Override
+            public ChannelPipeline getPipeline() throws Exception {
                 ChannelPipeline pipeline = Channels.pipeline();
                 pipeline.addLast("dispatcher", new MessageChannelHandler(NettyTransport.this, logger));
                 return pipeline;
@@ -257,7 +246,8 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                     workerCount));
         }
         ChannelPipelineFactory serverPipelineFactory = new ChannelPipelineFactory() {
-            @Override public ChannelPipeline getPipeline() throws Exception {
+            @Override
+            public ChannelPipeline getPipeline() throws Exception {
                 ChannelPipeline pipeline = Channels.pipeline();
                 pipeline.addLast("openChannels", serverOpenChannels);
                 pipeline.addLast("dispatcher", new MessageChannelHandler(NettyTransport.this, logger));
@@ -294,7 +284,8 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         PortsRange portsRange = new PortsRange(port);
         final AtomicReference<Exception> lastException = new AtomicReference<Exception>();
         boolean success = portsRange.iterate(new PortsRange.PortCallback() {
-            @Override public boolean onPortNumber(int portNumber) {
+            @Override
+            public boolean onPortNumber(int portNumber) {
                 try {
                     serverChannel = serverBootstrap.bind(new InetSocketAddress(hostAddress, portNumber));
                 } catch (Exception e) {
@@ -320,11 +311,13 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         this.boundAddress = new BoundTransportAddress(new InetSocketTransportAddress(boundAddress), new InetSocketTransportAddress(publishAddress));
     }
 
-    @Override protected void doStop() throws ElasticSearchException {
+    @Override
+    protected void doStop() throws ElasticSearchException {
         final CountDownLatch latch = new CountDownLatch(1);
         // make sure we run it on another thread than a possible IO handler thread
         threadPool.cached().execute(new Runnable() {
-            @Override public void run() {
+            @Override
+            public void run() {
                 try {
                     for (Iterator<NodeChannels> it = connectedNodes.values().iterator(); it.hasNext(); ) {
                         NodeChannels nodeChannels = it.next();
@@ -373,10 +366,12 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         }
     }
 
-    @Override protected void doClose() throws ElasticSearchException {
+    @Override
+    protected void doClose() throws ElasticSearchException {
     }
 
-    @Override public TransportAddress[] addressesFromString(String address) throws Exception {
+    @Override
+    public TransportAddress[] addressesFromString(String address) throws Exception {
         int index = address.indexOf('[');
         if (index != -1) {
             String host = address.substring(0, index);
@@ -406,11 +401,13 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         }
     }
 
-    @Override public boolean addressSupported(Class<? extends TransportAddress> address) {
+    @Override
+    public boolean addressSupported(Class<? extends TransportAddress> address) {
         return InetSocketTransportAddress.class.equals(address);
     }
 
-    @Override public BoundTransportAddress boundAddress() {
+    @Override
+    public BoundTransportAddress boundAddress() {
         return this.boundAddress;
     }
 
@@ -439,12 +436,14 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         return new InetSocketTransportAddress((InetSocketAddress) socketAddress);
     }
 
-    @Override public long serverOpen() {
+    @Override
+    public long serverOpen() {
         OpenChannelsHandler channels = serverOpenChannels;
         return channels == null ? 0 : channels.numberOfOpenChannels();
     }
 
-    @Override public <T extends Streamable> void sendRequest(final DiscoveryNode node, final long requestId, final String action, final Streamable message, TransportRequestOptions options) throws IOException, TransportException {
+    @Override
+    public <T extends Streamable> void sendRequest(final DiscoveryNode node, final long requestId, final String action, final Streamable message, TransportRequestOptions options) throws IOException, TransportException {
         Channel targetChannel = nodeChannel(node, options);
 
         if (compress) {
@@ -470,15 +469,18 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 //        });
     }
 
-    @Override public boolean nodeConnected(DiscoveryNode node) {
+    @Override
+    public boolean nodeConnected(DiscoveryNode node) {
         return connectedNodes.containsKey(node);
     }
 
-    @Override public void connectToNodeLight(DiscoveryNode node) throws ConnectTransportException {
+    @Override
+    public void connectToNodeLight(DiscoveryNode node) throws ConnectTransportException {
         connectToNode(node, true);
     }
 
-    @Override public void connectToNode(DiscoveryNode node) {
+    @Override
+    public void connectToNode(DiscoveryNode node) {
         connectToNode(node, false);
     }
 
@@ -618,7 +620,8 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         }
     }
 
-    @Override public void disconnectFromNode(DiscoveryNode node) {
+    @Override
+    public void disconnectFromNode(DiscoveryNode node) {
         NodeChannels nodeChannels = connectedNodes.remove(node);
         if (nodeChannels != null) {
             try {
@@ -646,7 +649,8 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             this.node = node;
         }
 
-        @Override public void operationComplete(ChannelFuture future) throws Exception {
+        @Override
+        public void operationComplete(ChannelFuture future) throws Exception {
             disconnectFromNode(node);
         }
     }
@@ -720,7 +724,8 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             this.cachedEntry = cachedEntry;
         }
 
-        @Override public void operationComplete(ChannelFuture channelFuture) throws Exception {
+        @Override
+        public void operationComplete(ChannelFuture channelFuture) throws Exception {
             CachedStreamOutput.pushEntry(cachedEntry);
         }
     }

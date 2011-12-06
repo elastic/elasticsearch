@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.facet.range;
 
-import org.elasticsearch.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -32,7 +32,7 @@ import java.util.Iterator;
 import java.util.List;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class InternalRangeFacet implements RangeFacet, InternalFacet {
 
@@ -43,12 +43,14 @@ public class InternalRangeFacet implements RangeFacet, InternalFacet {
     }
 
     static Stream STREAM = new Stream() {
-        @Override public Facet readFacet(String type, StreamInput in) throws IOException {
+        @Override
+        public Facet readFacet(String type, StreamInput in) throws IOException {
             return readRangeFacet(in);
         }
     };
 
-    @Override public String streamType() {
+    @Override
+    public String streamType() {
         return STREAM_TYPE;
     }
 
@@ -64,31 +66,38 @@ public class InternalRangeFacet implements RangeFacet, InternalFacet {
         this.entries = entries;
     }
 
-    @Override public String name() {
+    @Override
+    public String name() {
         return this.name;
     }
 
-    @Override public String getName() {
+    @Override
+    public String getName() {
         return name();
     }
 
-    @Override public String type() {
+    @Override
+    public String type() {
         return RangeFacet.TYPE;
     }
 
-    @Override public String getType() {
+    @Override
+    public String getType() {
         return RangeFacet.TYPE;
     }
 
-    @Override public List<Entry> entries() {
+    @Override
+    public List<Entry> entries() {
         return ImmutableList.copyOf(entries);
     }
 
-    @Override public List<Entry> getEntries() {
+    @Override
+    public List<Entry> getEntries() {
         return entries();
     }
 
-    @Override public Iterator<Entry> iterator() {
+    @Override
+    public Iterator<Entry> iterator() {
         return entries().iterator();
     }
 
@@ -98,7 +107,8 @@ public class InternalRangeFacet implements RangeFacet, InternalFacet {
         return facet;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         name = in.readUTF();
         entries = new Entry[in.readVInt()];
         for (int i = 0; i < entries.length; i++) {
@@ -120,7 +130,8 @@ public class InternalRangeFacet implements RangeFacet, InternalFacet {
         }
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(name);
         out.writeVInt(entries.length);
         for (Entry entry : entries) {
@@ -161,7 +172,8 @@ public class InternalRangeFacet implements RangeFacet, InternalFacet {
         static final XContentBuilderString MAX = new XContentBuilderString("max");
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
         builder.field(Fields._TYPE, "range");
         builder.startArray(Fields.RANGES);

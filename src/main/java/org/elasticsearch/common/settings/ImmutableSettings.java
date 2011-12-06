@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,11 +19,11 @@
 
 package org.elasticsearch.common.settings;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Classes;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -41,22 +41,18 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.Strings.*;
-import static org.elasticsearch.common.unit.ByteSizeValue.*;
-import static org.elasticsearch.common.unit.SizeValue.*;
-import static org.elasticsearch.common.unit.TimeValue.*;
+import static org.elasticsearch.common.Strings.toCamelCase;
+import static org.elasticsearch.common.unit.ByteSizeValue.parseBytesSizeValue;
+import static org.elasticsearch.common.unit.SizeValue.parseSizeValue;
+import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 
 /**
  * An immutable implementation of {@link Settings}.
  *
- * @author kimchy (shay.banon)
+ *
  */
 @ThreadSafe
 @Immutable
@@ -71,15 +67,18 @@ public class ImmutableSettings implements Settings {
         this.classLoader = classLoader == null ? buildClassLoader() : classLoader;
     }
 
-    @Override public ClassLoader getClassLoader() {
+    @Override
+    public ClassLoader getClassLoader() {
         return this.classLoader;
     }
 
-    @Override public ImmutableMap<String, String> getAsMap() {
+    @Override
+    public ImmutableMap<String, String> getAsMap() {
         return this.settings;
     }
 
-    @Override public Settings getComponentSettings(Class component) {
+    @Override
+    public Settings getComponentSettings(Class component) {
         if (component.getName().startsWith("org.elasticsearch")) {
             return getComponentSettings("org.elasticsearch", component);
         }
@@ -87,7 +86,8 @@ public class ImmutableSettings implements Settings {
         return getComponentSettings(component.getName().substring(0, component.getName().indexOf('.')), component);
     }
 
-    @Override public Settings getComponentSettings(String prefix, Class component) {
+    @Override
+    public Settings getComponentSettings(String prefix, Class component) {
         String type = component.getName();
         if (!type.startsWith(prefix)) {
             throw new SettingsException("Component [" + type + "] does not start with prefix [" + prefix + "]");
@@ -97,7 +97,8 @@ public class ImmutableSettings implements Settings {
         return getByPrefix(settingPrefix);
     }
 
-    @Override public Settings getByPrefix(String prefix) {
+    @Override
+    public Settings getByPrefix(String prefix) {
         Builder builder = new Builder();
         for (Map.Entry<String, String> entry : getAsMap().entrySet()) {
             if (entry.getKey().startsWith(prefix)) {
@@ -112,7 +113,8 @@ public class ImmutableSettings implements Settings {
         return builder.build();
     }
 
-    @Override public String get(String setting) {
+    @Override
+    public String get(String setting) {
         String retVal = settings.get(setting);
         if (retVal != null) {
             return retVal;
@@ -121,12 +123,14 @@ public class ImmutableSettings implements Settings {
         return settings.get(toCamelCase(setting));
     }
 
-    @Override public String get(String setting, String defaultValue) {
+    @Override
+    public String get(String setting, String defaultValue) {
         String retVal = settings.get(setting);
         return retVal == null ? defaultValue : retVal;
     }
 
-    @Override public Float getAsFloat(String setting, Float defaultValue) {
+    @Override
+    public Float getAsFloat(String setting, Float defaultValue) {
         String sValue = get(setting);
         if (sValue == null) {
             return defaultValue;
@@ -138,7 +142,8 @@ public class ImmutableSettings implements Settings {
         }
     }
 
-    @Override public Double getAsDouble(String setting, Double defaultValue) {
+    @Override
+    public Double getAsDouble(String setting, Double defaultValue) {
         String sValue = get(setting);
         if (sValue == null) {
             return defaultValue;
@@ -150,7 +155,8 @@ public class ImmutableSettings implements Settings {
         }
     }
 
-    @Override public Integer getAsInt(String setting, Integer defaultValue) {
+    @Override
+    public Integer getAsInt(String setting, Integer defaultValue) {
         String sValue = get(setting);
         if (sValue == null) {
             return defaultValue;
@@ -162,7 +168,8 @@ public class ImmutableSettings implements Settings {
         }
     }
 
-    @Override public Long getAsLong(String setting, Long defaultValue) {
+    @Override
+    public Long getAsLong(String setting, Long defaultValue) {
         String sValue = get(setting);
         if (sValue == null) {
             return defaultValue;
@@ -174,24 +181,29 @@ public class ImmutableSettings implements Settings {
         }
     }
 
-    @Override public Boolean getAsBoolean(String setting, Boolean defaultValue) {
+    @Override
+    public Boolean getAsBoolean(String setting, Boolean defaultValue) {
         return Booleans.parseBoolean(get(setting), defaultValue);
     }
 
-    @Override public TimeValue getAsTime(String setting, TimeValue defaultValue) {
+    @Override
+    public TimeValue getAsTime(String setting, TimeValue defaultValue) {
         return parseTimeValue(get(setting), defaultValue);
     }
 
-    @Override public ByteSizeValue getAsBytesSize(String setting, ByteSizeValue defaultValue) throws SettingsException {
+    @Override
+    public ByteSizeValue getAsBytesSize(String setting, ByteSizeValue defaultValue) throws SettingsException {
         return parseBytesSizeValue(get(setting), defaultValue);
     }
 
-    @Override public SizeValue getAsSize(String setting, SizeValue defaultValue) throws SettingsException {
+    @Override
+    public SizeValue getAsSize(String setting, SizeValue defaultValue) throws SettingsException {
         return parseSizeValue(get(setting), defaultValue);
     }
 
     @SuppressWarnings({"unchecked"})
-    @Override public <T> Class<? extends T> getAsClass(String setting, Class<? extends T> defaultClazz) throws NoClassSettingsException {
+    @Override
+    public <T> Class<? extends T> getAsClass(String setting, Class<? extends T> defaultClazz) throws NoClassSettingsException {
         String sValue = get(setting);
         if (sValue == null) {
             return defaultClazz;
@@ -204,7 +216,8 @@ public class ImmutableSettings implements Settings {
     }
 
     @SuppressWarnings({"unchecked"})
-    @Override public <T> Class<? extends T> getAsClass(String setting, Class<? extends T> defaultClazz, String prefixPackage, String suffixClassName) throws NoClassSettingsException {
+    @Override
+    public <T> Class<? extends T> getAsClass(String setting, Class<? extends T> defaultClazz, String prefixPackage, String suffixClassName) throws NoClassSettingsException {
         String sValue = get(setting);
         if (sValue == null) {
             return defaultClazz;
@@ -233,11 +246,13 @@ public class ImmutableSettings implements Settings {
         }
     }
 
-    @Override public String[] getAsArray(String settingPrefix) throws SettingsException {
+    @Override
+    public String[] getAsArray(String settingPrefix) throws SettingsException {
         return getAsArray(settingPrefix, Strings.EMPTY_ARRAY);
     }
 
-    @Override public String[] getAsArray(String settingPrefix, String[] defaultArray) throws SettingsException {
+    @Override
+    public String[] getAsArray(String settingPrefix, String[] defaultArray) throws SettingsException {
         List<String> result = Lists.newArrayList();
 
         if (get(settingPrefix) != null) {
@@ -263,7 +278,8 @@ public class ImmutableSettings implements Settings {
         return result.toArray(new String[result.size()]);
     }
 
-    @Override public Map<String, Settings> getGroups(String settingPrefix) throws SettingsException {
+    @Override
+    public Map<String, Settings> getGroups(String settingPrefix) throws SettingsException {
         if (settingPrefix.charAt(settingPrefix.length() - 1) != '.') {
             settingPrefix = settingPrefix + ".";
         }
@@ -642,7 +658,7 @@ public class ImmutableSettings implements Settings {
         /**
          * Runs across all the settings set on this builder and replaces <tt>${...}</tt> elements in the
          * each setting value according to the following logic:
-         *
+         * <p/>
          * <p>First, tries to resolve it against a System property ({@link System#getProperty(String)}), next,
          * tries and resolve it against an environment variable ({@link System#getenv(String)}), and last, tries
          * and replace it with another setting already set on this builder.
@@ -650,7 +666,8 @@ public class ImmutableSettings implements Settings {
         public Builder replacePropertyPlaceholders() {
             PropertyPlaceholder propertyPlaceholder = new PropertyPlaceholder("${", "}", false);
             PropertyPlaceholder.PlaceholderResolver placeholderResolver = new PropertyPlaceholder.PlaceholderResolver() {
-                @Override public String resolvePlaceholder(String placeholderName) {
+                @Override
+                public String resolvePlaceholder(String placeholderName) {
                     String value = System.getProperty(placeholderName);
                     if (value != null) {
                         return value;

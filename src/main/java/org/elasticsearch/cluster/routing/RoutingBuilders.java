@@ -20,7 +20,7 @@
 package org.elasticsearch.cluster.routing;
 
 /**
- * @author kimchy (Shay Banon)
+ *
  */
 public final class RoutingBuilders {
 

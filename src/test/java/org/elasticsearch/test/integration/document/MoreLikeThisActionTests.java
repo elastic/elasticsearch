@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -29,27 +29,29 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import static org.elasticsearch.client.Requests.*;
-import static org.elasticsearch.common.xcontent.XContentFactory.*;
-import static org.elasticsearch.index.query.FilterBuilders.*;
-import static org.hamcrest.MatcherAssert.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.FilterBuilders.termFilter;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class MoreLikeThisActionTests extends AbstractNodesTests {
 
     private Client client1;
     private Client client2;
 
-    @BeforeMethod public void startServers() {
+    @BeforeMethod
+    public void startServers() {
         startNode("server1");
         startNode("server2");
         client1 = getClient1();
         client2 = getClient2();
     }
 
-    @AfterMethod public void closeServers() {
+    @AfterMethod
+    public void closeServers() {
         client1.close();
         client2.close();
         closeAllNodes();
@@ -63,7 +65,8 @@ public class MoreLikeThisActionTests extends AbstractNodesTests {
         return client("server2");
     }
 
-    @Test public void testSimpleMoreLikeThis() throws Exception {
+    @Test
+    public void testSimpleMoreLikeThis() throws Exception {
         logger.info("Creating index test");
         client1.admin().indices().create(createIndexRequest("test")).actionGet();
 
@@ -86,7 +89,8 @@ public class MoreLikeThisActionTests extends AbstractNodesTests {
     }
 
 
-    @Test public void testMoreLikeThisWithAliases() throws Exception {
+    @Test
+    public void testMoreLikeThisWithAliases() throws Exception {
         logger.info("Creating index test");
         client1.admin().indices().create(createIndexRequest("test")).actionGet();
 

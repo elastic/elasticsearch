@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -33,27 +33,31 @@ import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
-import static org.elasticsearch.client.Requests.*;
-import static org.elasticsearch.common.xcontent.XContentFactory.*;
-import static org.hamcrest.MatcherAssert.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.client.Requests.clusterHealthRequest;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class GetActionTests extends AbstractNodesTests {
 
     protected Client client;
 
-    @BeforeClass public void startNodes() {
+    @BeforeClass
+    public void startNodes() {
         startNode("node1");
         startNode("node2");
         client = client("node1");
     }
 
-    @AfterClass public void closeNodes() {
+    @AfterClass
+    public void closeNodes() {
         client.close();
         closeAllNodes();
     }
 
-    @Test public void simpleGetTests() {
+    @Test
+    public void simpleGetTests() {
         client.admin().indices().prepareDelete().execute().actionGet();
 
         client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)).execute().actionGet();
@@ -142,7 +146,8 @@ public class GetActionTests extends AbstractNodesTests {
         assertThat(response.exists(), equalTo(false));
     }
 
-    @Test public void simpleMultiGetTests() throws Exception {
+    @Test
+    public void simpleMultiGetTests() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
@@ -193,7 +198,8 @@ public class GetActionTests extends AbstractNodesTests {
         assertThat(response.responses()[0].response().field("field").values().get(0).toString(), equalTo("value1"));
     }
 
-    @Test public void realtimeGetWithCompress() throws Exception {
+    @Test
+    public void realtimeGetWithCompress() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
 
         client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))

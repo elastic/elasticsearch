@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.facet.statistical;
 
-import org.elasticsearch.common.collect.Maps;
+import com.google.common.collect.Maps;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilderException;
@@ -29,7 +29,7 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class StatisticalScriptFacetBuilder extends AbstractFacetBuilder {
     private String lang;
@@ -51,7 +51,8 @@ public class StatisticalScriptFacetBuilder extends AbstractFacetBuilder {
     /**
      * Marks the facet to run in a specific scope.
      */
-    @Override public AbstractFacetBuilder scope(String scope) {
+    @Override
+    public AbstractFacetBuilder scope(String scope) {
         super.scope(scope);
         return this;
     }
@@ -91,7 +92,8 @@ public class StatisticalScriptFacetBuilder extends AbstractFacetBuilder {
         return this;
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (script == null) {
             throw new SearchSourceBuilderException("script must be set on statistical script facet [" + name + "]");
         }

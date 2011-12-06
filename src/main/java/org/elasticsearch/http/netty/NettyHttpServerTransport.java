@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -23,23 +23,6 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.netty.OpenChannelsHandler;
-import org.elasticsearch.common.netty.bootstrap.ServerBootstrap;
-import org.elasticsearch.common.netty.channel.Channel;
-import org.elasticsearch.common.netty.channel.ChannelHandlerContext;
-import org.elasticsearch.common.netty.channel.ChannelPipeline;
-import org.elasticsearch.common.netty.channel.ChannelPipelineFactory;
-import org.elasticsearch.common.netty.channel.Channels;
-import org.elasticsearch.common.netty.channel.ExceptionEvent;
-import org.elasticsearch.common.netty.channel.socket.nio.NioServerSocketChannelFactory;
-import org.elasticsearch.common.netty.channel.socket.oio.OioServerSocketChannelFactory;
-import org.elasticsearch.common.netty.handler.codec.http.HttpChunkAggregator;
-import org.elasticsearch.common.netty.handler.codec.http.HttpContentCompressor;
-import org.elasticsearch.common.netty.handler.codec.http.HttpContentDecompressor;
-import org.elasticsearch.common.netty.handler.codec.http.HttpRequestDecoder;
-import org.elasticsearch.common.netty.handler.codec.http.HttpResponseEncoder;
-import org.elasticsearch.common.netty.handler.timeout.ReadTimeoutException;
-import org.elasticsearch.common.netty.logging.InternalLogger;
-import org.elasticsearch.common.netty.logging.InternalLoggerFactory;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
@@ -49,14 +32,18 @@ import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.transport.PortsRange;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.http.BindHttpException;
-import org.elasticsearch.http.HttpChannel;
+import org.elasticsearch.http.*;
 import org.elasticsearch.http.HttpRequest;
-import org.elasticsearch.http.HttpServerAdapter;
-import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.netty.NettyInternalESLoggerFactory;
+import org.jboss.netty.bootstrap.ServerBootstrap;
+import org.jboss.netty.channel.*;
+import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
+import org.jboss.netty.channel.socket.oio.OioServerSocketChannelFactory;
+import org.jboss.netty.handler.codec.http.*;
+import org.jboss.netty.handler.timeout.ReadTimeoutException;
+import org.jboss.netty.logging.InternalLogger;
+import org.jboss.netty.logging.InternalLoggerFactory;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -65,17 +52,18 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.network.NetworkService.TcpSettings.*;
-import static org.elasticsearch.common.util.concurrent.EsExecutors.*;
+import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpServerTransport> implements HttpServerTransport {
 
     static {
         InternalLoggerFactory.setDefaultFactory(new NettyInternalESLoggerFactory() {
-            @Override public InternalLogger newInstance(String name) {
-                return super.newInstance(name.replace("org.elasticsearch.common.netty.", "netty.").replace("org.jboss.netty.", "netty."));
+            @Override
+            public InternalLogger newInstance(String name) {
+                return super.newInstance(name.replace("org.jboss.netty.", "netty.").replace("org.jboss.netty.", "netty."));
             }
         });
     }
@@ -123,7 +111,8 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
 
     private volatile HttpServerAdapter httpServerAdapter;
 
-    @Inject public NettyHttpServerTransport(Settings settings, NetworkService networkService) {
+    @Inject
+    public NettyHttpServerTransport(Settings settings, NetworkService networkService) {
         super(settings);
         this.networkService = networkService;
         ByteSizeValue maxContentLength = componentSettings.getAsBytesSize("max_content_length", settings.getAsBytesSize("http.max_content_length", new ByteSizeValue(100, ByteSizeUnit.MB)));
@@ -162,7 +151,8 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         this.httpServerAdapter = httpServerAdapter;
     }
 
-    @Override protected void doStart() throws ElasticSearchException {
+    @Override
+    protected void doStart() throws ElasticSearchException {
         this.serverOpenChannels = new OpenChannelsHandler(logger);
 
         if (blockingServer) {
@@ -208,7 +198,8 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         PortsRange portsRange = new PortsRange(port);
         final AtomicReference<Exception> lastException = new AtomicReference<Exception>();
         boolean success = portsRange.iterate(new PortsRange.PortCallback() {
-            @Override public boolean onPortNumber(int portNumber) {
+            @Override
+            public boolean onPortNumber(int portNumber) {
                 try {
                     serverChannel = serverBootstrap.bind(new InetSocketAddress(hostAddress, portNumber));
                 } catch (Exception e) {
@@ -232,7 +223,8 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         this.boundAddress = new BoundTransportAddress(new InetSocketTransportAddress(boundAddress), new InetSocketTransportAddress(publishAddress));
     }
 
-    @Override protected void doStop() throws ElasticSearchException {
+    @Override
+    protected void doStop() throws ElasticSearchException {
         if (serverChannel != null) {
             serverChannel.close().awaitUninterruptibly();
             serverChannel = null;
@@ -249,14 +241,16 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         }
     }
 
-    @Override protected void doClose() throws ElasticSearchException {
+    @Override
+    protected void doClose() throws ElasticSearchException {
     }
 
     public BoundTransportAddress boundAddress() {
         return this.boundAddress;
     }
 
-    @Override public HttpStats stats() {
+    @Override
+    public HttpStats stats() {
         OpenChannelsHandler channels = serverOpenChannels;
         return new HttpStats(channels == null ? 0 : channels.numberOfOpenChannels(), channels == null ? 0 : channels.totalChannels());
     }
@@ -297,7 +291,8 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
             this.requestHandler = new HttpRequestHandler(transport);
         }
 
-        @Override public ChannelPipeline getPipeline() throws Exception {
+        @Override
+        public ChannelPipeline getPipeline() throws Exception {
             ChannelPipeline pipeline = Channels.pipeline();
             pipeline.addLast("openChannels", transport.serverOpenChannels);
             pipeline.addLast("decoder", new HttpRequestDecoder(

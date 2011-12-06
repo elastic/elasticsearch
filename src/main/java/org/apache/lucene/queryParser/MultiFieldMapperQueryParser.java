@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,18 +19,14 @@
 
 package org.apache.lucene.queryParser;
 
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.DisjunctionMaxQuery;
-import org.apache.lucene.search.MultiPhraseQuery;
-import org.apache.lucene.search.PhraseQuery;
-import org.apache.lucene.search.Query;
+import org.apache.lucene.search.*;
 import org.elasticsearch.index.query.QueryParseContext;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class MultiFieldMapperQueryParser extends MapperQueryParser {
 
@@ -50,7 +46,8 @@ public class MultiFieldMapperQueryParser extends MapperQueryParser {
         this.settings = settings;
     }
 
-    @Override public Query getFieldQuery(String xField, String queryText, boolean quoted) throws ParseException {
+    @Override
+    public Query getFieldQuery(String xField, String queryText, boolean quoted) throws ParseException {
         if (xField != null) {
             return super.getFieldQuery(xField, queryText, quoted);
         }
@@ -84,7 +81,8 @@ public class MultiFieldMapperQueryParser extends MapperQueryParser {
         }
     }
 
-    @Override public Query getFieldQuery(String xField, String queryText, int slop) throws ParseException {
+    @Override
+    public Query getFieldQuery(String xField, String queryText, int slop) throws ParseException {
         if (xField != null) {
             Query q = super.getFieldQuery(xField, queryText, true);
             applySlop(q, slop);
@@ -122,7 +120,8 @@ public class MultiFieldMapperQueryParser extends MapperQueryParser {
         }
     }
 
-    @Override protected Query getRangeQuery(String xField, String part1, String part2, boolean inclusive) throws ParseException {
+    @Override
+    protected Query getRangeQuery(String xField, String part1, String part2, boolean inclusive) throws ParseException {
         if (xField != null) {
             return super.getRangeQuery(xField, part1, part2, inclusive);
         }
@@ -156,7 +155,8 @@ public class MultiFieldMapperQueryParser extends MapperQueryParser {
         }
     }
 
-    @Override protected Query getPrefixQuery(String xField, String termStr) throws ParseException {
+    @Override
+    protected Query getPrefixQuery(String xField, String termStr) throws ParseException {
         if (xField != null) {
             return super.getPrefixQuery(xField, termStr);
         }
@@ -190,7 +190,8 @@ public class MultiFieldMapperQueryParser extends MapperQueryParser {
         }
     }
 
-    @Override protected Query getWildcardQuery(String xField, String termStr) throws ParseException {
+    @Override
+    protected Query getWildcardQuery(String xField, String termStr) throws ParseException {
         if (xField != null) {
             return super.getWildcardQuery(xField, termStr);
         }
@@ -224,7 +225,8 @@ public class MultiFieldMapperQueryParser extends MapperQueryParser {
         }
     }
 
-    @Override protected Query getFuzzyQuery(String xField, String termStr, float minSimilarity) throws ParseException {
+    @Override
+    protected Query getFuzzyQuery(String xField, String termStr, float minSimilarity) throws ParseException {
         if (xField != null) {
             return super.getFuzzyQuery(xField, termStr, minSimilarity);
         }

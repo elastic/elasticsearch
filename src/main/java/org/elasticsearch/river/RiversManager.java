@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -27,7 +27,7 @@ import org.elasticsearch.river.cluster.RiverClusterService;
 import org.elasticsearch.river.routing.RiversRouter;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class RiversManager extends AbstractLifecycleComponent<RiversManager> {
 
@@ -37,26 +37,30 @@ public class RiversManager extends AbstractLifecycleComponent<RiversManager> {
 
     private final RiversRouter riversRouter;
 
-    @Inject public RiversManager(Settings settings, RiversService riversService, RiverClusterService clusterService, RiversRouter riversRouter) {
+    @Inject
+    public RiversManager(Settings settings, RiversService riversService, RiverClusterService clusterService, RiversRouter riversRouter) {
         super(settings);
         this.riversService = riversService;
         this.clusterService = clusterService;
         this.riversRouter = riversRouter;
     }
 
-    @Override protected void doStart() throws ElasticSearchException {
+    @Override
+    protected void doStart() throws ElasticSearchException {
         riversRouter.start();
         riversService.start();
         clusterService.start();
     }
 
-    @Override protected void doStop() throws ElasticSearchException {
+    @Override
+    protected void doStop() throws ElasticSearchException {
         riversRouter.stop();
         clusterService.stop();
         riversService.stop();
     }
 
-    @Override protected void doClose() throws ElasticSearchException {
+    @Override
+    protected void doClose() throws ElasticSearchException {
         riversRouter.close();
         clusterService.close();
         riversService.close();

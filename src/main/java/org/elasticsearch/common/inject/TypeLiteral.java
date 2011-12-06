@@ -16,46 +16,39 @@
 
 package org.elasticsearch.common.inject;
 
-import org.elasticsearch.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.internal.MoreTypes;
 import org.elasticsearch.common.inject.util.Types;
 
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
-import java.lang.reflect.GenericArrayType;
-import java.lang.reflect.Member;
-import java.lang.reflect.Method;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
-import java.lang.reflect.TypeVariable;
-import java.lang.reflect.WildcardType;
+import java.lang.reflect.*;
 import java.util.List;
 
-import static org.elasticsearch.common.base.Preconditions.*;
-import static org.elasticsearch.common.inject.internal.MoreTypes.*;
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkNotNull;
+import static org.elasticsearch.common.inject.internal.MoreTypes.canonicalize;
 
 /**
  * Represents a generic type {@code T}. Java doesn't yet provide a way to
  * represent generic types, so this class does. Forces clients to create a
  * subclass of this class which enables retrieval the type information even at
  * runtime.
- *
+ * <p/>
  * <p>For example, to create a type literal for {@code List<String>}, you can
  * create an empty anonymous inner class:
- *
- * <p>
+ * <p/>
+ * <p/>
  * {@code TypeLiteral<List<String>> list = new TypeLiteral<List<String>>() {};}
- *
+ * <p/>
  * <p>This syntax cannot be used to create type literals that have wildcard
  * parameters, such as {@code Class<?>} or {@code List<? extends CharSequence>}.
  * Such type literals must be constructed programatically, either by {@link
  * Method#getGenericReturnType extracting types from members} or by using the
  * {@link Types} factory class.
- *
+ * <p/>
  * <p>Along with modeling generic types, this class can resolve type parameters.
  * For example, to figure out what type {@code keySet()} returns on a {@code
  * Map<Integer, String>}, use this code:<pre>   {@code
- *
+ * <p/>
  *   TypeLiteral<Map<Integer, String>> mapType
  *       = new TypeLiteral<Map<Integer, String>>() {};
  *   TypeLiteral<?> keySetType
@@ -74,7 +67,7 @@ public class TypeLiteral<T> {
     /**
      * Constructs a new type literal. Derives represented class from type
      * parameter.
-     *
+     * <p/>
      * <p>Clients create an empty anonymous subclass. Doing so embeds the type
      * parameter in the anonymous class's type hierarchy so we can reconstitute it
      * at runtime despite erasure.
@@ -89,7 +82,8 @@ public class TypeLiteral<T> {
     /**
      * Unsafe. Constructs a type literal manually.
      */
-    @SuppressWarnings("unchecked") TypeLiteral(Type type) {
+    @SuppressWarnings("unchecked")
+    TypeLiteral(Type type) {
         this.type = canonicalize(checkNotNull(type, "type"));
         this.rawType = (Class<? super T>) MoreTypes.getRawType(this.type);
         this.hashCode = MoreTypes.hashCode(this.type);
@@ -141,16 +135,19 @@ public class TypeLiteral<T> {
         return (TypeLiteral<Provider<T>>) get(Types.providerOf(getType()));
     }
 
-    @Override public final int hashCode() {
+    @Override
+    public final int hashCode() {
         return this.hashCode;
     }
 
-    @Override public final boolean equals(Object o) {
+    @Override
+    public final boolean equals(Object o) {
         return o instanceof TypeLiteral<?>
                 && MoreTypes.equals(type, ((TypeLiteral) o).type);
     }
 
-    @Override public final String toString() {
+    @Override
+    public final String toString() {
         return MoreTypes.toString(type);
     }
 

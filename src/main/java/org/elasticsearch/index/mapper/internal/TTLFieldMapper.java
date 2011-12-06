@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -26,13 +26,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AlreadyExpiredException;
-import org.elasticsearch.index.mapper.InternalMapper;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeContext;
-import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.RootMapper;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
@@ -41,8 +35,9 @@ import java.io.IOException;
 import java.util.Date;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.*;
-import static org.elasticsearch.index.mapper.core.TypeParsers.*;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeTimeValue;
+import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 
 public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, RootMapper {
 
@@ -78,13 +73,15 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
             return builder;
         }
 
-        @Override public TTLFieldMapper build(BuilderContext context) {
+        @Override
+        public TTLFieldMapper build(BuilderContext context) {
             return new TTLFieldMapper(store, index, enabled, defaultTTL);
         }
     }
 
     public static class TypeParser implements Mapper.TypeParser {
-        @Override public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        @Override
+        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             TTLFieldMapper.Builder builder = new TTLFieldMapper.Builder();
             parseField(builder, builder.name, node, parserContext);
             for (Map.Entry<String, Object> entry : node.entrySet()) {
@@ -127,7 +124,8 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
     }
 
     // Overrides valueForSearch to display live value of remaining ttl
-    @Override public Object valueForSearch(Fieldable field) {
+    @Override
+    public Object valueForSearch(Fieldable field) {
         long now;
         SearchContext searchContext = SearchContext.current();
         if (searchContext != null) {
@@ -144,17 +142,21 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
         return expirationTime - System.currentTimeMillis();
     }
 
-    @Override public void validate(ParseContext context) throws MapperParsingException {
+    @Override
+    public void validate(ParseContext context) throws MapperParsingException {
     }
 
-    @Override public void preParse(ParseContext context) throws IOException {
+    @Override
+    public void preParse(ParseContext context) throws IOException {
     }
 
-    @Override public void postParse(ParseContext context) throws IOException {
+    @Override
+    public void postParse(ParseContext context) throws IOException {
         super.parse(context);
     }
 
-    @Override public void parse(ParseContext context) throws IOException, MapperParsingException {
+    @Override
+    public void parse(ParseContext context) throws IOException, MapperParsingException {
         if (context.sourceToParse().ttl() < 0) { // no ttl has been provided externally
             long ttl;
             if (context.parser().currentToken() == XContentParser.Token.VALUE_STRING) {
@@ -169,11 +171,13 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
         }
     }
 
-    @Override public boolean includeInObject() {
+    @Override
+    public boolean includeInObject() {
         return true;
     }
 
-    @Override protected Fieldable parseCreateField(ParseContext context) throws IOException, AlreadyExpiredException {
+    @Override
+    protected Fieldable parseCreateField(ParseContext context) throws IOException, AlreadyExpiredException {
         if (enabled) {
             long ttl = context.sourceToParse().ttl();
             if (ttl <= 0 && defaultTTL > 0) { // no ttl provided so we use the default value
@@ -194,7 +198,8 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
         return null;
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // if all are defaults, no sense to write it at all
         if (enabled == Defaults.ENABLED && defaultTTL == Defaults.DEFAULT) {
             return builder;
@@ -210,7 +215,8 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
         return builder;
     }
 
-    @Override public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+    @Override
+    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
         // do nothing here, no merging, but also no exception
     }
 }

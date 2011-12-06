@@ -66,7 +66,8 @@ public class Scopes {
             };
         }
 
-        @Override public String toString() {
+        @Override
+        public String toString() {
             return "Scopes.SINGLETON";
         }
     };
@@ -76,7 +77,7 @@ public class Scopes {
      * Injector obtains an instance of an object with "no scope", it injects this
      * instance then immediately forgets it.  When the next request for the same
      * binding arrives it will need to obtain the instance over again.
-     *
+     * <p/>
      * <p>This exists only in case a class has been annotated with a scope
      * annotation such as {@link Singleton @Singleton}, and you need to override
      * this to "no scope" in your binding.
@@ -88,7 +89,8 @@ public class Scopes {
             return unscoped;
         }
 
-        @Override public String toString() {
+        @Override
+        public String toString() {
             return "Scopes.NO_SCOPE";
         }
     };

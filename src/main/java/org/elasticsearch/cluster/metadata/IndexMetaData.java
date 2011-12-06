@@ -19,12 +19,12 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -45,7 +45,7 @@ import java.util.Map;
 import static org.elasticsearch.common.settings.ImmutableSettings.*;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 @Immutable
 public class IndexMetaData {
@@ -221,15 +221,18 @@ public class IndexMetaData {
         return mappings.get(mappingType);
     }
 
-    @Nullable public DiscoveryNodeFilters includeFilters() {
+    @Nullable
+    public DiscoveryNodeFilters includeFilters() {
         return includeFilters;
     }
 
-    @Nullable public DiscoveryNodeFilters excludeFilters() {
+    @Nullable
+    public DiscoveryNodeFilters excludeFilters() {
         return excludeFilters;
     }
 
-    @Override public boolean equals(Object o) {
+    @Override
+    public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
@@ -244,7 +247,8 @@ public class IndexMetaData {
         return true;
     }
 
-    @Override public int hashCode() {
+    @Override
+    public int hashCode() {
         int result = index.hashCode();
         result = 31 * result + state.hashCode();
         result = 31 * result + aliases.hashCode();

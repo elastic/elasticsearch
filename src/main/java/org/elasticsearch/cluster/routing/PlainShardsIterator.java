@@ -22,7 +22,7 @@ package org.elasticsearch.cluster.routing;
 import java.util.List;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class PlainShardsIterator implements ShardsIterator {
 
@@ -52,23 +52,27 @@ public class PlainShardsIterator implements ShardsIterator {
         this.limit = this.index + size;
     }
 
-    @Override public ShardsIterator reset() {
+    @Override
+    public ShardsIterator reset() {
         this.counter = this.index;
         return this;
     }
 
-    @Override public int remaining() {
+    @Override
+    public int remaining() {
         return limit - counter;
     }
 
-    @Override public ShardRouting firstOrNull() {
+    @Override
+    public ShardRouting firstOrNull() {
         if (size == 0) {
             return null;
         }
         return shards.get(index);
     }
 
-    @Override public ShardRouting nextOrNull() {
+    @Override
+    public ShardRouting nextOrNull() {
         if (size == 0) {
             return null;
         }
@@ -85,11 +89,13 @@ public class PlainShardsIterator implements ShardsIterator {
         }
     }
 
-    @Override public int size() {
+    @Override
+    public int size() {
         return size;
     }
 
-    @Override public int sizeActive() {
+    @Override
+    public int sizeActive() {
         int count = 0;
         for (int i = 0; i < size; i++) {
             if (shards.get(i).active()) {
@@ -99,7 +105,8 @@ public class PlainShardsIterator implements ShardsIterator {
         return count;
     }
 
-    @Override public int assignedReplicasIncludingRelocating() {
+    @Override
+    public int assignedReplicasIncludingRelocating() {
         int count = 0;
         for (int i = 0; i < size; i++) {
             ShardRouting shard = shards.get(i);
@@ -125,7 +132,8 @@ public class PlainShardsIterator implements ShardsIterator {
         return count;
     }
 
-    @Override public Iterable<ShardRouting> asUnordered() {
+    @Override
+    public Iterable<ShardRouting> asUnordered() {
         return shards;
     }
 }

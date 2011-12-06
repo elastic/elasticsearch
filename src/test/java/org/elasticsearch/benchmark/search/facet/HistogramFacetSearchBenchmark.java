@@ -33,16 +33,18 @@ import org.elasticsearch.node.Node;
 
 import java.util.Date;
 
-import static org.elasticsearch.client.Requests.*;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
-import static org.elasticsearch.common.settings.ImmutableSettings.*;
-import static org.elasticsearch.common.xcontent.XContentFactory.*;
-import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.node.NodeBuilder.*;
-import static org.elasticsearch.search.facet.FacetBuilders.*;
+import static org.elasticsearch.client.Requests.createIndexRequest;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
+import static org.elasticsearch.search.facet.FacetBuilders.dateHistogramFacet;
+import static org.elasticsearch.search.facet.FacetBuilders.histogramFacet;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class HistogramFacetSearchBenchmark {
 

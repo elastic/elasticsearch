@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -29,7 +29,7 @@ import java.io.IOException;
 import java.util.Set;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class MoreLikeThisQuery extends Query {
 
@@ -62,7 +62,8 @@ public class MoreLikeThisQuery extends Query {
         this.analyzer = analyzer;
     }
 
-    @Override public Query rewrite(IndexReader reader) throws IOException {
+    @Override
+    public Query rewrite(IndexReader reader) throws IOException {
         MoreLikeThis mlt = new MoreLikeThis(reader, similarity == null ? new DefaultSimilarity() : similarity);
 
         mlt.setFieldNames(moreLikeFields);
@@ -83,7 +84,8 @@ public class MoreLikeThisQuery extends Query {
         return bq;
     }
 
-    @Override public String toString(String field) {
+    @Override
+    public String toString(String field) {
         return "like:" + likeText;
     }
 

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,12 +19,12 @@
 
 package org.elasticsearch.index.translog.fs;
 
+import jsr166y.ThreadLocalRandom;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.CachedStreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.jsr166y.ThreadLocalRandom;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
@@ -40,7 +40,7 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class FsTranslog extends AbstractIndexShardComponent implements Translog {
 
@@ -52,7 +52,8 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
 
     private boolean syncOnEachOperation = false;
 
-    @Inject public FsTranslog(ShardId shardId, @IndexSettings Settings indexSettings, NodeEnvironment nodeEnv) {
+    @Inject
+    public FsTranslog(ShardId shardId, @IndexSettings Settings indexSettings, NodeEnvironment nodeEnv) {
         super(shardId, indexSettings);
         File[] shardLocations = nodeEnv.shardLocations(shardId);
         this.locations = new File[shardLocations.length];
@@ -72,7 +73,8 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         return locations;
     }
 
-    @Override public long currentId() {
+    @Override
+    public long currentId() {
         FsTranslogFile current1 = this.current;
         if (current1 == null) {
             return -1;
@@ -80,7 +82,8 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         return current1.id();
     }
 
-    @Override public int estimatedNumberOfOperations() {
+    @Override
+    public int estimatedNumberOfOperations() {
         FsTranslogFile current1 = this.current;
         if (current1 == null) {
             return 0;
@@ -88,11 +91,13 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         return current1.estimatedNumberOfOperations();
     }
 
-    @Override public long memorySizeInBytes() {
+    @Override
+    public long memorySizeInBytes() {
         return 0;
     }
 
-    @Override public long translogSizeInBytes() {
+    @Override
+    public long translogSizeInBytes() {
         FsTranslogFile current1 = this.current;
         if (current1 == null) {
             return 0;
@@ -100,7 +105,8 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         return current1.translogSizeInBytes();
     }
 
-    @Override public void clearUnreferenced() {
+    @Override
+    public void clearUnreferenced() {
         rwl.writeLock().lock();
         try {
             for (File location : locations) {
@@ -126,7 +132,8 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         }
     }
 
-    @Override public void newTranslog(long id) throws TranslogException {
+    @Override
+    public void newTranslog(long id) throws TranslogException {
         rwl.writeLock().lock();
         try {
             FsTranslogFile newFile;
@@ -161,7 +168,8 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         }
     }
 
-    @Override public void newTransientTranslog(long id) throws TranslogException {
+    @Override
+    public void newTransientTranslog(long id) throws TranslogException {
         rwl.writeLock().lock();
         try {
             assert this.trans == null;
@@ -184,7 +192,8 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         }
     }
 
-    @Override public void makeTransientCurrent() {
+    @Override
+    public void makeTransientCurrent() {
         FsTranslogFile old;
         rwl.writeLock().lock();
         try {
@@ -198,7 +207,8 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         old.close(true);
     }
 
-    @Override public void revertTransient() {
+    @Override
+    public void revertTransient() {
         FsTranslogFile old;
         rwl.writeLock().lock();
         try {
@@ -234,7 +244,8 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         }
     }
 
-    @Override public Location add(Operation operation) throws TranslogException {
+    @Override
+    public Location add(Operation operation) throws TranslogException {
         CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
         rwl.readLock().lock();
         try {
@@ -268,7 +279,8 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         }
     }
 
-    @Override public FsChannelSnapshot snapshot() throws TranslogException {
+    @Override
+    public FsChannelSnapshot snapshot() throws TranslogException {
         while (true) {
             FsChannelSnapshot snapshot = current.snapshot();
             if (snapshot != null) {
@@ -278,7 +290,8 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         }
     }
 
-    @Override public Snapshot snapshot(Snapshot snapshot) {
+    @Override
+    public Snapshot snapshot(Snapshot snapshot) {
         FsChannelSnapshot snap = snapshot();
         if (snap.translogId() == snapshot.translogId()) {
             snap.seekForward(snapshot.position());
@@ -286,7 +299,8 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         return snap;
     }
 
-    @Override public void sync() {
+    @Override
+    public void sync() {
         FsTranslogFile current1 = this.current;
         if (current1 == null) {
             return;
@@ -294,11 +308,13 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         current1.sync();
     }
 
-    @Override public void syncOnEachOperation(boolean syncOnEachOperation) {
+    @Override
+    public void syncOnEachOperation(boolean syncOnEachOperation) {
         this.syncOnEachOperation = syncOnEachOperation;
     }
 
-    @Override public void close(boolean delete) {
+    @Override
+    public void close(boolean delete) {
         rwl.writeLock().lock();
         try {
             FsTranslogFile current1 = this.current;

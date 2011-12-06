@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -27,7 +27,7 @@ import java.io.Reader;
 /**
  * A character stream whose source is a string that is <b>not thread safe</b>
  *
- * @author kimchy (shay.banon
+ * (shay.banon
  *         )
  */
 @NotThreadSafe
@@ -56,15 +56,18 @@ public class FastStringReader extends CharSequenceReader {
             throw new IOException("Stream closed");
     }
 
-    @Override public int length() {
+    @Override
+    public int length() {
         return length;
     }
 
-    @Override public char charAt(int index) {
+    @Override
+    public char charAt(int index) {
         return str.charAt(index);
     }
 
-    @Override public CharSequence subSequence(int start, int end) {
+    @Override
+    public CharSequence subSequence(int start, int end) {
         return str.subSequence(start, end);
     }
 
@@ -75,7 +78,8 @@ public class FastStringReader extends CharSequenceReader {
      *         reached
      * @throws IOException If an I/O error occurs
      */
-    @Override public int read() throws IOException {
+    @Override
+    public int read() throws IOException {
         ensureOpen();
         if (next >= length)
             return -1;
@@ -92,7 +96,8 @@ public class FastStringReader extends CharSequenceReader {
      *         stream has been reached
      * @throws IOException If an I/O error occurs
      */
-    @Override public int read(char cbuf[], int off, int len) throws IOException {
+    @Override
+    public int read(char cbuf[], int off, int len) throws IOException {
         ensureOpen();
         if (len == 0) {
             return 0;
@@ -121,7 +126,8 @@ public class FastStringReader extends CharSequenceReader {
      *
      * @throws IOException If an I/O error occurs
      */
-    @Override public long skip(long ns) throws IOException {
+    @Override
+    public long skip(long ns) throws IOException {
         ensureOpen();
         if (next >= length)
             return 0;
@@ -138,7 +144,8 @@ public class FastStringReader extends CharSequenceReader {
      * @return True if the next read() is guaranteed not to block for input
      * @throws IOException If the stream is closed
      */
-    @Override public boolean ready() throws IOException {
+    @Override
+    public boolean ready() throws IOException {
         ensureOpen();
         return true;
     }
@@ -146,7 +153,8 @@ public class FastStringReader extends CharSequenceReader {
     /**
      * Tells whether this stream supports the mark() operation, which it does.
      */
-    @Override public boolean markSupported() {
+    @Override
+    public boolean markSupported() {
         return true;
     }
 
@@ -162,7 +170,8 @@ public class FastStringReader extends CharSequenceReader {
      * @throws IllegalArgumentException If readAheadLimit is < 0
      * @throws IOException              If an I/O error occurs
      */
-    @Override public void mark(int readAheadLimit) throws IOException {
+    @Override
+    public void mark(int readAheadLimit) throws IOException {
         if (readAheadLimit < 0) {
             throw new IllegalArgumentException("Read-ahead limit < 0");
         }
@@ -176,7 +185,8 @@ public class FastStringReader extends CharSequenceReader {
      *
      * @throws IOException If an I/O error occurs
      */
-    @Override public void reset() throws IOException {
+    @Override
+    public void reset() throws IOException {
         ensureOpen();
         next = mark;
     }
@@ -191,7 +201,8 @@ public class FastStringReader extends CharSequenceReader {
         length = -1;
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return str;
     }
 }

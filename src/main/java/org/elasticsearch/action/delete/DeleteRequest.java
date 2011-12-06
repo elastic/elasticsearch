@@ -32,16 +32,16 @@ import org.elasticsearch.index.VersionType;
 
 import java.io.IOException;
 
-import static org.elasticsearch.action.Actions.*;
+import static org.elasticsearch.action.Actions.addValidationError;
 
 /**
  * A request to delete a document from an index based on its type and id. Best created using
  * {@link org.elasticsearch.client.Requests#deleteRequest(String)}.
- *
+ * <p/>
  * <p>The operation requires the {@link #index()}, {@link #type(String)} and {@link #id(String)} to
  * be set.
  *
- * @author kimchy (shay.banon)
+ *
  * @see DeleteResponse
  * @see org.elasticsearch.client.Client#delete(DeleteRequest)
  * @see org.elasticsearch.client.Requests#deleteRequest(String)
@@ -50,7 +50,8 @@ public class DeleteRequest extends ShardReplicationOperationRequest {
 
     private String type;
     private String id;
-    @Nullable private String routing;
+    @Nullable
+    private String routing;
     private boolean refresh;
     private long version;
     private VersionType versionType = VersionType.INTERNAL;
@@ -79,7 +80,8 @@ public class DeleteRequest extends ShardReplicationOperationRequest {
     public DeleteRequest() {
     }
 
-    @Override public ActionRequestValidationException validate() {
+    @Override
+    public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
         if (type == null) {
             validationException = addValidationError("type is missing", validationException);
@@ -93,7 +95,8 @@ public class DeleteRequest extends ShardReplicationOperationRequest {
     /**
      * Sets the index the delete will happen on.
      */
-    @Override public DeleteRequest index(String index) {
+    @Override
+    public DeleteRequest index(String index) {
         super.index(index);
         return this;
     }
@@ -101,7 +104,8 @@ public class DeleteRequest extends ShardReplicationOperationRequest {
     /**
      * Should the listener be called on a separate thread if needed.
      */
-    @Override public DeleteRequest listenerThreaded(boolean threadedListener) {
+    @Override
+    public DeleteRequest listenerThreaded(boolean threadedListener) {
         super.listenerThreaded(threadedListener);
         return this;
     }
@@ -110,7 +114,8 @@ public class DeleteRequest extends ShardReplicationOperationRequest {
      * Controls if the operation will be executed on a separate thread when executed locally. Defaults
      * to <tt>true</tt> when running in embedded mode.
      */
-    @Override public DeleteRequest operationThreaded(boolean threadedOperation) {
+    @Override
+    public DeleteRequest operationThreaded(boolean threadedOperation) {
         super.operationThreaded(threadedOperation);
         return this;
     }
@@ -118,7 +123,8 @@ public class DeleteRequest extends ShardReplicationOperationRequest {
     /**
      * Set the replication type for this operation.
      */
-    @Override public DeleteRequest replicationType(ReplicationType replicationType) {
+    @Override
+    public DeleteRequest replicationType(ReplicationType replicationType) {
         super.replicationType(replicationType);
         return this;
     }
@@ -126,7 +132,8 @@ public class DeleteRequest extends ShardReplicationOperationRequest {
     /**
      * Sets the consistency level of write. Defaults to {@link org.elasticsearch.action.WriteConsistencyLevel#DEFAULT}
      */
-    @Override public DeleteRequest consistencyLevel(WriteConsistencyLevel consistencyLevel) {
+    @Override
+    public DeleteRequest consistencyLevel(WriteConsistencyLevel consistencyLevel) {
         super.consistencyLevel(consistencyLevel);
         return this;
     }
@@ -141,7 +148,8 @@ public class DeleteRequest extends ShardReplicationOperationRequest {
     /**
      * Sets the type of the document to delete.
      */
-    @Required public DeleteRequest type(String type) {
+    @Required
+    public DeleteRequest type(String type) {
         this.type = type;
         return this;
     }
@@ -156,7 +164,8 @@ public class DeleteRequest extends ShardReplicationOperationRequest {
     /**
      * Sets the id of the document to delete.
      */
-    @Required public DeleteRequest id(String id) {
+    @Required
+    public DeleteRequest id(String id) {
         this.id = id;
         return this;
     }
@@ -237,7 +246,8 @@ public class DeleteRequest extends ShardReplicationOperationRequest {
         return this.versionType;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         type = in.readUTF();
         id = in.readUTF();
@@ -249,7 +259,8 @@ public class DeleteRequest extends ShardReplicationOperationRequest {
         versionType = VersionType.fromValue(in.readByte());
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeUTF(type);
         out.writeUTF(id);
@@ -264,7 +275,8 @@ public class DeleteRequest extends ShardReplicationOperationRequest {
         out.writeByte(versionType.getValue());
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return "delete {[" + index + "][" + type + "][" + id + "]}";
     }
 }

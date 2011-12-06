@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,11 +19,11 @@
 
 package org.elasticsearch.index.search.geo;
 
+import com.google.common.collect.ImmutableList;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.lucene.docset.AndDocSet;
 import org.elasticsearch.common.lucene.docset.DocSet;
 import org.elasticsearch.common.lucene.docset.DocSets;
@@ -102,7 +102,8 @@ public class GeoDistanceFilter extends Filter {
         return fieldName;
     }
 
-    @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
+    @Override
+    public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
         DocSet boundingBoxDocSet = null;
         if (boundingBoxFilter != null) {
             DocIdSet docIdSet = boundingBoxFilter.getDocIdSet(reader);
@@ -166,14 +167,16 @@ public class GeoDistanceFilter extends Filter {
             this.distance = distance;
         }
 
-        @Override public boolean isCacheable() {
+        @Override
+        public boolean isCacheable() {
             // not cacheable for several reasons:
             // 1. It is only relevant when _cache is set to true, and then, we really want to create in mem bitset
             // 2. Its already fast without in mem bitset, since it works with field data
             return false;
         }
 
-        @Override public boolean get(int doc) {
+        @Override
+        public boolean get(int doc) {
             if (!fieldData.hasValue(doc)) {
                 return false;
             }

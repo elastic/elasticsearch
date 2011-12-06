@@ -11,21 +11,24 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.*;
-import static org.hamcrest.MatcherAssert.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 @Test
 public class ConcurrentDocumentOperationTests extends AbstractNodesTests {
 
-    @AfterMethod public void closeNodes() {
+    @AfterMethod
+    public void closeNodes() {
         closeAllNodes();
     }
 
-    @Test public void concurrentOperationOnSameDocTest() throws Exception {
+    @Test
+    public void concurrentOperationOnSameDocTest() throws Exception {
         // start 5 nodes
         Node[] nodes = new Node[5];
         for (int i = 0; i < nodes.length; i++) {
@@ -43,11 +46,13 @@ public class ConcurrentDocumentOperationTests extends AbstractNodesTests {
         final CountDownLatch latch = new CountDownLatch(numberOfUpdates);
         for (int i = 0; i < numberOfUpdates; i++) {
             nodes[0].client().prepareIndex("test", "type1", "1").setSource("field1", i).execute(new ActionListener<IndexResponse>() {
-                @Override public void onResponse(IndexResponse response) {
+                @Override
+                public void onResponse(IndexResponse response) {
                     latch.countDown();
                 }
 
-                @Override public void onFailure(Throwable e) {
+                @Override
+                public void onFailure(Throwable e) {
                     e.printStackTrace();
                     failure.set(e);
                     latch.countDown();

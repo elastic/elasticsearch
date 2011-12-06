@@ -10,11 +10,13 @@ import org.elasticsearch.index.settings.IndexSettings;
 
 public class CzechStemTokenFilterFactory extends AbstractTokenFilterFactory {
 
-    @Inject public CzechStemTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
+    @Inject
+    public CzechStemTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
     }
 
-    @Override public TokenStream create(TokenStream tokenStream) {
+    @Override
+    public TokenStream create(TokenStream tokenStream) {
         return new CzechStemFilter(tokenStream);
     }
 }

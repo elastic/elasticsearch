@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -31,48 +31,58 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class TransportShardReplicationPingAction extends TransportShardReplicationOperationAction<ShardReplicationPingRequest, ShardReplicationPingRequest, ShardReplicationPingResponse> {
 
-    @Inject public TransportShardReplicationPingAction(Settings settings, TransportService transportService,
-                                                       ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool,
-                                                       ShardStateAction shardStateAction) {
+    @Inject
+    public TransportShardReplicationPingAction(Settings settings, TransportService transportService,
+                                               ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool,
+                                               ShardStateAction shardStateAction) {
         super(settings, transportService, clusterService, indicesService, threadPool, shardStateAction);
     }
 
-    @Override protected String executor() {
+    @Override
+    protected String executor() {
         return ThreadPool.Names.CACHED;
     }
 
-    @Override protected boolean checkWriteConsistency() {
+    @Override
+    protected boolean checkWriteConsistency() {
         return true;
     }
 
-    @Override protected ShardReplicationPingRequest newRequestInstance() {
+    @Override
+    protected ShardReplicationPingRequest newRequestInstance() {
         return new ShardReplicationPingRequest();
     }
 
-    @Override protected ShardReplicationPingRequest newReplicaRequestInstance() {
+    @Override
+    protected ShardReplicationPingRequest newReplicaRequestInstance() {
         return new ShardReplicationPingRequest();
     }
 
-    @Override protected ShardReplicationPingResponse newResponseInstance() {
+    @Override
+    protected ShardReplicationPingResponse newResponseInstance() {
         return new ShardReplicationPingResponse();
     }
 
-    @Override protected String transportAction() {
+    @Override
+    protected String transportAction() {
         return "ping/replication/shard";
     }
 
-    @Override protected PrimaryResponse<ShardReplicationPingResponse, ShardReplicationPingRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) {
+    @Override
+    protected PrimaryResponse<ShardReplicationPingResponse, ShardReplicationPingRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) {
         return new PrimaryResponse<ShardReplicationPingResponse, ShardReplicationPingRequest>(shardRequest.request, new ShardReplicationPingResponse(), null);
     }
 
-    @Override protected void shardOperationOnReplica(ReplicaOperationRequest shardRequest) {
+    @Override
+    protected void shardOperationOnReplica(ReplicaOperationRequest shardRequest) {
     }
 
-    @Override protected ShardIterator shards(ClusterState clusterState, ShardReplicationPingRequest request) {
+    @Override
+    protected ShardIterator shards(ClusterState clusterState, ShardReplicationPingRequest request) {
         return clusterService.state().routingTable().index(request.index()).shard(request.shardId()).shardsIt();
     }
 }

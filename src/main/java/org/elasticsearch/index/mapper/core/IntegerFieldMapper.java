@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -35,22 +35,18 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericIntegerAnalyzer;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeContext;
-import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
 
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.*;
-import static org.elasticsearch.index.mapper.MapperBuilders.*;
-import static org.elasticsearch.index.mapper.core.TypeParsers.*;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeIntegerValue;
+import static org.elasticsearch.index.mapper.MapperBuilders.integerField;
+import static org.elasticsearch.index.mapper.core.TypeParsers.parseNumberField;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
 
@@ -74,7 +70,8 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
             return this;
         }
 
-        @Override public IntegerFieldMapper build(BuilderContext context) {
+        @Override
+        public IntegerFieldMapper build(BuilderContext context) {
             IntegerFieldMapper fieldMapper = new IntegerFieldMapper(buildNames(context),
                     precisionStep, fuzzyFactor, index, store, boost, omitNorms, omitTermFreqAndPositions, nullValue);
             fieldMapper.includeInAll(includeInAll);
@@ -83,7 +80,8 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
     }
 
     public static class TypeParser implements Mapper.TypeParser {
-        @Override public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        @Override
+        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             IntegerFieldMapper.Builder builder = integerField(name);
             parseNumberField(builder, name, node, parserContext);
             for (Map.Entry<String, Object> entry : node.entrySet()) {
@@ -111,11 +109,13 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
         this.nullValueAsString = nullValue == null ? null : nullValue.toString();
     }
 
-    @Override protected int maxPrecisionStep() {
+    @Override
+    protected int maxPrecisionStep() {
         return 32;
     }
 
-    @Override public Integer value(Fieldable field) {
+    @Override
+    public Integer value(Fieldable field) {
         byte[] value = field.getBinaryValue();
         if (value == null) {
             return null;
@@ -123,15 +123,18 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
         return Numbers.bytesToInt(value);
     }
 
-    @Override public Integer valueFromString(String value) {
+    @Override
+    public Integer valueFromString(String value) {
         return Integer.parseInt(value);
     }
 
-    @Override public String indexedValue(String value) {
+    @Override
+    public String indexedValue(String value) {
         return NumericUtils.intToPrefixCoded(Integer.parseInt(value));
     }
 
-    @Override public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions) {
+    @Override
+    public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions) {
         int iValue = Integer.parseInt(value);
         int iSim;
         try {
@@ -145,7 +148,8 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
                 true, true);
     }
 
-    @Override public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions) {
+    @Override
+    public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions) {
         int iValue = Integer.parseInt(value);
         int iSim = (int) (minSim * dFuzzyFactor);
         return NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
@@ -154,32 +158,37 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
                 true, true);
     }
 
-    @Override public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
+    @Override
+    public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
         return NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : Integer.parseInt(lowerTerm),
                 upperTerm == null ? null : Integer.parseInt(upperTerm),
                 includeLower, includeUpper);
     }
 
-    @Override public Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
+    @Override
+    public Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
         return NumericRangeFilter.newIntRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : Integer.parseInt(lowerTerm),
                 upperTerm == null ? null : Integer.parseInt(upperTerm),
                 includeLower, includeUpper);
     }
 
-    @Override public Filter rangeFilter(FieldDataCache fieldDataCache, String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
+    @Override
+    public Filter rangeFilter(FieldDataCache fieldDataCache, String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
         return NumericRangeFieldDataFilter.newIntRange(fieldDataCache, names.indexName(),
                 lowerTerm == null ? null : Integer.parseInt(lowerTerm),
                 upperTerm == null ? null : Integer.parseInt(upperTerm),
                 includeLower, includeUpper);
     }
 
-    @Override protected boolean customBoost() {
+    @Override
+    protected boolean customBoost() {
         return true;
     }
 
-    @Override protected Fieldable parseCreateField(ParseContext context) throws IOException {
+    @Override
+    protected Fieldable parseCreateField(ParseContext context) throws IOException {
         int value;
         float boost = this.boost;
         if (context.externalValueSet()) {
@@ -251,15 +260,18 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
         return field;
     }
 
-    @Override public FieldDataType fieldDataType() {
+    @Override
+    public FieldDataType fieldDataType() {
         return FieldDataType.DefaultTypes.INT;
     }
 
-    @Override protected String contentType() {
+    @Override
+    protected String contentType() {
         return CONTENT_TYPE;
     }
 
-    @Override public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+    @Override
+    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
         super.merge(mergeWith, mergeContext);
         if (!this.getClass().equals(mergeWith.getClass())) {
             return;
@@ -270,7 +282,8 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
         }
     }
 
-    @Override protected void doXContentBody(XContentBuilder builder) throws IOException {
+    @Override
+    protected void doXContentBody(XContentBuilder builder) throws IOException {
         super.doXContentBody(builder);
         if (index != Defaults.INDEX) {
             builder.field("index", index.name().toLowerCase());
@@ -313,14 +326,16 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
             this.number = number;
         }
 
-        @Override public TokenStream tokenStreamValue() {
+        @Override
+        public TokenStream tokenStreamValue() {
             if (isIndexed) {
                 return mapper.popCachedStream().setIntValue(number);
             }
             return null;
         }
 
-        @Override public String numericAsString() {
+        @Override
+        public String numericAsString() {
             return Integer.toString(number);
         }
     }

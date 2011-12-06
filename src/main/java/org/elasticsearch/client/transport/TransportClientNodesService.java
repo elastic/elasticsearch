@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,6 +19,8 @@
 
 package org.elasticsearch.client.transport;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -28,19 +30,13 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportResponseHandler;
-import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.FutureTransportResponseHandler;
-import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.*;
 
 import java.util.HashSet;
 import java.util.Iterator;
@@ -50,10 +46,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.common.unit.TimeValue.*;
+import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class TransportClientNodesService extends AbstractComponent {
 
@@ -82,8 +78,9 @@ public class TransportClientNodesService extends AbstractComponent {
 
     private volatile boolean closed;
 
-    @Inject public TransportClientNodesService(Settings settings, ClusterName clusterName,
-                                               TransportService transportService, ThreadPool threadPool) {
+    @Inject
+    public TransportClientNodesService(Settings settings, ClusterName clusterName,
+                                       TransportService transportService, ThreadPool threadPool) {
         super(settings);
         this.clusterName = clusterName;
         this.transportService = transportService;
@@ -201,11 +198,13 @@ public class TransportClientNodesService extends AbstractComponent {
             this.index = index;
         }
 
-        @Override public void onResponse(Response response) {
+        @Override
+        public void onResponse(Response response) {
             listener.onResponse(response);
         }
 
-        @Override public void onFailure(Throwable e) {
+        @Override
+        public void onFailure(Throwable e) {
             if (ExceptionsHelper.unwrapCause(e) instanceof ConnectTransportException) {
                 int i = ++this.i;
                 if (i == nodes.size()) {
@@ -241,7 +240,8 @@ public class TransportClientNodesService extends AbstractComponent {
     }
 
     class ScheduledNodeSampler implements Runnable {
-        @Override public void run() {
+        @Override
+        public void run() {
             nodesSampler.sample();
             if (!closed) {
                 nodesSamplerFuture = threadPool.schedule(nodesSamplerInterval, ThreadPool.Names.CACHED, this);
@@ -251,7 +251,8 @@ public class TransportClientNodesService extends AbstractComponent {
 
     class SimpleNodeSampler implements NodeSampler {
 
-        @Override public synchronized void sample() {
+        @Override
+        public synchronized void sample() {
             if (closed) {
                 return;
             }
@@ -267,7 +268,8 @@ public class TransportClientNodesService extends AbstractComponent {
                 }
                 try {
                     NodesInfoResponse nodeInfo = transportService.submitRequest(node, TransportActions.Admin.Cluster.Node.INFO, Requests.nodesInfoRequest("_local"), new FutureTransportResponseHandler<NodesInfoResponse>() {
-                        @Override public NodesInfoResponse newInstance() {
+                        @Override
+                        public NodesInfoResponse newInstance() {
                             return new NodesInfoResponse();
                         }
                     }).txGet();
@@ -286,7 +288,8 @@ public class TransportClientNodesService extends AbstractComponent {
 
     class SniffNodesSampler implements NodeSampler {
 
-        @Override public synchronized void sample() {
+        @Override
+        public synchronized void sample() {
             if (closed) {
                 return;
             }
@@ -305,25 +308,30 @@ public class TransportClientNodesService extends AbstractComponent {
             final CopyOnWriteArrayList<NodesInfoResponse> nodesInfoResponses = new CopyOnWriteArrayList<NodesInfoResponse>();
             for (final DiscoveryNode listedNode : nodesToPing.values()) {
                 threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(new Runnable() {
-                    @Override public void run() {
+                    @Override
+                    public void run() {
                         try {
                             transportService.connectToNode(listedNode); // make sure we are connected to it
                             transportService.sendRequest(listedNode, TransportActions.Admin.Cluster.Node.INFO, Requests.nodesInfoRequest("_all"), new BaseTransportResponseHandler<NodesInfoResponse>() {
 
-                                @Override public NodesInfoResponse newInstance() {
+                                @Override
+                                public NodesInfoResponse newInstance() {
                                     return new NodesInfoResponse();
                                 }
 
-                                @Override public String executor() {
+                                @Override
+                                public String executor() {
                                     return ThreadPool.Names.SAME;
                                 }
 
-                                @Override public void handleResponse(NodesInfoResponse response) {
+                                @Override
+                                public void handleResponse(NodesInfoResponse response) {
                                     nodesInfoResponses.add(response);
                                     latch.countDown();
                                 }
 
-                                @Override public void handleException(TransportException exp) {
+                                @Override
+                                public void handleException(TransportException exp) {
                                     logger.debug("Failed to get node info from " + listedNode + ", removed from nodes list", exp);
                                     latch.countDown();
                                 }

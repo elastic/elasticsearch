@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.analyze;
 
+import com.google.common.collect.Lists;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
@@ -32,7 +33,6 @@ import org.elasticsearch.action.support.single.custom.TransportSingleCustomOpera
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.ShardsIterator;
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.settings.Settings;
@@ -46,44 +46,52 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class TransportAnalyzeAction extends TransportSingleCustomOperationAction<AnalyzeRequest, AnalyzeResponse> {
 
     private final IndicesService indicesService;
 
-    @Inject public TransportAnalyzeAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                          IndicesService indicesService) {
+    @Inject
+    public TransportAnalyzeAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
+                                  IndicesService indicesService) {
         super(settings, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
     }
 
-    @Override protected String executor() {
+    @Override
+    protected String executor() {
         return ThreadPool.Names.INDEX;
     }
 
-    @Override protected AnalyzeRequest newRequest() {
+    @Override
+    protected AnalyzeRequest newRequest() {
         return new AnalyzeRequest();
     }
 
-    @Override protected AnalyzeResponse newResponse() {
+    @Override
+    protected AnalyzeResponse newResponse() {
         return new AnalyzeResponse();
     }
 
-    @Override protected String transportAction() {
+    @Override
+    protected String transportAction() {
         return TransportActions.Admin.Indices.ANALYZE;
     }
 
-    @Override protected String transportShardAction() {
+    @Override
+    protected String transportShardAction() {
         return "indices/analyze/shard";
     }
 
-    @Override protected ShardsIterator shards(ClusterState clusterState, AnalyzeRequest request) {
+    @Override
+    protected ShardsIterator shards(ClusterState clusterState, AnalyzeRequest request) {
         request.index(clusterState.metaData().concreteIndex(request.index()));
         return clusterState.routingTable().index(request.index()).randomAllActiveShardsIt();
     }
 
-    @Override protected AnalyzeResponse shardOperation(AnalyzeRequest request, int shardId) throws ElasticSearchException {
+    @Override
+    protected AnalyzeResponse shardOperation(AnalyzeRequest request, int shardId) throws ElasticSearchException {
         IndexService indexService = indicesService.indexServiceSafe(request.index());
         Analyzer analyzer = null;
         String field = null;

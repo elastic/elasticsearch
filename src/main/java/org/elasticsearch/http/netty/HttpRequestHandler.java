@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,16 +19,12 @@
 
 package org.elasticsearch.http.netty;
 
-import org.elasticsearch.common.netty.channel.ChannelHandler;
-import org.elasticsearch.common.netty.channel.ChannelHandlerContext;
-import org.elasticsearch.common.netty.channel.ExceptionEvent;
-import org.elasticsearch.common.netty.channel.MessageEvent;
-import org.elasticsearch.common.netty.channel.SimpleChannelUpstreamHandler;
-import org.elasticsearch.common.netty.handler.codec.http.HttpRequest;
+import org.jboss.netty.channel.*;
+import org.jboss.netty.handler.codec.http.HttpRequest;
 
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 @ChannelHandler.Sharable
 public class HttpRequestHandler extends SimpleChannelUpstreamHandler {
@@ -39,13 +35,15 @@ public class HttpRequestHandler extends SimpleChannelUpstreamHandler {
         this.serverTransport = serverTransport;
     }
 
-    @Override public void messageReceived(ChannelHandlerContext ctx, MessageEvent e) throws Exception {
+    @Override
+    public void messageReceived(ChannelHandlerContext ctx, MessageEvent e) throws Exception {
         HttpRequest request = (HttpRequest) e.getMessage();
         serverTransport.dispatchRequest(new NettyHttpRequest(request), new NettyHttpChannel(serverTransport, e.getChannel(), request));
         super.messageReceived(ctx, e);
     }
 
-    @Override public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) throws Exception {
+    @Override
+    public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) throws Exception {
         serverTransport.exceptionCaught(ctx, e);
     }
 }

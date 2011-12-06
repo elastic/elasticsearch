@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -132,7 +132,8 @@ public class SearchStats implements Streamable, ToXContent {
             return stats;
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             queryCount = in.readVLong();
             queryTimeInMillis = in.readVLong();
             queryCurrent = in.readVLong();
@@ -142,7 +143,8 @@ public class SearchStats implements Streamable, ToXContent {
             fetchCurrent = in.readVLong();
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(queryCount);
             out.writeVLong(queryTimeInMillis);
             out.writeVLong(queryCurrent);
@@ -152,7 +154,8 @@ public class SearchStats implements Streamable, ToXContent {
             out.writeVLong(fetchCurrent);
         }
 
-        @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(Fields.QUERY_TOTAL, queryCount);
             builder.field(Fields.QUERY_TIME, queryTime().toString());
             builder.field(Fields.QUERY_TIME_IN_MILLIS, queryTimeInMillis);
@@ -169,7 +172,8 @@ public class SearchStats implements Streamable, ToXContent {
 
     private Stats totalStats;
 
-    @Nullable Map<String, Stats> groupStats;
+    @Nullable
+    Map<String, Stats> groupStats;
 
     public SearchStats() {
         totalStats = new Stats();
@@ -208,11 +212,13 @@ public class SearchStats implements Streamable, ToXContent {
         return this.totalStats;
     }
 
-    @Nullable public Map<String, Stats> groupStats() {
+    @Nullable
+    public Map<String, Stats> groupStats() {
         return this.groupStats;
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject(Fields.SEARCH);
         totalStats.toXContent(builder, params);
         if (groupStats != null && !groupStats.isEmpty()) {
@@ -247,7 +253,8 @@ public class SearchStats implements Streamable, ToXContent {
         return searchStats;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         totalStats = Stats.readStats(in);
         if (in.readBoolean()) {
             int size = in.readVInt();
@@ -258,7 +265,8 @@ public class SearchStats implements Streamable, ToXContent {
         }
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         totalStats.writeTo(out);
         if (groupStats == null || groupStats.isEmpty()) {
             out.writeBoolean(false);

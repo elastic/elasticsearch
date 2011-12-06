@@ -1,0 +1,14 @@
+{
+    "filtered":{
+        "filter":{
+            "limit":{
+                "value":2
+            }
+        },
+        "query":{
+            "term":{
+                "name.first":"shay"
+            }
+        }
+    }
+}

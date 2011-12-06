@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,9 +19,9 @@
 
 package org.elasticsearch.discovery.zen.elect;
 
+import com.google.common.collect.Lists;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.settings.NodeSettingsService;
@@ -32,7 +32,7 @@ import java.util.Iterator;
 import java.util.List;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class ElectMasterService extends AbstractComponent {
 
@@ -112,7 +112,8 @@ public class ElectMasterService extends AbstractComponent {
     }
 
     class ApplySettings implements NodeSettingsService.Listener {
-        @Override public void onRefreshSettings(Settings settings) {
+        @Override
+        public void onRefreshSettings(Settings settings) {
             int minimumMasterNodes = settings.getAsInt("discovery.zen.minimum_master_nodes", ElectMasterService.this.minimumMasterNodes);
             if (minimumMasterNodes != ElectMasterService.this.minimumMasterNodes) {
                 logger.info("updating [discovery.zen.minimum_master_nodes] from [{}] to [{}]", ElectMasterService.this.minimumMasterNodes, minimumMasterNodes);
@@ -123,7 +124,8 @@ public class ElectMasterService extends AbstractComponent {
 
     private static class NodeComparator implements Comparator<DiscoveryNode> {
 
-        @Override public int compare(DiscoveryNode o1, DiscoveryNode o2) {
+        @Override
+        public int compare(DiscoveryNode o1, DiscoveryNode o2) {
             return o1.id().compareTo(o2.id());
         }
     }

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -31,7 +31,7 @@ import java.io.IOException;
  * capabilities depends on the index engine used. For example, the robin one requires refresh to be called, but by
  * default a refresh is scheduled periodically.
  *
- * @author kimchy (shay.banon)
+ *
  * @see org.elasticsearch.client.Requests#refreshRequest(String...)
  * @see org.elasticsearch.client.IndicesAdminClient#refresh(RefreshRequest)
  * @see RefreshResponse
@@ -52,7 +52,8 @@ public class RefreshRequest extends BroadcastOperationRequest {
     /**
      * Should the listener be called on a separate thread if needed.
      */
-    @Override public RefreshRequest listenerThreaded(boolean threadedListener) {
+    @Override
+    public RefreshRequest listenerThreaded(boolean threadedListener) {
         super.listenerThreaded(threadedListener);
         return this;
     }
@@ -60,7 +61,8 @@ public class RefreshRequest extends BroadcastOperationRequest {
     /**
      * Controls the operation threading model.
      */
-    @Override public RefreshRequest operationThreading(BroadcastOperationThreading operationThreading) {
+    @Override
+    public RefreshRequest operationThreading(BroadcastOperationThreading operationThreading) {
         super.operationThreading(operationThreading);
         return this;
     }

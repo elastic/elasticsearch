@@ -19,8 +19,8 @@
 
 package org.elasticsearch.search.facet.terms;
 
-import org.elasticsearch.common.collect.ImmutableSet;
-import org.elasticsearch.common.collect.Lists;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
@@ -59,20 +59,23 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class TermsFacetProcessor extends AbstractComponent implements FacetProcessor {
 
-    @Inject public TermsFacetProcessor(Settings settings) {
+    @Inject
+    public TermsFacetProcessor(Settings settings) {
         super(settings);
         InternalTermsFacet.registerStreams();
     }
 
-    @Override public String[] types() {
+    @Override
+    public String[] types() {
         return new String[]{TermsFacet.TYPE};
     }
 
-    @Override public FacetCollector parse(String facetName, XContentParser parser, SearchContext context) throws IOException {
+    @Override
+    public FacetCollector parse(String facetName, XContentParser parser, SearchContext context) throws IOException {
         String field = null;
         int size = 10;
 
@@ -203,7 +206,8 @@ public class TermsFacetProcessor extends AbstractComponent implements FacetProce
         return new TermsStringFacetCollector(facetName, field, size, comparatorType, allTerms, context, excluded, pattern, scriptLang, script, params);
     }
 
-    @Override public Facet reduce(String name, List<Facet> facets) {
+    @Override
+    public Facet reduce(String name, List<Facet> facets) {
         InternalTermsFacet first = (InternalTermsFacet) facets.get(0);
         return first.reduce(name, facets);
     }

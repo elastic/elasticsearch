@@ -16,7 +16,7 @@
 
 package org.elasticsearch.common.inject;
 
-import org.elasticsearch.common.collect.Lists;
+import com.google.common.collect.Lists;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.spi.PrivateElements;
 
@@ -37,7 +37,8 @@ class PrivateElementProcessor extends AbstractProcessor {
         this.stage = stage;
     }
 
-    @Override public Boolean visit(PrivateElements privateElements) {
+    @Override
+    public Boolean visit(PrivateElements privateElements) {
         InjectorShell.Builder builder = new InjectorShell.Builder()
                 .parent(injector)
                 .stage(stage)

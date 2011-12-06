@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -33,20 +33,23 @@ import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class TransportIndexDeleteAction extends TransportIndexReplicationOperationAction<IndexDeleteRequest, IndexDeleteResponse, ShardDeleteRequest, ShardDeleteRequest, ShardDeleteResponse> {
 
-    @Inject public TransportIndexDeleteAction(Settings settings, ClusterService clusterService, TransportService transportService,
-                                              ThreadPool threadPool, TransportShardDeleteAction deleteAction) {
+    @Inject
+    public TransportIndexDeleteAction(Settings settings, ClusterService clusterService, TransportService transportService,
+                                      ThreadPool threadPool, TransportShardDeleteAction deleteAction) {
         super(settings, transportService, clusterService, threadPool, deleteAction);
     }
 
-    @Override protected IndexDeleteRequest newRequestInstance() {
+    @Override
+    protected IndexDeleteRequest newRequestInstance() {
         return new IndexDeleteRequest();
     }
 
-    @Override protected IndexDeleteResponse newResponseInstance(IndexDeleteRequest request, AtomicReferenceArray shardsResponses) {
+    @Override
+    protected IndexDeleteResponse newResponseInstance(IndexDeleteRequest request, AtomicReferenceArray shardsResponses) {
         int successfulShards = 0;
         int failedShards = 0;
         ArrayList<ShardDeleteResponse> responses = new ArrayList<ShardDeleteResponse>();
@@ -61,23 +64,28 @@ public class TransportIndexDeleteAction extends TransportIndexReplicationOperati
         return new IndexDeleteResponse(request.index(), successfulShards, failedShards, responses.toArray(new ShardDeleteResponse[responses.size()]));
     }
 
-    @Override protected boolean accumulateExceptions() {
+    @Override
+    protected boolean accumulateExceptions() {
         return false;
     }
 
-    @Override protected String transportAction() {
+    @Override
+    protected String transportAction() {
         return "indices/index/delete";
     }
 
-    @Override protected void checkBlock(IndexDeleteRequest request, ClusterState state) {
+    @Override
+    protected void checkBlock(IndexDeleteRequest request, ClusterState state) {
         state.blocks().indexBlockedRaiseException(ClusterBlockLevel.WRITE, request.index());
     }
 
-    @Override protected GroupShardsIterator shards(IndexDeleteRequest request) {
+    @Override
+    protected GroupShardsIterator shards(IndexDeleteRequest request) {
         return clusterService.operationRouting().broadcastDeleteShards(clusterService.state(), request.index());
     }
 
-    @Override protected ShardDeleteRequest newShardRequestInstance(IndexDeleteRequest request, int shardId) {
+    @Override
+    protected ShardDeleteRequest newShardRequestInstance(IndexDeleteRequest request, int shardId) {
         return new ShardDeleteRequest(request, shardId);
     }
 }

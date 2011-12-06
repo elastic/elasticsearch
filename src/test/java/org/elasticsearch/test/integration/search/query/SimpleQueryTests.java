@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -32,25 +32,28 @@ import org.testng.annotations.Test;
 
 import java.util.Arrays;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.*;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.hamcrest.MatcherAssert.*;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class SimpleQueryTests extends AbstractNodesTests {
 
     private Client client;
 
-    @BeforeClass public void createNodes() throws Exception {
+    @BeforeClass
+    public void createNodes() throws Exception {
         startNode("node1");
         client = getClient();
     }
 
-    @AfterClass public void closeNodes() {
+    @AfterClass
+    public void closeNodes() {
         client.close();
         closeAllNodes();
     }
@@ -59,7 +62,8 @@ public class SimpleQueryTests extends AbstractNodesTests {
         return client("node1");
     }
 
-    @Test public void passQueryAsStringTest() throws Exception {
+    @Test
+    public void passQueryAsStringTest() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
@@ -74,7 +78,8 @@ public class SimpleQueryTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
     }
 
-    @Test public void queryStringAnalyzedWildcard() throws Exception {
+    @Test
+    public void queryStringAnalyzedWildcard() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
@@ -103,11 +108,13 @@ public class SimpleQueryTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
     }
 
-    @Test public void typeFilterTypeIndexedTests() throws Exception {
+    @Test
+    public void typeFilterTypeIndexedTests() throws Exception {
         typeFilterTests("not_analyzed");
     }
 
-    @Test public void typeFilterTypeNotIndexedTests() throws Exception {
+    @Test
+    public void typeFilterTypeNotIndexedTests() throws Exception {
         typeFilterTests("no");
     }
 
@@ -146,11 +153,13 @@ public class SimpleQueryTests extends AbstractNodesTests {
         assertThat(client.prepareCount().setTypes("type1", "type2").setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(5l));
     }
 
-    @Test public void idsFilterTestsIdIndexed() throws Exception {
+    @Test
+    public void idsFilterTestsIdIndexed() throws Exception {
         idsFilterTests("not_analyzed");
     }
 
-    @Test public void idsFilterTestsIdNotIndexed() throws Exception {
+    @Test
+    public void idsFilterTestsIdNotIndexed() throws Exception {
         idsFilterTests("no");
     }
 
@@ -200,7 +209,8 @@ public class SimpleQueryTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().totalHits(), equalTo(0l));
     }
 
-    @Test public void testLimitFilter() throws Exception {
+    @Test
+    public void testLimitFilter() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
@@ -220,7 +230,8 @@ public class SimpleQueryTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().totalHits(), equalTo(2l));
     }
 
-    @Test public void filterExistsMissingTests() throws Exception {
+    @Test
+    public void filterExistsMissingTests() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
@@ -282,7 +293,8 @@ public class SimpleQueryTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().getAt(1).id(), anyOf(equalTo("3"), equalTo("4")));
     }
 
-    @Test public void passQueryAsJSONStringTest() throws Exception {
+    @Test
+    public void passQueryAsJSONStringTest() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
@@ -306,7 +318,8 @@ public class SimpleQueryTests extends AbstractNodesTests {
 
     }
 
-    @Test public void testFiltersWithCustomCacheKey() throws Exception {
+    @Test
+    public void testFiltersWithCustomCacheKey() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
 
         client.prepareIndex("test", "type1", "1").setSource("field1", "value1").execute().actionGet();

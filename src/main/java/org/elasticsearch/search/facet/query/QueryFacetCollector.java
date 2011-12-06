@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -20,13 +20,7 @@
 package org.elasticsearch.search.facet.query;
 
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.DeletionAwareConstantScoreQuery;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilteredQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryWrapperFilter;
-import org.apache.lucene.search.TotalHitCountCollector;
+import org.apache.lucene.search.*;
 import org.elasticsearch.common.lucene.docset.DocSet;
 import org.elasticsearch.common.lucene.docset.DocSets;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -39,7 +33,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class QueryFacetCollector extends AbstractFacetCollector implements OptimizeGlobalFacetCollector {
 
@@ -62,17 +56,20 @@ public class QueryFacetCollector extends AbstractFacetCollector implements Optim
         }
     }
 
-    @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
+    @Override
+    protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
         docSet = DocSets.convert(reader, filter.getDocIdSet(reader));
     }
 
-    @Override protected void doCollect(int doc) throws IOException {
+    @Override
+    protected void doCollect(int doc) throws IOException {
         if (docSet.get(doc)) {
             count++;
         }
     }
 
-    @Override public void optimizedGlobalExecution(SearchContext searchContext) throws IOException {
+    @Override
+    public void optimizedGlobalExecution(SearchContext searchContext) throws IOException {
         Query query = this.query;
         if (super.filter != null) {
             query = new FilteredQuery(query, super.filter);
@@ -86,7 +83,8 @@ public class QueryFacetCollector extends AbstractFacetCollector implements Optim
         count = collector.getTotalHits();
     }
 
-    @Override public Facet facet() {
+    @Override
+    public Facet facet() {
         return new InternalQueryFacet(facetName, count);
     }
 

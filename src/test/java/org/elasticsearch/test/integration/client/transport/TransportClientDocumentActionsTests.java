@@ -27,14 +27,15 @@ import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.test.integration.document.DocumentActionsTests;
 import org.elasticsearch.transport.TransportService;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class TransportClientDocumentActionsTests extends DocumentActionsTests {
 
-    @Override protected Client getClient1() {
+    @Override
+    protected Client getClient1() {
         TransportAddress server1Address = ((InternalNode) node("server1")).injector().getInstance(TransportService.class).boundAddress().publishAddress();
         TransportClient client = new TransportClient(settingsBuilder()
                 .put("cluster.name", "test-cluster-" + NetworkUtils.getLocalAddress().getHostName())
@@ -43,7 +44,8 @@ public class TransportClientDocumentActionsTests extends DocumentActionsTests {
         return client;
     }
 
-    @Override protected Client getClient2() {
+    @Override
+    protected Client getClient2() {
         TransportAddress server2Address = ((InternalNode) node("server2")).injector().getInstance(TransportService.class).boundAddress().publishAddress();
         TransportClient client = new TransportClient(settingsBuilder()
                 .put("cluster.name", "test-cluster-" + NetworkUtils.getLocalAddress().getHostName())

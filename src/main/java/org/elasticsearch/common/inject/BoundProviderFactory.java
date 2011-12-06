@@ -61,7 +61,8 @@ class BoundProviderFactory<T> implements InternalFactory<T>, CreationListener {
         }
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return providerKey.toString();
     }
 }

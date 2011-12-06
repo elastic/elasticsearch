@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -28,7 +28,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public abstract class SingleShardOperationRequest implements ActionRequest {
 
@@ -44,7 +44,8 @@ public abstract class SingleShardOperationRequest implements ActionRequest {
         this.index = index;
     }
 
-    @Override public ActionRequestValidationException validate() {
+    @Override
+    public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (index == null) {
             validationException = Actions.addValidationError("index is missing", validationException);
@@ -64,11 +65,13 @@ public abstract class SingleShardOperationRequest implements ActionRequest {
     /**
      * Should the listener be called on a separate thread if needed.
      */
-    @Override public boolean listenerThreaded() {
+    @Override
+    public boolean listenerThreaded() {
         return threadedListener;
     }
 
-    @Override public SingleShardOperationRequest listenerThreaded(boolean threadedListener) {
+    @Override
+    public SingleShardOperationRequest listenerThreaded(boolean threadedListener) {
         this.threadedListener = threadedListener;
         return this;
     }
@@ -88,12 +91,14 @@ public abstract class SingleShardOperationRequest implements ActionRequest {
         return this;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         index = in.readUTF();
         // no need to pass threading over the network, they are always false when coming throw a thread pool
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(index);
     }
 

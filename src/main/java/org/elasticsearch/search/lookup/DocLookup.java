@@ -19,11 +19,11 @@
 
 package org.elasticsearch.search.lookup;
 
+import com.google.common.collect.Maps;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.DocFieldData;
 import org.elasticsearch.index.field.data.FieldData;
@@ -37,7 +37,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class DocLookup implements Map {
 
@@ -91,7 +91,8 @@ public class DocLookup implements Map {
         return scorer.score();
     }
 
-    @Override public Object get(Object key) {
+    @Override
+    public Object get(Object key) {
         // assume its a string...
         String fieldName = key.toString();
         FieldData fieldData = localCacheFieldData.get(fieldName);

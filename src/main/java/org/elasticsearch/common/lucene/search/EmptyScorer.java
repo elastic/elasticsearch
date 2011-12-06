@@ -25,7 +25,7 @@ import org.apache.lucene.search.Similarity;
 import java.io.IOException;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class EmptyScorer extends Scorer {
 
@@ -33,19 +33,23 @@ public class EmptyScorer extends Scorer {
         super(similarity);
     }
 
-    @Override public float score() throws IOException {
+    @Override
+    public float score() throws IOException {
         return 0;
     }
 
-    @Override public int docID() {
+    @Override
+    public int docID() {
         return NO_MORE_DOCS;
     }
 
-    @Override public int nextDoc() throws IOException {
+    @Override
+    public int nextDoc() throws IOException {
         return NO_MORE_DOCS;
     }
 
-    @Override public int advance(int target) throws IOException {
+    @Override
+    public int advance(int target) throws IOException {
         return NO_MORE_DOCS;
     }
 }

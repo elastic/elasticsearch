@@ -24,7 +24,7 @@ import org.elasticsearch.common.component.CloseableComponent;
 import org.elasticsearch.index.IndexComponent;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public interface IdCache extends IndexComponent, CloseableComponent, Iterable<IdReaderCache> {
 

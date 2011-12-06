@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -22,7 +22,7 @@ package org.elasticsearch.common.logging.support;
 import org.elasticsearch.common.logging.ESLogger;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public abstract class AbstractESLogger implements ESLogger {
 
@@ -32,11 +32,13 @@ public abstract class AbstractESLogger implements ESLogger {
         this.prefix = prefix;
     }
 
-    @Override public String getPrefix() {
+    @Override
+    public String getPrefix() {
         return this.prefix;
     }
 
-    @Override public void trace(String msg, Object... params) {
+    @Override
+    public void trace(String msg, Object... params) {
         if (isTraceEnabled()) {
             internalTrace(LoggerMessageFormat.format(prefix, msg, params));
         }
@@ -44,7 +46,8 @@ public abstract class AbstractESLogger implements ESLogger {
 
     protected abstract void internalTrace(String msg);
 
-    @Override public void trace(String msg, Throwable cause, Object... params) {
+    @Override
+    public void trace(String msg, Throwable cause, Object... params) {
         if (isTraceEnabled()) {
             internalTrace(LoggerMessageFormat.format(prefix, msg, params), cause);
         }
@@ -53,7 +56,8 @@ public abstract class AbstractESLogger implements ESLogger {
     protected abstract void internalTrace(String msg, Throwable cause);
 
 
-    @Override public void debug(String msg, Object... params) {
+    @Override
+    public void debug(String msg, Object... params) {
         if (isDebugEnabled()) {
             internalDebug(LoggerMessageFormat.format(prefix, msg, params));
         }
@@ -61,7 +65,8 @@ public abstract class AbstractESLogger implements ESLogger {
 
     protected abstract void internalDebug(String msg);
 
-    @Override public void debug(String msg, Throwable cause, Object... params) {
+    @Override
+    public void debug(String msg, Throwable cause, Object... params) {
         if (isDebugEnabled()) {
             internalDebug(LoggerMessageFormat.format(prefix, msg, params), cause);
         }
@@ -70,7 +75,8 @@ public abstract class AbstractESLogger implements ESLogger {
     protected abstract void internalDebug(String msg, Throwable cause);
 
 
-    @Override public void info(String msg, Object... params) {
+    @Override
+    public void info(String msg, Object... params) {
         if (isInfoEnabled()) {
             internalInfo(LoggerMessageFormat.format(prefix, msg, params));
         }
@@ -78,7 +84,8 @@ public abstract class AbstractESLogger implements ESLogger {
 
     protected abstract void internalInfo(String msg);
 
-    @Override public void info(String msg, Throwable cause, Object... params) {
+    @Override
+    public void info(String msg, Throwable cause, Object... params) {
         if (isInfoEnabled()) {
             internalInfo(LoggerMessageFormat.format(prefix, msg, params), cause);
         }
@@ -87,7 +94,8 @@ public abstract class AbstractESLogger implements ESLogger {
     protected abstract void internalInfo(String msg, Throwable cause);
 
 
-    @Override public void warn(String msg, Object... params) {
+    @Override
+    public void warn(String msg, Object... params) {
         if (isWarnEnabled()) {
             internalWarn(LoggerMessageFormat.format(prefix, msg, params));
         }
@@ -95,7 +103,8 @@ public abstract class AbstractESLogger implements ESLogger {
 
     protected abstract void internalWarn(String msg);
 
-    @Override public void warn(String msg, Throwable cause, Object... params) {
+    @Override
+    public void warn(String msg, Throwable cause, Object... params) {
         if (isWarnEnabled()) {
             internalWarn(LoggerMessageFormat.format(prefix, msg, params), cause);
         }
@@ -104,7 +113,8 @@ public abstract class AbstractESLogger implements ESLogger {
     protected abstract void internalWarn(String msg, Throwable cause);
 
 
-    @Override public void error(String msg, Object... params) {
+    @Override
+    public void error(String msg, Object... params) {
         if (isErrorEnabled()) {
             internalError(LoggerMessageFormat.format(prefix, msg, params));
         }
@@ -112,7 +122,8 @@ public abstract class AbstractESLogger implements ESLogger {
 
     protected abstract void internalError(String msg);
 
-    @Override public void error(String msg, Throwable cause, Object... params) {
+    @Override
+    public void error(String msg, Throwable cause, Object... params) {
         if (isErrorEnabled()) {
             internalError(LoggerMessageFormat.format(prefix, msg, params), cause);
         }

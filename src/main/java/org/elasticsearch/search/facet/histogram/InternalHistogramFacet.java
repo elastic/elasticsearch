@@ -29,7 +29,7 @@ import org.elasticsearch.search.facet.histogram.unbounded.InternalFullHistogramF
 import java.util.List;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public abstract class InternalHistogramFacet implements HistogramFacet, InternalFacet {
 

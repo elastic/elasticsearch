@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -27,24 +27,27 @@ import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.*;
-import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.hamcrest.MatcherAssert.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 @Test
 public class SearchPreferenceTests extends AbstractNodesTests {
 
     private Client client;
 
-    @BeforeClass public void createNodes() throws Exception {
+    @BeforeClass
+    public void createNodes() throws Exception {
         Settings settings = settingsBuilder().put("number_of_shards", 3).put("number_of_replicas", 1).build();
         startNode("server1", settings);
         startNode("server2", settings);
         client = getClient();
     }
 
-    @AfterClass public void closeNodes() {
+    @AfterClass
+    public void closeNodes() {
         client.close();
         closeAllNodes();
     }
@@ -53,7 +56,8 @@ public class SearchPreferenceTests extends AbstractNodesTests {
         return client("server1");
     }
 
-    @Test public void noPreferenceRandom() throws Exception {
+    @Test
+    public void noPreferenceRandom() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
 
         client.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("number_of_shards", 1).put("number_of_replicas", 1)).execute().actionGet();
@@ -71,7 +75,8 @@ public class SearchPreferenceTests extends AbstractNodesTests {
         assertThat(firstNodeId, not(equalTo(secondNodeId)));
     }
 
-    @Test public void simplePreferenceTests() throws Exception {
+    @Test
+    public void simplePreferenceTests() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
 
         client.admin().indices().prepareCreate("test").execute().actionGet();

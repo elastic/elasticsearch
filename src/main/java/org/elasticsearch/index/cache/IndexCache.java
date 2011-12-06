@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -39,7 +39,7 @@ import org.elasticsearch.index.cache.query.parser.QueryParserCache;
 import org.elasticsearch.index.settings.IndexSettings;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class IndexCache extends AbstractIndexComponent implements CloseableComponent, ClusterStateListener {
 
@@ -60,8 +60,9 @@ public class IndexCache extends AbstractIndexComponent implements CloseableCompo
     private long latestCacheStatsTimestamp = -1;
     private CacheStats latestCacheStats;
 
-    @Inject public IndexCache(Index index, @IndexSettings Settings indexSettings, FilterCache filterCache, FieldDataCache fieldDataCache,
-                              QueryParserCache queryParserCache, IdCache idCache, BloomCache bloomCache) {
+    @Inject
+    public IndexCache(Index index, @IndexSettings Settings indexSettings, FilterCache filterCache, FieldDataCache fieldDataCache,
+                      QueryParserCache queryParserCache, IdCache idCache, BloomCache bloomCache) {
         super(index, indexSettings);
         this.filterCache = filterCache;
         this.fieldDataCache = fieldDataCache;
@@ -118,7 +119,8 @@ public class IndexCache extends AbstractIndexComponent implements CloseableCompo
         return this.queryParserCache;
     }
 
-    @Override public void close() throws ElasticSearchException {
+    @Override
+    public void close() throws ElasticSearchException {
         filterCache.close();
         fieldDataCache.close();
         idCache.close();
@@ -144,7 +146,8 @@ public class IndexCache extends AbstractIndexComponent implements CloseableCompo
         bloomCache.clear();
     }
 
-    @Override public void clusterChanged(ClusterChangedEvent event) {
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
         // clear the query parser cache if the metadata (mappings) changed...
         if (event.metaDataChanged()) {
             queryParserCache.clear();

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -32,11 +32,11 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.concurrent.Executors.*;
-import static org.elasticsearch.common.util.concurrent.EsExecutors.*;
+import static java.util.concurrent.Executors.newSingleThreadExecutor;
+import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class RiverClusterService extends AbstractLifecycleComponent<RiverClusterService> {
 
@@ -50,18 +50,21 @@ public class RiverClusterService extends AbstractLifecycleComponent<RiverCluster
 
     private volatile RiverClusterState clusterState = RiverClusterState.builder().build();
 
-    @Inject public RiverClusterService(Settings settings, TransportService transportService, ClusterService clusterService) {
+    @Inject
+    public RiverClusterService(Settings settings, TransportService transportService, ClusterService clusterService) {
         super(settings);
         this.clusterService = clusterService;
 
         this.publishAction = new PublishRiverClusterStateAction(settings, transportService, clusterService, new UpdateClusterStateListener());
     }
 
-    @Override protected void doStart() throws ElasticSearchException {
+    @Override
+    protected void doStart() throws ElasticSearchException {
         this.updateTasksExecutor = newSingleThreadExecutor(daemonThreadFactory(settings, "riverClusterService#updateTask"));
     }
 
-    @Override protected void doStop() throws ElasticSearchException {
+    @Override
+    protected void doStop() throws ElasticSearchException {
         updateTasksExecutor.shutdown();
         try {
             updateTasksExecutor.awaitTermination(10, TimeUnit.SECONDS);
@@ -70,7 +73,8 @@ public class RiverClusterService extends AbstractLifecycleComponent<RiverCluster
         }
     }
 
-    @Override protected void doClose() throws ElasticSearchException {
+    @Override
+    protected void doClose() throws ElasticSearchException {
     }
 
     public void add(RiverClusterStateListener listener) {
@@ -86,7 +90,8 @@ public class RiverClusterService extends AbstractLifecycleComponent<RiverCluster
             return;
         }
         updateTasksExecutor.execute(new Runnable() {
-            @Override public void run() {
+            @Override
+            public void run() {
                 if (!lifecycle.started()) {
                     logger.debug("processing [{}]: ignoring, cluster_service not started", source);
                     return;
@@ -140,7 +145,8 @@ public class RiverClusterService extends AbstractLifecycleComponent<RiverCluster
     }
 
     private class UpdateClusterStateListener implements PublishRiverClusterStateAction.NewClusterStateListener {
-        @Override public void onNewClusterState(final RiverClusterState clusterState) {
+        @Override
+        public void onNewClusterState(final RiverClusterState clusterState) {
             ClusterState state = clusterService.state();
             if (state.nodes().localNodeMaster()) {
                 logger.warn("master should not receive new cluster state from [{}]", state.nodes().masterNode());
@@ -148,7 +154,8 @@ public class RiverClusterService extends AbstractLifecycleComponent<RiverCluster
             }
 
             submitStateUpdateTask("received_state", new RiverClusterStateUpdateTask() {
-                @Override public RiverClusterState execute(RiverClusterState currentState) {
+                @Override
+                public RiverClusterState execute(RiverClusterState currentState) {
                     return clusterState;
                 }
             });

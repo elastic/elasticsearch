@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,18 +19,18 @@
 
 package org.elasticsearch.transport;
 
+import com.google.common.util.concurrent.AbstractFuture;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchInterruptedException;
 import org.elasticsearch.ElasticSearchTimeoutException;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.util.concurrent.AbstractFuture;
 
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class PlainTransportFuture<V extends Streamable> extends AbstractFuture<V> implements TransportFuture<V>, TransportResponseHandler<V> {
 
@@ -40,7 +40,8 @@ public class PlainTransportFuture<V extends Streamable> extends AbstractFuture<V
         this.handler = handler;
     }
 
-    @Override public V txGet() throws ElasticSearchException {
+    @Override
+    public V txGet() throws ElasticSearchException {
         try {
             return get();
         } catch (InterruptedException e) {
@@ -54,7 +55,8 @@ public class PlainTransportFuture<V extends Streamable> extends AbstractFuture<V
         }
     }
 
-    @Override public V txGet(long timeout, TimeUnit unit) throws ElasticSearchException {
+    @Override
+    public V txGet(long timeout, TimeUnit unit) throws ElasticSearchException {
         try {
             return get(timeout, unit);
         } catch (TimeoutException e) {
@@ -70,25 +72,30 @@ public class PlainTransportFuture<V extends Streamable> extends AbstractFuture<V
         }
     }
 
-    @Override public V newInstance() {
+    @Override
+    public V newInstance() {
         return handler.newInstance();
     }
 
-    @Override public String executor() {
+    @Override
+    public String executor() {
         return handler.executor();
     }
 
-    @Override public void handleResponse(V response) {
+    @Override
+    public void handleResponse(V response) {
         handler.handleResponse(response);
         set(response);
     }
 
-    @Override public void handleException(TransportException exp) {
+    @Override
+    public void handleException(TransportException exp) {
         handler.handleException(exp);
         setException(exp);
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return "future(" + handler.toString() + ")";
     }
 }

@@ -31,11 +31,12 @@ import org.elasticsearch.search.facet.terms.InternalTermsFacet;
 import org.elasticsearch.search.facet.termsstats.InternalTermsStatsFacet;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class TransportFacetModule extends AbstractModule {
 
-    @Override protected void configure() {
+    @Override
+    protected void configure() {
         InternalFilterFacet.registerStreams();
         InternalQueryFacet.registerStreams();
         InternalGeoDistanceFacet.registerStreams();

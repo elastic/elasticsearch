@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -43,44 +43,51 @@ import org.elasticsearch.transport.TransportService;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
-import static org.elasticsearch.common.collect.Lists.*;
+import static com.google.common.collect.Lists.newArrayList;
 
 /**
  * Refresh action.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class TransportRefreshAction extends TransportBroadcastOperationAction<RefreshRequest, RefreshResponse, ShardRefreshRequest, ShardRefreshResponse> {
 
     private final IndicesService indicesService;
 
-    @Inject public TransportRefreshAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                          TransportService transportService, IndicesService indicesService) {
+    @Inject
+    public TransportRefreshAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+                                  TransportService transportService, IndicesService indicesService) {
         super(settings, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
     }
 
-    @Override protected String executor() {
+    @Override
+    protected String executor() {
         return ThreadPool.Names.MANAGEMENT;
     }
 
-    @Override protected String transportAction() {
+    @Override
+    protected String transportAction() {
         return TransportActions.Admin.Indices.REFRESH;
     }
 
-    @Override protected String transportShardAction() {
+    @Override
+    protected String transportShardAction() {
         return "indices/refresh/shard";
     }
 
-    @Override protected RefreshRequest newRequest() {
+    @Override
+    protected RefreshRequest newRequest() {
         return new RefreshRequest();
     }
 
-    @Override protected boolean ignoreNonActiveExceptions() {
+    @Override
+    protected boolean ignoreNonActiveExceptions() {
         return true;
     }
 
-    @Override protected boolean ignoreException(Throwable t) {
+    @Override
+    protected boolean ignoreException(Throwable t) {
         Throwable actual = ExceptionsHelper.unwrapCause(t);
         if (actual instanceof IllegalIndexShardStateException) {
             return true;
@@ -91,7 +98,8 @@ public class TransportRefreshAction extends TransportBroadcastOperationAction<Re
         return false;
     }
 
-    @Override protected RefreshResponse newResponse(RefreshRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
+    @Override
+    protected RefreshResponse newResponse(RefreshRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
         int successfulShards = 0;
         int failedShards = 0;
         List<ShardOperationFailedException> shardFailures = null;
@@ -112,19 +120,23 @@ public class TransportRefreshAction extends TransportBroadcastOperationAction<Re
         return new RefreshResponse(shardsResponses.length(), successfulShards, failedShards, shardFailures);
     }
 
-    @Override protected ShardRefreshRequest newShardRequest() {
+    @Override
+    protected ShardRefreshRequest newShardRequest() {
         return new ShardRefreshRequest();
     }
 
-    @Override protected ShardRefreshRequest newShardRequest(ShardRouting shard, RefreshRequest request) {
+    @Override
+    protected ShardRefreshRequest newShardRequest(ShardRouting shard, RefreshRequest request) {
         return new ShardRefreshRequest(shard.index(), shard.id(), request);
     }
 
-    @Override protected ShardRefreshResponse newShardResponse() {
+    @Override
+    protected ShardRefreshResponse newShardResponse() {
         return new ShardRefreshResponse();
     }
 
-    @Override protected ShardRefreshResponse shardOperation(ShardRefreshRequest request) throws ElasticSearchException {
+    @Override
+    protected ShardRefreshResponse shardOperation(ShardRefreshRequest request) throws ElasticSearchException {
         IndexShard indexShard = indicesService.indexServiceSafe(request.index()).shardSafe(request.shardId());
         indexShard.refresh(new Engine.Refresh(request.waitForOperations()));
         return new ShardRefreshResponse(request.index(), request.shardId());
@@ -133,7 +145,8 @@ public class TransportRefreshAction extends TransportBroadcastOperationAction<Re
     /**
      * The refresh request works against *all* shards.
      */
-    @Override protected GroupShardsIterator shards(RefreshRequest request, String[] concreteIndices, ClusterState clusterState) {
+    @Override
+    protected GroupShardsIterator shards(RefreshRequest request, String[] concreteIndices, ClusterState clusterState) {
         return clusterState.routingTable().allAssignedShardsGrouped(concreteIndices, true);
     }
 }

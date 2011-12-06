@@ -16,13 +16,13 @@
 
 package org.elasticsearch.common.inject;
 
-import org.elasticsearch.common.collect.ImmutableSet;
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.spi.Message;
 
 import java.util.Collection;
 
-import static org.elasticsearch.common.base.Preconditions.*;
+import static com.google.common.base.Preconditions.checkState;
 
 /**
  * Thrown when a programming error such as a misplaced annotation, illegal binding, or unsupported
@@ -74,7 +74,8 @@ public final class ConfigurationException extends RuntimeException {
         return (E) partialValue;
     }
 
-    @Override public String getMessage() {
+    @Override
+    public String getMessage() {
         return Errors.format("Guice configuration errors", messages);
     }
 

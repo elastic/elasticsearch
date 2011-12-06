@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -32,7 +32,7 @@ import java.io.Serializable;
 import java.util.concurrent.TimeUnit;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class OsStats implements Streamable, Serializable, ToXContent {
 
@@ -102,7 +102,8 @@ public class OsStats implements Streamable, Serializable, ToXContent {
         return swap();
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("os");
         builder.field("timestamp", timestamp);
 
@@ -160,7 +161,8 @@ public class OsStats implements Streamable, Serializable, ToXContent {
         return stats;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         timestamp = in.readVLong();
         loadAverage = new double[in.readVInt()];
         for (int i = 0; i < loadAverage.length; i++) {
@@ -178,7 +180,8 @@ public class OsStats implements Streamable, Serializable, ToXContent {
         }
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(timestamp);
         out.writeVInt(loadAverage.length);
         for (double val : loadAverage) {
@@ -232,12 +235,14 @@ public class OsStats implements Streamable, Serializable, ToXContent {
             return swap;
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             free = in.readLong();
             used = in.readLong();
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             out.writeLong(free);
             out.writeLong(used);
         }
@@ -258,7 +263,8 @@ public class OsStats implements Streamable, Serializable, ToXContent {
             return mem;
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             free = in.readLong();
             freePercent = in.readShort();
             used = in.readLong();
@@ -267,7 +273,8 @@ public class OsStats implements Streamable, Serializable, ToXContent {
             actualUsed = in.readLong();
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             out.writeLong(free);
             out.writeShort(freePercent);
             out.writeLong(used);
@@ -341,13 +348,15 @@ public class OsStats implements Streamable, Serializable, ToXContent {
             return cpu;
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             sys = in.readShort();
             user = in.readShort();
             idle = in.readShort();
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             out.writeShort(sys);
             out.writeShort(user);
             out.writeShort(idle);

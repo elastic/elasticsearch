@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -37,38 +37,45 @@ import org.elasticsearch.transport.TransportService;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
-import static org.elasticsearch.common.collect.Lists.*;
+import static com.google.common.collect.Lists.newArrayList;
 
 /**
- * @author kimchy (Shay Banon)
+ *
  */
 public class TransportBroadcastPingAction extends TransportBroadcastOperationAction<BroadcastPingRequest, BroadcastPingResponse, BroadcastShardPingRequest, BroadcastShardPingResponse> {
 
-    @Inject public TransportBroadcastPingAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService) {
+    @Inject
+    public TransportBroadcastPingAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService) {
         super(settings, threadPool, clusterService, transportService);
     }
 
-    @Override protected String executor() {
+    @Override
+    protected String executor() {
         return ThreadPool.Names.CACHED;
     }
 
-    @Override protected String transportAction() {
+    @Override
+    protected String transportAction() {
         return TransportActions.Admin.Cluster.Ping.BROADCAST;
     }
 
-    @Override protected String transportShardAction() {
+    @Override
+    protected String transportShardAction() {
         return "/cluster/ping/broadcast/shard";
     }
 
-    @Override protected BroadcastPingRequest newRequest() {
+    @Override
+    protected BroadcastPingRequest newRequest() {
         return new BroadcastPingRequest();
     }
 
-    @Override protected GroupShardsIterator shards(BroadcastPingRequest request, String[] concreteIndices, ClusterState clusterState) {
+    @Override
+    protected GroupShardsIterator shards(BroadcastPingRequest request, String[] concreteIndices, ClusterState clusterState) {
         return clusterService.operationRouting().searchShards(clusterState, request.indices(), concreteIndices, request.queryHint(), null, null);
     }
 
-    @Override protected BroadcastPingResponse newResponse(BroadcastPingRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
+    @Override
+    protected BroadcastPingResponse newResponse(BroadcastPingRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
         int successfulShards = 0;
         int failedShards = 0;
         List<ShardOperationFailedException> shardFailures = null;
@@ -89,19 +96,23 @@ public class TransportBroadcastPingAction extends TransportBroadcastOperationAct
         return new BroadcastPingResponse(shardsResponses.length(), successfulShards, failedShards, shardFailures);
     }
 
-    @Override protected BroadcastShardPingRequest newShardRequest() {
+    @Override
+    protected BroadcastShardPingRequest newShardRequest() {
         return new BroadcastShardPingRequest();
     }
 
-    @Override protected BroadcastShardPingRequest newShardRequest(ShardRouting shard, BroadcastPingRequest request) {
+    @Override
+    protected BroadcastShardPingRequest newShardRequest(ShardRouting shard, BroadcastPingRequest request) {
         return new BroadcastShardPingRequest(shard.index(), shard.id());
     }
 
-    @Override protected BroadcastShardPingResponse newShardResponse() {
+    @Override
+    protected BroadcastShardPingResponse newShardResponse() {
         return new BroadcastShardPingResponse();
     }
 
-    @Override protected BroadcastShardPingResponse shardOperation(BroadcastShardPingRequest broadcastShardPingRequest) throws ElasticSearchException {
+    @Override
+    protected BroadcastShardPingResponse shardOperation(BroadcastShardPingRequest broadcastShardPingRequest) throws ElasticSearchException {
         return new BroadcastShardPingResponse();
     }
 }

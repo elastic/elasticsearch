@@ -29,7 +29,7 @@ import java.util.Iterator;
 import java.util.List;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class PercolateResponse implements ActionResponse, Iterable<String> {
 
@@ -47,11 +47,13 @@ public class PercolateResponse implements ActionResponse, Iterable<String> {
         return this.matches;
     }
 
-    @Override public Iterator<String> iterator() {
+    @Override
+    public Iterator<String> iterator() {
         return matches.iterator();
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         int size = in.readVInt();
         matches = new ArrayList<String>(size);
         for (int i = 0; i < size; i++) {
@@ -59,7 +61,8 @@ public class PercolateResponse implements ActionResponse, Iterable<String> {
         }
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(matches.size());
         for (String match : matches) {
             out.writeUTF(match);

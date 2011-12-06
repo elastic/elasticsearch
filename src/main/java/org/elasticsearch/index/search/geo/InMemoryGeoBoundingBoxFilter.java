@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -30,7 +30,7 @@ import org.elasticsearch.index.mapper.geo.GeoPointFieldDataType;
 import java.io.IOException;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class InMemoryGeoBoundingBoxFilter extends Filter {
 
@@ -61,7 +61,8 @@ public class InMemoryGeoBoundingBoxFilter extends Filter {
         return fieldName;
     }
 
-    @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
+    @Override
+    public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
         final GeoPointFieldData fieldData = (GeoPointFieldData) fieldDataCache.cache(GeoPointFieldDataType.TYPE, reader, fieldName);
 
         //checks to see if bounding box crosses 180 degrees
@@ -84,14 +85,16 @@ public class InMemoryGeoBoundingBoxFilter extends Filter {
             this.bottomRight = bottomRight;
         }
 
-        @Override public boolean isCacheable() {
+        @Override
+        public boolean isCacheable() {
             // not cacheable for several reasons:
             // 1. It is only relevant when _cache is set to true, and then, we really want to create in mem bitset
             // 2. Its already fast without in mem bitset, since it works with field data
             return false;
         }
 
-        @Override public boolean get(int doc) {
+        @Override
+        public boolean get(int doc) {
             if (!fieldData.hasValue(doc)) {
                 return false;
             }
@@ -132,14 +135,16 @@ public class InMemoryGeoBoundingBoxFilter extends Filter {
             this.bottomRight = bottomRight;
         }
 
-        @Override public boolean isCacheable() {
+        @Override
+        public boolean isCacheable() {
             // not cacheable for several reasons:
             // 1. It is only relevant when _cache is set to true, and then, we really want to create in mem bitset
             // 2. Its already fast without in mem bitset, since it works with field data
             return false;
         }
 
-        @Override public boolean get(int doc) {
+        @Override
+        public boolean get(int doc) {
             if (!fieldData.hasValue(doc)) {
                 return false;
             }

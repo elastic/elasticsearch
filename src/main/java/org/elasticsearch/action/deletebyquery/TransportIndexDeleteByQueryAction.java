@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -32,20 +32,23 @@ import org.elasticsearch.transport.TransportService;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class TransportIndexDeleteByQueryAction extends TransportIndexReplicationOperationAction<IndexDeleteByQueryRequest, IndexDeleteByQueryResponse, ShardDeleteByQueryRequest, ShardDeleteByQueryRequest, ShardDeleteByQueryResponse> {
 
-    @Inject public TransportIndexDeleteByQueryAction(Settings settings, ClusterService clusterService, TransportService transportService,
-                                                     ThreadPool threadPool, TransportShardDeleteByQueryAction shardDeleteByQueryAction) {
+    @Inject
+    public TransportIndexDeleteByQueryAction(Settings settings, ClusterService clusterService, TransportService transportService,
+                                             ThreadPool threadPool, TransportShardDeleteByQueryAction shardDeleteByQueryAction) {
         super(settings, transportService, clusterService, threadPool, shardDeleteByQueryAction);
     }
 
-    @Override protected IndexDeleteByQueryRequest newRequestInstance() {
+    @Override
+    protected IndexDeleteByQueryRequest newRequestInstance() {
         return new IndexDeleteByQueryRequest();
     }
 
-    @Override protected IndexDeleteByQueryResponse newResponseInstance(IndexDeleteByQueryRequest request, AtomicReferenceArray shardsResponses) {
+    @Override
+    protected IndexDeleteByQueryResponse newResponseInstance(IndexDeleteByQueryRequest request, AtomicReferenceArray shardsResponses) {
         int successfulShards = 0;
         int failedShards = 0;
         for (int i = 0; i < shardsResponses.length(); i++) {
@@ -58,23 +61,28 @@ public class TransportIndexDeleteByQueryAction extends TransportIndexReplication
         return new IndexDeleteByQueryResponse(request.index(), successfulShards, failedShards);
     }
 
-    @Override protected boolean accumulateExceptions() {
+    @Override
+    protected boolean accumulateExceptions() {
         return false;
     }
 
-    @Override protected String transportAction() {
+    @Override
+    protected String transportAction() {
         return "indices/index/deleteByQuery";
     }
 
-    @Override protected void checkBlock(IndexDeleteByQueryRequest request, ClusterState state) {
+    @Override
+    protected void checkBlock(IndexDeleteByQueryRequest request, ClusterState state) {
         state.blocks().indexBlockedRaiseException(ClusterBlockLevel.WRITE, request.index());
     }
 
-    @Override protected GroupShardsIterator shards(IndexDeleteByQueryRequest request) {
+    @Override
+    protected GroupShardsIterator shards(IndexDeleteByQueryRequest request) {
         return clusterService.operationRouting().deleteByQueryShards(clusterService.state(), request.index(), request.routing());
     }
 
-    @Override protected ShardDeleteByQueryRequest newShardRequestInstance(IndexDeleteByQueryRequest request, int shardId) {
+    @Override
+    protected ShardDeleteByQueryRequest newShardRequestInstance(IndexDeleteByQueryRequest request, int shardId) {
         return new ShardDeleteByQueryRequest(request, shardId);
     }
 }

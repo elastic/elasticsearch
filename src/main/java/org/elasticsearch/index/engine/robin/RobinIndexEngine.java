@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -26,10 +26,10 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.IndexEngine;
 import org.elasticsearch.index.settings.IndexSettings;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class RobinIndexEngine extends AbstractIndexComponent implements IndexEngine {
 
@@ -37,10 +37,12 @@ public class RobinIndexEngine extends AbstractIndexComponent implements IndexEng
         this(index, EMPTY_SETTINGS);
     }
 
-    @Inject public RobinIndexEngine(Index index, @IndexSettings Settings indexSettings) {
+    @Inject
+    public RobinIndexEngine(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
     }
 
-    @Override public void close() {
+    @Override
+    public void close() {
     }
 }

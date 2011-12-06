@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -34,15 +34,18 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  */
 public class TransportReplicationPingAction extends TransportIndicesReplicationOperationAction<ReplicationPingRequest, ReplicationPingResponse, IndexReplicationPingRequest, IndexReplicationPingResponse, ShardReplicationPingRequest, ShardReplicationPingRequest, ShardReplicationPingResponse> {
 
-    @Inject public TransportReplicationPingAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, TransportIndexReplicationPingAction indexAction) {
+    @Inject
+    public TransportReplicationPingAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, TransportIndexReplicationPingAction indexAction) {
         super(settings, transportService, clusterService, threadPool, indexAction);
     }
 
-    @Override protected ReplicationPingRequest newRequestInstance() {
+    @Override
+    protected ReplicationPingRequest newRequestInstance() {
         return new ReplicationPingRequest();
     }
 
-    @Override protected ReplicationPingResponse newResponseInstance(ReplicationPingRequest request, AtomicReferenceArray indexResponses) {
+    @Override
+    protected ReplicationPingResponse newResponseInstance(ReplicationPingRequest request, AtomicReferenceArray indexResponses) {
         ReplicationPingResponse response = new ReplicationPingResponse();
         for (int i = 0; i < indexResponses.length(); i++) {
             IndexReplicationPingResponse indexResponse = (IndexReplicationPingResponse) indexResponses.get(i);
@@ -53,15 +56,18 @@ public class TransportReplicationPingAction extends TransportIndicesReplicationO
         return response;
     }
 
-    @Override protected boolean accumulateExceptions() {
+    @Override
+    protected boolean accumulateExceptions() {
         return false;
     }
 
-    @Override protected String transportAction() {
+    @Override
+    protected String transportAction() {
         return TransportActions.Admin.Cluster.Ping.REPLICATION;
     }
 
-    @Override protected IndexReplicationPingRequest newIndexRequestInstance(ReplicationPingRequest request, String index, Set<String> routing) {
+    @Override
+    protected IndexReplicationPingRequest newIndexRequestInstance(ReplicationPingRequest request, String index, Set<String> routing) {
         return new IndexReplicationPingRequest(request, index);
     }
 }

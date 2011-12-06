@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.admin.cluster.health;
 
-import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.collect.Maps;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Maps;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -30,10 +30,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.action.admin.cluster.health.ClusterShardHealth.*;
+import static org.elasticsearch.action.admin.cluster.health.ClusterShardHealth.readClusterShardHealth;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Streamable {
 
@@ -157,7 +157,8 @@ public class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Streama
         return shards();
     }
 
-    @Override public Iterator<ClusterShardHealth> iterator() {
+    @Override
+    public Iterator<ClusterShardHealth> iterator() {
         return shards.values().iterator();
     }
 
@@ -167,7 +168,8 @@ public class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Streama
         return indexHealth;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         index = in.readUTF();
         numberOfShards = in.readVInt();
         numberOfReplicas = in.readVInt();
@@ -193,7 +195,8 @@ public class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Streama
         }
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(index);
         out.writeVInt(numberOfShards);
         out.writeVInt(numberOfReplicas);

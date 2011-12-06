@@ -1,0 +1,18 @@
+{
+    dis_max:{
+        tie_breaker:0.7,
+        boost:1.2,
+        queries:[
+            {
+                term:{
+                    "name.first":"first"
+                }
+            },
+            {
+                term:{
+                    "name.last":"last"
+                }
+            }
+        ]
+    }
+}

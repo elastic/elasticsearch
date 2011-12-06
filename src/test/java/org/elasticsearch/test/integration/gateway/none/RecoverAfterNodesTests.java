@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -25,20 +25,23 @@ import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.Test;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.*;
-import static org.hamcrest.MatcherAssert.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class RecoverAfterNodesTests extends AbstractNodesTests {
 
-    @AfterMethod public void closeNodes() {
+    @AfterMethod
+    public void closeNodes() {
         closeAllNodes();
     }
 
-    @Test public void testRecoverAfterNodes() {
+    @Test
+    public void testRecoverAfterNodes() {
         logger.info("--> start node (1)");
         startNode("node1", settingsBuilder().put("gateway.recover_after_nodes", 3));
         assertThat(client("node1").admin().cluster().prepareState().setLocal(true).execute().actionGet()
@@ -68,7 +71,8 @@ public class RecoverAfterNodesTests extends AbstractNodesTests {
                 equalTo(true));
     }
 
-    @Test public void testRecoverAfterMasterNodes() throws Exception {
+    @Test
+    public void testRecoverAfterMasterNodes() throws Exception {
         logger.info("--> start master_node (1)");
         startNode("master1", settingsBuilder().put("gateway.recover_after_master_nodes", 2).put("node.data", false).put("node.master", true));
         assertThat(client("master1").admin().cluster().prepareState().setLocal(true).execute().actionGet()
@@ -113,7 +117,8 @@ public class RecoverAfterNodesTests extends AbstractNodesTests {
                 equalTo(true));
     }
 
-    @Test public void testRecoverAfterDataNodes() {
+    @Test
+    public void testRecoverAfterDataNodes() {
         logger.info("--> start master_node (1)");
         startNode("master1", settingsBuilder().put("gateway.recover_after_data_nodes", 2).put("node.data", false).put("node.master", true));
         assertThat(client("master1").admin().cluster().prepareState().setLocal(true).execute().actionGet()

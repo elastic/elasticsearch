@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -44,15 +44,15 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
-import static org.elasticsearch.search.Scroll.*;
+import static org.elasticsearch.search.Scroll.readScroll;
 
 /**
  * A more like this request allowing to search for documents that a "like" the provided document. The document
  * to check against to fetched based on the index, type and id provided. Best created with {@link org.elasticsearch.client.Requests#moreLikeThisRequest(String)}.
- *
+ * <p/>
  * <p>Note, the {@link #index()}, {@link #type(String)} and {@link #id(String)} are required.
  *
- * @author kimchy (shay.banon)
+ *
  * @see org.elasticsearch.client.Client#moreLikeThis(MoreLikeThisRequest)
  * @see org.elasticsearch.client.Requests#moreLikeThisRequest(String)
  * @see org.elasticsearch.action.search.SearchResponse
@@ -126,7 +126,8 @@ public class MoreLikeThisRequest implements ActionRequest {
     /**
      * The type of document to load from which the "like" query will execute with.
      */
-    @Required public MoreLikeThisRequest type(String type) {
+    @Required
+    public MoreLikeThisRequest type(String type) {
         this.type = type;
         return this;
     }
@@ -141,7 +142,8 @@ public class MoreLikeThisRequest implements ActionRequest {
     /**
      * The id of document to load from which the "like" query will execute with.
      */
-    @Required public MoreLikeThisRequest id(String id) {
+    @Required
+    public MoreLikeThisRequest id(String id) {
         this.id = id;
         return this;
     }
@@ -210,10 +212,10 @@ public class MoreLikeThisRequest implements ActionRequest {
 
     /**
      * Any word in this set is considered "uninteresting" and ignored.
-     *
+     * <p/>
      * <p>Even if your Analyzer allows stopwords, you might want to tell the MoreLikeThis code to ignore them, as
      * for the purposes of document similarity it seems reasonable to assume that "a stop word is never interesting".
-     *
+     * <p/>
      * <p>Defaults to no stop words.
      */
     public MoreLikeThisRequest stopWords(String... stopWords) {
@@ -223,10 +225,10 @@ public class MoreLikeThisRequest implements ActionRequest {
 
     /**
      * Any word in this set is considered "uninteresting" and ignored.
-     *
+     * <p/>
      * <p>Even if your Analyzer allows stopwords, you might want to tell the MoreLikeThis code to ignore them, as
      * for the purposes of document similarity it seems reasonable to assume that "a stop word is never interesting".
-     *
+     * <p/>
      * <p>Defaults to no stop words.
      */
     public String[] stopWords() {
@@ -520,7 +522,8 @@ public class MoreLikeThisRequest implements ActionRequest {
         return this.searchFrom;
     }
 
-    @Override public ActionRequestValidationException validate() {
+    @Override
+    public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (index == null) {
             validationException = Actions.addValidationError("index is missing", validationException);
@@ -537,19 +540,22 @@ public class MoreLikeThisRequest implements ActionRequest {
     /**
      * Should the listener be called on a separate thread if needed.
      */
-    @Override public boolean listenerThreaded() {
+    @Override
+    public boolean listenerThreaded() {
         return threadedListener;
     }
 
     /**
      * Should the listener be called on a separate thread if needed.
      */
-    @Override public ActionRequest listenerThreaded(boolean listenerThreaded) {
+    @Override
+    public ActionRequest listenerThreaded(boolean listenerThreaded) {
         this.threadedListener = listenerThreaded;
         return this;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         index = in.readUTF();
         type = in.readUTF();
         id = in.readUTF();
@@ -623,7 +629,8 @@ public class MoreLikeThisRequest implements ActionRequest {
         searchFrom = in.readVInt();
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(index);
         out.writeUTF(type);
         out.writeUTF(id);

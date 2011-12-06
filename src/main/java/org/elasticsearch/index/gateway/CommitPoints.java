@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.gateway;
 
-import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.collect.Lists;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -33,7 +33,7 @@ import java.util.Iterator;
 import java.util.List;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class CommitPoints implements Iterable<CommitPoint> {
 
@@ -41,7 +41,8 @@ public class CommitPoints implements Iterable<CommitPoint> {
 
     public CommitPoints(List<CommitPoint> commitPoints) {
         Collections.sort(commitPoints, new Comparator<CommitPoint>() {
-            @Override public int compare(CommitPoint o1, CommitPoint o2) {
+            @Override
+            public int compare(CommitPoint o1, CommitPoint o2) {
                 return (o2.version() < o1.version() ? -1 : (o2.version() == o1.version() ? 0 : 1));
             }
         });
@@ -81,7 +82,8 @@ public class CommitPoints implements Iterable<CommitPoint> {
         return null;
     }
 
-    @Override public Iterator<CommitPoint> iterator() {
+    @Override
+    public Iterator<CommitPoint> iterator() {
         return commitPoints.iterator();
     }
 

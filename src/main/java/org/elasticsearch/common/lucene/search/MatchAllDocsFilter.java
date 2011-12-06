@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -29,19 +29,22 @@ import java.io.IOException;
 /**
  * A filter that matches on all docs.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class MatchAllDocsFilter extends Filter {
 
-    @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
+    @Override
+    public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
         return new AllDocSet(reader.maxDoc());
     }
 
-    @Override public int hashCode() {
+    @Override
+    public int hashCode() {
         return this.getClass().hashCode();
     }
 
-    @Override public boolean equals(Object obj) {
+    @Override
+    public boolean equals(Object obj) {
         if (this == obj)
             return true;
 
@@ -56,7 +59,8 @@ public class MatchAllDocsFilter extends Filter {
         return false;
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return "*:*";
     }
 }

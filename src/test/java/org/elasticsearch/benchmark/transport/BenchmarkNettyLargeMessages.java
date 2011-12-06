@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -32,10 +32,10 @@ import org.elasticsearch.transport.netty.NettyTransport;
 
 import java.util.concurrent.CountDownLatch;
 
-import static org.elasticsearch.transport.TransportRequestOptions.*;
+import static org.elasticsearch.transport.TransportRequestOptions.options;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class BenchmarkNettyLargeMessages {
 
@@ -60,15 +60,18 @@ public class BenchmarkNettyLargeMessages {
         transportServiceClient.connectToNode(smallNode);
 
         transportServiceServer.registerHandler("benchmark", new BaseTransportRequestHandler<BenchmarkMessage>() {
-            @Override public BenchmarkMessage newInstance() {
+            @Override
+            public BenchmarkMessage newInstance() {
                 return new BenchmarkMessage();
             }
 
-            @Override public String executor() {
+            @Override
+            public String executor() {
                 return ThreadPool.Names.CACHED;
             }
 
-            @Override public void messageReceived(BenchmarkMessage request, TransportChannel channel) throws Exception {
+            @Override
+            public void messageReceived(BenchmarkMessage request, TransportChannel channel) throws Exception {
                 channel.sendResponse(request);
             }
         });
@@ -76,22 +79,27 @@ public class BenchmarkNettyLargeMessages {
         final CountDownLatch latch = new CountDownLatch(NUMBER_OF_CLIENTS);
         for (int i = 0; i < NUMBER_OF_CLIENTS; i++) {
             new Thread(new Runnable() {
-                @Override public void run() {
+                @Override
+                public void run() {
                     for (int i = 0; i < NUMBER_OF_ITERATIONS; i++) {
                         BenchmarkMessage message = new BenchmarkMessage(1, payload);
                         transportServiceClient.submitRequest(bigNode, "benchmark", message, options().withLowType(), new BaseTransportResponseHandler<BenchmarkMessage>() {
-                            @Override public BenchmarkMessage newInstance() {
+                            @Override
+                            public BenchmarkMessage newInstance() {
                                 return new BenchmarkMessage();
                             }
 
-                            @Override public String executor() {
+                            @Override
+                            public String executor() {
                                 return ThreadPool.Names.SAME;
                             }
 
-                            @Override public void handleResponse(BenchmarkMessage response) {
+                            @Override
+                            public void handleResponse(BenchmarkMessage response) {
                             }
 
-                            @Override public void handleException(TransportException exp) {
+                            @Override
+                            public void handleException(TransportException exp) {
                                 exp.printStackTrace();
                             }
                         }).txGet();
@@ -102,23 +110,28 @@ public class BenchmarkNettyLargeMessages {
         }
 
         new Thread(new Runnable() {
-            @Override public void run() {
+            @Override
+            public void run() {
                 for (int i = 0; i < NUMBER_OF_ITERATIONS; i++) {
                     BenchmarkMessage message = new BenchmarkMessage(2, Bytes.EMPTY_ARRAY);
                     long start = System.currentTimeMillis();
                     transportServiceClient.submitRequest(smallNode, "benchmark", message, options().withHighType(), new BaseTransportResponseHandler<BenchmarkMessage>() {
-                        @Override public BenchmarkMessage newInstance() {
+                        @Override
+                        public BenchmarkMessage newInstance() {
                             return new BenchmarkMessage();
                         }
 
-                        @Override public String executor() {
+                        @Override
+                        public String executor() {
                             return ThreadPool.Names.SAME;
                         }
 
-                        @Override public void handleResponse(BenchmarkMessage response) {
+                        @Override
+                        public void handleResponse(BenchmarkMessage response) {
                         }
 
-                        @Override public void handleException(TransportException exp) {
+                        @Override
+                        public void handleException(TransportException exp) {
                             exp.printStackTrace();
                         }
                     }).txGet();

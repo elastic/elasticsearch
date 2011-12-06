@@ -32,11 +32,7 @@ import org.elasticsearch.search.facet.FacetProcessor;
 import org.elasticsearch.search.facet.histogram.bounded.BoundedCountHistogramFacetCollector;
 import org.elasticsearch.search.facet.histogram.bounded.BoundedValueHistogramFacetCollector;
 import org.elasticsearch.search.facet.histogram.bounded.BoundedValueScriptHistogramFacetCollector;
-import org.elasticsearch.search.facet.histogram.unbounded.CountHistogramFacetCollector;
-import org.elasticsearch.search.facet.histogram.unbounded.FullHistogramFacetCollector;
-import org.elasticsearch.search.facet.histogram.unbounded.ScriptHistogramFacetCollector;
-import org.elasticsearch.search.facet.histogram.unbounded.ValueHistogramFacetCollector;
-import org.elasticsearch.search.facet.histogram.unbounded.ValueScriptHistogramFacetCollector;
+import org.elasticsearch.search.facet.histogram.unbounded.*;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -44,20 +40,23 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class HistogramFacetProcessor extends AbstractComponent implements FacetProcessor {
 
-    @Inject public HistogramFacetProcessor(Settings settings) {
+    @Inject
+    public HistogramFacetProcessor(Settings settings) {
         super(settings);
         InternalHistogramFacet.registerStreams();
     }
 
-    @Override public String[] types() {
+    @Override
+    public String[] types() {
         return new String[]{HistogramFacet.TYPE};
     }
 
-    @Override public FacetCollector parse(String facetName, XContentParser parser, SearchContext context) throws IOException {
+    @Override
+    public FacetCollector parse(String facetName, XContentParser parser, SearchContext context) throws IOException {
         String keyField = null;
         String valueField = null;
         String keyScript = null;
@@ -145,7 +144,8 @@ public class HistogramFacetProcessor extends AbstractComponent implements FacetP
         }
     }
 
-    @Override public Facet reduce(String name, List<Facet> facets) {
+    @Override
+    public Facet reduce(String name, List<Facet> facets) {
         InternalHistogramFacet first = (InternalHistogramFacet) facets.get(0);
         return first.reduce(name, facets);
     }

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -28,22 +28,23 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
-import static org.elasticsearch.client.Requests.*;
-import static org.elasticsearch.common.settings.ImmutableSettings.*;
-import static org.elasticsearch.common.xcontent.XContentFactory.*;
-import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.hamcrest.MatcherAssert.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.client.Requests.createIndexRequest;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class UpdateNumberOfReplicasTests extends AbstractNodesTests {
 
     protected Client client1;
     protected Client client2;
 
-    @BeforeMethod public void startNodes() {
+    @BeforeMethod
+    public void startNodes() {
         startNode("node1");
         startNode("node2");
         client1 = getClient1();
@@ -51,7 +52,8 @@ public class UpdateNumberOfReplicasTests extends AbstractNodesTests {
 
     }
 
-    @AfterMethod public void closeNodes() {
+    @AfterMethod
+    public void closeNodes() {
         client1.close();
         client2.close();
         closeAllNodes();
@@ -65,7 +67,8 @@ public class UpdateNumberOfReplicasTests extends AbstractNodesTests {
         return client("node2");
     }
 
-    @Test public void simpleUpdateNumberOfReplicasTests() throws Exception {
+    @Test
+    public void simpleUpdateNumberOfReplicasTests() throws Exception {
         logger.info("Creating index test");
         client1.admin().indices().create(createIndexRequest("test")).actionGet();
 
@@ -142,7 +145,8 @@ public class UpdateNumberOfReplicasTests extends AbstractNodesTests {
         }
     }
 
-    @Test public void testAutoExpandNumberOfReplicas0ToData() {
+    @Test
+    public void testAutoExpandNumberOfReplicas0ToData() {
         logger.info("--> creating index test with auto expand replicas");
         client1.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("number_of_shards", 2).put("auto_expand_replicas", "0-all")).execute().actionGet();
 
@@ -192,7 +196,8 @@ public class UpdateNumberOfReplicasTests extends AbstractNodesTests {
         assertThat(clusterHealth.indices().get("test").activeShards(), equalTo(2));
     }
 
-    @Test public void testAutoExpandNumberReplicas1ToData() {
+    @Test
+    public void testAutoExpandNumberReplicas1ToData() {
         logger.info("--> creating index test with auto expand replicas");
         client1.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("number_of_shards", 2).put("auto_expand_replicas", "1-all")).execute().actionGet();
 
@@ -242,7 +247,8 @@ public class UpdateNumberOfReplicasTests extends AbstractNodesTests {
         assertThat(clusterHealth.indices().get("test").activeShards(), equalTo(2));
     }
 
-    @Test public void testAutoExpandNumberReplicas2() {
+    @Test
+    public void testAutoExpandNumberReplicas2() {
         logger.info("--> add another node");
         startNode("node3");
         logger.info("--> creating index test with auto expand replicas set to 0-2");

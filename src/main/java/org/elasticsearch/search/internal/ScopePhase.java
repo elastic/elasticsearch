@@ -24,7 +24,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public interface ScopePhase {
 

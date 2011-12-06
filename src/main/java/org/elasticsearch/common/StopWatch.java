@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -39,7 +39,7 @@ import java.util.concurrent.TimeUnit;
  * <p>This class is normally used to verify performance during proof-of-concepts
  * and in development, rather than as part of production applications.
  *
- * @author kimchy (Shay Banon)
+ *
  */
 public class StopWatch {
 
@@ -247,7 +247,8 @@ public class StopWatch {
      * Return an informative string describing all tasks performed
      * For custom reporting, call <code>getTaskInfo()</code> and use the task info directly.
      */
-    @Override public String toString() {
+    @Override
+    public String toString() {
         StringBuilder sb = new StringBuilder(shortSummary());
         if (this.keepTaskList) {
             for (TaskInfo task : taskInfo()) {

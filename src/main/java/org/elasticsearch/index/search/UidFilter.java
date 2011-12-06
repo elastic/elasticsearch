@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -57,7 +57,8 @@ public class UidFilter extends Filter {
     // TODO Optimizations
     // - If we have a single id, we can create a SingleIdDocIdSet to save on mem
     // - We can use sorted int array DocIdSet to reserve memory compared to OpenBitSet in some cases
-    @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
+    @Override
+    public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
         BloomFilter filter = bloomCache.filter(reader, UidFieldMapper.NAME, true);
         FixedBitSet set = null;
         TermDocs td = null;
@@ -86,14 +87,16 @@ public class UidFilter extends Filter {
         return set;
     }
 
-    @Override public boolean equals(Object o) {
+    @Override
+    public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         UidFilter uidFilter = (UidFilter) o;
         return !uids.equals(uidFilter.uids);
     }
 
-    @Override public int hashCode() {
+    @Override
+    public int hashCode() {
         return uids.hashCode();
     }
 }

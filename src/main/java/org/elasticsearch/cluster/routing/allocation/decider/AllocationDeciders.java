@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,10 +19,10 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.settings.NodeSettingsService;
@@ -51,12 +51,14 @@ public class AllocationDeciders extends AllocationDecider {
         );
     }
 
-    @Inject public AllocationDeciders(Settings settings, Set<AllocationDecider> allocations) {
+    @Inject
+    public AllocationDeciders(Settings settings, Set<AllocationDecider> allocations) {
         super(settings);
         this.allocations = allocations.toArray(new AllocationDecider[allocations.size()]);
     }
 
-    @Override public boolean canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
+    @Override
+    public boolean canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
         for (AllocationDecider allocation1 : allocations) {
             if (!allocation1.canRebalance(shardRouting, allocation)) {
                 return false;
@@ -65,7 +67,8 @@ public class AllocationDeciders extends AllocationDecider {
         return true;
     }
 
-    @Override public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+    @Override
+    public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         Decision ret = Decision.YES;
         // first, check if its in the ignored, if so, return NO
         if (allocation.shouldIgnoreShardForNode(shardRouting.shardId(), node.nodeId())) {
@@ -83,7 +86,8 @@ public class AllocationDeciders extends AllocationDecider {
         return ret;
     }
 
-    @Override public boolean canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+    @Override
+    public boolean canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (allocation.shouldIgnoreShardForNode(shardRouting.shardId(), node.nodeId())) {
             return false;
         }

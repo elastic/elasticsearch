@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,17 +19,13 @@
 
 package org.elasticsearch.index.mapper.object;
 
-import org.elasticsearch.common.collect.Lists;
-import org.elasticsearch.common.collect.Sets;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeContext;
-import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 
 import java.io.IOException;
@@ -38,12 +34,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.common.collect.Lists.*;
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.*;
-import static org.elasticsearch.index.mapper.core.TypeParsers.*;
+import static com.google.common.collect.Lists.newArrayList;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.index.mapper.core.TypeParsers.parseDateTimeFormatter;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class RootObjectMapper extends ObjectMapper {
 
@@ -101,7 +97,8 @@ public class RootObjectMapper extends ObjectMapper {
         }
 
 
-        @Override protected ObjectMapper createMapper(String name, String fullPath, boolean enabled, Nested nested, Dynamic dynamic, ContentPath.Type pathType, Map<String, Mapper> mappers) {
+        @Override
+        protected ObjectMapper createMapper(String name, String fullPath, boolean enabled, Nested nested, Dynamic dynamic, ContentPath.Type pathType, Map<String, Mapper> mappers) {
             assert !nested.isNested();
             FormatDateTimeFormatter[] dates = null;
             if (dynamicDateTimeFormatters == null) {
@@ -125,11 +122,13 @@ public class RootObjectMapper extends ObjectMapper {
 
     public static class TypeParser extends ObjectMapper.TypeParser {
 
-        @Override protected ObjectMapper.Builder createBuilder(String name) {
+        @Override
+        protected ObjectMapper.Builder createBuilder(String name) {
             return new Builder(name);
         }
 
-        @Override protected void processField(ObjectMapper.Builder builder, String fieldName, Object fieldNode) {
+        @Override
+        protected void processField(ObjectMapper.Builder builder, String fieldName, Object fieldNode) {
             if (fieldName.equals("date_formats") || fieldName.equals("dynamic_date_formats")) {
                 List<FormatDateTimeFormatter> dateTimeFormatters = newArrayList();
                 if (fieldNode instanceof List) {
@@ -228,7 +227,8 @@ public class RootObjectMapper extends ObjectMapper {
         return null;
     }
 
-    @Override protected void doMerge(ObjectMapper mergeWith, MergeContext mergeContext) {
+    @Override
+    protected void doMerge(ObjectMapper mergeWith, MergeContext mergeContext) {
         RootObjectMapper mergeWithObject = (RootObjectMapper) mergeWith;
         if (!mergeContext.mergeFlags().simulate()) {
             // merge them
@@ -249,7 +249,8 @@ public class RootObjectMapper extends ObjectMapper {
         }
     }
 
-    @Override protected void doXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+    @Override
+    protected void doXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         if (dynamicDateTimeFormatters != Defaults.DYNAMIC_DATE_TIME_FORMATTERS) {
             if (dynamicDateTimeFormatters.length > 0) {
                 builder.startArray("dynamic_date_formats");

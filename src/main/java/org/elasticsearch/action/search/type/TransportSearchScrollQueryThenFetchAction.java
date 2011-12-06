@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.search.type;
 
+import gnu.trove.ExtTIntArrayList;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.cluster.ClusterService;
@@ -28,7 +29,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.trove.ExtTIntArrayList;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.action.SearchServiceListener;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
@@ -45,10 +45,11 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.action.search.type.TransportSearchHelper.*;
+import static org.elasticsearch.action.search.type.TransportSearchHelper.buildShardFailures;
+import static org.elasticsearch.action.search.type.TransportSearchHelper.internalScrollSearchRequest;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent {
 
@@ -62,9 +63,10 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
 
     private final TransportSearchCache searchCache;
 
-    @Inject public TransportSearchScrollQueryThenFetchAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                                             TransportSearchCache searchCache,
-                                                             SearchServiceTransportAction searchService, SearchPhaseController searchPhaseController) {
+    @Inject
+    public TransportSearchScrollQueryThenFetchAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+                                                     TransportSearchCache searchCache,
+                                                     SearchServiceTransportAction searchService, SearchPhaseController searchPhaseController) {
         super(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
@@ -137,7 +139,8 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
             if (localOperations > 0) {
                 if (request.operationThreading() == SearchOperationThreading.SINGLE_THREAD) {
                     threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
-                        @Override public void run() {
+                        @Override
+                        public void run() {
                             for (Tuple<String, Long> target : scrollId.context()) {
                                 DiscoveryNode node = nodes.get(target.v1());
                                 if (node != null && nodes.localNodeId().equals(node.id())) {
@@ -153,7 +156,8 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
                         if (node != null && nodes.localNodeId().equals(node.id())) {
                             if (localAsync) {
                                 threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
-                                    @Override public void run() {
+                                    @Override
+                                    public void run() {
                                         executeQueryPhase(counter, node, target.v2());
                                     }
                                 });
@@ -168,14 +172,16 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
 
         private void executeQueryPhase(final AtomicInteger counter, DiscoveryNode node, final long searchId) {
             searchService.sendExecuteQuery(node, internalScrollSearchRequest(searchId, request), new SearchServiceListener<QuerySearchResult>() {
-                @Override public void onResult(QuerySearchResult result) {
+                @Override
+                public void onResult(QuerySearchResult result) {
                     queryResults.put(result.shardTarget(), result);
                     if (counter.decrementAndGet() == 0) {
                         executeFetchPhase();
                     }
                 }
 
-                @Override public void onFailure(Throwable t) {
+                @Override
+                public void onFailure(Throwable t) {
                     if (logger.isDebugEnabled()) {
                         logger.debug("[{}] Failed to execute query phase", t, searchId);
                     }
@@ -204,7 +210,8 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
                 FetchSearchRequest fetchSearchRequest = new FetchSearchRequest(queryResults.get(shardTarget).id(), docIds);
                 DiscoveryNode node = nodes.get(shardTarget.nodeId());
                 searchService.sendExecuteFetch(node, fetchSearchRequest, new SearchServiceListener<FetchSearchResult>() {
-                    @Override public void onResult(FetchSearchResult result) {
+                    @Override
+                    public void onResult(FetchSearchResult result) {
                         result.shardTarget(entry.getKey());
                         fetchResults.put(result.shardTarget(), result);
                         if (counter.decrementAndGet() == 0) {
@@ -212,7 +219,8 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
                         }
                     }
 
-                    @Override public void onFailure(Throwable t) {
+                    @Override
+                    public void onFailure(Throwable t) {
                         if (logger.isDebugEnabled()) {
                             logger.debug("Failed to execute fetch phase", t);
                         }

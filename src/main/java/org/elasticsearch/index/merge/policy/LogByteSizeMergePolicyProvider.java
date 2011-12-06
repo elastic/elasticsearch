@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -40,7 +40,7 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class LogByteSizeMergePolicyProvider extends AbstractIndexShardComponent implements MergePolicyProvider<LogByteSizeMergePolicy> {
 
@@ -58,7 +58,8 @@ public class LogByteSizeMergePolicyProvider extends AbstractIndexShardComponent 
 
     private final ApplySettings applySettings = new ApplySettings();
 
-    @Inject public LogByteSizeMergePolicyProvider(Store store, IndexSettingsService indexSettingsService) {
+    @Inject
+    public LogByteSizeMergePolicyProvider(Store store, IndexSettingsService indexSettingsService) {
         super(store.shardId(), store.indexSettings());
         Preconditions.checkNotNull(store, "Store must be provided to merge policy");
         this.indexSettingsService = indexSettingsService;
@@ -76,7 +77,8 @@ public class LogByteSizeMergePolicyProvider extends AbstractIndexShardComponent 
         indexSettingsService.addListener(applySettings);
     }
 
-    @Override public LogByteSizeMergePolicy newMergePolicy() {
+    @Override
+    public LogByteSizeMergePolicy newMergePolicy() {
         CustomLogByteSizeMergePolicy mergePolicy;
         if (asyncMerge) {
             mergePolicy = new EnableMergeLogByteSizeMergePolicy(this);
@@ -94,7 +96,8 @@ public class LogByteSizeMergePolicyProvider extends AbstractIndexShardComponent 
         return mergePolicy;
     }
 
-    @Override public void close(boolean delete) throws ElasticSearchException {
+    @Override
+    public void close(boolean delete) throws ElasticSearchException {
         indexSettingsService.removeListener(applySettings);
     }
 
@@ -109,7 +112,8 @@ public class LogByteSizeMergePolicyProvider extends AbstractIndexShardComponent 
     }
 
     class ApplySettings implements IndexSettingsService.Listener {
-        @Override public void onRefreshSettings(Settings settings) {
+        @Override
+        public void onRefreshSettings(Settings settings) {
             ByteSizeValue minMergeSize = settings.getAsBytesSize("index.merge.policy.min_merge_size", LogByteSizeMergePolicyProvider.this.minMergeSize);
             if (!minMergeSize.equals(LogByteSizeMergePolicyProvider.this.minMergeSize)) {
                 logger.info("updating min_merge_size from [{}] to [{}]", LogByteSizeMergePolicyProvider.this.minMergeSize, minMergeSize);
@@ -166,7 +170,8 @@ public class LogByteSizeMergePolicyProvider extends AbstractIndexShardComponent 
             this.provider = provider;
         }
 
-        @Override public void close() {
+        @Override
+        public void close() {
             super.close();
             provider.policies.remove(this);
         }
@@ -175,7 +180,8 @@ public class LogByteSizeMergePolicyProvider extends AbstractIndexShardComponent 
     public static class EnableMergeLogByteSizeMergePolicy extends CustomLogByteSizeMergePolicy implements EnableMergePolicy {
 
         private final ThreadLocal<Boolean> enableMerge = new ThreadLocal<Boolean>() {
-            @Override protected Boolean initialValue() {
+            @Override
+            protected Boolean initialValue() {
                 return Boolean.FALSE;
             }
         };
@@ -184,38 +190,45 @@ public class LogByteSizeMergePolicyProvider extends AbstractIndexShardComponent 
             super(provider);
         }
 
-        @Override public void enableMerge() {
+        @Override
+        public void enableMerge() {
             enableMerge.set(Boolean.TRUE);
         }
 
-        @Override public void disableMerge() {
+        @Override
+        public void disableMerge() {
             enableMerge.set(Boolean.FALSE);
         }
 
-        @Override public boolean isMergeEnabled() {
+        @Override
+        public boolean isMergeEnabled() {
             return enableMerge.get() == Boolean.TRUE;
         }
 
-        @Override public void close() {
+        @Override
+        public void close() {
             enableMerge.remove();
             super.close();
         }
 
-        @Override public MergeSpecification findMerges(SegmentInfos infos) throws IOException {
+        @Override
+        public MergeSpecification findMerges(SegmentInfos infos) throws IOException {
             if (enableMerge.get() == Boolean.FALSE) {
                 return null;
             }
             return super.findMerges(infos);
         }
 
-        @Override public MergeSpecification findForcedMerges(SegmentInfos infos, int maxSegmentCount, Map<SegmentInfo, Boolean> segmentsToMerge) throws IOException {
+        @Override
+        public MergeSpecification findForcedMerges(SegmentInfos infos, int maxSegmentCount, Map<SegmentInfo, Boolean> segmentsToMerge) throws IOException {
             if (enableMerge.get() == Boolean.FALSE) {
                 return null;
             }
             return super.findForcedMerges(infos, maxSegmentCount, segmentsToMerge);
         }
 
-        @Override public MergeSpecification findForcedDeletesMerges(SegmentInfos infos) throws CorruptIndexException, IOException {
+        @Override
+        public MergeSpecification findForcedDeletesMerges(SegmentInfos infos) throws CorruptIndexException, IOException {
             if (enableMerge.get() == Boolean.FALSE) {
                 return null;
             }

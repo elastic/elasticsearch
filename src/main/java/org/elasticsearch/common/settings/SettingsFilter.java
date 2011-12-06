@@ -6,7 +6,7 @@ import org.elasticsearch.common.inject.Inject;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class SettingsFilter extends AbstractComponent {
 
@@ -17,7 +17,8 @@ public class SettingsFilter extends AbstractComponent {
 
     private final CopyOnWriteArrayList<Filter> filters = new CopyOnWriteArrayList<Filter>();
 
-    @Inject public SettingsFilter(Settings settings) {
+    @Inject
+    public SettingsFilter(Settings settings) {
         super(settings);
     }
 

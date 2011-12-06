@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -31,7 +31,7 @@ import java.io.InputStream;
 import java.io.RandomAccessFile;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class FsImmutableBlobContainer extends AbstractFsBlobContainer implements ImmutableBlobContainer {
 
@@ -39,9 +39,11 @@ public class FsImmutableBlobContainer extends AbstractFsBlobContainer implements
         super(blobStore, blobPath, path);
     }
 
-    @Override public void writeBlob(final String blobName, final InputStream is, final long sizeInBytes, final WriterListener listener) {
+    @Override
+    public void writeBlob(final String blobName, final InputStream is, final long sizeInBytes, final WriterListener listener) {
         blobStore.executor().execute(new Runnable() {
-            @Override public void run() {
+            @Override
+            public void run() {
                 File file = new File(path, blobName);
                 RandomAccessFile raf;
                 try {
@@ -94,7 +96,8 @@ public class FsImmutableBlobContainer extends AbstractFsBlobContainer implements
         });
     }
 
-    @Override public void writeBlob(String blobName, InputStream is, long sizeInBytes) throws IOException {
+    @Override
+    public void writeBlob(String blobName, InputStream is, long sizeInBytes) throws IOException {
         BlobStores.syncWriteBlob(this, blobName, is, sizeInBytes);
     }
 }

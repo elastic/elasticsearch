@@ -19,13 +19,13 @@
 
 package org.elasticsearch.index.analysis;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.analysis.StopAnalyzer;
 import org.apache.lucene.analysis.de.GermanAnalyzer;
 import org.apache.lucene.analysis.fr.FrenchAnalyzer;
 import org.apache.lucene.analysis.nl.DutchAnalyzer;
 import org.apache.lucene.analysis.snowball.SnowballAnalyzer;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
@@ -43,12 +43,11 @@ import java.util.Set;
  * Stemmer, use them directly with the SnowballFilter and a CustomAnalyzer.
  * Configuration of language is done with the "language" attribute or the analyzer.
  * Also supports additional stopwords via "stopwords" attribute
- *
+ * <p/>
  * The SnowballAnalyzer comes with a StandardFilter, LowerCaseFilter, StopFilter
  * and the SnowballFilter.
  *
- * @author kimchy (Shay Banon)
- * @author harryf (Harry Fuecks)
+ *
  */
 public class SnowballAnalyzerProvider extends AbstractIndexAnalyzerProvider<SnowballAnalyzer> {
 
@@ -62,7 +61,8 @@ public class SnowballAnalyzerProvider extends AbstractIndexAnalyzerProvider<Snow
 
     private final SnowballAnalyzer analyzer;
 
-    @Inject public SnowballAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
+    @Inject
+    public SnowballAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
 
         String language = settings.get("language", settings.get("name", "English"));
@@ -72,7 +72,8 @@ public class SnowballAnalyzerProvider extends AbstractIndexAnalyzerProvider<Snow
         analyzer = new SnowballAnalyzer(version, language, stopWords);
     }
 
-    @Override public SnowballAnalyzer get() {
+    @Override
+    public SnowballAnalyzer get() {
         return this.analyzer;
     }
 }

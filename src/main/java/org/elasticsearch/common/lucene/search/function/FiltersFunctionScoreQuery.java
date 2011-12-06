@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -21,14 +21,7 @@ package org.elasticsearch.common.lucene.search.function;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.ComplexExplanation;
-import org.apache.lucene.search.Explanation;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.Searcher;
-import org.apache.lucene.search.Similarity;
-import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.*;
 import org.apache.lucene.util.ToStringUtils;
 import org.elasticsearch.common.lucene.docset.DocSet;
 import org.elasticsearch.common.lucene.docset.DocSets;
@@ -42,7 +35,7 @@ import java.util.Set;
  * A query that allows for a pluggable boost function / filter. If it matches the filter, it will
  * be boosted by the formula.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class FiltersFunctionScoreQuery extends Query {
 
@@ -55,7 +48,8 @@ public class FiltersFunctionScoreQuery extends Query {
             this.function = function;
         }
 
-        @Override public boolean equals(Object o) {
+        @Override
+        public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
 
@@ -67,7 +61,8 @@ public class FiltersFunctionScoreQuery extends Query {
             return true;
         }
 
-        @Override public int hashCode() {
+        @Override
+        public int hashCode() {
             int result = filter != null ? filter.hashCode() : 0;
             result = 31 * result + (function != null ? function.hashCode() : 0);
             return result;

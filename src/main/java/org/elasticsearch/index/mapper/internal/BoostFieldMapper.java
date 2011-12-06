@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -34,14 +34,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericFloatAnalyzer;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
-import org.elasticsearch.index.mapper.InternalMapper;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperBuilders;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeContext;
-import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.RootMapper;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.FloatFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
@@ -49,11 +42,11 @@ import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.*;
-import static org.elasticsearch.index.mapper.core.TypeParsers.*;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeFloatValue;
+import static org.elasticsearch.index.mapper.core.TypeParsers.parseNumberField;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class BoostFieldMapper extends NumberFieldMapper<Float> implements InternalMapper, RootMapper {
 
@@ -83,14 +76,16 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
             return this;
         }
 
-        @Override public BoostFieldMapper build(BuilderContext context) {
+        @Override
+        public BoostFieldMapper build(BuilderContext context) {
             return new BoostFieldMapper(name, buildIndexName(context),
                     precisionStep, index, store, boost, omitNorms, omitTermFreqAndPositions, nullValue);
         }
     }
 
     public static class TypeParser implements Mapper.TypeParser {
-        @Override public Mapper.Builder parse(String fieldName, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        @Override
+        public Mapper.Builder parse(String fieldName, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             String name = node.get("name") == null ? BoostFieldMapper.Defaults.NAME : node.get("name").toString();
             BoostFieldMapper.Builder builder = MapperBuilders.boost(name);
             parseNumberField(builder, name, node, parserContext);
@@ -125,11 +120,13 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
         this.nullValue = nullValue;
     }
 
-    @Override protected int maxPrecisionStep() {
+    @Override
+    protected int maxPrecisionStep() {
         return 32;
     }
 
-    @Override public Float value(Fieldable field) {
+    @Override
+    public Float value(Fieldable field) {
         byte[] value = field.getBinaryValue();
         if (value == null) {
             return null;
@@ -137,15 +134,18 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
         return Numbers.bytesToFloat(value);
     }
 
-    @Override public Float valueFromString(String value) {
+    @Override
+    public Float valueFromString(String value) {
         return Float.parseFloat(value);
     }
 
-    @Override public String indexedValue(String value) {
+    @Override
+    public String indexedValue(String value) {
         return NumericUtils.floatToPrefixCoded(Float.parseFloat(value));
     }
 
-    @Override public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions) {
+    @Override
+    public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions) {
         float iValue = Float.parseFloat(value);
         float iSim = Float.parseFloat(minSim);
         return NumericRangeQuery.newFloatRange(names.indexName(), precisionStep,
@@ -154,7 +154,8 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
                 true, true);
     }
 
-    @Override public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions) {
+    @Override
+    public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions) {
         float iValue = Float.parseFloat(value);
         float iSim = (float) (minSim * dFuzzyFactor);
         return NumericRangeQuery.newFloatRange(names.indexName(), precisionStep,
@@ -163,41 +164,49 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
                 true, true);
     }
 
-    @Override public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
+    @Override
+    public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
         return NumericRangeQuery.newFloatRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : Float.parseFloat(lowerTerm),
                 upperTerm == null ? null : Float.parseFloat(upperTerm),
                 includeLower, includeUpper);
     }
 
-    @Override public Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
+    @Override
+    public Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
         return NumericRangeFilter.newFloatRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : Float.parseFloat(lowerTerm),
                 upperTerm == null ? null : Float.parseFloat(upperTerm),
                 includeLower, includeUpper);
     }
 
-    @Override public Filter rangeFilter(FieldDataCache fieldDataCache, String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
+    @Override
+    public Filter rangeFilter(FieldDataCache fieldDataCache, String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
         return NumericRangeFieldDataFilter.newFloatRange(fieldDataCache, names.indexName(),
                 lowerTerm == null ? null : Float.parseFloat(lowerTerm),
                 upperTerm == null ? null : Float.parseFloat(upperTerm),
                 includeLower, includeUpper);
     }
 
-    @Override public void preParse(ParseContext context) throws IOException {
+    @Override
+    public void preParse(ParseContext context) throws IOException {
     }
 
-    @Override public void postParse(ParseContext context) throws IOException {
+    @Override
+    public void postParse(ParseContext context) throws IOException {
     }
 
-    @Override public void validate(ParseContext context) throws MapperParsingException {
+    @Override
+    public void validate(ParseContext context) throws MapperParsingException {
     }
 
-    @Override public boolean includeInObject() {
+    @Override
+    public boolean includeInObject() {
         return true;
     }
 
-    @Override public void parse(ParseContext context) throws IOException {
+    @Override
+    public void parse(ParseContext context) throws IOException {
         // we override parse since we want to handle cases where it is not indexed and not stored (the default)
         float value = parseFloatValue(context);
         if (!Float.isNaN(value)) {
@@ -206,7 +215,8 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
         super.parse(context);
     }
 
-    @Override protected Fieldable parseCreateField(ParseContext context) throws IOException {
+    @Override
+    protected Fieldable parseCreateField(ParseContext context) throws IOException {
         final float value = parseFloatValue(context);
         if (Float.isNaN(value)) {
             return null;
@@ -228,15 +238,18 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
         return value;
     }
 
-    @Override public FieldDataType fieldDataType() {
+    @Override
+    public FieldDataType fieldDataType() {
         return FieldDataType.DefaultTypes.FLOAT;
     }
 
-    @Override protected String contentType() {
+    @Override
+    protected String contentType() {
         return CONTENT_TYPE;
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // all are defaults, don't write it at all
         if (name().equals(Defaults.NAME) && nullValue == null) {
             return builder;
@@ -252,7 +265,8 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
         return builder;
     }
 
-    @Override public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+    @Override
+    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
         // do nothing here, no merging, but also no exception
     }
 }

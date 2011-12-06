@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -33,12 +33,12 @@ import org.elasticsearch.index.mapper.ParseContext;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.*;
-import static org.elasticsearch.index.mapper.MapperBuilders.*;
-import static org.elasticsearch.index.mapper.core.TypeParsers.*;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.index.mapper.MapperBuilders.booleanField;
+import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 // TODO this can be made better, maybe storing a byte for it?
 public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
@@ -65,38 +65,46 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
             return this;
         }
 
-        @Override public Builder index(Field.Index index) {
+        @Override
+        public Builder index(Field.Index index) {
             return super.index(index);
         }
 
-        @Override public Builder store(Field.Store store) {
+        @Override
+        public Builder store(Field.Store store) {
             return super.store(store);
         }
 
-        @Override public Builder termVector(Field.TermVector termVector) {
+        @Override
+        public Builder termVector(Field.TermVector termVector) {
             return super.termVector(termVector);
         }
 
-        @Override public Builder boost(float boost) {
+        @Override
+        public Builder boost(float boost) {
             return super.boost(boost);
         }
 
-        @Override public Builder indexName(String indexName) {
+        @Override
+        public Builder indexName(String indexName) {
             return super.indexName(indexName);
         }
 
-        @Override public Builder omitTermFreqAndPositions(boolean omitTermFreqAndPositions) {
+        @Override
+        public Builder omitTermFreqAndPositions(boolean omitTermFreqAndPositions) {
             return super.omitTermFreqAndPositions(omitTermFreqAndPositions);
         }
 
-        @Override public BooleanFieldMapper build(BuilderContext context) {
+        @Override
+        public BooleanFieldMapper build(BuilderContext context) {
             return new BooleanFieldMapper(buildNames(context), index, store,
                     termVector, boost, omitNorms, omitTermFreqAndPositions, nullValue);
         }
     }
 
     public static class TypeParser implements Mapper.TypeParser {
-        @Override public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        @Override
+        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             BooleanFieldMapper.Builder builder = booleanField(name);
             parseField(builder, name, node, parserContext);
             for (Map.Entry<String, Object> entry : node.entrySet()) {
@@ -118,23 +126,28 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
         this.nullValue = nullValue;
     }
 
-    @Override public boolean useFieldQueryWithQueryString() {
+    @Override
+    public boolean useFieldQueryWithQueryString() {
         return true;
     }
 
-    @Override public Boolean value(Fieldable field) {
+    @Override
+    public Boolean value(Fieldable field) {
         return field.stringValue().charAt(0) == 'T' ? Boolean.TRUE : Boolean.FALSE;
     }
 
-    @Override public Boolean valueFromString(String value) {
+    @Override
+    public Boolean valueFromString(String value) {
         return value.charAt(0) == 'T' ? Boolean.TRUE : Boolean.FALSE;
     }
 
-    @Override public String valueAsString(Fieldable field) {
+    @Override
+    public String valueAsString(Fieldable field) {
         return field.stringValue().charAt(0) == 'T' ? "true" : "false";
     }
 
-    @Override public String indexedValue(String value) {
+    @Override
+    public String indexedValue(String value) {
         if (value == null || value.length() == 0) {
             return "F";
         }
@@ -144,7 +157,8 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
         return "F";
     }
 
-    @Override protected Field parseCreateField(ParseContext context) throws IOException {
+    @Override
+    protected Field parseCreateField(ParseContext context) throws IOException {
         if (!indexed() && !stored()) {
             return null;
         }
@@ -163,11 +177,13 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
         return new Field(names.indexName(), value, store, index, termVector);
     }
 
-    @Override protected String contentType() {
+    @Override
+    protected String contentType() {
         return CONTENT_TYPE;
     }
 
-    @Override protected void doXContentBody(XContentBuilder builder) throws IOException {
+    @Override
+    protected void doXContentBody(XContentBuilder builder) throws IOException {
         super.doXContentBody(builder);
         if (index != Defaults.INDEX) {
             builder.field("index", index.name().toLowerCase());

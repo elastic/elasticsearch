@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -31,11 +31,11 @@ import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 
 import java.io.IOException;
 
-import static org.elasticsearch.cluster.ClusterName.*;
-import static org.elasticsearch.cluster.node.DiscoveryNode.*;
+import static org.elasticsearch.cluster.ClusterName.readClusterName;
+import static org.elasticsearch.cluster.node.DiscoveryNode.readNode;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public interface ZenPing extends LifecycleComponent<ZenPing> {
 
@@ -83,7 +83,8 @@ public interface ZenPing extends LifecycleComponent<ZenPing> {
             return response;
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             clusterName = readClusterName(in);
             target = readNode(in);
             if (in.readBoolean()) {
@@ -91,7 +92,8 @@ public interface ZenPing extends LifecycleComponent<ZenPing> {
             }
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             clusterName.writeTo(out);
             target.writeTo(out);
             if (master == null) {
@@ -102,7 +104,8 @@ public interface ZenPing extends LifecycleComponent<ZenPing> {
             }
         }
 
-        @Override public String toString() {
+        @Override
+        public String toString() {
             return "ping_response{target [" + target + "], master [" + master + "], cluster_name[" + clusterName.value() + "]}";
         }
     }

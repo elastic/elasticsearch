@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,11 +19,11 @@
 
 package org.elasticsearch.test.integration.cluster;
 
+import com.google.common.collect.Sets;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.env.NodeEnvironment;
@@ -36,15 +36,16 @@ import org.testng.annotations.Test;
 import java.util.LinkedList;
 import java.util.Set;
 
-import static org.elasticsearch.client.Requests.*;
-import static org.elasticsearch.common.settings.ImmutableSettings.*;
-import static org.hamcrest.MatcherAssert.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.client.Requests.clusterHealthRequest;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
 
 @Test
 public class MinimumMasterNodesTests extends AbstractZenNodesTests {
 
-    @AfterMethod public void cleanAndCloseNodes() throws Exception {
+    @AfterMethod
+    public void cleanAndCloseNodes() throws Exception {
         for (int i = 0; i < 10; i++) {
             if (node("node" + i) != null) {
                 node("node" + i).stop();
@@ -57,7 +58,8 @@ public class MinimumMasterNodesTests extends AbstractZenNodesTests {
         closeAllNodes();
     }
 
-    @Test public void simpleMinimumMasterNodes() throws Exception {
+    @Test
+    public void simpleMinimumMasterNodes() throws Exception {
         logger.info("--> cleaning nodes");
         buildNode("node1", settingsBuilder().put("gateway.type", "local"));
         buildNode("node2", settingsBuilder().put("gateway.type", "local"));
@@ -181,7 +183,8 @@ public class MinimumMasterNodesTests extends AbstractZenNodesTests {
         }
     }
 
-    @Test public void multipleNodesShutdownNonMasterNodes() throws Exception {
+    @Test
+    public void multipleNodesShutdownNonMasterNodes() throws Exception {
         logger.info("--> cleaning nodes");
         buildNode("node1", settingsBuilder().put("gateway.type", "local"));
         buildNode("node2", settingsBuilder().put("gateway.type", "local"));

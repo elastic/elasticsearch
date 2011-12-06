@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -33,55 +33,67 @@ import org.elasticsearch.client.action.admin.cluster.state.ClusterStateRequestBu
 import org.elasticsearch.client.internal.InternalClusterAdminClient;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public abstract class AbstractClusterAdminClient implements InternalClusterAdminClient {
 
-    @Override public ClusterHealthRequestBuilder prepareHealth(String... indices) {
+    @Override
+    public ClusterHealthRequestBuilder prepareHealth(String... indices) {
         return new ClusterHealthRequestBuilder(this).setIndices(indices);
     }
 
-    @Override public ClusterStateRequestBuilder prepareState() {
+    @Override
+    public ClusterStateRequestBuilder prepareState() {
         return new ClusterStateRequestBuilder(this);
     }
 
-    @Override public ClusterRerouteRequestBuilder prepareReroute() {
+    @Override
+    public ClusterRerouteRequestBuilder prepareReroute() {
         return new ClusterRerouteRequestBuilder(this);
     }
 
-    @Override public ClusterUpdateSettingsRequestBuilder prepareUpdateSettings() {
+    @Override
+    public ClusterUpdateSettingsRequestBuilder prepareUpdateSettings() {
         return new ClusterUpdateSettingsRequestBuilder(this);
     }
 
-    @Override public NodesInfoRequestBuilder prepareNodesInfo(String... nodesIds) {
+    @Override
+    public NodesInfoRequestBuilder prepareNodesInfo(String... nodesIds) {
         return new NodesInfoRequestBuilder(this).setNodesIds(nodesIds);
     }
 
-    @Override public NodesStatsRequestBuilder prepareNodesStats(String... nodesIds) {
+    @Override
+    public NodesStatsRequestBuilder prepareNodesStats(String... nodesIds) {
         return new NodesStatsRequestBuilder(this).setNodesIds(nodesIds);
     }
 
-    @Override public NodesRestartRequestBuilder prepareNodesRestart(String... nodesIds) {
+    @Override
+    public NodesRestartRequestBuilder prepareNodesRestart(String... nodesIds) {
         return new NodesRestartRequestBuilder(this).setNodesIds(nodesIds);
     }
 
-    @Override public NodesShutdownRequestBuilder prepareNodesShutdown(String... nodesIds) {
+    @Override
+    public NodesShutdownRequestBuilder prepareNodesShutdown(String... nodesIds) {
         return new NodesShutdownRequestBuilder(this).setNodesIds(nodesIds);
     }
 
-    @Override public SinglePingRequestBuilder preparePingSingle() {
+    @Override
+    public SinglePingRequestBuilder preparePingSingle() {
         return new SinglePingRequestBuilder(this);
     }
 
-    @Override public SinglePingRequestBuilder preparePingSingle(String index, String type, String id) {
+    @Override
+    public SinglePingRequestBuilder preparePingSingle(String index, String type, String id) {
         return preparePingSingle().setIndex(index).setType(type).setId(id);
     }
 
-    @Override public BroadcastPingRequestBuilder preparePingBroadcast(String... indices) {
+    @Override
+    public BroadcastPingRequestBuilder preparePingBroadcast(String... indices) {
         return new BroadcastPingRequestBuilder(this).setIndices(indices);
     }
 
-    @Override public ReplicationPingRequestBuilder preparePingReplication(String... indices) {
+    @Override
+    public ReplicationPingRequestBuilder preparePingReplication(String... indices) {
         return new ReplicationPingRequestBuilder(this).setIndices(indices);
     }
 }

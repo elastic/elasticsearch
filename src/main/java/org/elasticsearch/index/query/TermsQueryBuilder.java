@@ -24,7 +24,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class TermsQueryBuilder extends BaseQueryBuilder {
 
@@ -140,7 +140,8 @@ public class TermsQueryBuilder extends BaseQueryBuilder {
         return this;
     }
 
-    @Override protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(TermsQueryParser.NAME);
         builder.startArray(name);
         for (Object value : values) {

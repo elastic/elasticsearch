@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.common.collect.Maps;
-import org.elasticsearch.common.trove.list.array.TFloatArrayList;
+import com.google.common.collect.Maps;
+import gnu.trove.list.array.TFloatArrayList;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -30,7 +30,7 @@ import java.util.Map;
 /**
  * A query that uses a filters with a script associated with them to compute the score.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class CustomFiltersScoreQueryBuilder extends BaseQueryBuilder {
 
@@ -111,7 +111,8 @@ public class CustomFiltersScoreQueryBuilder extends BaseQueryBuilder {
         return this;
     }
 
-    @Override protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(CustomFiltersScoreQueryParser.NAME);
         builder.field("query");
         queryBuilder.toXContent(builder, params);

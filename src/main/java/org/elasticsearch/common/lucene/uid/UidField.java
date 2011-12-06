@@ -24,11 +24,7 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PayloadAttribute;
 import org.apache.lucene.document.AbstractField;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.index.FieldInfo;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.Payload;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.index.TermPositions;
+import org.apache.lucene.index.*;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.lucene.Lucene;
 
@@ -36,7 +32,7 @@ import java.io.IOException;
 import java.io.Reader;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class UidField extends AbstractField {
 
@@ -140,11 +136,13 @@ public class UidField extends AbstractField {
         this.tokenStream = new UidPayloadTokenStream(this);
     }
 
-    @Override public void setIndexOptions(FieldInfo.IndexOptions indexOptions) {
+    @Override
+    public void setIndexOptions(FieldInfo.IndexOptions indexOptions) {
         // never allow to set this, since we want payload!
     }
 
-    @Override public void setOmitTermFreqAndPositions(boolean omitTermFreqAndPositions) {
+    @Override
+    public void setOmitTermFreqAndPositions(boolean omitTermFreqAndPositions) {
         // never allow to set this, since we want payload!
     }
 
@@ -156,11 +154,13 @@ public class UidField extends AbstractField {
         this.uid = uid;
     }
 
-    @Override public String stringValue() {
+    @Override
+    public String stringValue() {
         return uid;
     }
 
-    @Override public Reader readerValue() {
+    @Override
+    public Reader readerValue() {
         return null;
     }
 
@@ -172,7 +172,8 @@ public class UidField extends AbstractField {
         this.version = version;
     }
 
-    @Override public TokenStream tokenStreamValue() {
+    @Override
+    public TokenStream tokenStreamValue() {
         return tokenStream;
     }
 
@@ -189,11 +190,13 @@ public class UidField extends AbstractField {
             this.field = field;
         }
 
-        @Override public void reset() throws IOException {
+        @Override
+        public void reset() throws IOException {
             added = false;
         }
 
-        @Override public final boolean incrementToken() throws IOException {
+        @Override
+        public final boolean incrementToken() throws IOException {
             if (added) {
                 return false;
             }

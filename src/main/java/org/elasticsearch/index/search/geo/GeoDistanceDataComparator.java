@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -34,7 +34,7 @@ import org.elasticsearch.index.mapper.geo.GeoPointFieldDataType;
 import java.io.IOException;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 // LUCENE MONITOR: Monitor against FieldComparator.Double
 public class GeoDistanceDataComparator extends FieldComparator {
@@ -71,11 +71,13 @@ public class GeoDistanceDataComparator extends FieldComparator {
             this.mapperService = mapperService;
         }
 
-        @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
+        @Override
+        public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
             return new GeoDistanceDataComparator(numHits, fieldname, lat, lon, unit, geoDistance, fieldDataCache, mapperService);
         }
 
-        @Override public int reducedType() {
+        @Override
+        public int reducedType() {
             return SortField.DOUBLE;
         }
     }
@@ -124,11 +126,13 @@ public class GeoDistanceDataComparator extends FieldComparator {
         this.indexFieldName = mapper.names().indexName();
     }
 
-    @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
+    @Override
+    public void setNextReader(IndexReader reader, int docBase) throws IOException {
         fieldData = (GeoPointFieldData) fieldDataCache.cache(GeoPointFieldDataType.TYPE, reader, indexFieldName);
     }
 
-    @Override public int compare(int slot1, int slot2) {
+    @Override
+    public int compare(int slot1, int slot2) {
         final double v1 = values[slot1];
         final double v2 = values[slot2];
         if (v1 > v2) {
@@ -140,7 +144,8 @@ public class GeoDistanceDataComparator extends FieldComparator {
         }
     }
 
-    @Override public int compareBottom(int doc) {
+    @Override
+    public int compareBottom(int doc) {
         double distance;
         if (!fieldData.hasValue(doc)) {
             // is this true? push this to the "end"
@@ -158,7 +163,8 @@ public class GeoDistanceDataComparator extends FieldComparator {
         }
     }
 
-    @Override public void copy(int slot, int doc) {
+    @Override
+    public void copy(int slot, int doc) {
         double distance;
         if (!fieldData.hasValue(doc)) {
             // is this true? push this to the "end"
@@ -169,11 +175,13 @@ public class GeoDistanceDataComparator extends FieldComparator {
         values[slot] = distance;
     }
 
-    @Override public void setBottom(final int bottom) {
+    @Override
+    public void setBottom(final int bottom) {
         this.bottom = values[bottom];
     }
 
-    @Override public Comparable value(int slot) {
+    @Override
+    public Comparable value(int slot) {
         return Double.valueOf(values[slot]);
     }
 }

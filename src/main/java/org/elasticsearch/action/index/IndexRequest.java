@@ -50,22 +50,22 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
-import static org.elasticsearch.action.Actions.*;
+import static org.elasticsearch.action.Actions.addValidationError;
 
 /**
  * Index request to index a typed JSON document into a specific index and make it searchable. Best
  * created using {@link org.elasticsearch.client.Requests#indexRequest(String)}.
- *
+ * <p/>
  * <p>The index requires the {@link #index()}, {@link #type(String)}, {@link #id(String)} and
  * {@link #source(byte[])} to be set.
- *
+ * <p/>
  * <p>The source (content to index) can be set in its bytes form using ({@link #source(byte[])}),
  * its string form ({@link #source(String)}) or using a {@link org.elasticsearch.common.xcontent.XContentBuilder}
  * ({@link #source(org.elasticsearch.common.xcontent.XContentBuilder)}).
- *
+ * <p/>
  * <p>If the {@link #id(String)} is not set, it will be automatically generated.
  *
- * @author kimchy (shay.banon)
+ *
  * @see IndexResponse
  * @see org.elasticsearch.client.Requests#indexRequest(String)
  * @see org.elasticsearch.client.Client#index(IndexRequest)
@@ -116,9 +116,12 @@ public class IndexRequest extends ShardReplicationOperationRequest {
 
     private String type;
     private String id;
-    @Nullable private String routing;
-    @Nullable private String parent;
-    @Nullable private String timestamp;
+    @Nullable
+    private String routing;
+    @Nullable
+    private String parent;
+    @Nullable
+    private String timestamp;
     private long ttl = -1;
 
     private byte[] source;
@@ -159,7 +162,8 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         this.id = id;
     }
 
-    @Override public ActionRequestValidationException validate() {
+    @Override
+    public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
         if (type == null) {
             validationException = addValidationError("type is missing", validationException);
@@ -173,7 +177,8 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     /**
      * Before we fork on a local thread, make sure we copy over the bytes if they are unsafe
      */
-    @Override public void beforeLocalFork() {
+    @Override
+    public void beforeLocalFork() {
         // only fork if copy over if source is unsafe
         if (sourceUnsafe) {
             source();
@@ -183,7 +188,8 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     /**
      * Sets the index the index operation will happen on.
      */
-    @Override public IndexRequest index(String index) {
+    @Override
+    public IndexRequest index(String index) {
         super.index(index);
         return this;
     }
@@ -199,7 +205,8 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     /**
      * Should the listener be called on a separate thread if needed.
      */
-    @Override public IndexRequest listenerThreaded(boolean threadedListener) {
+    @Override
+    public IndexRequest listenerThreaded(boolean threadedListener) {
         super.listenerThreaded(threadedListener);
         return this;
     }
@@ -208,7 +215,8 @@ public class IndexRequest extends ShardReplicationOperationRequest {
      * Controls if the operation will be executed on a separate thread when executed locally. Defaults
      * to <tt>true</tt> when running in embedded mode.
      */
-    @Override public IndexRequest operationThreaded(boolean threadedOperation) {
+    @Override
+    public IndexRequest operationThreaded(boolean threadedOperation) {
         super.operationThreaded(threadedOperation);
         return this;
     }
@@ -223,7 +231,8 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     /**
      * Sets the type of the indexed document.
      */
-    @Required public IndexRequest type(String type) {
+    @Required
+    public IndexRequest type(String type) {
         this.type = type;
         return this;
     }
@@ -341,7 +350,8 @@ public class IndexRequest extends ShardReplicationOperationRequest {
      *
      * @param source The map to index
      */
-    @Required public IndexRequest source(Map source) throws ElasticSearchGenerationException {
+    @Required
+    public IndexRequest source(Map source) throws ElasticSearchGenerationException {
         return source(source, contentType);
     }
 
@@ -350,7 +360,8 @@ public class IndexRequest extends ShardReplicationOperationRequest {
      *
      * @param source The map to index
      */
-    @Required public IndexRequest source(Map source, XContentType contentType) throws ElasticSearchGenerationException {
+    @Required
+    public IndexRequest source(Map source, XContentType contentType) throws ElasticSearchGenerationException {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             builder.map(source);
@@ -362,11 +373,12 @@ public class IndexRequest extends ShardReplicationOperationRequest {
 
     /**
      * Sets the document source to index.
-     *
+     * <p/>
      * <p>Note, its preferable to either set it using {@link #source(org.elasticsearch.common.xcontent.XContentBuilder)}
      * or using the {@link #source(byte[])}.
      */
-    @Required public IndexRequest source(String source) {
+    @Required
+    public IndexRequest source(String source) {
         UnicodeUtil.UTF8Result result = Unicode.fromStringAsUtf8(source);
         this.source = result.result;
         this.sourceOffset = 0;
@@ -378,7 +390,8 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     /**
      * Sets the content source to index.
      */
-    @Required public IndexRequest source(XContentBuilder sourceBuilder) {
+    @Required
+    public IndexRequest source(XContentBuilder sourceBuilder) {
         try {
             source = sourceBuilder.underlyingBytes();
             sourceOffset = 0;
@@ -390,7 +403,8 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         return this;
     }
 
-    @Required public IndexRequest source(String field1, Object value1) {
+    @Required
+    public IndexRequest source(String field1, Object value1) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             builder.startObject().field(field1, value1).endObject();
@@ -400,7 +414,8 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         }
     }
 
-    @Required public IndexRequest source(String field1, Object value1, String field2, Object value2) {
+    @Required
+    public IndexRequest source(String field1, Object value1, String field2, Object value2) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             builder.startObject().field(field1, value1).field(field2, value2).endObject();
@@ -410,7 +425,8 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         }
     }
 
-    @Required public IndexRequest source(String field1, Object value1, String field2, Object value2, String field3, Object value3) {
+    @Required
+    public IndexRequest source(String field1, Object value1, String field2, Object value2, String field3, Object value3) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             builder.startObject().field(field1, value1).field(field2, value2).field(field3, value3).endObject();
@@ -420,7 +436,8 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         }
     }
 
-    @Required public IndexRequest source(String field1, Object value1, String field2, Object value2, String field3, Object value3, String field4, Object value4) {
+    @Required
+    public IndexRequest source(String field1, Object value1, String field2, Object value2, String field3, Object value3, String field4, Object value4) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             builder.startObject().field(field1, value1).field(field2, value2).field(field3, value3).field(field4, value4).endObject();
@@ -445,7 +462,8 @@ public class IndexRequest extends ShardReplicationOperationRequest {
      * @param offset The offset in the byte array
      * @param length The length of the data
      */
-    @Required public IndexRequest source(byte[] source, int offset, int length) {
+    @Required
+    public IndexRequest source(byte[] source, int offset, int length) {
         return source(source, offset, length, false);
     }
 
@@ -457,7 +475,8 @@ public class IndexRequest extends ShardReplicationOperationRequest {
      * @param length The length of the data
      * @param unsafe Is the byte array safe to be used form a different thread
      */
-    @Required public IndexRequest source(byte[] source, int offset, int length, boolean unsafe) {
+    @Required
+    public IndexRequest source(byte[] source, int offset, int length, boolean unsafe) {
         this.source = source;
         this.sourceOffset = offset;
         this.sourceLength = length;
@@ -505,7 +524,8 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     /**
      * Set the replication type for this operation.
      */
-    @Override public IndexRequest replicationType(ReplicationType replicationType) {
+    @Override
+    public IndexRequest replicationType(ReplicationType replicationType) {
         super.replicationType(replicationType);
         return this;
     }
@@ -513,7 +533,8 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     /**
      * Sets the consistency level of write. Defaults to {@link org.elasticsearch.action.WriteConsistencyLevel#DEFAULT}
      */
-    @Override public IndexRequest consistencyLevel(WriteConsistencyLevel consistencyLevel) {
+    @Override
+    public IndexRequest consistencyLevel(WriteConsistencyLevel consistencyLevel) {
         super.consistencyLevel(consistencyLevel);
         return this;
     }
@@ -654,7 +675,8 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         }
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         type = in.readUTF();
         if (in.readBoolean()) {
@@ -685,7 +707,8 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         versionType = VersionType.fromValue(in.readByte());
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeUTF(type);
         if (id == null) {
@@ -727,7 +750,8 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         out.writeByte(versionType.getValue());
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         String sSource = "_na_";
         try {
             sSource = Unicode.fromBytes(source, sourceOffset, sourceLength);

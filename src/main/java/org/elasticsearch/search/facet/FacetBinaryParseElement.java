@@ -25,15 +25,17 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.internal.SearchContext;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class FacetBinaryParseElement extends FacetParseElement {
 
-    @Inject public FacetBinaryParseElement(FacetProcessors facetProcessors) {
+    @Inject
+    public FacetBinaryParseElement(FacetProcessors facetProcessors) {
         super(facetProcessors);
     }
 
-    @Override public void parse(XContentParser parser, SearchContext context) throws Exception {
+    @Override
+    public void parse(XContentParser parser, SearchContext context) throws Exception {
         byte[] facetSource = parser.binaryValue();
         XContentParser fSourceParser = XContentFactory.xContent(facetSource).createParser(facetSource);
         try {

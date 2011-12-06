@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -33,7 +33,7 @@ import java.io.File;
 import java.util.concurrent.Executor;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class FsBlobStore extends AbstractComponent implements BlobStore {
 
@@ -59,7 +59,8 @@ public class FsBlobStore extends AbstractComponent implements BlobStore {
         this.executor = executor;
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return path.toString();
     }
 
@@ -75,15 +76,18 @@ public class FsBlobStore extends AbstractComponent implements BlobStore {
         return executor;
     }
 
-    @Override public ImmutableBlobContainer immutableBlobContainer(BlobPath path) {
+    @Override
+    public ImmutableBlobContainer immutableBlobContainer(BlobPath path) {
         return new FsImmutableBlobContainer(this, path, buildAndCreate(path));
     }
 
-    @Override public void delete(BlobPath path) {
+    @Override
+    public void delete(BlobPath path) {
         FileSystemUtils.deleteRecursively(buildPath(path));
     }
 
-    @Override public void close() {
+    @Override
+    public void close() {
         // nothing to do here...
     }
 

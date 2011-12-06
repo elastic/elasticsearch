@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,23 +19,17 @@
 
 package org.elasticsearch.index.store;
 
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FSDirectory;
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.store.Lock;
-import org.apache.lucene.store.LockFactory;
-import org.apache.lucene.store.SimpleFSDirectory;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
+import jsr166y.ThreadLocalRandom;
+import org.apache.lucene.store.*;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Directories;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.concurrent.jsr166y.ThreadLocalRandom;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
@@ -75,7 +69,8 @@ public class Store extends AbstractIndexShardComponent {
 
     private final boolean sync;
 
-    @Inject public Store(ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore, DirectoryService directoryService) throws IOException {
+    @Inject
+    public Store(ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore, DirectoryService directoryService) throws IOException {
         super(shardId, indexSettings);
         this.indexStore = indexStore;
         this.directoryService = directoryService;
@@ -303,15 +298,18 @@ public class Store extends AbstractIndexShardComponent {
             return delegates;
         }
 
-        @Override public String[] listAll() throws IOException {
+        @Override
+        public String[] listAll() throws IOException {
             return files;
         }
 
-        @Override public boolean fileExists(String name) throws IOException {
+        @Override
+        public boolean fileExists(String name) throws IOException {
             return filesMetadata.containsKey(name);
         }
 
-        @Override public long fileModified(String name) throws IOException {
+        @Override
+        public long fileModified(String name) throws IOException {
             StoreFileMetaData metaData = filesMetadata.get(name);
             if (metaData == null) {
                 throw new FileNotFoundException(name);
@@ -323,7 +321,8 @@ public class Store extends AbstractIndexShardComponent {
             return metaData.directory().fileModified(name);
         }
 
-        @Override public void touchFile(String name) throws IOException {
+        @Override
+        public void touchFile(String name) throws IOException {
             synchronized (mutex) {
                 StoreFileMetaData metaData = filesMetadata.get(name);
                 if (metaData != null) {
@@ -351,7 +350,8 @@ public class Store extends AbstractIndexShardComponent {
             }
         }
 
-        @Override public void deleteFile(String name) throws IOException {
+        @Override
+        public void deleteFile(String name) throws IOException {
             // we don't allow to delete the checksums files, only using the deleteChecksum method
             if (isChecksum(name)) {
                 return;
@@ -372,7 +372,8 @@ public class Store extends AbstractIndexShardComponent {
             }
         }
 
-        @Override public long fileLength(String name) throws IOException {
+        @Override
+        public long fileLength(String name) throws IOException {
             StoreFileMetaData metaData = filesMetadata.get(name);
             if (metaData == null) {
                 throw new FileNotFoundException(name);
@@ -384,7 +385,8 @@ public class Store extends AbstractIndexShardComponent {
             return metaData.directory().fileLength(name);
         }
 
-        @Override public IndexOutput createOutput(String name) throws IOException {
+        @Override
+        public IndexOutput createOutput(String name) throws IOException {
             return createOutput(name, true);
         }
 
@@ -422,7 +424,8 @@ public class Store extends AbstractIndexShardComponent {
             }
         }
 
-        @Override public IndexInput openInput(String name) throws IOException {
+        @Override
+        public IndexInput openInput(String name) throws IOException {
             StoreFileMetaData metaData = filesMetadata.get(name);
             if (metaData == null) {
                 throw new FileNotFoundException(name);
@@ -430,7 +433,8 @@ public class Store extends AbstractIndexShardComponent {
             return metaData.directory().openInput(name);
         }
 
-        @Override public void close() throws IOException {
+        @Override
+        public void close() throws IOException {
             for (Directory delegate : delegates) {
                 delegate.close();
             }
@@ -440,11 +444,13 @@ public class Store extends AbstractIndexShardComponent {
             }
         }
 
-        @Override public Lock makeLock(String name) {
+        @Override
+        public Lock makeLock(String name) {
             return delegates[0].makeLock(name);
         }
 
-        @Override public IndexInput openInput(String name, int bufferSize) throws IOException {
+        @Override
+        public IndexInput openInput(String name, int bufferSize) throws IOException {
             StoreFileMetaData metaData = filesMetadata.get(name);
             if (metaData == null) {
                 throw new FileNotFoundException(name);
@@ -452,23 +458,28 @@ public class Store extends AbstractIndexShardComponent {
             return metaData.directory().openInput(name, bufferSize);
         }
 
-        @Override public void clearLock(String name) throws IOException {
+        @Override
+        public void clearLock(String name) throws IOException {
             delegates[0].clearLock(name);
         }
 
-        @Override public void setLockFactory(LockFactory lockFactory) throws IOException {
+        @Override
+        public void setLockFactory(LockFactory lockFactory) throws IOException {
             delegates[0].setLockFactory(lockFactory);
         }
 
-        @Override public LockFactory getLockFactory() {
+        @Override
+        public LockFactory getLockFactory() {
             return delegates[0].getLockFactory();
         }
 
-        @Override public String getLockID() {
+        @Override
+        public String getLockID() {
             return delegates[0].getLockID();
         }
 
-        @Override public void sync(Collection<String> names) throws IOException {
+        @Override
+        public void sync(Collection<String> names) throws IOException {
             if (sync) {
                 Map<Directory, Collection<String>> map = Maps.newHashMap();
                 for (String name : names) {
@@ -496,7 +507,8 @@ public class Store extends AbstractIndexShardComponent {
             }
         }
 
-        @Override public void sync(String name) throws IOException {
+        @Override
+        public void sync(String name) throws IOException {
             if (sync) {
                 sync(ImmutableList.of(name));
             }
@@ -506,7 +518,8 @@ public class Store extends AbstractIndexShardComponent {
             }
         }
 
-        @Override public void forceSync(String name) throws IOException {
+        @Override
+        public void forceSync(String name) throws IOException {
             sync(ImmutableList.of(name));
         }
     }
@@ -544,7 +557,8 @@ public class Store extends AbstractIndexShardComponent {
             }
         }
 
-        @Override public void close() throws IOException {
+        @Override
+        public void close() throws IOException {
             delegate.close();
             String checksum = null;
             if (digest != null) {
@@ -557,14 +571,16 @@ public class Store extends AbstractIndexShardComponent {
             }
         }
 
-        @Override public void writeByte(byte b) throws IOException {
+        @Override
+        public void writeByte(byte b) throws IOException {
             delegate.writeByte(b);
             if (digest != null) {
                 digest.update(b);
             }
         }
 
-        @Override public void writeBytes(byte[] b, int offset, int length) throws IOException {
+        @Override
+        public void writeBytes(byte[] b, int offset, int length) throws IOException {
             delegate.writeBytes(b, offset, length);
             if (digest != null) {
                 digest.update(b, offset, length);
@@ -576,30 +592,36 @@ public class Store extends AbstractIndexShardComponent {
 //            delegate.copyBytes(input, numBytes);
 //        }
 
-        @Override public void flush() throws IOException {
+        @Override
+        public void flush() throws IOException {
             delegate.flush();
         }
 
-        @Override public long getFilePointer() {
+        @Override
+        public long getFilePointer() {
             return delegate.getFilePointer();
         }
 
-        @Override public void seek(long pos) throws IOException {
+        @Override
+        public void seek(long pos) throws IOException {
             // seek might be called on files, which means that the checksum is not file checksum
             // but a checksum of the bytes written to this stream, which is the same for each
             // type of file in lucene
             delegate.seek(pos);
         }
 
-        @Override public long length() throws IOException {
+        @Override
+        public long length() throws IOException {
             return delegate.length();
         }
 
-        @Override public void setLength(long length) throws IOException {
+        @Override
+        public void setLength(long length) throws IOException {
             delegate.setLength(length);
         }
 
-        @Override public void writeStringStringMap(Map<String, String> map) throws IOException {
+        @Override
+        public void writeStringStringMap(Map<String, String> map) throws IOException {
             delegate.writeStringStringMap(map);
         }
     }

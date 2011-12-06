@@ -28,15 +28,17 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.TransportService;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class ClientTransportPutIndexTemplateAction extends BaseClientTransportAction<PutIndexTemplateRequest, PutIndexTemplateResponse> {
 
-    @Inject public ClientTransportPutIndexTemplateAction(Settings settings, TransportService transportService) {
+    @Inject
+    public ClientTransportPutIndexTemplateAction(Settings settings, TransportService transportService) {
         super(settings, transportService, PutIndexTemplateResponse.class);
     }
 
-    @Override protected String action() {
+    @Override
+    protected String action() {
         return TransportActions.Admin.Indices.PUT_INDEX_TEMPLATE;
     }
 }

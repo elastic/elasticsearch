@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.action.shard;
 
+import jsr166y.LinkedTransferQueue;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -37,24 +38,19 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.VoidStreamable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.jsr166y.LinkedTransferQueue;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportRequestHandler;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.VoidTransportResponseHandler;
+import org.elasticsearch.transport.*;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
 
-import static org.elasticsearch.cluster.ClusterState.*;
-import static org.elasticsearch.cluster.routing.ImmutableShardRouting.*;
+import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
+import static org.elasticsearch.cluster.routing.ImmutableShardRouting.readShardRoutingEntry;
 
 /**
- * @author kimchy (Shay Banon)
+ *
  */
 public class ShardStateAction extends AbstractComponent {
 
@@ -68,8 +64,9 @@ public class ShardStateAction extends AbstractComponent {
 
     private final BlockingQueue<ShardRouting> startedShardsQueue = new LinkedTransferQueue<ShardRouting>();
 
-    @Inject public ShardStateAction(Settings settings, ClusterService clusterService, TransportService transportService,
-                                    AllocationService allocationService, ThreadPool threadPool) {
+    @Inject
+    public ShardStateAction(Settings settings, ClusterService clusterService, TransportService transportService,
+                            AllocationService allocationService, ThreadPool threadPool) {
         super(settings);
         this.clusterService = clusterService;
         this.transportService = transportService;
@@ -88,7 +85,8 @@ public class ShardStateAction extends AbstractComponent {
         } else {
             transportService.sendRequest(clusterService.state().nodes().masterNode(),
                     ShardFailedTransportHandler.ACTION, new ShardRoutingEntry(shardRouting, reason), new VoidTransportResponseHandler(ThreadPool.Names.SAME) {
-                @Override public void handleException(TransportException exp) {
+                @Override
+                public void handleException(TransportException exp) {
                     logger.warn("failed to send failed shard to [{}]", exp, clusterService.state().nodes().masterNode());
                 }
             });
@@ -105,7 +103,8 @@ public class ShardStateAction extends AbstractComponent {
         } else {
             transportService.sendRequest(clusterService.state().nodes().masterNode(),
                     ShardStartedTransportHandler.ACTION, new ShardRoutingEntry(shardRouting, reason), new VoidTransportResponseHandler(ThreadPool.Names.SAME) {
-                @Override public void handleException(TransportException exp) {
+                @Override
+                public void handleException(TransportException exp) {
                     logger.warn("failed to send shard started to [{}]", exp, clusterService.state().nodes().masterNode());
                 }
             });
@@ -115,7 +114,8 @@ public class ShardStateAction extends AbstractComponent {
     private void innerShardFailed(final ShardRouting shardRouting, final String reason) {
         logger.warn("received shard failed for {}, reason [{}]", shardRouting, reason);
         clusterService.submitStateUpdateTask("shard-failed (" + shardRouting + "), reason [" + reason + "]", new ClusterStateUpdateTask() {
-            @Override public ClusterState execute(ClusterState currentState) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
                 if (logger.isDebugEnabled()) {
                     logger.debug("Received failed shard {}, reason [{}]", shardRouting, reason);
                 }
@@ -142,7 +142,8 @@ public class ShardStateAction extends AbstractComponent {
         startedShardsQueue.add(shardRouting);
 
         clusterService.submitStateUpdateTask("shard-started (" + shardRouting + "), reason [" + reason + "]", new ClusterStateUpdateTask() {
-            @Override public ClusterState execute(ClusterState currentState) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
 
                 List<ShardRouting> shards = new ArrayList<ShardRouting>();
                 startedShardsQueue.drainTo(shards);
@@ -198,16 +199,19 @@ public class ShardStateAction extends AbstractComponent {
 
         static final String ACTION = "cluster/shardFailure";
 
-        @Override public ShardRoutingEntry newInstance() {
+        @Override
+        public ShardRoutingEntry newInstance() {
             return new ShardRoutingEntry();
         }
 
-        @Override public void messageReceived(ShardRoutingEntry request, TransportChannel channel) throws Exception {
+        @Override
+        public void messageReceived(ShardRoutingEntry request, TransportChannel channel) throws Exception {
             innerShardFailed(request.shardRouting, request.reason);
             channel.sendResponse(VoidStreamable.INSTANCE);
         }
 
-        @Override public String executor() {
+        @Override
+        public String executor() {
             return ThreadPool.Names.SAME;
         }
     }
@@ -216,16 +220,19 @@ public class ShardStateAction extends AbstractComponent {
 
         static final String ACTION = "cluster/shardStarted";
 
-        @Override public ShardRoutingEntry newInstance() {
+        @Override
+        public ShardRoutingEntry newInstance() {
             return new ShardRoutingEntry();
         }
 
-        @Override public void messageReceived(ShardRoutingEntry request, TransportChannel channel) throws Exception {
+        @Override
+        public void messageReceived(ShardRoutingEntry request, TransportChannel channel) throws Exception {
             innerShardStarted(request.shardRouting, request.reason);
             channel.sendResponse(VoidStreamable.INSTANCE);
         }
 
-        @Override public String executor() {
+        @Override
+        public String executor() {
             return ThreadPool.Names.SAME;
         }
     }
@@ -244,12 +251,14 @@ public class ShardStateAction extends AbstractComponent {
             this.reason = reason;
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             shardRouting = readShardRoutingEntry(in);
             reason = in.readUTF();
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             shardRouting.writeTo(out);
             out.writeUTF(reason);
         }

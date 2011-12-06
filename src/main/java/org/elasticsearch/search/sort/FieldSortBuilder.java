@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -26,7 +26,7 @@ import java.io.IOException;
 /**
  * A sort builder to sort based on a document field.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class FieldSortBuilder extends SortBuilder {
 
@@ -48,7 +48,8 @@ public class FieldSortBuilder extends SortBuilder {
     /**
      * The order of sorting. Defaults to {@link SortOrder#ASC}.
      */
-    @Override public FieldSortBuilder order(SortOrder order) {
+    @Override
+    public FieldSortBuilder order(SortOrder order) {
         this.order = order;
         return this;
     }
@@ -57,12 +58,14 @@ public class FieldSortBuilder extends SortBuilder {
      * Sets the value when a field is missing in a doc. Can also be set to <tt>_last</tt> or
      * <tt>_first</tt> to sort missing last or first respectively.
      */
-    @Override public FieldSortBuilder missing(Object missing) {
+    @Override
+    public FieldSortBuilder missing(Object missing) {
         this.missing = missing;
         return this;
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(fieldName);
         if (order != null) {
             builder.field("order", order.toString());

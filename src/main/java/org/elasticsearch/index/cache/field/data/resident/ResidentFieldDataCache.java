@@ -19,12 +19,12 @@
 
 package org.elasticsearch.index.cache.field.data.resident;
 
+import com.google.common.base.Objects;
+import com.google.common.collect.MapEvictionListener;
+import com.google.common.collect.MapMaker;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.base.Objects;
-import org.elasticsearch.common.collect.MapEvictionListener;
-import org.elasticsearch.common.collect.MapMaker;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
@@ -39,7 +39,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class ResidentFieldDataCache extends AbstractConcurrentMapFieldDataCache implements MapEvictionListener<String, FieldData> {
 
@@ -52,7 +52,8 @@ public class ResidentFieldDataCache extends AbstractConcurrentMapFieldDataCache 
 
     private final ApplySettings applySettings = new ApplySettings();
 
-    @Inject public ResidentFieldDataCache(Index index, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService) {
+    @Inject
+    public ResidentFieldDataCache(Index index, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService) {
         super(index, indexSettings);
         this.indexSettingsService = indexSettingsService;
 
@@ -63,12 +64,14 @@ public class ResidentFieldDataCache extends AbstractConcurrentMapFieldDataCache 
         indexSettingsService.addListener(applySettings);
     }
 
-    @Override public void close() throws ElasticSearchException {
+    @Override
+    public void close() throws ElasticSearchException {
         indexSettingsService.removeListener(applySettings);
         super.close();
     }
 
-    @Override protected ConcurrentMap<String, FieldData> buildFieldDataMap() {
+    @Override
+    protected ConcurrentMap<String, FieldData> buildFieldDataMap() {
         MapMaker mapMaker = new MapMaker();
         if (maxSize != -1) {
             mapMaker.maximumSize(maxSize);
@@ -80,15 +83,18 @@ public class ResidentFieldDataCache extends AbstractConcurrentMapFieldDataCache 
         return mapMaker.makeMap();
     }
 
-    @Override public String type() {
+    @Override
+    public String type() {
         return "resident";
     }
 
-    @Override public long evictions() {
+    @Override
+    public long evictions() {
         return evictions.count();
     }
 
-    @Override public void onEviction(@Nullable String s, @Nullable FieldData fieldData) {
+    @Override
+    public void onEviction(@Nullable String s, @Nullable FieldData fieldData) {
         evictions.inc();
     }
 
@@ -100,7 +106,8 @@ public class ResidentFieldDataCache extends AbstractConcurrentMapFieldDataCache 
     }
 
     class ApplySettings implements IndexSettingsService.Listener {
-        @Override public void onRefreshSettings(Settings settings) {
+        @Override
+        public void onRefreshSettings(Settings settings) {
             int maxSize = settings.getAsInt("index.cache.field.max_size", ResidentFieldDataCache.this.maxSize);
             TimeValue expire = settings.getAsTime("index.cache.field.expire", ResidentFieldDataCache.this.expire);
             boolean changed = false;

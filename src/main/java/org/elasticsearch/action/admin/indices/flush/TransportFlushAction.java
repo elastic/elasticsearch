@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -40,43 +40,50 @@ import org.elasticsearch.transport.TransportService;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
-import static org.elasticsearch.common.collect.Lists.*;
+import static com.google.common.collect.Lists.newArrayList;
 
 /**
  * Flush Action.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class TransportFlushAction extends TransportBroadcastOperationAction<FlushRequest, FlushResponse, ShardFlushRequest, ShardFlushResponse> {
 
     private final IndicesService indicesService;
 
-    @Inject public TransportFlushAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, IndicesService indicesService) {
+    @Inject
+    public TransportFlushAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, IndicesService indicesService) {
         super(settings, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
     }
 
-    @Override protected String executor() {
+    @Override
+    protected String executor() {
         return ThreadPool.Names.MANAGEMENT;
     }
 
-    @Override protected String transportAction() {
+    @Override
+    protected String transportAction() {
         return TransportActions.Admin.Indices.FLUSH;
     }
 
-    @Override protected String transportShardAction() {
+    @Override
+    protected String transportShardAction() {
         return "indices/flush/shard";
     }
 
-    @Override protected FlushRequest newRequest() {
+    @Override
+    protected FlushRequest newRequest() {
         return new FlushRequest();
     }
 
-    @Override protected boolean ignoreNonActiveExceptions() {
+    @Override
+    protected boolean ignoreNonActiveExceptions() {
         return true;
     }
 
-    @Override protected FlushResponse newResponse(FlushRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
+    @Override
+    protected FlushResponse newResponse(FlushRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
         int successfulShards = 0;
         int failedShards = 0;
         List<ShardOperationFailedException> shardFailures = null;
@@ -97,19 +104,23 @@ public class TransportFlushAction extends TransportBroadcastOperationAction<Flus
         return new FlushResponse(shardsResponses.length(), successfulShards, failedShards, shardFailures);
     }
 
-    @Override protected ShardFlushRequest newShardRequest() {
+    @Override
+    protected ShardFlushRequest newShardRequest() {
         return new ShardFlushRequest();
     }
 
-    @Override protected ShardFlushRequest newShardRequest(ShardRouting shard, FlushRequest request) {
+    @Override
+    protected ShardFlushRequest newShardRequest(ShardRouting shard, FlushRequest request) {
         return new ShardFlushRequest(shard.index(), shard.id(), request);
     }
 
-    @Override protected ShardFlushResponse newShardResponse() {
+    @Override
+    protected ShardFlushResponse newShardResponse() {
         return new ShardFlushResponse();
     }
 
-    @Override protected ShardFlushResponse shardOperation(ShardFlushRequest request) throws ElasticSearchException {
+    @Override
+    protected ShardFlushResponse shardOperation(ShardFlushRequest request) throws ElasticSearchException {
         IndexShard indexShard = indicesService.indexServiceSafe(request.index()).shardSafe(request.shardId());
         indexShard.flush(new Engine.Flush().refresh(request.refresh()).full(request.full()).force(request.force()));
         return new ShardFlushResponse(request.index(), request.shardId());
@@ -118,7 +129,8 @@ public class TransportFlushAction extends TransportBroadcastOperationAction<Flus
     /**
      * The refresh request works against *all* shards.
      */
-    @Override protected GroupShardsIterator shards(FlushRequest request, String[] concreteIndices, ClusterState clusterState) {
+    @Override
+    protected GroupShardsIterator shards(FlushRequest request, String[] concreteIndices, ClusterState clusterState) {
         return clusterState.routingTable().allActiveShardsGrouped(concreteIndices, true);
     }
 }

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -30,25 +30,19 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportRequestHandler;
-import org.elasticsearch.transport.BaseTransportResponseHandler;
-import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportConnectionListener;
-import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.*;
 
 import java.io.IOException;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.common.unit.TimeValue.*;
-import static org.elasticsearch.transport.TransportRequestOptions.*;
+import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.elasticsearch.transport.TransportRequestOptions.options;
 
 /**
  * A fault detection that pings the master periodically to see if its alive.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class MasterFaultDetection extends AbstractComponent {
 
@@ -221,7 +215,8 @@ public class MasterFaultDetection extends AbstractComponent {
 
     private void notifyDisconnectedFromMaster() {
         threadPool.cached().execute(new Runnable() {
-            @Override public void run() {
+            @Override
+            public void run() {
                 for (Listener listener : listeners) {
                     listener.onDisconnectedFromMaster();
                 }
@@ -232,7 +227,8 @@ public class MasterFaultDetection extends AbstractComponent {
     private void notifyMasterFailure(final DiscoveryNode masterNode, final String reason) {
         if (notifiedMasterFailure.compareAndSet(false, true)) {
             threadPool.cached().execute(new Runnable() {
-                @Override public void run() {
+                @Override
+                public void run() {
                     for (Listener listener : listeners) {
                         listener.onMasterFailure(masterNode, reason);
                     }
@@ -243,10 +239,12 @@ public class MasterFaultDetection extends AbstractComponent {
     }
 
     private class FDConnectionListener implements TransportConnectionListener {
-        @Override public void onNodeConnected(DiscoveryNode node) {
+        @Override
+        public void onNodeConnected(DiscoveryNode node) {
         }
 
-        @Override public void onNodeDisconnected(DiscoveryNode node) {
+        @Override
+        public void onNodeDisconnected(DiscoveryNode node) {
             handleTransportDisconnect(node);
         }
     }
@@ -259,7 +257,8 @@ public class MasterFaultDetection extends AbstractComponent {
             this.running = false;
         }
 
-        @Override public void run() {
+        @Override
+        public void run() {
             if (!running) {
                 // return and don't spawn...
                 return;
@@ -272,11 +271,13 @@ public class MasterFaultDetection extends AbstractComponent {
             }
             transportService.sendRequest(masterToPing, MasterPingRequestHandler.ACTION, new MasterPingRequest(nodesProvider.nodes().localNode().id(), masterToPing.id()), options().withHighType().withTimeout(pingRetryTimeout),
                     new BaseTransportResponseHandler<MasterPingResponseResponse>() {
-                        @Override public MasterPingResponseResponse newInstance() {
+                        @Override
+                        public MasterPingResponseResponse newInstance() {
                             return new MasterPingResponseResponse();
                         }
 
-                        @Override public void handleResponse(MasterPingResponseResponse response) {
+                        @Override
+                        public void handleResponse(MasterPingResponseResponse response) {
                             if (!running) {
                                 return;
                             }
@@ -293,7 +294,8 @@ public class MasterFaultDetection extends AbstractComponent {
                             }
                         }
 
-                        @Override public void handleException(TransportException exp) {
+                        @Override
+                        public void handleException(TransportException exp) {
                             if (!running) {
                                 return;
                             }
@@ -322,7 +324,8 @@ public class MasterFaultDetection extends AbstractComponent {
                             }
                         }
 
-                        @Override public String executor() {
+                        @Override
+                        public String executor() {
                             return ThreadPool.Names.SAME;
                         }
                     });
@@ -330,7 +333,8 @@ public class MasterFaultDetection extends AbstractComponent {
     }
 
     private static class NoLongerMasterException extends ElasticSearchIllegalStateException {
-        @Override public Throwable fillInStackTrace() {
+        @Override
+        public Throwable fillInStackTrace() {
             return null;
         }
     }
@@ -339,11 +343,13 @@ public class MasterFaultDetection extends AbstractComponent {
 
         public static final String ACTION = "discovery/zen/fd/masterPing";
 
-        @Override public MasterPingRequest newInstance() {
+        @Override
+        public MasterPingRequest newInstance() {
             return new MasterPingRequest();
         }
 
-        @Override public void messageReceived(MasterPingRequest request, TransportChannel channel) throws Exception {
+        @Override
+        public void messageReceived(MasterPingRequest request, TransportChannel channel) throws Exception {
             DiscoveryNodes nodes = nodesProvider.nodes();
             // check if we are really the same master as the one we seemed to be think we are
             // this can happen if the master got "kill -9" and then another node started using the same port
@@ -358,7 +364,8 @@ public class MasterFaultDetection extends AbstractComponent {
             channel.sendResponse(new MasterPingResponseResponse(nodes.nodeExists(request.nodeId)));
         }
 
-        @Override public String executor() {
+        @Override
+        public String executor() {
             return ThreadPool.Names.SAME;
         }
     }
@@ -378,12 +385,14 @@ public class MasterFaultDetection extends AbstractComponent {
             this.masterNodeId = masterNodeId;
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             nodeId = in.readUTF();
             masterNodeId = in.readUTF();
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             out.writeUTF(nodeId);
             out.writeUTF(masterNodeId);
         }
@@ -400,11 +409,13 @@ public class MasterFaultDetection extends AbstractComponent {
             this.connectedToMaster = connectedToMaster;
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             connectedToMaster = in.readBoolean();
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(connectedToMaster);
         }
     }

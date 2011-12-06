@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,10 +19,9 @@
 
 package org.elasticsearch.search.facet.datehistogram;
 
+import gnu.trove.ExtTLongObjectHashMap;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.CacheRecycler;
-import org.elasticsearch.common.joda.time.MutableDateTime;
-import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.NumericFieldData;
@@ -33,13 +32,14 @@ import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.internal.SearchContext;
+import org.joda.time.MutableDateTime;
 
 import java.io.IOException;
 
 /**
  * A histogram facet collector that uses different fields for the key and the value.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class ValueDateHistogramFacetCollector extends AbstractFacetCollector {
 
@@ -90,16 +90,19 @@ public class ValueDateHistogramFacetCollector extends AbstractFacetCollector {
         this.histoProc = new DateHistogramProc(interval);
     }
 
-    @Override protected void doCollect(int doc) throws IOException {
+    @Override
+    protected void doCollect(int doc) throws IOException {
         keyFieldData.forEachValueInDoc(doc, dateTime, histoProc);
     }
 
-    @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
+    @Override
+    protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
         keyFieldData = (LongFieldData) fieldDataCache.cache(keyFieldDataType, reader, keyIndexFieldName);
         histoProc.valueFieldData = (NumericFieldData) fieldDataCache.cache(valueFieldDataType, reader, valueIndexFieldName);
     }
 
-    @Override public Facet facet() {
+    @Override
+    public Facet facet() {
         return new InternalFullDateHistogramFacet(facetName, comparatorType, histoProc.entries, true);
     }
 
@@ -117,7 +120,8 @@ public class ValueDateHistogramFacetCollector extends AbstractFacetCollector {
             this.interval = interval;
         }
 
-        @Override public void onValue(int docId, MutableDateTime dateTime) {
+        @Override
+        public void onValue(int docId, MutableDateTime dateTime) {
             long time = dateTime.getMillis();
             if (interval != 1) {
                 time = CountDateHistogramFacetCollector.bucket(time, interval);
@@ -137,7 +141,8 @@ public class ValueDateHistogramFacetCollector extends AbstractFacetCollector {
 
             InternalFullDateHistogramFacet.FullEntry entry;
 
-            @Override public void onValue(int docId, double value) {
+            @Override
+            public void onValue(int docId, double value) {
                 entry.totalCount++;
                 entry.total += value;
                 if (value < entry.min) {

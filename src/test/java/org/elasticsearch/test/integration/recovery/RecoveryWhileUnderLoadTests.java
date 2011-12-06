@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -30,22 +30,24 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.hamcrest.MatcherAssert.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
 
     private final ESLogger logger = Loggers.getLogger(RecoveryWhileUnderLoadTests.class);
 
-    @AfterMethod public void shutdownNodes() {
+    @AfterMethod
+    public void shutdownNodes() {
         closeAllNodes();
     }
 
-    @Test public void recoverWhileUnderLoadAllocateBackupsTest() throws Exception {
+    @Test
+    public void recoverWhileUnderLoadAllocateBackupsTest() throws Exception {
         logger.info("--> starting [node1] ...");
         startNode("node1");
 
@@ -62,7 +64,8 @@ public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
         for (int i = 0; i < writers.length; i++) {
             final int indexerId = i;
             writers[i] = new Thread() {
-                @Override public void run() {
+                @Override
+                public void run() {
                     try {
                         logger.info("**** starting indexing thread {}", indexerId);
                         while (!stop.get()) {
@@ -132,7 +135,8 @@ public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
         }
     }
 
-    @Test public void recoverWhileUnderLoadAllocateBackupsRelocatePrimariesTest() throws Exception {
+    @Test
+    public void recoverWhileUnderLoadAllocateBackupsRelocatePrimariesTest() throws Exception {
         logger.info("--> starting [node1] ...");
         startNode("node1");
 
@@ -148,7 +152,8 @@ public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
         for (int i = 0; i < writers.length; i++) {
             final int indexerId = i;
             writers[i] = new Thread() {
-                @Override public void run() {
+                @Override
+                public void run() {
                     try {
                         logger.info("**** starting indexing thread {}", indexerId);
                         while (!stop.get()) {
@@ -221,7 +226,8 @@ public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
         }
     }
 
-    @Test public void recoverWhileUnderLoadWithNodeShutdown() throws Exception {
+    @Test
+    public void recoverWhileUnderLoadWithNodeShutdown() throws Exception {
         logger.info("--> starting [node1] ...");
         startNode("node1");
         logger.info("--> starting [node2] ...");
@@ -239,7 +245,8 @@ public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
         for (int i = 0; i < writers.length; i++) {
             final int indexerId = i;
             writers[i] = new Thread() {
-                @Override public void run() {
+                @Override
+                public void run() {
                     try {
                         logger.info("**** starting indexing thread {}", indexerId);
                         while (!stop.get()) {

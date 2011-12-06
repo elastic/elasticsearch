@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,12 +19,7 @@
 
 package org.elasticsearch.index.store.fs;
 
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FSDirectory;
-import org.apache.lucene.store.LockFactory;
-import org.apache.lucene.store.NativeFSLockFactory;
-import org.apache.lucene.store.NoLockFactory;
-import org.apache.lucene.store.SimpleFSLockFactory;
+import org.apache.lucene.store.*;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -61,7 +56,8 @@ public abstract class FsDirectoryService extends AbstractIndexShardComponent imp
         return lockFactory;
     }
 
-    @Override public void renameFile(Directory dir, String from, String to) throws IOException {
+    @Override
+    public void renameFile(Directory dir, String from, String to) throws IOException {
         File directory = ((FSDirectory) dir).getDirectory();
         File old = new File(directory, from);
         File nu = new File(directory, to);
@@ -90,7 +86,8 @@ public abstract class FsDirectoryService extends AbstractIndexShardComponent imp
         }
     }
 
-    @Override public void fullDelete(Directory dir) throws IOException {
+    @Override
+    public void fullDelete(Directory dir) throws IOException {
         FSDirectory fsDirectory = (FSDirectory) dir;
         FileSystemUtils.deleteRecursively(fsDirectory.getDirectory());
         // if we are the last ones, delete also the actual index

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -40,12 +40,14 @@ public class TransportBenchmark {
 
     static enum Type {
         LOCAL {
-            @Override public Transport newTransport(Settings settings, ThreadPool threadPool) {
+            @Override
+            public Transport newTransport(Settings settings, ThreadPool threadPool) {
                 return new LocalTransport(settings, threadPool);
             }
         },
         NETTY {
-            @Override public Transport newTransport(Settings settings, ThreadPool threadPool) {
+            @Override
+            public Transport newTransport(Settings settings, ThreadPool threadPool) {
                 return new NettyTransport(settings, threadPool);
             }
         };
@@ -76,15 +78,18 @@ public class TransportBenchmark {
         final DiscoveryNode node = new DiscoveryNode("server", serverTransportService.boundAddress().publishAddress());
 
         serverTransportService.registerHandler("benchmark", new BaseTransportRequestHandler<BenchmarkMessage>() {
-            @Override public BenchmarkMessage newInstance() {
+            @Override
+            public BenchmarkMessage newInstance() {
                 return new BenchmarkMessage();
             }
 
-            @Override public String executor() {
+            @Override
+            public String executor() {
                 return executor;
             }
 
-            @Override public void messageReceived(BenchmarkMessage request, TransportChannel channel) throws Exception {
+            @Override
+            public void messageReceived(BenchmarkMessage request, TransportChannel channel) throws Exception {
                 channel.sendResponse(request);
             }
         });
@@ -94,18 +99,22 @@ public class TransportBenchmark {
         for (int i = 0; i < 10000; i++) {
             BenchmarkMessage message = new BenchmarkMessage(1, payload);
             clientTransportService.submitRequest(node, "benchmark", message, new BaseTransportResponseHandler<BenchmarkMessage>() {
-                @Override public BenchmarkMessage newInstance() {
+                @Override
+                public BenchmarkMessage newInstance() {
                     return new BenchmarkMessage();
                 }
 
-                @Override public String executor() {
+                @Override
+                public String executor() {
                     return ThreadPool.Names.SAME;
                 }
 
-                @Override public void handleResponse(BenchmarkMessage response) {
+                @Override
+                public void handleResponse(BenchmarkMessage response) {
                 }
 
-                @Override public void handleException(TransportException exp) {
+                @Override
+                public void handleException(TransportException exp) {
                     exp.printStackTrace();
                 }
             }).txGet();
@@ -116,27 +125,32 @@ public class TransportBenchmark {
         final CountDownLatch latch = new CountDownLatch(NUMBER_OF_CLIENTS * NUMBER_OF_ITERATIONS);
         for (int i = 0; i < NUMBER_OF_CLIENTS; i++) {
             clients[i] = new Thread(new Runnable() {
-                @Override public void run() {
+                @Override
+                public void run() {
                     for (int j = 0; j < NUMBER_OF_ITERATIONS; j++) {
                         final long id = idGenerator.incrementAndGet();
                         BenchmarkMessage message = new BenchmarkMessage(id, payload);
                         BaseTransportResponseHandler<BenchmarkMessage> handler = new BaseTransportResponseHandler<BenchmarkMessage>() {
-                            @Override public BenchmarkMessage newInstance() {
+                            @Override
+                            public BenchmarkMessage newInstance() {
                                 return new BenchmarkMessage();
                             }
 
-                            @Override public String executor() {
+                            @Override
+                            public String executor() {
                                 return executor;
                             }
 
-                            @Override public void handleResponse(BenchmarkMessage response) {
+                            @Override
+                            public void handleResponse(BenchmarkMessage response) {
                                 if (response.id != id) {
                                     System.out.println("NO ID MATCH [" + response.id + "] and [" + id + "]");
                                 }
                                 latch.countDown();
                             }
 
-                            @Override public void handleException(TransportException exp) {
+                            @Override
+                            public void handleException(TransportException exp) {
                                 exp.printStackTrace();
                                 latch.countDown();
                             }

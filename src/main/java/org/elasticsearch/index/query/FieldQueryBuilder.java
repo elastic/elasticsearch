@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -28,7 +28,7 @@ import java.io.IOException;
  * version of {@link QueryStringQueryBuilder} that simply runs against
  * a single field.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class FieldQueryBuilder extends BaseQueryBuilder {
 
@@ -166,11 +166,11 @@ public class FieldQueryBuilder extends BaseQueryBuilder {
 
     /**
      * Sets the boolean operator of the query parser used to parse the query string.
-     *
+     * <p/>
      * <p>In default mode ({@link FieldQueryBuilder.Operator#OR}) terms without any modifiers
      * are considered optional: for example <code>capital of Hungary</code> is equal to
      * <code>capital OR of OR Hungary</code>.
-     *
+     * <p/>
      * <p>In {@link FieldQueryBuilder.Operator#AND} mode terms are considered to be in conjunction: the
      * above mentioned query is parsed as <code>capital AND of AND Hungary</code>
      */
@@ -195,7 +195,7 @@ public class FieldQueryBuilder extends BaseQueryBuilder {
      * when the analyzer returns more than one term from whitespace
      * delimited text.
      * NOTE: this behavior may not be suitable for all languages.
-     * <p>
+     * <p/>
      * Set to false if phrase queries should only be generated when
      * surrounded by double quotes.
      */
@@ -225,7 +225,7 @@ public class FieldQueryBuilder extends BaseQueryBuilder {
     /**
      * Set to <tt>true</tt> to enable position increments in result query. Defaults to
      * <tt>true</tt>.
-     *
+     * <p/>
      * <p>When set, result phrase and multi-phrase queries will be aware of position increments.
      * Useful when e.g. a StopFilter increases the position increment of the token that follows an omitted token.
      */
@@ -283,7 +283,8 @@ public class FieldQueryBuilder extends BaseQueryBuilder {
         return this;
     }
 
-    @Override public void doXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(FieldQueryParser.NAME);
         if (!extraSet) {
             builder.field(name, query);

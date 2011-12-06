@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -32,7 +32,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class KeyValueRangeFacetCollector extends AbstractFacetCollector {
 
@@ -79,19 +79,22 @@ public class KeyValueRangeFacetCollector extends AbstractFacetCollector {
         this.rangeProc = new RangeProc(entries);
     }
 
-    @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
+    @Override
+    protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
         keyFieldData = (NumericFieldData) fieldDataCache.cache(keyFieldDataType, reader, keyIndexFieldName);
         rangeProc.valueFieldData = (NumericFieldData) fieldDataCache.cache(valueFieldDataType, reader, valueIndexFieldName);
     }
 
-    @Override protected void doCollect(int doc) throws IOException {
+    @Override
+    protected void doCollect(int doc) throws IOException {
         for (RangeFacet.Entry entry : entries) {
             entry.foundInDoc = false;
         }
         keyFieldData.forEachValueInDoc(doc, rangeProc);
     }
 
-    @Override public Facet facet() {
+    @Override
+    public Facet facet() {
         return new InternalRangeFacet(facetName, entries);
     }
 
@@ -105,7 +108,8 @@ public class KeyValueRangeFacetCollector extends AbstractFacetCollector {
             this.entries = entries;
         }
 
-        @Override public void onValue(int docId, double value) {
+        @Override
+        public void onValue(int docId, double value) {
             for (RangeFacet.Entry entry : entries) {
                 if (entry.foundInDoc) {
                     continue;

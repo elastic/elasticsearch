@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -31,7 +31,7 @@ import org.elasticsearch.search.Scroll;
 /**
  * A search scroll action request builder.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class SearchScrollRequestBuilder extends BaseRequestBuilder<SearchScrollRequest, SearchResponse> {
 
@@ -79,7 +79,8 @@ public class SearchScrollRequestBuilder extends BaseRequestBuilder<SearchScrollR
         return this;
     }
 
-    @Override protected void doExecute(ActionListener<SearchResponse> listener) {
+    @Override
+    protected void doExecute(ActionListener<SearchResponse> listener) {
         client.searchScroll(request, listener);
     }
 }

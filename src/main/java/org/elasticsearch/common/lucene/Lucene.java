@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -21,12 +21,7 @@ package org.elasticsearch.common.lucene;
 
 import org.apache.lucene.analysis.KeywordAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.SegmentInfo;
-import org.apache.lucene.index.SegmentReader;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.index.TermDocs;
+import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.Nullable;
@@ -45,7 +40,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class Lucene {
 
@@ -437,20 +432,24 @@ public class Lucene {
             return this.count;
         }
 
-        @Override public void setScorer(Scorer scorer) throws IOException {
+        @Override
+        public void setScorer(Scorer scorer) throws IOException {
             this.scorer = scorer;
         }
 
-        @Override public void collect(int doc) throws IOException {
+        @Override
+        public void collect(int doc) throws IOException {
             if (scorer.score() > minScore) {
                 count++;
             }
         }
 
-        @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
+        @Override
+        public void setNextReader(IndexReader reader, int docBase) throws IOException {
         }
 
-        @Override public boolean acceptsDocsOutOfOrder() {
+        @Override
+        public boolean acceptsDocsOutOfOrder() {
             return true;
         }
     }
@@ -467,18 +466,22 @@ public class Lucene {
             return exists;
         }
 
-        @Override public void setScorer(Scorer scorer) throws IOException {
+        @Override
+        public void setScorer(Scorer scorer) throws IOException {
             this.exists = false;
         }
 
-        @Override public void collect(int doc) throws IOException {
+        @Override
+        public void collect(int doc) throws IOException {
             exists = true;
         }
 
-        @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
+        @Override
+        public void setNextReader(IndexReader reader, int docBase) throws IOException {
         }
 
-        @Override public boolean acceptsDocsOutOfOrder() {
+        @Override
+        public boolean acceptsDocsOutOfOrder() {
             return true;
         }
     }

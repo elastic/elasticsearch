@@ -16,13 +16,9 @@
 
 package org.elasticsearch.common.inject;
 
-import org.elasticsearch.common.collect.ImmutableSet;
-import org.elasticsearch.common.collect.Iterables;
-import org.elasticsearch.common.inject.internal.BindingImpl;
-import org.elasticsearch.common.inject.internal.Errors;
-import org.elasticsearch.common.inject.internal.ErrorsException;
-import org.elasticsearch.common.inject.internal.InternalContext;
-import org.elasticsearch.common.inject.internal.Stopwatch;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterables;
+import org.elasticsearch.common.inject.internal.*;
 import org.elasticsearch.common.inject.spi.Dependency;
 
 import java.util.Collection;
@@ -34,7 +30,7 @@ import java.util.Set;
  * Builds a tree of injectors. This is a primary injector, plus child injectors needed for each
  * {@link Binder#newPrivateBinder() private environment}. The primary injector is not necessarily a
  * top-level injector.
- *
+ * <p/>
  * <p>Injector construction happens in two phases.
  * <ol>
  * <li>Static building. In this phase, we interpret commands, create bindings, and inspect

@@ -22,7 +22,7 @@ import org.elasticsearch.common.inject.TypeLiteral;
 
 import java.util.Set;
 
-import static org.elasticsearch.common.base.Preconditions.*;
+import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
  * A request to inject the instance fields and methods of an instance. Requests are created

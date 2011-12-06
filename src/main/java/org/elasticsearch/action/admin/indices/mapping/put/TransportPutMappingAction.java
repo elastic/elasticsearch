@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -39,44 +39,52 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * Put mapping action.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class TransportPutMappingAction extends TransportMasterNodeOperationAction<PutMappingRequest, PutMappingResponse> {
 
     private final MetaDataMappingService metaDataMappingService;
 
-    @Inject public TransportPutMappingAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                             ThreadPool threadPool, MetaDataMappingService metaDataMappingService) {
+    @Inject
+    public TransportPutMappingAction(Settings settings, TransportService transportService, ClusterService clusterService,
+                                     ThreadPool threadPool, MetaDataMappingService metaDataMappingService) {
         super(settings, transportService, clusterService, threadPool);
         this.metaDataMappingService = metaDataMappingService;
     }
 
-    @Override protected String executor() {
+    @Override
+    protected String executor() {
         return ThreadPool.Names.MANAGEMENT;
     }
 
-    @Override protected String transportAction() {
+    @Override
+    protected String transportAction() {
         return TransportActions.Admin.Indices.Mapping.PUT;
     }
 
-    @Override protected PutMappingRequest newRequest() {
+    @Override
+    protected PutMappingRequest newRequest() {
         return new PutMappingRequest();
     }
 
-    @Override protected PutMappingResponse newResponse() {
+    @Override
+    protected PutMappingResponse newResponse() {
         return new PutMappingResponse();
     }
 
-    @Override protected void doExecute(PutMappingRequest request, ActionListener<PutMappingResponse> listener) {
+    @Override
+    protected void doExecute(PutMappingRequest request, ActionListener<PutMappingResponse> listener) {
         request.indices(clusterService.state().metaData().concreteIndices(request.indices()));
         super.doExecute(request, listener);
     }
 
-    @Override protected ClusterBlockException checkBlock(PutMappingRequest request, ClusterState state) {
+    @Override
+    protected ClusterBlockException checkBlock(PutMappingRequest request, ClusterState state) {
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, request.indices());
     }
 
-    @Override protected PutMappingResponse masterOperation(PutMappingRequest request, ClusterState state) throws ElasticSearchException {
+    @Override
+    protected PutMappingResponse masterOperation(PutMappingRequest request, ClusterState state) throws ElasticSearchException {
         ClusterState clusterState = clusterService.state();
 
         // update to concrete indices
@@ -86,12 +94,14 @@ public class TransportPutMappingAction extends TransportMasterNodeOperationActio
         final AtomicReference<Throwable> failureRef = new AtomicReference<Throwable>();
         final CountDownLatch latch = new CountDownLatch(1);
         metaDataMappingService.putMapping(new MetaDataMappingService.PutRequest(request.indices(), request.type(), request.source()).ignoreConflicts(request.ignoreConflicts()).timeout(request.timeout()), new MetaDataMappingService.Listener() {
-            @Override public void onResponse(MetaDataMappingService.Response response) {
+            @Override
+            public void onResponse(MetaDataMappingService.Response response) {
                 responseRef.set(new PutMappingResponse(response.acknowledged()));
                 latch.countDown();
             }
 
-            @Override public void onFailure(Throwable t) {
+            @Override
+            public void onFailure(Throwable t) {
                 failureRef.set(t);
                 latch.countDown();
             }

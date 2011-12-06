@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -107,7 +107,8 @@ public class MultiGetRequest implements ActionRequest {
             return item;
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             index = in.readUTF();
             if (in.readBoolean()) {
                 type = in.readUTF();
@@ -125,7 +126,8 @@ public class MultiGetRequest implements ActionRequest {
             }
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             out.writeUTF(index);
             if (type == null) {
                 out.writeBoolean(false);
@@ -169,16 +171,19 @@ public class MultiGetRequest implements ActionRequest {
         return this;
     }
 
-    @Override public boolean listenerThreaded() {
+    @Override
+    public boolean listenerThreaded() {
         return listenerThreaded;
     }
 
-    @Override public MultiGetRequest listenerThreaded(boolean listenerThreaded) {
+    @Override
+    public MultiGetRequest listenerThreaded(boolean listenerThreaded) {
         this.listenerThreaded = listenerThreaded;
         return this;
     }
 
-    @Override public ActionRequestValidationException validate() {
+    @Override
+    public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (items.isEmpty()) {
             validationException = Actions.addValidationError("no documents to get", validationException);
@@ -292,7 +297,8 @@ public class MultiGetRequest implements ActionRequest {
         }
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         if (in.readBoolean()) {
             preference = in.readUTF();
         }
@@ -311,7 +317,8 @@ public class MultiGetRequest implements ActionRequest {
         }
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         if (preference == null) {
             out.writeBoolean(false);
         } else {

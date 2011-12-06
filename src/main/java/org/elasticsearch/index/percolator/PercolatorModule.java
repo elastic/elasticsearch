@@ -22,11 +22,12 @@ package org.elasticsearch.index.percolator;
 import org.elasticsearch.common.inject.AbstractModule;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class PercolatorModule extends AbstractModule {
 
-    @Override protected void configure() {
+    @Override
+    protected void configure() {
         bind(PercolatorExecutor.class).asEagerSingleton();
         bind(PercolatorService.class).asEagerSingleton();
     }

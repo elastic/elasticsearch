@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -42,7 +42,8 @@ public class MinimumScoreCollector extends Collector {
         this.minimumScore = minimumScore;
     }
 
-    @Override public void setScorer(Scorer scorer) throws IOException {
+    @Override
+    public void setScorer(Scorer scorer) throws IOException {
         if (!(scorer instanceof ScoreCachingWrappingScorer)) {
             scorer = new ScoreCachingWrappingScorer(scorer);
         }
@@ -50,17 +51,20 @@ public class MinimumScoreCollector extends Collector {
         collector.setScorer(scorer);
     }
 
-    @Override public void collect(int doc) throws IOException {
+    @Override
+    public void collect(int doc) throws IOException {
         if (scorer.score() > minimumScore) {
             collector.collect(doc);
         }
     }
 
-    @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
+    @Override
+    public void setNextReader(IndexReader reader, int docBase) throws IOException {
         collector.setNextReader(reader, docBase);
     }
 
-    @Override public boolean acceptsDocsOutOfOrder() {
+    @Override
+    public boolean acceptsDocsOutOfOrder() {
         return collector.acceptsDocsOutOfOrder();
     }
 }

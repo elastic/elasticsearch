@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.analysis;
 
+import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.analysis.CharStream;
-import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.lucene.analysis.HTMLStripCharFilter;
@@ -29,7 +29,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class HtmlStripCharFilterFactory extends AbstractCharFilterFactory {
 
@@ -37,7 +37,8 @@ public class HtmlStripCharFilterFactory extends AbstractCharFilterFactory {
 
     private final int readAheadLimit;
 
-    @Inject public HtmlStripCharFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
+    @Inject
+    public HtmlStripCharFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name);
         this.readAheadLimit = settings.getAsInt("read_ahead", HTMLStripCharFilter.DEFAULT_READ_AHEAD);
         String[] escapedTags = settings.getAsArray("escaped_tags");
@@ -56,7 +57,8 @@ public class HtmlStripCharFilterFactory extends AbstractCharFilterFactory {
         return readAheadLimit;
     }
 
-    @Override public CharStream create(CharStream tokenStream) {
+    @Override
+    public CharStream create(CharStream tokenStream) {
         return new HTMLStripCharFilter(tokenStream, escapedTags, readAheadLimit);
     }
 }

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -36,17 +36,20 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  */
 public class TransportIndexReplicationPingAction extends TransportIndexReplicationOperationAction<IndexReplicationPingRequest, IndexReplicationPingResponse, ShardReplicationPingRequest, ShardReplicationPingRequest, ShardReplicationPingResponse> {
 
-    @Inject public TransportIndexReplicationPingAction(Settings settings, ClusterService clusterService,
-                                                       TransportService transportService, ThreadPool threadPool,
-                                                       TransportShardReplicationPingAction shardReplicationPingAction) {
+    @Inject
+    public TransportIndexReplicationPingAction(Settings settings, ClusterService clusterService,
+                                               TransportService transportService, ThreadPool threadPool,
+                                               TransportShardReplicationPingAction shardReplicationPingAction) {
         super(settings, transportService, clusterService, threadPool, shardReplicationPingAction);
     }
 
-    @Override protected IndexReplicationPingRequest newRequestInstance() {
+    @Override
+    protected IndexReplicationPingRequest newRequestInstance() {
         return new IndexReplicationPingRequest();
     }
 
-    @Override protected IndexReplicationPingResponse newResponseInstance(IndexReplicationPingRequest request, AtomicReferenceArray shardsResponses) {
+    @Override
+    protected IndexReplicationPingResponse newResponseInstance(IndexReplicationPingRequest request, AtomicReferenceArray shardsResponses) {
         int successfulShards = 0;
         int failedShards = 0;
         for (int i = 0; i < shardsResponses.length(); i++) {
@@ -59,15 +62,18 @@ public class TransportIndexReplicationPingAction extends TransportIndexReplicati
         return new IndexReplicationPingResponse(request.index(), successfulShards, failedShards);
     }
 
-    @Override protected boolean accumulateExceptions() {
+    @Override
+    protected boolean accumulateExceptions() {
         return false;
     }
 
-    @Override protected String transportAction() {
+    @Override
+    protected String transportAction() {
         return "ping/replication/index";
     }
 
-    @Override protected GroupShardsIterator shards(IndexReplicationPingRequest indexRequest) {
+    @Override
+    protected GroupShardsIterator shards(IndexReplicationPingRequest indexRequest) {
         IndexRoutingTable indexRouting = clusterService.state().routingTable().index(indexRequest.index());
         if (indexRouting == null) {
             throw new IndexMissingException(new Index(indexRequest.index()));
@@ -75,7 +81,8 @@ public class TransportIndexReplicationPingAction extends TransportIndexReplicati
         return indexRouting.groupByShardsIt();
     }
 
-    @Override protected ShardReplicationPingRequest newShardRequestInstance(IndexReplicationPingRequest indexRequest, int shardId) {
+    @Override
+    protected ShardReplicationPingRequest newShardRequestInstance(IndexReplicationPingRequest indexRequest, int shardId) {
         return new ShardReplicationPingRequest(indexRequest, shardId);
     }
 }

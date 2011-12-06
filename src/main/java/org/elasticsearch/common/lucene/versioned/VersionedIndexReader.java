@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -25,7 +25,7 @@ import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ *
  */
 @ThreadSafe
 public class VersionedIndexReader extends FilterIndexReader {
@@ -40,19 +40,23 @@ public class VersionedIndexReader extends FilterIndexReader {
         this.versionedMap = versionedMap;
     }
 
-    @Override public TermDocs termDocs() throws IOException {
+    @Override
+    public TermDocs termDocs() throws IOException {
         return new VersionedTermDocs(in.termDocs());
     }
 
-    @Override public TermDocs termDocs(Term term) throws IOException {
+    @Override
+    public TermDocs termDocs(Term term) throws IOException {
         return new VersionedTermDocs(in.termDocs(term));
     }
 
-    @Override public TermPositions termPositions() throws IOException {
+    @Override
+    public TermPositions termPositions() throws IOException {
         return new VersionedTermPositions(in.termPositions());
     }
 
-    @Override public TermPositions termPositions(Term term) throws IOException {
+    @Override
+    public TermPositions termPositions(Term term) throws IOException {
         return new VersionedTermPositions(in.termPositions(term));
     }
 

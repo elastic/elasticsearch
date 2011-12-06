@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,14 +19,14 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.common.trove.impl.Constants;
-import org.elasticsearch.common.trove.map.hash.TObjectFloatHashMap;
+import gnu.trove.impl.Constants;
+import gnu.trove.map.hash.TObjectFloatHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.common.collect.Lists.*;
+import static com.google.common.collect.Lists.newArrayList;
 
 /**
  * A query that parses a query string and runs it. There are two modes that this operates. The first,
@@ -35,7 +35,7 @@ import static org.elasticsearch.common.collect.Lists.*;
  * (using {@link #field(String)}), will run the parsed query against the provided fields, and combine
  * them either using DisMax or a plain boolean query (see {@link #useDisMax(boolean)}).
  *
- * @author kimchy (shay.baon)
+ * (shay.baon)
  */
 public class QueryStringQueryBuilder extends BaseQueryBuilder {
 
@@ -141,11 +141,11 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder {
 
     /**
      * Sets the boolean operator of the query parser used to parse the query string.
-     *
+     * <p/>
      * <p>In default mode ({@link FieldQueryBuilder.Operator#OR}) terms without any modifiers
      * are considered optional: for example <code>capital of Hungary</code> is equal to
      * <code>capital OR of OR Hungary</code>.
-     *
+     * <p/>
      * <p>In {@link FieldQueryBuilder.Operator#AND} mode terms are considered to be in conjunction: the
      * above mentioned query is parsed as <code>capital AND of AND Hungary</code>
      */
@@ -168,7 +168,7 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder {
      * when the analyzer returns more than one term from whitespace
      * delimited text.
      * NOTE: this behavior may not be suitable for all languages.
-     * <p>
+     * <p/>
      * Set to false if phrase queries should only be generated when
      * surrounded by double quotes.
      */
@@ -197,7 +197,7 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder {
     /**
      * Set to <tt>true</tt> to enable position increments in result query. Defaults to
      * <tt>true</tt>.
-     *
+     * <p/>
      * <p>When set, result phrase and multi-phrase queries will be aware of position increments.
      * Useful when e.g. a StopFilter increases the position increment of the token that follows an omitted token.
      */
@@ -258,7 +258,8 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder {
         return this;
     }
 
-    @Override protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(QueryStringQueryParser.NAME);
         builder.field("query", queryString);
         if (defaultField != null) {

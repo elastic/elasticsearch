@@ -33,25 +33,29 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class FilterFacetProcessor extends AbstractComponent implements FacetProcessor {
 
-    @Inject public FilterFacetProcessor(Settings settings) {
+    @Inject
+    public FilterFacetProcessor(Settings settings) {
         super(settings);
         InternalFilterFacet.registerStreams();
     }
 
-    @Override public String[] types() {
+    @Override
+    public String[] types() {
         return new String[]{FilterFacet.TYPE};
     }
 
-    @Override public FacetCollector parse(String facetName, XContentParser parser, SearchContext context) throws IOException {
+    @Override
+    public FacetCollector parse(String facetName, XContentParser parser, SearchContext context) throws IOException {
         Filter facetFilter = context.queryParserService().parseInnerFilter(parser);
         return new FilterFacetCollector(facetName, facetFilter, context.filterCache());
     }
 
-    @Override public Facet reduce(String name, List<Facet> facets) {
+    @Override
+    public Facet reduce(String name, List<Facet> facets) {
         if (facets.size() == 1) {
             return facets.get(0);
         }

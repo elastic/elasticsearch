@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,6 +19,9 @@
 
 package org.elasticsearch.river;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -29,10 +32,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Injector;
@@ -55,7 +55,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class RiversService extends AbstractLifecycleComponent<RiversService> {
 
@@ -75,7 +75,8 @@ public class RiversService extends AbstractLifecycleComponent<RiversService> {
 
     private volatile ImmutableMap<RiverName, River> rivers = ImmutableMap.of();
 
-    @Inject public RiversService(Settings settings, Client client, ThreadPool threadPool, ClusterService clusterService, RiversTypesRegistry typesRegistry, RiverClusterService riverClusterService, Injector injector) {
+    @Inject
+    public RiversService(Settings settings, Client client, ThreadPool threadPool, ClusterService clusterService, RiversTypesRegistry typesRegistry, RiverClusterService riverClusterService, Injector injector) {
         super(settings);
         this.riverIndexName = RiverIndexName.Conf.indexName(settings);
         this.client = client;
@@ -86,15 +87,18 @@ public class RiversService extends AbstractLifecycleComponent<RiversService> {
         riverClusterService.add(new ApplyRivers());
     }
 
-    @Override protected void doStart() throws ElasticSearchException {
+    @Override
+    protected void doStart() throws ElasticSearchException {
     }
 
-    @Override protected void doStop() throws ElasticSearchException {
+    @Override
+    protected void doStop() throws ElasticSearchException {
         ImmutableSet<RiverName> indices = ImmutableSet.copyOf(this.rivers.keySet());
         final CountDownLatch latch = new CountDownLatch(indices.size());
         for (final RiverName riverName : indices) {
             threadPool.cached().execute(new Runnable() {
-                @Override public void run() {
+                @Override
+                public void run() {
                     try {
                         closeRiver(riverName);
                     } catch (Exception e) {
@@ -112,7 +116,8 @@ public class RiversService extends AbstractLifecycleComponent<RiversService> {
         }
     }
 
-    @Override protected void doClose() throws ElasticSearchException {
+    @Override
+    protected void doClose() throws ElasticSearchException {
     }
 
     public synchronized void createRiver(RiverName riverName, Map<String, Object> settings) throws ElasticSearchException {
@@ -197,7 +202,8 @@ public class RiversService extends AbstractLifecycleComponent<RiversService> {
     }
 
     private class ApplyRivers implements RiverClusterStateListener {
-        @Override public void riverClusterChanged(RiverClusterChangedEvent event) {
+        @Override
+        public void riverClusterChanged(RiverClusterChangedEvent event) {
             DiscoveryNode localNode = clusterService.localNode();
             RiverClusterState state = event.state();
 
@@ -224,7 +230,8 @@ public class RiversService extends AbstractLifecycleComponent<RiversService> {
                     continue;
                 }
                 client.prepareGet(riverIndexName, routing.riverName().name(), "_meta").setListenerThreaded(true).execute(new ActionListener<GetResponse>() {
-                    @Override public void onResponse(GetResponse getResponse) {
+                    @Override
+                    public void onResponse(GetResponse getResponse) {
                         if (!rivers.containsKey(routing.riverName())) {
                             if (getResponse.exists()) {
                                 // only create the river if it exists, otherwise, the indexing meta data has not been visible yet...
@@ -233,7 +240,8 @@ public class RiversService extends AbstractLifecycleComponent<RiversService> {
                         }
                     }
 
-                    @Override public void onFailure(Throwable e) {
+                    @Override
+                    public void onFailure(Throwable e) {
                         // if its this is a failure that need to be retried, then do it
                         // this might happen if the state of the river index has not been propagated yet to this node, which
                         // should happen pretty fast since we managed to get the _meta in the RiversRouter
@@ -242,7 +250,8 @@ public class RiversService extends AbstractLifecycleComponent<RiversService> {
                             logger.debug("failed to get _meta from [{}]/[{}], retrying...", e, routing.riverName().type(), routing.riverName().name());
                             final ActionListener<GetResponse> listener = this;
                             threadPool.schedule(TimeValue.timeValueSeconds(5), ThreadPool.Names.SAME, new Runnable() {
-                                @Override public void run() {
+                                @Override
+                                public void run() {
                                     client.prepareGet(riverIndexName, routing.riverName().name(), "_meta").setListenerThreaded(true).execute(listener);
                                 }
                             });

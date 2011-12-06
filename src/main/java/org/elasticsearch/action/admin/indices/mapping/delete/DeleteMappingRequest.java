@@ -26,10 +26,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-import static org.elasticsearch.action.Actions.*;
+import static org.elasticsearch.action.Actions.addValidationError;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class DeleteMappingRequest extends MasterNodeOperationRequest {
 
@@ -48,7 +48,8 @@ public class DeleteMappingRequest extends MasterNodeOperationRequest {
         this.indices = indices;
     }
 
-    @Override public ActionRequestValidationException validate() {
+    @Override
+    public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (mappingType == null) {
             validationException = addValidationError("mapping type is missing", validationException);
@@ -86,7 +87,8 @@ public class DeleteMappingRequest extends MasterNodeOperationRequest {
         return this;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         indices = new String[in.readVInt()];
         for (int i = 0; i < indices.length; i++) {
@@ -97,7 +99,8 @@ public class DeleteMappingRequest extends MasterNodeOperationRequest {
         }
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         if (indices == null) {
             out.writeVInt(0);

@@ -25,11 +25,12 @@ import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.SearchContext;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class FilterBinaryParseElement implements SearchParseElement {
 
-    @Override public void parse(XContentParser parser, SearchContext context) throws Exception {
+    @Override
+    public void parse(XContentParser parser, SearchContext context) throws Exception {
         byte[] filterSource = parser.binaryValue();
         XContentParser fSourceParser = XContentFactory.xContent(filterSource).createParser(filterSource);
         try {

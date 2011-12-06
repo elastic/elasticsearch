@@ -16,23 +16,12 @@
 
 package org.elasticsearch.common.inject.util;
 
-import org.elasticsearch.common.collect.ImmutableSet;
-import org.elasticsearch.common.collect.Lists;
-import org.elasticsearch.common.collect.Maps;
-import org.elasticsearch.common.collect.Sets;
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Binder;
-import org.elasticsearch.common.inject.Binding;
-import org.elasticsearch.common.inject.Key;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.PrivateBinder;
-import org.elasticsearch.common.inject.Scope;
-import org.elasticsearch.common.inject.spi.DefaultBindingScopingVisitor;
-import org.elasticsearch.common.inject.spi.DefaultElementVisitor;
-import org.elasticsearch.common.inject.spi.Element;
-import org.elasticsearch.common.inject.spi.Elements;
-import org.elasticsearch.common.inject.spi.PrivateElements;
-import org.elasticsearch.common.inject.spi.ScopeBinding;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
+import org.elasticsearch.common.inject.*;
+import org.elasticsearch.common.inject.spi.*;
 
 import java.lang.annotation.Annotation;
 import java.util.Arrays;
@@ -63,7 +52,7 @@ public final class Modules {
      * Module functionalTestModule
      *     = Modules.override(new ProductionModule()).with(new TestModule());
      * </pre>
-     *
+     * <p/>
      * <p>Prefer to write smaller modules that can be reused and tested without overrides.
      *
      * @param modules the modules whose bindings are open to be overridden
@@ -80,7 +69,7 @@ public final class Modules {
      * Module functionalTestModule
      *     = Modules.override(getProductionModules()).with(getTestModules());
      * </pre>
-     *
+     * <p/>
      * <p>Prefer to write smaller modules that can be reused and tested without overrides.
      *
      * @param modules the modules whose bindings are open to be overridden
@@ -150,17 +139,20 @@ public final class Modules {
 
                     // execute the overrides module, keeping track of which keys and scopes are bound
                     new ModuleWriter(binder()) {
-                        @Override public <T> Void visit(Binding<T> binding) {
+                        @Override
+                        public <T> Void visit(Binding<T> binding) {
                             overriddenKeys.add(binding.getKey());
                             return super.visit(binding);
                         }
 
-                        @Override public Void visit(ScopeBinding scopeBinding) {
+                        @Override
+                        public Void visit(ScopeBinding scopeBinding) {
                             overridesScopeAnnotations.add(scopeBinding.getAnnotationType());
                             return super.visit(scopeBinding);
                         }
 
-                        @Override public Void visit(PrivateElements privateElements) {
+                        @Override
+                        public Void visit(PrivateElements privateElements) {
                             overriddenKeys.addAll(privateElements.getExposedKeys());
                             return super.visit(privateElements);
                         }
@@ -172,7 +164,8 @@ public final class Modules {
                     final Map<Scope, Object> scopeInstancesInUse = Maps.newHashMap();
                     final List<ScopeBinding> scopeBindings = Lists.newArrayList();
                     new ModuleWriter(binder()) {
-                        @Override public <T> Void visit(Binding<T> binding) {
+                        @Override
+                        public <T> Void visit(Binding<T> binding) {
                             if (!overriddenKeys.remove(binding.getKey())) {
                                 super.visit(binding);
 
@@ -186,7 +179,8 @@ public final class Modules {
                             return null;
                         }
 
-                        @Override public Void visit(PrivateElements privateElements) {
+                        @Override
+                        public Void visit(PrivateElements privateElements) {
                             PrivateBinder privateBinder = binder.withSource(privateElements.getSource())
                                     .newPrivateBinder();
 
@@ -213,7 +207,8 @@ public final class Modules {
                             return null;
                         }
 
-                        @Override public Void visit(ScopeBinding scopeBinding) {
+                        @Override
+                        public Void visit(ScopeBinding scopeBinding) {
                             scopeBindings.add(scopeBinding);
                             return null;
                         }
@@ -222,7 +217,8 @@ public final class Modules {
                     // execute the scope bindings, skipping scopes that have been overridden. Any scope that
                     // is overridden and in active use will prompt an error
                     new ModuleWriter(binder()) {
-                        @Override public Void visit(ScopeBinding scopeBinding) {
+                        @Override
+                        public Void visit(ScopeBinding scopeBinding) {
                             if (!overridesScopeAnnotations.remove(scopeBinding.getAnnotationType())) {
                                 super.visit(scopeBinding);
                             } else {
@@ -258,7 +254,8 @@ public final class Modules {
             this.binder = binder;
         }
 
-        @Override protected Void visitOther(Element element) {
+        @Override
+        protected Void visitOther(Element element) {
             element.applyTo(binder);
             return null;
         }

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -30,42 +30,51 @@ import org.elasticsearch.gateway.GatewayException;
 import org.elasticsearch.index.gateway.none.NoneIndexGatewayModule;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class NoneGateway extends AbstractLifecycleComponent<Gateway> implements Gateway {
 
     public static final String TYPE = "none";
 
-    @Inject public NoneGateway(Settings settings) {
+    @Inject
+    public NoneGateway(Settings settings) {
         super(settings);
     }
 
-    @Override public String type() {
+    @Override
+    public String type() {
         return TYPE;
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return "_none_";
     }
 
-    @Override protected void doStart() throws ElasticSearchException {
+    @Override
+    protected void doStart() throws ElasticSearchException {
     }
 
-    @Override protected void doStop() throws ElasticSearchException {
+    @Override
+    protected void doStop() throws ElasticSearchException {
     }
 
-    @Override protected void doClose() throws ElasticSearchException {
+    @Override
+    protected void doClose() throws ElasticSearchException {
     }
 
-    @Override public void performStateRecovery(GatewayStateRecoveredListener listener) throws GatewayException {
+    @Override
+    public void performStateRecovery(GatewayStateRecoveredListener listener) throws GatewayException {
         logger.debug("performing state recovery");
         listener.onSuccess(ClusterState.builder().build());
     }
 
-    @Override public Class<? extends Module> suggestIndexGateway() {
+    @Override
+    public Class<? extends Module> suggestIndexGateway() {
         return NoneIndexGatewayModule.class;
     }
 
-    @Override public void reset() {
+    @Override
+    public void reset() {
     }
 }

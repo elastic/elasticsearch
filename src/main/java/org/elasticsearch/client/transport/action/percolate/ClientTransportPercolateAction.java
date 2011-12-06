@@ -28,15 +28,17 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.TransportService;
 
 /**
- * @author kimchy (Shay Banon)
+ *
  */
 public class ClientTransportPercolateAction extends BaseClientTransportAction<PercolateRequest, PercolateResponse> {
 
-    @Inject public ClientTransportPercolateAction(Settings settings, TransportService transportService) {
+    @Inject
+    public ClientTransportPercolateAction(Settings settings, TransportService transportService) {
         super(settings, transportService, PercolateResponse.class);
     }
 
-    @Override protected String action() {
+    @Override
+    protected String action() {
         return TransportActions.PERCOLATE;
     }
 }

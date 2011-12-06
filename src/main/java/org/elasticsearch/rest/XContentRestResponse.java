@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -26,7 +26,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class XContentRestResponse extends AbstractRestResponse {
 
@@ -40,7 +40,8 @@ public class XContentRestResponse extends AbstractRestResponse {
     }
 
     private static ThreadLocal<ThreadLocals.CleanableValue<UnicodeUtil.UTF8Result>> prefixCache = new ThreadLocal<ThreadLocals.CleanableValue<UnicodeUtil.UTF8Result>>() {
-        @Override protected ThreadLocals.CleanableValue<UnicodeUtil.UTF8Result> initialValue() {
+        @Override
+        protected ThreadLocals.CleanableValue<UnicodeUtil.UTF8Result> initialValue() {
             return new ThreadLocals.CleanableValue<UnicodeUtil.UTF8Result>(new UnicodeUtil.UTF8Result());
         }
     };
@@ -61,48 +62,57 @@ public class XContentRestResponse extends AbstractRestResponse {
         return this.builder;
     }
 
-    @Override public String contentType() {
+    @Override
+    public String contentType() {
         return builder.contentType().restContentType();
     }
 
-    @Override public boolean contentThreadSafe() {
+    @Override
+    public boolean contentThreadSafe() {
         return false;
     }
 
-    @Override public byte[] content() throws IOException {
+    @Override
+    public byte[] content() throws IOException {
         return builder.underlyingBytes();
     }
 
-    @Override public int contentLength() throws IOException {
+    @Override
+    public int contentLength() throws IOException {
         return builder.underlyingBytesLength();
     }
 
-    @Override public RestStatus status() {
+    @Override
+    public RestStatus status() {
         return this.status;
     }
 
-    @Override public byte[] prefixContent() {
+    @Override
+    public byte[] prefixContent() {
         if (prefixUtf8Result != null) {
             return prefixUtf8Result.result;
         }
         return null;
     }
 
-    @Override public int prefixContentLength() {
+    @Override
+    public int prefixContentLength() {
         if (prefixUtf8Result != null) {
             return prefixUtf8Result.length;
         }
         return 0;
     }
 
-    @Override public byte[] suffixContent() {
+    @Override
+    public byte[] suffixContent() {
         if (prefixUtf8Result != null) {
             return END_JSONP;
         }
         return null;
     }
 
-    @Override public int suffixContentLength() {
+    @Override
+    public int suffixContentLength() {
         if (prefixUtf8Result != null) {
             return END_JSONP.length;
         }

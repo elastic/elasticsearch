@@ -31,19 +31,19 @@ import org.elasticsearch.index.settings.IndexSettings;
 /**
  * Real work actually done here by Sebastian on the ElasticSearch mailing list
  * http://elasticsearch-users.115913.n3.nabble.com/Using-the-Snowball-stemmers-tp2126106p2127111.html
- *
- * @author harryf (Harry Fuecks)
  */
 public class SnowballTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private String language;
 
-    @Inject public SnowballTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
+    @Inject
+    public SnowballTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
         this.language = Strings.capitalize(settings.get("language", settings.get("name", "English")));
     }
 
-    @Override public TokenStream create(TokenStream tokenStream) {
+    @Override
+    public TokenStream create(TokenStream tokenStream) {
         return new SnowballFilter(tokenStream, language);
     }
 

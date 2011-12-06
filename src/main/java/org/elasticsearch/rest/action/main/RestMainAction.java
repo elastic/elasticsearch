@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,34 +19,28 @@
 
 package org.elasticsearch.rest.action.main;
 
+import jsr166y.ThreadLocalRandom;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Classes;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.jsr166y.ThreadLocalRandom;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.StringRestResponse;
-import org.elasticsearch.rest.XContentRestResponse;
-import org.elasticsearch.rest.XContentThrowableRestResponse;
+import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.rest.RestRequest.Method.*;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 
 /**
- * @author kimchy (Shay Banon)
+ *
  */
 public class RestMainAction extends BaseRestHandler {
 
@@ -54,7 +48,8 @@ public class RestMainAction extends BaseRestHandler {
 
     private final int quotesSize;
 
-    @Inject public RestMainAction(Settings settings, Client client, RestController controller) {
+    @Inject
+    public RestMainAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
         Map<String, Object> rootNode;
         int quotesSize;
@@ -74,7 +69,8 @@ public class RestMainAction extends BaseRestHandler {
         controller.registerHandler(HEAD, "/", this);
     }
 
-    @Override public void handleRequest(RestRequest request, RestChannel channel) {
+    @Override
+    public void handleRequest(RestRequest request, RestChannel channel) {
         try {
             if (request.method() == RestRequest.Method.HEAD) {
                 channel.sendResponse(new StringRestResponse(RestStatus.OK));

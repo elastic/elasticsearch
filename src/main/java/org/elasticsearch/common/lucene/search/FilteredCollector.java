@@ -29,7 +29,7 @@ import org.elasticsearch.common.lucene.docset.DocSets;
 import java.io.IOException;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class FilteredCollector extends Collector {
 
@@ -44,22 +44,26 @@ public class FilteredCollector extends Collector {
         this.filter = filter;
     }
 
-    @Override public void setScorer(Scorer scorer) throws IOException {
+    @Override
+    public void setScorer(Scorer scorer) throws IOException {
         collector.setScorer(scorer);
     }
 
-    @Override public void collect(int doc) throws IOException {
+    @Override
+    public void collect(int doc) throws IOException {
         if (docSet.get(doc)) {
             collector.collect(doc);
         }
     }
 
-    @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
+    @Override
+    public void setNextReader(IndexReader reader, int docBase) throws IOException {
         collector.setNextReader(reader, docBase);
         docSet = DocSets.convert(reader, filter.getDocIdSet(reader));
     }
 
-    @Override public boolean acceptsDocsOutOfOrder() {
+    @Override
+    public boolean acceptsDocsOutOfOrder() {
         return collector.acceptsDocsOutOfOrder();
     }
 }

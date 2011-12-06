@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,16 +19,11 @@
 
 package org.elasticsearch.search.facet;
 
-import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.DeletionAwareConstantScoreQuery;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilteredQuery;
-import org.apache.lucene.search.MultiCollector;
-import org.apache.lucene.search.Query;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import org.apache.lucene.search.*;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.Lists;
-import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.search.nested.BlockJoinQuery;
@@ -44,7 +39,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class FacetPhase implements SearchPhase {
 
@@ -52,16 +47,19 @@ public class FacetPhase implements SearchPhase {
 
     private final FacetBinaryParseElement facetBinaryParseElement;
 
-    @Inject public FacetPhase(FacetParseElement facetParseElement, FacetBinaryParseElement facetBinaryParseElement) {
+    @Inject
+    public FacetPhase(FacetParseElement facetParseElement, FacetBinaryParseElement facetBinaryParseElement) {
         this.facetParseElement = facetParseElement;
         this.facetBinaryParseElement = facetBinaryParseElement;
     }
 
-    @Override public Map<String, ? extends SearchParseElement> parseElements() {
+    @Override
+    public Map<String, ? extends SearchParseElement> parseElements() {
         return ImmutableMap.of("facets", facetParseElement, "facets_binary", facetBinaryParseElement, "facetsBinary", facetBinaryParseElement);
     }
 
-    @Override public void preProcess(SearchContext context) {
+    @Override
+    public void preProcess(SearchContext context) {
         // add specific facets to nested queries...
         if (context.nestedQueries() != null) {
             for (Map.Entry<String, BlockJoinQuery> entry : context.nestedQueries().entrySet()) {
@@ -77,7 +75,8 @@ public class FacetPhase implements SearchPhase {
         }
     }
 
-    @Override public void execute(SearchContext context) throws ElasticSearchException {
+    @Override
+    public void execute(SearchContext context) throws ElasticSearchException {
         if (context.facets() == null || context.facets().facetCollectors() == null) {
             return;
         }

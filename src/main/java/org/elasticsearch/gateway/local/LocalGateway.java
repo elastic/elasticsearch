@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,6 +19,8 @@
 
 package org.elasticsearch.gateway.local;
 
+import com.google.common.collect.Sets;
+import com.google.common.io.Closeables;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -26,51 +28,33 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.MutableShardRouting;
-import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.common.collect.Sets;
+import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.compress.lzf.LZF;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.io.Closeables;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
-import org.elasticsearch.common.io.stream.CachedStreamInput;
-import org.elasticsearch.common.io.stream.CachedStreamOutput;
-import org.elasticsearch.common.io.stream.LZFStreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.*;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.thread.LoggingRunnable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.gateway.GatewayException;
 import org.elasticsearch.index.gateway.local.LocalIndexGatewayModule;
 import org.elasticsearch.index.shard.ShardId;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.FilenameFilter;
-import java.io.IOException;
+import java.io.*;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.concurrent.Executors.*;
-import static org.elasticsearch.common.util.concurrent.EsExecutors.*;
+import static java.util.concurrent.Executors.newSingleThreadExecutor;
+import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements Gateway, ClusterStateListener {
 
@@ -98,8 +82,9 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
 
     private volatile boolean metaDataPersistedAtLeastOnce = false;
 
-    @Inject public LocalGateway(Settings settings, ClusterService clusterService, NodeEnvironment nodeEnv,
-                                TransportNodesListGatewayMetaState listGatewayMetaState, TransportNodesListGatewayStartedShards listGatewayStartedShards) {
+    @Inject
+    public LocalGateway(Settings settings, ClusterService clusterService, NodeEnvironment nodeEnv,
+                        TransportNodesListGatewayMetaState listGatewayMetaState, TransportNodesListGatewayStartedShards listGatewayStartedShards) {
         super(settings);
         this.clusterService = clusterService;
         this.nodeEnv = nodeEnv;
@@ -110,7 +95,8 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
         this.prettyPrint = componentSettings.getAsBoolean("pretty", false);
     }
 
-    @Override public String type() {
+    @Override
+    public String type() {
         return "local";
     }
 
@@ -124,13 +110,15 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
         return this.currentStartedShards;
     }
 
-    @Override protected void doStart() throws ElasticSearchException {
+    @Override
+    protected void doStart() throws ElasticSearchException {
         this.executor = newSingleThreadExecutor(daemonThreadFactory(settings, "gateway"));
         lazyInitialize();
         clusterService.add(this);
     }
 
-    @Override protected void doStop() throws ElasticSearchException {
+    @Override
+    protected void doStop() throws ElasticSearchException {
         clusterService.remove(this);
         executor.shutdown();
         try {
@@ -140,10 +128,12 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
         }
     }
 
-    @Override protected void doClose() throws ElasticSearchException {
+    @Override
+    protected void doClose() throws ElasticSearchException {
     }
 
-    @Override public void performStateRecovery(final GatewayStateRecoveredListener listener) throws GatewayException {
+    @Override
+    public void performStateRecovery(final GatewayStateRecoveredListener listener) throws GatewayException {
         Set<String> nodesIds = Sets.newHashSet();
         nodesIds.addAll(clusterService.state().nodes().masterNodes().keySet());
         TransportNodesListGatewayMetaState.NodesLocalGatewayMetaState nodesState = listGatewayMetaState.list(nodesIds, null).actionGet();
@@ -176,15 +166,18 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
         }
     }
 
-    @Override public Class<? extends Module> suggestIndexGateway() {
+    @Override
+    public Class<? extends Module> suggestIndexGateway() {
         return LocalIndexGatewayModule.class;
     }
 
-    @Override public void reset() throws Exception {
+    @Override
+    public void reset() throws Exception {
         FileSystemUtils.deleteRecursively(nodeEnv.nodeDataLocations());
     }
 
-    @Override public void clusterChanged(final ClusterChangedEvent event) {
+    @Override
+    public void clusterChanged(final ClusterChangedEvent event) {
         if (!requiresStatePersistence) {
             return;
         }
@@ -248,7 +241,7 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
     /**
      * We do here lazy initialization on not only on start(), since we might be called before start by another node (really will
      * happen in term of timing in testing, but still), and we want to return the cluster state when we can.
-     *
+     * <p/>
      * It is synchronized since we want to wait for it to be loaded if called concurrently. There should really be a nicer
      * solution here, but for now, its good enough.
      */
@@ -420,7 +413,8 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
             this.event = event;
         }
 
-        @Override public void run() {
+        @Override
+        public void run() {
             LocalGatewayMetaState.Builder builder = LocalGatewayMetaState.builder();
             if (currentMetaState != null) {
                 builder.state(currentMetaState);
@@ -482,7 +476,8 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
                             continue;
                         }
                         File[] files = stateLocation.listFiles(new FilenameFilter() {
-                            @Override public boolean accept(File dir, String name) {
+                            @Override
+                            public boolean accept(File dir, String name) {
                                 return name.startsWith("metadata-") && !name.equals("metadata-" + version);
                             }
                         });
@@ -508,7 +503,8 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
             this.stateToWrite = stateToWrite;
         }
 
-        @Override public void run() {
+        @Override
+        public void run() {
 
             CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
             try {
@@ -562,7 +558,8 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
                             continue;
                         }
                         File[] files = stateLocation.listFiles(new FilenameFilter() {
-                            @Override public boolean accept(File dir, String name) {
+                            @Override
+                            public boolean accept(File dir, String name) {
                                 return name.startsWith("shards-") && !name.equals("shards-" + event.state().version());
                             }
                         });

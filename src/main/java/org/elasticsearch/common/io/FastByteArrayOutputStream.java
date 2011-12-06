@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -27,7 +27,7 @@ import java.util.Arrays;
 /**
  * Similar to {@link java.io.ByteArrayOutputStream} just not synced.
  *
- * @author kimchy (Shay Banon)
+ *
  */
 public class FastByteArrayOutputStream extends OutputStream implements BytesStream {
 
@@ -44,7 +44,7 @@ public class FastByteArrayOutputStream extends OutputStream implements BytesStre
     /**
      * Creates a new byte array output stream. The buffer capacity is
      * initially 1024 bytes, though its size increases if necessary.
-     *
+     * <p/>
      * ES: We use 1024 bytes since we mainly use this to build json/smile
      * content in memory, and rarely does the 32 byte default in ByteArrayOutputStream fits...
      */
@@ -84,7 +84,7 @@ public class FastByteArrayOutputStream extends OutputStream implements BytesStre
     /**
      * Writes <code>len</code> bytes from the specified byte array
      * starting at offset <code>off</code> to this byte array output stream.
-     *
+     * <p/>
      * <b>NO checks for bounds, parameters must be ok!</b>
      *
      * @param b   the data.

@@ -16,31 +16,20 @@
 
 package org.elasticsearch.common.inject.spi;
 
-import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.collect.Lists;
-import org.elasticsearch.common.collect.Sets;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import org.elasticsearch.common.inject.*;
 import org.elasticsearch.common.inject.binder.AnnotatedBindingBuilder;
 import org.elasticsearch.common.inject.binder.AnnotatedConstantBindingBuilder;
 import org.elasticsearch.common.inject.binder.AnnotatedElementBuilder;
-import org.elasticsearch.common.inject.internal.AbstractBindingBuilder;
-import org.elasticsearch.common.inject.internal.BindingBuilder;
-import org.elasticsearch.common.inject.internal.ConstantBindingBuilderImpl;
-import org.elasticsearch.common.inject.internal.Errors;
-import org.elasticsearch.common.inject.internal.ExposureBuilder;
-import org.elasticsearch.common.inject.internal.PrivateElementsImpl;
-import org.elasticsearch.common.inject.internal.ProviderMethodsModule;
-import org.elasticsearch.common.inject.internal.SourceProvider;
+import org.elasticsearch.common.inject.internal.*;
 import org.elasticsearch.common.inject.matcher.Matcher;
 
 import java.lang.annotation.Annotation;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
-import static org.elasticsearch.common.base.Preconditions.*;
+import static com.google.common.base.Preconditions.checkArgument;
 
 /**
  * Exposes elements of a module so they can be inspected, validated or {@link
@@ -52,11 +41,13 @@ import static org.elasticsearch.common.base.Preconditions.*;
 public final class Elements {
     private static final BindingTargetVisitor<Object, Object> GET_INSTANCE_VISITOR
             = new DefaultBindingTargetVisitor<Object, Object>() {
-        @Override public Object visit(InstanceBinding<?> binding) {
+        @Override
+        public Object visit(InstanceBinding<?> binding) {
             return binding.getInstance();
         }
 
-        @Override protected Object visitOther(Binding<?> binding) {
+        @Override
+        protected Object visitOther(Binding<?> binding) {
             throw new IllegalArgumentException();
         }
     };
@@ -324,7 +315,8 @@ public final class Elements {
                     : source;
         }
 
-        @Override public String toString() {
+        @Override
+        public String toString() {
             return "Binder";
         }
     }

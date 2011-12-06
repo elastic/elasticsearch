@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -35,7 +35,7 @@ import org.elasticsearch.index.shard.service.InternalIndexShard;
 import java.io.IOException;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class NoneIndexShardGateway extends AbstractIndexShardComponent implements IndexShardGateway {
 
@@ -43,20 +43,24 @@ public class NoneIndexShardGateway extends AbstractIndexShardComponent implement
 
     private final RecoveryStatus recoveryStatus = new RecoveryStatus();
 
-    @Inject public NoneIndexShardGateway(ShardId shardId, @IndexSettings Settings indexSettings, IndexShard indexShard) {
+    @Inject
+    public NoneIndexShardGateway(ShardId shardId, @IndexSettings Settings indexSettings, IndexShard indexShard) {
         super(shardId, indexSettings);
         this.indexShard = (InternalIndexShard) indexShard;
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return "_none_";
     }
 
-    @Override public RecoveryStatus recoveryStatus() {
+    @Override
+    public RecoveryStatus recoveryStatus() {
         return recoveryStatus;
     }
 
-    @Override public void recover(boolean indexShouldExists, RecoveryStatus recoveryStatus) throws IndexShardGatewayRecoveryException {
+    @Override
+    public void recover(boolean indexShouldExists, RecoveryStatus recoveryStatus) throws IndexShardGatewayRecoveryException {
         recoveryStatus().index().startTime(System.currentTimeMillis());
         // in the none case, we simply start the shard
         // clean the store, there should be nothing there...
@@ -71,34 +75,42 @@ public class NoneIndexShardGateway extends AbstractIndexShardComponent implement
         recoveryStatus.translog().time(System.currentTimeMillis() - recoveryStatus.index().startTime());
     }
 
-    @Override public String type() {
+    @Override
+    public String type() {
         return NoneGateway.TYPE;
     }
 
-    @Override public SnapshotStatus snapshot(Snapshot snapshot) {
+    @Override
+    public SnapshotStatus snapshot(Snapshot snapshot) {
         return null;
     }
 
-    @Override public SnapshotStatus lastSnapshotStatus() {
+    @Override
+    public SnapshotStatus lastSnapshotStatus() {
         return null;
     }
 
-    @Override public SnapshotStatus currentSnapshotStatus() {
+    @Override
+    public SnapshotStatus currentSnapshotStatus() {
         return null;
     }
 
-    @Override public boolean requiresSnapshot() {
+    @Override
+    public boolean requiresSnapshot() {
         return false;
     }
 
-    @Override public boolean requiresSnapshotScheduling() {
+    @Override
+    public boolean requiresSnapshotScheduling() {
         return false;
     }
 
-    @Override public void close(boolean delete) {
+    @Override
+    public void close(boolean delete) {
     }
 
-    @Override public SnapshotLock obtainSnapshotLock() throws Exception {
+    @Override
+    public SnapshotLock obtainSnapshotLock() throws Exception {
         return NO_SNAPSHOT_LOCK;
     }
 }

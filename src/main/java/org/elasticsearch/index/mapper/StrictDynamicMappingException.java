@@ -29,7 +29,8 @@ public class StrictDynamicMappingException extends MapperException {
         super("mapping set to strict, dynamic introduction of [" + fieldName + "] within [" + path + "] is not allowed");
     }
 
-    @Override public RestStatus status() {
+    @Override
+    public RestStatus status() {
         return RestStatus.BAD_REQUEST;
     }
 }

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -35,10 +35,10 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 
 import static org.elasticsearch.action.search.type.ParsedScrollId.*;
-import static org.elasticsearch.action.search.type.TransportSearchHelper.*;
+import static org.elasticsearch.action.search.type.TransportSearchHelper.parseScrollId;
 
 /**
- * @author kimchy (Shay Banon)
+ *
  */
 public class TransportSearchScrollAction extends BaseAction<SearchScrollRequest, SearchResponse> {
 
@@ -48,10 +48,11 @@ public class TransportSearchScrollAction extends BaseAction<SearchScrollRequest,
 
     private final TransportSearchScrollScanAction scanAction;
 
-    @Inject public TransportSearchScrollAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                               TransportSearchScrollQueryThenFetchAction queryThenFetchAction,
-                                               TransportSearchScrollQueryAndFetchAction queryAndFetchAction,
-                                               TransportSearchScrollScanAction scanAction) {
+    @Inject
+    public TransportSearchScrollAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+                                       TransportSearchScrollQueryThenFetchAction queryThenFetchAction,
+                                       TransportSearchScrollQueryAndFetchAction queryAndFetchAction,
+                                       TransportSearchScrollScanAction scanAction) {
         super(settings, threadPool);
         this.queryThenFetchAction = queryThenFetchAction;
         this.queryAndFetchAction = queryAndFetchAction;
@@ -60,7 +61,8 @@ public class TransportSearchScrollAction extends BaseAction<SearchScrollRequest,
         transportService.registerHandler(TransportActions.SEARCH_SCROLL, new TransportHandler());
     }
 
-    @Override protected void doExecute(SearchScrollRequest request, ActionListener<SearchResponse> listener) {
+    @Override
+    protected void doExecute(SearchScrollRequest request, ActionListener<SearchResponse> listener) {
         try {
             ParsedScrollId scrollId = parseScrollId(request.scrollId());
             if (scrollId.type().equals(QUERY_THEN_FETCH_TYPE)) {
@@ -79,13 +81,16 @@ public class TransportSearchScrollAction extends BaseAction<SearchScrollRequest,
 
     private class TransportHandler extends BaseTransportRequestHandler<SearchScrollRequest> {
 
-        @Override public SearchScrollRequest newInstance() {
+        @Override
+        public SearchScrollRequest newInstance() {
             return new SearchScrollRequest();
         }
 
-        @Override public void messageReceived(SearchScrollRequest request, final TransportChannel channel) throws Exception {
+        @Override
+        public void messageReceived(SearchScrollRequest request, final TransportChannel channel) throws Exception {
             execute(request, new ActionListener<SearchResponse>() {
-                @Override public void onResponse(SearchResponse result) {
+                @Override
+                public void onResponse(SearchResponse result) {
                     try {
                         channel.sendResponse(result);
                     } catch (Exception e) {
@@ -93,7 +98,8 @@ public class TransportSearchScrollAction extends BaseAction<SearchScrollRequest,
                     }
                 }
 
-                @Override public void onFailure(Throwable e) {
+                @Override
+                public void onFailure(Throwable e) {
                     try {
                         channel.sendResponse(e);
                     } catch (Exception e1) {
@@ -103,7 +109,8 @@ public class TransportSearchScrollAction extends BaseAction<SearchScrollRequest,
             });
         }
 
-        @Override public String executor() {
+        @Override
+        public String executor() {
             return ThreadPool.Names.SAME;
         }
     }

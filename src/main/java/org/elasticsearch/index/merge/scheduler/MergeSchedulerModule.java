@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -22,10 +22,10 @@ package org.elasticsearch.index.merge.scheduler;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
 
-import static org.elasticsearch.index.merge.scheduler.MergeSchedulerModule.MergeSchedulerSettings.*;
+import static org.elasticsearch.index.merge.scheduler.MergeSchedulerModule.MergeSchedulerSettings.TYPE;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class MergeSchedulerModule extends AbstractModule {
 
@@ -39,7 +39,8 @@ public class MergeSchedulerModule extends AbstractModule {
         this.settings = settings;
     }
 
-    @Override protected void configure() {
+    @Override
+    protected void configure() {
         bind(MergeSchedulerProvider.class)
                 .to(settings.getAsClass(TYPE, ConcurrentMergeSchedulerProvider.class, "org.elasticsearch.index.scheduler.", "MergeSchedulerProvider"))
                 .asEagerSingleton();

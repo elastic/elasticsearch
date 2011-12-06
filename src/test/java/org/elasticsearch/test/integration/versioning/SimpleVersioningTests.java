@@ -35,19 +35,21 @@ import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
-import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.hamcrest.MatcherAssert.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class SimpleVersioningTests extends AbstractNodesTests {
 
     private Client client;
     private Client client2;
 
-    @BeforeClass public void createNodes() throws Exception {
+    @BeforeClass
+    public void createNodes() throws Exception {
         // make sure we use bloom filters here!
         Settings settings = ImmutableSettings.settingsBuilder().put("index.engine.robin.async_load_bloom", false).build();
         startNode("server1", settings);
@@ -56,12 +58,14 @@ public class SimpleVersioningTests extends AbstractNodesTests {
         client2 = client("server2");
     }
 
-    @AfterClass public void closeNodes() {
+    @AfterClass
+    public void closeNodes() {
         client.close();
         closeAllNodes();
     }
 
-    @Test public void testExternalVersioningInitialDelete() throws Exception {
+    @Test
+    public void testExternalVersioningInitialDelete() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
 
         client.admin().indices().prepareCreate("test").execute().actionGet();
@@ -79,7 +83,8 @@ public class SimpleVersioningTests extends AbstractNodesTests {
         client.prepareIndex("test", "type", "1").setSource("field1", "value1_1").setVersion(18).setVersionType(VersionType.EXTERNAL).execute().actionGet();
     }
 
-    @Test public void testExternalVersioning() throws Exception {
+    @Test
+    public void testExternalVersioning() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (IndexMissingException e) {
@@ -120,7 +125,8 @@ public class SimpleVersioningTests extends AbstractNodesTests {
         assertThat(deleteResponse.version(), equalTo(18l));
     }
 
-    @Test public void testSimpleVersioning() throws Exception {
+    @Test
+    public void testSimpleVersioning() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (IndexMissingException e) {
@@ -203,7 +209,8 @@ public class SimpleVersioningTests extends AbstractNodesTests {
         assertThat(deleteResponse.version(), equalTo(4l));
     }
 
-    @Test public void testSimpleVersioningWithFlush() throws Exception {
+    @Test
+    public void testSimpleVersioningWithFlush() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (IndexMissingException e) {
@@ -269,7 +276,8 @@ public class SimpleVersioningTests extends AbstractNodesTests {
         }
     }
 
-    @Test public void testVersioningWithBulk() {
+    @Test
+    public void testVersioningWithBulk() {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (IndexMissingException e) {

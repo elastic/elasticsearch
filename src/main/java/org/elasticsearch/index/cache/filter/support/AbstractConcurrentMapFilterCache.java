@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -34,12 +34,12 @@ import java.io.IOException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.*;
+import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
 /**
  * A base concurrent filter cache that accepts the actual cache to use.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComponent implements FilterCache, IndexReader.ReaderFinishedListener {
 
@@ -58,15 +58,18 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
         return newConcurrentMap();
     }
 
-    @Override public void close() {
+    @Override
+    public void close() {
         cache.clear();
     }
 
-    @Override public void clear() {
+    @Override
+    public void clear() {
         cache.clear();
     }
 
-    @Override public void finished(IndexReader reader) {
+    @Override
+    public void finished(IndexReader reader) {
         FilterCacheValue<ConcurrentMap<Object, DocSet>> readerValue = cache.remove(reader.getCoreCacheKey());
         // help soft/weak handling GC
         if (readerValue != null) {
@@ -74,7 +77,8 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
         }
     }
 
-    @Override public void clear(IndexReader reader) {
+    @Override
+    public void clear(IndexReader reader) {
         FilterCacheValue<ConcurrentMap<Object, DocSet>> readerValue = cache.remove(reader.getCoreCacheKey());
         // help soft/weak handling GC
         if (readerValue != null) {
@@ -82,7 +86,8 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
         }
     }
 
-    @Override public EntriesStats entriesStats() {
+    @Override
+    public EntriesStats entriesStats() {
         long sizeInBytes = 0;
         long totalCount = 0;
         int segmentsCount = 0;
@@ -96,7 +101,8 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
         return new EntriesStats(sizeInBytes, segmentsCount == 0 ? 0 : totalCount / segmentsCount);
     }
 
-    @Override public Filter cache(Filter filterToCache) {
+    @Override
+    public Filter cache(Filter filterToCache) {
         if (filterToCache instanceof NoCacheFilter) {
             return filterToCache;
         }
@@ -106,7 +112,8 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
         return new FilterCacheFilterWrapper(filterToCache, this);
     }
 
-    @Override public boolean isCached(Filter filter) {
+    @Override
+    public boolean isCached(Filter filter) {
         return filter instanceof FilterCacheFilterWrapper;
     }
 
@@ -125,7 +132,8 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
             this.cache = cache;
         }
 
-        @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
+        @Override
+        public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
             FilterCacheValue<ConcurrentMap<Object, DocSet>> cacheValue = cache.cache.get(reader.getCoreCacheKey());
             if (cacheValue == null) {
                 cacheValue = new FilterCacheValue<ConcurrentMap<Object, DocSet>>(cache.buildFilterMap());

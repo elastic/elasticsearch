@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
+import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.TransportActions;
@@ -30,7 +31,6 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -45,7 +45,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
-import static org.elasticsearch.common.collect.Lists.*;
+import static com.google.common.collect.Lists.newArrayList;
 
 /**
  */
@@ -53,40 +53,48 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
 
     private final IndicesService indicesService;
 
-    @Inject public TransportIndicesStatsAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                               IndicesService indicesService) {
+    @Inject
+    public TransportIndicesStatsAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
+                                       IndicesService indicesService) {
         super(settings, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
     }
 
-    @Override protected String executor() {
+    @Override
+    protected String executor() {
         return ThreadPool.Names.MANAGEMENT;
     }
 
-    @Override protected String transportAction() {
+    @Override
+    protected String transportAction() {
         return TransportActions.Admin.Indices.STATS;
     }
 
-    @Override protected String transportShardAction() {
+    @Override
+    protected String transportShardAction() {
         return "indices/stats/shard";
     }
 
-    @Override protected IndicesStatsRequest newRequest() {
+    @Override
+    protected IndicesStatsRequest newRequest() {
         return new IndicesStatsRequest();
     }
 
-    @Override protected boolean ignoreNonActiveExceptions() {
+    @Override
+    protected boolean ignoreNonActiveExceptions() {
         return true;
     }
 
     /**
      * Status goes across *all* shards.
      */
-    @Override protected GroupShardsIterator shards(IndicesStatsRequest request, String[] concreteIndices, ClusterState clusterState) {
+    @Override
+    protected GroupShardsIterator shards(IndicesStatsRequest request, String[] concreteIndices, ClusterState clusterState) {
         return clusterState.routingTable().allAssignedShardsGrouped(concreteIndices, true);
     }
 
-    @Override protected IndicesStats newResponse(IndicesStatsRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
+    @Override
+    protected IndicesStats newResponse(IndicesStatsRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
         int successfulShards = 0;
         int failedShards = 0;
         List<ShardOperationFailedException> shardFailures = null;
@@ -109,19 +117,23 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
         return new IndicesStats(shards.toArray(new ShardStats[shards.size()]), clusterState, shardsResponses.length(), successfulShards, failedShards, shardFailures);
     }
 
-    @Override protected IndexShardStatsRequest newShardRequest() {
+    @Override
+    protected IndexShardStatsRequest newShardRequest() {
         return new IndexShardStatsRequest();
     }
 
-    @Override protected IndexShardStatsRequest newShardRequest(ShardRouting shard, IndicesStatsRequest request) {
+    @Override
+    protected IndexShardStatsRequest newShardRequest(ShardRouting shard, IndicesStatsRequest request) {
         return new IndexShardStatsRequest(shard.index(), shard.id(), request);
     }
 
-    @Override protected ShardStats newShardResponse() {
+    @Override
+    protected ShardStats newShardResponse() {
         return new ShardStats();
     }
 
-    @Override protected ShardStats shardOperation(IndexShardStatsRequest request) throws ElasticSearchException {
+    @Override
+    protected ShardStats shardOperation(IndexShardStatsRequest request) throws ElasticSearchException {
         InternalIndexService indexService = (InternalIndexService) indicesService.indexServiceSafe(request.index());
         InternalIndexShard indexShard = (InternalIndexShard) indexService.shardSafe(request.shardId());
         ShardStats stats = new ShardStats(indexShard.routingEntry());
@@ -166,13 +178,15 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
             this.request = request;
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             request = new IndicesStatsRequest();
             request.readFrom(in);
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             request.writeTo(out);
         }

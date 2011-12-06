@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,14 +19,7 @@
 
 package org.elasticsearch.index.engine.robin;
 
-import org.apache.lucene.index.ExtendedIndexSearcher;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.SegmentInfo;
-import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.index.SegmentReader;
-import org.apache.lucene.index.Term;
+import org.apache.lucene.index.*;
 import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -67,11 +60,7 @@ import org.elasticsearch.index.translog.TranslogStreams;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -81,11 +70,11 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-import static org.elasticsearch.common.lucene.Lucene.*;
-import static org.elasticsearch.common.util.concurrent.resource.AcquirableResourceFactory.*;
+import static org.elasticsearch.common.lucene.Lucene.safeClose;
+import static org.elasticsearch.common.util.concurrent.resource.AcquirableResourceFactory.newAcquirableResource;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
@@ -161,12 +150,13 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
     private SegmentInfos lastCommittedSegmentInfos;
 
-    @Inject public RobinEngine(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool,
-                               IndexSettingsService indexSettingsService,
-                               Store store, SnapshotDeletionPolicy deletionPolicy, Translog translog,
-                               MergePolicyProvider mergePolicyProvider, MergeSchedulerProvider mergeScheduler,
-                               AnalysisService analysisService, SimilarityService similarityService,
-                               BloomCache bloomCache) throws EngineException {
+    @Inject
+    public RobinEngine(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool,
+                       IndexSettingsService indexSettingsService,
+                       Store store, SnapshotDeletionPolicy deletionPolicy, Translog translog,
+                       MergePolicyProvider mergePolicyProvider, MergeSchedulerProvider mergeScheduler,
+                       AnalysisService analysisService, SimilarityService similarityService,
+                       BloomCache bloomCache) throws EngineException {
         super(shardId, indexSettings);
         Preconditions.checkNotNull(store, "Store must be provided to the engine");
         Preconditions.checkNotNull(deletionPolicy, "Snapshot deletion policy must be provided to the engine");
@@ -199,7 +189,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         this.indexSettingsService.addListener(applySettings);
     }
 
-    @Override public void updateIndexingBufferSize(ByteSizeValue indexingBufferSize) {
+    @Override
+    public void updateIndexingBufferSize(ByteSizeValue indexingBufferSize) {
         ByteSizeValue preValue = this.indexingBufferSize;
         rwl.readLock().lock();
         try {
@@ -227,11 +218,13 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         }
     }
 
-    @Override public void addFailedEngineListener(FailedEngineListener listener) {
+    @Override
+    public void addFailedEngineListener(FailedEngineListener listener) {
         failedEngineListeners.add(listener);
     }
 
-    @Override public void start() throws EngineException {
+    @Override
+    public void start() throws EngineException {
         rwl.writeLock().lock();
         try {
             if (indexWriter != null) {
@@ -288,7 +281,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         }
     }
 
-    @Override public TimeValue defaultRefreshInterval() {
+    @Override
+    public TimeValue defaultRefreshInterval() {
         return new TimeValue(1, TimeUnit.SECONDS);
     }
 
@@ -343,7 +337,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         }
     }
 
-    @Override public void create(Create create) throws EngineException {
+    @Override
+    public void create(Create create) throws EngineException {
         rwl.readLock().lock();
         try {
             IndexWriter writer = this.indexWriter;
@@ -466,7 +461,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         }
     }
 
-    @Override public void index(Index index) throws EngineException {
+    @Override
+    public void index(Index index) throws EngineException {
         rwl.readLock().lock();
         try {
             IndexWriter writer = this.indexWriter;
@@ -587,7 +583,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         }
     }
 
-    @Override public void delete(Delete delete) throws EngineException {
+    @Override
+    public void delete(Delete delete) throws EngineException {
         rwl.readLock().lock();
         try {
             IndexWriter writer = this.indexWriter;
@@ -693,7 +690,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         }
     }
 
-    @Override public void delete(DeleteByQuery delete) throws EngineException {
+    @Override
+    public void delete(DeleteByQuery delete) throws EngineException {
         rwl.readLock().lock();
         try {
             IndexWriter writer = this.indexWriter;
@@ -720,7 +718,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         refreshVersioningTable(System.currentTimeMillis());
     }
 
-    @Override public Searcher searcher() throws EngineException {
+    @Override
+    public Searcher searcher() throws EngineException {
         AcquirableResource<ReaderSearcherHolder> holder;
         for (; ; ) {
             holder = this.nrtResource;
@@ -732,15 +731,18 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         return new RobinSearchResult(holder);
     }
 
-    @Override public boolean refreshNeeded() {
+    @Override
+    public boolean refreshNeeded() {
         return dirty;
     }
 
-    @Override public boolean possibleMergeNeeded() {
+    @Override
+    public boolean possibleMergeNeeded() {
         return this.possibleMergeNeeded;
     }
 
-    @Override public void refresh(Refresh refresh) throws EngineException {
+    @Override
+    public void refresh(Refresh refresh) throws EngineException {
         if (indexWriter == null) {
             throw new EngineClosedException(shardId);
         }
@@ -794,7 +796,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         }
     }
 
-    @Override public void flush(Flush flush) throws EngineException {
+    @Override
+    public void flush(Flush flush) throws EngineException {
         if (indexWriter == null) {
             throw new EngineClosedException(shardId, failedEngine);
         }
@@ -947,7 +950,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         }
     }
 
-    @Override public void maybeMerge() throws EngineException {
+    @Override
+    public void maybeMerge() throws EngineException {
         if (!possibleMergeNeeded) {
             return;
         }
@@ -979,7 +983,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         }
     }
 
-    @Override public void optimize(Optimize optimize) throws EngineException {
+    @Override
+    public void optimize(Optimize optimize) throws EngineException {
         if (optimize.flush()) {
             flush(new Flush().force(true));
         }
@@ -1030,7 +1035,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         }
     }
 
-    @Override public <T> T snapshot(SnapshotHandler<T> snapshotHandler) throws EngineException {
+    @Override
+    public <T> T snapshot(SnapshotHandler<T> snapshotHandler) throws EngineException {
         SnapshotIndexCommit snapshotIndexCommit = null;
         Translog.Snapshot traslogSnapshot = null;
         rwl.readLock().lock();
@@ -1052,7 +1058,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         }
     }
 
-    @Override public void recover(RecoveryHandler recoveryHandler) throws EngineException {
+    @Override
+    public void recover(RecoveryHandler recoveryHandler) throws EngineException {
         // take a write lock here so it won't happen while a flush is in progress
         // this means that next commits will not be allowed once the lock is released
         rwl.writeLock().lock();
@@ -1123,7 +1130,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         }
     }
 
-    @Override public List<Segment> segments() {
+    @Override
+    public List<Segment> segments() {
         rwl.readLock().lock();
         try {
             IndexWriter indexWriter = this.indexWriter;
@@ -1184,7 +1192,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
             Segment[] segmentsArr = segments.values().toArray(new Segment[segments.values().size()]);
             Arrays.sort(segmentsArr, new Comparator<Segment>() {
-                @Override public int compare(Segment o1, Segment o2) {
+                @Override
+                public int compare(Segment o1, Segment o2) {
                     return (int) (o1.generation() - o2.generation());
                 }
             });
@@ -1195,7 +1204,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         }
     }
 
-    @Override public void close() throws ElasticSearchException {
+    @Override
+    public void close() throws ElasticSearchException {
         rwl.writeLock().lock();
         try {
             innerClose();
@@ -1319,7 +1329,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
 
     class ApplySettings implements IndexSettingsService.Listener {
-        @Override public void onRefreshSettings(Settings settings) {
+        @Override
+        public void onRefreshSettings(Settings settings) {
             long gcDeletesInMillis = indexSettings.getAsTime("index.gc_deletes", TimeValue.timeValueMillis(RobinEngine.this.gcDeletesInMillis)).millis();
             if (gcDeletesInMillis != RobinEngine.this.gcDeletesInMillis) {
                 logger.info("updating index.gc_deletes from [{}] to [{}]", TimeValue.timeValueMillis(RobinEngine.this.gcDeletesInMillis), TimeValue.timeValueMillis(gcDeletesInMillis));
@@ -1376,15 +1387,18 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             this.nrtHolder = nrtHolder;
         }
 
-        @Override public IndexReader reader() {
+        @Override
+        public IndexReader reader() {
             return nrtHolder.resource().reader();
         }
 
-        @Override public ExtendedIndexSearcher searcher() {
+        @Override
+        public ExtendedIndexSearcher searcher() {
             return nrtHolder.resource().searcher();
         }
 
-        @Override public boolean release() throws ElasticSearchException {
+        @Override
+        public boolean release() throws ElasticSearchException {
             nrtHolder.release();
             return true;
         }

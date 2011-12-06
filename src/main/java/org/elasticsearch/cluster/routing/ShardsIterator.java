@@ -22,7 +22,7 @@ package org.elasticsearch.cluster.routing;
 /**
  * Allows to iterate over unrelated shards.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public interface ShardsIterator {
 

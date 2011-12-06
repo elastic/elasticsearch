@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -32,26 +32,29 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import static org.elasticsearch.client.Requests.*;
-import static org.hamcrest.MatcherAssert.*;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class PingActionTests extends AbstractNodesTests {
 
     private final ESLogger logger = Loggers.getLogger(PingActionTests.class);
 
-    @BeforeMethod public void startNodes() {
+    @BeforeMethod
+    public void startNodes() {
         startNode("server1");
         startNode("server2");
     }
 
-    @AfterMethod public void closeNodes() {
+    @AfterMethod
+    public void closeNodes() {
         closeAllNodes();
     }
 
-    @Test public void testPingActions() throws Exception {
+    @Test
+    public void testPingActions() throws Exception {
         logger.info("Creating index [test1]");
         client("server1").admin().indices().create(createIndexRequest("test1")).actionGet();
         logger.info("Creating index [test2]");

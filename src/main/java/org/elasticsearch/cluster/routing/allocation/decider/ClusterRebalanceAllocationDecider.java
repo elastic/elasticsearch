@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -38,7 +38,8 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
 
     private final ClusterRebalanceType type;
 
-    @Inject public ClusterRebalanceAllocationDecider(Settings settings) {
+    @Inject
+    public ClusterRebalanceAllocationDecider(Settings settings) {
         super(settings);
         String allowRebalance = settings.get("cluster.routing.allocation.allow_rebalance", "indices_all_active");
         if ("always".equalsIgnoreCase(allowRebalance)) {
@@ -54,7 +55,8 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
         logger.debug("using [cluster.routing.allocation.allow_rebalance] with [{}]", type.toString().toLowerCase());
     }
 
-    @Override public boolean canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
+    @Override
+    public boolean canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
         if (type == ClusterRebalanceType.INDICES_PRIMARIES_ACTIVE) {
             for (MutableShardRouting shard : allocation.routingNodes().unassigned()) {
                 if (shard.primary()) {

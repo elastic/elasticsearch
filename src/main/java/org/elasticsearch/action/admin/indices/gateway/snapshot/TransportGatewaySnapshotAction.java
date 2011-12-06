@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.gateway.snapshot;
 
+import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.TransportActions;
@@ -29,7 +30,6 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.gateway.IndexShardGatewayService;
@@ -41,39 +41,46 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class TransportGatewaySnapshotAction extends TransportBroadcastOperationAction<GatewaySnapshotRequest, GatewaySnapshotResponse, ShardGatewaySnapshotRequest, ShardGatewaySnapshotResponse> {
 
     private final IndicesService indicesService;
 
-    @Inject public TransportGatewaySnapshotAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                                  TransportService transportService, IndicesService indicesService) {
+    @Inject
+    public TransportGatewaySnapshotAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+                                          TransportService transportService, IndicesService indicesService) {
         super(settings, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
     }
 
-    @Override protected String executor() {
+    @Override
+    protected String executor() {
         return ThreadPool.Names.MANAGEMENT;
     }
 
-    @Override protected String transportAction() {
+    @Override
+    protected String transportAction() {
         return TransportActions.Admin.Indices.Gateway.SNAPSHOT;
     }
 
-    @Override protected String transportShardAction() {
+    @Override
+    protected String transportShardAction() {
         return "indices/gateway/snapshot/shard";
     }
 
-    @Override protected GatewaySnapshotRequest newRequest() {
+    @Override
+    protected GatewaySnapshotRequest newRequest() {
         return new GatewaySnapshotRequest();
     }
 
-    @Override protected boolean ignoreNonActiveExceptions() {
+    @Override
+    protected boolean ignoreNonActiveExceptions() {
         return true;
     }
 
-    @Override protected GatewaySnapshotResponse newResponse(GatewaySnapshotRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
+    @Override
+    protected GatewaySnapshotResponse newResponse(GatewaySnapshotRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
         int successfulShards = 0;
         int failedShards = 0;
         List<ShardOperationFailedException> shardFailures = null;
@@ -94,19 +101,23 @@ public class TransportGatewaySnapshotAction extends TransportBroadcastOperationA
         return new GatewaySnapshotResponse(shardsResponses.length(), successfulShards, failedShards, shardFailures);
     }
 
-    @Override protected ShardGatewaySnapshotRequest newShardRequest() {
+    @Override
+    protected ShardGatewaySnapshotRequest newShardRequest() {
         return new ShardGatewaySnapshotRequest();
     }
 
-    @Override protected ShardGatewaySnapshotRequest newShardRequest(ShardRouting shard, GatewaySnapshotRequest request) {
+    @Override
+    protected ShardGatewaySnapshotRequest newShardRequest(ShardRouting shard, GatewaySnapshotRequest request) {
         return new ShardGatewaySnapshotRequest(shard.index(), shard.id());
     }
 
-    @Override protected ShardGatewaySnapshotResponse newShardResponse() {
+    @Override
+    protected ShardGatewaySnapshotResponse newShardResponse() {
         return new ShardGatewaySnapshotResponse();
     }
 
-    @Override protected ShardGatewaySnapshotResponse shardOperation(ShardGatewaySnapshotRequest request) throws ElasticSearchException {
+    @Override
+    protected ShardGatewaySnapshotResponse shardOperation(ShardGatewaySnapshotRequest request) throws ElasticSearchException {
         IndexShardGatewayService shardGatewayService = indicesService.indexServiceSafe(request.index())
                 .shardInjectorSafe(request.shardId()).getInstance(IndexShardGatewayService.class);
         shardGatewayService.snapshot("api");
@@ -116,7 +127,8 @@ public class TransportGatewaySnapshotAction extends TransportBroadcastOperationA
     /**
      * The snapshot request works against all primary shards.
      */
-    @Override protected GroupShardsIterator shards(GatewaySnapshotRequest request, String[] concreteIndices, ClusterState clusterState) {
+    @Override
+    protected GroupShardsIterator shards(GatewaySnapshotRequest request, String[] concreteIndices, ClusterState clusterState) {
         return clusterState.routingTable().activePrimaryShardsGrouped(concreteIndices, true);
     }
 }

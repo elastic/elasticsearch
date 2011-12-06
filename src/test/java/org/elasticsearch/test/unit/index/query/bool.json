@@ -1,0 +1,30 @@
+{
+    bool:{
+        must:[
+            {
+                query_string:{
+                    default_field:"content",
+                    query:"test1"
+                }
+            },
+            {
+                query_string:{
+                    default_field:"content",
+                    query:"test4"
+                }
+            }
+        ],
+        must_not:{
+            query_string:{
+                default_field:"content",
+                query:"test2"
+            }
+        },
+        should:{
+            query_string:{
+                default_field:"content",
+                query:"test3"
+            }
+        }
+    }
+}

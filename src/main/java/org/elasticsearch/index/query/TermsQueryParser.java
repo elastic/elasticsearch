@@ -32,9 +32,10 @@ import org.elasticsearch.index.mapper.MapperService;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.common.collect.Lists.*;
-import static org.elasticsearch.common.lucene.search.Queries.*;
-import static org.elasticsearch.index.query.support.QueryParsers.*;
+import static com.google.common.collect.Lists.newArrayList;
+import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
+import static org.elasticsearch.common.lucene.search.Queries.optimizeQuery;
+import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameQuery;
 
 /**
  * <pre>
@@ -44,20 +45,23 @@ import static org.elasticsearch.index.query.support.QueryParsers.*;
  * }
  * </pre>
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class TermsQueryParser implements QueryParser {
 
     public static final String NAME = "terms";
 
-    @Inject public TermsQueryParser() {
+    @Inject
+    public TermsQueryParser() {
     }
 
-    @Override public String[] names() {
+    @Override
+    public String[] names() {
         return new String[]{NAME, "in"}; // allow both "in" and "terms" (since its similar to the "terms" filter)
     }
 
-    @Override public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    @Override
+    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
         String fieldName = null;

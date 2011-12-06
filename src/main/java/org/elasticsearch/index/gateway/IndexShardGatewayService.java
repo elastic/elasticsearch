@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -31,12 +31,7 @@ import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.SnapshotFailedEngineException;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
-import org.elasticsearch.index.shard.AbstractIndexShardComponent;
-import org.elasticsearch.index.shard.IllegalIndexShardStateException;
-import org.elasticsearch.index.shard.IndexShardClosedException;
-import org.elasticsearch.index.shard.IndexShardNotStartedException;
-import org.elasticsearch.index.shard.IndexShardState;
-import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.translog.Translog;
@@ -44,10 +39,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.ScheduledFuture;
 
-import static org.elasticsearch.common.unit.TimeValue.*;
+import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class IndexShardGatewayService extends AbstractIndexShardComponent implements CloseableIndexComponent {
 
@@ -82,8 +77,9 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
 
     private final ApplySettings applySettings = new ApplySettings();
 
-    @Inject public IndexShardGatewayService(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService,
-                                            ThreadPool threadPool, IndexShard indexShard, IndexShardGateway shardGateway) {
+    @Inject
+    public IndexShardGatewayService(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService,
+                                    ThreadPool threadPool, IndexShard indexShard, IndexShardGateway shardGateway) {
         super(shardId, indexSettings);
         this.threadPool = threadPool;
         this.indexSettingsService = indexSettingsService;
@@ -101,7 +97,8 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
     }
 
     class ApplySettings implements IndexSettingsService.Listener {
-        @Override public void onRefreshSettings(Settings settings) {
+        @Override
+        public void onRefreshSettings(Settings settings) {
             TimeValue snapshotInterval = settings.getAsTime("index.gateway.snapshot_interval", IndexShardGatewayService.this.snapshotInterval);
             if (!snapshotInterval.equals(IndexShardGatewayService.this.snapshotInterval)) {
                 logger.info("updating snapshot_interval from [{}] to [{}]", IndexShardGatewayService.this.snapshotInterval, snapshotInterval);
@@ -170,7 +167,8 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
         }
 
         threadPool.cached().execute(new Runnable() {
-            @Override public void run() {
+            @Override
+            public void run() {
                 recoveryStatus = new RecoveryStatus();
                 recoveryStatus.updateStage(RecoveryStatus.Stage.INIT);
 
@@ -264,7 +262,8 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
 
         try {
             SnapshotStatus snapshotStatus = indexShard.snapshot(new Engine.SnapshotHandler<SnapshotStatus>() {
-                @Override public SnapshotStatus snapshot(SnapshotIndexCommit snapshotIndexCommit, Translog.Snapshot translogSnapshot) throws EngineException {
+                @Override
+                public SnapshotStatus snapshot(SnapshotIndexCommit snapshotIndexCommit, Translog.Snapshot translogSnapshot) throws EngineException {
                     if (lastIndexVersion != snapshotIndexCommit.getVersion() || lastTranslogId != translogSnapshot.translogId() || lastTranslogLength < translogSnapshot.length()) {
 
                         logger.debug("snapshot ({}) to {} ...", reason, shardGateway);
@@ -360,7 +359,8 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
     }
 
     private class SnapshotRunnable implements Runnable {
-        @Override public synchronized void run() {
+        @Override
+        public synchronized void run() {
             try {
                 snapshot("scheduled");
             } catch (Throwable e) {

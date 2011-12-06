@@ -24,18 +24,20 @@ import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.index.field.data.doubles.DoubleFieldData;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class SingleValueByteFieldData extends ByteFieldData {
 
     private ThreadLocal<ThreadLocals.CleanableValue<double[]>> doublesValuesCache = new ThreadLocal<ThreadLocals.CleanableValue<double[]>>() {
-        @Override protected ThreadLocals.CleanableValue<double[]> initialValue() {
+        @Override
+        protected ThreadLocals.CleanableValue<double[]> initialValue() {
             return new ThreadLocals.CleanableValue<double[]>(new double[1]);
         }
     };
 
     private ThreadLocal<ThreadLocals.CleanableValue<byte[]>> valuesCache = new ThreadLocal<ThreadLocals.CleanableValue<byte[]>>() {
-        @Override protected ThreadLocals.CleanableValue<byte[]> initialValue() {
+        @Override
+        protected ThreadLocals.CleanableValue<byte[]> initialValue() {
             return new ThreadLocals.CleanableValue<byte[]>(new byte[1]);
         }
     };
@@ -48,20 +50,24 @@ public class SingleValueByteFieldData extends ByteFieldData {
         this.ordinals = ordinals;
     }
 
-    @Override protected long computeSizeInBytes() {
+    @Override
+    protected long computeSizeInBytes() {
         return super.computeSizeInBytes() +
                 RamUsage.NUM_BYTES_INT * ordinals.length + RamUsage.NUM_BYTES_ARRAY_HEADER;
     }
 
-    @Override public boolean multiValued() {
+    @Override
+    public boolean multiValued() {
         return false;
     }
 
-    @Override public boolean hasValue(int docId) {
+    @Override
+    public boolean hasValue(int docId) {
         return ordinals[docId] != 0;
     }
 
-    @Override public void forEachValueInDoc(int docId, StringValueInDocProc proc) {
+    @Override
+    public void forEachValueInDoc(int docId, StringValueInDocProc proc) {
         int loc = ordinals[docId];
         if (loc == 0) {
             proc.onMissing(docId);
@@ -70,7 +76,8 @@ public class SingleValueByteFieldData extends ByteFieldData {
         proc.onValue(docId, Byte.toString(values[loc]));
     }
 
-    @Override public void forEachValueInDoc(int docId, DoubleValueInDocProc proc) {
+    @Override
+    public void forEachValueInDoc(int docId, DoubleValueInDocProc proc) {
         int loc = ordinals[docId];
         if (loc == 0) {
             return;
@@ -78,7 +85,8 @@ public class SingleValueByteFieldData extends ByteFieldData {
         proc.onValue(docId, values[loc]);
     }
 
-    @Override public void forEachValueInDoc(int docId, LongValueInDocProc proc) {
+    @Override
+    public void forEachValueInDoc(int docId, LongValueInDocProc proc) {
         int loc = ordinals[docId];
         if (loc == 0) {
             return;
@@ -86,16 +94,8 @@ public class SingleValueByteFieldData extends ByteFieldData {
         proc.onValue(docId, values[loc]);
     }
 
-    @Override public void forEachValueInDoc(int docId, MissingDoubleValueInDocProc proc) {
-        int loc = ordinals[docId];
-        if (loc == 0) {
-            proc.onMissing(docId);
-            return;
-        }
-        proc.onValue(docId, values[loc]);
-    }
-
-    @Override public void forEachValueInDoc(int docId, MissingLongValueInDocProc proc) {
+    @Override
+    public void forEachValueInDoc(int docId, MissingDoubleValueInDocProc proc) {
         int loc = ordinals[docId];
         if (loc == 0) {
             proc.onMissing(docId);
@@ -104,7 +104,8 @@ public class SingleValueByteFieldData extends ByteFieldData {
         proc.onValue(docId, values[loc]);
     }
 
-    @Override public void forEachValueInDoc(int docId, ValueInDocProc proc) {
+    @Override
+    public void forEachValueInDoc(int docId, MissingLongValueInDocProc proc) {
         int loc = ordinals[docId];
         if (loc == 0) {
             proc.onMissing(docId);
@@ -113,15 +114,28 @@ public class SingleValueByteFieldData extends ByteFieldData {
         proc.onValue(docId, values[loc]);
     }
 
-    @Override public void forEachOrdinalInDoc(int docId, OrdinalInDocProc proc) {
+    @Override
+    public void forEachValueInDoc(int docId, ValueInDocProc proc) {
+        int loc = ordinals[docId];
+        if (loc == 0) {
+            proc.onMissing(docId);
+            return;
+        }
+        proc.onValue(docId, values[loc]);
+    }
+
+    @Override
+    public void forEachOrdinalInDoc(int docId, OrdinalInDocProc proc) {
         proc.onOrdinal(docId, ordinals[docId]);
     }
 
-    @Override public byte value(int docId) {
+    @Override
+    public byte value(int docId) {
         return values[ordinals[docId]];
     }
 
-    @Override public double[] doubleValues(int docId) {
+    @Override
+    public double[] doubleValues(int docId) {
         int loc = ordinals[docId];
         if (loc == 0) {
             return DoubleFieldData.EMPTY_DOUBLE_ARRAY;
@@ -131,7 +145,8 @@ public class SingleValueByteFieldData extends ByteFieldData {
         return ret;
     }
 
-    @Override public byte[] values(int docId) {
+    @Override
+    public byte[] values(int docId) {
         int loc = ordinals[docId];
         if (loc == 0) {
             return EMPTY_BYTE_ARRAY;

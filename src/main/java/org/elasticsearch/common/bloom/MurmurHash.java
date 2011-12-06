@@ -24,7 +24,7 @@ import java.nio.ByteBuffer;
 /**
  * This is a very fast, non-cryptographic hash suitable for general hash-based
  * lookup. See http://murmurhash.googlepages.com/ for more details.
- *
+ * <p/>
  * <p>
  * The C version of MurmurHash 2.0 found at that site was ported to Java by
  * Andrzej Bialecki (ab at getopt org).

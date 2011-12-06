@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -31,24 +31,27 @@ import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 import static org.elasticsearch.cluster.metadata.AliasAction.newAddAliasAction;
-import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.hamcrest.MatcherAssert.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
- * @author imotov
+ *
  */
 public class AliasRoutingTests extends AbstractNodesTests {
 
     private Client client;
 
-    @BeforeClass public void createNodes() throws Exception {
+    @BeforeClass
+    public void createNodes() throws Exception {
         startNode("node1");
         startNode("node2");
         client = getClient();
     }
 
-    @AfterClass public void closeNodes() {
+    @AfterClass
+    public void closeNodes() {
         client.close();
         closeAllNodes();
     }
@@ -57,7 +60,8 @@ public class AliasRoutingTests extends AbstractNodesTests {
         return client("node1");
     }
 
-    @Test public void testAliasCrudRouting() throws Exception {
+    @Test
+    public void testAliasCrudRouting() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
@@ -131,7 +135,8 @@ public class AliasRoutingTests extends AbstractNodesTests {
         }
     }
 
-    @Test public void testAliasSearchRouting() throws Exception {
+    @Test
+    public void testAliasSearchRouting() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
@@ -233,7 +238,8 @@ public class AliasRoutingTests extends AbstractNodesTests {
 
     }
 
-    @Test public void testAliasSearchRoutingWithTwoIndices() throws Exception {
+    @Test
+    public void testAliasSearchRoutingWithTwoIndices() throws Exception {
         try {
             client.admin().indices().prepareDelete("test-a").execute().actionGet();
             client.admin().indices().prepareDelete("test-b").execute().actionGet();
@@ -296,7 +302,8 @@ public class AliasRoutingTests extends AbstractNodesTests {
         }
     }
 
-    @Test public void testRequiredRoutingMappingWithAlias() throws Exception {
+    @Test
+    public void testRequiredRoutingMappingWithAlias() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
@@ -344,7 +351,8 @@ public class AliasRoutingTests extends AbstractNodesTests {
         }
     }
 
-    @Test public void testIndexingAliasesOverTime() throws Exception {
+    @Test
+    public void testIndexingAliasesOverTime() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {

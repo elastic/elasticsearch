@@ -16,8 +16,8 @@
 
 package org.elasticsearch.common.inject.spi;
 
-import org.elasticsearch.common.collect.ImmutableSet;
-import org.elasticsearch.common.collect.Lists;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
 import org.elasticsearch.common.inject.Key;
 import org.elasticsearch.common.inject.internal.Objects;
 
@@ -26,7 +26,7 @@ import java.util.Set;
 
 /**
  * A variable that can be resolved by an injector.
- *
+ * <p/>
  * <p>Use {@link #get} to build a freestanding dependency, or {@link InjectionPoint} to build one
  * that's attached to a constructor, method or field.
  *
@@ -98,11 +98,13 @@ public final class Dependency<T> {
         return parameterIndex;
     }
 
-    @Override public int hashCode() {
+    @Override
+    public int hashCode() {
         return Objects.hashCode(injectionPoint, parameterIndex, key);
     }
 
-    @Override public boolean equals(Object o) {
+    @Override
+    public boolean equals(Object o) {
         if (o instanceof Dependency) {
             Dependency dependency = (Dependency) o;
             return Objects.equal(injectionPoint, dependency.injectionPoint)
@@ -113,7 +115,8 @@ public final class Dependency<T> {
         }
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         StringBuilder builder = new StringBuilder();
         builder.append(key);
         if (injectionPoint != null) {

@@ -22,7 +22,6 @@ package org.elasticsearch.indices;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.index.service.IndexService;
 
 import java.util.Set;
@@ -30,7 +29,6 @@ import java.util.Set;
 /**
  *
  */
-@ThreadSafe
 public interface IndicesService extends Iterable<IndexService>, LifecycleComponent<IndicesService> {
 
     /**

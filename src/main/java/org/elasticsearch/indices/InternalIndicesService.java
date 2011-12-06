@@ -30,7 +30,6 @@ import org.elasticsearch.common.inject.*;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.index.*;
@@ -90,7 +89,6 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 /**
  *
  */
-@ThreadSafe
 public class InternalIndicesService extends AbstractLifecycleComponent<IndicesService> implements IndicesService {
 
     private final NodeEnvironment nodeEnv;

@@ -22,7 +22,6 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Fieldable;
-import org.elasticsearch.common.util.concurrent.Immutable;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -30,10 +29,7 @@ import java.io.Reader;
 /**
  * Named analyzer is an analyzer wrapper around an actual analyzer ({@link #analyzer} that is associated
  * with a name ({@link #name()}.
- *
- *
  */
-@Immutable
 public final class NamedAnalyzer extends Analyzer {
 
     private final String name;

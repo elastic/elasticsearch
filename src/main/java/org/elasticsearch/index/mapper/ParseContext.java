@@ -25,7 +25,6 @@ import org.apache.lucene.document.Field;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.all.AllEntries;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.NotThreadSafe;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
@@ -38,7 +37,6 @@ import java.util.Map;
 /**
  *
  */
-@NotThreadSafe
 public class ParseContext {
 
     private final DocumentMapper docMapper;

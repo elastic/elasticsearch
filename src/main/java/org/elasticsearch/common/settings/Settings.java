@@ -23,7 +23,6 @@ import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ThreadSafe;
 
 import java.util.Map;
 
@@ -33,10 +32,8 @@ import java.util.Map;
  * <p>Using {@link ImmutableSettings#settingsBuilder()} in order to create a builder
  * which in turn can create an immutable implementation of settings.
  *
- *
  * @see ImmutableSettings
  */
-@ThreadSafe
 public interface Settings {
 
     /**

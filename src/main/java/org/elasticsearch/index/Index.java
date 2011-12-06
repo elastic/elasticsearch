@@ -22,7 +22,6 @@ package org.elasticsearch.index;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.util.concurrent.Immutable;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -30,7 +29,6 @@ import java.io.Serializable;
 /**
  *
  */
-@Immutable
 public class Index implements Serializable, Streamable {
 
     private String name;

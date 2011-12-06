@@ -39,7 +39,6 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.*;
@@ -77,7 +76,6 @@ import static org.elasticsearch.index.mapper.SourceToParse.source;
 /**
  *
  */
-@ThreadSafe
 public class InternalIndexShard extends AbstractIndexShardComponent implements IndexShard {
 
     private final ThreadPool threadPool;

@@ -33,7 +33,6 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.uid.UidField;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -48,7 +47,6 @@ import java.util.List;
 /**
  *
  */
-@ThreadSafe
 public interface Engine extends IndexShardComponent, CloseableComponent {
 
     static ByteSizeValue INACTIVE_SHARD_INDEXING_BUFFER = ByteSizeValue.parseBytesSizeValue("500kb");

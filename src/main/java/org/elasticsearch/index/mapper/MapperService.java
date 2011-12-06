@@ -37,7 +37,6 @@ import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.FailedToResolveConfigException;
 import org.elasticsearch.index.AbstractIndexComponent;
@@ -65,7 +64,6 @@ import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 /**
  *
  */
-@ThreadSafe
 public class MapperService extends AbstractIndexComponent implements Iterable<DocumentMapper> {
 
     public static final String DEFAULT_MAPPING = "_default_";

@@ -26,18 +26,14 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.util.concurrent.Immutable;
-import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.query.QueryParseContext;
 
 /**
  *
  */
-@ThreadSafe
 public interface FieldMapper<T> {
 
-    @Immutable
     public static class Names {
 
         private final String name;

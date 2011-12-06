@@ -29,7 +29,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.lucene.uid.UidField;
-import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -52,7 +51,6 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parsePathType;
 /**
  *
  */
-@ThreadSafe
 public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
 
     public static final String CONTENT_TYPE = "object";

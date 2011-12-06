@@ -19,12 +19,9 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.util.concurrent.NotThreadSafe;
-
 /**
  *
  */
-@NotThreadSafe
 public class ContentPath {
 
     public static enum Type {

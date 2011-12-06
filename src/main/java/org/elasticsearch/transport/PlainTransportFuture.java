@@ -19,11 +19,11 @@
 
 package org.elasticsearch.transport;
 
-import com.google.common.util.concurrent.AbstractFuture;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchInterruptedException;
 import org.elasticsearch.ElasticSearchTimeoutException;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.util.concurrent.BaseFuture;
 
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -32,7 +32,7 @@ import java.util.concurrent.TimeoutException;
 /**
  *
  */
-public class PlainTransportFuture<V extends Streamable> extends AbstractFuture<V> implements TransportFuture<V>, TransportResponseHandler<V> {
+public class PlainTransportFuture<V extends Streamable> extends BaseFuture<V> implements TransportFuture<V>, TransportResponseHandler<V> {
 
     private final TransportResponseHandler<V> handler;
 

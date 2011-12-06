@@ -19,13 +19,13 @@
 
 package org.elasticsearch.action.support;
 
-import com.google.common.util.concurrent.AbstractFuture;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchInterruptedException;
 import org.elasticsearch.ElasticSearchTimeoutException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 
 import java.util.concurrent.ExecutionException;
@@ -35,7 +35,7 @@ import java.util.concurrent.TimeoutException;
 /**
  *
  */
-public abstract class AdapterActionFuture<T, L> extends AbstractFuture<T> implements ActionFuture<T>, ActionListener<L> {
+public abstract class AdapterActionFuture<T, L> extends BaseFuture<T> implements ActionFuture<T>, ActionListener<L> {
 
     private Throwable rootFailure;
 

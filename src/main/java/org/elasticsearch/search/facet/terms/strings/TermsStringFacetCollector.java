@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,15 +19,15 @@
 
 package org.elasticsearch.search.facet.terms.strings;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
+import gnu.trove.iterator.TObjectIntIterator;
+import gnu.trove.map.hash.TObjectIntHashMap;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.collect.BoundedTreeSet;
-import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.thread.ThreadLocals;
-import org.elasticsearch.common.trove.iterator.TObjectIntIterator;
-import org.elasticsearch.common.trove.map.hash.TObjectIntHashMap;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.index.field.data.FieldDataType;
@@ -49,12 +49,13 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class TermsStringFacetCollector extends AbstractFacetCollector {
 
     static ThreadLocal<ThreadLocals.CleanableValue<Deque<TObjectIntHashMap<String>>>> cache = new ThreadLocal<ThreadLocals.CleanableValue<Deque<TObjectIntHashMap<String>>>>() {
-        @Override protected ThreadLocals.CleanableValue<Deque<TObjectIntHashMap<String>>> initialValue() {
+        @Override
+        protected ThreadLocals.CleanableValue<Deque<TObjectIntHashMap<String>>> initialValue() {
             return new ThreadLocals.CleanableValue<Deque<TObjectIntHashMap<java.lang.String>>>(new ArrayDeque<TObjectIntHashMap<String>>());
         }
     };
@@ -124,24 +125,28 @@ public class TermsStringFacetCollector extends AbstractFacetCollector {
         }
     }
 
-    @Override public void setScorer(Scorer scorer) throws IOException {
+    @Override
+    public void setScorer(Scorer scorer) throws IOException {
         if (script != null) {
             script.setScorer(scorer);
         }
     }
 
-    @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
+    @Override
+    protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
         fieldData = fieldDataCache.cache(fieldDataType, reader, indexFieldName);
         if (script != null) {
             script.setNextReader(reader);
         }
     }
 
-    @Override protected void doCollect(int doc) throws IOException {
+    @Override
+    protected void doCollect(int doc) throws IOException {
         fieldData.forEachValueInDoc(doc, aggregator);
     }
 
-    @Override public Facet facet() {
+    @Override
+    public Facet facet() {
         TObjectIntHashMap<String> facets = aggregator.facets();
         if (facets.isEmpty()) {
             CacheRecycler.pushObjectIntMap(facets);
@@ -186,7 +191,8 @@ public class TermsStringFacetCollector extends AbstractFacetCollector {
             this.script = script;
         }
 
-        @Override public void onValue(int docId, String value) {
+        @Override
+        public void onValue(int docId, String value) {
             if (excluded != null && excluded.contains(value)) {
                 return;
             }
@@ -223,16 +229,19 @@ public class TermsStringFacetCollector extends AbstractFacetCollector {
             this.facets = facets;
         }
 
-        @Override public void onValue(String value) {
+        @Override
+        public void onValue(String value) {
             facets.putIfAbsent(value, 0);
         }
 
-        @Override public void onValue(int docId, String value) {
+        @Override
+        public void onValue(int docId, String value) {
             facets.adjustOrPutValue(value, 1, 1);
             total++;
         }
 
-        @Override public void onMissing(int docId) {
+        @Override
+        public void onMissing(int docId) {
             missing++;
         }
 

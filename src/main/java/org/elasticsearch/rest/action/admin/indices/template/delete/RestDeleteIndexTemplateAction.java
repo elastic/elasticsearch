@@ -32,24 +32,27 @@ import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.unit.TimeValue.*;
-import static org.elasticsearch.rest.RestStatus.*;
+import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class RestDeleteIndexTemplateAction extends BaseRestHandler {
 
-    @Inject public RestDeleteIndexTemplateAction(Settings settings, Client client, RestController controller) {
+    @Inject
+    public RestDeleteIndexTemplateAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
         controller.registerHandler(RestRequest.Method.DELETE, "/_template/{name}", this);
     }
 
-    @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
+    @Override
+    public void handleRequest(final RestRequest request, final RestChannel channel) {
         DeleteIndexTemplateRequest deleteIndexTemplateRequest = new DeleteIndexTemplateRequest(request.param("name"));
         deleteIndexTemplateRequest.timeout(request.paramAsTime("timeout", timeValueSeconds(10)));
         client.admin().indices().deleteTemplate(deleteIndexTemplateRequest, new ActionListener<DeleteIndexTemplateResponse>() {
-            @Override public void onResponse(DeleteIndexTemplateResponse response) {
+            @Override
+            public void onResponse(DeleteIndexTemplateResponse response) {
                 try {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject()
@@ -62,7 +65,8 @@ public class RestDeleteIndexTemplateAction extends BaseRestHandler {
                 }
             }
 
-            @Override public void onFailure(Throwable e) {
+            @Override
+            public void onFailure(Throwable e) {
                 try {
                     channel.sendResponse(new XContentThrowableRestResponse(request, e));
                 } catch (IOException e1) {

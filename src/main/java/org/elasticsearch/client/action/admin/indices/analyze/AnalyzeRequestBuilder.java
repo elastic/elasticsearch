@@ -26,7 +26,7 @@ import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.action.admin.indices.support.BaseIndicesRequestBuilder;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class AnalyzeRequestBuilder extends BaseIndicesRequestBuilder<AnalyzeRequest, AnalyzeResponse> {
 
@@ -53,7 +53,8 @@ public class AnalyzeRequestBuilder extends BaseIndicesRequestBuilder<AnalyzeRequ
         return this;
     }
 
-    @Override protected void doExecute(ActionListener<AnalyzeResponse> listener) {
+    @Override
+    protected void doExecute(ActionListener<AnalyzeResponse> listener) {
         client.analyze(request, listener);
     }
 

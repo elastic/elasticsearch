@@ -33,16 +33,16 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * A memory based directory that uses {@link java.nio.ByteBuffer} in order to store the directory content.
- *
+ * <p/>
  * <p>The benefit of using {@link java.nio.ByteBuffer} is the fact that it can be stored in "native" memory
  * outside of the JVM heap, thus not incurring the GC overhead of large in memory index.
- *
+ * <p/>
  * <p>Each "file" is segmented into one or more byte buffers.
- *
+ * <p/>
  * <p>If constructed with {@link ByteBufferAllocator}, it allows to control the allocation and release of
  * byte buffer. For example, custom implementations can include caching of byte buffers.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class ByteBufferDirectory extends Directory {
 

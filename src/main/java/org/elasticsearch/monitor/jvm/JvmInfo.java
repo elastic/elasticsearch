@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -35,7 +35,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class JvmInfo implements Streamable, Serializable, ToXContent {
 
@@ -194,7 +194,8 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
         return systemProperties;
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("jvm");
         builder.field("pid", pid);
         builder.field("version", version);
@@ -224,7 +225,8 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
         return jvmInfo;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         pid = in.readLong();
         version = in.readUTF();
         vmName = in.readUTF();
@@ -246,7 +248,8 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
         mem.readFrom(in);
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(pid);
         out.writeUTF(version);
         out.writeUTF(vmName);
@@ -315,14 +318,16 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
             return mem;
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             heapInit = in.readVLong();
             heapMax = in.readVLong();
             nonHeapInit = in.readVLong();
             nonHeapMax = in.readVLong();
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(heapInit);
             out.writeVLong(heapMax);
             out.writeVLong(nonHeapInit);

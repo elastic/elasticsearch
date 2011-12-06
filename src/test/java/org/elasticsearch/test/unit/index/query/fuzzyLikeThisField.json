@@ -1,0 +1,8 @@
+{
+    fuzzy_like_this_field:{
+        "name.first":{
+            like_text:"something",
+            max_query_terms:12
+        }
+    }
+}

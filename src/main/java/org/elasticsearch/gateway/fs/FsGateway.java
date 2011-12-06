@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -39,14 +39,15 @@ import java.io.IOException;
 import java.util.concurrent.ExecutorService;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class FsGateway extends BlobStoreGateway {
 
     private final ExecutorService concurrentStreamPool;
 
-    @Inject public FsGateway(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                             Environment environment, ClusterName clusterName) throws IOException {
+    @Inject
+    public FsGateway(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+                     Environment environment, ClusterName clusterName) throws IOException {
         super(settings, threadPool, clusterService);
 
         File gatewayFile;
@@ -64,15 +65,18 @@ public class FsGateway extends BlobStoreGateway {
         initialize(new FsBlobStore(componentSettings, concurrentStreamPool, gatewayFile), clusterName, null);
     }
 
-    @Override public String type() {
+    @Override
+    public String type() {
         return "fs";
     }
 
-    @Override public Class<? extends Module> suggestIndexGateway() {
+    @Override
+    public Class<? extends Module> suggestIndexGateway() {
         return FsIndexGatewayModule.class;
     }
 
-    @Override protected void doClose() throws ElasticSearchException {
+    @Override
+    protected void doClose() throws ElasticSearchException {
         super.doClose();
         concurrentStreamPool.shutdown();
     }

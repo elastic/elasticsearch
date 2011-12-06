@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -29,7 +29,7 @@ import org.elasticsearch.search.facet.InternalFacet;
 import java.io.IOException;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class InternalFilterFacet implements FilterFacet, InternalFacet {
 
@@ -40,12 +40,14 @@ public class InternalFilterFacet implements FilterFacet, InternalFacet {
     }
 
     static Stream STREAM = new Stream() {
-        @Override public Facet readFacet(String type, StreamInput in) throws IOException {
+        @Override
+        public Facet readFacet(String type, StreamInput in) throws IOException {
             return readFilterFacet(in);
         }
     };
 
-    @Override public String streamType() {
+    @Override
+    public String streamType() {
         return STREAM_TYPE;
     }
 
@@ -62,11 +64,13 @@ public class InternalFilterFacet implements FilterFacet, InternalFacet {
         this.count = count;
     }
 
-    @Override public String type() {
+    @Override
+    public String type() {
         return TYPE;
     }
 
-    @Override public String getType() {
+    @Override
+    public String getType() {
         return TYPE;
     }
 
@@ -77,7 +81,8 @@ public class InternalFilterFacet implements FilterFacet, InternalFacet {
         return name;
     }
 
-    @Override public String getName() {
+    @Override
+    public String getName() {
         return name();
     }
 
@@ -100,7 +105,8 @@ public class InternalFilterFacet implements FilterFacet, InternalFacet {
         static final XContentBuilderString COUNT = new XContentBuilderString("count");
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
         builder.field(Fields._TYPE, FilterFacet.TYPE);
         builder.field(Fields.COUNT, count);
@@ -114,12 +120,14 @@ public class InternalFilterFacet implements FilterFacet, InternalFacet {
         return result;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         name = in.readUTF();
         count = in.readVLong();
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(name);
         out.writeVLong(count);
     }

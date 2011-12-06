@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -29,7 +29,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class NodesRestartResponse extends NodesOperationResponse<NodesRestartResponse.NodeRestartResponse> {
 
@@ -40,7 +40,8 @@ public class NodesRestartResponse extends NodesOperationResponse<NodesRestartRes
         super(clusterName, nodes);
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         nodes = new NodeRestartResponse[in.readVInt()];
         for (int i = 0; i < nodes.length; i++) {
@@ -48,7 +49,8 @@ public class NodesRestartResponse extends NodesOperationResponse<NodesRestartRes
         }
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVInt(nodes.length);
         for (NodeRestartResponse node : nodes) {

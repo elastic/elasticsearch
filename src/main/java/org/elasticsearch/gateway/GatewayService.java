@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -20,19 +20,11 @@
 package org.elasticsearch.gateway;
 
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
+import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
-import org.elasticsearch.cluster.metadata.MetaDataStateIndexService;
+import org.elasticsearch.cluster.metadata.*;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -50,11 +42,11 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.cluster.ClusterState.*;
-import static org.elasticsearch.cluster.metadata.MetaData.*;
+import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
+import static org.elasticsearch.cluster.metadata.MetaData.newMetaDataBuilder;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class GatewayService extends AbstractLifecycleComponent<GatewayService> implements ClusterStateListener {
 
@@ -84,7 +76,8 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
     private final AtomicBoolean recovered = new AtomicBoolean();
     private final AtomicBoolean scheduledRecovery = new AtomicBoolean();
 
-    @Inject public GatewayService(Settings settings, Gateway gateway, AllocationService allocationService, ClusterService clusterService, DiscoveryService discoveryService, MetaDataCreateIndexService createIndexService, ThreadPool threadPool) {
+    @Inject
+    public GatewayService(Settings settings, Gateway gateway, AllocationService allocationService, ClusterService clusterService, DiscoveryService discoveryService, MetaDataCreateIndexService createIndexService, ThreadPool threadPool) {
         super(settings);
         this.gateway = gateway;
         this.allocationService = allocationService;
@@ -105,7 +98,8 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
         this.clusterService.addInitialStateBlock(STATE_NOT_RECOVERED_BLOCK);
     }
 
-    @Override protected void doStart() throws ElasticSearchException {
+    @Override
+    protected void doStart() throws ElasticSearchException {
         gateway.start();
         // if we received initial state, see if we can recover within the start phase, so we hold the
         // node from starting until we recovered properly
@@ -148,16 +142,19 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
         clusterService.add(this);
     }
 
-    @Override protected void doStop() throws ElasticSearchException {
+    @Override
+    protected void doStop() throws ElasticSearchException {
         clusterService.remove(this);
         gateway.stop();
     }
 
-    @Override protected void doClose() throws ElasticSearchException {
+    @Override
+    protected void doClose() throws ElasticSearchException {
         gateway.close();
     }
 
-    @Override public void clusterChanged(final ClusterChangedEvent event) {
+    @Override
+    public void clusterChanged(final ClusterChangedEvent event) {
         if (lifecycle.stoppedOrClosed()) {
             return;
         }
@@ -198,7 +195,8 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                 }
                 final boolean fIgnoreRecoverAfterTime = ignoreRecoverAfterTime;
                 threadPool.cached().execute(new Runnable() {
-                    @Override public void run() {
+                    @Override
+                    public void run() {
                         performStateRecovery(fIgnoreRecoverAfterTime);
                     }
                 });
@@ -213,7 +211,8 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
             if (scheduledRecovery.compareAndSet(false, true)) {
                 logger.debug("delaying initial state recovery for [{}]", recoverAfterTime);
                 threadPool.schedule(recoverAfterTime, ThreadPool.Names.CACHED, new Runnable() {
-                    @Override public void run() {
+                    @Override
+                    public void run() {
                         if (recovered.compareAndSet(false, true)) {
                             gateway.performStateRecovery(recoveryListener);
                         }
@@ -235,9 +234,11 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
             this.latch = latch;
         }
 
-        @Override public void onSuccess(final ClusterState recoveredState) {
+        @Override
+        public void onSuccess(final ClusterState recoveredState) {
             clusterService.submitStateUpdateTask("local-gateway-elected-state", new ProcessedClusterStateUpdateTask() {
-                @Override public ClusterState execute(ClusterState currentState) {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
                     assert currentState.metaData().indices().isEmpty();
 
                     // remove the block, since we recovered from gateway
@@ -288,14 +289,16 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                     return newClusterStateBuilder().state(updatedState).routingResult(routingResult).build();
                 }
 
-                @Override public void clusterStateProcessed(ClusterState clusterState) {
+                @Override
+                public void clusterStateProcessed(ClusterState clusterState) {
                     logger.info("recovered [{}] indices into cluster_state", clusterState.metaData().indices().size());
                     latch.countDown();
                 }
             });
         }
 
-        @Override public void onFailure(Throwable t) {
+        @Override
+        public void onFailure(Throwable t) {
             // don't remove the block here, we don't want to allow anything in such a case
             logger.error("failed recover state, blocking...", t);
         }

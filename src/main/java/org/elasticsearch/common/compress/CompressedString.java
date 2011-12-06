@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -31,7 +31,7 @@ import java.io.IOException;
 import java.util.Arrays;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class CompressedString implements Streamable {
 
@@ -63,17 +63,20 @@ public class CompressedString implements Streamable {
         return compressedString;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         bytes = new byte[in.readVInt()];
         in.readBytes(bytes, 0, bytes.length);
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(bytes.length);
         out.writeBytes(bytes);
     }
 
-    @Override public boolean equals(Object o) {
+    @Override
+    public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
@@ -84,11 +87,13 @@ public class CompressedString implements Streamable {
         return true;
     }
 
-    @Override public int hashCode() {
+    @Override
+    public int hashCode() {
         return bytes != null ? Arrays.hashCode(bytes) : 0;
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         try {
             return string();
         } catch (IOException e) {

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,11 +19,10 @@
 
 package org.elasticsearch.search.facet.datehistogram;
 
+import gnu.trove.ExtTLongObjectHashMap;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.CacheRecycler;
-import org.elasticsearch.common.joda.time.MutableDateTime;
-import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.longs.LongFieldData;
@@ -34,6 +33,7 @@ import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.internal.SearchContext;
+import org.joda.time.MutableDateTime;
 
 import java.io.IOException;
 import java.util.Map;
@@ -42,7 +42,7 @@ import java.util.Map;
  * A histogram facet collector that uses the same field as the key as well as the
  * value.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class ValueScriptDateHistogramFacetCollector extends AbstractFacetCollector {
 
@@ -92,20 +92,24 @@ public class ValueScriptDateHistogramFacetCollector extends AbstractFacetCollect
         }
     }
 
-    @Override protected void doCollect(int doc) throws IOException {
+    @Override
+    protected void doCollect(int doc) throws IOException {
         fieldData.forEachValueInDoc(doc, dateTime, histoProc);
     }
 
-    @Override public void setScorer(Scorer scorer) throws IOException {
+    @Override
+    public void setScorer(Scorer scorer) throws IOException {
         valueScript.setScorer(scorer);
     }
 
-    @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
+    @Override
+    protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
         fieldData = (LongFieldData) fieldDataCache.cache(fieldDataType, reader, indexFieldName);
         valueScript.setNextReader(reader);
     }
 
-    @Override public Facet facet() {
+    @Override
+    public Facet facet() {
         return new InternalFullDateHistogramFacet(facetName, comparatorType, histoProc.entries, true);
     }
 
@@ -119,7 +123,8 @@ public class ValueScriptDateHistogramFacetCollector extends AbstractFacetCollect
             this.valueScript = valueScript;
         }
 
-        @Override public void onValue(int docId, MutableDateTime dateTime) {
+        @Override
+        public void onValue(int docId, MutableDateTime dateTime) {
             valueScript.setNextDocId(docId);
             long time = dateTime.getMillis();
             double scriptValue = valueScript.runAsDouble();
@@ -151,7 +156,8 @@ public class ValueScriptDateHistogramFacetCollector extends AbstractFacetCollect
             this.interval = interval;
         }
 
-        @Override public void onValue(int docId, MutableDateTime dateTime) {
+        @Override
+        public void onValue(int docId, MutableDateTime dateTime) {
             valueScript.setNextDocId(docId);
 
             long time = CountDateHistogramFacetCollector.bucket(dateTime.getMillis(), interval);

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,8 +19,8 @@
 
 package org.elasticsearch.common.logging;
 
+import com.google.common.collect.Lists;
 import org.elasticsearch.common.Classes;
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -30,13 +30,13 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.List;
 
+import static com.google.common.collect.Lists.newArrayList;
 import static java.util.Arrays.asList;
-import static org.elasticsearch.common.collect.Lists.*;
 
 /**
  * A set of utilities around Logging.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class Loggers {
 

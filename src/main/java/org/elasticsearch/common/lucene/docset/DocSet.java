@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -26,28 +26,33 @@ import org.apache.lucene.util.Bits;
 import java.io.IOException;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public abstract class DocSet extends DocIdSet implements Bits {
 
     public static final DocSet EMPTY_DOC_SET = new DocSet() {
-        @Override public boolean get(int doc) {
+        @Override
+        public boolean get(int doc) {
             return false;
         }
 
-        @Override public DocIdSetIterator iterator() throws IOException {
+        @Override
+        public DocIdSetIterator iterator() throws IOException {
             return DocIdSet.EMPTY_DOCIDSET.iterator();
         }
 
-        @Override public boolean isCacheable() {
+        @Override
+        public boolean isCacheable() {
             return true;
         }
 
-        @Override public long sizeInBytes() {
+        @Override
+        public long sizeInBytes() {
             return 0;
         }
 
-        @Override public int length() {
+        @Override
+        public int length() {
             return 0;
         }
     };

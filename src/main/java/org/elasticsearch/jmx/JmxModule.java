@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -30,7 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.jmx.action.GetJmxServiceUrlAction;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class JmxModule extends AbstractModule {
 
@@ -40,7 +40,8 @@ public class JmxModule extends AbstractModule {
         this.settings = settings;
     }
 
-    @Override protected void configure() {
+    @Override
+    protected void configure() {
         JmxService jmxService = new JmxService(Loggers.getLogger(JmxService.class, settings.get("name")), settings);
         bind(JmxService.class).toInstance(jmxService);
         bind(GetJmxServiceUrlAction.class).asEagerSingleton();
@@ -55,7 +56,8 @@ public class JmxModule extends AbstractModule {
             this.jmxService = jmxService;
         }
 
-        @Override public <I> void hear(TypeLiteral<I> typeLiteral, TypeEncounter<I> typeEncounter) {
+        @Override
+        public <I> void hear(TypeLiteral<I> typeLiteral, TypeEncounter<I> typeEncounter) {
             Class<? super I> type = typeLiteral.getRawType();
             if (type.isAnnotationPresent(MBean.class)) {
                 typeEncounter.register(new JmxExporterInjectionListener<I>(jmxService));
@@ -71,7 +73,8 @@ public class JmxModule extends AbstractModule {
             this.jmxService = jmxService;
         }
 
-        @Override public void afterInjection(I instance) {
+        @Override
+        public void afterInjection(I instance) {
             jmxService.registerMBean(instance);
         }
     }

@@ -21,7 +21,7 @@ import org.elasticsearch.common.inject.ConfigurationException;
 
 import java.util.Set;
 
-import static org.elasticsearch.common.base.Preconditions.*;
+import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
  * A request to inject the static fields and methods of a type. Requests are created

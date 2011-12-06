@@ -19,11 +19,11 @@
 
 package org.elasticsearch.search.lookup;
 
+import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.ElasticSearchParseException;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -36,7 +36,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 // TODO: If we are processing it in the per hit fetch phase, we cna initialize it with a source if it was loaded..
 public class SourceLookup implements Map {
@@ -111,51 +111,63 @@ public class SourceLookup implements Map {
         return XContentMapValues.extractValue(path, loadSourceIfNeeded());
     }
 
-    @Override public Object get(Object key) {
+    @Override
+    public Object get(Object key) {
         return loadSourceIfNeeded().get(key);
     }
 
-    @Override public int size() {
+    @Override
+    public int size() {
         return loadSourceIfNeeded().size();
     }
 
-    @Override public boolean isEmpty() {
+    @Override
+    public boolean isEmpty() {
         return loadSourceIfNeeded().isEmpty();
     }
 
-    @Override public boolean containsKey(Object key) {
+    @Override
+    public boolean containsKey(Object key) {
         return loadSourceIfNeeded().containsKey(key);
     }
 
-    @Override public boolean containsValue(Object value) {
+    @Override
+    public boolean containsValue(Object value) {
         return loadSourceIfNeeded().containsValue(value);
     }
 
-    @Override public Set keySet() {
+    @Override
+    public Set keySet() {
         return loadSourceIfNeeded().keySet();
     }
 
-    @Override public Collection values() {
+    @Override
+    public Collection values() {
         return loadSourceIfNeeded().values();
     }
 
-    @Override public Set entrySet() {
+    @Override
+    public Set entrySet() {
         return loadSourceIfNeeded().entrySet();
     }
 
-    @Override public Object put(Object key, Object value) {
+    @Override
+    public Object put(Object key, Object value) {
         throw new UnsupportedOperationException();
     }
 
-    @Override public Object remove(Object key) {
+    @Override
+    public Object remove(Object key) {
         throw new UnsupportedOperationException();
     }
 
-    @Override public void putAll(Map m) {
+    @Override
+    public void putAll(Map m) {
         throw new UnsupportedOperationException();
     }
 
-    @Override public void clear() {
+    @Override
+    public void clear() {
         throw new UnsupportedOperationException();
     }
 }

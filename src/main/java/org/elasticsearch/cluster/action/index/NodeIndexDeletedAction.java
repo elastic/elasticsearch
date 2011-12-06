@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -40,7 +40,7 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * @author kimchy (Shay Banon)
+ *
  */
 public class NodeIndexDeletedAction extends AbstractComponent {
 
@@ -52,7 +52,8 @@ public class NodeIndexDeletedAction extends AbstractComponent {
 
     private final List<Listener> listeners = new CopyOnWriteArrayList<Listener>();
 
-    @Inject public NodeIndexDeletedAction(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterService clusterService) {
+    @Inject
+    public NodeIndexDeletedAction(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterService clusterService) {
         super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
@@ -72,7 +73,8 @@ public class NodeIndexDeletedAction extends AbstractComponent {
         DiscoveryNodes nodes = clusterService.state().nodes();
         if (nodes.localNodeMaster()) {
             threadPool.cached().execute(new Runnable() {
-                @Override public void run() {
+                @Override
+                public void run() {
                     innerNodeIndexDeleted(index, nodeId);
                 }
             });
@@ -96,16 +98,19 @@ public class NodeIndexDeletedAction extends AbstractComponent {
 
         static final String ACTION = "cluster/nodeIndexDeleted";
 
-        @Override public NodeIndexDeletedMessage newInstance() {
+        @Override
+        public NodeIndexDeletedMessage newInstance() {
             return new NodeIndexDeletedMessage();
         }
 
-        @Override public void messageReceived(NodeIndexDeletedMessage message, TransportChannel channel) throws Exception {
+        @Override
+        public void messageReceived(NodeIndexDeletedMessage message, TransportChannel channel) throws Exception {
             innerNodeIndexDeleted(message.index, message.nodeId);
             channel.sendResponse(VoidStreamable.INSTANCE);
         }
 
-        @Override public String executor() {
+        @Override
+        public String executor() {
             return ThreadPool.Names.SAME;
         }
     }
@@ -124,12 +129,14 @@ public class NodeIndexDeletedAction extends AbstractComponent {
             this.nodeId = nodeId;
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             out.writeUTF(index);
             out.writeUTF(nodeId);
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             index = in.readUTF();
             nodeId = in.readUTF();
         }

@@ -27,7 +27,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public abstract class SingleCustomOperationRequest implements ActionRequest {
 
@@ -38,18 +38,21 @@ public abstract class SingleCustomOperationRequest implements ActionRequest {
     protected SingleCustomOperationRequest() {
     }
 
-    @Override public ActionRequestValidationException validate() {
+    @Override
+    public ActionRequestValidationException validate() {
         return null;
     }
 
     /**
      * Should the listener be called on a separate thread if needed.
      */
-    @Override public boolean listenerThreaded() {
+    @Override
+    public boolean listenerThreaded() {
         return threadedListener;
     }
 
-    @Override public SingleCustomOperationRequest listenerThreaded(boolean threadedListener) {
+    @Override
+    public SingleCustomOperationRequest listenerThreaded(boolean threadedListener) {
         this.threadedListener = threadedListener;
         return this;
     }
@@ -90,12 +93,14 @@ public abstract class SingleCustomOperationRequest implements ActionRequest {
 
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         // no need to pass threading over the network, they are always false when coming throw a thread pool
         preferLocal = in.readBoolean();
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(preferLocal);
     }
 }

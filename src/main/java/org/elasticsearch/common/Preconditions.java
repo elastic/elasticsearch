@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -33,16 +33,16 @@ import java.util.NoSuchElementException;
  *     if (count <= 0) {
  *       throw new ElasticSearchIllegalArgumentException("must be positive: " + count);
  *     }</pre>
- * <p/>
+ *
  * to be replaced with the more compact
  * <pre>
  *     checkArgument(count > 0, "must be positive: %s", count);</pre>
- * <p/>
+ *
  * Note that the sense of the expression is inverted; with {@code Preconditions}
  * you declare what you expect to be <i>true</i>, just as you do with an
  * <a href="http://java.sun.com/j2se/1.5.0/docs/guide/language/assert.html">
  * {@code assert}</a> or a JUnit {@code assertTrue()} call.
- * <p/>
+ *
  * <p>Take care not to confuse precondition checking with other similar types
  * of checks! Precondition exceptions -- including those provided here, but also
  * {@link IndexOutOfBoundsException}, {@link NoSuchElementException}, {@link
@@ -51,7 +51,7 @@ import java.util.NoSuchElementException;
  * not have invoked the method when it did, with the arguments it did, or
  * perhaps <i>ever</i>. Postcondition or other invariant failures should not
  * throw these types of exceptions.
- * <p/>
+ *
  * <p><b>Note:</b> The methods of the {@code Preconditions} class are highly
  * unusual in one way: they are <i>supposed to</i> throw exceptions, and promise
  * in their specifications to do so even when given perfectly valid input. That
@@ -60,7 +60,7 @@ import java.util.NoSuchElementException;
  * as Nullable -- yet the method will still throw an exception anyway,
  * because that's what its contract says to do.
  *
- * @author kimchy (Shay Banon)
+ *
  */
 public final class Preconditions {
     private Preconditions() {

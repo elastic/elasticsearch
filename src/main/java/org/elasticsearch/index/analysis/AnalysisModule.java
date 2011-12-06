@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.analysis;
 
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.common.collect.Lists;
-import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Scopes;
 import org.elasticsearch.common.inject.assistedinject.FactoryProvider;
@@ -37,7 +37,7 @@ import java.util.LinkedList;
 import java.util.Map;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class AnalysisModule extends AbstractModule {
 
@@ -154,7 +154,8 @@ public class AnalysisModule extends AbstractModule {
         return this;
     }
 
-    @Override protected void configure() {
+    @Override
+    protected void configure() {
         MapBinder<String, CharFilterFactoryFactory> charFilterBinder
                 = MapBinder.newMapBinder(binder(), String.class, CharFilterFactoryFactory.class);
 
@@ -330,11 +331,13 @@ public class AnalysisModule extends AbstractModule {
 
     private static class DefaultProcessor extends AnalysisBinderProcessor {
 
-        @Override public void processCharFilters(CharFiltersBindings charFiltersBindings) {
+        @Override
+        public void processCharFilters(CharFiltersBindings charFiltersBindings) {
             charFiltersBindings.processCharFilter("html_strip", HtmlStripCharFilterFactory.class);
         }
 
-        @Override public void processTokenFilters(TokenFiltersBindings tokenFiltersBindings) {
+        @Override
+        public void processTokenFilters(TokenFiltersBindings tokenFiltersBindings) {
             tokenFiltersBindings.processTokenFilter("stop", StopTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("reverse", ReverseTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("asciifolding", ASCIIFoldingTokenFilterFactory.class);
@@ -352,7 +355,8 @@ public class AnalysisModule extends AbstractModule {
             tokenFiltersBindings.processTokenFilter("truncate", TruncateTokenFilterFactory.class);
         }
 
-        @Override public void processTokenizers(TokenizersBindings tokenizersBindings) {
+        @Override
+        public void processTokenizers(TokenizersBindings tokenizersBindings) {
             tokenizersBindings.processTokenizer("standard", StandardTokenizerFactory.class);
             tokenizersBindings.processTokenizer("uax_url_email", UAX29URLEmailTokenizerFactory.class);
             tokenizersBindings.processTokenizer("path_hierarchy", PathHierarchyTokenizerFactory.class);
@@ -367,7 +371,8 @@ public class AnalysisModule extends AbstractModule {
             tokenizersBindings.processTokenizer("edge_ngram", EdgeNGramTokenizerFactory.class);
         }
 
-        @Override public void processAnalyzers(AnalyzersBindings analyzersBindings) {
+        @Override
+        public void processAnalyzers(AnalyzersBindings analyzersBindings) {
             analyzersBindings.processAnalyzer("default", StandardAnalyzerProvider.class);
             analyzersBindings.processAnalyzer("standard", StandardAnalyzerProvider.class);
             analyzersBindings.processAnalyzer("standard_html_strip", StandardHtmlStripAnalyzerProvider.class);
@@ -379,11 +384,13 @@ public class AnalysisModule extends AbstractModule {
     }
 
     private static class ExtendedProcessor extends AnalysisBinderProcessor {
-        @Override public void processCharFilters(CharFiltersBindings charFiltersBindings) {
+        @Override
+        public void processCharFilters(CharFiltersBindings charFiltersBindings) {
             charFiltersBindings.processCharFilter("mapping", MappingCharFilterFactory.class);
         }
 
-        @Override public void processTokenFilters(TokenFiltersBindings tokenFiltersBindings) {
+        @Override
+        public void processTokenFilters(TokenFiltersBindings tokenFiltersBindings) {
             tokenFiltersBindings.processTokenFilter("snowball", SnowballTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("stemmer", StemmerTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("word_delimiter", WordDelimiterTokenFilterFactory.class);
@@ -407,11 +414,13 @@ public class AnalysisModule extends AbstractModule {
             tokenFiltersBindings.processTokenFilter("stemmer_override", StemmerOverrideTokenFilterFactory.class);
         }
 
-        @Override public void processTokenizers(TokenizersBindings tokenizersBindings) {
+        @Override
+        public void processTokenizers(TokenizersBindings tokenizersBindings) {
             tokenizersBindings.processTokenizer("pattern", PatternTokenizerFactory.class);
         }
 
-        @Override public void processAnalyzers(AnalyzersBindings analyzersBindings) {
+        @Override
+        public void processAnalyzers(AnalyzersBindings analyzersBindings) {
             analyzersBindings.processAnalyzer("pattern", PatternAnalyzerProvider.class);
             analyzersBindings.processAnalyzer("snowball", SnowballAnalyzerProvider.class);
 

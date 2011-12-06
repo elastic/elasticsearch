@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -30,11 +30,11 @@ import java.util.Map;
 
 /**
  * A base class for any script type that is used during the search process (custom score, facets, and so on).
- *
+ * <p/>
  * <p>If the script returns a specific numeric type, consider overriding the type specific base classes
  * such as {@link AbstractDoubleSearchScript}, {@link AbstractFloatSearchScript} and {@link AbstractLongSearchScript}
  * for better performance.
- *
+ * <p/>
  * <p>The use is required to implement the {@link #run()} method.
  */
 public abstract class AbstractSearchScript extends AbstractExecutableScript implements SearchScript {
@@ -77,35 +77,43 @@ public abstract class AbstractSearchScript extends AbstractExecutableScript impl
         this.lookup = lookup;
     }
 
-    @Override public void setScorer(Scorer scorer) {
+    @Override
+    public void setScorer(Scorer scorer) {
         lookup.setScorer(scorer);
     }
 
-    @Override public void setNextReader(IndexReader reader) {
+    @Override
+    public void setNextReader(IndexReader reader) {
         lookup.setNextReader(reader);
     }
 
-    @Override public void setNextDocId(int doc) {
+    @Override
+    public void setNextDocId(int doc) {
         lookup.setNextDocId(doc);
     }
 
-    @Override public void setNextSource(Map<String, Object> source) {
+    @Override
+    public void setNextSource(Map<String, Object> source) {
         lookup.source().setNextSource(source);
     }
 
-    @Override public void setNextScore(float score) {
+    @Override
+    public void setNextScore(float score) {
         this.score = score;
     }
 
-    @Override public float runAsFloat() {
+    @Override
+    public float runAsFloat() {
         return ((Number) run()).floatValue();
     }
 
-    @Override public long runAsLong() {
+    @Override
+    public long runAsLong() {
         return ((Number) run()).longValue();
     }
 
-    @Override public double runAsDouble() {
+    @Override
+    public double runAsDouble() {
         return ((Number) run()).doubleValue();
     }
 }

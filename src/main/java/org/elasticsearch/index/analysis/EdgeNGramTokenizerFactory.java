@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -31,7 +31,7 @@ import org.elasticsearch.index.settings.IndexSettings;
 import java.io.Reader;
 
 /**
- * @author kimchy (Shay Banon)
+ *
  */
 public class EdgeNGramTokenizerFactory extends AbstractTokenizerFactory {
 
@@ -41,14 +41,16 @@ public class EdgeNGramTokenizerFactory extends AbstractTokenizerFactory {
 
     private final EdgeNGramTokenizer.Side side;
 
-    @Inject public EdgeNGramTokenizerFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
+    @Inject
+    public EdgeNGramTokenizerFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
         this.minGram = settings.getAsInt("min_gram", NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE);
         this.maxGram = settings.getAsInt("max_gram", NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);
         this.side = EdgeNGramTokenizer.Side.getSide(settings.get("side", EdgeNGramTokenizer.DEFAULT_SIDE.getLabel()));
     }
 
-    @Override public Tokenizer create(Reader reader) {
+    @Override
+    public Tokenizer create(Reader reader) {
         return new EdgeNGramTokenizer(reader, side, minGram, maxGram);
     }
 }

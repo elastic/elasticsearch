@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.percolator;
 
+import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.IndexReader;
@@ -31,7 +32,6 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.BytesStream;
@@ -49,11 +49,7 @@ import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.index.field.data.FieldDataType;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -69,10 +65,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.SourceToParse.*;
+import static org.elasticsearch.index.mapper.SourceToParse.source;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class PercolatorExecutor extends AbstractIndexComponent {
 
@@ -112,7 +108,8 @@ public class PercolatorExecutor extends AbstractIndexComponent {
 
     public static class DocAndSourceQueryRequest {
         private final ParsedDocument doc;
-        @Nullable private final String query;
+        @Nullable
+        private final String query;
 
         public DocAndSourceQueryRequest(ParsedDocument doc, @Nullable String query) {
             this.doc = doc;
@@ -123,7 +120,8 @@ public class PercolatorExecutor extends AbstractIndexComponent {
             return this.doc;
         }
 
-        @Nullable String query() {
+        @Nullable
+        String query() {
             return this.query;
         }
     }
@@ -131,7 +129,8 @@ public class PercolatorExecutor extends AbstractIndexComponent {
 
     public static class DocAndQueryRequest {
         private final ParsedDocument doc;
-        @Nullable private final Query query;
+        @Nullable
+        private final Query query;
 
         public DocAndQueryRequest(ParsedDocument doc, @Nullable Query query) {
             this.doc = doc;
@@ -142,7 +141,8 @@ public class PercolatorExecutor extends AbstractIndexComponent {
             return this.doc;
         }
 
-        @Nullable Query query() {
+        @Nullable
+        Query query() {
             return this.query;
         }
     }
@@ -176,9 +176,10 @@ public class PercolatorExecutor extends AbstractIndexComponent {
 
     private IndicesService indicesService;
 
-    @Inject public PercolatorExecutor(Index index, @IndexSettings Settings indexSettings,
-                                      MapperService mapperService, IndexQueryParserService queryParserService,
-                                      IndexCache indexCache) {
+    @Inject
+    public PercolatorExecutor(Index index, @IndexSettings Settings indexSettings,
+                              MapperService mapperService, IndexQueryParserService queryParserService,
+                              IndexCache indexCache) {
         super(index, indexSettings);
         this.mapperService = mapperService;
         this.queryParserService = queryParserService;
@@ -407,10 +408,12 @@ public class PercolatorExecutor extends AbstractIndexComponent {
 
         private FieldData fieldData;
 
-        @Override public void setScorer(Scorer scorer) throws IOException {
+        @Override
+        public void setScorer(Scorer scorer) throws IOException {
         }
 
-        @Override public void collect(int doc) throws IOException {
+        @Override
+        public void collect(int doc) throws IOException {
             String uid = fieldData.stringValue(doc);
             if (uid == null) {
                 return;
@@ -432,12 +435,14 @@ public class PercolatorExecutor extends AbstractIndexComponent {
             }
         }
 
-        @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
+        @Override
+        public void setNextReader(IndexReader reader, int docBase) throws IOException {
             // we use the UID because id might not be indexed
             fieldData = percolatorIndex.cache().fieldData().cache(FieldDataType.DefaultTypes.STRING, reader, UidFieldMapper.NAME);
         }
 
-        @Override public boolean acceptsDocsOutOfOrder() {
+        @Override
+        public boolean acceptsDocsOutOfOrder() {
             return true;
         }
     }

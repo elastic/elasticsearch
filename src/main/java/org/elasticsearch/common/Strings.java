@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,14 +19,14 @@
 
 package org.elasticsearch.common;
 
-import org.elasticsearch.common.collect.ImmutableSet;
-import org.elasticsearch.common.collect.Iterables;
-import org.elasticsearch.common.trove.set.hash.THashSet;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterables;
+import gnu.trove.set.hash.THashSet;
 
 import java.util.*;
 
 /**
- * @author kimchy (Shay Banon)
+ *
  */
 public class Strings {
 
@@ -45,7 +45,7 @@ public class Strings {
 
     /**
      * Splits a backslash escaped string on the separator.
-     * <p>
+     * <p/>
      * Current backslash escaping supported:
      * <br> \n \t \r \b \f are escaped the same as a Java String
      * <br> Other characters following a backslash are produced verbatim (\c => c)

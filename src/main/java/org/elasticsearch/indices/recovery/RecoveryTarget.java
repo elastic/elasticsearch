@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,12 +19,12 @@
 
 package org.elasticsearch.indices.recovery;
 
+import com.google.common.collect.Sets;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.StopWatch;
-import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.VoidStreamable;
@@ -35,11 +35,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.service.IndexService;
-import org.elasticsearch.index.shard.IllegalIndexShardStateException;
-import org.elasticsearch.index.shard.IndexShardClosedException;
-import org.elasticsearch.index.shard.IndexShardNotStartedException;
-import org.elasticsearch.index.shard.IndexShardState;
-import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.store.Store;
@@ -48,11 +44,7 @@ import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportRequestHandler;
-import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.FutureTransportResponseHandler;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.*;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -60,15 +52,15 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
-import static org.elasticsearch.common.unit.TimeValue.*;
+import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
 /**
  * The recovery target handles recoveries of peer shards of the shard+node to recover to.
- *
+ * <p/>
  * <p>Note, it can be safely assumed that there will only be a single recovery per shard (index+id) and
  * not several of them (since we don't allocate several shard replicas to the same node).
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class RecoveryTarget extends AbstractComponent {
 
@@ -91,8 +83,9 @@ public class RecoveryTarget extends AbstractComponent {
 
     private final ConcurrentMap<ShardId, RecoveryStatus> onGoingRecoveries = ConcurrentCollections.newConcurrentMap();
 
-    @Inject public RecoveryTarget(Settings settings, ThreadPool threadPool, TransportService transportService, IndicesService indicesService,
-                                  IndicesLifecycle indicesLifecycle, RecoverySettings recoverySettings) {
+    @Inject
+    public RecoveryTarget(Settings settings, ThreadPool threadPool, TransportService transportService, IndicesService indicesService,
+                          IndicesLifecycle indicesLifecycle, RecoverySettings recoverySettings) {
         super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
@@ -107,7 +100,8 @@ public class RecoveryTarget extends AbstractComponent {
         transportService.registerHandler(Actions.FINALIZE, new FinalizeRecoveryRequestHandler());
 
         indicesLifecycle.addListener(new IndicesLifecycle.Listener() {
-            @Override public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, boolean delete) {
+            @Override
+            public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, boolean delete) {
                 removeAndCleanOnGoingRecovery(shardId);
             }
         });
@@ -157,7 +151,8 @@ public class RecoveryTarget extends AbstractComponent {
             return;
         }
         threadPool.cached().execute(new Runnable() {
-            @Override public void run() {
+            @Override
+            public void run() {
                 doRecovery(shard, request, fromRetry, listener);
             }
         });
@@ -183,7 +178,8 @@ public class RecoveryTarget extends AbstractComponent {
 
             StopWatch stopWatch = new StopWatch().start();
             RecoveryResponse recoveryStatus = transportService.submitRequest(request.sourceNode(), RecoverySource.Actions.START_RECOVERY, request, new FutureTransportResponseHandler<RecoveryResponse>() {
-                @Override public RecoveryResponse newInstance() {
+                @Override
+                public RecoveryResponse newInstance() {
                     return new RecoveryResponse();
                 }
             }).txGet();
@@ -296,15 +292,18 @@ public class RecoveryTarget extends AbstractComponent {
 
     class PrepareForTranslogOperationsRequestHandler extends BaseTransportRequestHandler<RecoveryPrepareForTranslogOperationsRequest> {
 
-        @Override public RecoveryPrepareForTranslogOperationsRequest newInstance() {
+        @Override
+        public RecoveryPrepareForTranslogOperationsRequest newInstance() {
             return new RecoveryPrepareForTranslogOperationsRequest();
         }
 
-        @Override public String executor() {
+        @Override
+        public String executor() {
             return ThreadPool.Names.CACHED;
         }
 
-        @Override public void messageReceived(RecoveryPrepareForTranslogOperationsRequest request, TransportChannel channel) throws Exception {
+        @Override
+        public void messageReceived(RecoveryPrepareForTranslogOperationsRequest request, TransportChannel channel) throws Exception {
             InternalIndexShard shard = (InternalIndexShard) indicesService.indexServiceSafe(request.shardId().index().name()).shardSafe(request.shardId().id());
 
             RecoveryStatus onGoingRecovery = onGoingRecoveries.get(shard.shardId());
@@ -321,15 +320,18 @@ public class RecoveryTarget extends AbstractComponent {
 
     class FinalizeRecoveryRequestHandler extends BaseTransportRequestHandler<RecoveryFinalizeRecoveryRequest> {
 
-        @Override public RecoveryFinalizeRecoveryRequest newInstance() {
+        @Override
+        public RecoveryFinalizeRecoveryRequest newInstance() {
             return new RecoveryFinalizeRecoveryRequest();
         }
 
-        @Override public String executor() {
+        @Override
+        public String executor() {
             return ThreadPool.Names.CACHED;
         }
 
-        @Override public void messageReceived(RecoveryFinalizeRecoveryRequest request, TransportChannel channel) throws Exception {
+        @Override
+        public void messageReceived(RecoveryFinalizeRecoveryRequest request, TransportChannel channel) throws Exception {
             InternalIndexShard shard = (InternalIndexShard) indicesService.indexServiceSafe(request.shardId().index().name()).shardSafe(request.shardId().id());
             RecoveryStatus peerRecoveryStatus = onGoingRecoveries.get(shard.shardId());
             if (peerRecoveryStatus == null) {
@@ -347,15 +349,18 @@ public class RecoveryTarget extends AbstractComponent {
     class TranslogOperationsRequestHandler extends BaseTransportRequestHandler<RecoveryTranslogOperationsRequest> {
 
 
-        @Override public RecoveryTranslogOperationsRequest newInstance() {
+        @Override
+        public RecoveryTranslogOperationsRequest newInstance() {
             return new RecoveryTranslogOperationsRequest();
         }
 
-        @Override public String executor() {
+        @Override
+        public String executor() {
             return ThreadPool.Names.CACHED;
         }
 
-        @Override public void messageReceived(RecoveryTranslogOperationsRequest request, TransportChannel channel) throws Exception {
+        @Override
+        public void messageReceived(RecoveryTranslogOperationsRequest request, TransportChannel channel) throws Exception {
             InternalIndexShard shard = (InternalIndexShard) indicesService.indexServiceSafe(request.shardId().index().name()).shardSafe(request.shardId().id());
             for (Translog.Operation operation : request.operations()) {
                 shard.performRecoveryOperation(operation);
@@ -374,15 +379,18 @@ public class RecoveryTarget extends AbstractComponent {
 
     class FilesInfoRequestHandler extends BaseTransportRequestHandler<RecoveryFilesInfoRequest> {
 
-        @Override public RecoveryFilesInfoRequest newInstance() {
+        @Override
+        public RecoveryFilesInfoRequest newInstance() {
             return new RecoveryFilesInfoRequest();
         }
 
-        @Override public String executor() {
+        @Override
+        public String executor() {
             return ThreadPool.Names.CACHED;
         }
 
-        @Override public void messageReceived(RecoveryFilesInfoRequest request, TransportChannel channel) throws Exception {
+        @Override
+        public void messageReceived(RecoveryFilesInfoRequest request, TransportChannel channel) throws Exception {
             InternalIndexShard shard = (InternalIndexShard) indicesService.indexServiceSafe(request.shardId.index().name()).shardSafe(request.shardId.id());
             RecoveryStatus onGoingRecovery = onGoingRecoveries.get(shard.shardId());
             if (onGoingRecovery == null) {
@@ -402,15 +410,18 @@ public class RecoveryTarget extends AbstractComponent {
 
     class CleanFilesRequestHandler extends BaseTransportRequestHandler<RecoveryCleanFilesRequest> {
 
-        @Override public RecoveryCleanFilesRequest newInstance() {
+        @Override
+        public RecoveryCleanFilesRequest newInstance() {
             return new RecoveryCleanFilesRequest();
         }
 
-        @Override public String executor() {
+        @Override
+        public String executor() {
             return ThreadPool.Names.CACHED;
         }
 
-        @Override public void messageReceived(RecoveryCleanFilesRequest request, TransportChannel channel) throws Exception {
+        @Override
+        public void messageReceived(RecoveryCleanFilesRequest request, TransportChannel channel) throws Exception {
             InternalIndexShard shard = (InternalIndexShard) indicesService.indexServiceSafe(request.shardId().index().name()).shardSafe(request.shardId().id());
             RecoveryStatus onGoingRecovery = onGoingRecoveries.get(shard.shardId());
             if (onGoingRecovery == null) {
@@ -467,15 +478,18 @@ public class RecoveryTarget extends AbstractComponent {
     class FileChunkTransportRequestHandler extends BaseTransportRequestHandler<RecoveryFileChunkRequest> {
 
 
-        @Override public RecoveryFileChunkRequest newInstance() {
+        @Override
+        public RecoveryFileChunkRequest newInstance() {
             return new RecoveryFileChunkRequest();
         }
 
-        @Override public String executor() {
+        @Override
+        public String executor() {
             return ThreadPool.Names.CACHED;
         }
 
-        @Override public void messageReceived(final RecoveryFileChunkRequest request, TransportChannel channel) throws Exception {
+        @Override
+        public void messageReceived(final RecoveryFileChunkRequest request, TransportChannel channel) throws Exception {
             InternalIndexShard shard = (InternalIndexShard) indicesService.indexServiceSafe(request.shardId().index().name()).shardSafe(request.shardId().id());
             RecoveryStatus onGoingRecovery = onGoingRecoveries.get(shard.shardId());
             if (onGoingRecovery == null) {

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -25,7 +25,7 @@ import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.node.settings.NodeSettingsService;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class NodeModule extends AbstractModule {
 
@@ -35,7 +35,8 @@ public class NodeModule extends AbstractModule {
         this.node = node;
     }
 
-    @Override protected void configure() {
+    @Override
+    protected void configure() {
         bind(Node.class).toInstance(node);
         bind(NodeSettingsService.class).asEagerSingleton();
         bind(NodeService.class).asEagerSingleton();

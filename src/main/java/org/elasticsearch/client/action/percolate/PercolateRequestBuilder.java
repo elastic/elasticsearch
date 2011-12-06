@@ -30,7 +30,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import java.util.Map;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class PercolateRequestBuilder extends BaseRequestBuilder<PercolateRequest, PercolateResponse> {
 
@@ -76,7 +76,7 @@ public class PercolateRequestBuilder extends BaseRequestBuilder<PercolateRequest
 
     /**
      * Sets the document source to index.
-     *
+     * <p/>
      * <p>Note, its preferable to either set it using {@link #setSource(org.elasticsearch.common.xcontent.XContentBuilder)}
      * or using the {@link #setSource(byte[])}.
      */
@@ -153,7 +153,8 @@ public class PercolateRequestBuilder extends BaseRequestBuilder<PercolateRequest
         return this;
     }
 
-    @Override protected void doExecute(ActionListener<PercolateResponse> listener) {
+    @Override
+    protected void doExecute(ActionListener<PercolateResponse> listener) {
         client.percolate(request, listener);
     }
 

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common;
 
-import org.elasticsearch.common.util.concurrent.jsr166y.ThreadLocalRandom;
+import jsr166y.ThreadLocalRandom;
 
 import java.util.Random;
 
@@ -29,7 +29,7 @@ public class RandomStringGenerator {
      * <p><code>RandomStringUtils</code> instances should NOT be constructed in
      * standard programming. Instead, the class should be used as
      * <code>RandomStringUtils.random(5);</code>.</p>
-     *
+     * <p/>
      * <p>This constructor is public to permit tools that require a JavaBean instance
      * to operate.</p>
      */
@@ -43,7 +43,7 @@ public class RandomStringGenerator {
     /**
      * <p>Creates a random string whose length is the number of characters
      * specified.</p>
-     *
+     * <p/>
      * <p>Characters will be chosen from the set of all characters.</p>
      *
      * @param count the length of random string to create
@@ -56,7 +56,7 @@ public class RandomStringGenerator {
     /**
      * <p>Creates a random string whose length is the number of characters
      * specified.</p>
-     *
+     * <p/>
      * <p>Characters will be chosen from the set of characters whose
      * ASCII value is between <code>32</code> and <code>126</code> (inclusive).</p>
      *
@@ -70,7 +70,7 @@ public class RandomStringGenerator {
     /**
      * <p>Creates a random string whose length is the number of characters
      * specified.</p>
-     *
+     * <p/>
      * <p>Characters will be chosen from the set of alphabetic
      * characters.</p>
      *
@@ -84,7 +84,7 @@ public class RandomStringGenerator {
     /**
      * <p>Creates a random string whose length is the number of characters
      * specified.</p>
-     *
+     * <p/>
      * <p>Characters will be chosen from the set of alpha-numeric
      * characters.</p>
      *
@@ -98,7 +98,7 @@ public class RandomStringGenerator {
     /**
      * <p>Creates a random string whose length is the number of characters
      * specified.</p>
-     *
+     * <p/>
      * <p>Characters will be chosen from the set of numeric
      * characters.</p>
      *
@@ -112,7 +112,7 @@ public class RandomStringGenerator {
     /**
      * <p>Creates a random string whose length is the number of characters
      * specified.</p>
-     *
+     * <p/>
      * <p>Characters will be chosen from the set of alpha-numeric
      * characters as indicated by the arguments.</p>
      *
@@ -130,7 +130,7 @@ public class RandomStringGenerator {
     /**
      * <p>Creates a random string whose length is the number of characters
      * specified.</p>
-     *
+     * <p/>
      * <p>Characters will be chosen from the set of alpha-numeric
      * characters as indicated by the arguments.</p>
      *
@@ -150,7 +150,7 @@ public class RandomStringGenerator {
     /**
      * <p>Creates a random string based on a variety of options, using
      * default source of randomness.</p>
-     *
+     * <p/>
      * <p>This method has exactly the same semantics as
      * {@link #random(int, int, int, boolean, boolean, char[], Random)}, but
      * instead of using an externally supplied source of randomness, it uses
@@ -174,16 +174,16 @@ public class RandomStringGenerator {
     /**
      * <p>Creates a random string based on a variety of options, using
      * supplied source of randomness.</p>
-     *
+     * <p/>
      * <p>If start and end are both <code>0</code>, start and end are set
      * to <code>' '</code> and <code>'z'</code>, the ASCII printable
      * characters, will be used, unless letters and numbers are both
      * <code>false</code>, in which case, start and end are set to
      * <code>0</code> and <code>Integer.MAX_VALUE</code>.
-     *
+     * <p/>
      * <p>If set is not <code>null</code>, characters between start and
      * end are chosen.</p>
-     *
+     * <p/>
      * <p>This method accepts a user-supplied {@link Random}
      * instance to use as a source of randomness. By seeding a single
      * {@link Random} instance with a fixed seed and using it for each call,
@@ -267,7 +267,7 @@ public class RandomStringGenerator {
     /**
      * <p>Creates a random string whose length is the number of characters
      * specified.</p>
-     *
+     * <p/>
      * <p>Characters will be chosen from the set of characters
      * specified.</p>
      *
@@ -287,7 +287,7 @@ public class RandomStringGenerator {
     /**
      * <p>Creates a random string whose length is the number of characters
      * specified.</p>
-     *
+     * <p/>
      * <p>Characters will be chosen from the set of characters specified.</p>
      *
      * @param count the length of random string to create

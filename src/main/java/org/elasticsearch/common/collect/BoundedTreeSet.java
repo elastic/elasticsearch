@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -26,7 +26,7 @@ import java.util.TreeSet;
 /**
  * A {@link TreeSet} that is bounded by size.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class BoundedTreeSet<E> extends TreeSet<E> {
 
@@ -41,13 +41,15 @@ public class BoundedTreeSet<E> extends TreeSet<E> {
         this.size = size;
     }
 
-    @Override public boolean add(E e) {
+    @Override
+    public boolean add(E e) {
         boolean result = super.add(e);
         rebound();
         return result;
     }
 
-    @Override public boolean addAll(Collection<? extends E> c) {
+    @Override
+    public boolean addAll(Collection<? extends E> c) {
         boolean result = super.addAll(c);
         rebound();
         return result;

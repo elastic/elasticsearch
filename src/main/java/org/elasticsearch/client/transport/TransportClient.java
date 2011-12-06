@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client.transport;
 
+import com.google.common.collect.ImmutableList;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
@@ -49,7 +50,6 @@ import org.elasticsearch.client.transport.support.InternalTransportClient;
 import org.elasticsearch.cluster.ClusterNameModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.CacheRecycler;
-import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
@@ -72,16 +72,16 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 
 /**
  * The transport client allows to create a client that is not part of the cluster, but simply connects to one
  * or more nodes directly by adding their respective addresses using {@link #addTransportAddress(org.elasticsearch.common.transport.TransportAddress)}.
- *
+ * <p/>
  * <p>The transport client important modules used is the {@link org.elasticsearch.transport.TransportModule} which is
  * started in client mode (only connects, no bind).
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class TransportClient extends AbstractClient {
 
@@ -180,7 +180,7 @@ public class TransportClient extends AbstractClient {
 
     /**
      * Returns the current connected transport nodes that this client will use.
-     *
+     * <p/>
      * <p>The nodes include all the nodes that are currently alive based on the transport
      * addresses provided.
      */
@@ -190,10 +190,10 @@ public class TransportClient extends AbstractClient {
 
     /**
      * Adds a transport address that will be used to connect to.
-     *
+     * <p/>
      * <p>The Node this transport address represents will be used if its possible to connect to it.
      * If it is unavailable, it will be automatically connected to once it is up.
-     *
+     * <p/>
      * <p>In order to get the list of all the current connected nodes, please see {@link #connectedNodes()}.
      */
     public TransportClient addTransportAddress(TransportAddress transportAddress) {
@@ -212,7 +212,8 @@ public class TransportClient extends AbstractClient {
     /**
      * Closes the client.
      */
-    @Override public void close() {
+    @Override
+    public void close() {
         injector.getInstance(TransportClientNodesService.class).close();
         injector.getInstance(TransportService.class).close();
         try {
@@ -238,99 +239,123 @@ public class TransportClient extends AbstractClient {
         ThreadLocals.clearReferencesThreadLocals();
     }
 
-    @Override public ThreadPool threadPool() {
+    @Override
+    public ThreadPool threadPool() {
         return internalClient.threadPool();
     }
 
-    @Override public AdminClient admin() {
+    @Override
+    public AdminClient admin() {
         return internalClient.admin();
     }
 
-    @Override public ActionFuture<IndexResponse> index(IndexRequest request) {
+    @Override
+    public ActionFuture<IndexResponse> index(IndexRequest request) {
         return internalClient.index(request);
     }
 
-    @Override public void index(IndexRequest request, ActionListener<IndexResponse> listener) {
+    @Override
+    public void index(IndexRequest request, ActionListener<IndexResponse> listener) {
         internalClient.index(request, listener);
     }
 
-    @Override public ActionFuture<DeleteResponse> delete(DeleteRequest request) {
+    @Override
+    public ActionFuture<DeleteResponse> delete(DeleteRequest request) {
         return internalClient.delete(request);
     }
 
-    @Override public void delete(DeleteRequest request, ActionListener<DeleteResponse> listener) {
+    @Override
+    public void delete(DeleteRequest request, ActionListener<DeleteResponse> listener) {
         internalClient.delete(request, listener);
     }
 
-    @Override public ActionFuture<BulkResponse> bulk(BulkRequest request) {
+    @Override
+    public ActionFuture<BulkResponse> bulk(BulkRequest request) {
         return internalClient.bulk(request);
     }
 
-    @Override public void bulk(BulkRequest request, ActionListener<BulkResponse> listener) {
+    @Override
+    public void bulk(BulkRequest request, ActionListener<BulkResponse> listener) {
         internalClient.bulk(request, listener);
     }
 
-    @Override public ActionFuture<DeleteByQueryResponse> deleteByQuery(DeleteByQueryRequest request) {
+    @Override
+    public ActionFuture<DeleteByQueryResponse> deleteByQuery(DeleteByQueryRequest request) {
         return internalClient.deleteByQuery(request);
     }
 
-    @Override public void deleteByQuery(DeleteByQueryRequest request, ActionListener<DeleteByQueryResponse> listener) {
+    @Override
+    public void deleteByQuery(DeleteByQueryRequest request, ActionListener<DeleteByQueryResponse> listener) {
         internalClient.deleteByQuery(request, listener);
     }
 
-    @Override public ActionFuture<GetResponse> get(GetRequest request) {
+    @Override
+    public ActionFuture<GetResponse> get(GetRequest request) {
         return internalClient.get(request);
     }
 
-    @Override public void get(GetRequest request, ActionListener<GetResponse> listener) {
+    @Override
+    public void get(GetRequest request, ActionListener<GetResponse> listener) {
         internalClient.get(request, listener);
     }
 
-    @Override public ActionFuture<MultiGetResponse> multiGet(MultiGetRequest request) {
+    @Override
+    public ActionFuture<MultiGetResponse> multiGet(MultiGetRequest request) {
         return internalClient.multiGet(request);
     }
 
-    @Override public void multiGet(MultiGetRequest request, ActionListener<MultiGetResponse> listener) {
+    @Override
+    public void multiGet(MultiGetRequest request, ActionListener<MultiGetResponse> listener) {
         internalClient.multiGet(request, listener);
     }
 
-    @Override public ActionFuture<CountResponse> count(CountRequest request) {
+    @Override
+    public ActionFuture<CountResponse> count(CountRequest request) {
         return internalClient.count(request);
     }
 
-    @Override public void count(CountRequest request, ActionListener<CountResponse> listener) {
+    @Override
+    public void count(CountRequest request, ActionListener<CountResponse> listener) {
         internalClient.count(request, listener);
     }
 
-    @Override public ActionFuture<SearchResponse> search(SearchRequest request) {
+    @Override
+    public ActionFuture<SearchResponse> search(SearchRequest request) {
         return internalClient.search(request);
     }
 
-    @Override public void search(SearchRequest request, ActionListener<SearchResponse> listener) {
+    @Override
+    public void search(SearchRequest request, ActionListener<SearchResponse> listener) {
         internalClient.search(request, listener);
     }
 
-    @Override public ActionFuture<SearchResponse> searchScroll(SearchScrollRequest request) {
+    @Override
+    public ActionFuture<SearchResponse> searchScroll(SearchScrollRequest request) {
         return internalClient.searchScroll(request);
     }
 
-    @Override public void searchScroll(SearchScrollRequest request, ActionListener<SearchResponse> listener) {
+    @Override
+    public void searchScroll(SearchScrollRequest request, ActionListener<SearchResponse> listener) {
         internalClient.searchScroll(request, listener);
     }
 
-    @Override public ActionFuture<SearchResponse> moreLikeThis(MoreLikeThisRequest request) {
+    @Override
+    public ActionFuture<SearchResponse> moreLikeThis(MoreLikeThisRequest request) {
         return internalClient.moreLikeThis(request);
     }
 
-    @Override public void moreLikeThis(MoreLikeThisRequest request, ActionListener<SearchResponse> listener) {
+    @Override
+    public void moreLikeThis(MoreLikeThisRequest request, ActionListener<SearchResponse> listener) {
         internalClient.moreLikeThis(request, listener);
     }
 
-    @Override public ActionFuture<PercolateResponse> percolate(PercolateRequest request) {
+    @Override
+    public ActionFuture<PercolateResponse> percolate(PercolateRequest request) {
         return internalClient.percolate(request);
     }
 
-    @Override public void percolate(PercolateRequest request, ActionListener<PercolateResponse> listener) {
+    @Override
+    public void percolate(PercolateRequest request, ActionListener<PercolateResponse> listener) {
         internalClient.percolate(request, listener);
     }
 }

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,6 +19,7 @@
 
 package org.apache.lucene.queryParser;
 
+import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
@@ -26,7 +27,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -40,17 +40,18 @@ import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.common.lucene.search.Queries.*;
-import static org.elasticsearch.index.query.support.QueryParsers.*;
+import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
+import static org.elasticsearch.common.lucene.search.Queries.optimizeQuery;
+import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameQuery;
 
 /**
  * A query parser that uses the {@link MapperService} in order to build smarter
  * queries based on the mapping information.
- *
+ * <p/>
  * <p>Also breaks fields with [type].[name] into a boolean query that must include the type
  * as well as the query on the name.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class MapperQueryParser extends QueryParser {
 
@@ -95,7 +96,8 @@ public class MapperQueryParser extends QueryParser {
         this.analyzeWildcard = settings.analyzeWildcard();
     }
 
-    @Override protected Query newTermQuery(Term term) {
+    @Override
+    protected Query newTermQuery(Term term) {
         if (currentMapper != null) {
             Query termQuery = currentMapper.queryStringTermQuery(term);
             if (termQuery != null) {
@@ -105,11 +107,13 @@ public class MapperQueryParser extends QueryParser {
         return super.newTermQuery(term);
     }
 
-    @Override protected Query newMatchAllDocsQuery() {
+    @Override
+    protected Query newMatchAllDocsQuery() {
         return Queries.MATCH_ALL_QUERY;
     }
 
-    @Override public Query getFieldQuery(String field, String queryText, boolean quoted) throws ParseException {
+    @Override
+    public Query getFieldQuery(String field, String queryText, boolean quoted) throws ParseException {
         FieldQueryExtension fieldQueryExtension = fieldQueryExtensions.get(field);
         if (fieldQueryExtension != null) {
             return fieldQueryExtension.query(parseContext, queryText);
@@ -138,7 +142,8 @@ public class MapperQueryParser extends QueryParser {
         }
     }
 
-    @Override protected Query getRangeQuery(String field, String part1, String part2, boolean inclusive) throws ParseException {
+    @Override
+    protected Query getRangeQuery(String field, String part1, String part2, boolean inclusive) throws ParseException {
         if ("*".equals(part1)) {
             part1 = null;
         }
@@ -157,7 +162,8 @@ public class MapperQueryParser extends QueryParser {
         return newRangeQuery(field, part1, part2, inclusive);
     }
 
-    @Override protected Query getFuzzyQuery(String field, String termStr, float minSimilarity) throws ParseException {
+    @Override
+    protected Query getFuzzyQuery(String field, String termStr, float minSimilarity) throws ParseException {
         currentMapper = null;
         MapperService.SmartNameFieldMappers fieldMappers = parseContext.smartFieldMappers(field);
         if (fieldMappers != null) {
@@ -170,7 +176,8 @@ public class MapperQueryParser extends QueryParser {
         return super.getFuzzyQuery(field, termStr, minSimilarity);
     }
 
-    @Override protected Query getPrefixQuery(String field, String termStr) throws ParseException {
+    @Override
+    protected Query getPrefixQuery(String field, String termStr) throws ParseException {
         String indexedNameField = field;
         currentMapper = null;
         Analyzer oldAnalyzer = analyzer;
@@ -232,7 +239,8 @@ public class MapperQueryParser extends QueryParser {
 
     }
 
-    @Override protected Query getWildcardQuery(String field, String termStr) throws ParseException {
+    @Override
+    protected Query getWildcardQuery(String field, String termStr) throws ParseException {
         if (AllFieldMapper.NAME.equals(field) && termStr.equals("*")) {
             return newMatchAllDocsQuery();
         }
@@ -319,7 +327,8 @@ public class MapperQueryParser extends QueryParser {
         return super.getWildcardQuery(field, aggStr.toString());
     }
 
-    @Override protected Query getBooleanQuery(List<BooleanClause> clauses, boolean disableCoord) throws ParseException {
+    @Override
+    protected Query getBooleanQuery(List<BooleanClause> clauses, boolean disableCoord) throws ParseException {
         Query q = super.getBooleanQuery(clauses, disableCoord);
         if (q == null) {
             return null;

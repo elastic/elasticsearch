@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -27,10 +27,10 @@ import java.lang.management.ManagementFactory;
 import java.lang.management.OperatingSystemMXBean;
 import java.lang.reflect.Method;
 
-import static org.elasticsearch.monitor.jvm.JvmInfo.*;
+import static org.elasticsearch.monitor.jvm.JvmInfo.jvmInfo;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class JmxProcessProbe extends AbstractComponent implements ProcessProbe {
 
@@ -81,15 +81,18 @@ public class JmxProcessProbe extends AbstractComponent implements ProcessProbe {
         }
     }
 
-    @Inject public JmxProcessProbe(Settings settings) {
+    @Inject
+    public JmxProcessProbe(Settings settings) {
         super(settings);
     }
 
-    @Override public ProcessInfo processInfo() {
+    @Override
+    public ProcessInfo processInfo() {
         return new ProcessInfo(jvmInfo().pid(), getMaxFileDescriptorCount());
     }
 
-    @Override public ProcessStats processStats() {
+    @Override
+    public ProcessStats processStats() {
         ProcessStats stats = new ProcessStats();
         stats.timestamp = System.currentTimeMillis();
         stats.openFileDescriptors = getOpenFileDescriptorCount();

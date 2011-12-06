@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -31,7 +31,7 @@ import org.elasticsearch.transport.*;
 import java.io.IOException;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class PublishClusterStateAction extends AbstractComponent {
 
@@ -87,7 +87,8 @@ public class PublishClusterStateAction extends AbstractComponent {
                     TransportRequestOptions.options().withHighType().withCompress(false), // no need to compress, we already compressed the bytes
 
                     new VoidTransportResponseHandler(ThreadPool.Names.SAME) {
-                        @Override public void handleException(TransportException exp) {
+                        @Override
+                        public void handleException(TransportException exp) {
                             logger.debug("failed to send cluster state to [{}], should be detected as failed soon...", exp, node);
                         }
                     });
@@ -105,12 +106,14 @@ public class PublishClusterStateAction extends AbstractComponent {
             this.clusterStateInBytes = clusterStateInBytes;
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             clusterStateInBytes = new byte[in.readVInt()];
             in.readFully(clusterStateInBytes);
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(clusterStateInBytes.length);
             out.writeBytes(clusterStateInBytes);
         }
@@ -120,18 +123,21 @@ public class PublishClusterStateAction extends AbstractComponent {
 
         static final String ACTION = "discovery/zen/publish";
 
-        @Override public PublishClusterStateRequest newInstance() {
+        @Override
+        public PublishClusterStateRequest newInstance() {
             return new PublishClusterStateRequest();
         }
 
-        @Override public void messageReceived(PublishClusterStateRequest request, TransportChannel channel) throws Exception {
+        @Override
+        public void messageReceived(PublishClusterStateRequest request, TransportChannel channel) throws Exception {
             StreamInput in = CachedStreamInput.cachedHandlesLzf(new BytesStreamInput(request.clusterStateInBytes));
             ClusterState clusterState = ClusterState.Builder.readFrom(in, nodesProvider.nodes().localNode());
             listener.onNewClusterState(clusterState);
             channel.sendResponse(VoidStreamable.INSTANCE);
         }
 
-        @Override public String executor() {
+        @Override
+        public String executor() {
             return ThreadPool.Names.SAME;
         }
     }

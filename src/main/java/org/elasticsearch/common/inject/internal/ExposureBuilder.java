@@ -43,13 +43,13 @@ public class ExposureBuilder<T> implements AnnotatedElementBuilder {
     }
 
     public void annotatedWith(Class<? extends Annotation> annotationType) {
-        org.elasticsearch.common.base.Preconditions.checkNotNull(annotationType, "annotationType");
+        com.google.common.base.Preconditions.checkNotNull(annotationType, "annotationType");
         checkNotAnnotated();
         key = Key.get(key.getTypeLiteral(), annotationType);
     }
 
     public void annotatedWith(Annotation annotation) {
-        org.elasticsearch.common.base.Preconditions.checkNotNull(annotation, "annotation");
+        com.google.common.base.Preconditions.checkNotNull(annotation, "annotation");
         checkNotAnnotated();
         key = Key.get(key.getTypeLiteral(), annotation);
     }
@@ -62,7 +62,8 @@ public class ExposureBuilder<T> implements AnnotatedElementBuilder {
         return source;
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return "AnnotatedElementBuilder";
     }
 }

@@ -16,8 +16,8 @@
 
 package org.elasticsearch.common.inject;
 
-import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.collect.ImmutableSet;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.internal.ErrorsException;
 import org.elasticsearch.common.inject.internal.InternalContext;
@@ -104,7 +104,8 @@ class MembersInjectorImpl<T> implements MembersInjector<T> {
         }
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return "MembersInjector<" + typeLiteral + ">";
     }
 

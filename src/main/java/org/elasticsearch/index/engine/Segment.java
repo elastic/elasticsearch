@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -108,7 +108,8 @@ public class Segment implements Streamable {
         return sizeInBytes();
     }
 
-    @Override public boolean equals(Object o) {
+    @Override
+    public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
@@ -119,7 +120,8 @@ public class Segment implements Streamable {
         return true;
     }
 
-    @Override public int hashCode() {
+    @Override
+    public int hashCode() {
         return name != null ? name.hashCode() : 0;
     }
 
@@ -129,7 +131,8 @@ public class Segment implements Streamable {
         return segment;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         name = in.readUTF();
         generation = Long.parseLong(name.substring(1), Character.MAX_RADIX);
         committed = in.readBoolean();
@@ -139,7 +142,8 @@ public class Segment implements Streamable {
         sizeInBytes = in.readLong();
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(name);
         out.writeBoolean(committed);
         out.writeBoolean(search);

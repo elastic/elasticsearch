@@ -25,7 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.cache.id.simple.SimpleIdCache;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class IdCacheModule extends AbstractModule {
 
@@ -39,7 +39,8 @@ public class IdCacheModule extends AbstractModule {
         this.settings = settings;
     }
 
-    @Override protected void configure() {
+    @Override
+    protected void configure() {
         bind(IdCache.class)
                 .to(settings.getAsClass(IdCacheSettings.ID_CACHE_TYPE, SimpleIdCache.class, "org.elasticsearch.index.cache.id.", "IdCache"))
                 .in(Scopes.SINGLETON);

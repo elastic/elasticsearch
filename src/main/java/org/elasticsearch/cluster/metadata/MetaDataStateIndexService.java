@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -36,10 +36,10 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
 
-import static org.elasticsearch.cluster.ClusterState.*;
+import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class MetaDataStateIndexService extends AbstractComponent {
 
@@ -49,7 +49,8 @@ public class MetaDataStateIndexService extends AbstractComponent {
 
     private final AllocationService allocationService;
 
-    @Inject public MetaDataStateIndexService(Settings settings, ClusterService clusterService, AllocationService allocationService) {
+    @Inject
+    public MetaDataStateIndexService(Settings settings, ClusterService clusterService, AllocationService allocationService) {
         super(settings);
         this.clusterService = clusterService;
         this.allocationService = allocationService;
@@ -57,7 +58,8 @@ public class MetaDataStateIndexService extends AbstractComponent {
 
     public void closeIndex(final Request request, final Listener listener) {
         clusterService.submitStateUpdateTask("close-index [" + request.index + "]", new ProcessedClusterStateUpdateTask() {
-            @Override public ClusterState execute(ClusterState currentState) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
 
                 IndexMetaData indexMetaData = currentState.metaData().index(request.index);
                 if (indexMetaData == null) {
@@ -90,7 +92,8 @@ public class MetaDataStateIndexService extends AbstractComponent {
                 return ClusterState.builder().state(updatedState).routingResult(routingResult).build();
             }
 
-            @Override public void clusterStateProcessed(ClusterState clusterState) {
+            @Override
+            public void clusterStateProcessed(ClusterState clusterState) {
                 listener.onResponse(new Response(true));
             }
         });
@@ -98,7 +101,8 @@ public class MetaDataStateIndexService extends AbstractComponent {
 
     public void openIndex(final Request request, final Listener listener) {
         clusterService.submitStateUpdateTask("open-index [" + request.index + "]", new ProcessedClusterStateUpdateTask() {
-            @Override public ClusterState execute(ClusterState currentState) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
 
                 IndexMetaData indexMetaData = currentState.metaData().index(request.index);
                 if (indexMetaData == null) {
@@ -132,7 +136,8 @@ public class MetaDataStateIndexService extends AbstractComponent {
                 return ClusterState.builder().state(updatedState).routingResult(routingResult).build();
             }
 
-            @Override public void clusterStateProcessed(ClusterState clusterState) {
+            @Override
+            public void clusterStateProcessed(ClusterState clusterState) {
                 listener.onResponse(new Response(true));
             }
         });

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -31,12 +31,12 @@ import org.elasticsearch.search.SearchShardTarget;
 
 import java.io.IOException;
 
-import static org.elasticsearch.search.SearchShardTarget.*;
+import static org.elasticsearch.search.SearchShardTarget.readSearchShardTarget;
 
 /**
  * Represents a failure to search on a specific shard.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class ShardSearchFailure implements ShardOperationFailedException {
 
@@ -74,7 +74,8 @@ public class ShardSearchFailure implements ShardOperationFailedException {
     /**
      * The search shard target the failure occurred on.
      */
-    @Nullable public SearchShardTarget shard() {
+    @Nullable
+    public SearchShardTarget shard() {
         return this.shardTarget;
     }
 
@@ -85,7 +86,8 @@ public class ShardSearchFailure implements ShardOperationFailedException {
     /**
      * The index the search failed on.
      */
-    @Override public String index() {
+    @Override
+    public String index() {
         if (shardTarget != null) {
             return shardTarget.index();
         }
@@ -95,7 +97,8 @@ public class ShardSearchFailure implements ShardOperationFailedException {
     /**
      * The shard id the search failed on.
      */
-    @Override public int shardId() {
+    @Override
+    public int shardId() {
         if (shardTarget != null) {
             return shardTarget.shardId();
         }
@@ -109,7 +112,8 @@ public class ShardSearchFailure implements ShardOperationFailedException {
         return this.reason;
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return "shard [" + (shardTarget == null ? "_na" : shardTarget) + "], reason [" + reason + "]";
     }
 
@@ -119,7 +123,8 @@ public class ShardSearchFailure implements ShardOperationFailedException {
         return shardSearchFailure;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         if (in.readBoolean()) {
             shardTarget = readSearchShardTarget(in);
         }
@@ -127,7 +132,8 @@ public class ShardSearchFailure implements ShardOperationFailedException {
         status = RestStatus.readFrom(in);
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         if (shardTarget == null) {
             out.writeBoolean(false);
         } else {

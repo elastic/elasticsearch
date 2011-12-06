@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -33,16 +33,18 @@ import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
 
-import static org.elasticsearch.rest.RestRequest.Method.*;
-import static org.elasticsearch.rest.RestStatus.*;
-import static org.elasticsearch.rest.action.support.RestActions.*;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestStatus.OK;
+import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastShardsHeader;
 
 /**
- * @author kimchy (Shay Banon)
+ *
  */
 public class RestRefreshAction extends BaseRestHandler {
 
-    @Inject public RestRefreshAction(Settings settings, Client client, RestController controller) {
+    @Inject
+    public RestRefreshAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
         controller.registerHandler(POST, "/_refresh", this);
         controller.registerHandler(POST, "/{index}/_refresh", this);
@@ -51,7 +53,8 @@ public class RestRefreshAction extends BaseRestHandler {
         controller.registerHandler(GET, "/{index}/_refresh", this);
     }
 
-    @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
+    @Override
+    public void handleRequest(final RestRequest request, final RestChannel channel) {
         RefreshRequest refreshRequest = new RefreshRequest(RestActions.splitIndices(request.param("index")));
         // we just send back a response, no need to fork a listener
         refreshRequest.listenerThreaded(false);
@@ -62,7 +65,8 @@ public class RestRefreshAction extends BaseRestHandler {
         }
         refreshRequest.operationThreading(operationThreading);
         client.admin().indices().refresh(refreshRequest, new ActionListener<RefreshResponse>() {
-            @Override public void onResponse(RefreshResponse response) {
+            @Override
+            public void onResponse(RefreshResponse response) {
                 try {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
@@ -77,7 +81,8 @@ public class RestRefreshAction extends BaseRestHandler {
                 }
             }
 
-            @Override public void onFailure(Throwable e) {
+            @Override
+            public void onFailure(Throwable e) {
                 try {
                     channel.sendResponse(new XContentThrowableRestResponse(request, e));
                 } catch (IOException e1) {

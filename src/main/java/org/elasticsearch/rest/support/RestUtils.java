@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,20 +19,21 @@
 
 package org.elasticsearch.rest.support;
 
+import com.google.common.base.Charsets;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.path.PathTrie;
 
 import java.nio.charset.Charset;
 import java.util.Map;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class RestUtils {
 
     public static PathTrie.Decoder REST_DECODER = new PathTrie.Decoder() {
-        @Override public String decode(String value) {
+        @Override
+        public String decode(String value) {
             return RestUtils.decodeComponent(value);
         }
     };
@@ -98,7 +99,7 @@ public class RestUtils {
 
     /**
      * Decodes a bit of an URL encoded by a browser.
-     * <p>
+     * <p/>
      * This is equivalent to calling {@link #decodeComponent(String, Charset)}
      * with the UTF-8 charset (recommended to comply with RFC 3986, Section 2).
      *
@@ -114,13 +115,13 @@ public class RestUtils {
 
     /**
      * Decodes a bit of an URL encoded by a browser.
-     * <p>
+     * <p/>
      * The string is expected to be encoded as per RFC 3986, Section 2.
      * This is the encoding used by JavaScript functions {@code encodeURI}
      * and {@code encodeURIComponent}, but not {@code escape}.  For example
      * in this encoding, &eacute; (in Unicode {@code U+00E9} or in UTF-8
      * {@code 0xC3 0xA9}) is encoded as {@code %C3%A9} or {@code %c3%a9}.
-     * <p>
+     * <p/>
      * This is essentially equivalent to calling
      * <code>{@link java.net.URLDecoder URLDecoder}.{@link
      * java.net.URLDecoder#decode(String, String)}</code>

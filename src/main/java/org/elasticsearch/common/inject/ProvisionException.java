@@ -16,14 +16,14 @@
 
 package org.elasticsearch.common.inject;
 
-import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.collect.ImmutableSet;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.spi.Message;
 
 import java.util.Collection;
 
-import static org.elasticsearch.common.base.Preconditions.*;
+import static com.google.common.base.Preconditions.checkArgument;
 
 /**
  * Indicates that there was a runtime failure while providing an instance.
@@ -61,7 +61,8 @@ public final class ProvisionException extends RuntimeException {
         return messages;
     }
 
-    @Override public String getMessage() {
+    @Override
+    public String getMessage() {
         return Errors.format("Guice provision errors", messages);
     }
 

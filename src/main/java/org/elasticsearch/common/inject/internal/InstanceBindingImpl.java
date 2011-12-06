@@ -16,16 +16,12 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import org.elasticsearch.common.collect.ImmutableSet;
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Key;
 import org.elasticsearch.common.inject.Provider;
-import org.elasticsearch.common.inject.spi.BindingTargetVisitor;
-import org.elasticsearch.common.inject.spi.Dependency;
-import org.elasticsearch.common.inject.spi.HasDependencies;
-import org.elasticsearch.common.inject.spi.InjectionPoint;
-import org.elasticsearch.common.inject.spi.InstanceBinding;
+import org.elasticsearch.common.inject.spi.*;
 import org.elasticsearch.common.inject.util.Providers;
 
 import java.util.Set;
@@ -53,7 +49,8 @@ public class InstanceBindingImpl<T> extends BindingImpl<T> implements InstanceBi
         this.provider = Providers.of(instance);
     }
 
-    @Override public Provider<T> getProvider() {
+    @Override
+    public Provider<T> getProvider() {
         return this.provider;
     }
 
@@ -88,7 +85,8 @@ public class InstanceBindingImpl<T> extends BindingImpl<T> implements InstanceBi
         binder.withSource(getSource()).bind(getKey()).toInstance(instance);
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return new ToStringBuilder(InstanceBinding.class)
                 .add("key", getKey())
                 .add("source", getSource())

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -30,7 +30,7 @@ import java.io.Serializable;
 /**
  * The target that the search request was executed on.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class SearchShardTarget implements Streamable, Serializable, Comparable<SearchShardTarget> {
 
@@ -50,11 +50,13 @@ public class SearchShardTarget implements Streamable, Serializable, Comparable<S
         this.shardId = shardId;
     }
 
-    @Nullable public String nodeId() {
+    @Nullable
+    public String nodeId() {
         return nodeId;
     }
 
-    @Nullable public String getNodeId() {
+    @Nullable
+    public String getNodeId() {
         return nodeId;
     }
 
@@ -80,7 +82,8 @@ public class SearchShardTarget implements Streamable, Serializable, Comparable<S
         return result;
     }
 
-    @Override public int compareTo(SearchShardTarget o) {
+    @Override
+    public int compareTo(SearchShardTarget o) {
         int i = index.compareTo(o.index());
         if (i == 0) {
             i = shardId - o.shardId;
@@ -88,7 +91,8 @@ public class SearchShardTarget implements Streamable, Serializable, Comparable<S
         return i;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         if (in.readBoolean()) {
             nodeId = in.readUTF();
         }
@@ -96,7 +100,8 @@ public class SearchShardTarget implements Streamable, Serializable, Comparable<S
         shardId = in.readVInt();
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         if (nodeId == null) {
             out.writeBoolean(false);
         } else {
@@ -107,7 +112,8 @@ public class SearchShardTarget implements Streamable, Serializable, Comparable<S
         out.writeVInt(shardId);
     }
 
-    @Override public boolean equals(Object o) {
+    @Override
+    public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
@@ -120,14 +126,16 @@ public class SearchShardTarget implements Streamable, Serializable, Comparable<S
         return true;
     }
 
-    @Override public int hashCode() {
+    @Override
+    public int hashCode() {
         int result = nodeId != null ? nodeId.hashCode() : 0;
         result = 31 * result + (index != null ? index.hashCode() : 0);
         result = 31 * result + shardId;
         return result;
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         if (nodeId == null) {
             return "[_na_][" + index + "][" + shardId + "]";
         }

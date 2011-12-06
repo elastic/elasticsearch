@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -27,7 +27,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * possibly several pooled threads, normally configured using
  * {@link DynamicExecutors} factory methods.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class DynamicThreadPoolExecutor extends ThreadPoolExecutor {
     /**
@@ -41,15 +41,18 @@ public class DynamicThreadPoolExecutor extends ThreadPoolExecutor {
         super(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory);
     }
 
-    @Override public int getActiveCount() {
+    @Override
+    public int getActiveCount() {
         return activeCount.get();
     }
 
-    @Override protected void beforeExecute(Thread t, Runnable r) {
+    @Override
+    protected void beforeExecute(Thread t, Runnable r) {
         activeCount.incrementAndGet();
     }
 
-    @Override protected void afterExecute(Runnable r, Throwable t) {
+    @Override
+    protected void afterExecute(Runnable r, Throwable t) {
         activeCount.decrementAndGet();
     }
 
@@ -68,7 +71,7 @@ public class DynamicThreadPoolExecutor extends ThreadPoolExecutor {
      * executed.</li>
      * </ol>
      *
-     * @author kimchy (Shay Banon)
+     *
      */
     public static class DynamicQueue<E> extends LinkedBlockingQueue<E> {
         private static final long serialVersionUID = 1L;

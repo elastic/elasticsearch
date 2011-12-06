@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -32,11 +32,11 @@ import java.io.IOException;
 /**
  * A request to get a document (its source) from an index based on its type (optional) and id. Best created using
  * {@link org.elasticsearch.client.Requests#getRequest(String)}.
- *
+ * <p/>
  * <p>The operation requires the {@link #index()}, {@link #type(String)} and {@link #id(String)}
  * to be set.
  *
- * @author kimchy (shay.banon)
+ *
  * @see org.elasticsearch.action.get.GetResponse
  * @see org.elasticsearch.client.Requests#getRequest(String)
  * @see org.elasticsearch.client.Client#get(GetRequest)
@@ -80,7 +80,8 @@ public class GetRequest extends SingleShardOperationRequest {
         this.id = id;
     }
 
-    @Override public ActionRequestValidationException validate() {
+    @Override
+    public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
         if (type == null) {
             validationException = Actions.addValidationError("type is missing", validationException);
@@ -94,7 +95,8 @@ public class GetRequest extends SingleShardOperationRequest {
     /**
      * Sets the index of the document to fetch.
      */
-    @Required public GetRequest index(String index) {
+    @Required
+    public GetRequest index(String index) {
         this.index = index;
         return this;
     }
@@ -113,7 +115,8 @@ public class GetRequest extends SingleShardOperationRequest {
     /**
      * Sets the id of the document to fetch.
      */
-    @Required public GetRequest id(String id) {
+    @Required
+    public GetRequest id(String id) {
         this.id = id;
         return this;
     }
@@ -196,7 +199,8 @@ public class GetRequest extends SingleShardOperationRequest {
     /**
      * Should the listener be called on a separate thread if needed.
      */
-    @Override public GetRequest listenerThreaded(boolean threadedListener) {
+    @Override
+    public GetRequest listenerThreaded(boolean threadedListener) {
         super.listenerThreaded(threadedListener);
         return this;
     }
@@ -204,12 +208,14 @@ public class GetRequest extends SingleShardOperationRequest {
     /**
      * Controls if the operation will be executed on a separate thread when executed locally.
      */
-    @Override public GetRequest operationThreaded(boolean threadedOperation) {
+    @Override
+    public GetRequest operationThreaded(boolean threadedOperation) {
         super.operationThreaded(threadedOperation);
         return this;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
 
         type = in.readUTF();
@@ -237,7 +243,8 @@ public class GetRequest extends SingleShardOperationRequest {
         }
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
 
         out.writeUTF(type);
@@ -273,7 +280,8 @@ public class GetRequest extends SingleShardOperationRequest {
         }
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return "[" + index + "][" + type + "][" + id + "]: routing [" + routing + "]";
     }
 }

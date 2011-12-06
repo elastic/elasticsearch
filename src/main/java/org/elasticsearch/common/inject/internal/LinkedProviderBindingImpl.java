@@ -62,7 +62,8 @@ public final class LinkedProviderBindingImpl<T>
                 .bind(getKey()).toProvider(getProviderKey()));
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return new ToStringBuilder(ProviderKeyBinding.class)
                 .add("key", getKey())
                 .add("source", getSource())

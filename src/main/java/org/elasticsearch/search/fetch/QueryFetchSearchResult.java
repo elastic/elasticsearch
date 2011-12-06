@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -28,11 +28,11 @@ import org.elasticsearch.search.query.QuerySearchResultProvider;
 
 import java.io.IOException;
 
-import static org.elasticsearch.search.fetch.FetchSearchResult.*;
-import static org.elasticsearch.search.query.QuerySearchResult.*;
+import static org.elasticsearch.search.fetch.FetchSearchResult.readFetchSearchResult;
+import static org.elasticsearch.search.query.QuerySearchResult.readQuerySearchResult;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class QueryFetchSearchResult implements Streamable, QuerySearchResultProvider, FetchSearchResultProvider {
 
@@ -57,12 +57,14 @@ public class QueryFetchSearchResult implements Streamable, QuerySearchResultProv
         return queryResult.shardTarget();
     }
 
-    @Override public void shardTarget(SearchShardTarget shardTarget) {
+    @Override
+    public void shardTarget(SearchShardTarget shardTarget) {
         queryResult.shardTarget(shardTarget);
         fetchResult.shardTarget(shardTarget);
     }
 
-    @Override public boolean includeFetch() {
+    @Override
+    public boolean includeFetch() {
         return true;
     }
 
@@ -80,12 +82,14 @@ public class QueryFetchSearchResult implements Streamable, QuerySearchResultProv
         return result;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         queryResult = readQuerySearchResult(in);
         fetchResult = readFetchSearchResult(in);
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         queryResult.writeTo(out);
         fetchResult.writeTo(out);
     }

@@ -16,31 +16,22 @@
 
 package org.elasticsearch.common.inject;
 
-import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.collect.ImmutableSet;
-import org.elasticsearch.common.collect.Lists;
-import org.elasticsearch.common.collect.Maps;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import org.elasticsearch.common.inject.internal.*;
-import org.elasticsearch.common.inject.spi.BindingTargetVisitor;
-import org.elasticsearch.common.inject.spi.ConvertedConstantBinding;
-import org.elasticsearch.common.inject.spi.Dependency;
-import org.elasticsearch.common.inject.spi.InjectionPoint;
-import org.elasticsearch.common.inject.spi.ProviderBinding;
-import org.elasticsearch.common.inject.spi.ProviderKeyBinding;
+import org.elasticsearch.common.inject.spi.*;
 import org.elasticsearch.common.inject.util.Providers;
 
 import java.lang.annotation.Annotation;
-import java.lang.reflect.GenericArrayType;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Modifier;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
+import java.lang.reflect.*;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.common.inject.internal.Annotations.*;
+import static org.elasticsearch.common.inject.internal.Annotations.findScopeAnnotation;
 
 /**
  * Default {@link Injector} implementation.
@@ -142,7 +133,7 @@ class InjectorImpl implements Injector, Lookups {
     }
 
     public Injector createChildInjector(Module... modules) {
-        return createChildInjector(ImmutableList.of(modules));
+        return createChildInjector(ImmutableList.copyOf(modules));
     }
 
     /**
@@ -255,7 +246,8 @@ class InjectorImpl implements Injector, Lookups {
             throw new UnsupportedOperationException("This element represents a synthetic binding.");
         }
 
-        @Override public String toString() {
+        @Override
+        public String toString() {
             return new ToStringBuilder(ProviderKeyBinding.class)
                     .add("key", getKey())
                     .add("providedKey", getProvidedKey())
@@ -330,7 +322,8 @@ class InjectorImpl implements Injector, Lookups {
             this.originalBinding = originalBinding;
         }
 
-        @Override public Provider<T> getProvider() {
+        @Override
+        public Provider<T> getProvider() {
             return provider;
         }
 
@@ -354,7 +347,8 @@ class InjectorImpl implements Injector, Lookups {
             throw new UnsupportedOperationException("This element represents a synthetic binding.");
         }
 
-        @Override public String toString() {
+        @Override
+        public String toString() {
             return new ToStringBuilder(ConvertedConstantBinding.class)
                     .add("key", getKey())
                     .add("sourceKey", getSourceKey())
@@ -673,7 +667,8 @@ class InjectorImpl implements Injector, Lookups {
         }
 
 
-        @SuppressWarnings("unchecked") // safe because we only put matching entries into the map
+        @SuppressWarnings("unchecked")
+            // safe because we only put matching entries into the map
         <T> List<Binding<T>> getAll(TypeLiteral<T> type) {
             List<Binding<?>> bindings = multimap.get(type);
             return bindings != null
@@ -778,7 +773,8 @@ class InjectorImpl implements Injector, Lookups {
                 }
             }
 
-            @Override public String toString() {
+            @Override
+            public String toString() {
                 return factory.toString();
             }
         };

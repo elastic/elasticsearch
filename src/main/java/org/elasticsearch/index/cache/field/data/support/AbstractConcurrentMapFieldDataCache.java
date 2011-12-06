@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -36,7 +36,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public abstract class AbstractConcurrentMapFieldDataCache extends AbstractIndexComponent implements FieldDataCache, IndexReader.ReaderFinishedListener {
 
@@ -51,25 +51,30 @@ public abstract class AbstractConcurrentMapFieldDataCache extends AbstractIndexC
         this.cache = new ConcurrentHashMap<Object, ConcurrentMap<String, FieldData>>();
     }
 
-    @Override public void close() throws ElasticSearchException {
+    @Override
+    public void close() throws ElasticSearchException {
         clear();
     }
 
-    @Override public void clear(String fieldName) {
+    @Override
+    public void clear(String fieldName) {
         for (Map.Entry<Object, ConcurrentMap<String, FieldData>> entry : cache.entrySet()) {
             entry.getValue().remove(fieldName);
         }
     }
 
-    @Override public void clear() {
+    @Override
+    public void clear() {
         cache.clear();
     }
 
-    @Override public void finished(IndexReader reader) {
+    @Override
+    public void finished(IndexReader reader) {
         clear(reader);
     }
 
-    @Override public void clear(IndexReader reader) {
+    @Override
+    public void clear(IndexReader reader) {
         ConcurrentMap<String, FieldData> map = cache.remove(reader.getCoreCacheKey());
         // help soft/weak handling GC
         if (map != null) {
@@ -77,7 +82,8 @@ public abstract class AbstractConcurrentMapFieldDataCache extends AbstractIndexC
         }
     }
 
-    @Override public long sizeInBytes() {
+    @Override
+    public long sizeInBytes() {
         // the overhead of the map is not really relevant...
         long sizeInBytes = 0;
         for (ConcurrentMap<String, FieldData> map : cache.values()) {
@@ -88,7 +94,8 @@ public abstract class AbstractConcurrentMapFieldDataCache extends AbstractIndexC
         return sizeInBytes;
     }
 
-    @Override public long sizeInBytes(String fieldName) {
+    @Override
+    public long sizeInBytes(String fieldName) {
         long sizeInBytes = 0;
         for (ConcurrentMap<String, FieldData> map : cache.values()) {
             FieldData fieldData = map.get(fieldName);
@@ -99,7 +106,8 @@ public abstract class AbstractConcurrentMapFieldDataCache extends AbstractIndexC
         return sizeInBytes;
     }
 
-    @Override public FieldData cache(FieldDataType type, IndexReader reader, String fieldName) throws IOException {
+    @Override
+    public FieldData cache(FieldDataType type, IndexReader reader, String fieldName) throws IOException {
         ConcurrentMap<String, FieldData> fieldDataCache = cache.get(reader.getCoreCacheKey());
         if (fieldDataCache == null) {
             synchronized (creationMutex) {

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -31,12 +31,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.SortedMap;
-import java.util.TreeMap;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -54,7 +49,8 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
     private final boolean stemEnglishPossessive;
     private final CharArraySet protoWords;
 
-    @Inject public WordDelimiterTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
+    @Inject
+    public WordDelimiterTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
 
         // Sample Format for the type table:
@@ -93,7 +89,8 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
         this.protoWords = protectedWords == null ? null : CharArraySet.copy(Lucene.VERSION, protectedWords);
     }
 
-    @Override public TokenStream create(TokenStream tokenStream) {
+    @Override
+    public TokenStream create(TokenStream tokenStream) {
         return new WordDelimiterFilter(tokenStream,
                 WordDelimiterIterator.DEFAULT_WORD_DELIM_TABLE,
                 generateWordParts ? 1 : 0,

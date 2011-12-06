@@ -19,6 +19,7 @@
 
 package org.elasticsearch.benchmark.common.lucene.uidscan;
 
+import jsr166y.ThreadLocalRandom;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.*;
 import org.apache.lucene.store.FSDirectory;
@@ -27,13 +28,12 @@ import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.UidField;
 import org.elasticsearch.common.unit.SizeValue;
-import org.elasticsearch.common.util.concurrent.jsr166y.ThreadLocalRandom;
 
 import java.io.File;
 import java.util.concurrent.CountDownLatch;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class LuceneUidScanBenchmark {
 
@@ -63,7 +63,8 @@ public class LuceneUidScanBenchmark {
         Thread[] threads = new Thread[NUMBER_OF_THREADS];
         for (int i = 0; i < threads.length; i++) {
             threads[i] = new Thread(new Runnable() {
-                @Override public void run() {
+                @Override
+                public void run() {
                     try {
                         for (long i = 0; i < SCAN_COUNT; i++) {
                             long id = startUid + (Math.abs(ThreadLocalRandom.current().nextInt()) % INDEX_COUNT);

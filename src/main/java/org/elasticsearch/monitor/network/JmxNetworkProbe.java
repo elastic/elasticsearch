@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -24,26 +24,30 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class JmxNetworkProbe extends AbstractComponent implements NetworkProbe {
 
-    @Inject public JmxNetworkProbe(Settings settings) {
+    @Inject
+    public JmxNetworkProbe(Settings settings) {
         super(settings);
     }
 
-    @Override public NetworkInfo networkInfo() {
+    @Override
+    public NetworkInfo networkInfo() {
         NetworkInfo info = new NetworkInfo();
         return info;
     }
 
-    @Override public NetworkStats networkStats() {
+    @Override
+    public NetworkStats networkStats() {
         NetworkStats stats = new NetworkStats();
         stats.timestamp = System.currentTimeMillis();
         return stats;
     }
 
-    @Override public String ifconfig() {
+    @Override
+    public String ifconfig() {
         return "NA";
     }
 }

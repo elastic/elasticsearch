@@ -20,7 +20,8 @@ import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.MembersInjector;
 import org.elasticsearch.common.inject.TypeLiteral;
 
-import static org.elasticsearch.common.base.Preconditions.*;
+import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Preconditions.checkState;
 
 /**
  * A lookup of the members injector for a type. Lookups are created explicitly in a module using
@@ -94,7 +95,8 @@ public final class MembersInjectorLookup<T> implements Element {
                 delegate.injectMembers(instance);
             }
 
-            @Override public String toString() {
+            @Override
+            public String toString() {
                 return "MembersInjector<" + type + ">";
             }
         };

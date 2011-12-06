@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,8 +19,8 @@
 
 package org.elasticsearch.monitor.jvm;
 
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -33,14 +33,16 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
 
-import static org.elasticsearch.common.unit.TimeValue.*;
-import static org.elasticsearch.monitor.dump.summary.SummaryDumpContributor.*;
-import static org.elasticsearch.monitor.dump.thread.ThreadDumpContributor.*;
-import static org.elasticsearch.monitor.jvm.DeadlockAnalyzer.*;
-import static org.elasticsearch.monitor.jvm.JvmStats.*;
+import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.elasticsearch.monitor.dump.summary.SummaryDumpContributor.SUMMARY;
+import static org.elasticsearch.monitor.dump.thread.ThreadDumpContributor.THREAD_DUMP;
+import static org.elasticsearch.monitor.jvm.DeadlockAnalyzer.deadlockAnalyzer;
+import static org.elasticsearch.monitor.jvm.JvmStats.GarbageCollector;
+import static org.elasticsearch.monitor.jvm.JvmStats.jvmStats;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorService> {
 
@@ -56,7 +58,8 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
 
     private volatile ScheduledFuture scheduledFuture;
 
-    @Inject public JvmMonitorService(Settings settings, ThreadPool threadPool, DumpMonitorService dumpMonitorService) {
+    @Inject
+    public JvmMonitorService(Settings settings, ThreadPool threadPool, DumpMonitorService dumpMonitorService) {
         super(settings);
         this.threadPool = threadPool;
         this.dumpMonitorService = dumpMonitorService;
@@ -68,21 +71,24 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
         logger.debug("enabled [{}], last_gc_enabled [{}], interval [{}], gc_threshold [{}]", enabled, JvmStats.isLastGcEnabled(), interval, gcThreshold);
     }
 
-    @Override protected void doStart() throws ElasticSearchException {
+    @Override
+    protected void doStart() throws ElasticSearchException {
         if (!enabled) {
             return;
         }
         scheduledFuture = threadPool.scheduleWithFixedDelay(new JvmMonitor(), interval);
     }
 
-    @Override protected void doStop() throws ElasticSearchException {
+    @Override
+    protected void doStop() throws ElasticSearchException {
         if (!enabled) {
             return;
         }
         scheduledFuture.cancel(true);
     }
 
-    @Override protected void doClose() throws ElasticSearchException {
+    @Override
+    protected void doClose() throws ElasticSearchException {
     }
 
     private class JvmMonitor implements Runnable {
@@ -94,7 +100,8 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
         public JvmMonitor() {
         }
 
-        @Override public void run() {
+        @Override
+        public void run() {
 //            monitorDeadlock();
             monitorLongGc();
         }

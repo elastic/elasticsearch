@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -36,11 +36,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.get.GetField;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.FieldMappers;
-import org.elasticsearch.index.mapper.InternalMapper;
-import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MoreLikeThisFieldQueryBuilder;
@@ -54,15 +50,16 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.Set;
 
-import static org.elasticsearch.client.Requests.*;
-import static org.elasticsearch.common.collect.Sets.*;
+import static com.google.common.collect.Sets.newHashSet;
+import static org.elasticsearch.client.Requests.getRequest;
+import static org.elasticsearch.client.Requests.searchRequest;
 import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.search.builder.SearchSourceBuilder.*;
+import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 
 /**
  * The more like this action.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class TransportMoreLikeThisAction extends BaseAction<MoreLikeThisRequest, SearchResponse> {
 
@@ -74,8 +71,9 @@ public class TransportMoreLikeThisAction extends BaseAction<MoreLikeThisRequest,
 
     private final ClusterService clusterService;
 
-    @Inject public TransportMoreLikeThisAction(Settings settings, ThreadPool threadPool, TransportSearchAction searchAction, TransportGetAction getAction,
-                                               ClusterService clusterService, IndicesService indicesService, TransportService transportService) {
+    @Inject
+    public TransportMoreLikeThisAction(Settings settings, ThreadPool threadPool, TransportSearchAction searchAction, TransportGetAction getAction,
+                                       ClusterService clusterService, IndicesService indicesService, TransportService transportService) {
         super(settings, threadPool);
         this.searchAction = searchAction;
         this.getAction = getAction;
@@ -85,7 +83,8 @@ public class TransportMoreLikeThisAction extends BaseAction<MoreLikeThisRequest,
         transportService.registerHandler(TransportActions.MORE_LIKE_THIS, new TransportHandler());
     }
 
-    @Override protected void doExecute(final MoreLikeThisRequest request, final ActionListener<SearchResponse> listener) {
+    @Override
+    protected void doExecute(final MoreLikeThisRequest request, final ActionListener<SearchResponse> listener) {
         // update to actual index name
         ClusterState clusterState = clusterService.state();
         // update to the concrete index
@@ -107,7 +106,8 @@ public class TransportMoreLikeThisAction extends BaseAction<MoreLikeThisRequest,
 
         request.beforeLocalFork();
         getAction.execute(getRequest, new ActionListener<GetResponse>() {
-            @Override public void onResponse(GetResponse getResponse) {
+            @Override
+            public void onResponse(GetResponse getResponse) {
                 if (!getResponse.exists()) {
                     listener.onFailure(new ElasticSearchException("document missing"));
                     return;
@@ -187,18 +187,21 @@ public class TransportMoreLikeThisAction extends BaseAction<MoreLikeThisRequest,
                     searchRequest.source(request.searchSource(), request.searchSourceOffset(), request.searchSourceLength(), request.searchSourceUnsafe());
                 }
                 searchAction.execute(searchRequest, new ActionListener<SearchResponse>() {
-                    @Override public void onResponse(SearchResponse response) {
+                    @Override
+                    public void onResponse(SearchResponse response) {
                         listener.onResponse(response);
                     }
 
-                    @Override public void onFailure(Throwable e) {
+                    @Override
+                    public void onFailure(Throwable e) {
                         listener.onFailure(e);
                     }
                 });
 
             }
 
-            @Override public void onFailure(Throwable e) {
+            @Override
+            public void onFailure(Throwable e) {
                 listener.onFailure(e);
             }
         });
@@ -209,7 +212,8 @@ public class TransportMoreLikeThisAction extends BaseAction<MoreLikeThisRequest,
             return;
         }
         docMapper.parse(SourceToParse.source(getResponse.sourceRef().bytes(), getResponse.sourceRef().offset(), getResponse.sourceRef().length()).type(request.type()).id(request.id()), new DocumentMapper.ParseListenerAdapter() {
-            @Override public boolean beforeFieldAdded(FieldMapper fieldMapper, Fieldable field, Object parseContext) {
+            @Override
+            public boolean beforeFieldAdded(FieldMapper fieldMapper, Fieldable field, Object parseContext) {
                 if (fieldMapper instanceof InternalMapper) {
                     return true;
                 }
@@ -248,15 +252,18 @@ public class TransportMoreLikeThisAction extends BaseAction<MoreLikeThisRequest,
 
     private class TransportHandler extends BaseTransportRequestHandler<MoreLikeThisRequest> {
 
-        @Override public MoreLikeThisRequest newInstance() {
+        @Override
+        public MoreLikeThisRequest newInstance() {
             return new MoreLikeThisRequest();
         }
 
-        @Override public void messageReceived(MoreLikeThisRequest request, final TransportChannel channel) throws Exception {
+        @Override
+        public void messageReceived(MoreLikeThisRequest request, final TransportChannel channel) throws Exception {
             // no need to have a threaded listener since we just send back a response
             request.listenerThreaded(false);
             execute(request, new ActionListener<SearchResponse>() {
-                @Override public void onResponse(SearchResponse result) {
+                @Override
+                public void onResponse(SearchResponse result) {
                     try {
                         channel.sendResponse(result);
                     } catch (Exception e) {
@@ -264,7 +271,8 @@ public class TransportMoreLikeThisAction extends BaseAction<MoreLikeThisRequest,
                     }
                 }
 
-                @Override public void onFailure(Throwable e) {
+                @Override
+                public void onFailure(Throwable e) {
                     try {
                         channel.sendResponse(e);
                     } catch (Exception e1) {
@@ -274,7 +282,8 @@ public class TransportMoreLikeThisAction extends BaseAction<MoreLikeThisRequest,
             });
         }
 
-        @Override public String executor() {
+        @Override
+        public String executor() {
             return ThreadPool.Names.SAME;
         }
     }

@@ -24,7 +24,7 @@ import java.util.List;
 
 /**
  * Abstract base class for creating an injector from module elements.
- *
+ * <p/>
  * <p>Extending classes must return {@code true} from any overridden
  * {@code visit*()} methods, in order for the element processor to remove the
  * handled element.

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -29,8 +29,8 @@ import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.*;
-import static org.hamcrest.MatcherAssert.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -39,14 +39,16 @@ public class SearchStatsTests extends AbstractNodesTests {
 
     private Client client;
 
-    @BeforeClass public void createNodes() throws Exception {
+    @BeforeClass
+    public void createNodes() throws Exception {
         Settings settings = settingsBuilder().put("number_of_shards", 3).put("number_of_replicas", 0).build();
         startNode("server1", settings);
         startNode("server2", settings);
         client = getClient();
     }
 
-    @AfterClass public void closeNodes() {
+    @AfterClass
+    public void closeNodes() {
         client.close();
         closeAllNodes();
     }
@@ -55,7 +57,8 @@ public class SearchStatsTests extends AbstractNodesTests {
         return client("server1");
     }
 
-    @Test public void testSimpleStats() throws Exception {
+    @Test
+    public void testSimpleStats() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
 
         for (int i = 0; i < 500; i++) {

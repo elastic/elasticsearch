@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,15 +19,15 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
 import org.elasticsearch.cluster.action.index.NodeMappingCreatedAction;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.common.collect.Lists;
-import org.elasticsearch.common.collect.Maps;
-import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
@@ -50,14 +50,14 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.cluster.ClusterState.*;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
-import static org.elasticsearch.cluster.metadata.MetaData.*;
-import static org.elasticsearch.common.collect.Maps.*;
-import static org.elasticsearch.index.mapper.DocumentMapper.MergeFlags.*;
+import static com.google.common.collect.Maps.newHashMap;
+import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.newIndexMetaDataBuilder;
+import static org.elasticsearch.cluster.metadata.MetaData.newMetaDataBuilder;
+import static org.elasticsearch.index.mapper.DocumentMapper.MergeFlags.mergeFlags;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class MetaDataMappingService extends AbstractComponent {
 
@@ -69,7 +69,8 @@ public class MetaDataMappingService extends AbstractComponent {
 
     private final Map<String, Set<String>> indicesAndTypesToRefresh = Maps.newHashMap();
 
-    @Inject public MetaDataMappingService(Settings settings, ClusterService clusterService, IndicesService indicesService, NodeMappingCreatedAction mappingCreatedAction) {
+    @Inject
+    public MetaDataMappingService(Settings settings, ClusterService clusterService, IndicesService indicesService, NodeMappingCreatedAction mappingCreatedAction) {
         super(settings);
         this.clusterService = clusterService;
         this.indicesService = indicesService;
@@ -89,7 +90,8 @@ public class MetaDataMappingService extends AbstractComponent {
             sTypes.addAll(Arrays.asList(types));
         }
         clusterService.submitStateUpdateTask("refresh-mapping [" + index + "][" + Arrays.toString(types) + "]", new ClusterStateUpdateTask() {
-            @Override public ClusterState execute(ClusterState currentState) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
                 boolean createdIndex = false;
                 try {
                     Set<String> sTypes;
@@ -152,7 +154,8 @@ public class MetaDataMappingService extends AbstractComponent {
 
     public void updateMapping(final String index, final String type, final CompressedString mappingSource, final Listener listener) {
         clusterService.submitStateUpdateTask("update-mapping [" + index + "][" + type + "]", new ProcessedClusterStateUpdateTask() {
-            @Override public ClusterState execute(ClusterState currentState) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
                 boolean createdIndex = false;
                 try {
                     // first, check if it really needs to be updated
@@ -217,7 +220,8 @@ public class MetaDataMappingService extends AbstractComponent {
                 }
             }
 
-            @Override public void clusterStateProcessed(ClusterState clusterState) {
+            @Override
+            public void clusterStateProcessed(ClusterState clusterState) {
                 listener.onResponse(new Response(true));
             }
         });
@@ -225,7 +229,8 @@ public class MetaDataMappingService extends AbstractComponent {
 
     public void removeMapping(final RemoveRequest request) {
         clusterService.submitStateUpdateTask("remove-mapping [" + request.mappingType + "]", new ProcessedClusterStateUpdateTask() {
-            @Override public ClusterState execute(ClusterState currentState) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
                 if (request.indices.length == 0) {
                     throw new IndexMissingException(new Index("_all"));
                 }
@@ -241,7 +246,8 @@ public class MetaDataMappingService extends AbstractComponent {
                 return ClusterState.builder().state(currentState).metaData(builder).build();
             }
 
-            @Override public void clusterStateProcessed(ClusterState clusterState) {
+            @Override
+            public void clusterStateProcessed(ClusterState clusterState) {
                 // TODO add a listener here!
             }
         });
@@ -249,7 +255,8 @@ public class MetaDataMappingService extends AbstractComponent {
 
     public void putMapping(final PutRequest request, final Listener listener) {
         clusterService.submitStateUpdateTask("put-mapping [" + request.mappingType + "]", new ProcessedClusterStateUpdateTask() {
-            @Override public ClusterState execute(ClusterState currentState) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
                 List<String> indicesToClose = Lists.newArrayList();
                 try {
                     if (request.indices.length == 0) {
@@ -392,7 +399,8 @@ public class MetaDataMappingService extends AbstractComponent {
                 }
             }
 
-            @Override public void clusterStateProcessed(ClusterState clusterState) {
+            @Override
+            public void clusterStateProcessed(ClusterState clusterState) {
             }
         });
     }
@@ -468,7 +476,8 @@ public class MetaDataMappingService extends AbstractComponent {
             this.listener = listener;
         }
 
-        @Override public void onNodeMappingCreated(NodeMappingCreatedAction.NodeMappingCreatedResponse response) {
+        @Override
+        public void onNodeMappingCreated(NodeMappingCreatedAction.NodeMappingCreatedResponse response) {
             if (countDown.decrementAndGet() == 0) {
                 mappingCreatedAction.remove(this);
                 if (notified.compareAndSet(false, true)) {
@@ -477,7 +486,8 @@ public class MetaDataMappingService extends AbstractComponent {
             }
         }
 
-        @Override public void onTimeout() {
+        @Override
+        public void onTimeout() {
             mappingCreatedAction.remove(this);
             if (notified.compareAndSet(false, true)) {
                 listener.onResponse(new Response(false));

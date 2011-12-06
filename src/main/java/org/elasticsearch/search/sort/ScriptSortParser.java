@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -31,15 +31,17 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.util.Map;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class ScriptSortParser implements SortParser {
 
-    @Override public String[] names() {
+    @Override
+    public String[] names() {
         return new String[]{"_script"};
     }
 
-    @Override public SortField parse(XContentParser parser, SearchContext context) throws Exception {
+    @Override
+    public SortField parse(XContentParser parser, SearchContext context) throws Exception {
         String script = null;
         String scriptLang = null;
         String type = null;

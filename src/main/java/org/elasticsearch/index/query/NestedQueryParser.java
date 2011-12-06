@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -20,11 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.DeletionAwareConstantScoreQuery;
-import org.apache.lucene.search.DocIdSet;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilteredQuery;
-import org.apache.lucene.search.Query;
+import org.apache.lucene.search.*;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -40,14 +36,17 @@ public class NestedQueryParser implements QueryParser {
 
     public static final String NAME = "nested";
 
-    @Inject public NestedQueryParser() {
+    @Inject
+    public NestedQueryParser() {
     }
 
-    @Override public String[] names() {
+    @Override
+    public String[] names() {
         return new String[]{NAME, Strings.toCamelCase(NAME)};
     }
 
-    @Override public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    @Override
+    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
         Query query = null;
@@ -154,19 +153,23 @@ public class NestedQueryParser implements QueryParser {
 
         Filter filter;
 
-        @Override public int hashCode() {
+        @Override
+        public int hashCode() {
             return filter.hashCode();
         }
 
-        @Override public boolean equals(Object obj) {
+        @Override
+        public boolean equals(Object obj) {
             return filter.equals(obj);
         }
 
-        @Override public String toString() {
+        @Override
+        public String toString() {
             return filter.toString();
         }
 
-        @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
+        @Override
+        public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
             return filter.getDocIdSet(reader);
         }
     }

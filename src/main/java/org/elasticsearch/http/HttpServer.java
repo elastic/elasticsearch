@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,8 +19,8 @@
 
 package org.elasticsearch.http;
 
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
@@ -40,7 +40,7 @@ import java.util.Map;
 import static org.elasticsearch.rest.RestStatus.*;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
 
@@ -54,9 +54,10 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
 
     private final boolean disableSites;
 
-    @Inject public HttpServer(Settings settings, Environment environment, HttpServerTransport transport,
-                              RestController restController,
-                              NodeService nodeService) {
+    @Inject
+    public HttpServer(Settings settings, Environment environment, HttpServerTransport transport,
+                      RestController restController,
+                      NodeService nodeService) {
         super(settings);
         this.environment = environment;
         this.transport = transport;
@@ -77,12 +78,14 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
             this.server = server;
         }
 
-        @Override public void dispatchRequest(HttpRequest request, HttpChannel channel) {
+        @Override
+        public void dispatchRequest(HttpRequest request, HttpChannel channel) {
             server.internalDispatchRequest(request, channel);
         }
     }
 
-    @Override protected void doStart() throws ElasticSearchException {
+    @Override
+    protected void doStart() throws ElasticSearchException {
         transport.start();
         if (logger.isInfoEnabled()) {
             logger.info("{}", transport.boundAddress());
@@ -90,12 +93,14 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
         nodeService.putNodeAttribute("http_address", transport.boundAddress().publishAddress().toString());
     }
 
-    @Override protected void doStop() throws ElasticSearchException {
+    @Override
+    protected void doStop() throws ElasticSearchException {
         nodeService.removeNodeAttribute("http_address");
         transport.stop();
     }
 
-    @Override protected void doClose() throws ElasticSearchException {
+    @Override
+    protected void doClose() throws ElasticSearchException {
         transport.close();
     }
 

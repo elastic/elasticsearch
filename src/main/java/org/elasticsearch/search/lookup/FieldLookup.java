@@ -27,7 +27,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class FieldLookup {
 

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,9 +19,9 @@
 
 package org.elasticsearch.indices.cache.filter;
 
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
+import com.googlecode.concurrentlinkedhashmap.EvictionListener;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
-import org.elasticsearch.common.concurrentlinkedhashmap.EvictionListener;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.docset.DocSet;
 import org.elasticsearch.common.settings.Settings;
@@ -49,7 +49,8 @@ public class IndicesNodeFilterCache extends AbstractComponent implements Evictio
     private final CopyOnWriteArrayList<EvictionListener<AbstractWeightedFilterCache.FilterCacheKey, FilterCacheValue<DocSet>>> evictionListeners =
             new CopyOnWriteArrayList<EvictionListener<AbstractWeightedFilterCache.FilterCacheKey, FilterCacheValue<DocSet>>>();
 
-    @Inject public IndicesNodeFilterCache(Settings settings, ThreadPool threadPool, NodeSettingsService nodeSettingsService) {
+    @Inject
+    public IndicesNodeFilterCache(Settings settings, ThreadPool threadPool, NodeSettingsService nodeSettingsService) {
         super(settings);
         this.threadPool = threadPool;
         this.size = componentSettings.get("size", "20%");
@@ -98,14 +99,16 @@ public class IndicesNodeFilterCache extends AbstractComponent implements Evictio
         return this.cache;
     }
 
-    @Override public void onEviction(AbstractWeightedFilterCache.FilterCacheKey filterCacheKey, FilterCacheValue<DocSet> docSetFilterCacheValue) {
+    @Override
+    public void onEviction(AbstractWeightedFilterCache.FilterCacheKey filterCacheKey, FilterCacheValue<DocSet> docSetFilterCacheValue) {
         for (EvictionListener<AbstractWeightedFilterCache.FilterCacheKey, FilterCacheValue<DocSet>> listener : evictionListeners) {
             listener.onEviction(filterCacheKey, docSetFilterCacheValue);
         }
     }
 
     class ApplySettings implements NodeSettingsService.Listener {
-        @Override public void onRefreshSettings(Settings settings) {
+        @Override
+        public void onRefreshSettings(Settings settings) {
             String size = settings.get("indices.cache.filter.size", IndicesNodeFilterCache.this.size);
             if (!size.equals(IndicesNodeFilterCache.this.size)) {
                 logger.info("updating [indices.cache.filter.size] from [{}] to [{}]", IndicesNodeFilterCache.this.size, size);

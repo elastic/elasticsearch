@@ -16,7 +16,7 @@
 
 package org.elasticsearch.common.inject.spi;
 
-import org.elasticsearch.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.internal.Objects;
@@ -26,7 +26,7 @@ import java.io.ObjectStreamException;
 import java.io.Serializable;
 import java.util.List;
 
-import static org.elasticsearch.common.base.Preconditions.*;
+import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
  * An error message and the context in which it occured. Messages are usually created internally by
@@ -100,15 +100,18 @@ public final class Message implements Serializable, Element {
         return cause;
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return message;
     }
 
-    @Override public int hashCode() {
+    @Override
+    public int hashCode() {
         return message.hashCode();
     }
 
-    @Override public boolean equals(Object o) {
+    @Override
+    public boolean equals(Object o) {
         if (!(o instanceof Message)) {
             return false;
         }

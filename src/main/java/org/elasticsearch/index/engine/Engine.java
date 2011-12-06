@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -46,7 +46,7 @@ import org.elasticsearch.index.translog.Translog;
 import java.util.List;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 @ThreadSafe
 public interface Engine extends IndexShardComponent, CloseableComponent {
@@ -64,7 +64,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
     /**
      * Starts the Engine.
-     *
+     * <p/>
      * <p>Note, after the creation and before the call to start, the store might
      * be changed.
      */
@@ -120,13 +120,13 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
     /**
      * Recovery allow to start the recovery process. It is built of three phases.
-     *
+     * <p/>
      * <p>The first phase allows to take a snapshot of the master index. Once this
      * is taken, no commit operations are effectively allowed on the index until the recovery
      * phases are through.
-     *
+     * <p/>
      * <p>The seconds phase takes a snapshot of the current transaction log.
-     *
+     * <p/>
      * <p>The last phase returns the remaining transaction log. During this phase, no dirty
      * operations are allowed on the index.
      */
@@ -176,7 +176,8 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return waitForOperations;
         }
 
-        @Override public String toString() {
+        @Override
+        public String toString() {
             return "waitForOperations[" + waitForOperations + "]";
         }
     }
@@ -226,7 +227,8 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return this;
         }
 
-        @Override public String toString() {
+        @Override
+        public String toString() {
             return "full[" + full + "], refresh[" + refresh + "], force[" + force + "]";
         }
     }
@@ -286,7 +288,8 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return this;
         }
 
-        @Override public String toString() {
+        @Override
+        public String toString() {
             return "waitForMerge[" + waitForMerge + "], maxNumSegments[" + maxNumSegments + "], onlyExpungeDeletes[" + onlyExpungeDeletes + "], flush[" + flush + "], refresh[" + refresh + "]";
         }
     }
@@ -339,7 +342,8 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return this.docMapper;
         }
 
-        @Override public Type opType() {
+        @Override
+        public Type opType() {
             return Type.CREATE;
         }
 
@@ -348,7 +352,8 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return this;
         }
 
-        @Override public Origin origin() {
+        @Override
+        public Origin origin() {
             return this.origin;
         }
 
@@ -473,7 +478,8 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return this.docMapper;
         }
 
-        @Override public Type opType() {
+        @Override
+        public Type opType() {
             return Type.INDEX;
         }
 
@@ -482,7 +488,8 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return this;
         }
 
-        @Override public Origin origin() {
+        @Override
+        public Origin origin() {
             return this.origin;
         }
 
@@ -603,7 +610,8 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             this.uid = uid;
         }
 
-        @Override public Type opType() {
+        @Override
+        public Type opType() {
             return Type.DELETE;
         }
 
@@ -612,7 +620,8 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return this;
         }
 
-        @Override public Origin origin() {
+        @Override
+        public Origin origin() {
             return this.origin;
         }
 
@@ -806,7 +815,8 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return this.version;
         }
 
-        @Nullable public Translog.Source source() {
+        @Nullable
+        public Translog.Source source() {
             return source;
         }
 

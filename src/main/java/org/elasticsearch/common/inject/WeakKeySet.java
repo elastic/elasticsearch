@@ -16,7 +16,7 @@
 
 package org.elasticsearch.common.inject;
 
-import org.elasticsearch.common.collect.Sets;
+import com.google.common.collect.Sets;
 
 import java.util.Set;
 
@@ -29,7 +29,7 @@ final class WeakKeySet {
 
     /**
      * We store strings rather than keys so we don't hold strong references.
-     *
+     * <p/>
      * <p>One potential problem with this approach is that parent and child injectors cannot define
      * keys whose class names are equal but class loaders are different. This shouldn't be an issue
      * in practice.

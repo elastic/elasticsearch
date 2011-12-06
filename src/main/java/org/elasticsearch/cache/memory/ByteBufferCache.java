@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -33,7 +33,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class ByteBufferCache extends AbstractComponent implements ByteBufferAllocator {
 
@@ -61,7 +61,8 @@ public class ByteBufferCache extends AbstractComponent implements ByteBufferAllo
                 .put("cache.memory.direct", direct).build());
     }
 
-    @Inject public ByteBufferCache(Settings settings) {
+    @Inject
+    public ByteBufferCache(Settings settings) {
         super(settings);
 
         this.direct = componentSettings.getAsBoolean("direct", true);
@@ -90,15 +91,18 @@ public class ByteBufferCache extends AbstractComponent implements ByteBufferAllo
         allocator.close();
     }
 
-    @Override public int sizeInBytes(Type type) {
+    @Override
+    public int sizeInBytes(Type type) {
         return allocator.sizeInBytes(type);
     }
 
-    @Override public ByteBuffer allocate(Type type) throws IOException {
+    @Override
+    public ByteBuffer allocate(Type type) throws IOException {
         return allocator.allocate(type);
     }
 
-    @Override public void release(ByteBuffer buffer) {
+    @Override
+    public void release(ByteBuffer buffer) {
         allocator.release(buffer);
     }
 }

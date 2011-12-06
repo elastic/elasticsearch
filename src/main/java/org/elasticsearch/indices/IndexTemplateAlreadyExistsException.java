@@ -23,7 +23,7 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.rest.RestStatus;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class IndexTemplateAlreadyExistsException extends ElasticSearchException {
 
@@ -38,7 +38,8 @@ public class IndexTemplateAlreadyExistsException extends ElasticSearchException 
         return this.name;
     }
 
-    @Override public RestStatus status() {
+    @Override
+    public RestStatus status() {
         return RestStatus.BAD_REQUEST;
     }
 }

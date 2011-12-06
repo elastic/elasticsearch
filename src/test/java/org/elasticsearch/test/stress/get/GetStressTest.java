@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,11 +19,11 @@
 
 package org.elasticsearch.test.stress.get;
 
+import jsr166y.ThreadLocalRandom;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.jsr166y.ThreadLocalRandom;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
 
@@ -61,7 +61,8 @@ public class GetStressTest {
         Thread[] threads = new Thread[NUMBER_OF_THREADS];
         for (int i = 0; i < threads.length; i++) {
             threads[i] = new Thread(new Runnable() {
-                @Override public void run() {
+                @Override
+                public void run() {
                     ThreadLocalRandom random = ThreadLocalRandom.current();
                     while (!done.get()) {
                         String id = String.valueOf(idGenerator.incrementAndGet());

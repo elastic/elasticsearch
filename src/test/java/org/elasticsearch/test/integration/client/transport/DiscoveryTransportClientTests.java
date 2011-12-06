@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -25,16 +25,18 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterMethod;
 
-import static org.elasticsearch.client.Requests.*;
+import static org.elasticsearch.client.Requests.createIndexRequest;
+import static org.elasticsearch.client.Requests.pingSingleRequest;
 
 /**
- * @author kimchy (Shay Banon)
+ *
  */
 public class DiscoveryTransportClientTests extends AbstractNodesTests {
 
     private TransportClient client;
 
-    @AfterMethod public void closeServers() {
+    @AfterMethod
+    public void closeServers() {
         if (client != null) {
             client.close();
         }

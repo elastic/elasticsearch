@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -27,7 +27,7 @@ import java.io.IOException;
 /**
  * An always positive
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class AllDocSet extends DocSet {
 
@@ -37,23 +37,28 @@ public class AllDocSet extends DocSet {
         this.maxDoc = maxDoc;
     }
 
-    @Override public boolean isCacheable() {
+    @Override
+    public boolean isCacheable() {
         return true;
     }
 
-    @Override public int length() {
+    @Override
+    public int length() {
         return maxDoc;
     }
 
-    @Override public boolean get(int doc) {
+    @Override
+    public boolean get(int doc) {
         return doc < maxDoc;
     }
 
-    @Override public long sizeInBytes() {
+    @Override
+    public long sizeInBytes() {
         return RamUsage.NUM_BYTES_INT;
     }
 
-    @Override public DocIdSetIterator iterator() throws IOException {
+    @Override
+    public DocIdSetIterator iterator() throws IOException {
         return new AllDocIdSetIterator(maxDoc);
     }
 
@@ -67,18 +72,21 @@ public class AllDocSet extends DocSet {
             this.maxDoc = maxDoc;
         }
 
-        @Override public int docID() {
+        @Override
+        public int docID() {
             return doc;
         }
 
-        @Override public int nextDoc() throws IOException {
+        @Override
+        public int nextDoc() throws IOException {
             if (++doc < maxDoc) {
                 return doc;
             }
             return doc = NO_MORE_DOCS;
         }
 
-        @Override public int advance(int target) throws IOException {
+        @Override
+        public int advance(int target) throws IOException {
             doc = target;
             if (doc < maxDoc) {
                 return doc;

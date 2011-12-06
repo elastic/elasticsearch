@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.analysis;
 
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.component.CloseableComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -33,10 +33,10 @@ import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 
 import java.util.Map;
 
-import static org.elasticsearch.common.collect.Maps.*;
+import static com.google.common.collect.Maps.newHashMap;
 
 /**
- * @author kimchy (Shay Banon)
+ *
  */
 public class AnalysisService extends AbstractIndexComponent implements CloseableComponent {
 
@@ -56,11 +56,12 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
         this(index, ImmutableSettings.Builder.EMPTY_SETTINGS, null, null, null, null, null);
     }
 
-    @Inject public AnalysisService(Index index, @IndexSettings Settings indexSettings, @Nullable IndicesAnalysisService indicesAnalysisService,
-                                   @Nullable Map<String, AnalyzerProviderFactory> analyzerFactoryFactories,
-                                   @Nullable Map<String, TokenizerFactoryFactory> tokenizerFactoryFactories,
-                                   @Nullable Map<String, CharFilterFactoryFactory> charFilterFactoryFactories,
-                                   @Nullable Map<String, TokenFilterFactoryFactory> tokenFilterFactoryFactories) {
+    @Inject
+    public AnalysisService(Index index, @IndexSettings Settings indexSettings, @Nullable IndicesAnalysisService indicesAnalysisService,
+                           @Nullable Map<String, AnalyzerProviderFactory> analyzerFactoryFactories,
+                           @Nullable Map<String, TokenizerFactoryFactory> tokenizerFactoryFactories,
+                           @Nullable Map<String, CharFilterFactoryFactory> charFilterFactoryFactories,
+                           @Nullable Map<String, TokenFilterFactoryFactory> tokenFilterFactoryFactories) {
         super(index, indexSettings);
 
         Map<String, TokenizerFactory> tokenizers = newHashMap();

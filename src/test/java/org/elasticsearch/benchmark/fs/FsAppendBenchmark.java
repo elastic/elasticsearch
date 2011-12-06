@@ -29,7 +29,7 @@ import java.nio.channels.FileChannel;
 import java.util.Random;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class FsAppendBenchmark {
 

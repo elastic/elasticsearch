@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -31,7 +31,7 @@ import java.net.InetSocketAddress;
 /**
  * A transport address used for IP socket address (wraps {@link java.net.InetSocketAddress}).
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class InetSocketTransportAddress implements TransportAddress {
 
@@ -59,11 +59,13 @@ public class InetSocketTransportAddress implements TransportAddress {
         return address;
     }
 
-    @Override public short uniqueAddressTypeId() {
+    @Override
+    public short uniqueAddressTypeId() {
         return 1;
     }
 
-    @Override public boolean match(String otherAddress) {
+    @Override
+    public boolean match(String otherAddress) {
         if (address.getHostName() != null && Regex.simpleMatch(otherAddress, address.getHostName())) {
             return true;
         }
@@ -82,7 +84,8 @@ public class InetSocketTransportAddress implements TransportAddress {
         return this.address;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         if (in.readByte() == 0) {
             int len = in.readByte();
             byte[] a = new byte[len]; // 4 bytes (IPv4) or 16 bytes (IPv6)
@@ -101,7 +104,8 @@ public class InetSocketTransportAddress implements TransportAddress {
         }
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         if (address.getAddress() != null) {
             out.writeByte((byte) 0);
             byte[] bytes = address().getAddress().getAddress();  // 4 bytes (IPv4) or 16 bytes (IPv6)
@@ -129,7 +133,8 @@ public class InetSocketTransportAddress implements TransportAddress {
         return address != null ? address.hashCode() : 0;
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return "inet[" + address + "]";
     }
 }

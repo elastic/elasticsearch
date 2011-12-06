@@ -19,8 +19,8 @@
 
 package org.elasticsearch.search.facet;
 
+import com.google.common.collect.Lists;
 import org.apache.lucene.search.Filter;
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
@@ -51,17 +51,19 @@ import java.util.List;
  * }
  * </pre>
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class FacetParseElement implements SearchParseElement {
 
     private final FacetProcessors facetProcessors;
 
-    @Inject public FacetParseElement(FacetProcessors facetProcessors) {
+    @Inject
+    public FacetParseElement(FacetProcessors facetProcessors) {
         this.facetProcessors = facetProcessors;
     }
 
-    @Override public void parse(XContentParser parser, SearchContext context) throws Exception {
+    @Override
+    public void parse(XContentParser parser, SearchContext context) throws Exception {
         XContentParser.Token token;
 
         List<FacetCollector> facetCollectors = null;

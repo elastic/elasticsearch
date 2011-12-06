@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -21,14 +21,7 @@ package org.apache.lucene.search.vectorhighlight;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.DisjunctionMaxQuery;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilteredQuery;
-import org.apache.lucene.search.MultiTermQueryWrapperFilter;
-import org.apache.lucene.search.PublicTermsFilter;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.*;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.TermFilter;
@@ -41,7 +34,7 @@ import java.lang.reflect.Field;
 import java.util.Collection;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 // LUCENE MONITOR
 public class CustomFieldQuery extends FieldQuery {
@@ -68,7 +61,8 @@ public class CustomFieldQuery extends FieldQuery {
         highlightFilters.remove();
     }
 
-    @Override void flatten(Query sourceQuery, IndexReader reader, Collection<Query> flatQueries) throws IOException {
+    @Override
+    void flatten(Query sourceQuery, IndexReader reader, Collection<Query> flatQueries) throws IOException {
         if (sourceQuery instanceof DisjunctionMaxQuery) {
             DisjunctionMaxQuery dmq = (DisjunctionMaxQuery) sourceQuery;
             for (Query query : dmq) {

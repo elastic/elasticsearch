@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,13 +19,13 @@
 
 package org.elasticsearch.search.facet.termsstats.doubles;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+import gnu.trove.ExtTDoubleObjectHashMap;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.CacheRecycler;
-import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.collect.Lists;
-import org.elasticsearch.common.trove.ExtTDoubleObjectHashMap;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.NumericFieldData;
@@ -105,13 +105,15 @@ public class TermsStatsDoubleFacetCollector extends AbstractFacetCollector {
         }
     }
 
-    @Override public void setScorer(Scorer scorer) throws IOException {
+    @Override
+    public void setScorer(Scorer scorer) throws IOException {
         if (script != null) {
             script.setScorer(scorer);
         }
     }
 
-    @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
+    @Override
+    protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
         keyFieldData = (NumericFieldData) fieldDataCache.cache(keyFieldDataType, reader, keyFieldName);
         if (script != null) {
             script.setNextReader(reader);
@@ -120,11 +122,13 @@ public class TermsStatsDoubleFacetCollector extends AbstractFacetCollector {
         }
     }
 
-    @Override protected void doCollect(int doc) throws IOException {
+    @Override
+    protected void doCollect(int doc) throws IOException {
         keyFieldData.forEachValueInDoc(doc, aggregator);
     }
 
-    @Override public Facet facet() {
+    @Override
+    public Facet facet() {
         if (aggregator.entries.isEmpty()) {
             return new InternalTermsStatsDoubleFacet(facetName, comparatorType, size, ImmutableList.<InternalTermsStatsDoubleFacet.DoubleEntry>of(), aggregator.missing);
         }
@@ -158,7 +162,8 @@ public class TermsStatsDoubleFacetCollector extends AbstractFacetCollector {
 
         final ValueAggregator valueAggregator = new ValueAggregator();
 
-        @Override public void onValue(int docId, double value) {
+        @Override
+        public void onValue(int docId, double value) {
             InternalTermsStatsDoubleFacet.DoubleEntry doubleEntry = entries.get(value);
             if (doubleEntry == null) {
                 doubleEntry = new InternalTermsStatsDoubleFacet.DoubleEntry(value, 0, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);
@@ -169,7 +174,8 @@ public class TermsStatsDoubleFacetCollector extends AbstractFacetCollector {
             valueFieldData.forEachValueInDoc(docId, valueAggregator);
         }
 
-        @Override public void onMissing(int docId) {
+        @Override
+        public void onMissing(int docId) {
             missing++;
         }
 
@@ -177,7 +183,8 @@ public class TermsStatsDoubleFacetCollector extends AbstractFacetCollector {
 
             InternalTermsStatsDoubleFacet.DoubleEntry doubleEntry;
 
-            @Override public void onValue(int docId, double value) {
+            @Override
+            public void onValue(int docId, double value) {
                 if (value < doubleEntry.min) {
                     doubleEntry.min = value;
                 }
@@ -198,7 +205,8 @@ public class TermsStatsDoubleFacetCollector extends AbstractFacetCollector {
             this.script = script;
         }
 
-        @Override public void onValue(int docId, double value) {
+        @Override
+        public void onValue(int docId, double value) {
             InternalTermsStatsDoubleFacet.DoubleEntry doubleEntry = entries.get(value);
             if (doubleEntry == null) {
                 doubleEntry = new InternalTermsStatsDoubleFacet.DoubleEntry(value, 1, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);

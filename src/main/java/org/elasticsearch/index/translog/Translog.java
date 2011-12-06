@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -38,7 +38,7 @@ import java.io.IOException;
 import java.io.InputStream;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 @ThreadSafe
 public interface Translog extends IndexShardComponent {
@@ -67,7 +67,7 @@ public interface Translog extends IndexShardComponent {
 
     /**
      * Creates a new transaction log internally.
-     *
+     * <p/>
      * <p>Can only be called by one thread.
      */
     void newTranslog(long id) throws TranslogException;
@@ -75,14 +75,14 @@ public interface Translog extends IndexShardComponent {
     /**
      * Creates a new transient translog, where added ops will be added to the current one, and to
      * it.
-     *
+     * <p/>
      * <p>Can only be called by one thread.
      */
     void newTransientTranslog(long id) throws TranslogException;
 
     /**
      * Swaps the transient translog to be the current one.
-     *
+     * <p/>
      * <p>Can only be called by one thread.
      */
     void makeTransientCurrent();
@@ -125,7 +125,7 @@ public interface Translog extends IndexShardComponent {
 
     /**
      * Closes the transaction log.
-     *
+     * <p/>
      * <p>Can only be called by one thread.
      */
     void close(boolean delete);
@@ -278,11 +278,13 @@ public interface Translog extends IndexShardComponent {
             this.sourceLength = source.length;
         }
 
-        @Override public Type opType() {
+        @Override
+        public Type opType() {
             return Type.CREATE;
         }
 
-        @Override public long estimateSize() {
+        @Override
+        public long estimateSize() {
             return ((id.length() + type.length()) * 2) + source.length + 12;
         }
 
@@ -326,7 +328,8 @@ public interface Translog extends IndexShardComponent {
             return this.version;
         }
 
-        @Override public Source readSource(BytesStreamInput in) throws IOException {
+        @Override
+        public Source readSource(BytesStreamInput in) throws IOException {
             int version = in.readVInt(); // version
             id = in.readUTF();
             type = in.readUTF();
@@ -357,7 +360,8 @@ public interface Translog extends IndexShardComponent {
             return new Source(source, routing, parent, timestamp, ttl);
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             int version = in.readVInt(); // version
             id = in.readUTF();
             type = in.readUTF();
@@ -386,7 +390,8 @@ public interface Translog extends IndexShardComponent {
             }
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(5); // version
             out.writeUTF(id);
             out.writeUTF(type);
@@ -446,11 +451,13 @@ public interface Translog extends IndexShardComponent {
             this.sourceLength = source.length;
         }
 
-        @Override public Type opType() {
+        @Override
+        public Type opType() {
             return Type.SAVE;
         }
 
-        @Override public long estimateSize() {
+        @Override
+        public long estimateSize() {
             return ((id.length() + type.length()) * 2) + source.length + 12;
         }
 
@@ -494,7 +501,8 @@ public interface Translog extends IndexShardComponent {
             return this.version;
         }
 
-        @Override public Source readSource(BytesStreamInput in) throws IOException {
+        @Override
+        public Source readSource(BytesStreamInput in) throws IOException {
             int version = in.readVInt(); // version
             id = in.readUTF();
             type = in.readUTF();
@@ -525,7 +533,8 @@ public interface Translog extends IndexShardComponent {
             return new Source(source, routing, parent, timestamp, ttl);
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             int version = in.readVInt(); // version
             id = in.readUTF();
             type = in.readUTF();
@@ -554,7 +563,8 @@ public interface Translog extends IndexShardComponent {
             }
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(5); // version
             out.writeUTF(id);
             out.writeUTF(type);
@@ -594,11 +604,13 @@ public interface Translog extends IndexShardComponent {
             this.uid = uid;
         }
 
-        @Override public Type opType() {
+        @Override
+        public Type opType() {
             return Type.DELETE;
         }
 
-        @Override public long estimateSize() {
+        @Override
+        public long estimateSize() {
             return ((uid.field().length() + uid.text().length()) * 2) + 20;
         }
 
@@ -610,11 +622,13 @@ public interface Translog extends IndexShardComponent {
             return this.version;
         }
 
-        @Override public Source readSource(BytesStreamInput in) throws IOException {
+        @Override
+        public Source readSource(BytesStreamInput in) throws IOException {
             throw new ElasticSearchIllegalStateException("trying to read doc source from delete operation");
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             int version = in.readVInt(); // version
             uid = new Term(in.readUTF(), in.readUTF());
             if (version >= 1) {
@@ -622,7 +636,8 @@ public interface Translog extends IndexShardComponent {
             }
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(1); // version
             out.writeUTF(uid.field());
             out.writeUTF(uid.text());
@@ -632,7 +647,8 @@ public interface Translog extends IndexShardComponent {
 
     static class DeleteByQuery implements Operation {
         private byte[] source;
-        @Nullable private String[] filteringAliases;
+        @Nullable
+        private String[] filteringAliases;
         private String[] types = Strings.EMPTY_ARRAY;
 
         public DeleteByQuery() {
@@ -648,11 +664,13 @@ public interface Translog extends IndexShardComponent {
             this.filteringAliases = filteringAliases;
         }
 
-        @Override public Type opType() {
+        @Override
+        public Type opType() {
             return Type.DELETE_BY_QUERY;
         }
 
-        @Override public long estimateSize() {
+        @Override
+        public long estimateSize() {
             return source.length + 8;
         }
 
@@ -668,11 +686,13 @@ public interface Translog extends IndexShardComponent {
             return this.types;
         }
 
-        @Override public Source readSource(BytesStreamInput in) throws IOException {
+        @Override
+        public Source readSource(BytesStreamInput in) throws IOException {
             throw new ElasticSearchIllegalStateException("trying to read doc source from delete_by_query operation");
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             int version = in.readVInt(); // version
             source = new byte[in.readVInt()];
             in.readFully(source);
@@ -700,7 +720,8 @@ public interface Translog extends IndexShardComponent {
             }
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(2); // version
             out.writeVInt(source.length);
             out.writeBytes(source);

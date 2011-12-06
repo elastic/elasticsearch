@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -29,7 +29,7 @@ import java.io.IOException;
 import java.io.Serializable;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class ClusterBlock implements Serializable, Streamable, ToXContent {
 
@@ -90,7 +90,8 @@ public class ClusterBlock implements Serializable, Streamable, ToXContent {
         return this.disableStatePersistence;
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Integer.toString(id));
         builder.field("description", description);
         builder.field("retryable", retryable);
@@ -112,7 +113,8 @@ public class ClusterBlock implements Serializable, Streamable, ToXContent {
         return block;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         id = in.readVInt();
         description = in.readUTF();
         levels = new ClusterBlockLevel[in.readVInt()];
@@ -123,7 +125,8 @@ public class ClusterBlock implements Serializable, Streamable, ToXContent {
         disableStatePersistence = in.readBoolean();
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(id);
         out.writeUTF(description);
         out.writeVInt(levels.length);
@@ -143,7 +146,8 @@ public class ClusterBlock implements Serializable, Streamable, ToXContent {
         return sb.toString();
     }
 
-    @Override public boolean equals(Object o) {
+    @Override
+    public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
@@ -154,7 +158,8 @@ public class ClusterBlock implements Serializable, Streamable, ToXContent {
         return true;
     }
 
-    @Override public int hashCode() {
+    @Override
+    public int hashCode() {
         return id;
     }
 }

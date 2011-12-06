@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -30,27 +30,30 @@ import org.testng.annotations.Test;
 import java.util.Arrays;
 
 import static org.elasticsearch.client.Requests.*;
-import static org.elasticsearch.common.xcontent.XContentFactory.*;
-import static org.elasticsearch.index.query.FilterBuilders.*;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.FilterBuilders.termFilter;
 import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.search.builder.SearchSourceBuilder.*;
-import static org.hamcrest.MatcherAssert.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 @Test
 public class CustomScoreSearchTests extends AbstractNodesTests {
 
     private Client client;
 
-    @BeforeMethod public void createNodes() throws Exception {
+    @BeforeMethod
+    public void createNodes() throws Exception {
         startNode("server1");
         client = getClient();
     }
 
-    @AfterMethod public void closeNodes() {
+    @AfterMethod
+    public void closeNodes() {
         client.close();
         closeAllNodes();
     }
@@ -59,7 +62,8 @@ public class CustomScoreSearchTests extends AbstractNodesTests {
         return client("server1");
     }
 
-    @Test public void testCustomScriptBoost() throws Exception {
+    @Test
+    public void testCustomScriptBoost() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
 
         client.admin().indices().create(createIndexRequest("test")).actionGet();
@@ -145,7 +149,8 @@ public class CustomScoreSearchTests extends AbstractNodesTests {
         assertThat(response.hits().getAt(1).id(), equalTo("2"));
     }
 
-    @Test public void testCustomFiltersScore() throws Exception {
+    @Test
+    public void testCustomFiltersScore() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
 
         client.prepareIndex("test", "type", "1").setSource("field", "value1", "color", "red").execute().actionGet();

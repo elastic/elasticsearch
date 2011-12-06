@@ -30,26 +30,30 @@ import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.*;
-import static org.elasticsearch.common.xcontent.XContentFactory.*;
-import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.hamcrest.MatcherAssert.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class SimplePercolatorTests extends AbstractNodesTests {
 
     private Client client;
 
-    @BeforeClass public void createNodes() throws Exception {
+    @BeforeClass
+    public void createNodes() throws Exception {
         startNode("node1");
         startNode("node2");
         client = getClient();
     }
 
-    @AfterClass public void closeNodes() {
+    @AfterClass
+    public void closeNodes() {
         client.close();
         closeAllNodes();
     }
@@ -58,7 +62,8 @@ public class SimplePercolatorTests extends AbstractNodesTests {
         return client("node1");
     }
 
-    @Test public void percolateOnRecreatedIndex() throws Exception {
+    @Test
+    public void percolateOnRecreatedIndex() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
@@ -97,7 +102,8 @@ public class SimplePercolatorTests extends AbstractNodesTests {
                 .execute().actionGet();
     }
 
-    @Test public void registerPercolatorAndThenCreateAnIndex() throws Exception {
+    @Test
+    public void registerPercolatorAndThenCreateAnIndex() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
@@ -136,7 +142,8 @@ public class SimplePercolatorTests extends AbstractNodesTests {
         assertThat(percolate.matches().size(), equalTo(1));
     }
 
-    @Test public void createIndexAndThenRegisterPercolator() throws Exception {
+    @Test
+    public void createIndexAndThenRegisterPercolator() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
@@ -188,7 +195,8 @@ public class SimplePercolatorTests extends AbstractNodesTests {
         assertThat(client.prepareCount("_percolator").setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(0l));
     }
 
-    @Test public void percolateOnIndexOperation() throws Exception {
+    @Test
+    public void percolateOnIndexOperation() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
@@ -248,7 +256,8 @@ public class SimplePercolatorTests extends AbstractNodesTests {
         }
     }
 
-    @Test public void multiplePercolators() throws Exception {
+    @Test
+    public void multiplePercolators() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
@@ -298,7 +307,8 @@ public class SimplePercolatorTests extends AbstractNodesTests {
 
     }
 
-    @Test public void dynamicAddingRemovingQueries() throws Exception {
+    @Test
+    public void dynamicAddingRemovingQueries() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {

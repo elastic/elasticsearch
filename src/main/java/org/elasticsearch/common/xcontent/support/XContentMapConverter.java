@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -24,15 +24,10 @@ import org.elasticsearch.common.xcontent.XContentGenerator;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class XContentMapConverter {
 
@@ -41,13 +36,15 @@ public class XContentMapConverter {
     }
 
     public static final MapFactory SIMPLE_MAP_FACTORY = new MapFactory() {
-        @Override public Map<String, Object> newMap() {
+        @Override
+        public Map<String, Object> newMap() {
             return new HashMap<String, Object>();
         }
     };
 
     public static final MapFactory ORDERED_MAP_FACTORY = new MapFactory() {
-        @Override public Map<String, Object> newMap() {
+        @Override
+        public Map<String, Object> newMap() {
             return new LinkedHashMap<String, Object>();
         }
     };

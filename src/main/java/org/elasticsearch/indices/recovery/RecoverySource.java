@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,12 +19,12 @@
 
 package org.elasticsearch.indices.recovery;
 
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.StopWatch;
-import org.elasticsearch.common.collect.Lists;
-import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -39,11 +39,7 @@ import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportRequestHandler;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.VoidTransportResponseHandler;
+import org.elasticsearch.transport.*;
 
 import java.io.IOException;
 import java.util.List;
@@ -74,8 +70,9 @@ public class RecoverySource extends AbstractComponent {
     private final RecoverySettings recoverySettings;
 
 
-    @Inject public RecoverySource(Settings settings, ThreadPool threadPool, TransportService transportService, IndicesService indicesService,
-                                  RecoverySettings recoverySettings) {
+    @Inject
+    public RecoverySource(Settings settings, ThreadPool threadPool, TransportService transportService, IndicesService indicesService,
+                          RecoverySettings recoverySettings) {
         super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
@@ -91,7 +88,8 @@ public class RecoverySource extends AbstractComponent {
         logger.trace("[{}][{}] starting recovery to {}, mark_as_relocated {}", request.shardId().index().name(), request.shardId().id(), request.targetNode(), request.markAsRelocated());
         final RecoveryResponse response = new RecoveryResponse();
         shard.recover(new Engine.RecoveryHandler() {
-            @Override public void phase1(final SnapshotIndexCommit snapshot) throws ElasticSearchException {
+            @Override
+            public void phase1(final SnapshotIndexCommit snapshot) throws ElasticSearchException {
                 long totalSize = 0;
                 long existingTotalSize = 0;
                 try {
@@ -136,7 +134,8 @@ public class RecoverySource extends AbstractComponent {
                     final AtomicReference<Exception> lastException = new AtomicReference<Exception>();
                     for (final String name : response.phase1FileNames) {
                         recoverySettings.concurrentStreamPool().execute(new Runnable() {
-                            @Override public void run() {
+                            @Override
+                            public void run() {
                                 IndexInput indexInput = null;
                                 try {
                                     final int BUFFER_SIZE = (int) recoverySettings.fileChunkSize().bytes();
@@ -196,7 +195,8 @@ public class RecoverySource extends AbstractComponent {
                 }
             }
 
-            @Override public void phase2(Translog.Snapshot snapshot) throws ElasticSearchException {
+            @Override
+            public void phase2(Translog.Snapshot snapshot) throws ElasticSearchException {
                 if (shard.state() == IndexShardState.CLOSED) {
                     throw new IndexShardClosedException(request.shardId());
                 }
@@ -213,7 +213,8 @@ public class RecoverySource extends AbstractComponent {
                 response.phase2Operations = totalOperations;
             }
 
-            @Override public void phase3(Translog.Snapshot snapshot) throws ElasticSearchException {
+            @Override
+            public void phase3(Translog.Snapshot snapshot) throws ElasticSearchException {
                 if (shard.state() == IndexShardState.CLOSED) {
                     throw new IndexShardClosedException(request.shardId());
                 }
@@ -277,15 +278,18 @@ public class RecoverySource extends AbstractComponent {
 
     class StartRecoveryTransportRequestHandler extends BaseTransportRequestHandler<StartRecoveryRequest> {
 
-        @Override public StartRecoveryRequest newInstance() {
+        @Override
+        public StartRecoveryRequest newInstance() {
             return new StartRecoveryRequest();
         }
 
-        @Override public String executor() {
+        @Override
+        public String executor() {
             return ThreadPool.Names.CACHED;
         }
 
-        @Override public void messageReceived(final StartRecoveryRequest request, final TransportChannel channel) throws Exception {
+        @Override
+        public void messageReceived(final StartRecoveryRequest request, final TransportChannel channel) throws Exception {
             RecoveryResponse response = recover(request);
             channel.sendResponse(response);
         }

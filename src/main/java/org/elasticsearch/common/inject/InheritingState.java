@@ -16,8 +16,8 @@
 
 package org.elasticsearch.common.inject;
 
-import org.elasticsearch.common.collect.Lists;
-import org.elasticsearch.common.collect.Maps;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import org.elasticsearch.common.inject.internal.BindingImpl;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.internal.MatcherAndConverter;
@@ -29,7 +29,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.base.Preconditions.*;
+import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
  * @author jessewilson@google.com (Jesse Wilson)
@@ -126,7 +126,8 @@ class InheritingState implements State {
         return blacklistedKeys.contains(key);
     }
 
-    @Override public void clearBlacklisted() {
+    @Override
+    public void clearBlacklisted() {
         blacklistedKeys = new WeakKeySet();
     }
 

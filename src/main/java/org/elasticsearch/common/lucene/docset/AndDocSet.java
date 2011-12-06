@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -26,7 +26,7 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class AndDocSet extends DocSet {
 
@@ -36,21 +36,24 @@ public class AndDocSet extends DocSet {
         this.sets = sets;
     }
 
-    @Override public boolean get(int doc) {
+    @Override
+    public boolean get(int doc) {
         for (DocSet s : sets) {
             if (!s.get(doc)) return false;
         }
         return true;
     }
 
-    @Override public int length() {
+    @Override
+    public int length() {
         if (sets.isEmpty()) {
             return 0;
         }
         return sets.get(0).length();
     }
 
-    @Override public boolean isCacheable() {
+    @Override
+    public boolean isCacheable() {
         // not cacheable, the reason is that by default, when constructing the filter, it is not cacheable,
         // so if someone wants it to be cacheable, we might as well construct a cached version of the result
         return false;
@@ -62,7 +65,8 @@ public class AndDocSet extends DocSet {
 //        return true;
     }
 
-    @Override public long sizeInBytes() {
+    @Override
+    public long sizeInBytes() {
         long sizeInBytes = 0;
         for (DocSet set : sets) {
             sizeInBytes += set.sizeInBytes();
@@ -70,7 +74,8 @@ public class AndDocSet extends DocSet {
         return sizeInBytes;
     }
 
-    @Override public DocIdSetIterator iterator() throws IOException {
+    @Override
+    public DocIdSetIterator iterator() throws IOException {
         return new AndDocIdSetIterator();
     }
 

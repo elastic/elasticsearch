@@ -16,12 +16,8 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import org.elasticsearch.common.collect.ImmutableSet;
-import org.elasticsearch.common.inject.Binder;
-import org.elasticsearch.common.inject.ConfigurationException;
-import org.elasticsearch.common.inject.Key;
-import org.elasticsearch.common.inject.Provider;
-import org.elasticsearch.common.inject.TypeLiteral;
+import com.google.common.collect.ImmutableSet;
+import org.elasticsearch.common.inject.*;
 import org.elasticsearch.common.inject.binder.AnnotatedBindingBuilder;
 import org.elasticsearch.common.inject.spi.Element;
 import org.elasticsearch.common.inject.spi.InjectionPoint;
@@ -31,7 +27,7 @@ import java.lang.annotation.Annotation;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.common.base.Preconditions.*;
+import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
  * Bind a non-constant key.
@@ -131,7 +127,8 @@ public class BindingBuilder<T> extends AbstractBindingBuilder<T>
         return this;
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return "BindingBuilder<" + getBinding().getKey().getTypeLiteral() + ">";
     }
 }

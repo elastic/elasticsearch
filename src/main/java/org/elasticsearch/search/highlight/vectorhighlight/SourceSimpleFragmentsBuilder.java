@@ -30,7 +30,7 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class SourceSimpleFragmentsBuilder extends SimpleFragmentsBuilder {
 
@@ -47,7 +47,8 @@ public class SourceSimpleFragmentsBuilder extends SimpleFragmentsBuilder {
 
     public static final Field[] EMPTY_FIELDS = new Field[0];
 
-    @Override protected Field[] getFields(IndexReader reader, int docId, String fieldName) throws IOException {
+    @Override
+    protected Field[] getFields(IndexReader reader, int docId, String fieldName) throws IOException {
         // we know its low level reader, and matching docId, since that's how we call the highlighter with
         SearchLookup lookup = searchContext.lookup();
         lookup.setNextReader(reader);

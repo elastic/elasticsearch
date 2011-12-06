@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -72,7 +72,8 @@ public class ShardSlowLogSearchService extends AbstractIndexShardComponent {
     }
 
     class ApplySettings implements IndexSettingsService.Listener {
-        @Override public void onRefreshSettings(Settings settings) {
+        @Override
+        public void onRefreshSettings(Settings settings) {
             long queryWarnThreshold = settings.getAsTime("index.search.slowlog.threshold.query.warn", TimeValue.timeValueNanos(ShardSlowLogSearchService.this.queryWarnThreshold)).nanos();
             if (queryWarnThreshold != ShardSlowLogSearchService.this.queryWarnThreshold) {
                 ShardSlowLogSearchService.this.queryWarnThreshold = queryWarnThreshold;
@@ -121,7 +122,8 @@ public class ShardSlowLogSearchService extends AbstractIndexShardComponent {
         }
     }
 
-    @Inject public ShardSlowLogSearchService(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService) {
+    @Inject
+    public ShardSlowLogSearchService(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService) {
         super(shardId, indexSettings);
 
         this.reformat = componentSettings.getAsBoolean("reformat", true);
@@ -182,7 +184,8 @@ public class ShardSlowLogSearchService extends AbstractIndexShardComponent {
             this.reformat = reformat;
         }
 
-        @Override public String toString() {
+        @Override
+        public String toString() {
             StringBuilder sb = new StringBuilder();
             sb.append("took[").append(TimeValue.timeValueNanos(tookInNanos)).append("], took_millis[").append(TimeUnit.NANOSECONDS.toMillis(tookInNanos)).append("], ");
             sb.append("search_type[").append(context.searchType()).append("], total_shards[").append(context.numberOfShards()).append("], ");

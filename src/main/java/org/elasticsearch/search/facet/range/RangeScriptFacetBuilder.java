@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,8 +19,8 @@
 
 package org.elasticsearch.search.facet.range;
 
-import org.elasticsearch.common.collect.Lists;
-import org.elasticsearch.common.collect.Maps;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilderException;
@@ -31,7 +31,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class RangeScriptFacetBuilder extends AbstractFacetBuilder {
 
@@ -115,7 +115,8 @@ public class RangeScriptFacetBuilder extends AbstractFacetBuilder {
     /**
      * Marks the facet to run in a specific scope.
      */
-    @Override public RangeScriptFacetBuilder scope(String scope) {
+    @Override
+    public RangeScriptFacetBuilder scope(String scope) {
         super.scope(scope);
         return this;
     }
@@ -134,7 +135,8 @@ public class RangeScriptFacetBuilder extends AbstractFacetBuilder {
         return this;
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (keyScript == null) {
             throw new SearchSourceBuilderException("key_script must be set on range script facet for facet [" + name + "]");
         }

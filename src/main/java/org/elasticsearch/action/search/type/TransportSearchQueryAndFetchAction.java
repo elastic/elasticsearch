@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -38,19 +38,21 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
 
-import static org.elasticsearch.action.search.type.TransportSearchHelper.*;
+import static org.elasticsearch.action.search.type.TransportSearchHelper.buildScrollId;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class TransportSearchQueryAndFetchAction extends TransportSearchTypeAction {
 
-    @Inject public TransportSearchQueryAndFetchAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                                      TransportSearchCache transportSearchCache, SearchServiceTransportAction searchService, SearchPhaseController searchPhaseController) {
+    @Inject
+    public TransportSearchQueryAndFetchAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+                                              TransportSearchCache transportSearchCache, SearchServiceTransportAction searchService, SearchPhaseController searchPhaseController) {
         super(settings, threadPool, clusterService, transportSearchCache, searchService, searchPhaseController);
     }
 
-    @Override protected void doExecute(SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
+    @Override
+    protected void doExecute(SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
         new AsyncAction(searchRequest, listener).start();
     }
 
@@ -63,19 +65,23 @@ public class TransportSearchQueryAndFetchAction extends TransportSearchTypeActio
             super(request, listener);
         }
 
-        @Override protected String firstPhaseName() {
+        @Override
+        protected String firstPhaseName() {
             return "query_fetch";
         }
 
-        @Override protected void sendExecuteFirstPhase(DiscoveryNode node, InternalSearchRequest request, SearchServiceListener<QueryFetchSearchResult> listener) {
+        @Override
+        protected void sendExecuteFirstPhase(DiscoveryNode node, InternalSearchRequest request, SearchServiceListener<QueryFetchSearchResult> listener) {
             searchService.sendExecuteFetch(node, request, listener);
         }
 
-        @Override protected void processFirstPhaseResult(ShardRouting shard, QueryFetchSearchResult result) {
+        @Override
+        protected void processFirstPhaseResult(ShardRouting shard, QueryFetchSearchResult result) {
             queryFetchResults.put(result.shardTarget(), result);
         }
 
-        @Override protected void moveToSecondPhase() throws Exception {
+        @Override
+        protected void moveToSecondPhase() throws Exception {
             sortedShardList = searchPhaseController.sortDocs(queryFetchResults.values());
             final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryFetchResults, queryFetchResults);
             String scrollId = null;

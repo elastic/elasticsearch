@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -25,7 +25,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import java.io.IOException;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class NotDocIdSet extends DocIdSet {
 
@@ -38,14 +38,16 @@ public class NotDocIdSet extends DocIdSet {
         this.set = set;
     }
 
-    @Override public boolean isCacheable() {
+    @Override
+    public boolean isCacheable() {
         // not cacheable, the reason is that by default, when constructing the filter, it is not cacheable,
         // so if someone wants it to be cacheable, we might as well construct a cached version of the result
         return false;
 //        return set.isCacheable();
     }
 
-    @Override public DocIdSetIterator iterator() throws IOException {
+    @Override
+    public DocIdSetIterator iterator() throws IOException {
         DocIdSetIterator it = set.iterator();
         if (it == null) {
             return new AllDocSet.AllDocIdSetIterator(max);

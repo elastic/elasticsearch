@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -25,35 +25,35 @@ import org.elasticsearch.node.internal.InternalNode;
 
 /**
  * A node builder is used to construct a {@link Node} instance.
- *
+ * <p/>
  * <p>Settings will be loaded relative to the ES home (with or without <tt>config/</tt> prefix) and if not found,
  * within the classpath (with or without <tt>config/<tt> prefix). The settings file loaded can either be named
  * <tt>elasticsearch.yml</tt> or <tt>elasticsearch.json</tt>). Loading settings can be disabled by calling
  * {@link #loadConfigSettings(boolean)} with <tt>false<tt>.
- *
+ * <p/>
  * <p>Explicit settings can be passed by using the {@link #settings(Settings)} method.
- *
+ * <p/>
  * <p>In any case, settings will be resolved from system properties as well that are either prefixed with <tt>es.</tt>
  * or <tt>elasticsearch.</tt>.
- *
+ * <p/>
  * <p>An example for creating a simple node with optional settings loaded from the classpath:
- *
+ * <p/>
  * <pre>
  * Node node = NodeBuilder.nodeBuilder().node();
  * </pre>
- *
+ * <p/>
  * <p>An example for creating a node with explicit settings (in this case, a node in the cluster that does not hold
  * data):
- *
+ * <p/>
  * <pre>
  * Node node = NodeBuilder.nodeBuilder()
  *                      .settings(ImmutableSettings.settingsBuilder().put("node.data", false)
  *                      .node();
  * </pre>
- *
+ * <p/>
  * <p>When done with the node, make sure you call {@link Node#close()} on it.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class NodeBuilder {
 

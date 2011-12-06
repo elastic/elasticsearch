@@ -35,18 +35,18 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.action.Actions.*;
-import static org.elasticsearch.common.unit.TimeValue.*;
+import static org.elasticsearch.action.Actions.addValidationError;
+import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
 
 /**
  * Puts mapping definition registered under a specific type into one or more indices. Best created with
  * {@link org.elasticsearch.client.Requests#putMappingRequest(String...)}.
- *
+ * <p/>
  * <p>If the mappings already exists, the new mappings will be merged with the new one. If there are elements
  * that can't be merged are detected, the request will be rejected unless the {@link #ignoreConflicts(boolean)}
  * is set. In such a case, the duplicate mappings will be rejected.
  *
- * @author kimchy (shay.banon)
+ *
  * @see org.elasticsearch.client.Requests#putMappingRequest(String...)
  * @see org.elasticsearch.client.IndicesAdminClient#putMapping(PutMappingRequest)
  * @see PutMappingResponse
@@ -74,7 +74,8 @@ public class PutMappingRequest extends MasterNodeOperationRequest {
         this.indices = indices;
     }
 
-    @Override public ActionRequestValidationException validate() {
+    @Override
+    public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (mappingType == null) {
             validationException = addValidationError("mapping type is missing", validationException);
@@ -110,7 +111,8 @@ public class PutMappingRequest extends MasterNodeOperationRequest {
     /**
      * The type of the mappings.
      */
-    @Required public PutMappingRequest type(String mappingType) {
+    @Required
+    public PutMappingRequest type(String mappingType) {
         this.mappingType = mappingType;
         return this;
     }
@@ -125,7 +127,8 @@ public class PutMappingRequest extends MasterNodeOperationRequest {
     /**
      * The mapping source definition.
      */
-    @Required public PutMappingRequest source(XContentBuilder mappingBuilder) {
+    @Required
+    public PutMappingRequest source(XContentBuilder mappingBuilder) {
         try {
             return source(mappingBuilder.string());
         } catch (IOException e) {
@@ -136,7 +139,8 @@ public class PutMappingRequest extends MasterNodeOperationRequest {
     /**
      * The mapping source definition.
      */
-    @Required public PutMappingRequest source(Map mappingSource) {
+    @Required
+    public PutMappingRequest source(Map mappingSource) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(mappingSource);
@@ -149,7 +153,8 @@ public class PutMappingRequest extends MasterNodeOperationRequest {
     /**
      * The mapping source definition.
      */
-    @Required public PutMappingRequest source(String mappingSource) {
+    @Required
+    public PutMappingRequest source(String mappingSource) {
         this.mappingSource = mappingSource;
         return this;
     }
@@ -198,7 +203,8 @@ public class PutMappingRequest extends MasterNodeOperationRequest {
         return this;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         indices = new String[in.readVInt()];
         for (int i = 0; i < indices.length; i++) {
@@ -212,7 +218,8 @@ public class PutMappingRequest extends MasterNodeOperationRequest {
         ignoreConflicts = in.readBoolean();
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         if (indices == null) {
             out.writeVInt(0);

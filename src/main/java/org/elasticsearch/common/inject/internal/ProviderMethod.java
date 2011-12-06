@@ -16,12 +16,8 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import org.elasticsearch.common.collect.ImmutableSet;
-import org.elasticsearch.common.inject.Binder;
-import org.elasticsearch.common.inject.Exposed;
-import org.elasticsearch.common.inject.Key;
-import org.elasticsearch.common.inject.PrivateBinder;
-import org.elasticsearch.common.inject.Provider;
+import com.google.common.collect.ImmutableSet;
+import org.elasticsearch.common.inject.*;
 import org.elasticsearch.common.inject.spi.Dependency;
 import org.elasticsearch.common.inject.spi.ProviderWithDependencies;
 

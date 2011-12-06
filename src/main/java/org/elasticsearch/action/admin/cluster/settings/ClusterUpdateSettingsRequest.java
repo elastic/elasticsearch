@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -33,9 +33,10 @@ import org.elasticsearch.common.xcontent.XContentType;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.action.Actions.*;
-import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
-import static org.elasticsearch.common.settings.ImmutableSettings.*;
+import static org.elasticsearch.action.Actions.addValidationError;
+import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
+import static org.elasticsearch.common.settings.ImmutableSettings.readSettingsFromStream;
+import static org.elasticsearch.common.settings.ImmutableSettings.writeSettingsToStream;
 
 /**
  */
@@ -47,7 +48,8 @@ public class ClusterUpdateSettingsRequest extends MasterNodeOperationRequest {
     public ClusterUpdateSettingsRequest() {
     }
 
-    @Override public ActionRequestValidationException validate() {
+    @Override
+    public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (transientSettings.getAsMap().isEmpty() && persistentSettings.getAsMap().isEmpty()) {
             validationException = addValidationError("no settings to update", validationException);
@@ -116,13 +118,15 @@ public class ClusterUpdateSettingsRequest extends MasterNodeOperationRequest {
     }
 
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         transientSettings = readSettingsFromStream(in);
         persistentSettings = readSettingsFromStream(in);
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         writeSettingsToStream(transientSettings, out);
         writeSettingsToStream(persistentSettings, out);

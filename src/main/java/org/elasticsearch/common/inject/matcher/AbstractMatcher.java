@@ -45,17 +45,20 @@ public abstract class AbstractMatcher<T> implements Matcher<T> {
             return a.matches(t) && b.matches(t);
         }
 
-        @Override public boolean equals(Object other) {
+        @Override
+        public boolean equals(Object other) {
             return other instanceof AndMatcher
                     && ((AndMatcher) other).a.equals(a)
                     && ((AndMatcher) other).b.equals(b);
         }
 
-        @Override public int hashCode() {
+        @Override
+        public int hashCode() {
             return 41 * (a.hashCode() ^ b.hashCode());
         }
 
-        @Override public String toString() {
+        @Override
+        public String toString() {
             return "and(" + a + ", " + b + ")";
         }
 
@@ -74,17 +77,20 @@ public abstract class AbstractMatcher<T> implements Matcher<T> {
             return a.matches(t) || b.matches(t);
         }
 
-        @Override public boolean equals(Object other) {
+        @Override
+        public boolean equals(Object other) {
             return other instanceof OrMatcher
                     && ((OrMatcher) other).a.equals(a)
                     && ((OrMatcher) other).b.equals(b);
         }
 
-        @Override public int hashCode() {
+        @Override
+        public int hashCode() {
             return 37 * (a.hashCode() ^ b.hashCode());
         }
 
-        @Override public String toString() {
+        @Override
+        public String toString() {
             return "or(" + a + ", " + b + ")";
         }
 

@@ -42,11 +42,13 @@ public abstract class Scoping {
             return visitor.visitNoScoping();
         }
 
-        @Override public Scope getScopeInstance() {
+        @Override
+        public Scope getScopeInstance() {
             return Scopes.NO_SCOPE;
         }
 
-        @Override public String toString() {
+        @Override
+        public String toString() {
             return Scopes.NO_SCOPE.toString();
         }
 
@@ -60,11 +62,13 @@ public abstract class Scoping {
             return visitor.visitScopeAnnotation(Singleton.class);
         }
 
-        @Override public Class<? extends Annotation> getScopeAnnotation() {
+        @Override
+        public Class<? extends Annotation> getScopeAnnotation() {
             return Singleton.class;
         }
 
-        @Override public String toString() {
+        @Override
+        public String toString() {
             return Singleton.class.getName();
         }
 
@@ -78,11 +82,13 @@ public abstract class Scoping {
             return visitor.visitScope(Scopes.SINGLETON);
         }
 
-        @Override public Scope getScopeInstance() {
+        @Override
+        public Scope getScopeInstance() {
             return Scopes.SINGLETON;
         }
 
-        @Override public String toString() {
+        @Override
+        public String toString() {
             return Scopes.SINGLETON.toString();
         }
 
@@ -96,11 +102,13 @@ public abstract class Scoping {
             return visitor.visitEagerSingleton();
         }
 
-        @Override public Scope getScopeInstance() {
+        @Override
+        public Scope getScopeInstance() {
             return Scopes.SINGLETON;
         }
 
-        @Override public String toString() {
+        @Override
+        public String toString() {
             return "eager singleton";
         }
 
@@ -119,11 +127,13 @@ public abstract class Scoping {
                 return visitor.visitScopeAnnotation(scopingAnnotation);
             }
 
-            @Override public Class<? extends Annotation> getScopeAnnotation() {
+            @Override
+            public Class<? extends Annotation> getScopeAnnotation() {
                 return scopingAnnotation;
             }
 
-            @Override public String toString() {
+            @Override
+            public String toString() {
                 return scopingAnnotation.getName();
             }
 
@@ -143,11 +153,13 @@ public abstract class Scoping {
                 return visitor.visitScope(scope);
             }
 
-            @Override public Scope getScopeInstance() {
+            @Override
+            public Scope getScopeInstance() {
                 return scope;
             }
 
-            @Override public String toString() {
+            @Override
+            public String toString() {
                 return scope.toString();
             }
 

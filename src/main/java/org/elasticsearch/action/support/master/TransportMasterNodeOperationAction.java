@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -39,7 +39,7 @@ import org.elasticsearch.transport.*;
 /**
  * A base class for operations that needs to be performed on the master node.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public abstract class TransportMasterNodeOperationAction<Request extends MasterNodeOperationRequest, Response extends ActionResponse> extends BaseAction<Request, Response> {
 
@@ -83,7 +83,8 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
 
     }
 
-    @Override protected void doExecute(final Request request, final ActionListener<Response> listener) {
+    @Override
+    protected void doExecute(final Request request, final ActionListener<Response> listener) {
         innerExecute(request, listener, false);
     }
 
@@ -99,7 +100,8 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
                     return;
                 }
                 clusterService.add(request.masterNodeTimeout(), new TimeoutClusterStateListener() {
-                    @Override public void postAdded() {
+                    @Override
+                    public void postAdded() {
                         ClusterBlockException blockException = checkBlock(request, clusterService.state());
                         if (blockException == null || !blockException.retryable()) {
                             clusterService.remove(this);
@@ -107,17 +109,20 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
                         }
                     }
 
-                    @Override public void onClose() {
+                    @Override
+                    public void onClose() {
                         clusterService.remove(this);
                         listener.onFailure(blockException);
                     }
 
-                    @Override public void onTimeout(TimeValue timeout) {
+                    @Override
+                    public void onTimeout(TimeValue timeout) {
                         clusterService.remove(this);
                         listener.onFailure(blockException);
                     }
 
-                    @Override public void clusterChanged(ClusterChangedEvent event) {
+                    @Override
+                    public void clusterChanged(ClusterChangedEvent event) {
                         ClusterBlockException blockException = checkBlock(request, event.state());
                         if (blockException == null || !blockException.retryable()) {
                             clusterService.remove(this);
@@ -127,7 +132,8 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
                 });
             } else {
                 threadPool.executor(executor).execute(new Runnable() {
-                    @Override public void run() {
+                    @Override
+                    public void run() {
                         try {
                             Response response = masterOperation(request, clusterState);
                             listener.onResponse(response);
@@ -143,7 +149,8 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
                     listener.onFailure(new MasterNotDiscoveredException());
                 } else {
                     clusterService.add(request.masterNodeTimeout(), new TimeoutClusterStateListener() {
-                        @Override public void postAdded() {
+                        @Override
+                        public void postAdded() {
                             ClusterState clusterStateV2 = clusterService.state();
                             if (clusterStateV2.nodes().masterNodeId() != null) {
                                 // now we have a master, try and execute it...
@@ -152,17 +159,20 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
                             }
                         }
 
-                        @Override public void onClose() {
+                        @Override
+                        public void onClose() {
                             clusterService.remove(this);
                             listener.onFailure(new NodeClosedException(nodes.localNode()));
                         }
 
-                        @Override public void onTimeout(TimeValue timeout) {
+                        @Override
+                        public void onTimeout(TimeValue timeout) {
                             clusterService.remove(this);
                             listener.onFailure(new MasterNotDiscoveredException());
                         }
 
-                        @Override public void clusterChanged(ClusterChangedEvent event) {
+                        @Override
+                        public void clusterChanged(ClusterChangedEvent event) {
                             if (event.nodesDelta().masterNodeChanged()) {
                                 clusterService.remove(this);
                                 innerExecute(request, listener, true);
@@ -174,23 +184,28 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
             }
             processBeforeDelegationToMaster(request, clusterState);
             transportService.sendRequest(nodes.masterNode(), transportAction, request, new BaseTransportResponseHandler<Response>() {
-                @Override public Response newInstance() {
+                @Override
+                public Response newInstance() {
                     return newResponse();
                 }
 
-                @Override public void handleResponse(Response response) {
+                @Override
+                public void handleResponse(Response response) {
                     listener.onResponse(response);
                 }
 
-                @Override public String executor() {
+                @Override
+                public String executor() {
                     return ThreadPool.Names.SAME;
                 }
 
-                @Override public void handleException(final TransportException exp) {
+                @Override
+                public void handleException(final TransportException exp) {
                     if (exp.unwrapCause() instanceof ConnectTransportException) {
                         // we want to retry here a bit to see if a new master is elected
                         clusterService.add(request.masterNodeTimeout(), new TimeoutClusterStateListener() {
-                            @Override public void postAdded() {
+                            @Override
+                            public void postAdded() {
                                 ClusterState clusterStateV2 = clusterService.state();
                                 if (!clusterState.nodes().masterNodeId().equals(clusterStateV2.nodes().masterNodeId())) {
                                     // master changes while adding the listener, try here
@@ -199,17 +214,20 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
                                 }
                             }
 
-                            @Override public void onClose() {
+                            @Override
+                            public void onClose() {
                                 clusterService.remove(this);
                                 listener.onFailure(new NodeClosedException(nodes.localNode()));
                             }
 
-                            @Override public void onTimeout(TimeValue timeout) {
+                            @Override
+                            public void onTimeout(TimeValue timeout) {
                                 clusterService.remove(this);
                                 listener.onFailure(new MasterNotDiscoveredException());
                             }
 
-                            @Override public void clusterChanged(ClusterChangedEvent event) {
+                            @Override
+                            public void clusterChanged(ClusterChangedEvent event) {
                                 if (event.nodesDelta().masterNodeChanged()) {
                                     clusterService.remove(this);
                                     innerExecute(request, listener, false);
@@ -226,19 +244,23 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
 
     private class TransportHandler extends BaseTransportRequestHandler<Request> {
 
-        @Override public Request newInstance() {
+        @Override
+        public Request newInstance() {
             return newRequest();
         }
 
-        @Override public String executor() {
+        @Override
+        public String executor() {
             return ThreadPool.Names.SAME;
         }
 
-        @Override public void messageReceived(final Request request, final TransportChannel channel) throws Exception {
+        @Override
+        public void messageReceived(final Request request, final TransportChannel channel) throws Exception {
             // we just send back a response, no need to fork a listener
             request.listenerThreaded(false);
             execute(request, new ActionListener<Response>() {
-                @Override public void onResponse(Response response) {
+                @Override
+                public void onResponse(Response response) {
                     try {
                         channel.sendResponse(response);
                     } catch (Exception e) {
@@ -246,7 +268,8 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
                     }
                 }
 
-                @Override public void onFailure(Throwable e) {
+                @Override
+                public void onFailure(Throwable e) {
                     try {
                         channel.sendResponse(e);
                     } catch (Exception e1) {

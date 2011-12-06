@@ -28,7 +28,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public abstract class BroadcastOperationRequest implements ActionRequest {
 
@@ -55,21 +55,24 @@ public abstract class BroadcastOperationRequest implements ActionRequest {
         return this;
     }
 
-    @Override public ActionRequestValidationException validate() {
+    @Override
+    public ActionRequestValidationException validate() {
         return null;
     }
 
     /**
      * Should the listener be called on a separate thread if needed.
      */
-    @Override public boolean listenerThreaded() {
+    @Override
+    public boolean listenerThreaded() {
         return this.listenerThreaded;
     }
 
     /**
      * Should the listener be called on a separate thread if needed.
      */
-    @Override public BroadcastOperationRequest listenerThreaded(boolean listenerThreaded) {
+    @Override
+    public BroadcastOperationRequest listenerThreaded(boolean listenerThreaded) {
         this.listenerThreaded = listenerThreaded;
         return this;
     }
@@ -104,7 +107,8 @@ public abstract class BroadcastOperationRequest implements ActionRequest {
 
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         if (indices == null) {
             out.writeVInt(0);
         } else {
@@ -116,7 +120,8 @@ public abstract class BroadcastOperationRequest implements ActionRequest {
         out.writeByte(operationThreading.id());
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         int size = in.readVInt();
         if (size == 0) {
             indices = Strings.EMPTY_ARRAY;

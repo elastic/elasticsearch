@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -43,16 +43,16 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
-import static org.elasticsearch.action.Actions.*;
+import static org.elasticsearch.action.Actions.addValidationError;
 
 /**
  * A request to delete all documents that matching a specific query. Best created with
  * {@link org.elasticsearch.client.Requests#deleteByQueryRequest(String...)}.
- *
+ * <p/>
  * <p>The request requires the query source to be set either using {@link #query(org.elasticsearch.index.query.QueryBuilder)},
  * or {@link #query(byte[])}.
  *
- * @author kimchy (shay.banon)
+ *
  * @see DeleteByQueryResponse
  * @see org.elasticsearch.client.Requests#deleteByQueryRequest(String...)
  * @see org.elasticsearch.client.Client#deleteByQuery(DeleteByQueryRequest)
@@ -67,7 +67,8 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
     private boolean querySourceUnsafe;
 
     private String[] types = Strings.EMPTY_ARRAY;
-    @Nullable private String routing;
+    @Nullable
+    private String routing;
 
     /**
      * Constructs a new delete by query request to run against the provided indices. No indices means
@@ -83,12 +84,14 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
     /**
      * Should the listener be called on a separate thread if needed.
      */
-    @Override public DeleteByQueryRequest listenerThreaded(boolean threadedListener) {
+    @Override
+    public DeleteByQueryRequest listenerThreaded(boolean threadedListener) {
         super.listenerThreaded(threadedListener);
         return this;
     }
 
-    @Override public ActionRequestValidationException validate() {
+    @Override
+    public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
         if (querySource == null) {
             validationException = addValidationError("query is missing", validationException);
@@ -121,7 +124,8 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
      *
      * @see org.elasticsearch.index.query.QueryBuilders
      */
-    @Required public DeleteByQueryRequest query(QueryBuilder queryBuilder) {
+    @Required
+    public DeleteByQueryRequest query(QueryBuilder queryBuilder) {
         BytesStream bos = queryBuilder.buildAsUnsafeBytes();
         this.querySource = bos.underlyingBytes();
         this.querySourceOffset = 0;
@@ -134,7 +138,8 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
      * The query source to execute. It is preferable to use either {@link #query(byte[])}
      * or {@link #query(org.elasticsearch.index.query.QueryBuilder)}.
      */
-    @Required public DeleteByQueryRequest query(String querySource) {
+    @Required
+    public DeleteByQueryRequest query(String querySource) {
         UnicodeUtil.UTF8Result result = Unicode.fromStringAsUtf8(querySource);
         this.querySource = result.result;
         this.querySourceOffset = 0;
@@ -146,7 +151,8 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
     /**
      * The query source to execute in the form of a map.
      */
-    @Required public DeleteByQueryRequest query(Map querySource) {
+    @Required
+    public DeleteByQueryRequest query(Map querySource) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             builder.map(querySource);
@@ -156,7 +162,8 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
         }
     }
 
-    @Required public DeleteByQueryRequest query(XContentBuilder builder) {
+    @Required
+    public DeleteByQueryRequest query(XContentBuilder builder) {
         try {
             this.querySource = builder.underlyingBytes();
             this.querySourceOffset = 0;
@@ -171,14 +178,16 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
     /**
      * The query source to execute.
      */
-    @Required public DeleteByQueryRequest query(byte[] querySource) {
+    @Required
+    public DeleteByQueryRequest query(byte[] querySource) {
         return query(querySource, 0, querySource.length, false);
     }
 
     /**
      * The query source to execute.
      */
-    @Required public DeleteByQueryRequest query(byte[] querySource, int offset, int length, boolean unsafe) {
+    @Required
+    public DeleteByQueryRequest query(byte[] querySource, int offset, int length, boolean unsafe) {
         this.querySource = querySource;
         this.querySourceOffset = offset;
         this.querySourceLength = length;
@@ -196,7 +205,8 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
     /**
      * A comma separated list of routing values to control the shards the search will be executed on.
      */
-    @Override public String routing() {
+    @Override
+    public String routing() {
         return this.routing;
     }
 
@@ -304,7 +314,8 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
         }
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return "[" + Arrays.toString(indices) + "][" + Arrays.toString(types) + "], querySource[" + Unicode.fromBytes(querySource) + "]";
     }
 }

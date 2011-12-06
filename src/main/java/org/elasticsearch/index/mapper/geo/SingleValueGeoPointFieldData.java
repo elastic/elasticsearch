@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -25,12 +25,13 @@ import org.elasticsearch.index.field.data.doubles.DoubleFieldData;
 import org.elasticsearch.index.search.geo.GeoHashUtils;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class SingleValueGeoPointFieldData extends GeoPointFieldData {
 
     private static ThreadLocal<ThreadLocals.CleanableValue<GeoPoint[]>> valuesArrayCache = new ThreadLocal<ThreadLocals.CleanableValue<GeoPoint[]>>() {
-        @Override protected ThreadLocals.CleanableValue<GeoPoint[]> initialValue() {
+        @Override
+        protected ThreadLocals.CleanableValue<GeoPoint[]> initialValue() {
             GeoPoint[] value = new GeoPoint[1];
             value[0] = new GeoPoint();
             return new ThreadLocals.CleanableValue<GeoPoint[]>(value);
@@ -38,13 +39,15 @@ public class SingleValueGeoPointFieldData extends GeoPointFieldData {
     };
 
     private ThreadLocal<ThreadLocals.CleanableValue<double[]>> valuesLatCache = new ThreadLocal<ThreadLocals.CleanableValue<double[]>>() {
-        @Override protected ThreadLocals.CleanableValue<double[]> initialValue() {
+        @Override
+        protected ThreadLocals.CleanableValue<double[]> initialValue() {
             return new ThreadLocals.CleanableValue<double[]>(new double[1]);
         }
     };
 
     private ThreadLocal<ThreadLocals.CleanableValue<double[]>> valuesLonCache = new ThreadLocal<ThreadLocals.CleanableValue<double[]>>() {
-        @Override protected ThreadLocals.CleanableValue<double[]> initialValue() {
+        @Override
+        protected ThreadLocals.CleanableValue<double[]> initialValue() {
             return new ThreadLocals.CleanableValue<double[]>(new double[1]);
         }
     };
@@ -58,20 +61,24 @@ public class SingleValueGeoPointFieldData extends GeoPointFieldData {
         this.ordinals = ordinals;
     }
 
-    @Override protected long computeSizeInBytes() {
+    @Override
+    protected long computeSizeInBytes() {
         return super.computeSizeInBytes() +
                 RamUsage.NUM_BYTES_INT * ordinals.length + RamUsage.NUM_BYTES_ARRAY_HEADER;
     }
 
-    @Override public boolean multiValued() {
+    @Override
+    public boolean multiValued() {
         return false;
     }
 
-    @Override public boolean hasValue(int docId) {
+    @Override
+    public boolean hasValue(int docId) {
         return ordinals[docId] != 0;
     }
 
-    @Override public void forEachValueInDoc(int docId, StringValueInDocProc proc) {
+    @Override
+    public void forEachValueInDoc(int docId, StringValueInDocProc proc) {
         int loc = ordinals[docId];
         if (loc == 0) {
             proc.onMissing(docId);
@@ -80,11 +87,13 @@ public class SingleValueGeoPointFieldData extends GeoPointFieldData {
         proc.onValue(docId, GeoHashUtils.encode(lat[loc], lon[loc]));
     }
 
-    @Override public void forEachOrdinalInDoc(int docId, OrdinalInDocProc proc) {
+    @Override
+    public void forEachOrdinalInDoc(int docId, OrdinalInDocProc proc) {
         proc.onOrdinal(docId, ordinals[docId]);
     }
 
-    @Override public void forEachValueInDoc(int docId, ValueInDocProc proc) {
+    @Override
+    public void forEachValueInDoc(int docId, ValueInDocProc proc) {
         int loc = ordinals[docId];
         if (loc == 0) {
             return;
@@ -92,7 +101,8 @@ public class SingleValueGeoPointFieldData extends GeoPointFieldData {
         proc.onValue(docId, lat[loc], lon[loc]);
     }
 
-    @Override public GeoPoint value(int docId) {
+    @Override
+    public GeoPoint value(int docId) {
         int loc = ordinals[docId];
         if (loc == 0) {
             return null;
@@ -102,7 +112,8 @@ public class SingleValueGeoPointFieldData extends GeoPointFieldData {
         return point;
     }
 
-    @Override public GeoPoint[] values(int docId) {
+    @Override
+    public GeoPoint[] values(int docId) {
         int loc = ordinals[docId];
         if (loc == 0) {
             return EMPTY_ARRAY;
@@ -112,15 +123,18 @@ public class SingleValueGeoPointFieldData extends GeoPointFieldData {
         return ret;
     }
 
-    @Override public double latValue(int docId) {
+    @Override
+    public double latValue(int docId) {
         return lat[ordinals[docId]];
     }
 
-    @Override public double lonValue(int docId) {
+    @Override
+    public double lonValue(int docId) {
         return lon[ordinals[docId]];
     }
 
-    @Override public double[] latValues(int docId) {
+    @Override
+    public double[] latValues(int docId) {
         int loc = ordinals[docId];
         if (loc == 0) {
             return DoubleFieldData.EMPTY_DOUBLE_ARRAY;
@@ -130,7 +144,8 @@ public class SingleValueGeoPointFieldData extends GeoPointFieldData {
         return ret;
     }
 
-    @Override public double[] lonValues(int docId) {
+    @Override
+    public double[] lonValues(int docId) {
         int loc = ordinals[docId];
         if (loc == 0) {
             return DoubleFieldData.EMPTY_DOUBLE_ARRAY;

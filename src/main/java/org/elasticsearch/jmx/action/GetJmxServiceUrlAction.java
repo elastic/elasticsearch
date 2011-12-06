@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -35,7 +35,7 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 
 /**
- * @author kimchy (Shay Banon)
+ *
  */
 public class GetJmxServiceUrlAction extends AbstractComponent {
 
@@ -45,8 +45,9 @@ public class GetJmxServiceUrlAction extends AbstractComponent {
 
     private final ClusterService clusterService;
 
-    @Inject public GetJmxServiceUrlAction(Settings settings, JmxService jmxService,
-                                          TransportService transportService, ClusterService clusterService) {
+    @Inject
+    public GetJmxServiceUrlAction(Settings settings, JmxService jmxService,
+                                  TransportService transportService, ClusterService clusterService) {
         super(settings);
         this.jmxService = jmxService;
         this.transportService = transportService;
@@ -60,7 +61,8 @@ public class GetJmxServiceUrlAction extends AbstractComponent {
             return jmxService.publishUrl();
         } else {
             return transportService.submitRequest(node, GetJmxServiceUrlTransportHandler.ACTION, VoidStreamable.INSTANCE, new FutureTransportResponseHandler<StringStreamable>() {
-                @Override public StringStreamable newInstance() {
+                @Override
+                public StringStreamable newInstance() {
                     return new StringStreamable();
                 }
             }).txGet().get();
@@ -71,15 +73,18 @@ public class GetJmxServiceUrlAction extends AbstractComponent {
 
         static final String ACTION = "jmx/publishUrl";
 
-        @Override public VoidStreamable newInstance() {
+        @Override
+        public VoidStreamable newInstance() {
             return VoidStreamable.INSTANCE;
         }
 
-        @Override public String executor() {
+        @Override
+        public String executor() {
             return ThreadPool.Names.SAME;
         }
 
-        @Override public void messageReceived(VoidStreamable request, TransportChannel channel) throws Exception {
+        @Override
+        public void messageReceived(VoidStreamable request, TransportChannel channel) throws Exception {
             channel.sendResponse(new StringStreamable(jmxService.publishUrl()));
         }
     }

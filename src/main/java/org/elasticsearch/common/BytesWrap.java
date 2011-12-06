@@ -22,7 +22,7 @@ package org.elasticsearch.common;
 import java.util.Arrays;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class BytesWrap {
 
@@ -48,13 +48,15 @@ public class BytesWrap {
         return Unicode.fromBytes(bytes);
     }
 
-    @Override public boolean equals(Object o) {
+    @Override
+    public boolean equals(Object o) {
         if (this == o) return true;
         BytesWrap bytesWrap = (BytesWrap) o;
         return Arrays.equals(bytes, bytesWrap.bytes);
     }
 
-    @Override public int hashCode() {
+    @Override
+    public int hashCode() {
         return hashCode;
     }
 }

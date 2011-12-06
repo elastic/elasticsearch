@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -23,19 +23,14 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeContext;
-import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.RootMapper;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.IntegerFieldMapper;
 
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.*;
-import static org.elasticsearch.index.mapper.core.TypeParsers.*;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.index.mapper.core.TypeParsers.parseStore;
 
 public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
 
@@ -68,13 +63,15 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
             return builder;
         }
 
-        @Override public SizeFieldMapper build(BuilderContext context) {
+        @Override
+        public SizeFieldMapper build(BuilderContext context) {
             return new SizeFieldMapper(enabled, store);
         }
     }
 
     public static class TypeParser implements Mapper.TypeParser {
-        @Override public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        @Override
+        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             SizeFieldMapper.Builder builder = new SizeFieldMapper.Builder();
             for (Map.Entry<String, Object> entry : node.entrySet()) {
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
@@ -100,7 +97,8 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
         this.enabled = enabled;
     }
 
-    @Override protected String contentType() {
+    @Override
+    protected String contentType() {
         return Defaults.NAME;
     }
 
@@ -108,33 +106,40 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
         return this.enabled;
     }
 
-    @Override public void validate(ParseContext context) throws MapperParsingException {
+    @Override
+    public void validate(ParseContext context) throws MapperParsingException {
     }
 
-    @Override public void preParse(ParseContext context) throws IOException {
+    @Override
+    public void preParse(ParseContext context) throws IOException {
     }
 
-    @Override public void postParse(ParseContext context) throws IOException {
+    @Override
+    public void postParse(ParseContext context) throws IOException {
         // we post parse it so we get the size stored, possibly compressed (source will be preParse)
         super.parse(context);
     }
 
-    @Override public void parse(ParseContext context) throws IOException {
+    @Override
+    public void parse(ParseContext context) throws IOException {
         // nothing to do here, we call the parent in postParse
     }
 
-    @Override public boolean includeInObject() {
+    @Override
+    public boolean includeInObject() {
         return false;
     }
 
-    @Override protected Fieldable parseCreateField(ParseContext context) throws IOException {
+    @Override
+    protected Fieldable parseCreateField(ParseContext context) throws IOException {
         if (!enabled) {
             return null;
         }
         return new CustomIntegerNumericField(this, context.sourceLength());
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // all are defaults, no need to write it at all
         if (enabled == Defaults.ENABLED && store == Defaults.STORE) {
             return builder;
@@ -150,7 +155,8 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
         return builder;
     }
 
-    @Override public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+    @Override
+    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
         // maybe allow to change enabled? But then we need to figure out null for default value
     }
 }

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,13 +19,13 @@
 
 package org.elasticsearch.action.support;
 
+import com.google.common.util.concurrent.AbstractFuture;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchInterruptedException;
 import org.elasticsearch.ElasticSearchTimeoutException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.AbstractFuture;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 
 import java.util.concurrent.ExecutionException;
@@ -33,13 +33,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public abstract class AdapterActionFuture<T, L> extends AbstractFuture<T> implements ActionFuture<T>, ActionListener<L> {
 
     private Throwable rootFailure;
 
-    @Override public T actionGet() throws ElasticSearchException {
+    @Override
+    public T actionGet() throws ElasticSearchException {
         try {
             return get();
         } catch (InterruptedException e) {
@@ -49,19 +50,23 @@ public abstract class AdapterActionFuture<T, L> extends AbstractFuture<T> implem
         }
     }
 
-    @Override public T actionGet(String timeout) throws ElasticSearchException {
+    @Override
+    public T actionGet(String timeout) throws ElasticSearchException {
         return actionGet(TimeValue.parseTimeValue(timeout, null));
     }
 
-    @Override public T actionGet(long timeoutMillis) throws ElasticSearchException {
+    @Override
+    public T actionGet(long timeoutMillis) throws ElasticSearchException {
         return actionGet(timeoutMillis, TimeUnit.MILLISECONDS);
     }
 
-    @Override public T actionGet(TimeValue timeout) throws ElasticSearchException {
+    @Override
+    public T actionGet(TimeValue timeout) throws ElasticSearchException {
         return actionGet(timeout.millis(), TimeUnit.MILLISECONDS);
     }
 
-    @Override public T actionGet(long timeout, TimeUnit unit) throws ElasticSearchException {
+    @Override
+    public T actionGet(long timeout, TimeUnit unit) throws ElasticSearchException {
         try {
             return get(timeout, unit);
         } catch (TimeoutException e) {
@@ -86,17 +91,20 @@ public abstract class AdapterActionFuture<T, L> extends AbstractFuture<T> implem
         }
     }
 
-    @Override public void onResponse(L result) {
+    @Override
+    public void onResponse(L result) {
         set(convert(result));
     }
 
-    @Override public void onFailure(Throwable e) {
+    @Override
+    public void onFailure(Throwable e) {
         setException(e);
     }
 
     protected abstract T convert(L listenerResponse);
 
-    @Override public Throwable getRootFailure() {
+    @Override
+    public Throwable getRootFailure() {
         return rootFailure;
     }
 }

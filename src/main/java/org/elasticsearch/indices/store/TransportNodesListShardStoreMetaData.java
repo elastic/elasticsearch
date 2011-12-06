@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,22 +19,18 @@
 
 package org.elasticsearch.indices.store;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.support.nodes.NodeOperationRequest;
-import org.elasticsearch.action.support.nodes.NodeOperationResponse;
-import org.elasticsearch.action.support.nodes.NodesOperationRequest;
-import org.elasticsearch.action.support.nodes.NodesOperationResponse;
-import org.elasticsearch.action.support.nodes.TransportNodesOperationAction;
+import org.elasticsearch.action.support.nodes.*;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.Lists;
-import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -60,7 +56,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class TransportNodesListShardStoreMetaData extends TransportNodesOperationAction<TransportNodesListShardStoreMetaData.Request, TransportNodesListShardStoreMetaData.NodesStoreFilesMetaData, TransportNodesListShardStoreMetaData.NodeRequest, TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> {
 
@@ -68,8 +64,9 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
 
     private final NodeEnvironment nodeEnv;
 
-    @Inject public TransportNodesListShardStoreMetaData(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                                        IndicesService indicesService, NodeEnvironment nodeEnv) {
+    @Inject
+    public TransportNodesListShardStoreMetaData(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
+                                                IndicesService indicesService, NodeEnvironment nodeEnv) {
         super(settings, clusterName, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
         this.nodeEnv = nodeEnv;
@@ -79,35 +76,43 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
         return execute(new Request(shardId, onlyUnallocated, nodesIds).timeout(timeout));
     }
 
-    @Override protected String executor() {
+    @Override
+    protected String executor() {
         return ThreadPool.Names.CACHED;
     }
 
-    @Override protected String transportAction() {
+    @Override
+    protected String transportAction() {
         return "/cluster/nodes/indices/shard/store";
     }
 
-    @Override protected String transportNodeAction() {
+    @Override
+    protected String transportNodeAction() {
         return "/cluster/nodes/indices/shard/store/node";
     }
 
-    @Override protected Request newRequest() {
+    @Override
+    protected Request newRequest() {
         return new Request();
     }
 
-    @Override protected NodeRequest newNodeRequest() {
+    @Override
+    protected NodeRequest newNodeRequest() {
         return new NodeRequest();
     }
 
-    @Override protected NodeRequest newNodeRequest(String nodeId, Request request) {
+    @Override
+    protected NodeRequest newNodeRequest(String nodeId, Request request) {
         return new NodeRequest(nodeId, request.shardId, request.unallocated);
     }
 
-    @Override protected NodeStoreFilesMetaData newNodeResponse() {
+    @Override
+    protected NodeStoreFilesMetaData newNodeResponse() {
         return new NodeStoreFilesMetaData();
     }
 
-    @Override protected NodesStoreFilesMetaData newResponse(Request request, AtomicReferenceArray responses) {
+    @Override
+    protected NodesStoreFilesMetaData newResponse(Request request, AtomicReferenceArray responses) {
         final List<NodeStoreFilesMetaData> nodeStoreFilesMetaDatas = Lists.newArrayList();
         final List<FailedNodeException> failures = Lists.newArrayList();
         for (int i = 0; i < responses.length(); i++) {
@@ -122,7 +127,8 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
                 failures.toArray(new FailedNodeException[failures.size()]));
     }
 
-    @Override protected NodeStoreFilesMetaData nodeOperation(NodeRequest request) throws ElasticSearchException {
+    @Override
+    protected NodeStoreFilesMetaData nodeOperation(NodeRequest request) throws ElasticSearchException {
         if (request.unallocated) {
             IndexService indexService = indicesService.indexService(request.shardId.index().name());
             if (indexService == null) {
@@ -202,7 +208,8 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
         return new StoreFilesMetaData(false, shardId, files);
     }
 
-    @Override protected boolean accumulateExceptions() {
+    @Override
+    protected boolean accumulateExceptions() {
         return true;
     }
 
@@ -236,7 +243,8 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
             return totalSizeInBytes;
         }
 
-        @Override public Iterator<StoreFileMetaData> iterator() {
+        @Override
+        public Iterator<StoreFileMetaData> iterator() {
             return files.values().iterator();
         }
 
@@ -254,7 +262,8 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
             return md;
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             allocated = in.readBoolean();
             shardId = ShardId.readShardId(in);
             int size = in.readVInt();
@@ -265,7 +274,8 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
             }
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(allocated);
             shardId.writeTo(out);
             out.writeVInt(files.size());
@@ -297,18 +307,21 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
             this.unallocated = unallocated;
         }
 
-        @Override public Request timeout(TimeValue timeout) {
+        @Override
+        public Request timeout(TimeValue timeout) {
             super.timeout(timeout);
             return this;
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             shardId = ShardId.readShardId(in);
             unallocated = in.readBoolean();
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             shardId.writeTo(out);
             out.writeBoolean(unallocated);
@@ -331,7 +344,8 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
             return failures;
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             nodes = new NodeStoreFilesMetaData[in.readVInt()];
             for (int i = 0; i < nodes.length; i++) {
@@ -339,7 +353,8 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
             }
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeVInt(nodes.length);
             for (NodeStoreFilesMetaData response : nodes) {
@@ -364,13 +379,15 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
             this.unallocated = unallocated;
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             shardId = ShardId.readShardId(in);
             unallocated = in.readBoolean();
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             shardId.writeTo(out);
             out.writeBoolean(unallocated);
@@ -399,14 +416,16 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
             return resp;
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             if (in.readBoolean()) {
                 storeFilesMetaData = StoreFilesMetaData.readStoreFilesMetaData(in);
             }
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             if (storeFilesMetaData == null) {
                 out.writeBoolean(false);

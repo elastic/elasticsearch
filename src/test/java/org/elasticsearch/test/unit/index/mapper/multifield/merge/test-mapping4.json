@@ -1,0 +1,16 @@
+{
+    person:{
+        properties:{
+            "name":{
+                type:"multi_field",
+                "fields":{
+                    "not_indexed3":{
+                        type:"string",
+                        index:"no",
+                        store:"yes"
+                    }
+                }
+            }
+        }
+    }
+}

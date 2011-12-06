@@ -19,16 +19,10 @@
 
 package org.elasticsearch.index.analysis.phonetic;
 
+import org.apache.commons.codec.Encoder;
+import org.apache.commons.codec.language.*;
 import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.common.codec.Encoder;
-import org.elasticsearch.common.codec.language.Caverphone1;
-import org.elasticsearch.common.codec.language.Caverphone2;
-import org.elasticsearch.common.codec.language.ColognePhonetic;
-import org.elasticsearch.common.codec.language.DoubleMetaphone;
-import org.elasticsearch.common.codec.language.Metaphone;
-import org.elasticsearch.common.codec.language.RefinedSoundex;
-import org.elasticsearch.common.codec.language.Soundex;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
@@ -38,7 +32,7 @@ import org.elasticsearch.index.analysis.AnalysisSettingsRequired;
 import org.elasticsearch.index.settings.IndexSettings;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 @AnalysisSettingsRequired
 public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
@@ -47,7 +41,8 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final boolean replace;
 
-    @Inject public PhoneticTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
+    @Inject
+    public PhoneticTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
         this.replace = settings.getAsBoolean("replace", true);
         String encoder = settings.get("encoder");
@@ -77,7 +72,8 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
         }
     }
 
-    @Override public TokenStream create(TokenStream tokenStream) {
+    @Override
+    public TokenStream create(TokenStream tokenStream) {
         if (encoder instanceof DoubleMetaphone) {
             return new DoubleMetaphoneFilter(tokenStream, (DoubleMetaphone) encoder, !replace);
         }

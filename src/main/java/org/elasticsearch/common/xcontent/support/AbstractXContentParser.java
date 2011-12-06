@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -26,11 +26,12 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public abstract class AbstractXContentParser implements XContentParser {
 
-    @Override public boolean booleanValue() throws IOException {
+    @Override
+    public boolean booleanValue() throws IOException {
         Token token = currentToken();
         if (token == Token.VALUE_NUMBER) {
             return intValue() != 0;
@@ -42,7 +43,8 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     protected abstract boolean doBooleanValue() throws IOException;
 
-    @Override public short shortValue() throws IOException {
+    @Override
+    public short shortValue() throws IOException {
         Token token = currentToken();
         if (token == Token.VALUE_STRING) {
             return Short.parseShort(text());
@@ -52,7 +54,8 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     protected abstract short doShortValue() throws IOException;
 
-    @Override public int intValue() throws IOException {
+    @Override
+    public int intValue() throws IOException {
         Token token = currentToken();
         if (token == Token.VALUE_STRING) {
             return Integer.parseInt(text());
@@ -62,7 +65,8 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     protected abstract int doIntValue() throws IOException;
 
-    @Override public long longValue() throws IOException {
+    @Override
+    public long longValue() throws IOException {
         Token token = currentToken();
         if (token == Token.VALUE_STRING) {
             return Long.parseLong(text());
@@ -72,7 +76,8 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     protected abstract long doLongValue() throws IOException;
 
-    @Override public float floatValue() throws IOException {
+    @Override
+    public float floatValue() throws IOException {
         Token token = currentToken();
         if (token == Token.VALUE_STRING) {
             return Float.parseFloat(text());
@@ -82,7 +87,8 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     protected abstract float doFloatValue() throws IOException;
 
-    @Override public double doubleValue() throws IOException {
+    @Override
+    public double doubleValue() throws IOException {
         Token token = currentToken();
         if (token == Token.VALUE_STRING) {
             return Double.parseDouble(text());
@@ -92,22 +98,26 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     protected abstract double doDoubleValue() throws IOException;
 
-    @Override public String textOrNull() throws IOException {
+    @Override
+    public String textOrNull() throws IOException {
         if (currentToken() == Token.VALUE_NULL) {
             return null;
         }
         return text();
     }
 
-    @Override public Map<String, Object> map() throws IOException {
+    @Override
+    public Map<String, Object> map() throws IOException {
         return XContentMapConverter.readMap(this);
     }
 
-    @Override public Map<String, Object> mapOrdered() throws IOException {
+    @Override
+    public Map<String, Object> mapOrdered() throws IOException {
         return XContentMapConverter.readOrderedMap(this);
     }
 
-    @Override public Map<String, Object> mapAndClose() throws IOException {
+    @Override
+    public Map<String, Object> mapAndClose() throws IOException {
         try {
             return map();
         } finally {

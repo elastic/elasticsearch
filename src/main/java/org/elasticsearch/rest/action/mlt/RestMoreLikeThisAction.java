@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -27,34 +27,33 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.XContentRestResponse;
-import org.elasticsearch.rest.XContentThrowableRestResponse;
+import org.elasticsearch.rest.*;
 import org.elasticsearch.search.Scroll;
 
 import java.io.IOException;
 
-import static org.elasticsearch.client.Requests.*;
-import static org.elasticsearch.common.unit.TimeValue.*;
-import static org.elasticsearch.rest.RestRequest.Method.*;
-import static org.elasticsearch.rest.RestStatus.*;
-import static org.elasticsearch.rest.action.support.RestXContentBuilder.*;
+import static org.elasticsearch.client.Requests.moreLikeThisRequest;
+import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
+import static org.elasticsearch.rest.RestStatus.OK;
+import static org.elasticsearch.rest.action.support.RestXContentBuilder.restContentBuilder;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class RestMoreLikeThisAction extends BaseRestHandler {
 
-    @Inject public RestMoreLikeThisAction(Settings settings, Client client, RestController controller) {
+    @Inject
+    public RestMoreLikeThisAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
         controller.registerHandler(GET, "/{index}/{type}/{id}/_mlt", this);
         controller.registerHandler(POST, "/{index}/{type}/{id}/_mlt", this);
     }
 
-    @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
+    @Override
+    public void handleRequest(final RestRequest request, final RestChannel channel) {
         MoreLikeThisRequest mltRequest = moreLikeThisRequest(request.param("index")).type(request.param("type")).id(request.param("id"));
         try {
             mltRequest.fields(request.paramAsStringArray("mlt_fields", null));
@@ -97,7 +96,8 @@ public class RestMoreLikeThisAction extends BaseRestHandler {
         }
 
         client.moreLikeThis(mltRequest, new ActionListener<SearchResponse>() {
-            @Override public void onResponse(SearchResponse response) {
+            @Override
+            public void onResponse(SearchResponse response) {
                 try {
                     XContentBuilder builder = restContentBuilder(request);
                     builder.startObject();
@@ -109,7 +109,8 @@ public class RestMoreLikeThisAction extends BaseRestHandler {
                 }
             }
 
-            @Override public void onFailure(Throwable e) {
+            @Override
+            public void onFailure(Throwable e) {
                 try {
                     channel.sendResponse(new XContentThrowableRestResponse(request, e));
                 } catch (IOException e1) {

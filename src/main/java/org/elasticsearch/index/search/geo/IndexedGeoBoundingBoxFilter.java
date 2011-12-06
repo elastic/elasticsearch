@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -57,7 +57,8 @@ public class IndexedGeoBoundingBoxFilter {
             latFilter = fieldMapper.latMapper().rangeFilter(bottomRight.lat, topLeft.lat, true, true);
         }
 
-        @Override public FixedBitSet getDocIdSet(IndexReader reader) throws IOException {
+        @Override
+        public FixedBitSet getDocIdSet(IndexReader reader) throws IOException {
             FixedBitSet main;
             DocIdSet set = lonFilter1.getDocIdSet(reader);
             if (set == null || set == DocIdSet.EMPTY_DOCIDSET) {
@@ -122,7 +123,8 @@ public class IndexedGeoBoundingBoxFilter {
             latFilter = fieldMapper.latMapper().rangeFilter(bottomRight.lat, topLeft.lat, true, true);
         }
 
-        @Override public FixedBitSet getDocIdSet(IndexReader reader) throws IOException {
+        @Override
+        public FixedBitSet getDocIdSet(IndexReader reader) throws IOException {
             FixedBitSet main;
             DocIdSet set = lonFilter.getDocIdSet(reader);
             if (set == null || set == DocIdSet.EMPTY_DOCIDSET) {

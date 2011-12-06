@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -22,7 +22,6 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.CharStream;
 import org.apache.lucene.analysis.MappingCharFilter;
 import org.apache.lucene.analysis.NormalizeCharMap;
-
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
@@ -31,34 +30,36 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
-import java.util.*;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @AnalysisSettingsRequired
 public class MappingCharFilterFactory extends AbstractCharFilterFactory {
-    
+
     private final NormalizeCharMap normMap;
-    
-    @Inject public MappingCharFilterFactory(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
+
+    @Inject
+    public MappingCharFilterFactory(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name);
-        
+
         List<String> rules = Analysis.getWordList(env, settings, "mappings");
         if (rules == null) {
             throw new ElasticSearchIllegalArgumentException("mapping requires either `mappings` or `mappings_path` to be configured");
         }
-        
+
         normMap = new NormalizeCharMap();
         parseRules(rules, normMap);
     }
-    
-    @Override public CharStream create(CharStream tokenStream) {
+
+    @Override
+    public CharStream create(CharStream tokenStream) {
         return new MappingCharFilter(normMap, tokenStream);
     }
-    
+
     // source => target
     private static Pattern rulePattern = Pattern.compile("(.*)\\s*=>\\s*(.*)\\s*$");
-    
+
     /**
      * parses a list of MappingCharFilter style rules into a normalize char map
      */
@@ -74,9 +75,9 @@ public class MappingCharFilterFactory extends AbstractCharFilterFactory {
             map.add(lhs, rhs);
         }
     }
-    
+
     char[] out = new char[256];
-    
+
     private String parseString(String s) {
         int readPos = 0;
         int len = s.length();
@@ -88,30 +89,30 @@ public class MappingCharFilterFactory extends AbstractCharFilterFactory {
                     throw new RuntimeException("Invalid escaped char in [" + s + "]");
                 c = s.charAt(readPos++);
                 switch (c) {
-                case '\\':
-                    c = '\\';
-                    break;
-                case 'n':
-                    c = '\n';
-                    break;
-                case 't':
-                    c = '\t';
-                    break;
-                case 'r':
-                    c = '\r';
-                    break;
-                case 'b':
-                    c = '\b';
-                    break;
-                case 'f':
-                    c = '\f';
-                    break;
-                case 'u':
-                    if (readPos + 3 >= len)
-                        throw new RuntimeException("Invalid escaped char in [" + s + "]");
-                    c = (char) Integer.parseInt(s.substring(readPos, readPos + 4), 16);
-                    readPos += 4;
-                    break;
+                    case '\\':
+                        c = '\\';
+                        break;
+                    case 'n':
+                        c = '\n';
+                        break;
+                    case 't':
+                        c = '\t';
+                        break;
+                    case 'r':
+                        c = '\r';
+                        break;
+                    case 'b':
+                        c = '\b';
+                        break;
+                    case 'f':
+                        c = '\f';
+                        break;
+                    case 'u':
+                        if (readPos + 3 >= len)
+                            throw new RuntimeException("Invalid escaped char in [" + s + "]");
+                        c = (char) Integer.parseInt(s.substring(readPos, readPos + 4), 16);
+                        readPos += 4;
+                        break;
                 }
             }
             out[writePos++] = c;

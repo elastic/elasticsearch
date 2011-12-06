@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -29,20 +29,22 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class FinnishAnalyzerProvider extends AbstractIndexAnalyzerProvider<FinnishAnalyzer> {
 
     private final FinnishAnalyzer analyzer;
 
-    @Inject public FinnishAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
+    @Inject
+    public FinnishAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
         analyzer = new FinnishAnalyzer(version,
                 Analysis.parseStopWords(env, settings, FinnishAnalyzer.getDefaultStopSet(), version),
                 Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET));
     }
 
-    @Override public FinnishAnalyzer get() {
+    @Override
+    public FinnishAnalyzer get() {
         return this.analyzer;
     }
 }

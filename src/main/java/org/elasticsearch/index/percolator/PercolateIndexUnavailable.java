@@ -22,7 +22,7 @@ package org.elasticsearch.index.percolator;
 import org.elasticsearch.index.Index;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class PercolateIndexUnavailable extends PercolatorException {
 

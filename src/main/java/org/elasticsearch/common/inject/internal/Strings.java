@@ -31,7 +31,7 @@ public class Strings {
      * The returned string will have the same value as the specified string if
      * its first character is non-alphabetic, if its first character is already
      * uppercase, or if the specified string is of length 0.
-     *
+     * <p/>
      * <p>For example:
      * <pre>
      *    capitalize("foo bar").equals("Foo bar");

@@ -38,50 +38,59 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * Delete index action.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class TransportDeleteIndexTemplateAction extends TransportMasterNodeOperationAction<DeleteIndexTemplateRequest, DeleteIndexTemplateResponse> {
 
     private final MetaDataIndexTemplateService indexTemplateService;
 
-    @Inject public TransportDeleteIndexTemplateAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                                      ThreadPool threadPool, MetaDataIndexTemplateService indexTemplateService) {
+    @Inject
+    public TransportDeleteIndexTemplateAction(Settings settings, TransportService transportService, ClusterService clusterService,
+                                              ThreadPool threadPool, MetaDataIndexTemplateService indexTemplateService) {
         super(settings, transportService, clusterService, threadPool);
         this.indexTemplateService = indexTemplateService;
     }
 
-    @Override protected String executor() {
+    @Override
+    protected String executor() {
         return ThreadPool.Names.MANAGEMENT;
     }
 
-    @Override protected String transportAction() {
+    @Override
+    protected String transportAction() {
         return TransportActions.Admin.Indices.DELETE_INDEX_TEMPLATE;
     }
 
-    @Override protected DeleteIndexTemplateRequest newRequest() {
+    @Override
+    protected DeleteIndexTemplateRequest newRequest() {
         return new DeleteIndexTemplateRequest();
     }
 
-    @Override protected DeleteIndexTemplateResponse newResponse() {
+    @Override
+    protected DeleteIndexTemplateResponse newResponse() {
         return new DeleteIndexTemplateResponse();
     }
 
-    @Override protected ClusterBlockException checkBlock(DeleteIndexTemplateRequest request, ClusterState state) {
+    @Override
+    protected ClusterBlockException checkBlock(DeleteIndexTemplateRequest request, ClusterState state) {
         return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA, "");
     }
 
-    @Override protected DeleteIndexTemplateResponse masterOperation(DeleteIndexTemplateRequest request, ClusterState state) throws ElasticSearchException {
+    @Override
+    protected DeleteIndexTemplateResponse masterOperation(DeleteIndexTemplateRequest request, ClusterState state) throws ElasticSearchException {
         final AtomicReference<DeleteIndexTemplateResponse> responseRef = new AtomicReference<DeleteIndexTemplateResponse>();
         final AtomicReference<Throwable> failureRef = new AtomicReference<Throwable>();
         final CountDownLatch latch = new CountDownLatch(1);
 
         indexTemplateService.removeTemplate(new MetaDataIndexTemplateService.RemoveRequest(request.name()), new MetaDataIndexTemplateService.RemoveListener() {
-            @Override public void onResponse(MetaDataIndexTemplateService.RemoveResponse response) {
+            @Override
+            public void onResponse(MetaDataIndexTemplateService.RemoveResponse response) {
                 responseRef.set(new DeleteIndexTemplateResponse(response.acknowledged()));
                 latch.countDown();
             }
 
-            @Override public void onFailure(Throwable t) {
+            @Override
+            public void onFailure(Throwable t) {
                 failureRef.set(t);
                 latch.countDown();
             }

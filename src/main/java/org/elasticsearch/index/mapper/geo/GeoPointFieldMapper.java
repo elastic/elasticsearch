@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -27,14 +27,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.field.data.FieldDataType;
-import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.FieldMapperListener;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeContext;
-import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.mapper.ObjectMapperListener;
-import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
@@ -46,12 +39,14 @@ import org.elasticsearch.index.search.geo.GeoUtils;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.MapperBuilders.*;
-import static org.elasticsearch.index.mapper.core.TypeParsers.*;
+import static org.elasticsearch.index.mapper.MapperBuilders.doubleField;
+import static org.elasticsearch.index.mapper.MapperBuilders.stringField;
+import static org.elasticsearch.index.mapper.core.TypeParsers.parsePathType;
+import static org.elasticsearch.index.mapper.core.TypeParsers.parseStore;
 
 /**
  * Parsing: We handle:
- *
+ * <p/>
  * - "field" : "geo_hash"
  * - "field" : "lat,lon"
  * - "field" : {
@@ -59,7 +54,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.*;
  * "lon" : 2.1
  * }
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
 
@@ -140,7 +135,8 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
             return this;
         }
 
-        @Override public GeoPointFieldMapper build(BuilderContext context) {
+        @Override
+        public GeoPointFieldMapper build(BuilderContext context) {
             ContentPath.Type origPathType = context.path().pathType();
             context.path().pathType(pathType);
 
@@ -177,7 +173,8 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
     }
 
     public static class TypeParser implements Mapper.TypeParser {
-        @Override public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        @Override
+        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(name);
 
             for (Map.Entry<String, Object> entry : node.entrySet()) {
@@ -266,7 +263,8 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
         this.normalizeLon = normalizeLon;
     }
 
-    @Override public String name() {
+    @Override
+    public String name() {
         return this.name;
     }
 
@@ -282,7 +280,8 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
         return enableLatLon;
     }
 
-    @Override public void parse(ParseContext context) throws IOException {
+    @Override
+    public void parse(ParseContext context) throws IOException {
         ContentPath.Type origPathType = context.path().pathType();
         context.path().pathType(pathType);
         context.path().add(name);
@@ -442,7 +441,8 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
         }
     }
 
-    @Override public void close() {
+    @Override
+    public void close() {
         if (latMapper != null) {
             latMapper.close();
         }
@@ -457,11 +457,13 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
         }
     }
 
-    @Override public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+    @Override
+    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
         // TODO
     }
 
-    @Override public void traverse(FieldMapperListener fieldMapperListener) {
+    @Override
+    public void traverse(FieldMapperListener fieldMapperListener) {
         geoStringMapper.traverse(fieldMapperListener);
         if (enableGeoHash) {
             geohashMapper.traverse(fieldMapperListener);
@@ -472,10 +474,12 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
         }
     }
 
-    @Override public void traverse(ObjectMapperListener objectMapperListener) {
+    @Override
+    public void traverse(ObjectMapperListener objectMapperListener) {
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
         builder.field("type", CONTENT_TYPE);
         if (pathType != Defaults.PATH_TYPE) {
@@ -537,12 +541,14 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
                 return this;
             }
 
-            @Override public Builder includeInAll(Boolean includeInAll) {
+            @Override
+            public Builder includeInAll(Boolean includeInAll) {
                 this.includeInAll = includeInAll;
                 return this;
             }
 
-            @Override public GeoStringFieldMapper build(BuilderContext context) {
+            @Override
+            public GeoStringFieldMapper build(BuilderContext context) {
                 GeoStringFieldMapper fieldMapper = new GeoStringFieldMapper(buildNames(context),
                         index, store, termVector, boost, omitNorms, omitTermFreqAndPositions, nullValue,
                         indexAnalyzer, searchAnalyzer);
@@ -557,7 +563,8 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
             super(names, index, store, termVector, boost, omitNorms, omitTermFreqAndPositions, nullValue, indexAnalyzer, searchAnalyzer);
         }
 
-        @Override public FieldDataType fieldDataType() {
+        @Override
+        public FieldDataType fieldDataType() {
             return GeoPointFieldDataType.TYPE;
         }
 

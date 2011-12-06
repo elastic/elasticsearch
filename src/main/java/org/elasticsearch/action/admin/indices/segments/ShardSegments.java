@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.admin.indices.segments;
 
+import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationResponse;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.engine.Segment;
@@ -31,7 +31,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
-import static org.elasticsearch.cluster.routing.ImmutableShardRouting.*;
+import static org.elasticsearch.cluster.routing.ImmutableShardRouting.readShardRoutingEntry;
 
 public class ShardSegments extends BroadcastShardOperationResponse implements Iterable<Segment> {
 
@@ -48,7 +48,8 @@ public class ShardSegments extends BroadcastShardOperationResponse implements It
         this.segments = segments;
     }
 
-    @Override public Iterator<Segment> iterator() {
+    @Override
+    public Iterator<Segment> iterator() {
         return segments.iterator();
     }
 
@@ -94,7 +95,8 @@ public class ShardSegments extends BroadcastShardOperationResponse implements It
         return shard;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         shardRouting = readShardRoutingEntry(in);
         int size = in.readVInt();
@@ -108,7 +110,8 @@ public class ShardSegments extends BroadcastShardOperationResponse implements It
         }
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         shardRouting.writeTo(out);
         out.writeVInt(segments.size());

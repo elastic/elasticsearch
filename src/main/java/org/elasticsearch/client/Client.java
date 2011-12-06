@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -56,15 +56,15 @@ import org.elasticsearch.common.Nullable;
 
 /**
  * A client provides a one stop interface for performing actions/operations against the cluster.
- *
+ * <p/>
  * <p>All operations performed are asynchronous by nature. Each action/operation has two flavors, the first
  * simply returns an {@link org.elasticsearch.action.ActionFuture}, while the second accepts an
  * {@link org.elasticsearch.action.ActionListener}.
- *
+ * <p/>
  * <p>A client can either be retrieved from a {@link org.elasticsearch.node.Node} started, or connected remotely
  * to one or more nodes using {@link org.elasticsearch.client.transport.TransportClient}.
  *
- * @author kimchy (shay.banon)
+ *
  * @see org.elasticsearch.node.Node#client()
  * @see org.elasticsearch.client.transport.TransportClient
  */
@@ -82,7 +82,7 @@ public interface Client {
 
     /**
      * Index a JSON source associated with a given index and type.
-     *
+     * <p/>
      * <p>The id is optional, if it is not provided, one will be generated automatically.
      *
      * @param request The index request
@@ -93,7 +93,7 @@ public interface Client {
 
     /**
      * Index a document associated with a given index and type.
-     *
+     * <p/>
      * <p>The id is optional, if it is not provided, one will be generated automatically.
      *
      * @param request  The index request
@@ -104,14 +104,14 @@ public interface Client {
 
     /**
      * Index a document associated with a given index and type.
-     *
+     * <p/>
      * <p>The id is optional, if it is not provided, one will be generated automatically.
      */
     IndexRequestBuilder prepareIndex();
 
     /**
      * Index a document associated with a given index and type.
-     *
+     * <p/>
      * <p>The id is optional, if it is not provided, one will be generated automatically.
      *
      * @param index The index to index the document to
@@ -121,7 +121,7 @@ public interface Client {
 
     /**
      * Index a document associated with a given index and type.
-     *
+     * <p/>
      * <p>The id is optional, if it is not provided, one will be generated automatically.
      *
      * @param index The index to index the document to

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -35,7 +35,7 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class IndexTemplateMetaData {
 

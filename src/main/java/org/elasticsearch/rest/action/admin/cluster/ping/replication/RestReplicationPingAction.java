@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -35,20 +35,22 @@ import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
 
-import static org.elasticsearch.rest.RestStatus.*;
+import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
- * @author kimchy (Shay Banon)
+ *
  */
 public class RestReplicationPingAction extends BaseRestHandler {
 
-    @Inject public RestReplicationPingAction(Settings settings, Client client, RestController controller) {
+    @Inject
+    public RestReplicationPingAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
         controller.registerHandler(RestRequest.Method.GET, "/{index}/_ping/replication", this);
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/{index}/_ping/replication", this);
     }
 
-    @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
+    @Override
+    public void handleRequest(final RestRequest request, final RestChannel channel) {
         ReplicationPingRequest replicationPingRequest = new ReplicationPingRequest(RestActions.splitIndices(request.param("index")));
         replicationPingRequest.timeout(request.paramAsTime("timeout", ShardReplicationPingRequest.DEFAULT_TIMEOUT));
         replicationPingRequest.listenerThreaded(false);
@@ -57,7 +59,8 @@ public class RestReplicationPingAction extends BaseRestHandler {
             replicationPingRequest.replicationType(ReplicationType.fromString(replicationType));
         }
         client.admin().cluster().ping(replicationPingRequest, new ActionListener<ReplicationPingResponse>() {
-            @Override public void onResponse(ReplicationPingResponse result) {
+            @Override
+            public void onResponse(ReplicationPingResponse result) {
                 try {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
@@ -79,7 +82,8 @@ public class RestReplicationPingAction extends BaseRestHandler {
                 }
             }
 
-            @Override public void onFailure(Throwable e) {
+            @Override
+            public void onFailure(Throwable e) {
                 try {
                     channel.sendResponse(new XContentThrowableRestResponse(request, e));
                 } catch (IOException e1) {

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -25,23 +25,16 @@ import org.apache.lucene.index.Term;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.UidField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.mapper.InternalMapper;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeContext;
-import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.RootMapper;
-import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.MapperBuilders.*;
+import static org.elasticsearch.index.mapper.MapperBuilders.uid;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class UidFieldMapper extends AbstractFieldMapper<Uid> implements InternalMapper, RootMapper {
 
@@ -67,19 +60,22 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
             this.indexName = name;
         }
 
-        @Override public UidFieldMapper build(BuilderContext context) {
+        @Override
+        public UidFieldMapper build(BuilderContext context) {
             return new UidFieldMapper(name, indexName);
         }
     }
 
     public static class TypeParser implements Mapper.TypeParser {
-        @Override public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        @Override
+        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             return uid();
         }
     }
 
     private ThreadLocal<UidField> fieldCache = new ThreadLocal<UidField>() {
-        @Override protected UidField initialValue() {
+        @Override
+        protected UidField initialValue() {
             return new UidField(names().indexName(), "", 0);
         }
     };
@@ -97,7 +93,8 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
                 Defaults.OMIT_NORMS, Defaults.OMIT_TERM_FREQ_AND_POSITIONS, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
     }
 
-    @Override public void preParse(ParseContext context) throws IOException {
+    @Override
+    public void preParse(ParseContext context) throws IOException {
         // if we have the id provided, fill it, and parse now
         if (context.sourceToParse().id() != null) {
             context.id(context.sourceToParse().id());
@@ -105,7 +102,8 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
         }
     }
 
-    @Override public void postParse(ParseContext context) throws IOException {
+    @Override
+    public void postParse(ParseContext context) throws IOException {
         if (context.id() == null && !context.sourceToParse().flyweight()) {
             throw new MapperParsingException("No id found while parsing the content source");
         }
@@ -127,18 +125,22 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
         }
     }
 
-    @Override public void parse(ParseContext context) throws IOException {
+    @Override
+    public void parse(ParseContext context) throws IOException {
         // nothing to do here, we either do it in post parse, or in pre parse.
     }
 
-    @Override public void validate(ParseContext context) throws MapperParsingException {
+    @Override
+    public void validate(ParseContext context) throws MapperParsingException {
     }
 
-    @Override public boolean includeInObject() {
+    @Override
+    public boolean includeInObject() {
         return false;
     }
 
-    @Override protected Fieldable parseCreateField(ParseContext context) throws IOException {
+    @Override
+    protected Fieldable parseCreateField(ParseContext context) throws IOException {
         context.uid(Uid.createUid(context.stringBuilder(), context.type(), context.id()));
         // so, caching uid stream and field is fine
         // since we don't do any mapping parsing without immediate indexing
@@ -148,19 +150,23 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
         return field; // version get updated by the engine
     }
 
-    @Override public Uid value(Fieldable field) {
+    @Override
+    public Uid value(Fieldable field) {
         return Uid.createUid(field.stringValue());
     }
 
-    @Override public Uid valueFromString(String value) {
+    @Override
+    public Uid valueFromString(String value) {
         return Uid.createUid(value);
     }
 
-    @Override public String valueAsString(Fieldable field) {
+    @Override
+    public String valueAsString(Fieldable field) {
         return field.stringValue();
     }
 
-    @Override public String indexedValue(String value) {
+    @Override
+    public String indexedValue(String value) {
         return value;
     }
 
@@ -172,20 +178,24 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
         return names().createIndexNameTerm(uid);
     }
 
-    @Override public void close() {
+    @Override
+    public void close() {
         fieldCache.remove();
     }
 
-    @Override protected String contentType() {
+    @Override
+    protected String contentType() {
         return CONTENT_TYPE;
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // for now, don't output it at all
         return builder;
     }
 
-    @Override public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+    @Override
+    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
         // do nothing here, no merging, but also no exception
     }
 }

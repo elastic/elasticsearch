@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -23,68 +23,78 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public interface XContentParser {
 
     enum Token {
         START_OBJECT {
-            @Override public boolean isValue() {
+            @Override
+            public boolean isValue() {
                 return false;
             }
         },
 
         END_OBJECT {
-            @Override public boolean isValue() {
+            @Override
+            public boolean isValue() {
                 return false;
             }
         },
 
         START_ARRAY {
-            @Override public boolean isValue() {
+            @Override
+            public boolean isValue() {
                 return false;
             }
         },
 
         END_ARRAY {
-            @Override public boolean isValue() {
+            @Override
+            public boolean isValue() {
                 return false;
             }
         },
 
         FIELD_NAME {
-            @Override public boolean isValue() {
+            @Override
+            public boolean isValue() {
                 return false;
             }
         },
 
         VALUE_STRING {
-            @Override public boolean isValue() {
+            @Override
+            public boolean isValue() {
                 return true;
             }
         },
 
         VALUE_NUMBER {
-            @Override public boolean isValue() {
+            @Override
+            public boolean isValue() {
                 return true;
             }
         },
 
         VALUE_BOOLEAN {
-            @Override public boolean isValue() {
+            @Override
+            public boolean isValue() {
                 return true;
             }
         },
 
         // usually a binary value
         VALUE_EMBEDDED_OBJECT {
-            @Override public boolean isValue() {
+            @Override
+            public boolean isValue() {
                 return true;
             }
         },
 
         VALUE_NULL {
-            @Override public boolean isValue() {
+            @Override
+            public boolean isValue() {
                 return false;
             }
         };

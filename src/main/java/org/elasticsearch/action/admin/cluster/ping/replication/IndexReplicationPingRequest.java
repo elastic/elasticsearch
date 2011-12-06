@@ -28,7 +28,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import java.io.IOException;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class IndexReplicationPingRequest extends IndexReplicationOperationRequest {
 

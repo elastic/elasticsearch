@@ -26,19 +26,21 @@ import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 /**
  * A field selector that loads all fields except the source field.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class AllButSourceFieldSelector implements ResetFieldSelector {
 
     public static final AllButSourceFieldSelector INSTANCE = new AllButSourceFieldSelector();
 
-    @Override public FieldSelectorResult accept(String fieldName) {
+    @Override
+    public FieldSelectorResult accept(String fieldName) {
         if (SourceFieldMapper.NAME.equals(fieldName)) {
             return FieldSelectorResult.NO_LOAD;
         }
         return FieldSelectorResult.LOAD;
     }
 
-    @Override public void reset() {
+    @Override
+    public void reset() {
     }
 }

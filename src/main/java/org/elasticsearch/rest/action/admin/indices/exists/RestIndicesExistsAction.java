@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -26,37 +26,36 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.StringRestResponse;
+import org.elasticsearch.rest.*;
 
-import static org.elasticsearch.rest.RestRequest.Method.*;
+import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 import static org.elasticsearch.rest.RestStatus.*;
-import static org.elasticsearch.rest.action.support.RestActions.*;
+import static org.elasticsearch.rest.action.support.RestActions.splitIndices;
 
 /**
- * @author kimchy (Shay Banon)
+ *
  */
 public class RestIndicesExistsAction extends BaseRestHandler {
 
     private final SettingsFilter settingsFilter;
 
-    @Inject public RestIndicesExistsAction(Settings settings, Client client, RestController controller,
-                                           SettingsFilter settingsFilter) {
+    @Inject
+    public RestIndicesExistsAction(Settings settings, Client client, RestController controller,
+                                   SettingsFilter settingsFilter) {
         super(settings, client);
         controller.registerHandler(HEAD, "/{index}", this);
 
         this.settingsFilter = settingsFilter;
     }
 
-    @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
+    @Override
+    public void handleRequest(final RestRequest request, final RestChannel channel) {
         IndicesExistsRequest indicesExistsRequest = new IndicesExistsRequest(splitIndices(request.param("index")));
         // we just send back a response, no need to fork a listener
         indicesExistsRequest.listenerThreaded(false);
         client.admin().indices().exists(indicesExistsRequest, new ActionListener<IndicesExistsResponse>() {
-            @Override public void onResponse(IndicesExistsResponse response) {
+            @Override
+            public void onResponse(IndicesExistsResponse response) {
                 try {
                     if (response.exists()) {
                         channel.sendResponse(new StringRestResponse(OK));
@@ -68,7 +67,8 @@ public class RestIndicesExistsAction extends BaseRestHandler {
                 }
             }
 
-            @Override public void onFailure(Throwable e) {
+            @Override
+            public void onFailure(Throwable e) {
                 try {
                     channel.sendResponse(new StringRestResponse(INTERNAL_SERVER_ERROR));
                 } catch (Exception e1) {

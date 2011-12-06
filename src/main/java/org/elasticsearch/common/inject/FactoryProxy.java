@@ -17,11 +17,7 @@
 
 package org.elasticsearch.common.inject;
 
-import org.elasticsearch.common.inject.internal.Errors;
-import org.elasticsearch.common.inject.internal.ErrorsException;
-import org.elasticsearch.common.inject.internal.InternalContext;
-import org.elasticsearch.common.inject.internal.InternalFactory;
-import org.elasticsearch.common.inject.internal.ToStringBuilder;
+import org.elasticsearch.common.inject.internal.*;
 import org.elasticsearch.common.inject.spi.Dependency;
 
 /**
@@ -56,7 +52,8 @@ class FactoryProxy<T> implements InternalFactory<T>, BindingProcessor.CreationLi
         return targetFactory.get(errors.withSource(targetKey), context, dependency);
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return new ToStringBuilder(FactoryProxy.class)
                 .add("key", key)
                 .add("provider", targetFactory)

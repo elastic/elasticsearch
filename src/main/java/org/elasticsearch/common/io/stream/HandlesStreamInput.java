@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,12 +19,12 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.elasticsearch.common.trove.map.hash.TIntObjectHashMap;
+import gnu.trove.map.hash.TIntObjectHashMap;
 
 import java.io.IOException;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class HandlesStreamInput extends StreamInput {
 
@@ -41,7 +41,8 @@ public class HandlesStreamInput extends StreamInput {
         this.in = in;
     }
 
-    @Override public String readUTF() throws IOException {
+    @Override
+    public String readUTF() throws IOException {
         byte b = in.readByte();
         if (b == 0) {
             // full string with handle
@@ -64,23 +65,28 @@ public class HandlesStreamInput extends StreamInput {
         }
     }
 
-    @Override public int read() throws IOException {
+    @Override
+    public int read() throws IOException {
         return in.read();
     }
 
-    @Override public int read(byte[] b) throws IOException {
+    @Override
+    public int read(byte[] b) throws IOException {
         return in.read(b);
     }
 
-    @Override public int read(byte[] b, int off, int len) throws IOException {
+    @Override
+    public int read(byte[] b, int off, int len) throws IOException {
         return in.read(b, off, len);
     }
 
-    @Override public byte readByte() throws IOException {
+    @Override
+    public byte readByte() throws IOException {
         return in.readByte();
     }
 
-    @Override public void readBytes(byte[] b, int offset, int len) throws IOException {
+    @Override
+    public void readBytes(byte[] b, int offset, int len) throws IOException {
         in.readBytes(b, offset, len);
     }
 
@@ -88,7 +94,8 @@ public class HandlesStreamInput extends StreamInput {
         handles.clear();
     }
 
-    @Override public void reset() throws IOException {
+    @Override
+    public void reset() throws IOException {
         in.reset();
         handles.clear();
     }
@@ -99,7 +106,8 @@ public class HandlesStreamInput extends StreamInput {
         identityHandles.clear();
     }
 
-    @Override public void close() throws IOException {
+    @Override
+    public void close() throws IOException {
         in.close();
     }
 }

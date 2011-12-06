@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -29,7 +29,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public abstract class StringFieldData extends FieldData<StringDocFieldData> {
 
@@ -40,7 +40,8 @@ public abstract class StringFieldData extends FieldData<StringDocFieldData> {
         this.values = values;
     }
 
-    @Override protected long computeSizeInBytes() {
+    @Override
+    protected long computeSizeInBytes() {
         long size = RamUsage.NUM_BYTES_ARRAY_HEADER;
         for (String value : values) {
             if (value != null) {
@@ -58,23 +59,28 @@ public abstract class StringFieldData extends FieldData<StringDocFieldData> {
 
     abstract public String[] values(int docId);
 
-    @Override public StringDocFieldData docFieldData(int docId) {
+    @Override
+    public StringDocFieldData docFieldData(int docId) {
         return super.docFieldData(docId);
     }
 
-    @Override public String stringValue(int docId) {
+    @Override
+    public String stringValue(int docId) {
         return value(docId);
     }
 
-    @Override protected StringDocFieldData createFieldData() {
+    @Override
+    protected StringDocFieldData createFieldData() {
         return new StringDocFieldData(this);
     }
 
-    @Override public FieldDataType type() {
+    @Override
+    public FieldDataType type() {
         return FieldDataType.DefaultTypes.STRING;
     }
 
-    @Override public void forEachValue(StringValueProc proc) {
+    @Override
+    public void forEachValue(StringValueProc proc) {
         for (int i = 1; i < values.length; i++) {
             proc.onValue(values[i]);
         }
@@ -94,15 +100,18 @@ public abstract class StringFieldData extends FieldData<StringDocFieldData> {
             terms.add(null);
         }
 
-        @Override public void collectTerm(String term) {
+        @Override
+        public void collectTerm(String term) {
             terms.add(term);
         }
 
-        @Override public StringFieldData buildSingleValue(String field, int[] ordinals) {
+        @Override
+        public StringFieldData buildSingleValue(String field, int[] ordinals) {
             return new SingleValueStringFieldData(field, ordinals, terms.toArray(new String[terms.size()]));
         }
 
-        @Override public StringFieldData buildMultiValue(String field, int[][] ordinals) {
+        @Override
+        public StringFieldData buildMultiValue(String field, int[][] ordinals) {
             return new MultiValueStringFieldData(field, ordinals, terms.toArray(new String[terms.size()]));
         }
     }

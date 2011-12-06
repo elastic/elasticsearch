@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -32,17 +32,13 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportRequestHandler;
-import org.elasticsearch.transport.BaseTransportResponseHandler;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.*;
 
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public abstract class TransportBroadcastOperationAction<Request extends BroadcastOperationRequest, Response extends BroadcastOperationResponse, ShardRequest extends BroadcastShardOperationRequest, ShardResponse extends BroadcastShardOperationResponse>
         extends BaseAction<Request, Response> {
@@ -71,7 +67,8 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
         transportService.registerHandler(transportShardAction, new ShardTransportHandler());
     }
 
-    @Override protected void doExecute(Request request, ActionListener<Response> listener) {
+    @Override
+    protected void doExecute(Request request, ActionListener<Response> listener) {
         new AsyncBroadcastAction(request, listener).start();
     }
 
@@ -178,7 +175,8 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
                 if (request.operationThreading() == BroadcastOperationThreading.SINGLE_THREAD) {
                     request.beforeLocalFork();
                     threadPool.executor(executor).execute(new Runnable() {
-                        @Override public void run() {
+                        @Override
+                        public void run() {
                             for (final ShardIterator shardIt : shardsIts) {
                                 final ShardRouting shard = shardIt.firstOrNull();
                                 if (shard != null) {
@@ -219,7 +217,8 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
                 if (shard.currentNodeId().equals(nodes.localNodeId())) {
                     if (localAsync) {
                         threadPool.executor(executor).execute(new Runnable() {
-                            @Override public void run() {
+                            @Override
+                            public void run() {
                                 try {
                                     onOperation(shard, shardOperation(shardRequest));
                                 } catch (Exception e) {
@@ -241,19 +240,23 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
                         onOperation(shard, shardIt, null);
                     } else {
                         transportService.sendRequest(node, transportShardAction, shardRequest, new BaseTransportResponseHandler<ShardResponse>() {
-                            @Override public ShardResponse newInstance() {
+                            @Override
+                            public ShardResponse newInstance() {
                                 return newShardResponse();
                             }
 
-                            @Override public String executor() {
+                            @Override
+                            public String executor() {
                                 return ThreadPool.Names.SAME;
                             }
 
-                            @Override public void handleResponse(ShardResponse response) {
+                            @Override
+                            public void handleResponse(ShardResponse response) {
                                 onOperation(shard, response);
                             }
 
-                            @Override public void handleException(TransportException e) {
+                            @Override
+                            public void handleException(TransportException e) {
                                 onOperation(shard, shardIt, e);
                             }
                         });
@@ -262,14 +265,16 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
             }
         }
 
-        @SuppressWarnings({"unchecked"}) void onOperation(ShardRouting shard, ShardResponse response) {
+        @SuppressWarnings({"unchecked"})
+        void onOperation(ShardRouting shard, ShardResponse response) {
             shardsResponses.set(indexCounter.getAndIncrement(), response);
             if (expectedOps == counterOps.incrementAndGet()) {
                 finishHim();
             }
         }
 
-        @SuppressWarnings({"unchecked"}) void onOperation(@Nullable ShardRouting shard, final ShardIterator shardIt, Throwable t) {
+        @SuppressWarnings({"unchecked"})
+        void onOperation(@Nullable ShardRouting shard, final ShardIterator shardIt, Throwable t) {
             ShardRouting nextShard = shardIt.nextOrNull();
             if (nextShard != null) {
                 if (t != null) {
@@ -333,15 +338,18 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
 
     class TransportHandler extends BaseTransportRequestHandler<Request> {
 
-        @Override public Request newInstance() {
+        @Override
+        public Request newInstance() {
             return newRequest();
         }
 
-        @Override public String executor() {
+        @Override
+        public String executor() {
             return ThreadPool.Names.SAME;
         }
 
-        @Override public void messageReceived(Request request, final TransportChannel channel) throws Exception {
+        @Override
+        public void messageReceived(Request request, final TransportChannel channel) throws Exception {
             // we just send back a response, no need to fork a listener
             request.listenerThreaded(false);
             // we don't spawn, so if we get a request with no threading, change it to single threaded
@@ -349,7 +357,8 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
                 request.operationThreading(BroadcastOperationThreading.SINGLE_THREAD);
             }
             execute(request, new ActionListener<Response>() {
-                @Override public void onResponse(Response response) {
+                @Override
+                public void onResponse(Response response) {
                     try {
                         channel.sendResponse(response);
                     } catch (Exception e) {
@@ -357,7 +366,8 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
                     }
                 }
 
-                @Override public void onFailure(Throwable e) {
+                @Override
+                public void onFailure(Throwable e) {
                     try {
                         channel.sendResponse(e);
                     } catch (Exception e1) {
@@ -370,15 +380,18 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
 
     class ShardTransportHandler extends BaseTransportRequestHandler<ShardRequest> {
 
-        @Override public ShardRequest newInstance() {
+        @Override
+        public ShardRequest newInstance() {
             return newShardRequest();
         }
 
-        @Override public String executor() {
+        @Override
+        public String executor() {
             return executor;
         }
 
-        @Override public void messageReceived(final ShardRequest request, final TransportChannel channel) throws Exception {
+        @Override
+        public void messageReceived(final ShardRequest request, final TransportChannel channel) throws Exception {
             channel.sendResponse(shardOperation(request));
         }
     }

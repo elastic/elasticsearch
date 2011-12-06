@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -24,7 +24,7 @@ import org.elasticsearch.index.shard.ShardId;
 import java.util.List;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class PlainShardIterator extends PlainShardsIterator implements ShardIterator {
 
@@ -40,22 +40,26 @@ public class PlainShardIterator extends PlainShardsIterator implements ShardIter
         this.shardId = shardId;
     }
 
-    @Override public ShardIterator reset() {
+    @Override
+    public ShardIterator reset() {
         super.reset();
         return this;
     }
 
-    @Override public ShardId shardId() {
+    @Override
+    public ShardId shardId() {
         return this.shardId;
     }
 
-    @Override public boolean equals(Object o) {
+    @Override
+    public boolean equals(Object o) {
         if (this == o) return true;
         ShardIterator that = (ShardIterator) o;
         return shardId.equals(that.shardId());
     }
 
-    @Override public int hashCode() {
+    @Override
+    public int hashCode() {
         return shardId.hashCode();
     }
 }

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -29,7 +29,7 @@ import org.elasticsearch.search.facet.InternalFacet;
 import java.io.IOException;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class InternalStatisticalFacet implements StatisticalFacet, InternalFacet {
 
@@ -40,12 +40,14 @@ public class InternalStatisticalFacet implements StatisticalFacet, InternalFacet
     }
 
     static Stream STREAM = new Stream() {
-        @Override public Facet readFacet(String type, StreamInput in) throws IOException {
+        @Override
+        public Facet readFacet(String type, StreamInput in) throws IOException {
             return readStatisticalFacet(in);
         }
     };
 
-    @Override public String streamType() {
+    @Override
+    public String streamType() {
         return STREAM_TYPE;
     }
 
@@ -73,70 +75,86 @@ public class InternalStatisticalFacet implements StatisticalFacet, InternalFacet
         this.count = count;
     }
 
-    @Override public String name() {
+    @Override
+    public String name() {
         return this.name;
     }
 
-    @Override public String getName() {
+    @Override
+    public String getName() {
         return name();
     }
 
-    @Override public String type() {
+    @Override
+    public String type() {
         return TYPE;
     }
 
-    @Override public String getType() {
+    @Override
+    public String getType() {
         return TYPE;
     }
 
-    @Override public long count() {
+    @Override
+    public long count() {
         return this.count;
     }
 
-    @Override public long getCount() {
+    @Override
+    public long getCount() {
         return count();
     }
 
-    @Override public double total() {
+    @Override
+    public double total() {
         return this.total;
     }
 
-    @Override public double getTotal() {
+    @Override
+    public double getTotal() {
         return total();
     }
 
-    @Override public double sumOfSquares() {
+    @Override
+    public double sumOfSquares() {
         return this.sumOfSquares;
     }
 
-    @Override public double getSumOfSquares() {
+    @Override
+    public double getSumOfSquares() {
         return sumOfSquares();
     }
 
-    @Override public double mean() {
+    @Override
+    public double mean() {
         if (count == 0) {
             return 0;
         }
         return total / count;
     }
 
-    @Override public double getMean() {
+    @Override
+    public double getMean() {
         return mean();
     }
 
-    @Override public double min() {
+    @Override
+    public double min() {
         return this.min;
     }
 
-    @Override public double getMin() {
+    @Override
+    public double getMin() {
         return min();
     }
 
-    @Override public double max() {
+    @Override
+    public double max() {
         return this.max;
     }
 
-    @Override public double getMax() {
+    @Override
+    public double getMax() {
         return max();
     }
 
@@ -168,7 +186,8 @@ public class InternalStatisticalFacet implements StatisticalFacet, InternalFacet
         static final XContentBuilderString STD_DEVIATION = new XContentBuilderString("std_deviation");
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
         builder.field(Fields._TYPE, StatisticalFacet.TYPE);
         builder.field(Fields.COUNT, count());
@@ -189,7 +208,8 @@ public class InternalStatisticalFacet implements StatisticalFacet, InternalFacet
         return facet;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         name = in.readUTF();
         count = in.readVLong();
         total = in.readDouble();
@@ -198,7 +218,8 @@ public class InternalStatisticalFacet implements StatisticalFacet, InternalFacet
         sumOfSquares = in.readDouble();
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(name);
         out.writeVLong(count);
         out.writeDouble(total);

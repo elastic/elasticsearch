@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -30,18 +30,18 @@ import java.io.InputStream;
 /**
  * An input stream that decompresses from the BZip2 format (without the file
  * header chars) to be read as any other stream.
- *
+ * <p/>
  * <p>The decompression requires large amounts of memory. Thus you
  * should call the {@link #close() close()} method as soon as
  * possible, to force <tt>CBZip2InputStream</tt> to release the
  * allocated memory.  See {@link CBZip2OutputStream
  * CBZip2OutputStream} for information about memory usage.</p>
- *
+ * <p/>
  * <p><tt>CBZip2InputStream</tt> reads bytes from the compressed
  * source stream via the single byte {@link java.io.InputStream#read()
  * read()} method exclusively. Thus you should consider to use a
  * buffered source stream.</p>
- *
+ * <p/>
  * <p>Instances of this class are not threadsafe.</p>
  */
 public class CBZip2InputStream extends InputStream implements BZip2Constants {
@@ -131,7 +131,7 @@ public class CBZip2InputStream extends InputStream implements BZip2Constants {
     /**
      * Constructs a new CBZip2InputStream which decompresses bytes read from
      * the specified stream.
-     *
+     * <p/>
      * <p>Although BZip2 headers are marked with the magic
      * <tt>"Bz"</tt> this constructor expects the next byte in the
      * stream to be the first one after the magic.  Thus callers have
@@ -175,7 +175,7 @@ public class CBZip2InputStream extends InputStream implements BZip2Constants {
 
         final int hi = offs + len;
         int destOffs = offs;
-        for (int b; (destOffs < hi) && ((b = read0()) >= 0);) {
+        for (int b; (destOffs < hi) && ((b = read0()) >= 0); ) {
             dest[destOffs++] = (byte) b;
         }
 
@@ -406,7 +406,7 @@ public class CBZip2InputStream extends InputStream implements BZip2Constants {
             }
         }
 
-        for (int i = MAX_CODE_LEN; --i > 0;) {
+        for (int i = MAX_CODE_LEN; --i > 0; ) {
             base[i] = 0;
             limit[i] = 0;
         }
@@ -449,7 +449,7 @@ public class CBZip2InputStream extends InputStream implements BZip2Constants {
             }
         }
 
-        for (int i = 256; --i >= 0;) {
+        for (int i = 256; --i >= 0; ) {
             inUse[i] = false;
         }
 
@@ -480,7 +480,7 @@ public class CBZip2InputStream extends InputStream implements BZip2Constants {
         }
 
         /* Undo the MTF values for the selectors. */
-        for (int v = nGroups; --v >= 0;) {
+        for (int v = nGroups; --v >= 0; ) {
             pos[v] = (byte) v;
         }
 
@@ -530,7 +530,7 @@ public class CBZip2InputStream extends InputStream implements BZip2Constants {
             int minLen = 32;
             int maxLen = 0;
             final char[] len_t = len[t];
-            for (int i = alphaSize; --i >= 0;) {
+            for (int i = alphaSize; --i >= 0; ) {
                 final char lent = len_t[i];
                 if (lent > maxLen) {
                     maxLen = lent;
@@ -568,7 +568,7 @@ public class CBZip2InputStream extends InputStream implements BZip2Constants {
           in a separate pass, and so saves a block's worth of
           cache misses.
         */
-        for (int i = 256; --i >= 0;) {
+        for (int i = 256; --i >= 0; ) {
             yy[i] = (char) i;
             unzftab[i] = 0;
         }
@@ -670,7 +670,7 @@ public class CBZip2InputStream extends InputStream implements BZip2Constants {
                   System.arraycopy for very small ranges to copy.
                 */
                 if (nextSym <= 16) {
-                    for (int j = nextSym - 1; j > 0;) {
+                    for (int j = nextSym - 1; j > 0; ) {
                         yy[j] = yy[--j];
                     }
                 } else {
@@ -956,7 +956,7 @@ public class CBZip2InputStream extends InputStream implements BZip2Constants {
 
         /**
          * Initializes the {@link #tt} array.
-         *
+         * <p/>
          * This method is called when the required length of the array
          * is known.  I don't initialize it at construction time to
          * avoid unneccessary memory allocation when compressing small

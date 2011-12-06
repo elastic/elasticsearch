@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,17 +19,13 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
+import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -38,10 +34,10 @@ import org.elasticsearch.common.settings.Settings;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.cluster.ClusterState.*;
+import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class MetaDataUpdateSettingsService extends AbstractComponent implements ClusterStateListener {
 
@@ -49,14 +45,16 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
     private final AllocationService allocationService;
 
-    @Inject public MetaDataUpdateSettingsService(Settings settings, ClusterService clusterService, AllocationService allocationService) {
+    @Inject
+    public MetaDataUpdateSettingsService(Settings settings, ClusterService clusterService, AllocationService allocationService) {
         super(settings);
         this.clusterService = clusterService;
         this.clusterService.add(this);
         this.allocationService = allocationService;
     }
 
-    @Override public void clusterChanged(ClusterChangedEvent event) {
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
         // update an index with number of replicas based on data nodes if possible
         if (!event.state().nodes().localNodeMaster()) {
             return;
@@ -97,11 +95,13 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                         final int fNumberOfReplicas = numberOfReplicas;
                         Settings settings = ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, fNumberOfReplicas).build();
                         updateSettings(settings, new String[]{indexMetaData.index()}, new Listener() {
-                            @Override public void onSuccess() {
+                            @Override
+                            public void onSuccess() {
                                 logger.info("[{}] auto expanded replicas to [{}]", indexMetaData.index(), fNumberOfReplicas);
                             }
 
-                            @Override public void onFailure(Throwable t) {
+                            @Override
+                            public void onFailure(Throwable t) {
                                 logger.warn("[{}] fail to auto expand replicas to [{}]", indexMetaData.index(), fNumberOfReplicas);
                             }
                         });
@@ -149,7 +149,8 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
         final Settings openSettings = updatedSettingsBuilder.build();
 
         clusterService.submitStateUpdateTask("update-settings", new ProcessedClusterStateUpdateTask() {
-            @Override public ClusterState execute(ClusterState currentState) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
                 try {
                     String[] actualIndices = currentState.metaData().concreteIndices(indices);
                     RoutingTable.Builder routingTableBuilder = RoutingTable.builder().routingTable(currentState.routingTable());
@@ -201,7 +202,8 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                 }
             }
 
-            @Override public void clusterStateProcessed(ClusterState clusterState) {
+            @Override
+            public void clusterStateProcessed(ClusterState clusterState) {
                 listener.onSuccess();
             }
         });

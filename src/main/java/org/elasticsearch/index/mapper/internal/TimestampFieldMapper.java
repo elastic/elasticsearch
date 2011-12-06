@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -25,13 +25,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.mapper.InternalMapper;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeContext;
-import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.RootMapper;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
@@ -40,12 +34,12 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.*;
-import static org.elasticsearch.index.mapper.MapperBuilders.*;
-import static org.elasticsearch.index.mapper.core.TypeParsers.*;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.index.mapper.MapperBuilders.timestamp;
+import static org.elasticsearch.index.mapper.core.TypeParsers.parseDateTimeFormatter;
+import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 
 /**
- * @author paikan (benjamin.deveze)
  */
 public class TimestampFieldMapper extends DateFieldMapper implements InternalMapper, RootMapper {
 
@@ -89,7 +83,8 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
             return builder;
         }
 
-        @Override public TimestampFieldMapper build(BuilderContext context) {
+        @Override
+        public TimestampFieldMapper build(BuilderContext context) {
             boolean parseUpperInclusive = Defaults.PARSE_UPPER_INCLUSIVE;
             if (context.indexSettings() != null) {
                 parseUpperInclusive = context.indexSettings().getAsBoolean("index.mapping.date.parse_upper_inclusive", Defaults.PARSE_UPPER_INCLUSIVE);
@@ -99,7 +94,8 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
     }
 
     public static class TypeParser implements Mapper.TypeParser {
-        @Override public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        @Override
+        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             TimestampFieldMapper.Builder builder = timestamp();
             parseField(builder, builder.name, node, parserContext);
             for (Map.Entry<String, Object> entry : node.entrySet()) {
@@ -149,11 +145,13 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
     /**
      * Override the default behavior to return a timestamp
      */
-    @Override public Object valueForSearch(Fieldable field) {
+    @Override
+    public Object valueForSearch(Fieldable field) {
         return value(field);
     }
 
-    @Override public String valueAsString(Fieldable field) {
+    @Override
+    public String valueAsString(Fieldable field) {
         Long value = value(field);
         if (value == null) {
             return null;
@@ -161,25 +159,31 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
         return value.toString();
     }
 
-    @Override public void validate(ParseContext context) throws MapperParsingException {
+    @Override
+    public void validate(ParseContext context) throws MapperParsingException {
     }
 
-    @Override public void preParse(ParseContext context) throws IOException {
+    @Override
+    public void preParse(ParseContext context) throws IOException {
         super.parse(context);
     }
 
-    @Override public void postParse(ParseContext context) throws IOException {
+    @Override
+    public void postParse(ParseContext context) throws IOException {
     }
 
-    @Override public void parse(ParseContext context) throws IOException {
+    @Override
+    public void parse(ParseContext context) throws IOException {
         // nothing to do here, we call the parent in preParse
     }
 
-    @Override public boolean includeInObject() {
+    @Override
+    public boolean includeInObject() {
         return true;
     }
 
-    @Override protected Fieldable parseCreateField(ParseContext context) throws IOException {
+    @Override
+    protected Fieldable parseCreateField(ParseContext context) throws IOException {
         if (enabled) {
             long timestamp = context.sourceToParse().timestamp();
             if (!indexed() && !stored()) {
@@ -191,11 +195,13 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
         return null;
     }
 
-    @Override protected String contentType() {
+    @Override
+    protected String contentType() {
         return CONTENT_TYPE;
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // if all are defaults, no sense to write it at all
         if (index == Defaults.INDEX && store == Defaults.STORE && enabled == Defaults.ENABLED && path == Defaults.PATH
                 && dateTimeFormatter.format().equals(Defaults.DATE_TIME_FORMATTER.format())) {
@@ -221,7 +227,8 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
         return builder;
     }
 
-    @Override public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+    @Override
+    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
         // do nothing here, no merging, but also no exception
     }
 }

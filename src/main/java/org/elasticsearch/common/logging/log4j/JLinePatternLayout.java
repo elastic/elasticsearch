@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -29,20 +29,16 @@ import org.elasticsearch.common.jline.ANSI;
 
 import java.lang.reflect.Field;
 
-import static jline.ANSIBuffer.ANSICodes.*;
-import static org.elasticsearch.common.jline.ANSI.Code.FG_BLUE;
-import static org.elasticsearch.common.jline.ANSI.Code.FG_CYAN;
-import static org.elasticsearch.common.jline.ANSI.Code.FG_GREEN;
-import static org.elasticsearch.common.jline.ANSI.Code.FG_RED;
-import static org.elasticsearch.common.jline.ANSI.Code.FG_YELLOW;
-import static org.elasticsearch.common.jline.ANSI.Code.OFF;
+import static jline.ANSIBuffer.ANSICodes.attrib;
+import static org.elasticsearch.common.jline.ANSI.Code.*;
 
 /**
- * @author kimchy (Shay Banon)
+ *
  */
 public class JLinePatternLayout extends PatternLayout {
 
-    @Override protected PatternParser createPatternParser(String pattern) {
+    @Override
+    protected PatternParser createPatternParser(String pattern) {
         try {
             return new JLinePatternParser(pattern);
         } catch (Throwable t) {
@@ -56,7 +52,8 @@ public class JLinePatternLayout extends PatternLayout {
             super(pattern);
         }
 
-        @Override protected void addConverter(PatternConverter pc) {
+        @Override
+        protected void addConverter(PatternConverter pc) {
             try {
                 if (ANSI.isEnabled()) {
                     if (pc.getClass().getName().endsWith("BasicPatternConverter")) {

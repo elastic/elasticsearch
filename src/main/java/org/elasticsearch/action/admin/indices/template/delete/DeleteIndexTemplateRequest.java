@@ -27,13 +27,14 @@ import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 
-import static org.elasticsearch.action.Actions.*;
-import static org.elasticsearch.common.unit.TimeValue.*;
+import static org.elasticsearch.action.Actions.addValidationError;
+import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
+import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 
 /**
  * A request to delete an index template.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class DeleteIndexTemplateRequest extends MasterNodeOperationRequest {
 
@@ -51,7 +52,8 @@ public class DeleteIndexTemplateRequest extends MasterNodeOperationRequest {
         this.name = name;
     }
 
-    @Override public ActionRequestValidationException validate() {
+    @Override
+    public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (name == null) {
             validationException = addValidationError("name is missing", validationException);
@@ -91,13 +93,15 @@ public class DeleteIndexTemplateRequest extends MasterNodeOperationRequest {
         return timeout(TimeValue.parseTimeValue(timeout, null));
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         name = in.readUTF();
         timeout = readTimeValue(in);
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeUTF(name);
         timeout.writeTo(out);

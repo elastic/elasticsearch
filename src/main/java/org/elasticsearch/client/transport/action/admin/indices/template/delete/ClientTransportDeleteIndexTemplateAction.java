@@ -28,15 +28,17 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.TransportService;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class ClientTransportDeleteIndexTemplateAction extends BaseClientTransportAction<DeleteIndexTemplateRequest, DeleteIndexTemplateResponse> {
 
-    @Inject public ClientTransportDeleteIndexTemplateAction(Settings settings, TransportService transportService) {
+    @Inject
+    public ClientTransportDeleteIndexTemplateAction(Settings settings, TransportService transportService) {
         super(settings, transportService, DeleteIndexTemplateResponse.class);
     }
 
-    @Override protected String action() {
+    @Override
+    protected String action() {
         return TransportActions.Admin.Indices.DELETE_INDEX_TEMPLATE;
     }
 }

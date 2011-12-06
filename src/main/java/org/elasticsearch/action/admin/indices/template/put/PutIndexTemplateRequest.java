@@ -37,14 +37,15 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.action.Actions.*;
-import static org.elasticsearch.common.collect.Maps.*;
-import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
-import static org.elasticsearch.common.settings.ImmutableSettings.*;
-import static org.elasticsearch.common.unit.TimeValue.*;
+import static com.google.common.collect.Maps.newHashMap;
+import static org.elasticsearch.action.Actions.addValidationError;
+import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
+import static org.elasticsearch.common.settings.ImmutableSettings.readSettingsFromStream;
+import static org.elasticsearch.common.settings.ImmutableSettings.writeSettingsToStream;
+import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class PutIndexTemplateRequest extends MasterNodeOperationRequest {
 
@@ -74,7 +75,8 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest {
         this.name = name;
     }
 
-    @Override public ActionRequestValidationException validate() {
+    @Override
+    public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (name == null) {
             validationException = addValidationError("name is missing", validationException);
@@ -261,7 +263,8 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest {
         return timeout(TimeValue.parseTimeValue(timeout, null));
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         cause = in.readUTF();
         name = in.readUTF();
@@ -276,7 +279,8 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest {
         }
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeUTF(cause);
         out.writeUTF(name);

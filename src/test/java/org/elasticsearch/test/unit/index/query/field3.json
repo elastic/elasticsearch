@@ -1,0 +1,9 @@
+{
+    field:{
+        age:{
+            query:34,
+            boost:2.0,
+            enable_position_increments:false
+        }
+    }
+}

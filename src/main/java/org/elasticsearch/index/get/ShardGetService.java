@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -31,16 +31,8 @@ import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.FieldMappers;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
-import org.elasticsearch.index.mapper.internal.RoutingFieldMapper;
-import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
-import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
-import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.internal.*;
 import org.elasticsearch.index.mapper.selector.FieldMappersFieldSelector;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
@@ -57,7 +49,7 @@ import java.util.ArrayList;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.collect.Maps.*;
+import static com.google.common.collect.Maps.newHashMapWithExpectedSize;
 
 /**
  */
@@ -75,8 +67,9 @@ public class ShardGetService extends AbstractIndexShardComponent {
     private final MeanMetric missingMetric = new MeanMetric();
     private final CounterMetric currentMetric = new CounterMetric();
 
-    @Inject public ShardGetService(ShardId shardId, @IndexSettings Settings indexSettings, ScriptService scriptService,
-                                   MapperService mapperService, IndexCache indexCache) {
+    @Inject
+    public ShardGetService(ShardId shardId, @IndexSettings Settings indexSettings, ScriptService scriptService,
+                           MapperService mapperService, IndexCache indexCache) {
         super(shardId, indexSettings);
         this.scriptService = scriptService;
         this.mapperService = mapperService;

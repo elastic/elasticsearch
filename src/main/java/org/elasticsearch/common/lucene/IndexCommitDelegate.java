@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -30,7 +30,7 @@ import java.util.Map;
  * A simple delegate that delegates all {@link IndexCommit} calls to a delegated
  * {@link IndexCommit}.
  *
- * @author kimchy (Shay Banon)
+ *
  */
 public abstract class IndexCommitDelegate extends IndexCommit {
 
@@ -46,51 +46,63 @@ public abstract class IndexCommitDelegate extends IndexCommit {
         this.delegate = delegate;
     }
 
-    @Override public String getSegmentsFileName() {
+    @Override
+    public String getSegmentsFileName() {
         return delegate.getSegmentsFileName();
     }
 
-    @Override public Collection<String> getFileNames() throws IOException {
+    @Override
+    public Collection<String> getFileNames() throws IOException {
         return delegate.getFileNames();
     }
 
-    @Override public Directory getDirectory() {
+    @Override
+    public Directory getDirectory() {
         return delegate.getDirectory();
     }
 
-    @Override public void delete() {
+    @Override
+    public void delete() {
         delegate.delete();
     }
 
-    @Override public boolean isDeleted() {
+    @Override
+    public boolean isDeleted() {
         return delegate.isDeleted();
     }
 
-    @Override public int getSegmentCount() {
+    @Override
+    public int getSegmentCount() {
         return delegate.getSegmentCount();
     }
 
-    @Override public boolean equals(Object other) {
+    @Override
+    public boolean equals(Object other) {
         return delegate.equals(other);
     }
 
-    @Override public int hashCode() {
+    @Override
+    public int hashCode() {
         return delegate.hashCode();
     }
 
-    @Override public long getVersion() {
+    @Override
+    public long getVersion() {
         return delegate.getVersion();
     }
 
-    @Override public long getGeneration() {
+    @Override
+    public long getGeneration() {
         return delegate.getGeneration();
     }
 
-    @Override public long getTimestamp() throws IOException {
+    @Override
+    public long getTimestamp() throws IOException {
         return delegate.getTimestamp();
     }
 
-    @Override public Map<String, String> getUserData() throws IOException {
+    @Override
+    public Map<String, String> getUserData() throws IOException {
         return delegate.getUserData();
     }
 }

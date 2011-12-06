@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -490,7 +490,7 @@ public final class MathUtils {
 
     /**
      * Returns true iff both arguments are null or have same dimensions
-     * and all their elements are {@link #equals(double,double) equals}
+     * and all their elements are {@link #equals(double, double) equals}
      *
      * @param x first array
      * @param y second array
@@ -1157,11 +1157,11 @@ public final class MathUtils {
      * </pre>
      * applied to each non-NaN element x of the input array, where sum is the
      * sum of the non-NaN entries in the input array.</p>
-     *
+     * <p/>
      * <p>Throws IllegalArgumentException if <code>normalizedSum</code> is infinite
      * or NaN and ArithmeticException if the input array contains any infinite elements
      * or sums to 0</p>
-     *
+     * <p/>
      * <p>Ignores (i.e., copies unchanged to the output array) NaNs in the input array.</p>
      *
      * @param values        input array to be normalized

@@ -26,14 +26,15 @@ import org.elasticsearch.common.inject.spi.TypeListener;
 
 import java.lang.annotation.Annotation;
 
-import static org.elasticsearch.common.base.Preconditions.*;
+import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Preconditions.checkState;
 
 /**
  * A support class for {@link Module}s which reduces repetition and results in
  * a more readable configuration. Simply extend this class, implement {@link
  * #configure()}, and call the inherited methods which mirror those found in
  * {@link Binder}. For example:
- *
+ * <p/>
  * <pre>
  * public class MyModule extends AbstractModule {
  *   protected void configure() {

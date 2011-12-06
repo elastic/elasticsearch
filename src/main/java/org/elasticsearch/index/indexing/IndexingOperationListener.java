@@ -22,7 +22,7 @@ package org.elasticsearch.index.indexing;
 import org.elasticsearch.index.engine.Engine;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public abstract class IndexingOperationListener {
 

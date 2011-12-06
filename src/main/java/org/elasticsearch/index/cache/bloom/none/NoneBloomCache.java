@@ -31,7 +31,7 @@ import org.elasticsearch.index.cache.bloom.BloomCache;
 import org.elasticsearch.index.settings.IndexSettings;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class NoneBloomCache extends AbstractIndexComponent implements BloomCache {
 
@@ -39,28 +39,35 @@ public class NoneBloomCache extends AbstractIndexComponent implements BloomCache
         super(index, ImmutableSettings.Builder.EMPTY_SETTINGS);
     }
 
-    @Inject public NoneBloomCache(Index index, @IndexSettings Settings indexSettings) {
+    @Inject
+    public NoneBloomCache(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
     }
 
-    @Override public BloomFilter filter(IndexReader reader, String fieldName, boolean asyncLoad) {
+    @Override
+    public BloomFilter filter(IndexReader reader, String fieldName, boolean asyncLoad) {
         return BloomFilter.NONE;
     }
 
-    @Override public void clear() {
+    @Override
+    public void clear() {
     }
 
-    @Override public void clear(IndexReader reader) {
+    @Override
+    public void clear(IndexReader reader) {
     }
 
-    @Override public long sizeInBytes() {
+    @Override
+    public long sizeInBytes() {
         return 0;
     }
 
-    @Override public long sizeInBytes(String fieldName) {
+    @Override
+    public long sizeInBytes(String fieldName) {
         return 0;
     }
 
-    @Override public void close() throws ElasticSearchException {
+    @Override
+    public void close() throws ElasticSearchException {
     }
 }

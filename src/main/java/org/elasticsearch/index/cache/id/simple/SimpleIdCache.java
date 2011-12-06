@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.cache.id.simple;
 
+import gnu.trove.ExtTObjectIntHasMap;
+import gnu.trove.impl.Constants;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermDocs;
@@ -29,8 +31,6 @@ import org.elasticsearch.common.BytesWrap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.trove.ExtTObjectIntHasMap;
-import org.elasticsearch.common.trove.impl.Constants;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
@@ -48,43 +48,52 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class SimpleIdCache extends AbstractIndexComponent implements IdCache, IndexReader.ReaderFinishedListener {
 
     private final ConcurrentMap<Object, SimpleIdReaderCache> idReaders;
 
-    @Inject public SimpleIdCache(Index index, @IndexSettings Settings indexSettings) {
+    @Inject
+    public SimpleIdCache(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
         idReaders = ConcurrentCollections.newConcurrentMap();
     }
 
-    @Override public void close() throws ElasticSearchException {
+    @Override
+    public void close() throws ElasticSearchException {
         clear();
     }
 
-    @Override public void clear() {
+    @Override
+    public void clear() {
         idReaders.clear();
     }
 
-    @Override public void finished(IndexReader reader) {
+    @Override
+    public void finished(IndexReader reader) {
         clear(reader);
     }
 
-    @Override public void clear(IndexReader reader) {
+    @Override
+    public void clear(IndexReader reader) {
         idReaders.remove(reader.getCoreCacheKey());
     }
 
-    @Override public IdReaderCache reader(IndexReader reader) {
+    @Override
+    public IdReaderCache reader(IndexReader reader) {
         return idReaders.get(reader.getCoreCacheKey());
     }
 
-    @SuppressWarnings({"unchecked"}) @Override public Iterator<IdReaderCache> iterator() {
+    @SuppressWarnings({"unchecked"})
+    @Override
+    public Iterator<IdReaderCache> iterator() {
         return (Iterator<IdReaderCache>) idReaders.values();
     }
 
     @SuppressWarnings({"StringEquality"})
-    @Override public void refresh(IndexReader[] readers) throws Exception {
+    @Override
+    public void refresh(IndexReader[] readers) throws Exception {
         // do a quick check for the common case, that all are there
         if (refreshNeeded(readers)) {
             synchronized (idReaders) {

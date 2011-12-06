@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.query;
 
+import com.google.common.collect.Lists;
 import org.apache.lucene.search.Filter;
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
@@ -36,7 +36,7 @@ import org.elasticsearch.index.search.geo.Point;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.index.query.support.QueryParsers.*;
+import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameFilter;
 
 /**
  * <pre>
@@ -50,20 +50,23 @@ import static org.elasticsearch.index.query.support.QueryParsers.*;
  * }
  * </pre>
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class GeoPolygonFilterParser implements FilterParser {
 
     public static final String NAME = "geo_polygon";
 
-    @Inject public GeoPolygonFilterParser() {
+    @Inject
+    public GeoPolygonFilterParser() {
     }
 
-    @Override public String[] names() {
+    @Override
+    public String[] names() {
         return new String[]{NAME, "geoPolygon"};
     }
 
-    @Override public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    @Override
+    public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
         boolean cache = false;

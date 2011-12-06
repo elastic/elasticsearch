@@ -67,7 +67,8 @@ class TypeConverterBindingProcessor extends AbstractProcessor {
                     return value.charAt(0);
                 }
 
-                @Override public String toString() {
+                @Override
+                public String toString() {
                     return "TypeConverter<Character>";
                 }
             });
@@ -78,7 +79,8 @@ class TypeConverterBindingProcessor extends AbstractProcessor {
                     return Enum.valueOf((Class) toType.getRawType(), value);
                 }
 
-                @Override public String toString() {
+                @Override
+                public String toString() {
                     return "TypeConverter<E extends Enum<E>>";
                 }
             });
@@ -89,7 +91,8 @@ class TypeConverterBindingProcessor extends AbstractProcessor {
                             return typeLiteral.getRawType() == Class.class;
                         }
 
-                        @Override public String toString() {
+                        @Override
+                        public String toString() {
                             return "Class<?>";
                         }
                     },
@@ -103,7 +106,8 @@ class TypeConverterBindingProcessor extends AbstractProcessor {
                             }
                         }
 
-                        @Override public String toString() {
+                        @Override
+                        public String toString() {
                             return "TypeConverter<Class<?>>";
                         }
                     }
@@ -130,7 +134,8 @@ class TypeConverterBindingProcessor extends AbstractProcessor {
                     }
                 }
 
-                @Override public String toString() {
+                @Override
+                public String toString() {
                     return "TypeConverter<" + wrapperType.getSimpleName() + ">";
                 }
             };
@@ -148,19 +153,20 @@ class TypeConverterBindingProcessor extends AbstractProcessor {
     private void convertToClasses(final Matcher<? super Class<?>> typeMatcher,
                                   TypeConverter converter) {
         internalConvertToTypes(new AbstractMatcher<TypeLiteral<?>>() {
-                    public boolean matches(TypeLiteral<?> typeLiteral) {
-                        Type type = typeLiteral.getType();
-                        if (!(type instanceof Class)) {
-                            return false;
-                        }
-                        Class<?> clazz = (Class<?>) type;
-                        return typeMatcher.matches(clazz);
-                    }
+            public boolean matches(TypeLiteral<?> typeLiteral) {
+                Type type = typeLiteral.getType();
+                if (!(type instanceof Class)) {
+                    return false;
+                }
+                Class<?> clazz = (Class<?>) type;
+                return typeMatcher.matches(clazz);
+            }
 
-                    @Override public String toString() {
-                        return typeMatcher.toString();
-                    }
-                }, converter);
+            @Override
+            public String toString() {
+                return typeMatcher.toString();
+            }
+        }, converter);
     }
 
     private void internalConvertToTypes(Matcher<? super TypeLiteral<?>> typeMatcher,
@@ -169,7 +175,8 @@ class TypeConverterBindingProcessor extends AbstractProcessor {
                 new MatcherAndConverter(typeMatcher, converter, SourceProvider.UNKNOWN_SOURCE));
     }
 
-    @Override public Boolean visit(TypeConverterBinding command) {
+    @Override
+    public Boolean visit(TypeConverterBinding command) {
         injector.state.addConverter(new MatcherAndConverter(
                 command.getTypeMatcher(), command.getTypeConverter(), command.getSource()));
         return true;

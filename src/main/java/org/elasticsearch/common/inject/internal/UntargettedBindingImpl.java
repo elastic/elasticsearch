@@ -27,10 +27,10 @@ public class UntargettedBindingImpl<T> extends BindingImpl<T> implements Untarge
 
     public UntargettedBindingImpl(Injector injector, Key<T> key, Object source) {
         super(injector, key, source, new InternalFactory<T>() {
-                    public T get(Errors errors, InternalContext context, Dependency<?> dependency) {
-                        throw new AssertionError();
-                    }
-                }, Scoping.UNSCOPED);
+            public T get(Errors errors, InternalContext context, Dependency<?> dependency) {
+                throw new AssertionError();
+            }
+        }, Scoping.UNSCOPED);
     }
 
     public UntargettedBindingImpl(Object source, Key<T> key, Scoping scoping) {
@@ -53,7 +53,8 @@ public class UntargettedBindingImpl<T> extends BindingImpl<T> implements Untarge
         getScoping().applyTo(binder.withSource(getSource()).bind(getKey()));
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return new ToStringBuilder(UntargettedBinding.class)
                 .add("key", getKey())
                 .add("source", getSource())

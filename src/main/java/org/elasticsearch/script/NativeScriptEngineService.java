@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,9 +19,9 @@
 
 package org.elasticsearch.script;
 
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -36,20 +36,24 @@ public class NativeScriptEngineService extends AbstractComponent implements Scri
 
     private final ImmutableMap<String, NativeScriptFactory> scripts;
 
-    @Inject public NativeScriptEngineService(Settings settings, Map<String, NativeScriptFactory> scripts) {
+    @Inject
+    public NativeScriptEngineService(Settings settings, Map<String, NativeScriptFactory> scripts) {
         super(settings);
         this.scripts = ImmutableMap.copyOf(scripts);
     }
 
-    @Override public String[] types() {
+    @Override
+    public String[] types() {
         return new String[]{"native"};
     }
 
-    @Override public String[] extensions() {
+    @Override
+    public String[] extensions() {
         return new String[0];
     }
 
-    @Override public Object compile(String script) {
+    @Override
+    public Object compile(String script) {
         NativeScriptFactory scriptFactory = scripts.get(script);
         if (scriptFactory != null) {
             return scriptFactory;
@@ -57,26 +61,31 @@ public class NativeScriptEngineService extends AbstractComponent implements Scri
         throw new ElasticSearchIllegalArgumentException("Native script [" + script + "] not found");
     }
 
-    @Override public ExecutableScript executable(Object compiledScript, @Nullable Map<String, Object> vars) {
+    @Override
+    public ExecutableScript executable(Object compiledScript, @Nullable Map<String, Object> vars) {
         NativeScriptFactory scriptFactory = (NativeScriptFactory) compiledScript;
         return scriptFactory.newScript(vars);
     }
 
-    @Override public SearchScript search(Object compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars) {
+    @Override
+    public SearchScript search(Object compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars) {
         NativeScriptFactory scriptFactory = (NativeScriptFactory) compiledScript;
         AbstractSearchScript script = (AbstractSearchScript) scriptFactory.newScript(vars);
         script.setLookup(lookup);
         return script;
     }
 
-    @Override public Object execute(Object compiledScript, Map<String, Object> vars) {
+    @Override
+    public Object execute(Object compiledScript, Map<String, Object> vars) {
         return executable(compiledScript, vars).run();
     }
 
-    @Override public Object unwrap(Object value) {
+    @Override
+    public Object unwrap(Object value) {
         return value;
     }
 
-    @Override public void close() {
+    @Override
+    public void close() {
     }
 }

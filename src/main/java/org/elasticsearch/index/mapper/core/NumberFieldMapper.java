@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -40,7 +40,7 @@ import org.elasticsearch.index.query.QueryParseContext;
 import java.io.Reader;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldMapper<T> implements AllFieldMapper.IncludeInAll {
 
@@ -65,19 +65,23 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
             this.omitTermFreqAndPositions = Defaults.OMIT_TERM_FREQ_AND_POSITIONS;
         }
 
-        @Override public T store(Field.Store store) {
+        @Override
+        public T store(Field.Store store) {
             return super.store(store);
         }
 
-        @Override public T boost(float boost) {
+        @Override
+        public T boost(float boost) {
             return super.boost(boost);
         }
 
-        @Override public T indexName(String indexName) {
+        @Override
+        public T indexName(String indexName) {
             return super.indexName(indexName);
         }
 
-        @Override public T includeInAll(Boolean includeInAll) {
+        @Override
+        public T includeInAll(Boolean includeInAll) {
             return super.includeInAll(includeInAll);
         }
 
@@ -101,7 +105,8 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
     protected Boolean includeInAll;
 
     private ThreadLocal<NumericTokenStream> tokenStream = new ThreadLocal<NumericTokenStream>() {
-        @Override protected NumericTokenStream initialValue() {
+        @Override
+        protected NumericTokenStream initialValue() {
             return new NumericTokenStream(precisionStep);
         }
     };
@@ -127,13 +132,15 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
         return Double.parseDouble(fuzzyFactor);
     }
 
-    @Override public void includeInAll(Boolean includeInAll) {
+    @Override
+    public void includeInAll(Boolean includeInAll) {
         if (includeInAll != null) {
             this.includeInAll = includeInAll;
         }
     }
 
-    @Override public void includeInAllIfNotSet(Boolean includeInAll) {
+    @Override
+    public void includeInAllIfNotSet(Boolean includeInAll) {
         if (includeInAll != null && this.includeInAll == null) {
             this.includeInAll = includeInAll;
         }
@@ -148,7 +155,8 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
     /**
      * Use the field query created here when matching on numbers.
      */
-    @Override public boolean useFieldQueryWithQueryString() {
+    @Override
+    public boolean useFieldQueryWithQueryString() {
         return true;
     }
 
@@ -156,25 +164,31 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
      * Numeric field level query are basically range queries with same value and included. That's the recommended
      * way to execute it.
      */
-    @Override public Query fieldQuery(String value, @Nullable QueryParseContext context) {
+    @Override
+    public Query fieldQuery(String value, @Nullable QueryParseContext context) {
         return rangeQuery(value, value, true, true);
     }
 
-    @Override public abstract Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions);
+    @Override
+    public abstract Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions);
 
-    @Override public abstract Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions);
+    @Override
+    public abstract Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions);
 
     /**
      * Numeric field level filter are basically range queries with same value and included. That's the recommended
      * way to execute it.
      */
-    @Override public Filter fieldFilter(String value, @Nullable QueryParseContext context) {
+    @Override
+    public Filter fieldFilter(String value, @Nullable QueryParseContext context) {
         return rangeFilter(value, value, true, true);
     }
 
-    @Override public abstract Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper);
+    @Override
+    public abstract Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper);
 
-    @Override public abstract Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper);
+    @Override
+    public abstract Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper);
 
     /**
      * A range filter based on the field data cache.
@@ -184,16 +198,19 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
     /**
      * Override the default behavior (to return the string, and return the actual Number instance).
      */
-    @Override public Object valueForSearch(Fieldable field) {
+    @Override
+    public Object valueForSearch(Fieldable field) {
         return value(field);
     }
 
-    @Override public String valueAsString(Fieldable field) {
+    @Override
+    public String valueAsString(Fieldable field) {
         Number num = value(field);
         return num == null ? null : num.toString();
     }
 
-    @Override public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+    @Override
+    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
         super.merge(mergeWith, mergeContext);
         if (!this.getClass().equals(mergeWith.getClass())) {
             return;
@@ -206,11 +223,13 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
         }
     }
 
-    @Override public void close() {
+    @Override
+    public void close() {
         tokenStream.remove();
     }
 
-    @Override public abstract FieldDataType fieldDataType();
+    @Override
+    public abstract FieldDataType fieldDataType();
 
     protected NumericTokenStream popCachedStream() {
         return tokenStream.get();
@@ -241,11 +260,13 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
             setStoreTermVector(Field.TermVector.NO);
         }
 
-        @Override public String stringValue() {
+        @Override
+        public String stringValue() {
             return null;
         }
 
-        @Override public Reader readerValue() {
+        @Override
+        public Reader readerValue() {
             return null;
         }
 

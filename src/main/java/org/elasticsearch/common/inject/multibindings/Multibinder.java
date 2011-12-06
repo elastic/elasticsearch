@@ -16,18 +16,10 @@
 
 package org.elasticsearch.common.inject.multibindings;
 
-import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.collect.ImmutableSet;
-import org.elasticsearch.common.collect.Lists;
-import org.elasticsearch.common.inject.Binder;
-import org.elasticsearch.common.inject.Binding;
-import org.elasticsearch.common.inject.ConfigurationException;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.common.inject.Key;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.Provider;
-import org.elasticsearch.common.inject.TypeLiteral;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
+import org.elasticsearch.common.inject.*;
 import org.elasticsearch.common.inject.binder.LinkedBindingBuilder;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.spi.Dependency;
@@ -56,31 +48,31 @@ import java.util.Set;
  *     multibinder.addBinding().to(Skittles.class);
  *   }
  * }</code></pre>
- *
+ * <p/>
  * <p>With this binding, a {@link Set}{@code <Snack>} can now be injected:
  * <pre><code>
  * class SnackMachine {
  *   {@literal @}Inject
  *   public SnackMachine(Set&lt;Snack&gt; snacks) { ... }
  * }</code></pre>
- *
+ * <p/>
  * <p>Create multibindings from different modules is supported. For example, it
  * is okay to have both {@code CandyModule} and {@code ChipsModule} to both
  * create their own {@code Multibinder<Snack>}, and to each contribute bindings
  * to the set of snacks. When that set is injected, it will contain elements
  * from both modules.
- *
+ * <p/>
  * <p>Elements are resolved at set injection time. If an element is bound to a
  * provider, that provider's get method will be called each time the set is
  * injected (unless the binding is also scoped).
- *
+ * <p/>
  * <p>Annotations are be used to create different sets of the same element
  * type. Each distinct annotation gets its own independent collection of
  * elements.
- *
+ * <p/>
  * <p><strong>Elements must be distinct.</strong> If multiple bound elements
  * have the same value, set injection will fail.
- *
+ * <p/>
  * <p><strong>Elements must be non-null.</strong> If any set element is null,
  * set injection will fail.
  *
@@ -164,10 +156,10 @@ public abstract class Multibinder<T> {
      * Returns a binding builder used to add a new element in the set. Each
      * bound element must have a distinct value. Bound providers will be
      * evaluated each time the set is injected.
-     *
+     * <p/>
      * <p>It is an error to call this method without also calling one of the
      * {@code to} methods on the returned binding builder.
-     *
+     * <p/>
      * <p>Scoping elements independently is supported. Use the {@code in} method
      * to specify a binding scope.
      */
@@ -175,11 +167,11 @@ public abstract class Multibinder<T> {
 
     /**
      * The actual multibinder plays several roles:
-     *
+     * <p/>
      * <p>As a Multibinder, it acts as a factory for LinkedBindingBuilders for
      * each of the set's elements. Each binding is given an annotation that
      * identifies it as a part of this set.
-     *
+     * <p/>
      * <p>As a Module, it installs the binding to the set itself. As a module,
      * this implements equals() and hashcode() in order to trick Guice into
      * executing its configure() method only once. That makes it so that
@@ -187,9 +179,9 @@ public abstract class Multibinder<T> {
      * only one is bound. Since the list of bindings is retrieved from the
      * injector itself (and not the multibinder), each multibinder has access to
      * all contributions from all multibinders.
-     *
+     * <p/>
      * <p>As a Provider, this constructs the set instances.
-     *
+     * <p/>
      * <p>We use a subclass to hide 'implements Module, Provider' from the public
      * API.
      */
@@ -222,7 +214,8 @@ public abstract class Multibinder<T> {
             binder.bind(setKey).toProvider(this);
         }
 
-        @Override public LinkedBindingBuilder<T> addBinding() {
+        @Override
+        public LinkedBindingBuilder<T> addBinding() {
             checkConfiguration(!isInitialized(), "Multibinder was already initialized");
 
             return binder.bind(Key.get(elementType, new RealElement(setName)));
@@ -233,7 +226,8 @@ public abstract class Multibinder<T> {
          * element in this set. At this time the set's size is known, but its
          * contents are only evaluated when get() is invoked.
          */
-        @Inject void initialize(Injector injector) {
+        @Inject
+        void initialize(Injector injector) {
             providers = Lists.newArrayList();
             List<Dependency<?>> dependencies = Lists.newArrayList();
             for (Binding<?> entry : injector.findBindingsByType(elementType)) {
@@ -285,16 +279,19 @@ public abstract class Multibinder<T> {
             return dependencies;
         }
 
-        @Override public boolean equals(Object o) {
+        @Override
+        public boolean equals(Object o) {
             return o instanceof RealMultibinder
                     && ((RealMultibinder<?>) o).setKey.equals(setKey);
         }
 
-        @Override public int hashCode() {
+        @Override
+        public int hashCode() {
             return setKey.hashCode();
         }
 
-        @Override public String toString() {
+        @Override
+        public String toString() {
             return new StringBuilder()
                     .append(setName)
                     .append(setName.length() > 0 ? " " : "")

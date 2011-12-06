@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -29,19 +29,22 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class ClientTransportBulkAction extends BaseClientTransportAction<BulkRequest, BulkResponse> {
 
-    @Inject public ClientTransportBulkAction(Settings settings, TransportService transportService) {
+    @Inject
+    public ClientTransportBulkAction(Settings settings, TransportService transportService) {
         super(settings, transportService, BulkResponse.class);
     }
 
-    @Override protected String action() {
+    @Override
+    protected String action() {
         return TransportActions.BULK;
     }
 
-    @Override protected TransportRequestOptions options() {
+    @Override
+    protected TransportRequestOptions options() {
         return TransportRequestOptions.options().withLowType().withCompress(true);
     }
 }

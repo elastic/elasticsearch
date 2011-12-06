@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -39,7 +39,8 @@ public class DisableAllocationDecider extends AllocationDecider {
     }
 
     class ApplySettings implements NodeSettingsService.Listener {
-        @Override public void onRefreshSettings(Settings settings) {
+        @Override
+        public void onRefreshSettings(Settings settings) {
             boolean disableAllocation = settings.getAsBoolean("cluster.routing.allocation.disable_allocation", DisableAllocationDecider.this.disableAllocation);
             if (disableAllocation != DisableAllocationDecider.this.disableAllocation) {
                 logger.info("updating [cluster.routing.allocation.disable_allocation] from [{}] to [{}]", DisableAllocationDecider.this.disableAllocation, disableAllocation);
@@ -57,7 +58,8 @@ public class DisableAllocationDecider extends AllocationDecider {
     private volatile boolean disableAllocation;
     private volatile boolean disableReplicaAllocation;
 
-    @Inject public DisableAllocationDecider(Settings settings, NodeSettingsService nodeSettingsService) {
+    @Inject
+    public DisableAllocationDecider(Settings settings, NodeSettingsService nodeSettingsService) {
         super(settings);
         this.disableAllocation = settings.getAsBoolean("cluster.routing.allocation.disable_allocation", false);
         this.disableReplicaAllocation = settings.getAsBoolean("cluster.routing.allocation.disable_replica_allocation", false);
@@ -65,7 +67,8 @@ public class DisableAllocationDecider extends AllocationDecider {
         nodeSettingsService.addListener(new ApplySettings());
     }
 
-    @Override public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+    @Override
+    public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (disableAllocation) {
             return Decision.NO;
         }

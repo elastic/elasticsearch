@@ -19,22 +19,24 @@
 
 package org.elasticsearch.search;
 
-import org.elasticsearch.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.search.facet.TransportFacetModule;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class TransportSearchModule extends AbstractModule implements SpawnModules {
 
-    @Override public Iterable<? extends Module> spawnModules() {
+    @Override
+    public Iterable<? extends Module> spawnModules() {
         return ImmutableList.of(new TransportFacetModule());
     }
 
-    @Override protected void configure() {
+    @Override
+    protected void configure() {
 
     }
 }

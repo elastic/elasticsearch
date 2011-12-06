@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -30,17 +30,19 @@ import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.Test;
 
-import static org.elasticsearch.client.Requests.*;
-import static org.elasticsearch.common.settings.ImmutableSettings.*;
-import static org.elasticsearch.common.xcontent.XContentFactory.*;
-import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.hamcrest.MatcherAssert.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.client.Requests.clusterHealthRequest;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
 
 @Test
 public class RecoveryPercolatorTests extends AbstractNodesTests {
 
-    @AfterMethod public void cleanAndCloseNodes() throws Exception {
+    @AfterMethod
+    public void cleanAndCloseNodes() throws Exception {
         for (int i = 0; i < 10; i++) {
             if (node("node" + i) != null) {
                 node("node" + i).stop();
@@ -53,7 +55,8 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
         closeAllNodes();
     }
 
-    @Test public void testRestartNodePercolator1() throws Exception {
+    @Test
+    public void testRestartNodePercolator1() throws Exception {
         logger.info("--> cleaning nodes");
         buildNode("node1", settingsBuilder().put("gateway.type", "local"));
         cleanAndCloseNodes();
@@ -98,7 +101,8 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
         assertThat(percolate.matches().size(), equalTo(1));
     }
 
-    @Test public void testRestartNodePercolator2() throws Exception {
+    @Test
+    public void testRestartNodePercolator2() throws Exception {
         logger.info("--> cleaning nodes");
         buildNode("node1", settingsBuilder().put("gateway.type", "local"));
         cleanAndCloseNodes();

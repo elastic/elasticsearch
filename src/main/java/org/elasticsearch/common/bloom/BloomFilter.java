@@ -27,41 +27,51 @@ import java.nio.ByteBuffer;
 public interface BloomFilter {
 
     public static final BloomFilter NONE = new BloomFilter() {
-        @Override public void add(byte[] key, int offset, int length) {
+        @Override
+        public void add(byte[] key, int offset, int length) {
         }
 
-        @Override public void add(ByteBuffer key) {
+        @Override
+        public void add(ByteBuffer key) {
         }
 
-        @Override public boolean isPresent(byte[] key, int offset, int length) {
+        @Override
+        public boolean isPresent(byte[] key, int offset, int length) {
             return true;
         }
 
-        @Override public boolean isPresent(ByteBuffer key) {
+        @Override
+        public boolean isPresent(ByteBuffer key) {
             return true;
         }
 
-        @Override public long sizeInBytes() {
+        @Override
+        public long sizeInBytes() {
             return 0;
         }
     };
 
     public static final BloomFilter EMPTY = new BloomFilter() {
-        @Override public void add(byte[] key, int offset, int length) {
+        @Override
+        public void add(byte[] key, int offset, int length) {
         }
 
-        @Override public void add(ByteBuffer key) {
+        @Override
+        public void add(ByteBuffer key) {
         }
 
-        @Override public boolean isPresent(byte[] key, int offset, int length) {
+        @Override
+        public boolean isPresent(byte[] key, int offset, int length) {
             return false;
         }
 
-        @Override public boolean isPresent(ByteBuffer key) {
+        @Override
+        public boolean isPresent(ByteBuffer key) {
             return false;
         }
 
-        @Override public long sizeInBytes() {
+        @Override
+        public long sizeInBytes() {
             return 0;
         }
     };

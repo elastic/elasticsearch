@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -24,7 +24,7 @@ import java.io.DataOutput;
 import java.io.IOException;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class DataOutputStreamOutput extends StreamOutput {
 
@@ -34,23 +34,28 @@ public class DataOutputStreamOutput extends StreamOutput {
         this.out = out;
     }
 
-    @Override public void writeByte(byte b) throws IOException {
+    @Override
+    public void writeByte(byte b) throws IOException {
         out.writeByte(b);
     }
 
-    @Override public void writeBytes(byte[] b, int offset, int length) throws IOException {
+    @Override
+    public void writeBytes(byte[] b, int offset, int length) throws IOException {
         out.write(b, offset, length);
     }
 
-    @Override public void flush() throws IOException {
+    @Override
+    public void flush() throws IOException {
         // nothing to do there...
     }
 
-    @Override public void reset() throws IOException {
+    @Override
+    public void reset() throws IOException {
         // nothing to do there...
     }
 
-    @Override public void close() throws IOException {
+    @Override
+    public void close() throws IOException {
         if (out instanceof Closeable) {
             ((Closeable) out).close();
         }

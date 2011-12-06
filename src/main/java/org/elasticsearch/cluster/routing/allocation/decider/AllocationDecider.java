@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -28,23 +28,26 @@ import org.elasticsearch.common.settings.Settings;
 /**
  * A pluggable logic allowing to control if allocation of a shard is allowed on a specific node.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public abstract class AllocationDecider extends AbstractComponent {
 
     public static enum Decision {
         YES {
-            @Override public boolean allocate() {
+            @Override
+            public boolean allocate() {
                 return true;
             }
         },
         NO {
-            @Override public boolean allocate() {
+            @Override
+            public boolean allocate() {
                 return false;
             }
         },
         THROTTLE {
-            @Override public boolean allocate() {
+            @Override
+            public boolean allocate() {
                 return false;
             }
         };

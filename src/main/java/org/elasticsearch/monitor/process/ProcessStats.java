@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -31,7 +31,7 @@ import java.io.IOException;
 import java.io.Serializable;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class ProcessStats implements Streamable, Serializable, ToXContent {
 
@@ -78,7 +78,8 @@ public class ProcessStats implements Streamable, Serializable, ToXContent {
         return mem();
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("process");
         builder.field("timestamp", timestamp);
         builder.field("open_file_descriptors", openFileDescriptors);
@@ -113,7 +114,8 @@ public class ProcessStats implements Streamable, Serializable, ToXContent {
         return stats;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         timestamp = in.readVLong();
         openFileDescriptors = in.readLong();
         if (in.readBoolean()) {
@@ -124,7 +126,8 @@ public class ProcessStats implements Streamable, Serializable, ToXContent {
         }
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(timestamp);
         out.writeLong(openFileDescriptors);
         if (cpu == null) {
@@ -156,13 +159,15 @@ public class ProcessStats implements Streamable, Serializable, ToXContent {
             return mem;
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             totalVirtual = in.readLong();
             resident = in.readLong();
             share = in.readLong();
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             out.writeLong(totalVirtual);
             out.writeLong(resident);
             out.writeLong(share);
@@ -210,14 +215,16 @@ public class ProcessStats implements Streamable, Serializable, ToXContent {
             return cpu;
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             percent = in.readShort();
             sys = in.readLong();
             user = in.readLong();
             total = in.readLong();
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             out.writeShort(percent);
             out.writeLong(sys);
             out.writeLong(user);
@@ -226,7 +233,7 @@ public class ProcessStats implements Streamable, Serializable, ToXContent {
 
         /**
          * Get the Process cpu usage.
-         *
+         * <p/>
          * <p>Supported Platforms: All.
          */
         public short percent() {
@@ -235,7 +242,7 @@ public class ProcessStats implements Streamable, Serializable, ToXContent {
 
         /**
          * Get the Process cpu usage.
-         *
+         * <p/>
          * <p>Supported Platforms: All.
          */
         public short getPercent() {
@@ -244,7 +251,7 @@ public class ProcessStats implements Streamable, Serializable, ToXContent {
 
         /**
          * Get the Process cpu kernel time.
-         *
+         * <p/>
          * <p>Supported Platforms: All.
          */
         public TimeValue sys() {
@@ -253,7 +260,7 @@ public class ProcessStats implements Streamable, Serializable, ToXContent {
 
         /**
          * Get the Process cpu kernel time.
-         *
+         * <p/>
          * <p>Supported Platforms: All.
          */
         public TimeValue getSys() {
@@ -262,7 +269,7 @@ public class ProcessStats implements Streamable, Serializable, ToXContent {
 
         /**
          * Get the Process cpu user time.
-         *
+         * <p/>
          * <p>Supported Platforms: All.
          */
         public TimeValue user() {
@@ -271,7 +278,7 @@ public class ProcessStats implements Streamable, Serializable, ToXContent {
 
         /**
          * Get the Process cpu time (sum of User and Sys).
-         *
+         * <p/>
          * Supported Platforms: All.
          */
         public TimeValue total() {
@@ -280,7 +287,7 @@ public class ProcessStats implements Streamable, Serializable, ToXContent {
 
         /**
          * Get the Process cpu time (sum of User and Sys).
-         *
+         * <p/>
          * Supported Platforms: All.
          */
         public TimeValue getTotal() {
@@ -289,7 +296,7 @@ public class ProcessStats implements Streamable, Serializable, ToXContent {
 
         /**
          * Get the Process cpu user time.
-         *
+         * <p/>
          * <p>Supported Platforms: All.
          */
         public TimeValue getUser() {

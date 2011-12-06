@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -40,7 +40,8 @@ public class NodeSettingsService extends AbstractComponent implements ClusterSta
 
     private final CopyOnWriteArrayList<Listener> listeners = new CopyOnWriteArrayList<Listener>();
 
-    @Inject public NodeSettingsService(Settings settings) {
+    @Inject
+    public NodeSettingsService(Settings settings) {
         super(settings);
     }
 
@@ -49,7 +50,8 @@ public class NodeSettingsService extends AbstractComponent implements ClusterSta
         clusterService.add(this);
     }
 
-    @Override public void clusterChanged(ClusterChangedEvent event) {
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
         // nothing to do until we actually recover from the gateway or any other block indicates we need to disable persistency
         if (event.state().blocks().disableStatePersistence()) {
             return;

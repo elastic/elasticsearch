@@ -16,14 +16,9 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import org.elasticsearch.common.collect.ImmutableSet;
-import org.elasticsearch.common.collect.Lists;
-import org.elasticsearch.common.inject.Binder;
-import org.elasticsearch.common.inject.Key;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.Provider;
-import org.elasticsearch.common.inject.Provides;
-import org.elasticsearch.common.inject.TypeLiteral;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
+import org.elasticsearch.common.inject.*;
 import org.elasticsearch.common.inject.spi.Dependency;
 import org.elasticsearch.common.inject.spi.Message;
 import org.elasticsearch.common.inject.util.Modules;
@@ -33,7 +28,7 @@ import java.lang.reflect.Member;
 import java.lang.reflect.Method;
 import java.util.List;
 
-import static org.elasticsearch.common.base.Preconditions.*;
+import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
  * Creates bindings to methods annotated with {@literal @}{@link Provides}. Use the scope and
@@ -124,12 +119,14 @@ public final class ProviderMethodsModule implements Module {
         return bindingAnnotation == null ? Key.get(type) : Key.get(type, bindingAnnotation);
     }
 
-    @Override public boolean equals(Object o) {
+    @Override
+    public boolean equals(Object o) {
         return o instanceof ProviderMethodsModule
                 && ((ProviderMethodsModule) o).delegate == delegate;
     }
 
-    @Override public int hashCode() {
+    @Override
+    public int hashCode() {
         return delegate.hashCode();
     }
 }

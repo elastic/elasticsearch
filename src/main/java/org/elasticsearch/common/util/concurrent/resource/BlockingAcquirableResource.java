@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -24,11 +24,11 @@ import org.elasticsearch.common.lease.Releasable;
 /**
  * A wrapper around a resource that can be released. Note, release should not be
  * called directly on the resource itself.
- *
+ * <p/>
  * <p>Yea, I now, the fact that the resource itself is releasable basically means that
  * users of this class should take care... .
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class BlockingAcquirableResource<T extends Releasable> implements AcquirableResource<T> {
 
@@ -44,14 +44,16 @@ public class BlockingAcquirableResource<T extends Releasable> implements Acquira
         this.resource = resource;
     }
 
-    @Override public T resource() {
+    @Override
+    public T resource() {
         return resource;
     }
 
     /**
      * Acquires the resource, returning <tt>true</tt> if it was acquired.
      */
-    @Override public synchronized boolean acquire() {
+    @Override
+    public synchronized boolean acquire() {
         if (markForClose) {
             return false;
         }
@@ -62,7 +64,8 @@ public class BlockingAcquirableResource<T extends Releasable> implements Acquira
     /**
      * Releases the resource, will close it if there are no more acquirers.
      */
-    @Override public synchronized void release() {
+    @Override
+    public synchronized void release() {
         count--;
         checkIfCanClose();
     }
@@ -71,12 +74,14 @@ public class BlockingAcquirableResource<T extends Releasable> implements Acquira
      * Marks the resource to be closed. Will close it if there are no current
      * acquires.
      */
-    @Override public synchronized void markForClose() {
+    @Override
+    public synchronized void markForClose() {
         markForClose = true;
         checkIfCanClose();
     }
 
-    @Override public void forceClose() {
+    @Override
+    public void forceClose() {
         count = 0;
         markForClose();
     }

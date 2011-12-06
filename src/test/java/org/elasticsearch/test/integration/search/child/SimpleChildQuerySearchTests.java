@@ -33,26 +33,28 @@ import org.testng.annotations.Test;
 
 import java.util.Arrays;
 
-import static org.elasticsearch.index.query.FilterBuilders.*;
+import static org.elasticsearch.index.query.FilterBuilders.hasChildFilter;
 import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.search.facet.FacetBuilders.*;
-import static org.hamcrest.MatcherAssert.*;
+import static org.elasticsearch.search.facet.FacetBuilders.termsFacet;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class SimpleChildQuerySearchTests extends AbstractNodesTests {
 
     private Client client;
 
-    @BeforeClass public void createNodes() throws Exception {
+    @BeforeClass
+    public void createNodes() throws Exception {
         startNode("node1");
         startNode("node2");
         client = getClient();
     }
 
-    @AfterClass public void closeNodes() {
+    @AfterClass
+    public void closeNodes() {
         client.close();
         closeAllNodes();
     }
@@ -61,7 +63,8 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
         return client("node1");
     }
 
-    @Test public void simpleChildQuery() throws Exception {
+    @Test
+    public void simpleChildQuery() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
 
         client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
@@ -210,7 +213,8 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().getAt(1).id(), anyOf(equalTo("p2"), equalTo("p1")));
     }
 
-    @Test public void simpleChildQueryWithFlush() throws Exception {
+    @Test
+    public void simpleChildQueryWithFlush() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
 
         client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
@@ -304,7 +308,8 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().getAt(1).id(), anyOf(equalTo("p2"), equalTo("p1")));
     }
 
-    @Test public void simpleChildQueryWithFlushAnd3Shards() throws Exception {
+    @Test
+    public void simpleChildQueryWithFlushAnd3Shards() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
 
         client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 3)).execute().actionGet();
@@ -398,7 +403,8 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().getAt(1).id(), anyOf(equalTo("p2"), equalTo("p1")));
     }
 
-    @Test public void testScopedFacet() throws Exception {
+    @Test
+    public void testScopedFacet() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
 
         client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
@@ -436,7 +442,8 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
         assertThat(termsFacet.entries().get(1).count(), equalTo(1));
     }
 
-    @Test public void testDeletedParent() throws Exception {
+    @Test
+    public void testDeletedParent() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
 
         client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
@@ -496,7 +503,8 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().getAt(0).sourceAsString(), containsString("\"p_value1_updated\""));
     }
 
-    @Test public void testDfsSearchType() throws Exception {
+    @Test
+    public void testDfsSearchType() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
 
         client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2)).execute().actionGet();

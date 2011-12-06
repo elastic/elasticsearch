@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -54,31 +54,37 @@ public class NestedChildrenCollector extends FacetCollector {
         this.childFilter = childFilter;
     }
 
-    @Override public Facet facet() {
+    @Override
+    public Facet facet() {
         return collector.facet();
     }
 
-    @Override public void setFilter(Filter filter) {
+    @Override
+    public void setFilter(Filter filter) {
         // delegate the facet_filter to the children
         collector.setFilter(filter);
     }
 
-    @Override public void setScorer(Scorer scorer) throws IOException {
+    @Override
+    public void setScorer(Scorer scorer) throws IOException {
         collector.setScorer(scorer);
     }
 
-    @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
+    @Override
+    public void setNextReader(IndexReader reader, int docBase) throws IOException {
         collector.setNextReader(reader, docBase);
         currentReader = reader;
         childDocs = DocSets.convert(reader, childFilter.getDocIdSet(reader));
         parentDocs = ((FixedBitDocSet) parentFilter.getDocIdSet(reader)).set();
     }
 
-    @Override public boolean acceptsDocsOutOfOrder() {
+    @Override
+    public boolean acceptsDocsOutOfOrder() {
         return collector.acceptsDocsOutOfOrder();
     }
 
-    @Override public void collect(int parentDoc) throws IOException {
+    @Override
+    public void collect(int parentDoc) throws IOException {
         if (parentDoc == 0) {
             return;
         }

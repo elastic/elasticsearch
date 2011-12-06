@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -36,19 +36,23 @@ import java.io.IOException;
  */
 public class RamDirectoryService extends AbstractIndexShardComponent implements DirectoryService {
 
-    @Inject public RamDirectoryService(ShardId shardId, @IndexSettings Settings indexSettings) {
+    @Inject
+    public RamDirectoryService(ShardId shardId, @IndexSettings Settings indexSettings) {
         super(shardId, indexSettings);
     }
 
-    @Override public Directory[] build() {
+    @Override
+    public Directory[] build() {
         return new Directory[]{new CustomRAMDirectory()};
     }
 
-    @Override public void renameFile(Directory dir, String from, String to) throws IOException {
+    @Override
+    public void renameFile(Directory dir, String from, String to) throws IOException {
         ((CustomRAMDirectory) dir).renameTo(from, to);
     }
 
-    @Override public void fullDelete(Directory dir) {
+    @Override
+    public void fullDelete(Directory dir) {
     }
 
     static class CustomRAMDirectory extends RAMDirectory {

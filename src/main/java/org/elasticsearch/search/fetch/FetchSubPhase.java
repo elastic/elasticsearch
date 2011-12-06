@@ -19,10 +19,10 @@
 
 package org.elasticsearch.search.fetch;
 
+import com.google.common.collect.Maps;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
@@ -30,7 +30,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.util.Map;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public interface FetchSubPhase {
 

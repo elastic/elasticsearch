@@ -22,7 +22,7 @@ package org.elasticsearch.index.field.data.bytes;
 import org.elasticsearch.index.field.data.NumericDocFieldData;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class ByteDocFieldData extends NumericDocFieldData<ByteFieldData> {
 

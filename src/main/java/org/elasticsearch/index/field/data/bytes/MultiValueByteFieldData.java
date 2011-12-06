@@ -24,14 +24,15 @@ import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.index.field.data.doubles.DoubleFieldData;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class MultiValueByteFieldData extends ByteFieldData {
 
     private static final int VALUE_CACHE_SIZE = 10;
 
     private ThreadLocal<ThreadLocals.CleanableValue<double[][]>> doublesValuesCache = new ThreadLocal<ThreadLocals.CleanableValue<double[][]>>() {
-        @Override protected ThreadLocals.CleanableValue<double[][]> initialValue() {
+        @Override
+        protected ThreadLocals.CleanableValue<double[][]> initialValue() {
             double[][] value = new double[VALUE_CACHE_SIZE][];
             for (int i = 0; i < value.length; i++) {
                 value[i] = new double[i];
@@ -41,7 +42,8 @@ public class MultiValueByteFieldData extends ByteFieldData {
     };
 
     private ThreadLocal<ThreadLocals.CleanableValue<byte[][]>> valuesCache = new ThreadLocal<ThreadLocals.CleanableValue<byte[][]>>() {
-        @Override protected ThreadLocals.CleanableValue<byte[][]> initialValue() {
+        @Override
+        protected ThreadLocals.CleanableValue<byte[][]> initialValue() {
             byte[][] value = new byte[VALUE_CACHE_SIZE][];
             for (int i = 0; i < value.length; i++) {
                 value[i] = new byte[i];
@@ -58,7 +60,8 @@ public class MultiValueByteFieldData extends ByteFieldData {
         this.ordinals = ordinals;
     }
 
-    @Override protected long computeSizeInBytes() {
+    @Override
+    protected long computeSizeInBytes() {
         long size = super.computeSizeInBytes();
         size += RamUsage.NUM_BYTES_ARRAY_HEADER; // for the top level array
         for (int[] ordinal : ordinals) {
@@ -67,11 +70,13 @@ public class MultiValueByteFieldData extends ByteFieldData {
         return size;
     }
 
-    @Override public boolean multiValued() {
+    @Override
+    public boolean multiValued() {
         return true;
     }
 
-    @Override public boolean hasValue(int docId) {
+    @Override
+    public boolean hasValue(int docId) {
         for (int[] ordinal : ordinals) {
             if (ordinal[docId] != 0) {
                 return true;
@@ -80,7 +85,8 @@ public class MultiValueByteFieldData extends ByteFieldData {
         return false;
     }
 
-    @Override public void forEachValueInDoc(int docId, StringValueInDocProc proc) {
+    @Override
+    public void forEachValueInDoc(int docId, StringValueInDocProc proc) {
         boolean found = false;
         for (int[] ordinal : ordinals) {
             int loc = ordinal[docId];
@@ -94,7 +100,8 @@ public class MultiValueByteFieldData extends ByteFieldData {
         }
     }
 
-    @Override public void forEachValueInDoc(int docId, DoubleValueInDocProc proc) {
+    @Override
+    public void forEachValueInDoc(int docId, DoubleValueInDocProc proc) {
         for (int[] ordinal : ordinals) {
             int loc = ordinal[docId];
             if (loc != 0) {
@@ -103,7 +110,8 @@ public class MultiValueByteFieldData extends ByteFieldData {
         }
     }
 
-    @Override public void forEachValueInDoc(int docId, LongValueInDocProc proc) {
+    @Override
+    public void forEachValueInDoc(int docId, LongValueInDocProc proc) {
         for (int[] ordinal : ordinals) {
             int loc = ordinal[docId];
             if (loc != 0) {
@@ -112,7 +120,8 @@ public class MultiValueByteFieldData extends ByteFieldData {
         }
     }
 
-    @Override public void forEachValueInDoc(int docId, MissingDoubleValueInDocProc proc) {
+    @Override
+    public void forEachValueInDoc(int docId, MissingDoubleValueInDocProc proc) {
         boolean found = false;
         for (int[] ordinal : ordinals) {
             int loc = ordinal[docId];
@@ -126,7 +135,8 @@ public class MultiValueByteFieldData extends ByteFieldData {
         }
     }
 
-    @Override public void forEachValueInDoc(int docId, MissingLongValueInDocProc proc) {
+    @Override
+    public void forEachValueInDoc(int docId, MissingLongValueInDocProc proc) {
         boolean found = false;
         for (int[] ordinal : ordinals) {
             int loc = ordinal[docId];
@@ -140,7 +150,8 @@ public class MultiValueByteFieldData extends ByteFieldData {
         }
     }
 
-    @Override public void forEachValueInDoc(int docId, ValueInDocProc proc) {
+    @Override
+    public void forEachValueInDoc(int docId, ValueInDocProc proc) {
         boolean found = false;
         for (int[] ordinal : ordinals) {
             int loc = ordinal[docId];
@@ -154,7 +165,8 @@ public class MultiValueByteFieldData extends ByteFieldData {
         }
     }
 
-    @Override public void forEachOrdinalInDoc(int docId, OrdinalInDocProc proc) {
+    @Override
+    public void forEachOrdinalInDoc(int docId, OrdinalInDocProc proc) {
         boolean found = false;
         for (int[] ordinal : ordinals) {
             int loc = ordinal[docId];
@@ -168,7 +180,8 @@ public class MultiValueByteFieldData extends ByteFieldData {
         }
     }
 
-    @Override public double[] doubleValues(int docId) {
+    @Override
+    public double[] doubleValues(int docId) {
         int length = 0;
         for (int[] ordinal : ordinals) {
             if (ordinal[docId] != 0) {
@@ -194,7 +207,8 @@ public class MultiValueByteFieldData extends ByteFieldData {
         return doubles;
     }
 
-    @Override public byte value(int docId) {
+    @Override
+    public byte value(int docId) {
         for (int[] ordinal : ordinals) {
             int loc = ordinal[docId];
             if (loc != 0) {
@@ -204,7 +218,8 @@ public class MultiValueByteFieldData extends ByteFieldData {
         return 0;
     }
 
-    @Override public byte[] values(int docId) {
+    @Override
+    public byte[] values(int docId) {
         int length = 0;
         for (int[] ordinal : ordinals) {
             if (ordinal[docId] != 0) {

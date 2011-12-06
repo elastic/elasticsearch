@@ -16,8 +16,8 @@
 
 package org.elasticsearch.common.inject;
 
-import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.collect.Lists;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.internal.ErrorsException;
 import org.elasticsearch.common.inject.internal.InternalContext;
@@ -45,12 +45,14 @@ class InjectionRequestProcessor extends AbstractProcessor {
         this.initializer = initializer;
     }
 
-    @Override public Boolean visit(StaticInjectionRequest request) {
+    @Override
+    public Boolean visit(StaticInjectionRequest request) {
         staticInjections.add(new StaticInjection(injector, request));
         return true;
     }
 
-    @Override public Boolean visit(InjectionRequest request) {
+    @Override
+    public Boolean visit(InjectionRequest request) {
         Set<InjectionPoint> injectionPoints;
         try {
             injectionPoints = request.getInjectionPoints();

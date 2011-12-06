@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -24,11 +24,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.io.BytesStream;
 import org.elasticsearch.common.io.FastByteArrayOutputStream;
-import org.elasticsearch.common.joda.time.DateTimeZone;
-import org.elasticsearch.common.joda.time.ReadableInstant;
-import org.elasticsearch.common.joda.time.format.DateTimeFormatter;
-import org.elasticsearch.common.joda.time.format.ISODateTimeFormat;
 import org.elasticsearch.common.xcontent.support.XContentMapConverter;
+import org.joda.time.DateTimeZone;
+import org.joda.time.ReadableInstant;
+import org.joda.time.format.DateTimeFormatter;
+import org.joda.time.format.ISODateTimeFormat;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -38,7 +38,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public final class XContentBuilder {
 
@@ -984,7 +984,8 @@ public final class XContentBuilder {
         }
     }
 
-    @Nullable public Object payload() {
+    @Nullable
+    public Object payload() {
         return this.payload;
     }
 
@@ -995,7 +996,7 @@ public final class XContentBuilder {
     /**
      * Returns the unsafe bytes (thread local bound). Make sure to use it with
      * {@link #underlyingBytesLength()}.
-     *
+     * <p/>
      * <p>Only applicable when the builder is constructed with {@link FastByteArrayOutputStream}.
      */
     public byte[] underlyingBytes() throws IOException {
@@ -1006,7 +1007,7 @@ public final class XContentBuilder {
     /**
      * Returns the unsafe bytes length (thread local bound). Make sure to use it with
      * {@link #underlyingBytes()}.
-     *
+     * <p/>
      * <p>Only applicable when the builder is constructed with {@link FastByteArrayOutputStream}.
      */
     public int underlyingBytesLength() throws IOException {
@@ -1024,7 +1025,7 @@ public final class XContentBuilder {
 
     /**
      * Returns a copy of the bytes this builder generated.
-     *
+     * <p/>
      * <p>Only applicable when the builder is constructed with {@link FastByteArrayOutputStream}.
      */
     public byte[] copiedBytes() throws IOException {
@@ -1034,7 +1035,7 @@ public final class XContentBuilder {
 
     /**
      * Returns a string representation of the builder (only applicable for text based xcontent).
-     *
+     * <p/>
      * <p>Only applicable when the builder is constructed with {@link FastByteArrayOutputStream}.
      */
     public String string() throws IOException {

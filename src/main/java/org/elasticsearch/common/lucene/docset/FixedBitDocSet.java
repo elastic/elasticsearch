@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -26,7 +26,7 @@ import org.elasticsearch.common.RamUsage;
 import java.io.IOException;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class FixedBitDocSet extends DocSet {
 
@@ -40,11 +40,13 @@ public class FixedBitDocSet extends DocSet {
         this.set = new FixedBitSet(numBits);
     }
 
-    @Override public boolean isCacheable() {
+    @Override
+    public boolean isCacheable() {
         return true;
     }
 
-    @Override public int length() {
+    @Override
+    public int length() {
         return set.length();
     }
 
@@ -52,15 +54,18 @@ public class FixedBitDocSet extends DocSet {
         return set;
     }
 
-    @Override public boolean get(int doc) {
+    @Override
+    public boolean get(int doc) {
         return set.get(doc);
     }
 
-    @Override public DocIdSetIterator iterator() throws IOException {
+    @Override
+    public DocIdSetIterator iterator() throws IOException {
         return set.iterator();
     }
 
-    @Override public long sizeInBytes() {
+    @Override
+    public long sizeInBytes() {
         return set.getBits().length * RamUsage.NUM_BYTES_LONG + RamUsage.NUM_BYTES_ARRAY_HEADER + RamUsage.NUM_BYTES_INT /* wlen */;
     }
 }

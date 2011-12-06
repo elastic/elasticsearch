@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -24,7 +24,7 @@ import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.support.NumericFieldDataComparator;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 // LUCENE MONITOR: Monitor against FieldComparator.Double
 public class DoubleFieldDataMissingComparator extends NumericFieldDataComparator {
@@ -39,11 +39,13 @@ public class DoubleFieldDataMissingComparator extends NumericFieldDataComparator
         this.missingValue = missingValue;
     }
 
-    @Override public FieldDataType fieldDataType() {
+    @Override
+    public FieldDataType fieldDataType() {
         return FieldDataType.DefaultTypes.DOUBLE;
     }
 
-    @Override public int compare(int slot1, int slot2) {
+    @Override
+    public int compare(int slot1, int slot2) {
         final double v1 = values[slot1];
         final double v2 = values[slot2];
         if (v1 > v2) {
@@ -55,7 +57,8 @@ public class DoubleFieldDataMissingComparator extends NumericFieldDataComparator
         }
     }
 
-    @Override public int compareBottom(int doc) {
+    @Override
+    public int compareBottom(int doc) {
         double v2 = missingValue;
         if (currentFieldData.hasValue(doc)) {
             v2 = currentFieldData.doubleValue(doc);
@@ -69,7 +72,8 @@ public class DoubleFieldDataMissingComparator extends NumericFieldDataComparator
         }
     }
 
-    @Override public void copy(int slot, int doc) {
+    @Override
+    public void copy(int slot, int doc) {
         double value = missingValue;
         if (currentFieldData.hasValue(doc)) {
             value = currentFieldData.doubleValue(doc);
@@ -77,11 +81,13 @@ public class DoubleFieldDataMissingComparator extends NumericFieldDataComparator
         values[slot] = value;
     }
 
-    @Override public void setBottom(final int bottom) {
+    @Override
+    public void setBottom(final int bottom) {
         this.bottom = values[bottom];
     }
 
-    @Override public Comparable value(int slot) {
+    @Override
+    public Comparable value(int slot) {
         return Double.valueOf(values[slot]);
     }
 }

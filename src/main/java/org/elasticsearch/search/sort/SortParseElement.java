@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,11 +19,11 @@
 
 package org.elasticsearch.search.sort;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.SearchParseElement;
@@ -33,7 +33,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.util.List;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class SortParseElement implements SearchParseElement {
 
@@ -60,7 +60,8 @@ public class SortParseElement implements SearchParseElement {
         }
     }
 
-    @Override public void parse(XContentParser parser, SearchContext context) throws Exception {
+    @Override
+    public void parse(XContentParser parser, SearchContext context) throws Exception {
         XContentParser.Token token = parser.currentToken();
         List<SortField> sortFields = Lists.newArrayListWithCapacity(2);
         if (token == XContentParser.Token.START_ARRAY) {

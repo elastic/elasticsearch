@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -31,27 +31,30 @@ import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
 
-import static org.elasticsearch.rest.RestStatus.*;
+import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
- * @author kimchy (Shay Banon)
+ *
  */
 public class RestSinglePingAction extends BaseRestHandler {
 
-    @Inject public RestSinglePingAction(Settings settings, Client client, RestController controller) {
+    @Inject
+    public RestSinglePingAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
         controller.registerHandler(RestRequest.Method.GET, "/{index}/{type}/{id}/_ping", this);
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/{index}/{type}/{id}/_ping", this);
     }
 
-    @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
+    @Override
+    public void handleRequest(final RestRequest request, final RestChannel channel) {
         SinglePingRequest singlePingRequest = new SinglePingRequest(request.param("index"), request.param("type"), request.param("id"));
         // no need to have a threaded listener since we just send back a response
         singlePingRequest.listenerThreaded(false);
         // if we have a local operation, execute it on a thread since we don't spawn
         singlePingRequest.operationThreaded(true);
         client.admin().cluster().ping(singlePingRequest, new ActionListener<SinglePingResponse>() {
-            @Override public void onResponse(SinglePingResponse result) {
+            @Override
+            public void onResponse(SinglePingResponse result) {
                 try {
                     XContentBuilder generator = RestXContentBuilder.restContentBuilder(request);
                     generator.startObject().field("ok", true).endObject();
@@ -61,7 +64,8 @@ public class RestSinglePingAction extends BaseRestHandler {
                 }
             }
 
-            @Override public void onFailure(Throwable e) {
+            @Override
+            public void onFailure(Throwable e) {
                 try {
                     channel.sendResponse(new XContentThrowableRestResponse(request, e));
                 } catch (IOException e1) {

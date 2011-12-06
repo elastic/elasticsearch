@@ -19,34 +19,23 @@
 
 package org.elasticsearch.index.search.child;
 
+import gnu.trove.map.hash.TIntObjectHashMap;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.Explanation;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.Searcher;
-import org.apache.lucene.search.Similarity;
-import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.*;
 import org.apache.lucene.util.ToStringUtils;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.BytesWrap;
 import org.elasticsearch.common.lucene.search.EmptyScorer;
-import org.elasticsearch.common.trove.map.hash.TIntObjectHashMap;
 import org.elasticsearch.search.internal.ScopePhase;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class TopChildrenQuery extends Query implements ScopePhase.TopDocsPhase {
 
@@ -96,32 +85,39 @@ public class TopChildrenQuery extends Query implements ScopePhase.TopDocsPhase {
         this.incrementalFactor = incrementalFactor;
     }
 
-    @Override public Query query() {
+    @Override
+    public Query query() {
         return this;
     }
 
-    @Override public String scope() {
+    @Override
+    public String scope() {
         return scope;
     }
 
-    @Override public void clear() {
+    @Override
+    public void clear() {
         parentDocs = null;
         numHits = 0;
     }
 
-    @Override public int numHits() {
+    @Override
+    public int numHits() {
         return numHits;
     }
 
-    @Override public int factor() {
+    @Override
+    public int factor() {
         return this.factor;
     }
 
-    @Override public int incrementalFactor() {
+    @Override
+    public int incrementalFactor() {
         return this.incrementalFactor;
     }
 
-    @Override public void processResults(TopDocs topDocs, SearchContext context) {
+    @Override
+    public void processResults(TopDocs topDocs, SearchContext context) {
         Map<Object, TIntObjectHashMap<ParentDoc>> parentDocsPerReader = new HashMap<Object, TIntObjectHashMap<ParentDoc>>();
         for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
             int readerIndex = context.searcher().readerIndex(scoreDoc.doc);
@@ -177,7 +173,8 @@ public class TopChildrenQuery extends Query implements ScopePhase.TopDocsPhase {
     private static final ParentDocComparator PARENT_DOC_COMP = new ParentDocComparator();
 
     static class ParentDocComparator implements Comparator<ParentDoc> {
-        @Override public int compare(ParentDoc o1, ParentDoc o2) {
+        @Override
+        public int compare(ParentDoc o1, ParentDoc o2) {
             return o1.docId - o2.docId;
         }
     }
@@ -189,7 +186,8 @@ public class TopChildrenQuery extends Query implements ScopePhase.TopDocsPhase {
         public float sumScores = 0;
     }
 
-    @Override public Query rewrite(IndexReader reader) throws IOException {
+    @Override
+    public Query rewrite(IndexReader reader) throws IOException {
         Query newQ = query.rewrite(reader);
         if (newQ == query) return this;
         TopChildrenQuery bq = (TopChildrenQuery) this.clone();
@@ -197,11 +195,13 @@ public class TopChildrenQuery extends Query implements ScopePhase.TopDocsPhase {
         return bq;
     }
 
-    @Override public void extractTerms(Set<Term> terms) {
+    @Override
+    public void extractTerms(Set<Term> terms) {
         query.extractTerms(terms);
     }
 
-    @Override public Weight createWeight(Searcher searcher) throws IOException {
+    @Override
+    public Weight createWeight(Searcher searcher) throws IOException {
         if (parentDocs != null) {
             return new ParentWeight(searcher, query.weight(searcher));
         }

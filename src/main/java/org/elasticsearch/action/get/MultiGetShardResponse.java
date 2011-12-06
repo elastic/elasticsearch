@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,10 +19,10 @@
 
 package org.elasticsearch.action.get;
 
+import gnu.trove.list.array.TIntArrayList;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.trove.list.array.TIntArrayList;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -52,7 +52,8 @@ public class MultiGetShardResponse implements ActionResponse {
         failures.add(failure);
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         int size = in.readVInt();
         locations = new TIntArrayList(size);
         responses = new ArrayList<GetResponse>(size);
@@ -74,7 +75,8 @@ public class MultiGetShardResponse implements ActionResponse {
         }
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(locations.size());
         for (int i = 0; i < locations.size(); i++) {
             out.writeVInt(locations.get(i));

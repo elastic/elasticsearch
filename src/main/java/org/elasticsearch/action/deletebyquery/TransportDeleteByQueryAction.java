@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -36,16 +36,19 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  */
 public class TransportDeleteByQueryAction extends TransportIndicesReplicationOperationAction<DeleteByQueryRequest, DeleteByQueryResponse, IndexDeleteByQueryRequest, IndexDeleteByQueryResponse, ShardDeleteByQueryRequest, ShardDeleteByQueryRequest, ShardDeleteByQueryResponse> {
 
-    @Inject public TransportDeleteByQueryAction(Settings settings, ClusterService clusterService, TransportService transportService,
-                                                ThreadPool threadPool, TransportIndexDeleteByQueryAction indexDeleteByQueryAction) {
+    @Inject
+    public TransportDeleteByQueryAction(Settings settings, ClusterService clusterService, TransportService transportService,
+                                        ThreadPool threadPool, TransportIndexDeleteByQueryAction indexDeleteByQueryAction) {
         super(settings, transportService, clusterService, threadPool, indexDeleteByQueryAction);
     }
 
-    @Override protected DeleteByQueryRequest newRequestInstance() {
+    @Override
+    protected DeleteByQueryRequest newRequestInstance() {
         return new DeleteByQueryRequest();
     }
 
-    @Override protected DeleteByQueryResponse newResponseInstance(DeleteByQueryRequest request, AtomicReferenceArray indexResponses) {
+    @Override
+    protected DeleteByQueryResponse newResponseInstance(DeleteByQueryRequest request, AtomicReferenceArray indexResponses) {
         DeleteByQueryResponse response = new DeleteByQueryResponse();
         for (int i = 0; i < indexResponses.length(); i++) {
             IndexDeleteByQueryResponse indexResponse = (IndexDeleteByQueryResponse) indexResponses.get(i);
@@ -56,21 +59,25 @@ public class TransportDeleteByQueryAction extends TransportIndicesReplicationOpe
         return response;
     }
 
-    @Override protected boolean accumulateExceptions() {
+    @Override
+    protected boolean accumulateExceptions() {
         return false;
     }
 
-    @Override protected String transportAction() {
+    @Override
+    protected String transportAction() {
         return TransportActions.DELETE_BY_QUERY;
     }
 
-    @Override protected void checkBlock(DeleteByQueryRequest request, String[] concreteIndices, ClusterState state) {
+    @Override
+    protected void checkBlock(DeleteByQueryRequest request, String[] concreteIndices, ClusterState state) {
         for (String index : concreteIndices) {
             state.blocks().indexBlockedRaiseException(ClusterBlockLevel.WRITE, index);
         }
     }
 
-    @Override protected IndexDeleteByQueryRequest newIndexRequestInstance(DeleteByQueryRequest request, String index, Set<String> routing) {
+    @Override
+    protected IndexDeleteByQueryRequest newIndexRequestInstance(DeleteByQueryRequest request, String index, Set<String> routing) {
         String[] filteringAliases = clusterService.state().metaData().filteringAliases(index, request.indices());
         return new IndexDeleteByQueryRequest(request, index, routing, filteringAliases);
     }

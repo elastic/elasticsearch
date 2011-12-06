@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,8 +19,8 @@
 
 package org.elasticsearch.common.xcontent;
 
+import com.google.common.base.Charsets;
 import org.elasticsearch.ElasticSearchParseException;
-import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.lzf.LZF;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
@@ -34,7 +34,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class XContentHelper {
 
@@ -90,7 +90,8 @@ public class XContentHelper {
      * Merges the defaults provided as the second parameter into the content of the first. Only does recursive merge
      * for inner maps.
      */
-    @SuppressWarnings({"unchecked"}) public static void mergeDefaults(Map<String, Object> content, Map<String, Object> defaults) {
+    @SuppressWarnings({"unchecked"})
+    public static void mergeDefaults(Map<String, Object> content, Map<String, Object> defaults) {
         for (Map.Entry<String, Object> defaultEntry : defaults.entrySet()) {
             if (!content.containsKey(defaultEntry.getKey())) {
                 // copy it over, it does not exists in the content

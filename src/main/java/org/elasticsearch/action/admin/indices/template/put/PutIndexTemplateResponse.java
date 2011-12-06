@@ -29,7 +29,7 @@ import java.io.IOException;
 /**
  * A response for a put index template action.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class PutIndexTemplateResponse implements ActionResponse, Streamable {
 
@@ -50,11 +50,13 @@ public class PutIndexTemplateResponse implements ActionResponse, Streamable {
         return acknowledged();
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         acknowledged = in.readBoolean();
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(acknowledged);
     }
 }

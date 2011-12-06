@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,15 +19,10 @@
 
 package org.elasticsearch.cluster.service;
 
+import jsr166y.LinkedTransferQueue;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
-import org.elasticsearch.cluster.TimeoutClusterStateListener;
+import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -39,7 +34,6 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.jsr166y.LinkedTransferQueue;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.node.settings.NodeSettingsService;
@@ -54,12 +48,13 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.concurrent.Executors.*;
-import static org.elasticsearch.cluster.ClusterState.*;
-import static org.elasticsearch.common.util.concurrent.EsExecutors.*;
+import static java.util.concurrent.Executors.newSingleThreadExecutor;
+import static org.elasticsearch.cluster.ClusterState.Builder;
+import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
+import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class InternalClusterService extends AbstractLifecycleComponent<ClusterService> implements ClusterService {
 
@@ -89,8 +84,9 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     private volatile ScheduledFuture reconnectToNodes;
 
-    @Inject public InternalClusterService(Settings settings, DiscoveryService discoveryService, OperationRouting operationRouting, TransportService transportService,
-                                          NodeSettingsService nodeSettingsService, ThreadPool threadPool) {
+    @Inject
+    public InternalClusterService(Settings settings, DiscoveryService discoveryService, OperationRouting operationRouting, TransportService transportService,
+                                  NodeSettingsService nodeSettingsService, ThreadPool threadPool) {
         super(settings);
         this.operationRouting = operationRouting;
         this.transportService = transportService;
@@ -114,13 +110,15 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         initialBlocks.addGlobalBlock(block);
     }
 
-    @Override protected void doStart() throws ElasticSearchException {
+    @Override
+    protected void doStart() throws ElasticSearchException {
         this.clusterState = newClusterStateBuilder().blocks(initialBlocks).build();
         this.updateTasksExecutor = newSingleThreadExecutor(daemonThreadFactory(settings, "clusterService#updateTask"));
         this.reconnectToNodes = threadPool.schedule(reconnectInterval, ThreadPool.Names.CACHED, new ReconnectToNodes());
     }
 
-    @Override protected void doStop() throws ElasticSearchException {
+    @Override
+    protected void doStop() throws ElasticSearchException {
         this.reconnectToNodes.cancel(true);
         for (NotifyTimeout onGoingTimeout : onGoingTimeouts) {
             onGoingTimeout.cancel();
@@ -134,14 +132,17 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         }
     }
 
-    @Override protected void doClose() throws ElasticSearchException {
+    @Override
+    protected void doClose() throws ElasticSearchException {
     }
 
-    @Override public DiscoveryNode localNode() {
+    @Override
+    public DiscoveryNode localNode() {
         return discoveryService.localNode();
     }
 
-    @Override public OperationRouting operationRouting() {
+    @Override
+    public OperationRouting operationRouting() {
         return operationRouting;
     }
 
@@ -183,7 +184,8 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         clusterStateListeners.add(listener);
         // call the post added notification on the same event thread
         updateTasksExecutor.execute(new Runnable() {
-            @Override public void run() {
+            @Override
+            public void run() {
                 listener.postAdded();
             }
         });
@@ -194,7 +196,8 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
             return;
         }
         updateTasksExecutor.execute(new Runnable() {
-            @Override public void run() {
+            @Override
+            public void run() {
                 if (!lifecycle.started()) {
                     logger.debug("processing [{}]: ignoring, cluster_service not started", source);
                     return;
@@ -276,7 +279,8 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
                         if (!nodesDelta.removedNodes().isEmpty()) {
                             threadPool.cached().execute(new Runnable() {
-                                @Override public void run() {
+                                @Override
+                                public void run() {
                                     for (DiscoveryNode node : nodesDelta.removedNodes()) {
                                         transportService.disconnectFromNode(node);
                                     }
@@ -322,7 +326,8 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
             future.cancel(false);
         }
 
-        @Override public void run() {
+        @Override
+        public void run() {
             if (future.isCancelled()) {
                 return;
             }
@@ -336,7 +341,8 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     }
 
     private class ReconnectToNodes implements Runnable {
-        @Override public void run() {
+        @Override
+        public void run() {
             // master node will check against all nodes if its alive with certain discoveries implementations,
             // but we can't rely on that, so we check on it as well
             for (DiscoveryNode node : clusterState.nodes()) {

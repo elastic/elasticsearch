@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -26,7 +26,7 @@ import org.elasticsearch.common.transport.TransportAddress;
  * A remote exception for an action. A wrapper exception around the actual remote cause and does not fill the
  * stack trace.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class RemoteTransportException extends ActionTransportException implements ElasticSearchWrapperException {
 
@@ -38,7 +38,8 @@ public class RemoteTransportException extends ActionTransportException implement
         super(name, address, action, cause);
     }
 
-    @Override public Throwable fillInStackTrace() {
+    @Override
+    public Throwable fillInStackTrace() {
         // no need for stack trace here, we always have cause
         return null;
     }

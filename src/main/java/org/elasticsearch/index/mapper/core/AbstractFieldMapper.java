@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -24,32 +24,20 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.TermRangeFilter;
-import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.search.*;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.field.data.FieldDataType;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.FieldMapperListener;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeContext;
-import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.mapper.ObjectMapperListener;
-import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
 
@@ -68,39 +56,48 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
             super(name);
         }
 
-        @Override public T index(Field.Index index) {
+        @Override
+        public T index(Field.Index index) {
             return super.index(index);
         }
 
-        @Override public T store(Field.Store store) {
+        @Override
+        public T store(Field.Store store) {
             return super.store(store);
         }
 
-        @Override public T termVector(Field.TermVector termVector) {
+        @Override
+        public T termVector(Field.TermVector termVector) {
             return super.termVector(termVector);
         }
 
-        @Override public T boost(float boost) {
+        @Override
+        public T boost(float boost) {
             return super.boost(boost);
         }
 
-        @Override public T omitNorms(boolean omitNorms) {
+        @Override
+        public T omitNorms(boolean omitNorms) {
             return super.omitNorms(omitNorms);
         }
 
-        @Override public T omitTermFreqAndPositions(boolean omitTermFreqAndPositions) {
+        @Override
+        public T omitTermFreqAndPositions(boolean omitTermFreqAndPositions) {
             return super.omitTermFreqAndPositions(omitTermFreqAndPositions);
         }
 
-        @Override public T indexName(String indexName) {
+        @Override
+        public T indexName(String indexName) {
             return super.indexName(indexName);
         }
 
-        @Override public T indexAnalyzer(NamedAnalyzer indexAnalyzer) {
+        @Override
+        public T indexAnalyzer(NamedAnalyzer indexAnalyzer) {
             return super.indexAnalyzer(indexAnalyzer);
         }
 
-        @Override public T searchAnalyzer(NamedAnalyzer searchAnalyzer) {
+        @Override
+        public T searchAnalyzer(NamedAnalyzer searchAnalyzer) {
             return super.searchAnalyzer(searchAnalyzer);
         }
     }
@@ -239,59 +236,73 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         }
     }
 
-    @Override public String name() {
+    @Override
+    public String name() {
         return names.name();
     }
 
-    @Override public Names names() {
+    @Override
+    public Names names() {
         return this.names;
     }
 
-    @Override public Field.Index index() {
+    @Override
+    public Field.Index index() {
         return this.index;
     }
 
-    @Override public Field.Store store() {
+    @Override
+    public Field.Store store() {
         return this.store;
     }
 
-    @Override public boolean stored() {
+    @Override
+    public boolean stored() {
         return store == Field.Store.YES;
     }
 
-    @Override public boolean indexed() {
+    @Override
+    public boolean indexed() {
         return index != Field.Index.NO;
     }
 
-    @Override public boolean analyzed() {
+    @Override
+    public boolean analyzed() {
         return index == Field.Index.ANALYZED;
     }
 
-    @Override public Field.TermVector termVector() {
+    @Override
+    public Field.TermVector termVector() {
         return this.termVector;
     }
 
-    @Override public float boost() {
+    @Override
+    public float boost() {
         return this.boost;
     }
 
-    @Override public boolean omitNorms() {
+    @Override
+    public boolean omitNorms() {
         return this.omitNorms;
     }
 
-    @Override public boolean omitTermFreqAndPositions() {
+    @Override
+    public boolean omitTermFreqAndPositions() {
         return this.omitTermFreqAndPositions;
     }
 
-    @Override public Analyzer indexAnalyzer() {
+    @Override
+    public Analyzer indexAnalyzer() {
         return this.indexAnalyzer;
     }
 
-    @Override public Analyzer searchAnalyzer() {
+    @Override
+    public Analyzer searchAnalyzer() {
         return this.searchAnalyzer;
     }
 
-    @Override public void parse(ParseContext context) throws IOException {
+    @Override
+    public void parse(ParseContext context) throws IOException {
         try {
             Fieldable field = parseCreateField(context);
             if (field == null) {
@@ -319,61 +330,74 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         return false;
     }
 
-    @Override public void traverse(FieldMapperListener fieldMapperListener) {
+    @Override
+    public void traverse(FieldMapperListener fieldMapperListener) {
         fieldMapperListener.fieldMapper(this);
     }
 
-    @Override public void traverse(ObjectMapperListener objectMapperListener) {
+    @Override
+    public void traverse(ObjectMapperListener objectMapperListener) {
         // nothing to do here...
     }
 
-    @Override public Object valueForSearch(Fieldable field) {
+    @Override
+    public Object valueForSearch(Fieldable field) {
         return valueAsString(field);
     }
 
-    @Override public String indexedValue(String value) {
+    @Override
+    public String indexedValue(String value) {
         return value;
     }
 
-    @Override public Query queryStringTermQuery(Term term) {
+    @Override
+    public Query queryStringTermQuery(Term term) {
         return null;
     }
 
-    @Override public boolean useFieldQueryWithQueryString() {
+    @Override
+    public boolean useFieldQueryWithQueryString() {
         return false;
     }
 
-    @Override public Query fieldQuery(String value, @Nullable QueryParseContext context) {
+    @Override
+    public Query fieldQuery(String value, @Nullable QueryParseContext context) {
         return new TermQuery(names().createIndexNameTerm(indexedValue(value)));
     }
 
-    @Override public Filter fieldFilter(String value, @Nullable QueryParseContext context) {
+    @Override
+    public Filter fieldFilter(String value, @Nullable QueryParseContext context) {
         return new TermFilter(names().createIndexNameTerm(indexedValue(value)));
     }
 
-    @Override public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions) {
+    @Override
+    public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions) {
         return new FuzzyQuery(names().createIndexNameTerm(indexedValue(value)), Float.parseFloat(minSim), prefixLength, maxExpansions);
     }
 
-    @Override public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions) {
+    @Override
+    public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions) {
         return new FuzzyQuery(names().createIndexNameTerm(value), (float) minSim, prefixLength, maxExpansions);
     }
 
-    @Override public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
+    @Override
+    public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
         return new TermRangeQuery(names.indexName(),
                 lowerTerm == null ? null : indexedValue(lowerTerm),
                 upperTerm == null ? null : indexedValue(upperTerm),
                 includeLower, includeUpper);
     }
 
-    @Override public Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
+    @Override
+    public Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
         return new TermRangeFilter(names.indexName(),
                 lowerTerm == null ? null : indexedValue(lowerTerm),
                 upperTerm == null ? null : indexedValue(upperTerm),
                 includeLower, includeUpper);
     }
 
-    @Override public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+    @Override
+    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
         if (!this.getClass().equals(mergeWith.getClass())) {
             String mergedType = mergeWith.getClass().getSimpleName();
             if (mergeWith instanceof AbstractFieldMapper) {
@@ -417,11 +441,13 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         }
     }
 
-    @Override public FieldDataType fieldDataType() {
+    @Override
+    public FieldDataType fieldDataType() {
         return FieldDataType.DefaultTypes.STRING;
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(names.name());
         doXContentBody(builder);
         builder.endObject();
@@ -451,7 +477,8 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
 
     protected abstract String contentType();
 
-    @Override public void close() {
+    @Override
+    public void close() {
         // nothing to do here, sub classes to override if needed
     }
 

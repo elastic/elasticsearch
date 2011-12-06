@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -34,9 +34,6 @@ import java.util.Set;
 
 /**
  * Contains the common configuration settings between subclasses of this class.
- *
- * @author Edward Dale (scompt@scompt.com)
- * @author kimchy (shay.banon)
  */
 public abstract class AbstractCompoundWordTokenFilterFactory extends AbstractTokenFilterFactory {
 
@@ -46,7 +43,8 @@ public abstract class AbstractCompoundWordTokenFilterFactory extends AbstractTok
     protected final boolean onlyLongestMatch;
     protected final Set<?> wordList;
 
-    @Inject public AbstractCompoundWordTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
+    @Inject
+    public AbstractCompoundWordTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
 
         minWordSize = settings.getAsInt("min_word_size", CompoundWordTokenFilterBase.DEFAULT_MIN_WORD_SIZE);

@@ -24,7 +24,7 @@ import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.support.NumericFieldDataComparator;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 // LUCENE MONITOR: Monitor against FieldComparator.Short
 public class ByteFieldDataComparator extends NumericFieldDataComparator {
@@ -37,27 +37,33 @@ public class ByteFieldDataComparator extends NumericFieldDataComparator {
         values = new byte[numHits];
     }
 
-    @Override public FieldDataType fieldDataType() {
+    @Override
+    public FieldDataType fieldDataType() {
         return FieldDataType.DefaultTypes.BYTE;
     }
 
-    @Override public int compare(int slot1, int slot2) {
+    @Override
+    public int compare(int slot1, int slot2) {
         return values[slot1] - values[slot2];
     }
 
-    @Override public int compareBottom(int doc) {
+    @Override
+    public int compareBottom(int doc) {
         return bottom - currentFieldData.byteValue(doc);
     }
 
-    @Override public void copy(int slot, int doc) {
+    @Override
+    public void copy(int slot, int doc) {
         values[slot] = currentFieldData.byteValue(doc);
     }
 
-    @Override public void setBottom(final int bottom) {
+    @Override
+    public void setBottom(final int bottom) {
         this.bottom = values[bottom];
     }
 
-    @Override public Comparable value(int slot) {
+    @Override
+    public Comparable value(int slot) {
         return Byte.valueOf(values[slot]);
     }
 }

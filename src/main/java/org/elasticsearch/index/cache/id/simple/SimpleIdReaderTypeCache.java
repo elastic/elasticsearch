@@ -19,12 +19,12 @@
 
 package org.elasticsearch.index.cache.id.simple;
 
+import gnu.trove.ExtTObjectIntHasMap;
 import org.elasticsearch.common.BytesWrap;
-import org.elasticsearch.common.trove.ExtTObjectIntHasMap;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class SimpleIdReaderTypeCache implements IdReaderTypeCache {
 

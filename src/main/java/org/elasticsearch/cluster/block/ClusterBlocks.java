@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,10 +19,10 @@
 
 package org.elasticsearch.cluster.block;
 
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.ImmutableSet;
-import org.elasticsearch.common.collect.Maps;
-import org.elasticsearch.common.collect.Sets;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -33,7 +33,7 @@ import java.util.Set;
 /**
  * Represents current cluster level blocks to block dirty operations done against the cluster.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class ClusterBlocks {
 

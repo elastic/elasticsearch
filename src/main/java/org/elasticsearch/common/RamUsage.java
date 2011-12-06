@@ -20,7 +20,7 @@
 package org.elasticsearch.common;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class RamUsage {
 

@@ -29,15 +29,16 @@ import org.elasticsearch.node.Node;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.client.Requests.*;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
-import static org.elasticsearch.common.settings.ImmutableSettings.*;
-import static org.elasticsearch.common.xcontent.XContentFactory.*;
-import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.node.NodeBuilder.*;
+import static org.elasticsearch.client.Requests.createIndexRequest;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class SinglePercolatorStressBenchmark {
 

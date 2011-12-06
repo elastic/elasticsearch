@@ -26,13 +26,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-import static org.elasticsearch.action.Actions.*;
+import static org.elasticsearch.action.Actions.addValidationError;
 
 /**
  * A request to analyze a text associated with a specific index. Allow to provide
  * the actual analyzer name to perform the analysis with.
- *
- * @author kimchy
  */
 public class AnalyzeRequest extends SingleCustomOperationRequest {
 
@@ -94,12 +92,14 @@ public class AnalyzeRequest extends SingleCustomOperationRequest {
      * if this operation hits a node with a local relevant shard, should it be preferred
      * to be executed on, or just do plain round robin. Defaults to <tt>true</tt>
      */
-    @Override public AnalyzeRequest preferLocal(boolean preferLocal) {
+    @Override
+    public AnalyzeRequest preferLocal(boolean preferLocal) {
         super.preferLocal(preferLocal);
         return this;
     }
 
-    @Override public ActionRequestValidationException validate() {
+    @Override
+    public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
         if (index == null) {
             validationException = addValidationError("index is missing", validationException);
@@ -110,7 +110,8 @@ public class AnalyzeRequest extends SingleCustomOperationRequest {
         return validationException;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         index = in.readUTF();
         text = in.readUTF();
@@ -122,7 +123,8 @@ public class AnalyzeRequest extends SingleCustomOperationRequest {
         }
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeUTF(index);
         out.writeUTF(text);

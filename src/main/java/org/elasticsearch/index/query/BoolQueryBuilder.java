@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -28,7 +28,7 @@ import java.util.List;
 /**
  * A Query that matches documents matching boolean combinations of other queries.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class BoolQueryBuilder extends BaseQueryBuilder {
 
@@ -91,11 +91,11 @@ public class BoolQueryBuilder extends BaseQueryBuilder {
 
     /**
      * Specifies a minimum number of the optional (should) boolean clauses which must be satisfied.
-     *
+     * <p/>
      * <p>By default no optional clauses are necessary for a match
      * (unless there are no required clauses).  If this method is used,
      * then the specified number of clauses is required.
-     *
+     * <p/>
      * <p>Use of this method is totally independent of specifying that
      * any specific clauses are required (or prohibited).  This number will
      * only be compared against the number of matching optional clauses.
@@ -114,7 +114,8 @@ public class BoolQueryBuilder extends BaseQueryBuilder {
         return !mustClauses.isEmpty() || !mustNotClauses.isEmpty() || !shouldClauses.isEmpty();
     }
 
-    @Override protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("bool");
         doXArrayContent("must", mustClauses, builder, params);
         doXArrayContent("must_not", mustNotClauses, builder, params);

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -42,7 +42,7 @@ import java.util.concurrent.TimeoutException;
  *    class MyTestClass	implements RemoteEventListener
  *    {
  *    	final ThreadBarrier	barrier;
- * <p/>
+ *
  *    	class Worker implements Runnable
  *        {
  *    		public void run()
@@ -61,12 +61,12 @@ import java.util.concurrent.TimeoutException;
  *                }
  *            }
  *        }
- * <p/>
+ *
  *    	public void testThreads() {
  *    		barrier = new ThreadBarrier(N_THREADS + 1);
  *    		for (int i = 0; i &lt; N; ++i)
  *           new Thread(new Worker()).start();
- * <p/>
+ *
  *    		try{
  *    			barrier.await();	//wait for all threads to reach run
  *    			barrier.await();	//wait for all threads to prepare
@@ -76,14 +76,14 @@ import java.util.concurrent.TimeoutException;
  *    			Assert.fail(bbe);
  *            }
  *       }
- * <p/>
+ *
  *      int actualNotificationCount = 0;
  *    	public synchronized void notify (RemoteEvent event) {
  *    		try{
  *    			actualNotificationCount++;
  *    			if (actualNotificationCount == EXPECTED_COUNT)
  *    				barrier.await();	//signal when all notifications arrive
- * <p/>
+ *
  *    			 // too many notifications?
  *    			 Assert.assertFalse(&quot;Exceeded notification count&quot;,
  *    										actualNotificationCount > EXPECTED_COUNT);
@@ -93,27 +93,27 @@ import java.util.concurrent.TimeoutException;
  *    			barrier.reset(t);
  *            }
  *        }
- * <p/>
+ *
  *    	public void testNotify() {
  *    		barrier = new ThreadBarrier(N_LISTENERS + 1);
  *    		registerNotification();
  *    		triggerNotifications();
- * <p/>
+ *
  *    		//wait until either all notifications arrive, or
  *    		//until a MAX_TIMEOUT is reached.
  *    		barrier.await(MAX_TIMEOUT);
- * <p/>
+ *
  *    		//check if all notifications were accounted for or timed-out
  *    		Assert.assertEquals(&quot;Notification count&quot;,
  *    									EXPECTED_COUNT, actualNotificationCount);
- * <p/>
+ *
  *    		//inspect that the barrier isn't broken
  *    		barrier.inspect(); //throws BrokenBarrierException if broken
  *        }
  *    }
  * </pre>
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class ThreadBarrier extends CyclicBarrier {
     /**
@@ -141,7 +141,8 @@ public class ThreadBarrier extends CyclicBarrier {
         }
     }
 
-    @Override public int await(long timeout, TimeUnit unit) throws InterruptedException, BrokenBarrierException, TimeoutException {
+    @Override
+    public int await(long timeout, TimeUnit unit) throws InterruptedException, BrokenBarrierException, TimeoutException {
         try {
             breakIfBroken();
             return super.await(timeout, unit);
@@ -246,18 +247,18 @@ public class ThreadBarrier extends CyclicBarrier {
      *      <p/>
      *      <B>Usage example:</B><br>
      *      <pre><code>
-     *                                                                                   BarrierTimer timer = new BarrierTimer();
-     *                                                                                   ThreadBarrier barrier = new ThreadBarrier( nTHREADS + 1, timer );
-     *                                                                                   ..
-     *                                                                                   barrier.await(); // starts timer when all threads trip on await
-     *                                                                                   barrier.await(); // stops  timer when all threads trip on await
-     *                                                                                   ..
-     *                                                                                   long time = timer.getTimeInNanos();
-     *                                                                                   long tpi = time / ((long)nREPEATS * nTHREADS); //throughput per thread iteration
-     *                                                                                   long secs = timer.getTimeInSeconds();	//total runtime in seconds
-     *                                                                                   ..
-     *                                                                                   timer.reset();  // reuse timer
-     *                                                                                 </code></pre>
+     *                                                                                             BarrierTimer timer = new BarrierTimer();
+     *                                                                                             ThreadBarrier barrier = new ThreadBarrier( nTHREADS + 1, timer );
+     *                                                                                             ..
+     *                                                                                             barrier.await(); // starts timer when all threads trip on await
+     *                                                                                             barrier.await(); // stops  timer when all threads trip on await
+     *                                                                                             ..
+     *                                                                                             long time = timer.getTimeInNanos();
+     *                                                                                             long tpi = time / ((long)nREPEATS * nTHREADS); //throughput per thread iteration
+     *                                                                                             long secs = timer.getTimeInSeconds();	//total runtime in seconds
+     *                                                                                             ..
+     *                                                                                             timer.reset();  // reuse timer
+     *                                                                                           </code></pre>
      */
     public static class BarrierTimer implements Runnable {
         volatile boolean started;

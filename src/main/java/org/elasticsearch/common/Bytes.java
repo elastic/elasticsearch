@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -20,7 +20,7 @@
 package org.elasticsearch.common;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class Bytes {
 
@@ -110,7 +110,7 @@ public class Bytes {
 
         // Fall thru to fast mode for smaller numbers
         // assert(i <= 65536, i);
-        for (; ;) {
+        for (; ; ) {
             q = (i * 52429) >>> (16 + 3);
             r = i - ((q << 3) + (q << 1));  // r = i-(q*10) ...
             buf[--charPos] = digits[r];
@@ -181,7 +181,7 @@ public class Bytes {
      * the buffer backwards starting with the least significant
      * digit at the specified index (exclusive), and working
      * backwards from there.
-     *
+     * <p/>
      * Will fail if i == Long.MIN_VALUE
      */
     static void getChars(long i, int index, byte[] buf) {
@@ -219,7 +219,7 @@ public class Bytes {
 
         // Fall thru to fast mode for smaller numbers
         // assert(i2 <= 65536, i2);
-        for (; ;) {
+        for (; ; ) {
             q2 = (i2 * 52429) >>> (16 + 3);
             r = i2 - ((q2 << 3) + (q2 << 1));  // r = i2-(q2*10) ...
             buf[--charPos] = digits[r];

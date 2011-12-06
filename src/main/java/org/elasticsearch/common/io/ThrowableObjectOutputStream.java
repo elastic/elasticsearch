@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -25,7 +25,7 @@ import java.io.ObjectStreamClass;
 import java.io.OutputStream;
 
 /**
- * @author kimchy (Shay Banon)
+ *
  */
 public class ThrowableObjectOutputStream extends ObjectOutputStream {
 
@@ -43,11 +43,13 @@ public class ThrowableObjectOutputStream extends ObjectOutputStream {
         super(out);
     }
 
-    @Override protected void writeStreamHeader() throws IOException {
+    @Override
+    protected void writeStreamHeader() throws IOException {
         writeByte(STREAM_VERSION);
     }
 
-    @Override protected void writeClassDescriptor(ObjectStreamClass desc) throws IOException {
+    @Override
+    protected void writeClassDescriptor(ObjectStreamClass desc) throws IOException {
         if (desc.getName().equals(EXCEPTION_CLASSNAME)) {
             write(TYPE_EXCEPTION);
         } else if (desc.getName().equals(STACKTRACEELEMENT_CLASSNAME)) {

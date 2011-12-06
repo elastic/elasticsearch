@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -20,15 +20,15 @@
 package org.elasticsearch.transport.netty;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.netty.buffer.ChannelBuffer;
+import org.jboss.netty.buffer.ChannelBuffer;
 
 import java.io.EOFException;
 import java.io.IOException;
 
 /**
- * A Netty {@link org.elasticsearch.common.netty.buffer.ChannelBuffer} based {@link org.elasticsearch.common.io.stream.StreamInput}.
+ * A Netty {@link org.jboss.netty.buffer.ChannelBuffer} based {@link org.elasticsearch.common.io.stream.StreamInput}.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class ChannelBufferStreamInput extends StreamInput {
 
@@ -53,19 +53,23 @@ public class ChannelBufferStreamInput extends StreamInput {
         return buffer.readerIndex() - startIndex;
     }
 
-    @Override public int available() throws IOException {
+    @Override
+    public int available() throws IOException {
         return endIndex - buffer.readerIndex();
     }
 
-    @Override public void mark(int readlimit) {
+    @Override
+    public void mark(int readlimit) {
         buffer.markReaderIndex();
     }
 
-    @Override public boolean markSupported() {
+    @Override
+    public boolean markSupported() {
         return true;
     }
 
-    @Override public int read() throws IOException {
+    @Override
+    public int read() throws IOException {
         if (available() == 0) {
             return -1;
         }
@@ -87,7 +91,8 @@ public class ChannelBufferStreamInput extends StreamInput {
         return len;
     }
 
-    @Override public void reset() throws IOException {
+    @Override
+    public void reset() throws IOException {
         buffer.resetReaderIndex();
     }
 
@@ -107,21 +112,24 @@ public class ChannelBufferStreamInput extends StreamInput {
     }
 
 
-    @Override public byte readByte() throws IOException {
+    @Override
+    public byte readByte() throws IOException {
         if (available() == 0) {
             throw new EOFException();
         }
         return buffer.readByte();
     }
 
-    @Override public void readBytes(byte[] b, int offset, int len) throws IOException {
+    @Override
+    public void readBytes(byte[] b, int offset, int len) throws IOException {
         int read = read(b, offset, len);
         if (read < len) {
             throw new EOFException();
         }
     }
 
-    @Override public void close() throws IOException {
+    @Override
+    public void close() throws IOException {
         // nothing to do here
     }
 }

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -23,7 +23,7 @@ import java.io.IOException;
 import java.io.Reader;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class FastCharArrayReader extends Reader {
 
@@ -61,7 +61,7 @@ public class FastCharArrayReader extends Reader {
 
     /**
      * Creates a CharArrayReader from the specified array of chars.
-     *
+     * <p/>
      * <p> The resulting reader will start reading at the given
      * <tt>offset</tt>.  The total number of <tt>char</tt> values that can be
      * read from this reader will be either <tt>length</tt> or
@@ -141,7 +141,7 @@ public class FastCharArrayReader extends Reader {
 
     /**
      * Skips characters.  Returns the number of characters that were skipped.
-     *
+     * <p/>
      * <p>The <code>n</code> parameter may be negative, even though the
      * <code>skip</code> method of the {@link Reader} superclass throws
      * an exception in this case. If <code>n</code> is negative, then

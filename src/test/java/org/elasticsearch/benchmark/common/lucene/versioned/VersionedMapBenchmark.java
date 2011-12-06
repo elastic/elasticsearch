@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -30,10 +30,10 @@ import java.lang.management.ManagementFactory;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 
-import static java.util.concurrent.TimeUnit.*;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 /**
- * @author kimchy (Shay Banon)
+ *
  */
 public class VersionedMapBenchmark {
 
@@ -131,7 +131,8 @@ public class VersionedMapBenchmark {
     }
 
     private class ReaderThread implements Runnable {
-        @Override public void run() {
+        @Override
+        public void run() {
             try {
                 barrier1.await();
                 barrier2.await();
@@ -146,7 +147,8 @@ public class VersionedMapBenchmark {
     }
 
     private class WriterThread implements Runnable {
-        @Override public void run() {
+        @Override
+        public void run() {
             try {
                 barrier1.await();
                 barrier2.await();

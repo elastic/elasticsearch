@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -41,7 +41,7 @@ import java.io.Serializable;
 /**
  * Global information on indices stats running on a specific node.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
 
@@ -159,7 +159,8 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
         return stats;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         storeStats = StoreStats.readStoreStats(in);
         docsStats = DocsStats.readDocStats(in);
         indexingStats = IndexingStats.readIndexingStats(in);
@@ -171,7 +172,8 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
         flushStats = FlushStats.readFlushStats(in);
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         storeStats.writeTo(out);
         docsStats.writeTo(out);
         indexingStats.writeTo(out);
@@ -183,7 +185,8 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
         flushStats.writeTo(out);
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.INDICES);
 
         storeStats.toXContent(builder, params);

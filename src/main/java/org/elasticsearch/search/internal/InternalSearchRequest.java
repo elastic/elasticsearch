@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -31,8 +31,8 @@ import org.elasticsearch.search.Scroll;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.unit.TimeValue.*;
-import static org.elasticsearch.search.Scroll.*;
+import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
+import static org.elasticsearch.search.Scroll.readScroll;
 
 /**
  * Source structure:
@@ -51,7 +51,7 @@ import static org.elasticsearch.search.Scroll.*;
  * }
  * </pre>
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class InternalSearchRequest implements Streamable {
 
@@ -196,7 +196,8 @@ public class InternalSearchRequest implements Streamable {
         this.types = types;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         index = in.readUTF();
         shardId = in.readVInt();
         searchType = SearchType.fromId(in.readByte());
@@ -242,7 +243,8 @@ public class InternalSearchRequest implements Streamable {
         nowInMillis = in.readVLong();
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(index);
         out.writeVInt(shardId);
         out.writeByte(searchType.id());

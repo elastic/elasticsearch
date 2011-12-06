@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -88,7 +88,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class NodeIndicesAdminClient extends AbstractIndicesAdminClient implements IndicesAdminClient {
 
@@ -134,14 +134,15 @@ public class NodeIndicesAdminClient extends AbstractIndicesAdminClient implement
 
     private final TransportDeleteIndexTemplateAction deleteIndexTemplateAction;
 
-    @Inject public NodeIndicesAdminClient(Settings settings, ThreadPool threadPool, TransportIndicesExistsAction indicesExistsAction, TransportIndicesStatsAction indicesStatsAction, TransportIndicesStatusAction indicesStatusAction, TransportIndicesSegmentsAction indicesSegmentsAction,
-                                          TransportCreateIndexAction createIndexAction, TransportDeleteIndexAction deleteIndexAction,
-                                          TransportCloseIndexAction closeIndexAction, TransportOpenIndexAction openIndexAction,
-                                          TransportRefreshAction refreshAction, TransportFlushAction flushAction, TransportOptimizeAction optimizeAction,
-                                          TransportPutMappingAction putMappingAction, TransportDeleteMappingAction deleteMappingAction, TransportGatewaySnapshotAction gatewaySnapshotAction,
-                                          TransportIndicesAliasesAction indicesAliasesAction, TransportClearIndicesCacheAction clearIndicesCacheAction,
-                                          TransportUpdateSettingsAction updateSettingsAction, TransportAnalyzeAction analyzeAction,
-                                          TransportPutIndexTemplateAction putIndexTemplateAction, TransportDeleteIndexTemplateAction deleteIndexTemplateAction) {
+    @Inject
+    public NodeIndicesAdminClient(Settings settings, ThreadPool threadPool, TransportIndicesExistsAction indicesExistsAction, TransportIndicesStatsAction indicesStatsAction, TransportIndicesStatusAction indicesStatusAction, TransportIndicesSegmentsAction indicesSegmentsAction,
+                                  TransportCreateIndexAction createIndexAction, TransportDeleteIndexAction deleteIndexAction,
+                                  TransportCloseIndexAction closeIndexAction, TransportOpenIndexAction openIndexAction,
+                                  TransportRefreshAction refreshAction, TransportFlushAction flushAction, TransportOptimizeAction optimizeAction,
+                                  TransportPutMappingAction putMappingAction, TransportDeleteMappingAction deleteMappingAction, TransportGatewaySnapshotAction gatewaySnapshotAction,
+                                  TransportIndicesAliasesAction indicesAliasesAction, TransportClearIndicesCacheAction clearIndicesCacheAction,
+                                  TransportUpdateSettingsAction updateSettingsAction, TransportAnalyzeAction analyzeAction,
+                                  TransportPutIndexTemplateAction putIndexTemplateAction, TransportDeleteIndexTemplateAction deleteIndexTemplateAction) {
         this.threadPool = threadPool;
         this.indicesExistsAction = indicesExistsAction;
         this.indicesStatsAction = indicesStatsAction;
@@ -165,167 +166,208 @@ public class NodeIndicesAdminClient extends AbstractIndicesAdminClient implement
         this.deleteIndexTemplateAction = deleteIndexTemplateAction;
     }
 
-    @Override public ThreadPool threadPool() {
+    @Override
+    public ThreadPool threadPool() {
         return this.threadPool;
     }
 
-    @Override public ActionFuture<IndicesExistsResponse> exists(IndicesExistsRequest request) {
+    @Override
+    public ActionFuture<IndicesExistsResponse> exists(IndicesExistsRequest request) {
         return indicesExistsAction.execute(request);
     }
 
-    @Override public void exists(IndicesExistsRequest request, ActionListener<IndicesExistsResponse> listener) {
+    @Override
+    public void exists(IndicesExistsRequest request, ActionListener<IndicesExistsResponse> listener) {
         indicesExistsAction.execute(request, listener);
     }
 
-    @Override public ActionFuture<IndicesStats> stats(IndicesStatsRequest request) {
+    @Override
+    public ActionFuture<IndicesStats> stats(IndicesStatsRequest request) {
         return indicesStatsAction.execute(request);
     }
 
-    @Override public void stats(IndicesStatsRequest request, ActionListener<IndicesStats> lister) {
+    @Override
+    public void stats(IndicesStatsRequest request, ActionListener<IndicesStats> lister) {
         indicesStatsAction.execute(request, lister);
     }
 
-    @Override public ActionFuture<IndicesStatusResponse> status(IndicesStatusRequest request) {
+    @Override
+    public ActionFuture<IndicesStatusResponse> status(IndicesStatusRequest request) {
         return indicesStatusAction.execute(request);
     }
 
-    @Override public void status(IndicesStatusRequest request, ActionListener<IndicesStatusResponse> listener) {
+    @Override
+    public void status(IndicesStatusRequest request, ActionListener<IndicesStatusResponse> listener) {
         indicesStatusAction.execute(request, listener);
     }
 
-    @Override public ActionFuture<IndicesSegmentResponse> segments(IndicesSegmentsRequest request) {
+    @Override
+    public ActionFuture<IndicesSegmentResponse> segments(IndicesSegmentsRequest request) {
         return indicesSegmentsAction.execute(request);
     }
 
-    @Override public void segments(IndicesSegmentsRequest request, ActionListener<IndicesSegmentResponse> listener) {
+    @Override
+    public void segments(IndicesSegmentsRequest request, ActionListener<IndicesSegmentResponse> listener) {
         indicesSegmentsAction.execute(request, listener);
     }
 
-    @Override public ActionFuture<CreateIndexResponse> create(CreateIndexRequest request) {
+    @Override
+    public ActionFuture<CreateIndexResponse> create(CreateIndexRequest request) {
         return createIndexAction.execute(request);
     }
 
-    @Override public void create(CreateIndexRequest request, ActionListener<CreateIndexResponse> listener) {
+    @Override
+    public void create(CreateIndexRequest request, ActionListener<CreateIndexResponse> listener) {
         createIndexAction.execute(request, listener);
     }
 
-    @Override public ActionFuture<DeleteIndexResponse> delete(DeleteIndexRequest request) {
+    @Override
+    public ActionFuture<DeleteIndexResponse> delete(DeleteIndexRequest request) {
         return deleteIndexAction.execute(request);
     }
 
-    @Override public void delete(DeleteIndexRequest request, ActionListener<DeleteIndexResponse> listener) {
+    @Override
+    public void delete(DeleteIndexRequest request, ActionListener<DeleteIndexResponse> listener) {
         deleteIndexAction.execute(request, listener);
     }
 
-    @Override public ActionFuture<CloseIndexResponse> close(CloseIndexRequest request) {
+    @Override
+    public ActionFuture<CloseIndexResponse> close(CloseIndexRequest request) {
         return closeIndexAction.execute(request);
     }
 
-    @Override public void close(CloseIndexRequest request, ActionListener<CloseIndexResponse> listener) {
+    @Override
+    public void close(CloseIndexRequest request, ActionListener<CloseIndexResponse> listener) {
         closeIndexAction.execute(request, listener);
     }
 
-    @Override public ActionFuture<OpenIndexResponse> open(OpenIndexRequest request) {
+    @Override
+    public ActionFuture<OpenIndexResponse> open(OpenIndexRequest request) {
         return openIndexAction.execute(request);
     }
 
-    @Override public void open(OpenIndexRequest request, ActionListener<OpenIndexResponse> listener) {
+    @Override
+    public void open(OpenIndexRequest request, ActionListener<OpenIndexResponse> listener) {
         openIndexAction.execute(request, listener);
     }
 
-    @Override public ActionFuture<RefreshResponse> refresh(RefreshRequest request) {
+    @Override
+    public ActionFuture<RefreshResponse> refresh(RefreshRequest request) {
         return refreshAction.execute(request);
     }
 
-    @Override public void refresh(RefreshRequest request, ActionListener<RefreshResponse> listener) {
+    @Override
+    public void refresh(RefreshRequest request, ActionListener<RefreshResponse> listener) {
         refreshAction.execute(request, listener);
     }
 
-    @Override public ActionFuture<FlushResponse> flush(FlushRequest request) {
+    @Override
+    public ActionFuture<FlushResponse> flush(FlushRequest request) {
         return flushAction.execute(request);
     }
 
-    @Override public void flush(FlushRequest request, ActionListener<FlushResponse> listener) {
+    @Override
+    public void flush(FlushRequest request, ActionListener<FlushResponse> listener) {
         flushAction.execute(request, listener);
     }
 
-    @Override public ActionFuture<OptimizeResponse> optimize(OptimizeRequest request) {
+    @Override
+    public ActionFuture<OptimizeResponse> optimize(OptimizeRequest request) {
         return optimizeAction.execute(request);
     }
 
-    @Override public void optimize(OptimizeRequest request, ActionListener<OptimizeResponse> listener) {
+    @Override
+    public void optimize(OptimizeRequest request, ActionListener<OptimizeResponse> listener) {
         optimizeAction.execute(request, listener);
     }
 
-    @Override public ActionFuture<PutMappingResponse> putMapping(PutMappingRequest request) {
+    @Override
+    public ActionFuture<PutMappingResponse> putMapping(PutMappingRequest request) {
         return putMappingAction.execute(request);
     }
 
-    @Override public void putMapping(PutMappingRequest request, ActionListener<PutMappingResponse> listener) {
+    @Override
+    public void putMapping(PutMappingRequest request, ActionListener<PutMappingResponse> listener) {
         putMappingAction.execute(request, listener);
     }
 
-    @Override public ActionFuture<DeleteMappingResponse> deleteMapping(DeleteMappingRequest request) {
+    @Override
+    public ActionFuture<DeleteMappingResponse> deleteMapping(DeleteMappingRequest request) {
         return deleteMappingAction.execute(request);
     }
 
-    @Override public void deleteMapping(DeleteMappingRequest request, ActionListener<DeleteMappingResponse> listener) {
+    @Override
+    public void deleteMapping(DeleteMappingRequest request, ActionListener<DeleteMappingResponse> listener) {
         deleteMappingAction.execute(request, listener);
     }
 
-    @Override public ActionFuture<GatewaySnapshotResponse> gatewaySnapshot(GatewaySnapshotRequest request) {
+    @Override
+    public ActionFuture<GatewaySnapshotResponse> gatewaySnapshot(GatewaySnapshotRequest request) {
         return gatewaySnapshotAction.execute(request);
     }
 
-    @Override public void gatewaySnapshot(GatewaySnapshotRequest request, ActionListener<GatewaySnapshotResponse> listener) {
+    @Override
+    public void gatewaySnapshot(GatewaySnapshotRequest request, ActionListener<GatewaySnapshotResponse> listener) {
         gatewaySnapshotAction.execute(request, listener);
     }
 
-    @Override public ActionFuture<IndicesAliasesResponse> aliases(IndicesAliasesRequest request) {
+    @Override
+    public ActionFuture<IndicesAliasesResponse> aliases(IndicesAliasesRequest request) {
         return indicesAliasesAction.execute(request);
     }
 
-    @Override public void aliases(IndicesAliasesRequest request, ActionListener<IndicesAliasesResponse> listener) {
+    @Override
+    public void aliases(IndicesAliasesRequest request, ActionListener<IndicesAliasesResponse> listener) {
         indicesAliasesAction.execute(request, listener);
     }
 
-    @Override public ActionFuture<ClearIndicesCacheResponse> clearCache(ClearIndicesCacheRequest request) {
+    @Override
+    public ActionFuture<ClearIndicesCacheResponse> clearCache(ClearIndicesCacheRequest request) {
         return clearIndicesCacheAction.execute(request);
     }
 
-    @Override public void clearCache(ClearIndicesCacheRequest request, ActionListener<ClearIndicesCacheResponse> listener) {
+    @Override
+    public void clearCache(ClearIndicesCacheRequest request, ActionListener<ClearIndicesCacheResponse> listener) {
         clearIndicesCacheAction.execute(request, listener);
     }
 
-    @Override public ActionFuture<UpdateSettingsResponse> updateSettings(UpdateSettingsRequest request) {
+    @Override
+    public ActionFuture<UpdateSettingsResponse> updateSettings(UpdateSettingsRequest request) {
         return updateSettingsAction.execute(request);
     }
 
-    @Override public void updateSettings(UpdateSettingsRequest request, ActionListener<UpdateSettingsResponse> listener) {
+    @Override
+    public void updateSettings(UpdateSettingsRequest request, ActionListener<UpdateSettingsResponse> listener) {
         updateSettingsAction.execute(request, listener);
     }
 
-    @Override public ActionFuture<AnalyzeResponse> analyze(AnalyzeRequest request) {
+    @Override
+    public ActionFuture<AnalyzeResponse> analyze(AnalyzeRequest request) {
         return analyzeAction.execute(request);
     }
 
-    @Override public void analyze(AnalyzeRequest request, ActionListener<AnalyzeResponse> listener) {
+    @Override
+    public void analyze(AnalyzeRequest request, ActionListener<AnalyzeResponse> listener) {
         analyzeAction.execute(request, listener);
     }
 
-    @Override public ActionFuture<PutIndexTemplateResponse> putTemplate(PutIndexTemplateRequest request) {
+    @Override
+    public ActionFuture<PutIndexTemplateResponse> putTemplate(PutIndexTemplateRequest request) {
         return putIndexTemplateAction.execute(request);
     }
 
-    @Override public void putTemplate(PutIndexTemplateRequest request, ActionListener<PutIndexTemplateResponse> listener) {
+    @Override
+    public void putTemplate(PutIndexTemplateRequest request, ActionListener<PutIndexTemplateResponse> listener) {
         putIndexTemplateAction.execute(request, listener);
     }
 
-    @Override public ActionFuture<DeleteIndexTemplateResponse> deleteTemplate(DeleteIndexTemplateRequest request) {
+    @Override
+    public ActionFuture<DeleteIndexTemplateResponse> deleteTemplate(DeleteIndexTemplateRequest request) {
         return deleteIndexTemplateAction.execute(request);
     }
 
-    @Override public void deleteTemplate(DeleteIndexTemplateRequest request, ActionListener<DeleteIndexTemplateResponse> listener) {
+    @Override
+    public void deleteTemplate(DeleteIndexTemplateRequest request, ActionListener<DeleteIndexTemplateResponse> listener) {
         deleteIndexTemplateAction.execute(request, listener);
     }
 }

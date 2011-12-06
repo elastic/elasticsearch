@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,27 +19,19 @@
 
 package org.elasticsearch.index.service;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.UnmodifiableIterator;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.ElasticSearchInterruptedException;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.ImmutableSet;
-import org.elasticsearch.common.collect.UnmodifiableIterator;
-import org.elasticsearch.common.inject.CreationException;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.common.inject.Injectors;
-import org.elasticsearch.common.inject.ModulesBuilder;
+import org.elasticsearch.common.inject.*;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.none.NoneGateway;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.CloseableIndexComponent;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexShardAlreadyExistsException;
-import org.elasticsearch.index.IndexShardMissingException;
+import org.elasticsearch.index.*;
 import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
@@ -85,11 +77,11 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 
-import static org.elasticsearch.common.collect.MapBuilder.*;
-import static org.elasticsearch.common.collect.Maps.*;
+import static com.google.common.collect.Maps.newHashMap;
+import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class InternalIndexService extends AbstractIndexComponent implements IndexService {
 
@@ -131,10 +123,11 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
     private volatile boolean closed = false;
 
-    @Inject public InternalIndexService(Injector injector, Index index, @IndexSettings Settings indexSettings, NodeEnvironment nodeEnv, ThreadPool threadPool,
-                                        PercolatorService percolatorService, AnalysisService analysisService, MapperService mapperService,
-                                        IndexQueryParserService queryParserService, SimilarityService similarityService, IndexAliasesService aliasesService,
-                                        IndexCache indexCache, IndexEngine indexEngine, IndexGateway indexGateway, IndexStore indexStore) {
+    @Inject
+    public InternalIndexService(Injector injector, Index index, @IndexSettings Settings indexSettings, NodeEnvironment nodeEnv, ThreadPool threadPool,
+                                PercolatorService percolatorService, AnalysisService analysisService, MapperService mapperService,
+                                IndexQueryParserService queryParserService, SimilarityService similarityService, IndexAliasesService aliasesService,
+                                IndexCache indexCache, IndexEngine indexEngine, IndexGateway indexGateway, IndexStore indexStore) {
         super(index, indexSettings);
         this.injector = injector;
         this.nodeEnv = nodeEnv;
@@ -155,23 +148,28 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         this.indicesLifecycle = (InternalIndicesLifecycle) injector.getInstance(IndicesLifecycle.class);
     }
 
-    @Override public int numberOfShards() {
+    @Override
+    public int numberOfShards() {
         return shards.size();
     }
 
-    @Override public UnmodifiableIterator<IndexShard> iterator() {
+    @Override
+    public UnmodifiableIterator<IndexShard> iterator() {
         return shards.values().iterator();
     }
 
-    @Override public boolean hasShard(int shardId) {
+    @Override
+    public boolean hasShard(int shardId) {
         return shards.containsKey(shardId);
     }
 
-    @Override public IndexShard shard(int shardId) {
+    @Override
+    public IndexShard shard(int shardId) {
         return shards.get(shardId);
     }
 
-    @Override public IndexShard shardSafe(int shardId) throws IndexShardMissingException {
+    @Override
+    public IndexShard shardSafe(int shardId) throws IndexShardMissingException {
         IndexShard indexShard = shard(shardId);
         if (indexShard == null) {
             throw new IndexShardMissingException(new ShardId(index, shardId));
@@ -179,51 +177,63 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         return indexShard;
     }
 
-    @Override public ImmutableSet<Integer> shardIds() {
+    @Override
+    public ImmutableSet<Integer> shardIds() {
         return ImmutableSet.copyOf(shards.keySet());
     }
 
-    @Override public Injector injector() {
+    @Override
+    public Injector injector() {
         return injector;
     }
 
-    @Override public IndexGateway gateway() {
+    @Override
+    public IndexGateway gateway() {
         return indexGateway;
     }
 
-    @Override public IndexStore store() {
+    @Override
+    public IndexStore store() {
         return indexStore;
     }
 
-    @Override public IndexCache cache() {
+    @Override
+    public IndexCache cache() {
         return indexCache;
     }
 
-    @Override public PercolatorService percolateService() {
+    @Override
+    public PercolatorService percolateService() {
         return this.percolatorService;
     }
 
-    @Override public AnalysisService analysisService() {
+    @Override
+    public AnalysisService analysisService() {
         return this.analysisService;
     }
 
-    @Override public MapperService mapperService() {
+    @Override
+    public MapperService mapperService() {
         return mapperService;
     }
 
-    @Override public IndexQueryParserService queryParserService() {
+    @Override
+    public IndexQueryParserService queryParserService() {
         return queryParserService;
     }
 
-    @Override public SimilarityService similarityService() {
+    @Override
+    public SimilarityService similarityService() {
         return similarityService;
     }
 
-    @Override public IndexAliasesService aliasesService() {
+    @Override
+    public IndexAliasesService aliasesService() {
         return aliasesService;
     }
 
-    @Override public IndexEngine engine() {
+    @Override
+    public IndexEngine engine() {
         return indexEngine;
     }
 
@@ -236,7 +246,8 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         for (final int shardId : shardIds) {
             executor = executor == null ? threadPool.cached() : executor;
             executor.execute(new Runnable() {
-                @Override public void run() {
+                @Override
+                public void run() {
                     try {
                         deleteShard(shardId, delete, !delete, delete, reason);
                     } catch (Exception e) {
@@ -254,11 +265,13 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         }
     }
 
-    @Override public Injector shardInjector(int shardId) throws ElasticSearchException {
+    @Override
+    public Injector shardInjector(int shardId) throws ElasticSearchException {
         return shardsInjectors.get(shardId);
     }
 
-    @Override public Injector shardInjectorSafe(int shardId) throws IndexShardMissingException {
+    @Override
+    public Injector shardInjectorSafe(int shardId) throws IndexShardMissingException {
         Injector shardInjector = shardInjector(shardId);
         if (shardInjector == null) {
             throw new IndexShardMissingException(new ShardId(index, shardId));
@@ -266,7 +279,8 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         return shardInjector;
     }
 
-    @Override public synchronized IndexShard createShard(int sShardId) throws ElasticSearchException {
+    @Override
+    public synchronized IndexShard createShard(int sShardId) throws ElasticSearchException {
         if (closed) {
             throw new ElasticSearchIllegalStateException("Can't create shard [" + index.name() + "][" + sShardId + "], closed");
         }
@@ -311,11 +325,13 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         return indexShard;
     }
 
-    @Override public synchronized void cleanShard(int shardId, String reason) throws ElasticSearchException {
+    @Override
+    public synchronized void cleanShard(int shardId, String reason) throws ElasticSearchException {
         deleteShard(shardId, true, false, false, reason);
     }
 
-    @Override public synchronized void removeShard(int shardId, String reason) throws ElasticSearchException {
+    @Override
+    public synchronized void removeShard(int shardId, String reason) throws ElasticSearchException {
         deleteShard(shardId, false, false, false, reason);
     }
 

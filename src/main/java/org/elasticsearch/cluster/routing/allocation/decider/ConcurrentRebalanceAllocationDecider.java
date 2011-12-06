@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -40,7 +40,8 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
     }
 
     class ApplySettings implements NodeSettingsService.Listener {
-        @Override public void onRefreshSettings(Settings settings) {
+        @Override
+        public void onRefreshSettings(Settings settings) {
             int clusterConcurrentRebalance = settings.getAsInt("cluster.routing.allocation.cluster_concurrent_rebalance", ConcurrentRebalanceAllocationDecider.this.clusterConcurrentRebalance);
             if (clusterConcurrentRebalance != ConcurrentRebalanceAllocationDecider.this.clusterConcurrentRebalance) {
                 logger.info("updating [cluster.routing.allocation.cluster_concurrent_rebalance] from [{}], to [{}]", ConcurrentRebalanceAllocationDecider.this.clusterConcurrentRebalance, clusterConcurrentRebalance);
@@ -51,14 +52,16 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
 
     private volatile int clusterConcurrentRebalance;
 
-    @Inject public ConcurrentRebalanceAllocationDecider(Settings settings, NodeSettingsService nodeSettingsService) {
+    @Inject
+    public ConcurrentRebalanceAllocationDecider(Settings settings, NodeSettingsService nodeSettingsService) {
         super(settings);
         this.clusterConcurrentRebalance = settings.getAsInt("cluster.routing.allocation.cluster_concurrent_rebalance", 2);
         logger.debug("using [cluster_concurrent_rebalance] with [{}]", clusterConcurrentRebalance);
         nodeSettingsService.addListener(new ApplySettings());
     }
 
-    @Override public boolean canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
+    @Override
+    public boolean canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
         if (clusterConcurrentRebalance == -1) {
             return true;
         }

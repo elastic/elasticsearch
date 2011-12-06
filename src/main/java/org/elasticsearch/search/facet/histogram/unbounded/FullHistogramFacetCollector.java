@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,9 +19,9 @@
 
 package org.elasticsearch.search.facet.histogram.unbounded;
 
+import gnu.trove.ExtTLongObjectHashMap;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.CacheRecycler;
-import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.NumericFieldData;
@@ -39,7 +39,7 @@ import java.io.IOException;
  * A histogram facet collector that uses the same field as the key as well as the
  * value.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class FullHistogramFacetCollector extends AbstractFacetCollector {
 
@@ -78,15 +78,18 @@ public class FullHistogramFacetCollector extends AbstractFacetCollector {
         histoProc = new HistogramProc(interval);
     }
 
-    @Override protected void doCollect(int doc) throws IOException {
+    @Override
+    protected void doCollect(int doc) throws IOException {
         fieldData.forEachValueInDoc(doc, histoProc);
     }
 
-    @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
+    @Override
+    protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
         fieldData = (NumericFieldData) fieldDataCache.cache(fieldDataType, reader, indexFieldName);
     }
 
-    @Override public Facet facet() {
+    @Override
+    public Facet facet() {
         return new InternalFullHistogramFacet(facetName, comparatorType, histoProc.entries, true);
     }
 
@@ -104,7 +107,8 @@ public class FullHistogramFacetCollector extends AbstractFacetCollector {
             this.interval = interval;
         }
 
-        @Override public void onValue(int docId, double value) {
+        @Override
+        public void onValue(int docId, double value) {
             long bucket = bucket(value, interval);
             InternalFullHistogramFacet.FullEntry entry = entries.get(bucket);
             if (entry == null) {

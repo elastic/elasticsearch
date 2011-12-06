@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -31,33 +31,33 @@ import java.io.OutputStream;
 /**
  * An output stream that compresses into the BZip2 format (without the file
  * header chars) into another stream.
- *
+ * <p/>
  * <p>
  * The compression requires large amounts of memory. Thus you should call the
  * {@link #close() close()} method as soon as possible, to force
  * <tt>CBZip2OutputStream</tt> to release the allocated memory.
  * </p>
- *
+ * <p/>
  * <p> You can shrink the amount of allocated memory and maybe raise
  * the compression speed by choosing a lower blocksize, which in turn
  * may cause a lower compression ratio. You can avoid unnecessary
  * memory allocation by avoiding using a blocksize which is bigger
  * than the size of the input.  </p>
- *
+ * <p/>
  * <p> You can compute the memory usage for compressing by the
  * following formula: </p>
- *
+ * <p/>
  * <pre>
  * &lt;code&gt;400k + (9 * blocksize)&lt;/code&gt;.
  * </pre>
- *
+ * <p/>
  * <p> To get the memory required for decompression by {@link
  * CBZip2InputStream CBZip2InputStream} use </p>
- *
+ * <p/>
  * <pre>
  * &lt;code&gt;65k + (5 * blocksize)&lt;/code&gt;.
  * </pre>
- *
+ * <p/>
  * <table width="100%" border="1">
  * <colgroup> <col width="33%" /> <col width="33%" /> <col width="33%" />
  * </colgroup>
@@ -115,16 +115,16 @@ import java.io.OutputStream;
  * <td align="right">4565k</td>
  * </tr>
  * </table>
- *
+ * <p/>
  * <p>
  * For decompression <tt>CBZip2InputStream</tt> allocates less memory if the
  * bzipped input is smaller than one block.
  * </p>
- *
+ * <p/>
  * <p>
  * Instances of this class are not threadsafe.
  * </p>
- *
+ * <p/>
  * <p>
  * TODO: Update to BZip2 1.0.1
  * </p>
@@ -226,11 +226,11 @@ public class CBZip2OutputStream extends OutputStream
         final int[] weight = new int[MAX_ALPHA_SIZE * 2];
         final int[] parent = new int[MAX_ALPHA_SIZE * 2];
 
-        for (int i = alphaSize; --i >= 0;) {
+        for (int i = alphaSize; --i >= 0; ) {
             weight[i + 1] = (freq[i] == 0 ? 1 : freq[i]) << 8;
         }
 
-        for (boolean tooLong = true; tooLong;) {
+        for (boolean tooLong = true; tooLong; ) {
             tooLong = false;
 
             int nNodes = alphaSize;
@@ -351,7 +351,7 @@ public class CBZip2OutputStream extends OutputStream
                 int j = 0;
                 int k = i;
 
-                for (int parent_k; (parent_k = parent[k]) >= 0;) {
+                for (int parent_k; (parent_k = parent[k]) >= 0; ) {
                     k = parent_k;
                     j++;
                 }
@@ -383,11 +383,11 @@ public class CBZip2OutputStream extends OutputStream
         final int[] weight = dat.weight;
         final int[] parent = dat.parent;
 
-        for (int i = alphaSize; --i >= 0;) {
+        for (int i = alphaSize; --i >= 0; ) {
             weight[i + 1] = (freq[i] == 0 ? 1 : freq[i]) << 8;
         }
 
-        for (boolean tooLong = true; tooLong;) {
+        for (boolean tooLong = true; tooLong; ) {
             tooLong = false;
 
             int nNodes = alphaSize;
@@ -502,7 +502,7 @@ public class CBZip2OutputStream extends OutputStream
                 int j = 0;
                 int k = i;
 
-                for (int parent_k; (parent_k = parent[k]) >= 0;) {
+                for (int parent_k; (parent_k = parent[k]) >= 0; ) {
                     k = parent_k;
                     j++;
                 }
@@ -588,7 +588,7 @@ public class CBZip2OutputStream extends OutputStream
 
     /**
      * Constructs a new <tt>CBZip2OutputStream</tt> with a blocksize of 900k.
-     *
+     * <p/>
      * <p>
      * <b>Attention: </b>The caller is resonsible to write the two BZip2 magic
      * bytes <tt>"BZ"</tt> to the specified stream prior to calling this
@@ -606,7 +606,7 @@ public class CBZip2OutputStream extends OutputStream
 
     /**
      * Constructs a new <tt>CBZip2OutputStream</tt> with specified blocksize.
-     *
+     * <p/>
      * <p>
      * <b>Attention: </b>The caller is resonsible to write the two BZip2 magic
      * bytes <tt>"BZ"</tt> to the specified stream prior to calling this
@@ -766,7 +766,7 @@ public class CBZip2OutputStream extends OutputStream
         // ch = 0;
 
         boolean[] inUse = this.data.inUse;
-        for (int i = 256; --i >= 0;) {
+        for (int i = 256; --i >= 0; ) {
             inUse[i] = false;
         }
 
@@ -861,7 +861,7 @@ public class CBZip2OutputStream extends OutputStream
             throw new IOException("stream closed");
         }
 
-        for (int hi = offs + len; offs < hi;) {
+        for (int hi = offs + len; offs < hi; ) {
             write0(buf[offs++]);
         }
     }
@@ -941,9 +941,9 @@ public class CBZip2OutputStream extends OutputStream
         final byte[][] len = this.data.sendMTFValues_len;
         final int alphaSize = this.nInUse + 2;
 
-        for (int t = N_GROUPS; --t >= 0;) {
+        for (int t = N_GROUPS; --t >= 0; ) {
             byte[] len_t = len[t];
-            for (int v = alphaSize; --v >= 0;) {
+            for (int v = alphaSize; --v >= 0; ) {
                 len_t[v] = GREATER_ICOST;
             }
         }
@@ -992,7 +992,7 @@ public class CBZip2OutputStream extends OutputStream
             int ge = gs - 1;
             int aFreq = 0;
 
-            for (final int a = alphaSize - 1; (aFreq < tFreq) && (ge < a);) {
+            for (final int a = alphaSize - 1; (aFreq < tFreq) && (ge < a); ) {
                 aFreq += mtfFreq[++ge];
             }
 
@@ -1002,7 +1002,7 @@ public class CBZip2OutputStream extends OutputStream
             }
 
             final byte[] len_np = len[nPart - 1];
-            for (int v = alphaSize; --v >= 0;) {
+            for (int v = alphaSize; --v >= 0; ) {
                 if ((v >= gs) && (v <= ge)) {
                     len_np[v] = LESSER_ICOST;
                 } else {
@@ -1034,17 +1034,17 @@ public class CBZip2OutputStream extends OutputStream
         int nSelectors = 0;
 
         for (int iter = 0; iter < N_ITERS; iter++) {
-            for (int t = nGroups; --t >= 0;) {
+            for (int t = nGroups; --t >= 0; ) {
                 fave[t] = 0;
                 int[] rfreqt = rfreq[t];
-                for (int i = alphaSize; --i >= 0;) {
+                for (int i = alphaSize; --i >= 0; ) {
                     rfreqt[i] = 0;
                 }
             }
 
             nSelectors = 0;
 
-            for (int gs = 0; gs < this.nMTF;) {
+            for (int gs = 0; gs < this.nMTF; ) {
                 /* Set group start & end marks. */
 
                 /*
@@ -1082,13 +1082,13 @@ public class CBZip2OutputStream extends OutputStream
                     cost[5] = cost5;
 
                 } else {
-                    for (int t = nGroups; --t >= 0;) {
+                    for (int t = nGroups; --t >= 0; ) {
                         cost[t] = 0;
                     }
 
                     for (int i = gs; i <= ge; i++) {
                         final int icv = sfmap[i];
-                        for (int t = nGroups; --t >= 0;) {
+                        for (int t = nGroups; --t >= 0; ) {
                             cost[t] += len[t][icv] & 0xff;
                         }
                     }
@@ -1099,7 +1099,7 @@ public class CBZip2OutputStream extends OutputStream
                  * record its identity in the selector table.
                  */
                 int bt = -1;
-                for (int t = nGroups, bc = 999999999; --t >= 0;) {
+                for (int t = nGroups, bc = 999999999; --t >= 0; ) {
                     final int cost_t = cost[t];
                     if (cost_t < bc) {
                         bc = cost_t;
@@ -1139,7 +1139,7 @@ public class CBZip2OutputStream extends OutputStream
         final Data dataShadow = this.data;
         byte[] pos = dataShadow.sendMTFValues2_pos;
 
-        for (int i = nGroups; --i >= 0;) {
+        for (int i = nGroups; --i >= 0; ) {
             pos[i] = (byte) i;
         }
 
@@ -1168,7 +1168,7 @@ public class CBZip2OutputStream extends OutputStream
             int minLen = 32;
             int maxLen = 0;
             final byte[] len_t = len[t];
-            for (int i = alphaSize; --i >= 0;) {
+            for (int i = alphaSize; --i >= 0; ) {
                 final int l = len_t[i] & 0xff;
                 if (l > maxLen) {
                     maxLen = l;
@@ -1189,10 +1189,10 @@ public class CBZip2OutputStream extends OutputStream
         final boolean[] inUse = this.data.inUse;
         final boolean[] inUse16 = this.data.sentMTFValues4_inUse16;
 
-        for (int i = 16; --i >= 0;) {
+        for (int i = 16; --i >= 0; ) {
             inUse16[i] = false;
             final int i16 = i * 16;
-            for (int j = 16; --j >= 0;) {
+            for (int j = 16; --j >= 0; ) {
                 if (inUse[i16 + j]) {
                     inUse16[i] = true;
                 }
@@ -1344,7 +1344,7 @@ public class CBZip2OutputStream extends OutputStream
         int bsLiveShadow = this.bsLive;
         int bsBuffShadow = this.bsBuff;
 
-        for (int gs = 0; gs < nMTFShadow;) {
+        for (int gs = 0; gs < nMTFShadow; ) {
             final int ge = Math.min(gs + G_SIZE - 1, nMTFShadow - 1);
             final int selector_selCtr = selector[selCtr] & 0xff;
             final int[] code_selCtr = code[selector_selCtr];
@@ -1385,7 +1385,7 @@ public class CBZip2OutputStream extends OutputStream
 
     /**
      * This is the most hammered method of this class.
-     *
+     * <p/>
      * <p>
      * This is the version using unrolled loops. Normally I never use such ones
      * in Java code. The unrolling has shown a noticable performance improvement
@@ -1422,7 +1422,7 @@ public class CBZip2OutputStream extends OutputStream
             final int h = INCS[hp];
             final int mj = lo + h - 1;
 
-            for (int i = lo + h; i <= hi;) {
+            for (int i = lo + h; i <= hi; ) {
                 // copy
                 for (int k = 3; (i <= hi) && (--k >= 0); i++) {
                     final int v = fmap[i];
@@ -1636,7 +1636,7 @@ public class CBZip2OutputStream extends OutputStream
         stack_hh[0] = hiSt;
         stack_dd[0] = dSt;
 
-        for (int sp = 1; --sp >= 0;) {
+        for (int sp = 1; --sp >= 0; ) {
             final int lo = stack_ll[sp];
             final int hi = stack_hh[sp];
             final int d = stack_dd[sp];
@@ -1742,7 +1742,7 @@ public class CBZip2OutputStream extends OutputStream
         final boolean firstAttemptShadow = this.firstAttempt;
 
         // Set up the 2-byte frequency table
-        for (int i = 65537; --i >= 0;) {
+        for (int i = 65537; --i >= 0; ) {
             ftab[i] = 0;
         }
 
@@ -1754,7 +1754,7 @@ public class CBZip2OutputStream extends OutputStream
         for (int i = 0; i < NUM_OVERSHOOT_BYTES; i++) {
             block[lastShadow + i + 2] = block[(i % (lastShadow + 1)) + 1];
         }
-        for (int i = lastShadow + NUM_OVERSHOOT_BYTES + 1; --i >= 0;) {
+        for (int i = lastShadow + NUM_OVERSHOOT_BYTES + 1; --i >= 0; ) {
             quadrant[i] = 0;
         }
         block[0] = block[lastShadow + 1];
@@ -1784,12 +1784,12 @@ public class CBZip2OutputStream extends OutputStream
          * Now ftab contains the first loc of every small bucket. Calculate the
          * running order, from smallest to largest big bucket.
          */
-        for (int i = 256; --i >= 0;) {
+        for (int i = 256; --i >= 0; ) {
             bigDone[i] = false;
             runningOrder[i] = i;
         }
 
-        for (int h = 364; h != 1;) {
+        for (int h = 364; h != 1; ) {
             h /= 3;
             for (int i = h; i <= 255; i++) {
                 final int vv = runningOrder[i];
@@ -1858,7 +1858,7 @@ public class CBZip2OutputStream extends OutputStream
                 }
             }
 
-            for (int j = 256; --j >= 0;)
+            for (int j = 256; --j >= 0; )
                 ftab[(j << 8) + ss] |= SETMASK;
 
             // Step 3:
@@ -1898,7 +1898,7 @@ public class CBZip2OutputStream extends OutputStream
         final byte[] block = this.data.block;
         final int lastShadow = this.last;
 
-        for (int i = 256; --i >= 0;)
+        for (int i = 256; --i >= 0; )
             inUse[i] = false;
 
         int rNToGo = 0;
@@ -1948,7 +1948,7 @@ public class CBZip2OutputStream extends OutputStream
             mtfFreq[i] = 0;
         }
 
-        for (int i = nInUseShadow; --i >= 0;) {
+        for (int i = nInUseShadow; --i >= 0; ) {
             yy[i] = (byte) i;
         }
 

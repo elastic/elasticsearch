@@ -33,7 +33,8 @@ class Initializables {
                 return instance;
             }
 
-            @Override public String toString() {
+            @Override
+            public String toString() {
                 return String.valueOf(instance);
             }
         };

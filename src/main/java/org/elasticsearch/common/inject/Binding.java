@@ -24,7 +24,7 @@ import org.elasticsearch.common.inject.spi.Element;
  * A mapping from a key (type and optional annotation) to the strategy for getting instances of the
  * type. This interface is part of the introspection API and is intended primarily for use by
  * tools.
- *
+ * <p/>
  * <p>Bindings are created in several ways:
  * <ul>
  * <li>Explicitly in a module, via {@code bind()} and {@code bindConstant()}

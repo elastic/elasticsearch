@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -38,24 +38,27 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class SerialMergeSchedulerProvider extends AbstractIndexShardComponent implements MergeSchedulerProvider {
 
     private Set<CustomSerialMergeScheduler> schedulers = new CopyOnWriteArraySet<CustomSerialMergeScheduler>();
 
-    @Inject public SerialMergeSchedulerProvider(ShardId shardId, @IndexSettings Settings indexSettings) {
+    @Inject
+    public SerialMergeSchedulerProvider(ShardId shardId, @IndexSettings Settings indexSettings) {
         super(shardId, indexSettings);
         logger.trace("using [serial] merge scheduler");
     }
 
-    @Override public MergeScheduler newMergeScheduler() {
+    @Override
+    public MergeScheduler newMergeScheduler() {
         CustomSerialMergeScheduler scheduler = new CustomSerialMergeScheduler(logger, this);
         schedulers.add(scheduler);
         return scheduler;
     }
 
-    @Override public MergeStats stats() {
+    @Override
+    public MergeStats stats() {
         MergeStats mergeStats = new MergeStats();
         for (CustomSerialMergeScheduler scheduler : schedulers) {
             mergeStats.add(scheduler.totalMerges(), scheduler.totalMergeTime(), scheduler.totalMergeNumDocs(), scheduler.totalMergeSizeInBytes(),
@@ -73,7 +76,8 @@ public class SerialMergeSchedulerProvider extends AbstractIndexShardComponent im
             this.provider = provider;
         }
 
-        @Override public void merge(IndexWriter writer) throws CorruptIndexException, IOException {
+        @Override
+        public void merge(IndexWriter writer) throws CorruptIndexException, IOException {
             try {
                 // if merge is not enabled, don't do any merging...
                 if (writer.getConfig().getMergePolicy() instanceof EnableMergePolicy) {
@@ -95,7 +99,8 @@ public class SerialMergeSchedulerProvider extends AbstractIndexShardComponent im
             }
         }
 
-        @Override public void close() {
+        @Override
+        public void close() {
             super.close();
             provider.schedulers.remove(this);
         }

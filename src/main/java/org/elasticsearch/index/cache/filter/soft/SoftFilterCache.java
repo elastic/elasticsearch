@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,11 +19,11 @@
 
 package org.elasticsearch.index.cache.filter.soft;
 
+import com.google.common.base.Objects;
+import com.google.common.collect.MapEvictionListener;
+import com.google.common.collect.MapMaker;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.base.Objects;
-import org.elasticsearch.common.collect.MapEvictionListener;
-import org.elasticsearch.common.collect.MapMaker;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.docset.DocSet;
 import org.elasticsearch.common.metrics.CounterMetric;
@@ -40,7 +40,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * A soft reference based filter cache that has soft keys on the <tt>IndexReader</tt>.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class SoftFilterCache extends AbstractConcurrentMapFilterCache implements MapEvictionListener<Filter, DocSet> {
 
@@ -53,7 +53,8 @@ public class SoftFilterCache extends AbstractConcurrentMapFilterCache implements
 
     private final ApplySettings applySettings = new ApplySettings();
 
-    @Inject public SoftFilterCache(Index index, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService) {
+    @Inject
+    public SoftFilterCache(Index index, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService) {
         super(index, indexSettings);
         this.indexSettingsService = indexSettingsService;
         this.maxSize = indexSettings.getAsInt("index.cache.filter.max_size", componentSettings.getAsInt("max_size", -1));
@@ -63,12 +64,14 @@ public class SoftFilterCache extends AbstractConcurrentMapFilterCache implements
         indexSettingsService.addListener(applySettings);
     }
 
-    @Override public void close() {
+    @Override
+    public void close() {
         indexSettingsService.removeListener(applySettings);
         super.close();
     }
 
-    @Override protected ConcurrentMap<Object, DocSet> buildFilterMap() {
+    @Override
+    protected ConcurrentMap<Object, DocSet> buildFilterMap() {
         // DocSet are not really stored with strong reference only when searching on them...
         // Filter might be stored in query cache
         MapMaker mapMaker = new MapMaker().softValues();
@@ -82,15 +85,18 @@ public class SoftFilterCache extends AbstractConcurrentMapFilterCache implements
         return mapMaker.makeMap();
     }
 
-    @Override public String type() {
+    @Override
+    public String type() {
         return "soft";
     }
 
-    @Override public long evictions() {
+    @Override
+    public long evictions() {
         return evictions.count();
     }
 
-    @Override public void onEviction(Filter filter, DocSet docSet) {
+    @Override
+    public void onEviction(Filter filter, DocSet docSet) {
         evictions.inc();
     }
 
@@ -102,7 +108,8 @@ public class SoftFilterCache extends AbstractConcurrentMapFilterCache implements
     }
 
     class ApplySettings implements IndexSettingsService.Listener {
-        @Override public void onRefreshSettings(Settings settings) {
+        @Override
+        public void onRefreshSettings(Settings settings) {
             int maxSize = settings.getAsInt("index.cache.filter.max_size", SoftFilterCache.this.maxSize);
             TimeValue expire = settings.getAsTime("index.cache.filter.expire", SoftFilterCache.this.expire);
             boolean changed = false;

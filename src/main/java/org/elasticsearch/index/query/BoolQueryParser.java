@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -29,25 +29,29 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.common.collect.Lists.*;
-import static org.elasticsearch.common.lucene.search.Queries.*;
+import static com.google.common.collect.Lists.newArrayList;
+import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
+import static org.elasticsearch.common.lucene.search.Queries.optimizeQuery;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class BoolQueryParser implements QueryParser {
 
     public static final String NAME = "bool";
 
-    @Inject public BoolQueryParser(Settings settings) {
+    @Inject
+    public BoolQueryParser(Settings settings) {
         BooleanQuery.setMaxClauseCount(settings.getAsInt("index.query.bool.max_clause_count", BooleanQuery.getMaxClauseCount()));
     }
 
-    @Override public String[] names() {
+    @Override
+    public String[] names() {
         return new String[]{NAME};
     }
 
-    @Override public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    @Override
+    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
         boolean disableCoord = false;

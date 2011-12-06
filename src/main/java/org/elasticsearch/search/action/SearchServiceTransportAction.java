@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -45,7 +45,7 @@ import org.elasticsearch.transport.*;
  * An encapsulation of {@link org.elasticsearch.search.SearchService} operations exposed through
  * transport.
  *
- * @author kimchy (Shay Banon)
+ *
  */
 public class SearchServiceTransportAction extends AbstractComponent {
 
@@ -58,7 +58,8 @@ public class SearchServiceTransportAction extends AbstractComponent {
             this.logger = logger;
         }
 
-        @Override public void handleException(TransportException exp) {
+        @Override
+        public void handleException(TransportException exp) {
             logger.warn("Failed to send release search context", exp);
         }
     }
@@ -71,7 +72,8 @@ public class SearchServiceTransportAction extends AbstractComponent {
 
     private final FreeContextResponseHandler freeContextResponseHandler = new FreeContextResponseHandler(logger);
 
-    @Inject public SearchServiceTransportAction(Settings settings, TransportService transportService, ClusterService clusterService, SearchService searchService) {
+    @Inject
+    public SearchServiceTransportAction(Settings settings, TransportService transportService, ClusterService clusterService, SearchService searchService) {
         super(settings);
         this.transportService = transportService;
         this.clusterService = clusterService;
@@ -109,19 +111,23 @@ public class SearchServiceTransportAction extends AbstractComponent {
         } else {
             transportService.sendRequest(node, SearchDfsTransportHandler.ACTION, request, new BaseTransportResponseHandler<DfsSearchResult>() {
 
-                @Override public DfsSearchResult newInstance() {
+                @Override
+                public DfsSearchResult newInstance() {
                     return new DfsSearchResult();
                 }
 
-                @Override public void handleResponse(DfsSearchResult response) {
+                @Override
+                public void handleResponse(DfsSearchResult response) {
                     listener.onResult(response);
                 }
 
-                @Override public void handleException(TransportException exp) {
+                @Override
+                public void handleException(TransportException exp) {
                     listener.onFailure(exp);
                 }
 
-                @Override public String executor() {
+                @Override
+                public String executor() {
                     return ThreadPool.Names.SAME;
                 }
             });
@@ -139,19 +145,23 @@ public class SearchServiceTransportAction extends AbstractComponent {
         } else {
             transportService.sendRequest(node, SearchQueryTransportHandler.ACTION, request, new BaseTransportResponseHandler<QuerySearchResult>() {
 
-                @Override public QuerySearchResult newInstance() {
+                @Override
+                public QuerySearchResult newInstance() {
                     return new QuerySearchResult();
                 }
 
-                @Override public void handleResponse(QuerySearchResult response) {
+                @Override
+                public void handleResponse(QuerySearchResult response) {
                     listener.onResult(response);
                 }
 
-                @Override public void handleException(TransportException exp) {
+                @Override
+                public void handleException(TransportException exp) {
                     listener.onFailure(exp);
                 }
 
-                @Override public String executor() {
+                @Override
+                public String executor() {
                     return ThreadPool.Names.SAME;
                 }
             });
@@ -169,19 +179,23 @@ public class SearchServiceTransportAction extends AbstractComponent {
         } else {
             transportService.sendRequest(node, SearchQueryByIdTransportHandler.ACTION, request, new BaseTransportResponseHandler<QuerySearchResult>() {
 
-                @Override public QuerySearchResult newInstance() {
+                @Override
+                public QuerySearchResult newInstance() {
                     return new QuerySearchResult();
                 }
 
-                @Override public void handleResponse(QuerySearchResult response) {
+                @Override
+                public void handleResponse(QuerySearchResult response) {
                     listener.onResult(response);
                 }
 
-                @Override public void handleException(TransportException exp) {
+                @Override
+                public void handleException(TransportException exp) {
                     listener.onFailure(exp);
                 }
 
-                @Override public String executor() {
+                @Override
+                public String executor() {
                     return ThreadPool.Names.SAME;
                 }
             });
@@ -199,19 +213,23 @@ public class SearchServiceTransportAction extends AbstractComponent {
         } else {
             transportService.sendRequest(node, SearchQueryScrollTransportHandler.ACTION, request, new BaseTransportResponseHandler<ScrollQuerySearchResult>() {
 
-                @Override public ScrollQuerySearchResult newInstance() {
+                @Override
+                public ScrollQuerySearchResult newInstance() {
                     return new ScrollQuerySearchResult();
                 }
 
-                @Override public void handleResponse(ScrollQuerySearchResult response) {
+                @Override
+                public void handleResponse(ScrollQuerySearchResult response) {
                     listener.onResult(response.queryResult());
                 }
 
-                @Override public void handleException(TransportException exp) {
+                @Override
+                public void handleException(TransportException exp) {
                     listener.onFailure(exp);
                 }
 
-                @Override public String executor() {
+                @Override
+                public String executor() {
                     return ThreadPool.Names.SAME;
                 }
             });
@@ -229,19 +247,23 @@ public class SearchServiceTransportAction extends AbstractComponent {
         } else {
             transportService.sendRequest(node, SearchQueryFetchTransportHandler.ACTION, request, new BaseTransportResponseHandler<QueryFetchSearchResult>() {
 
-                @Override public QueryFetchSearchResult newInstance() {
+                @Override
+                public QueryFetchSearchResult newInstance() {
                     return new QueryFetchSearchResult();
                 }
 
-                @Override public void handleResponse(QueryFetchSearchResult response) {
+                @Override
+                public void handleResponse(QueryFetchSearchResult response) {
                     listener.onResult(response);
                 }
 
-                @Override public void handleException(TransportException exp) {
+                @Override
+                public void handleException(TransportException exp) {
                     listener.onFailure(exp);
                 }
 
-                @Override public String executor() {
+                @Override
+                public String executor() {
                     return ThreadPool.Names.SAME;
                 }
             });
@@ -259,19 +281,23 @@ public class SearchServiceTransportAction extends AbstractComponent {
         } else {
             transportService.sendRequest(node, SearchQueryQueryFetchTransportHandler.ACTION, request, new BaseTransportResponseHandler<QueryFetchSearchResult>() {
 
-                @Override public QueryFetchSearchResult newInstance() {
+                @Override
+                public QueryFetchSearchResult newInstance() {
                     return new QueryFetchSearchResult();
                 }
 
-                @Override public void handleResponse(QueryFetchSearchResult response) {
+                @Override
+                public void handleResponse(QueryFetchSearchResult response) {
                     listener.onResult(response);
                 }
 
-                @Override public void handleException(TransportException exp) {
+                @Override
+                public void handleException(TransportException exp) {
                     listener.onFailure(exp);
                 }
 
-                @Override public String executor() {
+                @Override
+                public String executor() {
                     return ThreadPool.Names.SAME;
                 }
             });
@@ -289,19 +315,23 @@ public class SearchServiceTransportAction extends AbstractComponent {
         } else {
             transportService.sendRequest(node, SearchQueryFetchScrollTransportHandler.ACTION, request, new BaseTransportResponseHandler<ScrollQueryFetchSearchResult>() {
 
-                @Override public ScrollQueryFetchSearchResult newInstance() {
+                @Override
+                public ScrollQueryFetchSearchResult newInstance() {
                     return new ScrollQueryFetchSearchResult();
                 }
 
-                @Override public void handleResponse(ScrollQueryFetchSearchResult response) {
+                @Override
+                public void handleResponse(ScrollQueryFetchSearchResult response) {
                     listener.onResult(response.result());
                 }
 
-                @Override public void handleException(TransportException exp) {
+                @Override
+                public void handleException(TransportException exp) {
                     listener.onFailure(exp);
                 }
 
-                @Override public String executor() {
+                @Override
+                public String executor() {
                     return ThreadPool.Names.SAME;
                 }
             });
@@ -319,19 +349,23 @@ public class SearchServiceTransportAction extends AbstractComponent {
         } else {
             transportService.sendRequest(node, SearchFetchByIdTransportHandler.ACTION, request, new BaseTransportResponseHandler<FetchSearchResult>() {
 
-                @Override public FetchSearchResult newInstance() {
+                @Override
+                public FetchSearchResult newInstance() {
                     return new FetchSearchResult();
                 }
 
-                @Override public void handleResponse(FetchSearchResult response) {
+                @Override
+                public void handleResponse(FetchSearchResult response) {
                     listener.onResult(response);
                 }
 
-                @Override public void handleException(TransportException exp) {
+                @Override
+                public void handleException(TransportException exp) {
                     listener.onFailure(exp);
                 }
 
-                @Override public String executor() {
+                @Override
+                public String executor() {
                     return ThreadPool.Names.SAME;
                 }
             });
@@ -349,19 +383,23 @@ public class SearchServiceTransportAction extends AbstractComponent {
         } else {
             transportService.sendRequest(node, SearchScanTransportHandler.ACTION, request, new BaseTransportResponseHandler<QuerySearchResult>() {
 
-                @Override public QuerySearchResult newInstance() {
+                @Override
+                public QuerySearchResult newInstance() {
                     return new QuerySearchResult();
                 }
 
-                @Override public void handleResponse(QuerySearchResult response) {
+                @Override
+                public void handleResponse(QuerySearchResult response) {
                     listener.onResult(response);
                 }
 
-                @Override public void handleException(TransportException exp) {
+                @Override
+                public void handleException(TransportException exp) {
                     listener.onFailure(exp);
                 }
 
-                @Override public String executor() {
+                @Override
+                public String executor() {
                     return ThreadPool.Names.SAME;
                 }
             });
@@ -379,19 +417,23 @@ public class SearchServiceTransportAction extends AbstractComponent {
         } else {
             transportService.sendRequest(node, SearchScanScrollTransportHandler.ACTION, request, new BaseTransportResponseHandler<ScrollQueryFetchSearchResult>() {
 
-                @Override public ScrollQueryFetchSearchResult newInstance() {
+                @Override
+                public ScrollQueryFetchSearchResult newInstance() {
                     return new ScrollQueryFetchSearchResult();
                 }
 
-                @Override public void handleResponse(ScrollQueryFetchSearchResult response) {
+                @Override
+                public void handleResponse(ScrollQueryFetchSearchResult response) {
                     listener.onResult(response.result());
                 }
 
-                @Override public void handleException(TransportException exp) {
+                @Override
+                public void handleException(TransportException exp) {
                     listener.onFailure(exp);
                 }
 
-                @Override public String executor() {
+                @Override
+                public String executor() {
                     return ThreadPool.Names.SAME;
                 }
             });
@@ -402,16 +444,19 @@ public class SearchServiceTransportAction extends AbstractComponent {
 
         static final String ACTION = "search/freeContext";
 
-        @Override public LongStreamable newInstance() {
+        @Override
+        public LongStreamable newInstance() {
             return new LongStreamable();
         }
 
-        @Override public void messageReceived(LongStreamable request, TransportChannel channel) throws Exception {
+        @Override
+        public void messageReceived(LongStreamable request, TransportChannel channel) throws Exception {
             searchService.freeContext(request.get());
             channel.sendResponse(VoidStreamable.INSTANCE);
         }
 
-        @Override public String executor() {
+        @Override
+        public String executor() {
             return ThreadPool.Names.SEARCH;
         }
     }
@@ -421,16 +466,19 @@ public class SearchServiceTransportAction extends AbstractComponent {
 
         static final String ACTION = "search/phase/dfs";
 
-        @Override public InternalSearchRequest newInstance() {
+        @Override
+        public InternalSearchRequest newInstance() {
             return new InternalSearchRequest();
         }
 
-        @Override public void messageReceived(InternalSearchRequest request, TransportChannel channel) throws Exception {
+        @Override
+        public void messageReceived(InternalSearchRequest request, TransportChannel channel) throws Exception {
             DfsSearchResult result = searchService.executeDfsPhase(request);
             channel.sendResponse(result);
         }
 
-        @Override public String executor() {
+        @Override
+        public String executor() {
             return ThreadPool.Names.SEARCH;
         }
     }
@@ -439,16 +487,19 @@ public class SearchServiceTransportAction extends AbstractComponent {
 
         static final String ACTION = "search/phase/query";
 
-        @Override public InternalSearchRequest newInstance() {
+        @Override
+        public InternalSearchRequest newInstance() {
             return new InternalSearchRequest();
         }
 
-        @Override public void messageReceived(InternalSearchRequest request, TransportChannel channel) throws Exception {
+        @Override
+        public void messageReceived(InternalSearchRequest request, TransportChannel channel) throws Exception {
             QuerySearchResult result = searchService.executeQueryPhase(request);
             channel.sendResponse(result);
         }
 
-        @Override public String executor() {
+        @Override
+        public String executor() {
             return ThreadPool.Names.SEARCH;
         }
     }
@@ -457,16 +508,19 @@ public class SearchServiceTransportAction extends AbstractComponent {
 
         static final String ACTION = "search/phase/query/id";
 
-        @Override public QuerySearchRequest newInstance() {
+        @Override
+        public QuerySearchRequest newInstance() {
             return new QuerySearchRequest();
         }
 
-        @Override public void messageReceived(QuerySearchRequest request, TransportChannel channel) throws Exception {
+        @Override
+        public void messageReceived(QuerySearchRequest request, TransportChannel channel) throws Exception {
             QuerySearchResult result = searchService.executeQueryPhase(request);
             channel.sendResponse(result);
         }
 
-        @Override public String executor() {
+        @Override
+        public String executor() {
             return ThreadPool.Names.SEARCH;
         }
     }
@@ -475,16 +529,19 @@ public class SearchServiceTransportAction extends AbstractComponent {
 
         static final String ACTION = "search/phase/query/scroll";
 
-        @Override public InternalScrollSearchRequest newInstance() {
+        @Override
+        public InternalScrollSearchRequest newInstance() {
             return new InternalScrollSearchRequest();
         }
 
-        @Override public void messageReceived(InternalScrollSearchRequest request, TransportChannel channel) throws Exception {
+        @Override
+        public void messageReceived(InternalScrollSearchRequest request, TransportChannel channel) throws Exception {
             ScrollQuerySearchResult result = searchService.executeQueryPhase(request);
             channel.sendResponse(result);
         }
 
-        @Override public String executor() {
+        @Override
+        public String executor() {
             return ThreadPool.Names.SEARCH;
         }
     }
@@ -493,16 +550,19 @@ public class SearchServiceTransportAction extends AbstractComponent {
 
         static final String ACTION = "search/phase/query+fetch";
 
-        @Override public InternalSearchRequest newInstance() {
+        @Override
+        public InternalSearchRequest newInstance() {
             return new InternalSearchRequest();
         }
 
-        @Override public void messageReceived(InternalSearchRequest request, TransportChannel channel) throws Exception {
+        @Override
+        public void messageReceived(InternalSearchRequest request, TransportChannel channel) throws Exception {
             QueryFetchSearchResult result = searchService.executeFetchPhase(request);
             channel.sendResponse(result);
         }
 
-        @Override public String executor() {
+        @Override
+        public String executor() {
             return ThreadPool.Names.SEARCH;
         }
     }
@@ -511,16 +571,19 @@ public class SearchServiceTransportAction extends AbstractComponent {
 
         static final String ACTION = "search/phase/query/query+fetch";
 
-        @Override public QuerySearchRequest newInstance() {
+        @Override
+        public QuerySearchRequest newInstance() {
             return new QuerySearchRequest();
         }
 
-        @Override public void messageReceived(QuerySearchRequest request, TransportChannel channel) throws Exception {
+        @Override
+        public void messageReceived(QuerySearchRequest request, TransportChannel channel) throws Exception {
             QueryFetchSearchResult result = searchService.executeFetchPhase(request);
             channel.sendResponse(result);
         }
 
-        @Override public String executor() {
+        @Override
+        public String executor() {
             return ThreadPool.Names.SEARCH;
         }
     }
@@ -529,16 +592,19 @@ public class SearchServiceTransportAction extends AbstractComponent {
 
         static final String ACTION = "search/phase/fetch/id";
 
-        @Override public FetchSearchRequest newInstance() {
+        @Override
+        public FetchSearchRequest newInstance() {
             return new FetchSearchRequest();
         }
 
-        @Override public void messageReceived(FetchSearchRequest request, TransportChannel channel) throws Exception {
+        @Override
+        public void messageReceived(FetchSearchRequest request, TransportChannel channel) throws Exception {
             FetchSearchResult result = searchService.executeFetchPhase(request);
             channel.sendResponse(result);
         }
 
-        @Override public String executor() {
+        @Override
+        public String executor() {
             return ThreadPool.Names.SEARCH;
         }
     }
@@ -547,16 +613,19 @@ public class SearchServiceTransportAction extends AbstractComponent {
 
         static final String ACTION = "search/phase/query+fetch/scroll";
 
-        @Override public InternalScrollSearchRequest newInstance() {
+        @Override
+        public InternalScrollSearchRequest newInstance() {
             return new InternalScrollSearchRequest();
         }
 
-        @Override public void messageReceived(InternalScrollSearchRequest request, TransportChannel channel) throws Exception {
+        @Override
+        public void messageReceived(InternalScrollSearchRequest request, TransportChannel channel) throws Exception {
             ScrollQueryFetchSearchResult result = searchService.executeFetchPhase(request);
             channel.sendResponse(result);
         }
 
-        @Override public String executor() {
+        @Override
+        public String executor() {
             return ThreadPool.Names.SEARCH;
         }
     }
@@ -565,16 +634,19 @@ public class SearchServiceTransportAction extends AbstractComponent {
 
         static final String ACTION = "search/phase/scan";
 
-        @Override public InternalSearchRequest newInstance() {
+        @Override
+        public InternalSearchRequest newInstance() {
             return new InternalSearchRequest();
         }
 
-        @Override public void messageReceived(InternalSearchRequest request, TransportChannel channel) throws Exception {
+        @Override
+        public void messageReceived(InternalSearchRequest request, TransportChannel channel) throws Exception {
             QuerySearchResult result = searchService.executeScan(request);
             channel.sendResponse(result);
         }
 
-        @Override public String executor() {
+        @Override
+        public String executor() {
             return ThreadPool.Names.SEARCH;
         }
     }
@@ -583,16 +655,19 @@ public class SearchServiceTransportAction extends AbstractComponent {
 
         static final String ACTION = "search/phase/scan/scroll";
 
-        @Override public InternalScrollSearchRequest newInstance() {
+        @Override
+        public InternalScrollSearchRequest newInstance() {
             return new InternalScrollSearchRequest();
         }
 
-        @Override public void messageReceived(InternalScrollSearchRequest request, TransportChannel channel) throws Exception {
+        @Override
+        public void messageReceived(InternalScrollSearchRequest request, TransportChannel channel) throws Exception {
             ScrollQueryFetchSearchResult result = searchService.executeScan(request);
             channel.sendResponse(result);
         }
 
-        @Override public String executor() {
+        @Override
+        public String executor() {
             return ThreadPool.Names.SEARCH;
         }
     }

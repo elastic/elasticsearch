@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -34,7 +34,7 @@ import java.io.IOException;
 import java.io.NotSerializableException;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class LocalTransportChannel implements TransportChannel {
 
@@ -54,15 +54,18 @@ public class LocalTransportChannel implements TransportChannel {
         this.requestId = requestId;
     }
 
-    @Override public String action() {
+    @Override
+    public String action() {
         return action;
     }
 
-    @Override public void sendResponse(Streamable message) throws IOException {
+    @Override
+    public void sendResponse(Streamable message) throws IOException {
         sendResponse(message, TransportResponseOptions.EMPTY);
     }
 
-    @Override public void sendResponse(Streamable message, TransportResponseOptions options) throws IOException {
+    @Override
+    public void sendResponse(Streamable message, TransportResponseOptions options) throws IOException {
         CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
         try {
             HandlesStreamOutput stream = cachedEntry.cachedHandlesBytes();
@@ -73,7 +76,8 @@ public class LocalTransportChannel implements TransportChannel {
             message.writeTo(stream);
             final byte[] data = cachedEntry.bytes().copiedByteArray();
             targetTransport.threadPool().cached().execute(new Runnable() {
-                @Override public void run() {
+                @Override
+                public void run() {
                     targetTransport.messageReceived(data, action, sourceTransport, null);
                 }
             });
@@ -82,7 +86,8 @@ public class LocalTransportChannel implements TransportChannel {
         }
     }
 
-    @Override public void sendResponse(Throwable error) throws IOException {
+    @Override
+    public void sendResponse(Throwable error) throws IOException {
         CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
         try {
             BytesStreamOutput stream;
@@ -103,7 +108,8 @@ public class LocalTransportChannel implements TransportChannel {
             }
             final byte[] data = stream.copiedByteArray();
             targetTransport.threadPool().cached().execute(new Runnable() {
-                @Override public void run() {
+                @Override
+                public void run() {
                     targetTransport.messageReceived(data, action, sourceTransport, null);
                 }
             });

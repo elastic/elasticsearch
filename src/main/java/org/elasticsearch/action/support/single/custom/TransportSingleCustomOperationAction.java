@@ -35,16 +35,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportRequestHandler;
-import org.elasticsearch.transport.BaseTransportResponseHandler;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.*;
 
 import java.io.IOException;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public abstract class TransportSingleCustomOperationAction<Request extends SingleCustomOperationRequest, Response extends ActionResponse> extends BaseAction<Request, Response> {
 
@@ -69,7 +65,8 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
         transportService.registerHandler(transportShardAction, new ShardTransportHandler());
     }
 
-    @Override protected void doExecute(Request request, ActionListener<Response> listener) {
+    @Override
+    protected void doExecute(Request request, ActionListener<Response> listener) {
         new AsyncSingleAction(request, listener).start();
     }
 
@@ -137,7 +134,8 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
                         if (request.operationThreaded()) {
                             request.beforeLocalFork();
                             threadPool.executor(executor()).execute(new Runnable() {
-                                @Override public void run() {
+                                @Override
+                                public void run() {
                                     try {
                                         Response response = shardOperation(request, shard.id());
                                         listener.onResponse(response);
@@ -189,7 +187,8 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
                         if (request.operationThreaded()) {
                             request.beforeLocalFork();
                             threadPool.executor(executor).execute(new Runnable() {
-                                @Override public void run() {
+                                @Override
+                                public void run() {
                                     try {
                                         Response response = shardOperation(request, shard.id());
                                         listener.onResponse(response);
@@ -212,19 +211,23 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
                 } else {
                     DiscoveryNode node = nodes.get(shard.currentNodeId());
                     transportService.sendRequest(node, transportShardAction, new ShardSingleOperationRequest(request, shard.id()), new BaseTransportResponseHandler<Response>() {
-                        @Override public Response newInstance() {
+                        @Override
+                        public Response newInstance() {
                             return newResponse();
                         }
 
-                        @Override public String executor() {
+                        @Override
+                        public String executor() {
                             return ThreadPool.Names.SAME;
                         }
 
-                        @Override public void handleResponse(final Response response) {
+                        @Override
+                        public void handleResponse(final Response response) {
                             listener.onResponse(response);
                         }
 
-                        @Override public void handleException(TransportException exp) {
+                        @Override
+                        public void handleException(TransportException exp) {
                             onFailure(shard, exp);
                         }
                     });
@@ -235,17 +238,20 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
 
     private class TransportHandler extends BaseTransportRequestHandler<Request> {
 
-        @Override public Request newInstance() {
+        @Override
+        public Request newInstance() {
             return newRequest();
         }
 
-        @Override public void messageReceived(Request request, final TransportChannel channel) throws Exception {
+        @Override
+        public void messageReceived(Request request, final TransportChannel channel) throws Exception {
             // no need to have a threaded listener since we just send back a response
             request.listenerThreaded(false);
             // if we have a local operation, execute it on a thread since we don't spawn
             request.operationThreaded(true);
             execute(request, new ActionListener<Response>() {
-                @Override public void onResponse(Response result) {
+                @Override
+                public void onResponse(Response result) {
                     try {
                         channel.sendResponse(result);
                     } catch (Exception e) {
@@ -253,7 +259,8 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
                     }
                 }
 
-                @Override public void onFailure(Throwable e) {
+                @Override
+                public void onFailure(Throwable e) {
                     try {
                         channel.sendResponse(e);
                     } catch (Exception e1) {
@@ -263,22 +270,26 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
             });
         }
 
-        @Override public String executor() {
+        @Override
+        public String executor() {
             return ThreadPool.Names.SAME;
         }
     }
 
     private class ShardTransportHandler extends BaseTransportRequestHandler<ShardSingleOperationRequest> {
 
-        @Override public ShardSingleOperationRequest newInstance() {
+        @Override
+        public ShardSingleOperationRequest newInstance() {
             return new ShardSingleOperationRequest();
         }
 
-        @Override public String executor() {
+        @Override
+        public String executor() {
             return executor;
         }
 
-        @Override public void messageReceived(final ShardSingleOperationRequest request, final TransportChannel channel) throws Exception {
+        @Override
+        public void messageReceived(final ShardSingleOperationRequest request, final TransportChannel channel) throws Exception {
             Response response = shardOperation(request.request(), request.shardId());
             channel.sendResponse(response);
         }
@@ -306,13 +317,15 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
             return shardId;
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             request = newRequest();
             request.readFrom(in);
             shardId = in.readVInt();
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             request.writeTo(out);
             out.writeVInt(shardId);
         }

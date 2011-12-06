@@ -16,33 +16,20 @@
 
 package org.elasticsearch.common.inject.spi;
 
-import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.collect.ImmutableSet;
-import org.elasticsearch.common.collect.Lists;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
 import org.elasticsearch.common.inject.ConfigurationException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Key;
 import org.elasticsearch.common.inject.TypeLiteral;
-import org.elasticsearch.common.inject.internal.Annotations;
-import org.elasticsearch.common.inject.internal.Errors;
-import org.elasticsearch.common.inject.internal.ErrorsException;
-import org.elasticsearch.common.inject.internal.MoreTypes;
-import org.elasticsearch.common.inject.internal.Nullability;
+import org.elasticsearch.common.inject.internal.*;
 
 import java.lang.annotation.Annotation;
-import java.lang.reflect.AnnotatedElement;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
-import java.lang.reflect.Member;
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Set;
+import java.lang.reflect.*;
+import java.util.*;
 
-import static org.elasticsearch.common.inject.internal.MoreTypes.*;
+import static org.elasticsearch.common.inject.internal.MoreTypes.getRawType;
 
 /**
  * A constructor, field or method that can receive injections. Typically this is a member with the
@@ -157,16 +144,19 @@ public final class InjectionPoint {
         return optional;
     }
 
-    @Override public boolean equals(Object o) {
+    @Override
+    public boolean equals(Object o) {
         return o instanceof InjectionPoint
                 && member.equals(((InjectionPoint) o).member);
     }
 
-    @Override public int hashCode() {
+    @Override
+    public int hashCode() {
         return member.hashCode();
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return MoreTypes.toString(member);
     }
 

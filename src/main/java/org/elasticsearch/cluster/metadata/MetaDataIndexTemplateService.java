@@ -19,13 +19,13 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -37,20 +37,22 @@ import org.elasticsearch.indices.InvalidIndexTemplateException;
 import java.util.Map;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class MetaDataIndexTemplateService extends AbstractComponent {
 
     private final ClusterService clusterService;
 
-    @Inject public MetaDataIndexTemplateService(Settings settings, ClusterService clusterService) {
+    @Inject
+    public MetaDataIndexTemplateService(Settings settings, ClusterService clusterService) {
         super(settings);
         this.clusterService = clusterService;
     }
 
     public void removeTemplate(final RemoveRequest request, final RemoveListener listener) {
         clusterService.submitStateUpdateTask("remove-index-template [" + request.name + "]", new ProcessedClusterStateUpdateTask() {
-            @Override public ClusterState execute(ClusterState currentState) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
                 if (!currentState.metaData().templates().containsKey(request.name)) {
                     listener.onFailure(new IndexTemplateMissingException(request.name));
                     return currentState;
@@ -61,7 +63,8 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
                 return ClusterState.builder().state(currentState).metaData(metaData).build();
             }
 
-            @Override public void clusterStateProcessed(ClusterState clusterState) {
+            @Override
+            public void clusterStateProcessed(ClusterState clusterState) {
                 listener.onResponse(new RemoveResponse(true));
             }
         });
@@ -110,7 +113,8 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         final IndexTemplateMetaData template = templateBuilder.build();
 
         clusterService.submitStateUpdateTask("create-index-template [" + request.name + "], cause [" + request.cause + "]", new ProcessedClusterStateUpdateTask() {
-            @Override public ClusterState execute(ClusterState currentState) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
                 if (request.create && currentState.metaData().templates().containsKey(request.name)) {
                     listener.onFailure(new IndexTemplateAlreadyExistsException(request.name));
                     return currentState;
@@ -121,7 +125,8 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
                 return ClusterState.builder().state(currentState).metaData(builder).build();
             }
 
-            @Override public void clusterStateProcessed(ClusterState clusterState) {
+            @Override
+            public void clusterStateProcessed(ClusterState clusterState) {
                 listener.onResponse(new PutResponse(true, template));
             }
         });

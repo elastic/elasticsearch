@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.deletebyquery;
 
+import gnu.trove.set.hash.THashSet;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.replication.IndexReplicationOperationRequest;
 import org.elasticsearch.common.Nullable;
@@ -26,26 +27,27 @@ import org.elasticsearch.common.Required;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.trove.set.hash.THashSet;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
 import java.util.Set;
 
-import static org.elasticsearch.action.Actions.*;
+import static org.elasticsearch.action.Actions.addValidationError;
 
 /**
  * Delete by query request to execute on a specific index.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest {
 
     private byte[] querySource;
     private String[] types = Strings.EMPTY_ARRAY;
-    @Nullable private Set<String> routing;
-    @Nullable private String[] filteringAliases;
+    @Nullable
+    private Set<String> routing;
+    @Nullable
+    private String[] filteringAliases;
 
     IndexDeleteByQueryRequest(DeleteByQueryRequest request, String index, @Nullable Set<String> routing, @Nullable String[] filteringAliases) {
         this.index = index;
@@ -65,7 +67,8 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest 
         return querySource;
     }
 
-    @Override public ActionRequestValidationException validate() {
+    @Override
+    public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
         if (querySource == null) {
             validationException = addValidationError("querySource is missing", validationException);
@@ -73,11 +76,13 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest 
         return validationException;
     }
 
-    @Required public IndexDeleteByQueryRequest querySource(QueryBuilder queryBuilder) {
+    @Required
+    public IndexDeleteByQueryRequest querySource(QueryBuilder queryBuilder) {
         return querySource(queryBuilder.buildAsBytes());
     }
 
-    @Required public IndexDeleteByQueryRequest querySource(byte[] querySource) {
+    @Required
+    public IndexDeleteByQueryRequest querySource(byte[] querySource) {
         this.querySource = querySource;
         return this;
     }

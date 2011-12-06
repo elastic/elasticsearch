@@ -16,7 +16,7 @@
 
 package org.elasticsearch.common.inject;
 
-import org.elasticsearch.common.collect.Lists;
+import com.google.common.collect.Lists;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.spi.Element;
 import org.elasticsearch.common.inject.spi.MembersInjectorLookup;

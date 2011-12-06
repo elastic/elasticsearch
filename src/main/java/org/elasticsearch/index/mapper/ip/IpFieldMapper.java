@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -22,11 +22,7 @@ package org.elasticsearch.index.mapper.ip;
 import org.apache.lucene.analysis.NumericTokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.search.NumericRangeFilter;
-import org.apache.lucene.search.NumericRangeQuery;
-import org.apache.lucene.search.Query;
+import org.apache.lucene.search.*;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Numbers;
@@ -38,11 +34,7 @@ import org.elasticsearch.index.analysis.NumericAnalyzer;
 import org.elasticsearch.index.analysis.NumericTokenizer;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeContext;
-import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
@@ -52,11 +44,11 @@ import java.io.Reader;
 import java.util.Map;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.index.mapper.MapperBuilders.*;
-import static org.elasticsearch.index.mapper.core.TypeParsers.*;
+import static org.elasticsearch.index.mapper.MapperBuilders.ipField;
+import static org.elasticsearch.index.mapper.core.TypeParsers.parseNumberField;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class IpFieldMapper extends NumberFieldMapper<Long> {
 
@@ -106,7 +98,8 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
             return this;
         }
 
-        @Override public IpFieldMapper build(BuilderContext context) {
+        @Override
+        public IpFieldMapper build(BuilderContext context) {
             IpFieldMapper fieldMapper = new IpFieldMapper(buildNames(context),
                     precisionStep, index, store, boost, omitNorms, omitTermFreqAndPositions, nullValue);
             fieldMapper.includeInAll(includeInAll);
@@ -115,7 +108,8 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
     }
 
     public static class TypeParser implements Mapper.TypeParser {
-        @Override public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        @Override
+        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             IpFieldMapper.Builder builder = ipField(name);
             parseNumberField(builder, name, node, parserContext);
             for (Map.Entry<String, Object> entry : node.entrySet()) {
@@ -141,11 +135,13 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
         this.nullValue = nullValue;
     }
 
-    @Override protected int maxPrecisionStep() {
+    @Override
+    protected int maxPrecisionStep() {
         return 64;
     }
 
-    @Override public Long value(Fieldable field) {
+    @Override
+    public Long value(Fieldable field) {
         byte[] value = field.getBinaryValue();
         if (value == null) {
             return null;
@@ -153,18 +149,21 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
         return Numbers.bytesToLong(value);
     }
 
-    @Override public Long valueFromString(String value) {
+    @Override
+    public Long valueFromString(String value) {
         return ipToLong(value);
     }
 
     /**
      * IPs should return as a string, delegates to {@link #valueAsString(org.apache.lucene.document.Fieldable)}.
      */
-    @Override public Object valueForSearch(Fieldable field) {
+    @Override
+    public Object valueForSearch(Fieldable field) {
         return valueAsString(field);
     }
 
-    @Override public String valueAsString(Fieldable field) {
+    @Override
+    public String valueAsString(Fieldable field) {
         Long value = value(field);
         if (value == null) {
             return null;
@@ -172,11 +171,13 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
         return longToIp(value);
     }
 
-    @Override public String indexedValue(String value) {
+    @Override
+    public String indexedValue(String value) {
         return NumericUtils.longToPrefixCoded(ipToLong(value));
     }
 
-    @Override public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions) {
+    @Override
+    public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions) {
         long iValue = ipToLong(value);
         long iSim;
         try {
@@ -194,32 +195,37 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
                 true, true);
     }
 
-    @Override public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions) {
+    @Override
+    public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions) {
         return new FuzzyQuery(names().createIndexNameTerm(value), (float) minSim, prefixLength, maxExpansions);
     }
 
-    @Override public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
+    @Override
+    public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
         return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : ipToLong(lowerTerm),
                 upperTerm == null ? null : ipToLong(upperTerm),
                 includeLower, includeUpper);
     }
 
-    @Override public Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
+    @Override
+    public Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
         return NumericRangeFilter.newLongRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : ipToLong(lowerTerm),
                 upperTerm == null ? null : ipToLong(upperTerm),
                 includeLower, includeUpper);
     }
 
-    @Override public Filter rangeFilter(FieldDataCache fieldDataCache, String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
+    @Override
+    public Filter rangeFilter(FieldDataCache fieldDataCache, String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
         return NumericRangeFieldDataFilter.newLongRange(fieldDataCache, names.indexName(),
                 lowerTerm == null ? null : ipToLong(lowerTerm),
                 upperTerm == null ? null : ipToLong(upperTerm),
                 includeLower, includeUpper);
     }
 
-    @Override protected Fieldable parseCreateField(ParseContext context) throws IOException {
+    @Override
+    protected Fieldable parseCreateField(ParseContext context) throws IOException {
         String ipAsString;
         if (context.externalValueSet()) {
             ipAsString = (String) context.externalValue();
@@ -245,15 +251,18 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
         return new LongFieldMapper.CustomLongNumericField(this, value);
     }
 
-    @Override public FieldDataType fieldDataType() {
+    @Override
+    public FieldDataType fieldDataType() {
         return FieldDataType.DefaultTypes.LONG;
     }
 
-    @Override protected String contentType() {
+    @Override
+    protected String contentType() {
         return CONTENT_TYPE;
     }
 
-    @Override public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+    @Override
+    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
         super.merge(mergeWith, mergeContext);
         if (!this.getClass().equals(mergeWith.getClass())) {
             return;
@@ -263,7 +272,8 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
         }
     }
 
-    @Override protected void doXContentBody(XContentBuilder builder) throws IOException {
+    @Override
+    protected void doXContentBody(XContentBuilder builder) throws IOException {
         super.doXContentBody(builder);
         if (index != Defaults.INDEX) {
             builder.field("index", index.name().toLowerCase());
@@ -303,7 +313,8 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
             this.precisionStep = precisionStep;
         }
 
-        @Override protected NumericIpTokenizer createNumericTokenizer(Reader reader, char[] buffer) throws IOException {
+        @Override
+        protected NumericIpTokenizer createNumericTokenizer(Reader reader, char[] buffer) throws IOException {
             return new NumericIpTokenizer(reader, precisionStep, buffer);
         }
     }
@@ -318,7 +329,8 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
             super(reader, new NumericTokenStream(precisionStep), buffer, null);
         }
 
-        @Override protected void setValue(NumericTokenStream tokenStream, String value) {
+        @Override
+        protected void setValue(NumericTokenStream tokenStream, String value) {
             tokenStream.setLongValue(ipToLong(value));
         }
     }

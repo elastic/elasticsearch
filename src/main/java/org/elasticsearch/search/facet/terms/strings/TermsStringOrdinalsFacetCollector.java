@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,12 +19,12 @@
 
 package org.elasticsearch.search.facet.terms.strings;
 
+import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.collect.BoundedTreeSet;
-import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.index.field.data.FieldDataType;
@@ -44,7 +44,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
 
@@ -116,7 +116,8 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
         this.aggregators = new ArrayList<ReaderAggregator>(context.searcher().subReaders().length);
     }
 
-    @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
+    @Override
+    protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
         if (current != null) {
             missing += current.counts[0];
             total += current.total - current.counts[0];
@@ -128,11 +129,13 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
         current = new ReaderAggregator(fieldData);
     }
 
-    @Override protected void doCollect(int doc) throws IOException {
+    @Override
+    protected void doCollect(int doc) throws IOException {
         fieldData.forEachOrdinalInDoc(doc, current);
     }
 
-    @Override public Facet facet() {
+    @Override
+    public Facet facet() {
         if (current != null) {
             missing += current.counts[0];
             total += current.total - current.counts[0];
@@ -244,7 +247,8 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
             this.counts = CacheRecycler.popIntArray(fieldData.values().length);
         }
 
-        @Override public void onOrdinal(int docId, int ordinal) {
+        @Override
+        public void onOrdinal(int docId, int ordinal) {
             counts[ordinal]++;
             total++;
         }
@@ -264,7 +268,8 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
             initialize(size);
         }
 
-        @Override protected boolean lessThan(ReaderAggregator a, ReaderAggregator b) {
+        @Override
+        protected boolean lessThan(ReaderAggregator a, ReaderAggregator b) {
             return a.current.compareTo(b.current) < 0;
         }
     }

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -28,7 +28,7 @@ import java.util.List;
 /**
  * Terms facet allows to return facets of the most popular terms within the search query.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public interface TermsFacet extends Facet, Iterable<TermsFacet.Entry> {
 
@@ -61,7 +61,8 @@ public interface TermsFacet extends Facet, Iterable<TermsFacet.Entry> {
          */
         COUNT((byte) 0, new Comparator<Entry>() {
 
-            @Override public int compare(Entry o1, Entry o2) {
+            @Override
+            public int compare(Entry o1, Entry o2) {
                 int i = o2.count() - o1.count();
                 if (i == 0) {
                     i = o2.compareTo(o1);
@@ -77,7 +78,8 @@ public interface TermsFacet extends Facet, Iterable<TermsFacet.Entry> {
          */
         REVERSE_COUNT((byte) 1, new Comparator<Entry>() {
 
-            @Override public int compare(Entry o1, Entry o2) {
+            @Override
+            public int compare(Entry o1, Entry o2) {
                 return -COUNT.comparator().compare(o1, o2);
             }
         }),
@@ -86,7 +88,8 @@ public interface TermsFacet extends Facet, Iterable<TermsFacet.Entry> {
          */
         TERM((byte) 2, new Comparator<Entry>() {
 
-            @Override public int compare(Entry o1, Entry o2) {
+            @Override
+            public int compare(Entry o1, Entry o2) {
                 return o1.compareTo(o2);
             }
         }),
@@ -95,7 +98,8 @@ public interface TermsFacet extends Facet, Iterable<TermsFacet.Entry> {
          */
         REVERSE_TERM((byte) 3, new Comparator<Entry>() {
 
-            @Override public int compare(Entry o1, Entry o2) {
+            @Override
+            public int compare(Entry o1, Entry o2) {
                 return -TERM.comparator().compare(o1, o2);
             }
         });

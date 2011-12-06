@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,11 +19,7 @@
 
 package org.elasticsearch.index.merge.scheduler;
 
-import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.MergePolicy;
-import org.apache.lucene.index.MergeScheduler;
-import org.apache.lucene.index.TrackingConcurrentMergeScheduler;
+import org.apache.lucene.index.*;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
@@ -39,7 +35,7 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class ConcurrentMergeSchedulerProvider extends AbstractIndexShardComponent implements MergeSchedulerProvider {
 
@@ -48,7 +44,8 @@ public class ConcurrentMergeSchedulerProvider extends AbstractIndexShardComponen
 
     private Set<CustomConcurrentMergeScheduler> schedulers = new CopyOnWriteArraySet<CustomConcurrentMergeScheduler>();
 
-    @Inject public ConcurrentMergeSchedulerProvider(ShardId shardId, @IndexSettings Settings indexSettings) {
+    @Inject
+    public ConcurrentMergeSchedulerProvider(ShardId shardId, @IndexSettings Settings indexSettings) {
         super(shardId, indexSettings);
 
         // TODO LUCENE MONITOR this will change in Lucene 4.0
@@ -57,7 +54,8 @@ public class ConcurrentMergeSchedulerProvider extends AbstractIndexShardComponen
         logger.debug("using [concurrent] merge scheduler with max_thread_count[{}]", maxThreadCount);
     }
 
-    @Override public MergeScheduler newMergeScheduler() {
+    @Override
+    public MergeScheduler newMergeScheduler() {
         CustomConcurrentMergeScheduler concurrentMergeScheduler = new CustomConcurrentMergeScheduler(logger, shardId, this);
         concurrentMergeScheduler.setMaxMergeCount(maxMergeCount);
         concurrentMergeScheduler.setMaxThreadCount(maxThreadCount);
@@ -65,7 +63,8 @@ public class ConcurrentMergeSchedulerProvider extends AbstractIndexShardComponen
         return concurrentMergeScheduler;
     }
 
-    @Override public MergeStats stats() {
+    @Override
+    public MergeStats stats() {
         MergeStats mergeStats = new MergeStats();
         for (CustomConcurrentMergeScheduler scheduler : schedulers) {
             mergeStats.add(scheduler.totalMerges(), scheduler.totalMergeTime(), scheduler.totalMergeNumDocs(), scheduler.totalMergeSizeInBytes(),
@@ -86,7 +85,8 @@ public class ConcurrentMergeSchedulerProvider extends AbstractIndexShardComponen
             this.provider = provider;
         }
 
-        @Override public void merge(IndexWriter writer) throws CorruptIndexException, IOException {
+        @Override
+        public void merge(IndexWriter writer) throws CorruptIndexException, IOException {
             try {
                 // if merge is not enabled, don't do any merging...
                 if (writer.getConfig().getMergePolicy() instanceof EnableMergePolicy) {
@@ -108,18 +108,21 @@ public class ConcurrentMergeSchedulerProvider extends AbstractIndexShardComponen
             }
         }
 
-        @Override protected MergeThread getMergeThread(IndexWriter writer, MergePolicy.OneMerge merge) throws IOException {
+        @Override
+        protected MergeThread getMergeThread(IndexWriter writer, MergePolicy.OneMerge merge) throws IOException {
             MergeThread thread = super.getMergeThread(writer, merge);
             thread.setName("[" + shardId.index().name() + "][" + shardId.id() + "]: " + thread.getName());
             return thread;
         }
 
-        @Override protected void handleMergeException(Throwable exc) {
+        @Override
+        protected void handleMergeException(Throwable exc) {
             logger.warn("failed to merge", exc);
             super.handleMergeException(exc);
         }
 
-        @Override public void close() {
+        @Override
+        public void close() {
             super.close();
             provider.schedulers.remove(this);
         }

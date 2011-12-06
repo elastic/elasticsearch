@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -38,24 +38,18 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.mapper.InternalMapper;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeContext;
-import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.RootMapper;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.*;
-import static org.elasticsearch.index.mapper.MapperBuilders.*;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.index.mapper.MapperBuilders.source;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements InternalMapper, RootMapper {
 
@@ -115,13 +109,15 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
             return this;
         }
 
-        @Override public SourceFieldMapper build(BuilderContext context) {
+        @Override
+        public SourceFieldMapper build(BuilderContext context) {
             return new SourceFieldMapper(name, enabled, compress, compressThreshold, includes, excludes);
         }
     }
 
     public static class TypeParser implements Mapper.TypeParser {
-        @Override public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        @Override
+        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             SourceFieldMapper.Builder builder = source();
 
             for (Map.Entry<String, Object> entry : node.entrySet()) {
@@ -192,25 +188,31 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
         return SourceFieldSelector.INSTANCE;
     }
 
-    @Override public void preParse(ParseContext context) throws IOException {
+    @Override
+    public void preParse(ParseContext context) throws IOException {
         super.parse(context);
     }
 
-    @Override public void postParse(ParseContext context) throws IOException {
+    @Override
+    public void postParse(ParseContext context) throws IOException {
     }
 
-    @Override public void parse(ParseContext context) throws IOException {
+    @Override
+    public void parse(ParseContext context) throws IOException {
         // nothing to do here, we will call it in pre parse
     }
 
-    @Override public void validate(ParseContext context) throws MapperParsingException {
+    @Override
+    public void validate(ParseContext context) throws MapperParsingException {
     }
 
-    @Override public boolean includeInObject() {
+    @Override
+    public boolean includeInObject() {
         return false;
     }
 
-    @Override protected Field parseCreateField(ParseContext context) throws IOException {
+    @Override
+    protected Field parseCreateField(ParseContext context) throws IOException {
         if (!enabled) {
             return null;
         }
@@ -273,7 +275,8 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
         return field.getBinaryValue();
     }
 
-    @Override public byte[] value(Fieldable field) {
+    @Override
+    public byte[] value(Fieldable field) {
         byte[] value = field.getBinaryValue();
         if (value == null) {
             return value;
@@ -288,23 +291,28 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
         return value;
     }
 
-    @Override public byte[] valueFromString(String value) {
+    @Override
+    public byte[] valueFromString(String value) {
         return null;
     }
 
-    @Override public String valueAsString(Fieldable field) {
+    @Override
+    public String valueAsString(Fieldable field) {
         throw new UnsupportedOperationException();
     }
 
-    @Override public String indexedValue(String value) {
+    @Override
+    public String indexedValue(String value) {
         return value;
     }
 
-    @Override protected String contentType() {
+    @Override
+    protected String contentType() {
         return CONTENT_TYPE;
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // all are defaults, no need to write it at all
         if (enabled == Defaults.ENABLED && compress == null && compressThreshold == -1 && includes.length == 0 && excludes.length == 0) {
             return builder;
@@ -329,7 +337,8 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
         return builder;
     }
 
-    @Override public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+    @Override
+    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
         SourceFieldMapper sourceMergeWith = (SourceFieldMapper) mergeWith;
         if (!mergeContext.mergeFlags().simulate()) {
             if (sourceMergeWith.compress != null) {

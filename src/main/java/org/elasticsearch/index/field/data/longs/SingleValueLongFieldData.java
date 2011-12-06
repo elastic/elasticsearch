@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -20,24 +20,26 @@
 package org.elasticsearch.index.field.data.longs;
 
 import org.elasticsearch.common.RamUsage;
-import org.elasticsearch.common.joda.time.DateTimeZone;
-import org.elasticsearch.common.joda.time.MutableDateTime;
 import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.index.field.data.doubles.DoubleFieldData;
+import org.joda.time.DateTimeZone;
+import org.joda.time.MutableDateTime;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class SingleValueLongFieldData extends LongFieldData {
 
     private ThreadLocal<ThreadLocals.CleanableValue<double[]>> doublesValuesCache = new ThreadLocal<ThreadLocals.CleanableValue<double[]>>() {
-        @Override protected ThreadLocals.CleanableValue<double[]> initialValue() {
+        @Override
+        protected ThreadLocals.CleanableValue<double[]> initialValue() {
             return new ThreadLocals.CleanableValue<double[]>(new double[1]);
         }
     };
 
     private ThreadLocal<ThreadLocals.CleanableValue<MutableDateTime[]>> datesValuesCache = new ThreadLocal<ThreadLocals.CleanableValue<MutableDateTime[]>>() {
-        @Override protected ThreadLocals.CleanableValue<MutableDateTime[]> initialValue() {
+        @Override
+        protected ThreadLocals.CleanableValue<MutableDateTime[]> initialValue() {
             MutableDateTime[] date = new MutableDateTime[1];
             date[0] = new MutableDateTime(DateTimeZone.UTC);
             return new ThreadLocals.CleanableValue<MutableDateTime[]>(date);
@@ -45,7 +47,8 @@ public class SingleValueLongFieldData extends LongFieldData {
     };
 
     private ThreadLocal<long[]> valuesCache = new ThreadLocal<long[]>() {
-        @Override protected long[] initialValue() {
+        @Override
+        protected long[] initialValue() {
             return new long[1];
         }
     };
@@ -58,20 +61,24 @@ public class SingleValueLongFieldData extends LongFieldData {
         this.ordinals = ordinals;
     }
 
-    @Override protected long computeSizeInBytes() {
+    @Override
+    protected long computeSizeInBytes() {
         return super.computeSizeInBytes() +
                 RamUsage.NUM_BYTES_INT * ordinals.length + RamUsage.NUM_BYTES_ARRAY_HEADER;
     }
 
-    @Override public boolean multiValued() {
+    @Override
+    public boolean multiValued() {
         return false;
     }
 
-    @Override public boolean hasValue(int docId) {
+    @Override
+    public boolean hasValue(int docId) {
         return ordinals[docId] != 0;
     }
 
-    @Override public void forEachValueInDoc(int docId, StringValueInDocProc proc) {
+    @Override
+    public void forEachValueInDoc(int docId, StringValueInDocProc proc) {
         int loc = ordinals[docId];
         if (loc == 0) {
             proc.onMissing(docId);
@@ -80,7 +87,8 @@ public class SingleValueLongFieldData extends LongFieldData {
         proc.onValue(docId, Long.toString(values[loc]));
     }
 
-    @Override public void forEachValueInDoc(int docId, DoubleValueInDocProc proc) {
+    @Override
+    public void forEachValueInDoc(int docId, DoubleValueInDocProc proc) {
         int loc = ordinals[docId];
         if (loc == 0) {
             return;
@@ -88,7 +96,8 @@ public class SingleValueLongFieldData extends LongFieldData {
         proc.onValue(docId, values[loc]);
     }
 
-    @Override public void forEachValueInDoc(int docId, LongValueInDocProc proc) {
+    @Override
+    public void forEachValueInDoc(int docId, LongValueInDocProc proc) {
         int loc = ordinals[docId];
         if (loc == 0) {
             return;
@@ -96,16 +105,8 @@ public class SingleValueLongFieldData extends LongFieldData {
         proc.onValue(docId, values[loc]);
     }
 
-    @Override public void forEachValueInDoc(int docId, MissingDoubleValueInDocProc proc) {
-        int loc = ordinals[docId];
-        if (loc == 0) {
-            proc.onMissing(docId);
-            return;
-        }
-        proc.onValue(docId, values[loc]);
-    }
-
-    @Override public void forEachValueInDoc(int docId, MissingLongValueInDocProc proc) {
+    @Override
+    public void forEachValueInDoc(int docId, MissingDoubleValueInDocProc proc) {
         int loc = ordinals[docId];
         if (loc == 0) {
             proc.onMissing(docId);
@@ -114,11 +115,23 @@ public class SingleValueLongFieldData extends LongFieldData {
         proc.onValue(docId, values[loc]);
     }
 
-    @Override public void forEachOrdinalInDoc(int docId, OrdinalInDocProc proc) {
+    @Override
+    public void forEachValueInDoc(int docId, MissingLongValueInDocProc proc) {
+        int loc = ordinals[docId];
+        if (loc == 0) {
+            proc.onMissing(docId);
+            return;
+        }
+        proc.onValue(docId, values[loc]);
+    }
+
+    @Override
+    public void forEachOrdinalInDoc(int docId, OrdinalInDocProc proc) {
         proc.onOrdinal(docId, ordinals[docId]);
     }
 
-    @Override public void forEachValueInDoc(int docId, ValueInDocProc proc) {
+    @Override
+    public void forEachValueInDoc(int docId, ValueInDocProc proc) {
         int loc = ordinals[docId];
         if (loc == 0) {
             proc.onMissing(docId);
@@ -127,7 +140,8 @@ public class SingleValueLongFieldData extends LongFieldData {
         proc.onValue(docId, values[loc]);
     }
 
-    @Override public void forEachValueInDoc(int docId, DateValueInDocProc proc) {
+    @Override
+    public void forEachValueInDoc(int docId, DateValueInDocProc proc) {
         int loc = ordinals[docId];
         if (loc == 0) {
             return;
@@ -137,7 +151,8 @@ public class SingleValueLongFieldData extends LongFieldData {
         proc.onValue(docId, dateTime);
     }
 
-    @Override public void forEachValueInDoc(int docId, MutableDateTime dateTime, DateValueInDocProc proc) {
+    @Override
+    public void forEachValueInDoc(int docId, MutableDateTime dateTime, DateValueInDocProc proc) {
         int loc = ordinals[docId];
         if (loc == 0) {
             return;
@@ -146,7 +161,8 @@ public class SingleValueLongFieldData extends LongFieldData {
         proc.onValue(docId, dateTime);
     }
 
-    @Override public MutableDateTime[] dates(int docId) {
+    @Override
+    public MutableDateTime[] dates(int docId) {
         int loc = ordinals[docId];
         if (loc == 0) {
             return EMPTY_DATETIME_ARRAY;
@@ -156,7 +172,8 @@ public class SingleValueLongFieldData extends LongFieldData {
         return ret;
     }
 
-    @Override public double[] doubleValues(int docId) {
+    @Override
+    public double[] doubleValues(int docId) {
         int loc = ordinals[docId];
         if (loc == 0) {
             return DoubleFieldData.EMPTY_DOUBLE_ARRAY;
@@ -166,11 +183,13 @@ public class SingleValueLongFieldData extends LongFieldData {
         return ret;
     }
 
-    @Override public long value(int docId) {
+    @Override
+    public long value(int docId) {
         return values[ordinals[docId]];
     }
 
-    @Override public long[] values(int docId) {
+    @Override
+    public long[] values(int docId) {
         int loc = ordinals[docId];
         if (loc == 0) {
             return EMPTY_LONG_ARRAY;

@@ -16,8 +16,8 @@
 
 package org.elasticsearch.common.inject;
 
-import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.collect.ImmutableSet;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.inject.internal.BindingImpl;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.internal.MatcherAndConverter;
@@ -88,7 +88,8 @@ interface State {
             return true;
         }
 
-        @Override public void clearBlacklisted() {
+        @Override
+        public void clearBlacklisted() {
         }
 
         public Object lock() {

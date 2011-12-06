@@ -23,7 +23,7 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.rest.RestStatus;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class IndexTemplateMissingException extends ElasticSearchException {
 
@@ -39,7 +39,8 @@ public class IndexTemplateMissingException extends ElasticSearchException {
     }
 
 
-    @Override public RestStatus status() {
+    @Override
+    public RestStatus status() {
         return RestStatus.NOT_FOUND;
     }
 }

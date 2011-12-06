@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,14 +19,14 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.elasticsearch.common.trove.impl.Constants;
-import org.elasticsearch.common.trove.map.hash.TObjectIntHashMap;
+import gnu.trove.impl.Constants;
+import gnu.trove.map.hash.TObjectIntHashMap;
 
 import java.io.IOException;
 import java.util.Arrays;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class HandlesStreamOutput extends StreamOutput {
 
@@ -50,7 +50,8 @@ public class HandlesStreamOutput extends StreamOutput {
         this.identityThreshold = identityThreshold;
     }
 
-    @Override public void writeUTF(String s) throws IOException {
+    @Override
+    public void writeUTF(String s) throws IOException {
         if (s.length() < identityThreshold) {
             int handle = handles.get(s);
             if (handle == -1) {
@@ -77,11 +78,13 @@ public class HandlesStreamOutput extends StreamOutput {
         }
     }
 
-    @Override public void writeByte(byte b) throws IOException {
+    @Override
+    public void writeByte(byte b) throws IOException {
         out.writeByte(b);
     }
 
-    @Override public void writeBytes(byte[] b, int offset, int length) throws IOException {
+    @Override
+    public void writeBytes(byte[] b, int offset, int length) throws IOException {
         out.writeBytes(b, offset, length);
     }
 
@@ -90,7 +93,8 @@ public class HandlesStreamOutput extends StreamOutput {
         identityHandles.clear();
     }
 
-    @Override public void reset() throws IOException {
+    @Override
+    public void reset() throws IOException {
         handles.clear();
         identityHandles.clear();
         out.reset();
@@ -101,11 +105,13 @@ public class HandlesStreamOutput extends StreamOutput {
         reset();
     }
 
-    @Override public void flush() throws IOException {
+    @Override
+    public void flush() throws IOException {
         out.flush();
     }
 
-    @Override public void close() throws IOException {
+    @Override
+    public void close() throws IOException {
         out.close();
     }
 

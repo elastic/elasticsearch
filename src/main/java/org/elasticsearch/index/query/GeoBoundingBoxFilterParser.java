@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -26,31 +26,30 @@ import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
-import org.elasticsearch.index.search.geo.GeoHashUtils;
-import org.elasticsearch.index.search.geo.GeoUtils;
-import org.elasticsearch.index.search.geo.InMemoryGeoBoundingBoxFilter;
-import org.elasticsearch.index.search.geo.IndexedGeoBoundingBoxFilter;
-import org.elasticsearch.index.search.geo.Point;
+import org.elasticsearch.index.search.geo.*;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.query.support.QueryParsers.*;
+import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameFilter;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class GeoBoundingBoxFilterParser implements FilterParser {
 
     public static final String NAME = "geo_bbox";
 
-    @Inject public GeoBoundingBoxFilterParser() {
+    @Inject
+    public GeoBoundingBoxFilterParser() {
     }
 
-    @Override public String[] names() {
+    @Override
+    public String[] names() {
         return new String[]{NAME, "geoBbox", "geo_bounding_box", "geoBoundingBox"};
     }
 
-    @Override public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    @Override
+    public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
         boolean cache = false;

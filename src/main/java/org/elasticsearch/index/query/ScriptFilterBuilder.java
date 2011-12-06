@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -24,10 +24,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.common.collect.Maps.*;
+import static com.google.common.collect.Maps.newHashMap;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class ScriptFilterBuilder extends BaseFilterBuilder {
 
@@ -92,7 +92,8 @@ public class ScriptFilterBuilder extends BaseFilterBuilder {
         return this;
     }
 
-    @Override protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(ScriptFilterParser.NAME);
         builder.field("script", script);
         if (this.params != null) {

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,6 +19,9 @@
 
 package org.elasticsearch.action.bulk;
 
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -35,9 +38,6 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
-import org.elasticsearch.common.collect.Lists;
-import org.elasticsearch.common.collect.Maps;
-import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
@@ -54,7 +54,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
 
@@ -68,8 +68,9 @@ public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
 
     private final TransportCreateIndexAction createIndexAction;
 
-    @Inject public TransportBulkAction(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterService clusterService,
-                                       TransportShardBulkAction shardBulkAction, TransportCreateIndexAction createIndexAction) {
+    @Inject
+    public TransportBulkAction(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterService clusterService,
+                               TransportShardBulkAction shardBulkAction, TransportCreateIndexAction createIndexAction) {
         super(settings, threadPool);
         this.clusterService = clusterService;
         this.shardBulkAction = shardBulkAction;
@@ -81,7 +82,8 @@ public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
         transportService.registerHandler(TransportActions.BULK, new TransportHandler());
     }
 
-    @Override protected void doExecute(final BulkRequest bulkRequest, final ActionListener<BulkResponse> listener) {
+    @Override
+    protected void doExecute(final BulkRequest bulkRequest, final ActionListener<BulkResponse> listener) {
         final long startTime = System.currentTimeMillis();
         Set<String> indices = Sets.newHashSet();
         for (ActionRequest request : bulkRequest.requests) {
@@ -104,13 +106,15 @@ public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
             for (String index : indices) {
                 if (!clusterService.state().metaData().hasConcreteIndex(index)) {
                     createIndexAction.execute(new CreateIndexRequest(index).cause("auto(bulk api)"), new ActionListener<CreateIndexResponse>() {
-                        @Override public void onResponse(CreateIndexResponse result) {
+                        @Override
+                        public void onResponse(CreateIndexResponse result) {
                             if (counter.decrementAndGet() == 0) {
                                 executeBulk(bulkRequest, startTime, listener);
                             }
                         }
 
-                        @Override public void onFailure(Throwable e) {
+                        @Override
+                        public void onFailure(Throwable e) {
                             if (ExceptionsHelper.unwrapCause(e) instanceof IndexAlreadyExistsException) {
                                 // we have the index, do it
                                 if (counter.decrementAndGet() == 0) {
@@ -206,7 +210,8 @@ public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
             bulkShardRequest.replicationType(bulkRequest.replicationType());
             bulkShardRequest.consistencyLevel(bulkRequest.consistencyLevel());
             shardBulkAction.execute(bulkShardRequest, new ActionListener<BulkShardResponse>() {
-                @Override public void onResponse(BulkShardResponse bulkShardResponse) {
+                @Override
+                public void onResponse(BulkShardResponse bulkShardResponse) {
                     synchronized (responses) {
                         for (BulkItemResponse bulkItemResponse : bulkShardResponse.responses()) {
                             responses[bulkItemResponse.itemId()] = bulkItemResponse;
@@ -217,7 +222,8 @@ public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
                     }
                 }
 
-                @Override public void onFailure(Throwable e) {
+                @Override
+                public void onFailure(Throwable e) {
                     // create failures for all relevant requests
                     String message = ExceptionsHelper.detailedMessage(e);
                     synchronized (responses) {
@@ -247,15 +253,18 @@ public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
 
     class TransportHandler extends BaseTransportRequestHandler<BulkRequest> {
 
-        @Override public BulkRequest newInstance() {
+        @Override
+        public BulkRequest newInstance() {
             return new BulkRequest();
         }
 
-        @Override public void messageReceived(final BulkRequest request, final TransportChannel channel) throws Exception {
+        @Override
+        public void messageReceived(final BulkRequest request, final TransportChannel channel) throws Exception {
             // no need to use threaded listener, since we just send a response
             request.listenerThreaded(false);
             execute(request, new ActionListener<BulkResponse>() {
-                @Override public void onResponse(BulkResponse result) {
+                @Override
+                public void onResponse(BulkResponse result) {
                     try {
                         channel.sendResponse(result);
                     } catch (Exception e) {
@@ -263,7 +272,8 @@ public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
                     }
                 }
 
-                @Override public void onFailure(Throwable e) {
+                @Override
+                public void onFailure(Throwable e) {
                     try {
                         channel.sendResponse(e);
                     } catch (Exception e1) {
@@ -273,7 +283,8 @@ public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
             });
         }
 
-        @Override public String executor() {
+        @Override
+        public String executor() {
             return ThreadPool.Names.SAME;
         }
     }

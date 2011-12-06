@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -29,14 +29,14 @@ import org.elasticsearch.client.action.admin.indices.support.BaseIndicesRequestB
 /**
  * A request to optimize one or more indices. In order to optimize on all the indices, pass an empty array or
  * <tt>null</tt> for the indices.
- *
+ * <p/>
  * <p>{@link #setWaitForMerge(boolean)} allows to control if the call will block until the optimize completes and
  * defaults to <tt>true</tt>.
- *
+ * <p/>
  * <p>{@link #setMaxNumSegments(int)} allows to control the number of segments to optimize down to. By default, will
  * cause the optimize process to optimize down to half the configured number of segments.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class OptimizeRequestBuilder extends BaseIndicesRequestBuilder<OptimizeRequest, OptimizeResponse> {
 
@@ -107,7 +107,8 @@ public class OptimizeRequestBuilder extends BaseIndicesRequestBuilder<OptimizeRe
         return this;
     }
 
-    @Override protected void doExecute(ActionListener<OptimizeResponse> listener) {
+    @Override
+    protected void doExecute(ActionListener<OptimizeResponse> listener) {
         client.optimize(request, listener);
     }
 }

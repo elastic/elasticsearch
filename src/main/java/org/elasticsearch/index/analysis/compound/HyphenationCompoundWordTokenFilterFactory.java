@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -37,8 +37,6 @@ import java.net.URL;
 /**
  * Uses the {@link org.apache.lucene.analysis.compound.HyphenationCompoundWordTokenFilter} to decompound tokens based on hyphenation rules.
  *
- * @author Edward Dale (scompt@scompt.com)
- * @author kimchy (shay.banon)
  * @see org.apache.lucene.analysis.compound.HyphenationCompoundWordTokenFilter
  */
 @AnalysisSettingsRequired
@@ -46,7 +44,8 @@ public class HyphenationCompoundWordTokenFilterFactory extends AbstractCompoundW
 
     private final HyphenationTree hyphenationTree;
 
-    @Inject public HyphenationCompoundWordTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
+    @Inject
+    public HyphenationCompoundWordTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, env, name, settings);
 
         String hyphenationPatternsPath = settings.get("hyphenation_patterns_path", null);
@@ -63,7 +62,8 @@ public class HyphenationCompoundWordTokenFilterFactory extends AbstractCompoundW
         }
     }
 
-    @Override public TokenStream create(TokenStream tokenStream) {
+    @Override
+    public TokenStream create(TokenStream tokenStream) {
         return new HyphenationCompoundWordTokenFilter(version, tokenStream,
                 hyphenationTree, wordList,
                 minWordSize, minSubwordSize, maxSubwordSize, onlyLongestMatch);

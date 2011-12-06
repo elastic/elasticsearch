@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -27,7 +27,7 @@ import java.util.Map;
 /**
  * An interface allowing to transfer an object to "XContent" using an {@link XContentBuilder}.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public interface ToXContent {
 
@@ -42,19 +42,23 @@ public interface ToXContent {
     }
 
     public static final Params EMPTY_PARAMS = new Params() {
-        @Override public String param(String key) {
+        @Override
+        public String param(String key) {
             return null;
         }
 
-        @Override public String param(String key, String defaultValue) {
+        @Override
+        public String param(String key, String defaultValue) {
             return defaultValue;
         }
 
-        @Override public boolean paramAsBoolean(String key, boolean defaultValue) {
+        @Override
+        public boolean paramAsBoolean(String key, boolean defaultValue) {
             return defaultValue;
         }
 
-        @Override public Boolean paramAsBooleanOptional(String key, Boolean defaultValue) {
+        @Override
+        public Boolean paramAsBooleanOptional(String key, Boolean defaultValue) {
             return defaultValue;
         }
     };
@@ -67,11 +71,13 @@ public interface ToXContent {
             this.params = params;
         }
 
-        @Override public String param(String key) {
+        @Override
+        public String param(String key) {
             return params.get(key);
         }
 
-        @Override public String param(String key, String defaultValue) {
+        @Override
+        public String param(String key, String defaultValue) {
             String value = params.get(key);
             if (value == null) {
                 return defaultValue;
@@ -79,11 +85,13 @@ public interface ToXContent {
             return value;
         }
 
-        @Override public boolean paramAsBoolean(String key, boolean defaultValue) {
+        @Override
+        public boolean paramAsBoolean(String key, boolean defaultValue) {
             return Booleans.parseBoolean(param(key), defaultValue);
         }
 
-        @Override public Boolean paramAsBooleanOptional(String key, Boolean defaultValue) {
+        @Override
+        public Boolean paramAsBooleanOptional(String key, Boolean defaultValue) {
             String sValue = param(key);
             if (sValue == null) {
                 return defaultValue;

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -32,18 +32,15 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.XContentRestResponse;
-import org.elasticsearch.rest.XContentThrowableRestResponse;
+import org.elasticsearch.rest.*;
 
 import java.io.IOException;
 
-import static org.elasticsearch.rest.RestRequest.Method.*;
-import static org.elasticsearch.rest.RestStatus.*;
-import static org.elasticsearch.rest.action.support.RestXContentBuilder.*;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
+import static org.elasticsearch.rest.RestStatus.OK;
+import static org.elasticsearch.rest.action.support.RestXContentBuilder.restContentBuilder;
 
 /**
  * <pre>
@@ -54,11 +51,12 @@ import static org.elasticsearch.rest.action.support.RestXContentBuilder.*;
  * { "type1" : { "field1" : "value1" } }
  * </pre>
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class RestBulkAction extends BaseRestHandler {
 
-    @Inject public RestBulkAction(Settings settings, Client client, RestController controller) {
+    @Inject
+    public RestBulkAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
 
         controller.registerHandler(POST, "/_bulk", this);
@@ -69,7 +67,8 @@ public class RestBulkAction extends BaseRestHandler {
         controller.registerHandler(PUT, "/{index}/{type}/_bulk", this);
     }
 
-    @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
+    @Override
+    public void handleRequest(final RestRequest request, final RestChannel channel) {
         BulkRequest bulkRequest = Requests.bulkRequest();
         String defaultIndex = request.param("index");
         String defaultType = request.param("type");
@@ -96,7 +95,8 @@ public class RestBulkAction extends BaseRestHandler {
         }
 
         client.bulk(bulkRequest, new ActionListener<BulkResponse>() {
-            @Override public void onResponse(BulkResponse response) {
+            @Override
+            public void onResponse(BulkResponse response) {
                 try {
                     XContentBuilder builder = restContentBuilder(request);
                     builder.startObject();
@@ -139,7 +139,8 @@ public class RestBulkAction extends BaseRestHandler {
                 }
             }
 
-            @Override public void onFailure(Throwable e) {
+            @Override
+            public void onFailure(Throwable e) {
                 try {
                     channel.sendResponse(new XContentThrowableRestResponse(request, e));
                 } catch (IOException e1) {

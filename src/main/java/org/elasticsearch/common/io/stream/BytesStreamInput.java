@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -24,7 +24,7 @@ import java.io.IOException;
 import java.io.UTFDataFormatException;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class BytesStreamInput extends StreamInput {
 
@@ -44,7 +44,8 @@ public class BytesStreamInput extends StreamInput {
         this.count = Math.min(offset + length, buf.length);
     }
 
-    @Override public long skip(long n) throws IOException {
+    @Override
+    public long skip(long n) throws IOException {
         if (pos + n > count) {
             n = count - pos;
         }
@@ -59,11 +60,13 @@ public class BytesStreamInput extends StreamInput {
         return this.pos;
     }
 
-    @Override public int read() throws IOException {
+    @Override
+    public int read() throws IOException {
         return (pos < count) ? (buf[pos++] & 0xff) : -1;
     }
 
-    @Override public int read(byte[] b, int off, int len) throws IOException {
+    @Override
+    public int read(byte[] b, int off, int len) throws IOException {
         if (b == null) {
             throw new NullPointerException();
         } else if (off < 0 || len < 0 || len > b.length - off) {
@@ -87,14 +90,16 @@ public class BytesStreamInput extends StreamInput {
         return buf;
     }
 
-    @Override public byte readByte() throws IOException {
+    @Override
+    public byte readByte() throws IOException {
         if (pos >= count) {
             throw new EOFException();
         }
         return buf[pos++];
     }
 
-    @Override public void readBytes(byte[] b, int offset, int len) throws IOException {
+    @Override
+    public void readBytes(byte[] b, int offset, int len) throws IOException {
         if (len == 0) {
             return;
         }
@@ -111,11 +116,13 @@ public class BytesStreamInput extends StreamInput {
         pos += len;
     }
 
-    @Override public void reset() throws IOException {
+    @Override
+    public void reset() throws IOException {
         pos = 0;
     }
 
-    @Override public void close() throws IOException {
+    @Override
+    public void close() throws IOException {
         // nothing to do here...
     }
 

@@ -16,8 +16,8 @@
 
 package org.elasticsearch.common.inject;
 
-import org.elasticsearch.common.collect.ImmutableSet;
-import org.elasticsearch.common.collect.Lists;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
 import org.elasticsearch.common.inject.internal.*;
 import org.elasticsearch.common.inject.spi.*;
 
@@ -41,7 +41,8 @@ class BindingProcessor extends AbstractProcessor {
         this.initializer = initializer;
     }
 
-    @Override public <T> Boolean visit(Binding<T> command) {
+    @Override
+    public <T> Boolean visit(Binding<T> command) {
         final Object source = command.getSource();
 
         if (Void.class.equals(command.getKey().getRawType())) {
@@ -175,7 +176,8 @@ class BindingProcessor extends AbstractProcessor {
         return true;
     }
 
-    @Override public Boolean visit(PrivateElements privateElements) {
+    @Override
+    public Boolean visit(PrivateElements privateElements) {
         for (Key<?> key : privateElements.getExposedKeys()) {
             bindExposed(privateElements, key);
         }

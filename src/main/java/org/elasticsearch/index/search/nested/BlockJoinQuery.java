@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -39,31 +39,31 @@ import java.util.Set;
  * document.  At search time you provide a Filter
  * identifying the parents, however this Filter must provide
  * an {@link org.apache.lucene.util.FixedBitSet} per sub-reader.
- *
+ * <p/>
  * <p>Once the block index is built, use this query to wrap
  * any sub-query matching only child docs and join matches in that
  * child document space up to the parent document space.
  * You can then use this Query as a clause with
  * other queries in the parent document space.</p>
- *
+ * <p/>
  * <p>The child documents must be orthogonal to the parent
  * documents: the wrapped child query must never
  * return a parent document.</p>
- *
+ * <p/>
  * If you'd like to retrieve {@link TopGroups} for the
  * resulting query, use the {@link BlockJoinCollector}.
  * Note that this is not necessary, ie, if you simply want
  * to collect the parent documents and don't need to see
  * which child documents matched under that parent, then
  * you can use any collector.
- *
+ * <p/>
  * <p><b>NOTE</b>: If the overall query contains parent-only
  * matches, for example you OR a parent-only query with a
  * joined child-only query, then the resulting collected documents
  * will be correct, however the {@link TopGroups} you get
  * from {@link BlockJoinCollector} will not contain every
  * child for parents that had matched.
- *
+ * <p/>
  * <p>See {@link org.apache.lucene.search.join} for an
  * overview. </p>
  *

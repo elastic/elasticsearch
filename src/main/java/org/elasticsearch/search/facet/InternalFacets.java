@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,9 +19,9 @@
 
 package org.elasticsearch.search.facet;
 
-import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.Lists;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -34,10 +34,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.collect.Maps.*;
+import static com.google.common.collect.Maps.newHashMap;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class InternalFacets implements Facets, Streamable, ToXContent, Iterable<Facet> {
 
@@ -59,7 +59,8 @@ public class InternalFacets implements Facets, Streamable, ToXContent, Iterable<
     /**
      * Iterates over the {@link Facet}s.
      */
-    @Override public Iterator<Facet> iterator() {
+    @Override
+    public Iterator<Facet> iterator() {
         return facets.iterator();
     }
 
@@ -95,14 +96,17 @@ public class InternalFacets implements Facets, Streamable, ToXContent, Iterable<
     /**
      * Returns the facet by name already casted to the specified type.
      */
-    @Override public <T extends Facet> T facet(Class<T> facetType, String name) {
+    @Override
+    public <T extends Facet> T facet(Class<T> facetType, String name) {
         return facetType.cast(facet(name));
     }
 
     /**
      * A facet of the specified name.
      */
-    @SuppressWarnings({"unchecked"}) @Override public <T extends Facet> T facet(String name) {
+    @SuppressWarnings({"unchecked"})
+    @Override
+    public <T extends Facet> T facet(String name) {
         return (T) facetsAsMap().get(name);
     }
 
@@ -110,7 +114,8 @@ public class InternalFacets implements Facets, Streamable, ToXContent, Iterable<
         static final XContentBuilderString FACETS = new XContentBuilderString("facets");
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.FACETS);
         for (Facet facet : facets) {
             ((InternalFacet) facet).toXContent(builder, params);
@@ -125,7 +130,8 @@ public class InternalFacets implements Facets, Streamable, ToXContent, Iterable<
         return result;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         int size = in.readVInt();
         if (size == 0) {
             facets = ImmutableList.of();
@@ -140,7 +146,8 @@ public class InternalFacets implements Facets, Streamable, ToXContent, Iterable<
         }
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(facets.size());
         for (Facet facet : facets) {
             InternalFacet internalFacet = (InternalFacet) facet;

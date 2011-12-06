@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -31,7 +31,7 @@ import java.io.Serializable;
 /**
  * Allows for shard level components to be injected with the shard id.
  *
- * @author kimchy (Shay Banon)
+ *
  */
 @Immutable
 public class ShardId implements Serializable, Streamable {
@@ -72,18 +72,21 @@ public class ShardId implements Serializable, Streamable {
         return id();
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return "Index Shard [" + index.name() + "][" + shardId + "]";
     }
 
-    @Override public boolean equals(Object o) {
+    @Override
+    public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null) return false;
         ShardId shardId1 = (ShardId) o;
         return shardId == shardId1.shardId && index.name().equals(shardId1.index.name());
     }
 
-    @Override public int hashCode() {
+    @Override
+    public int hashCode() {
         return hashCode;
     }
 
@@ -99,12 +102,14 @@ public class ShardId implements Serializable, Streamable {
         return shardId;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         index = Index.readIndexName(in);
         shardId = in.readVInt();
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         index.writeTo(out);
         out.writeVInt(shardId);
     }

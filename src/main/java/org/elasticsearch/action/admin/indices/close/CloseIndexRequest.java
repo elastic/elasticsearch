@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -27,13 +27,14 @@ import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 
-import static org.elasticsearch.action.Actions.*;
-import static org.elasticsearch.common.unit.TimeValue.*;
+import static org.elasticsearch.action.Actions.addValidationError;
+import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
+import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 
 /**
  * A request to close an index.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class CloseIndexRequest extends MasterNodeOperationRequest {
 
@@ -51,7 +52,8 @@ public class CloseIndexRequest extends MasterNodeOperationRequest {
         this.index = index;
     }
 
-    @Override public ActionRequestValidationException validate() {
+    @Override
+    public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (index == null) {
             validationException = addValidationError("index is missing", validationException);
@@ -91,13 +93,15 @@ public class CloseIndexRequest extends MasterNodeOperationRequest {
         return timeout(TimeValue.parseTimeValue(timeout, null));
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         index = in.readUTF();
         timeout = readTimeValue(in);
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeUTF(index);
         timeout.writeTo(out);

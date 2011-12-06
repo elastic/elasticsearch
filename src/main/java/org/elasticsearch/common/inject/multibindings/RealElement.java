@@ -45,18 +45,21 @@ class RealElement implements Element {
         return Element.class;
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return "@" + Element.class.getName() + "(setName=" + setName
                 + ",uniqueId=" + uniqueId + ")";
     }
 
-    @Override public boolean equals(Object o) {
+    @Override
+    public boolean equals(Object o) {
         return o instanceof Element
                 && ((Element) o).setName().equals(setName())
                 && ((Element) o).uniqueId() == uniqueId();
     }
 
-    @Override public int hashCode() {
+    @Override
+    public int hashCode() {
         return 127 * ("setName".hashCode() ^ setName.hashCode())
                 + 127 * ("uniqueId".hashCode() ^ uniqueId);
     }

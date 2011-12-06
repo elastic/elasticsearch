@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -32,7 +32,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class ValueGeoDistanceFacetCollector extends GeoDistanceFacetCollector {
 
@@ -53,7 +53,8 @@ public class ValueGeoDistanceFacetCollector extends GeoDistanceFacetCollector {
         this.aggregator = new Aggregator(fixedSourceDistance, entries);
     }
 
-    @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
+    @Override
+    protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
         super.doSetNextReader(reader, docBase);
         ((Aggregator) this.aggregator).valueFieldData = (NumericFieldData) fieldDataCache.cache(valueFieldDataType, reader, indexValueFieldName);
     }
@@ -72,7 +73,8 @@ public class ValueGeoDistanceFacetCollector extends GeoDistanceFacetCollector {
             this.entries = entries;
         }
 
-        @Override public void onValue(int docId, double lat, double lon) {
+        @Override
+        public void onValue(int docId, double lat, double lon) {
             double distance = fixedSourceDistance.calculate(lat, lon);
             for (GeoDistanceFacet.Entry entry : entries) {
                 if (entry.foundInDoc) {
@@ -92,7 +94,8 @@ public class ValueGeoDistanceFacetCollector extends GeoDistanceFacetCollector {
 
         GeoDistanceFacet.Entry entry;
 
-        @Override public void onValue(int docId, double value) {
+        @Override
+        public void onValue(int docId, double value) {
             entry.totalCount++;
             entry.total += value;
             if (value < entry.min) {

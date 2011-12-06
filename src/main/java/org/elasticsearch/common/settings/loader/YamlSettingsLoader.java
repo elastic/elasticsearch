@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -20,24 +20,25 @@
 package org.elasticsearch.common.settings.loader;
 
 import org.elasticsearch.common.io.FastByteArrayInputStream;
-import org.elasticsearch.common.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.Yaml;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.collect.Lists.*;
-import static org.elasticsearch.common.collect.Maps.*;
+import static com.google.common.collect.Lists.newArrayList;
+import static com.google.common.collect.Maps.newHashMap;
 
 /**
  * Settings loader that loads (parses) the settings in a yaml format by flattening them
  * into a map.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class YamlSettingsLoader implements SettingsLoader {
 
-    @Override public Map<String, String> load(String source) throws IOException {
+    @Override
+    public Map<String, String> load(String source) throws IOException {
         // replace tabs with whitespace (yaml does not accept tabs, but many users might use it still...)
         source = source.replace("\t", "  ");
         Yaml yaml = new Yaml();
@@ -52,7 +53,8 @@ public class YamlSettingsLoader implements SettingsLoader {
         return settings;
     }
 
-    @Override public Map<String, String> load(byte[] source) throws IOException {
+    @Override
+    public Map<String, String> load(byte[] source) throws IOException {
         Yaml yaml = new Yaml();
         Map<Object, Object> yamlMap = (Map<Object, Object>) yaml.load(new FastByteArrayInputStream(source));
         StringBuilder sb = new StringBuilder();

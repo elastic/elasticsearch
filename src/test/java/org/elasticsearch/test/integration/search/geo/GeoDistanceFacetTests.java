@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -31,26 +31,28 @@ import org.testng.annotations.Test;
 
 import java.util.Arrays;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.*;
-import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.search.facet.FacetBuilders.*;
-import static org.hamcrest.MatcherAssert.*;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.search.facet.FacetBuilders.geoDistanceFacet;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class GeoDistanceFacetTests extends AbstractNodesTests {
 
     private Client client;
 
-    @BeforeClass public void createNodes() throws Exception {
+    @BeforeClass
+    public void createNodes() throws Exception {
         startNode("server1");
         startNode("server2");
         client = getClient();
     }
 
-    @AfterClass public void closeNodes() {
+    @AfterClass
+    public void closeNodes() {
         client.close();
         closeAllNodes();
     }
@@ -59,7 +61,8 @@ public class GeoDistanceFacetTests extends AbstractNodesTests {
         return client("server1");
     }
 
-    @Test public void simpleGeoFacetTests() throws Exception {
+    @Test
+    public void simpleGeoFacetTests() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
@@ -220,7 +223,8 @@ public class GeoDistanceFacetTests extends AbstractNodesTests {
         assertThat(facet.entries().get(3).total(), closeTo(24, 0.00001));
     }
 
-    @Test public void multiLocationGeoDistanceTest() throws Exception {
+    @Test
+    public void multiLocationGeoDistanceTest() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {

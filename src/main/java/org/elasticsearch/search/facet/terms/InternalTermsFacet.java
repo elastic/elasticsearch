@@ -33,7 +33,7 @@ import org.elasticsearch.search.facet.terms.strings.InternalStringTermsFacet;
 import java.util.List;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public abstract class InternalTermsFacet implements TermsFacet, InternalFacet {
 

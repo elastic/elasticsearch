@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,6 +19,8 @@
 
 package org.elasticsearch.test.integration.search.embedded;
 
+import com.google.common.collect.ImmutableMap;
+import gnu.trove.ExtTIntArrayList;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
@@ -28,20 +30,14 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.cluster.routing.operation.OperationRouting;
 import org.elasticsearch.cluster.routing.operation.plain.PlainOperationRouting;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.trove.ExtTIntArrayList;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.node.settings.NodeSettingsService;
-import org.elasticsearch.search.Scroll;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.SearchService;
-import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.*;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.controller.ShardDoc;
@@ -67,19 +63,20 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.client.Requests.*;
-import static org.elasticsearch.common.collect.Lists.*;
-import static org.elasticsearch.common.collect.Maps.*;
-import static org.elasticsearch.common.settings.ImmutableSettings.*;
-import static org.elasticsearch.common.unit.TimeValue.*;
-import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.search.builder.SearchSourceBuilder.*;
-import static org.elasticsearch.search.facet.FacetBuilders.*;
-import static org.hamcrest.MatcherAssert.*;
-import static org.hamcrest.Matchers.*;
+import static com.google.common.collect.Lists.newArrayList;
+import static com.google.common.collect.Maps.newHashMap;
+import static org.elasticsearch.client.Requests.indexRequest;
+import static org.elasticsearch.client.Requests.refreshRequest;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.elasticsearch.search.facet.FacetBuilders.queryFacet;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class ThreeShardsUnbalancedShardsEmbeddedSearchTests extends AbstractNodesTests {
 
@@ -89,7 +86,8 @@ public class ThreeShardsUnbalancedShardsEmbeddedSearchTests extends AbstractNode
 
     private SearchPhaseController searchPhaseController;
 
-    @BeforeClass public void createNodeAndInitWithData() throws Exception {
+    @BeforeClass
+    public void createNodeAndInitWithData() throws Exception {
         ImmutableSettings.Builder nodeSettings = ImmutableSettings.settingsBuilder()
                 .put("cluster.routing.operation.type", "org.elasticsearch.test.integration.search.embedded.ThreeShardsUnbalancedShardsEmbeddedSearchTests$UnevenOperationRoutingModule");
         startNode("server1", nodeSettings);
@@ -118,11 +116,13 @@ public class ThreeShardsUnbalancedShardsEmbeddedSearchTests extends AbstractNode
         searchPhaseController = ((InternalNode) node("server1")).injector().getInstance(SearchPhaseController.class);
     }
 
-    @AfterClass public void closeNodes() {
+    @AfterClass
+    public void closeNodes() {
         closeAllNodes();
     }
 
-    @Test public void testDfsQueryFetch() throws Exception {
+    @Test
+    public void testDfsQueryFetch() throws Exception {
         SearchSourceBuilder sourceBuilder = searchSource()
                 .query(termQuery("multi", "test"))
                 .from(0).size(60).explain(true);
@@ -189,7 +189,8 @@ public class ThreeShardsUnbalancedShardsEmbeddedSearchTests extends AbstractNode
         }
     }
 
-    @Test public void testDfsQueryFetchWithSort() throws Exception {
+    @Test
+    public void testDfsQueryFetchWithSort() throws Exception {
         SearchSourceBuilder sourceBuilder = searchSource()
                 .query(termQuery("multi", "test"))
                 .from(0).size(60).explain(true).sort("age", SortOrder.ASC);
@@ -278,7 +279,8 @@ public class ThreeShardsUnbalancedShardsEmbeddedSearchTests extends AbstractNode
         assertThat(hits.hits().length, equalTo(0));
     }
 
-    @Test public void testQueryFetchInOneGo() {
+    @Test
+    public void testQueryFetchInOneGo() {
         SearchSourceBuilder sourceBuilder = searchSource()
                 .query(termQuery("multi", "test"))
                 .from(0).size(20).explain(true);
@@ -332,7 +334,8 @@ public class ThreeShardsUnbalancedShardsEmbeddedSearchTests extends AbstractNode
 //        }
     }
 
-    @Test public void testSimpleFacets() {
+    @Test
+    public void testSimpleFacets() {
         SearchSourceBuilder sourceBuilder = searchSource()
                 .query(termQuery("multi", "test"))
                 .from(0).size(20).explain(true).sort("age", SortOrder.ASC)
@@ -366,7 +369,8 @@ public class ThreeShardsUnbalancedShardsEmbeddedSearchTests extends AbstractNode
         assertThat(searchResponse.facets().facet(QueryFacet.class, "all").count(), equalTo(100l));
     }
 
-    @Test public void testSimpleFacetsTwice() {
+    @Test
+    public void testSimpleFacetsTwice() {
         testSimpleFacets();
         testSimpleFacets();
     }
@@ -388,7 +392,8 @@ public class ThreeShardsUnbalancedShardsEmbeddedSearchTests extends AbstractNode
     }
 
     public static class UnevenOperationRoutingModule extends AbstractModule {
-        @Override protected void configure() {
+        @Override
+        protected void configure() {
             bind(OperationRouting.class).to(UnevenOperationRoutingStrategy.class).asEagerSingleton();
         }
     }
@@ -400,11 +405,13 @@ public class ThreeShardsUnbalancedShardsEmbeddedSearchTests extends AbstractNode
      */
     public static class UnevenOperationRoutingStrategy extends PlainOperationRouting {
 
-        @Inject public UnevenOperationRoutingStrategy(Settings settings) {
-            super(settings, null, new AwarenessAllocationDecider(Builder.EMPTY_SETTINGS, new NodeSettingsService(Builder.EMPTY_SETTINGS)));
+        @Inject
+        public UnevenOperationRoutingStrategy(Settings settings) {
+            super(settings, null, new AwarenessAllocationDecider(ImmutableSettings.Builder.EMPTY_SETTINGS, new NodeSettingsService(ImmutableSettings.Builder.EMPTY_SETTINGS)));
         }
 
-        @Override protected int hash(String routing) {
+        @Override
+        protected int hash(String routing) {
             long lId = Long.parseLong(routing);
             if (lId < 60) {
                 return 0;
@@ -415,7 +422,8 @@ public class ThreeShardsUnbalancedShardsEmbeddedSearchTests extends AbstractNode
             return 2;
         }
 
-        @Override protected int hash(String type, String id) {
+        @Override
+        protected int hash(String type, String id) {
             long lId = Long.parseLong(id);
             if (lId < 60) {
                 return 0;

@@ -45,7 +45,8 @@ public final class Providers {
                 return instance;
             }
 
-            @Override public String toString() {
+            @Override
+            public String toString() {
                 return "of(" + instance + ")";
             }
         };

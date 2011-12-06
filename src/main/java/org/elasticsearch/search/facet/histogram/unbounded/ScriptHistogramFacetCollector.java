@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,10 +19,10 @@
 
 package org.elasticsearch.search.facet.histogram.unbounded;
 
+import gnu.trove.ExtTLongObjectHashMap;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.CacheRecycler;
-import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
@@ -33,7 +33,7 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class ScriptHistogramFacetCollector extends AbstractFacetCollector {
 
@@ -55,7 +55,8 @@ public class ScriptHistogramFacetCollector extends AbstractFacetCollector {
         this.comparatorType = comparatorType;
     }
 
-    @Override protected void doCollect(int doc) throws IOException {
+    @Override
+    protected void doCollect(int doc) throws IOException {
         keyScript.setNextDocId(doc);
         valueScript.setNextDocId(doc);
         long bucket;
@@ -83,17 +84,20 @@ public class ScriptHistogramFacetCollector extends AbstractFacetCollector {
         }
     }
 
-    @Override public void setScorer(Scorer scorer) throws IOException {
+    @Override
+    public void setScorer(Scorer scorer) throws IOException {
         keyScript.setScorer(scorer);
         valueScript.setScorer(scorer);
     }
 
-    @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
+    @Override
+    protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
         keyScript.setNextReader(reader);
         valueScript.setNextReader(reader);
     }
 
-    @Override public Facet facet() {
+    @Override
+    public Facet facet() {
         return new InternalFullHistogramFacet(facetName, comparatorType, entries, true);
     }
 

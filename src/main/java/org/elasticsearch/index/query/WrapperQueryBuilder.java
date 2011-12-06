@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -25,7 +25,7 @@ package org.elasticsearch.index.query;
  * Time: 11:30
  */
 
-import org.elasticsearch.common.base.Charsets;
+import com.google.common.base.Charsets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -34,7 +34,7 @@ import java.io.IOException;
  * A Query builder which allows building a query thanks to a JSON string or binary data. This is useful when you want
  * to use the Java Builder API but still have JSON query strings at hand that you want to combine with other
  * query builders.
- *
+ * <p/>
  * Example usage in a boolean query :
  * <pre>
  * {@code
@@ -43,8 +43,6 @@ import java.io.IOException;
  *      bool.must(new TermQueryBuilder("field2","value2");
  * }
  * </pre>
- *
- * @author Cedric Champeau
  */
 public class WrapperQueryBuilder extends BaseQueryBuilder {
 
@@ -67,7 +65,8 @@ public class WrapperQueryBuilder extends BaseQueryBuilder {
         this.length = length;
     }
 
-    @Override protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(WrapperQueryParser.NAME);
         builder.field("query", source, offset, length);
         builder.endObject();

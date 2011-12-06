@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -29,10 +29,10 @@ import org.elasticsearch.common.unit.TimeValue;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.action.Actions.*;
+import static org.elasticsearch.action.Actions.addValidationError;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public abstract class ShardReplicationOperationRequest implements ActionRequest {
 
@@ -64,14 +64,16 @@ public abstract class ShardReplicationOperationRequest implements ActionRequest 
     /**
      * Should the listener be called on a separate thread if needed.
      */
-    @Override public boolean listenerThreaded() {
+    @Override
+    public boolean listenerThreaded() {
         return threadedListener;
     }
 
     /**
      * Should the listener be called on a separate thread if needed.
      */
-    @Override public ShardReplicationOperationRequest listenerThreaded(boolean threadedListener) {
+    @Override
+    public ShardReplicationOperationRequest listenerThreaded(boolean threadedListener) {
         this.threadedListener = threadedListener;
         return this;
     }
@@ -117,7 +119,8 @@ public abstract class ShardReplicationOperationRequest implements ActionRequest 
         return this;
     }
 
-    @Override public ActionRequestValidationException validate() {
+    @Override
+    public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (index == null) {
             validationException = addValidationError("index is missing", validationException);
@@ -125,7 +128,8 @@ public abstract class ShardReplicationOperationRequest implements ActionRequest 
         return validationException;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         replicationType = ReplicationType.fromId(in.readByte());
         consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
         timeout = TimeValue.readTimeValue(in);
@@ -133,7 +137,8 @@ public abstract class ShardReplicationOperationRequest implements ActionRequest 
         // no need to serialize threaded* parameters, since they only matter locally
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeByte(replicationType.id());
         out.writeByte(consistencyLevel.id());
         timeout.writeTo(out);

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -25,7 +25,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class JdkESLogger extends AbstractESLogger {
 
@@ -39,7 +39,8 @@ public class JdkESLogger extends AbstractESLogger {
         this.name = name;
     }
 
-    @Override public void setLevel(String level) {
+    @Override
+    public void setLevel(String level) {
         if ("error".equalsIgnoreCase(level)) {
             logger.setLevel(Level.SEVERE);
         } else if ("warn".equalsIgnoreCase(level)) {
@@ -53,67 +54,83 @@ public class JdkESLogger extends AbstractESLogger {
         }
     }
 
-    @Override public String getName() {
+    @Override
+    public String getName() {
         return logger.getName();
     }
 
-    @Override public boolean isTraceEnabled() {
+    @Override
+    public boolean isTraceEnabled() {
         return logger.isLoggable(Level.FINEST);
     }
 
-    @Override public boolean isDebugEnabled() {
+    @Override
+    public boolean isDebugEnabled() {
         return logger.isLoggable(Level.FINE);
     }
 
-    @Override public boolean isInfoEnabled() {
+    @Override
+    public boolean isInfoEnabled() {
         return logger.isLoggable(Level.INFO);
     }
 
-    @Override public boolean isWarnEnabled() {
+    @Override
+    public boolean isWarnEnabled() {
         return logger.isLoggable(Level.WARNING);
     }
 
-    @Override public boolean isErrorEnabled() {
+    @Override
+    public boolean isErrorEnabled() {
         return logger.isLoggable(Level.SEVERE);
     }
 
-    @Override protected void internalTrace(String msg) {
+    @Override
+    protected void internalTrace(String msg) {
         logger.logp(Level.FINEST, name, null, msg);
     }
 
-    @Override protected void internalTrace(String msg, Throwable cause) {
+    @Override
+    protected void internalTrace(String msg, Throwable cause) {
         logger.logp(Level.FINEST, name, null, msg, cause);
     }
 
-    @Override protected void internalDebug(String msg) {
+    @Override
+    protected void internalDebug(String msg) {
         logger.logp(Level.FINE, name, null, msg);
     }
 
-    @Override protected void internalDebug(String msg, Throwable cause) {
+    @Override
+    protected void internalDebug(String msg, Throwable cause) {
         logger.logp(Level.FINE, name, null, msg, cause);
     }
 
-    @Override protected void internalInfo(String msg) {
+    @Override
+    protected void internalInfo(String msg) {
         logger.logp(Level.INFO, name, null, msg);
     }
 
-    @Override protected void internalInfo(String msg, Throwable cause) {
+    @Override
+    protected void internalInfo(String msg, Throwable cause) {
         logger.logp(Level.INFO, name, null, msg, cause);
     }
 
-    @Override protected void internalWarn(String msg) {
+    @Override
+    protected void internalWarn(String msg) {
         logger.logp(Level.WARNING, name, null, msg);
     }
 
-    @Override protected void internalWarn(String msg, Throwable cause) {
+    @Override
+    protected void internalWarn(String msg, Throwable cause) {
         logger.logp(Level.WARNING, name, null, msg, cause);
     }
 
-    @Override protected void internalError(String msg) {
+    @Override
+    protected void internalError(String msg) {
         logger.logp(Level.SEVERE, name, null, msg);
     }
 
-    @Override protected void internalError(String msg, Throwable cause) {
+    @Override
+    protected void internalError(String msg, Throwable cause) {
         logger.logp(Level.SEVERE, name, null, msg, cause);
     }
 }

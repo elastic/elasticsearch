@@ -16,10 +16,10 @@
 
 package org.elasticsearch.common.inject.assistedinject;
 
-import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.Iterables;
-import org.elasticsearch.common.collect.Lists;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
 import org.elasticsearch.common.inject.*;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.internal.ErrorsException;
@@ -33,8 +33,8 @@ import java.lang.reflect.Proxy;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.elasticsearch.common.base.Preconditions.*;
-import static org.elasticsearch.common.inject.internal.Annotations.*;
+import static com.google.common.base.Preconditions.checkState;
+import static org.elasticsearch.common.inject.internal.Annotations.getKey;
 
 /**
  * The newer implementation of factory provider. This implementation uses a child injector to
@@ -57,16 +57,19 @@ final class FactoryProvider2<F> implements InvocationHandler, Provider<F> {
             return Assisted.class;
         }
 
-        @Override public boolean equals(Object o) {
+        @Override
+        public boolean equals(Object o) {
             return o instanceof Assisted
                     && ((Assisted) o).value().equals("");
         }
 
-        @Override public int hashCode() {
+        @Override
+        public int hashCode() {
             return 127 * "value".hashCode() ^ "".hashCode();
         }
 
-        @Override public String toString() {
+        @Override
+        public String toString() {
             return "@" + Assisted.class.getName() + "(value=)";
         }
     };
@@ -156,7 +159,8 @@ final class FactoryProvider2<F> implements InvocationHandler, Provider<F> {
      * At injector-creation time, we initialize the invocation handler. At this time we make sure
      * all factory methods will be able to build the target types.
      */
-    @Inject void initialize(Injector injector) {
+    @Inject
+    void initialize(Injector injector) {
         if (this.injector != null) {
             throw new ConfigurationException(ImmutableList.of(new Message(FactoryProvider2.class,
                     "Factories.create() factories may only be used in one Injector!")));
@@ -228,12 +232,14 @@ final class FactoryProvider2<F> implements InvocationHandler, Provider<F> {
         }
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return factory.getClass().getInterfaces()[0].getName()
                 + " for " + producedType.getTypeLiteral();
     }
 
-    @Override public boolean equals(Object o) {
+    @Override
+    public boolean equals(Object o) {
         return o == this || o == factory;
     }
 

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,13 +19,13 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.settings.NodeSettingsService;
@@ -48,7 +48,8 @@ public class FilterAllocationDecider extends AllocationDecider {
     private volatile DiscoveryNodeFilters clusterIncludeFilters;
     private volatile DiscoveryNodeFilters clusterExcludeFilters;
 
-    @Inject public FilterAllocationDecider(Settings settings, NodeSettingsService nodeSettingsService) {
+    @Inject
+    public FilterAllocationDecider(Settings settings, NodeSettingsService nodeSettingsService) {
         super(settings);
         ImmutableMap<String, String> includeMap = settings.getByPrefix("cluster.routing.allocation.include.").getAsMap();
         if (includeMap.isEmpty()) {
@@ -65,11 +66,13 @@ public class FilterAllocationDecider extends AllocationDecider {
         nodeSettingsService.addListener(new ApplySettings());
     }
 
-    @Override public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+    @Override
+    public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         return shouldFilter(shardRouting, node, allocation) ? Decision.NO : Decision.YES;
     }
 
-    @Override public boolean canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+    @Override
+    public boolean canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         return !shouldFilter(shardRouting, node, allocation);
     }
 
@@ -101,7 +104,8 @@ public class FilterAllocationDecider extends AllocationDecider {
     }
 
     class ApplySettings implements NodeSettingsService.Listener {
-        @Override public void onRefreshSettings(Settings settings) {
+        @Override
+        public void onRefreshSettings(Settings settings) {
             ImmutableMap<String, String> includeMap = settings.getByPrefix("cluster.routing.allocation.include.").getAsMap();
             if (!includeMap.isEmpty()) {
                 clusterIncludeFilters = DiscoveryNodeFilters.buildFromKeyValue(includeMap);

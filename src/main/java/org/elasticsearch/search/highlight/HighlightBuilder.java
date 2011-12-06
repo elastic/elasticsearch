@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -25,12 +25,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.common.collect.Lists.*;
+import static com.google.common.collect.Lists.newArrayList;
 
 /**
  * A builder for search highlighting.
  *
- * @author kimchy (shay.banon)
+ *
  * @see org.elasticsearch.search.builder.SearchSourceBuilder#highlight()
  */
 public class HighlightBuilder implements ToXContent {
@@ -60,7 +60,6 @@ public class HighlightBuilder implements ToXContent {
         fields.add(new Field(name));
         return this;
     }
-
 
 
     /**
@@ -96,8 +95,7 @@ public class HighlightBuilder implements ToXContent {
     }
 
 
-
-     /**
+    /**
      * Adds a field to be highlighted with a provided fragment size (in characters), and
      * a provided (maximum) number of fragments.
      *
@@ -138,6 +136,7 @@ public class HighlightBuilder implements ToXContent {
         this.encoder = encoder;
         return this;
     }
+
     /**
      * Explicitly set the pre tags that will be used for highlighting.
      */
@@ -164,7 +163,8 @@ public class HighlightBuilder implements ToXContent {
         return this;
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("highlight");
         if (tagsSchema != null) {
             builder.field("tags_schema", tagsSchema);

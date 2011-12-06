@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -24,7 +24,7 @@ import org.apache.lucene.index.IndexReader;
 import java.io.IOException;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 // LUCENE MONITOR: Against ConstantScoreQuery, basically added logic in the doc iterator to take deletions into account
 // So it can basically be cached safely even with a reader that changes deletions but remain with teh same cache key
@@ -49,7 +49,8 @@ public class DeletionAwareConstantScoreQuery extends ConstantScoreQuery {
             similarity = getSimilarity(searcher);
         }
 
-        @Override public Scorer scorer(IndexReader reader, boolean scoreDocsInOrder, boolean topScorer) throws IOException {
+        @Override
+        public Scorer scorer(IndexReader reader, boolean scoreDocsInOrder, boolean topScorer) throws IOException {
             final DocIdSet dis = filter.getDocIdSet(reader);
             if (dis == null)
                 return null;

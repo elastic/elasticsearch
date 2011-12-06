@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -42,61 +42,72 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
-import static org.elasticsearch.common.collect.Lists.*;
+import static com.google.common.collect.Lists.newArrayList;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class TransportCountAction extends TransportBroadcastOperationAction<CountRequest, CountResponse, ShardCountRequest, ShardCountResponse> {
 
     private final IndicesService indicesService;
 
-    @Inject public TransportCountAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, IndicesService indicesService) {
+    @Inject
+    public TransportCountAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, IndicesService indicesService) {
         super(settings, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
     }
 
-    @Override protected String executor() {
+    @Override
+    protected String executor() {
         return ThreadPool.Names.SEARCH;
     }
 
-    @Override protected String transportAction() {
+    @Override
+    protected String transportAction() {
         return TransportActions.COUNT;
     }
 
-    @Override protected String transportShardAction() {
+    @Override
+    protected String transportShardAction() {
         return "indices/count/shard";
     }
 
-    @Override protected CountRequest newRequest() {
+    @Override
+    protected CountRequest newRequest() {
         return new CountRequest();
     }
 
-    @Override protected ShardCountRequest newShardRequest() {
+    @Override
+    protected ShardCountRequest newShardRequest() {
         return new ShardCountRequest();
     }
 
-    @Override protected ShardCountRequest newShardRequest(ShardRouting shard, CountRequest request) {
+    @Override
+    protected ShardCountRequest newShardRequest(ShardRouting shard, CountRequest request) {
         String[] filteringAliases = clusterService.state().metaData().filteringAliases(shard.index(), request.indices());
         return new ShardCountRequest(shard.index(), shard.id(), filteringAliases, request);
     }
 
-    @Override protected ShardCountResponse newShardResponse() {
+    @Override
+    protected ShardCountResponse newShardResponse() {
         return new ShardCountResponse();
     }
 
-    @Override protected GroupShardsIterator shards(CountRequest request, String[] concreteIndices, ClusterState clusterState) {
+    @Override
+    protected GroupShardsIterator shards(CountRequest request, String[] concreteIndices, ClusterState clusterState) {
         Map<String, Set<String>> routingMap = clusterState.metaData().resolveSearchRouting(request.routing(), request.indices());
         return clusterService.operationRouting().searchShards(clusterState, request.indices(), concreteIndices, request.queryHint(), routingMap, null);
     }
 
-    @Override protected void checkBlock(CountRequest request, String[] concreteIndices, ClusterState state) {
+    @Override
+    protected void checkBlock(CountRequest request, String[] concreteIndices, ClusterState state) {
         for (String index : concreteIndices) {
             state.blocks().indexBlocked(ClusterBlockLevel.READ, index);
         }
     }
 
-    @Override protected CountResponse newResponse(CountRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
+    @Override
+    protected CountResponse newResponse(CountRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
         int successfulShards = 0;
         int failedShards = 0;
         long count = 0;
@@ -119,7 +130,8 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
         return new CountResponse(count, shardsResponses.length(), successfulShards, failedShards, shardFailures);
     }
 
-    @Override protected ShardCountResponse shardOperation(ShardCountRequest request) throws ElasticSearchException {
+    @Override
+    protected ShardCountResponse shardOperation(ShardCountRequest request) throws ElasticSearchException {
         IndexShard indexShard = indicesService.indexServiceSafe(request.index()).shardSafe(request.shardId());
         long count = indexShard.count(request.minScore(), request.querySource(), request.querySourceOffset(), request.querySourceLength(),
                 request.filteringAliases(), request.types());

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -34,13 +34,13 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 
 import java.io.IOException;
 
-import static org.elasticsearch.action.search.ShardSearchFailure.*;
-import static org.elasticsearch.search.internal.InternalSearchResponse.*;
+import static org.elasticsearch.action.search.ShardSearchFailure.readShardSearchFailure;
+import static org.elasticsearch.search.internal.InternalSearchResponse.readInternalSearchResponse;
 
 /**
  * A response of a search request.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class SearchResponse implements ActionResponse, ToXContent {
 
@@ -243,7 +243,8 @@ public class SearchResponse implements ActionResponse, ToXContent {
         static final XContentBuilderString TIMED_OUT = new XContentBuilderString("timed_out");
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (scrollId != null) {
             builder.field(Fields._SCROLL_ID, scrollId);
         }
@@ -280,7 +281,8 @@ public class SearchResponse implements ActionResponse, ToXContent {
         return response;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         internalResponse = readInternalSearchResponse(in);
         totalShards = in.readVInt();
         successfulShards = in.readVInt();
@@ -299,7 +301,8 @@ public class SearchResponse implements ActionResponse, ToXContent {
         tookInMillis = in.readVLong();
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         internalResponse.writeTo(out);
         out.writeVInt(totalShards);
         out.writeVInt(successfulShards);
@@ -318,7 +321,8 @@ public class SearchResponse implements ActionResponse, ToXContent {
         out.writeVLong(tookInMillis);
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
             builder.startObject();

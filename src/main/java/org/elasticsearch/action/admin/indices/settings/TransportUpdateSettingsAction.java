@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -34,44 +34,52 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class TransportUpdateSettingsAction extends TransportMasterNodeOperationAction<UpdateSettingsRequest, UpdateSettingsResponse> {
 
     private final MetaDataUpdateSettingsService updateSettingsService;
 
-    @Inject public TransportUpdateSettingsAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                                 MetaDataUpdateSettingsService updateSettingsService) {
+    @Inject
+    public TransportUpdateSettingsAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
+                                         MetaDataUpdateSettingsService updateSettingsService) {
         super(settings, transportService, clusterService, threadPool);
         this.updateSettingsService = updateSettingsService;
     }
 
-    @Override protected String executor() {
+    @Override
+    protected String executor() {
         return ThreadPool.Names.MANAGEMENT;
     }
 
-    @Override protected String transportAction() {
+    @Override
+    protected String transportAction() {
         return TransportActions.Admin.Indices.UPDATE_SETTINGS;
     }
 
-    @Override protected UpdateSettingsRequest newRequest() {
+    @Override
+    protected UpdateSettingsRequest newRequest() {
         return new UpdateSettingsRequest();
     }
 
-    @Override protected UpdateSettingsResponse newResponse() {
+    @Override
+    protected UpdateSettingsResponse newResponse() {
         return new UpdateSettingsResponse();
     }
 
-    @Override protected UpdateSettingsResponse masterOperation(UpdateSettingsRequest request, ClusterState state) throws ElasticSearchException {
+    @Override
+    protected UpdateSettingsResponse masterOperation(UpdateSettingsRequest request, ClusterState state) throws ElasticSearchException {
         final AtomicReference<Throwable> failureRef = new AtomicReference<Throwable>();
         final CountDownLatch latch = new CountDownLatch(1);
 
         updateSettingsService.updateSettings(request.settings(), request.indices(), new MetaDataUpdateSettingsService.Listener() {
-            @Override public void onSuccess() {
+            @Override
+            public void onSuccess() {
                 latch.countDown();
             }
 
-            @Override public void onFailure(Throwable t) {
+            @Override
+            public void onFailure(Throwable t) {
                 failureRef.set(t);
                 latch.countDown();
             }

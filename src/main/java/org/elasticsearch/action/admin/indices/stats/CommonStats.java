@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -40,21 +40,29 @@ import java.io.IOException;
  */
 public class CommonStats implements Streamable, ToXContent {
 
-    @Nullable DocsStats docs;
+    @Nullable
+    DocsStats docs;
 
-    @Nullable StoreStats store;
+    @Nullable
+    StoreStats store;
 
-    @Nullable IndexingStats indexing;
+    @Nullable
+    IndexingStats indexing;
 
-    @Nullable GetStats get;
+    @Nullable
+    GetStats get;
 
-    @Nullable SearchStats search;
+    @Nullable
+    SearchStats search;
 
-    @Nullable MergeStats merge;
+    @Nullable
+    MergeStats merge;
 
-    @Nullable RefreshStats refresh;
+    @Nullable
+    RefreshStats refresh;
 
-    @Nullable FlushStats flush;
+    @Nullable
+    FlushStats flush;
 
     public void add(CommonStats stats) {
         if (docs == null) {
@@ -123,67 +131,83 @@ public class CommonStats implements Streamable, ToXContent {
         }
     }
 
-    @Nullable public DocsStats docs() {
+    @Nullable
+    public DocsStats docs() {
         return this.docs;
     }
 
-    @Nullable public DocsStats getDocs() {
+    @Nullable
+    public DocsStats getDocs() {
         return this.docs;
     }
 
-    @Nullable public StoreStats store() {
+    @Nullable
+    public StoreStats store() {
         return store;
     }
 
-    @Nullable public StoreStats getStore() {
+    @Nullable
+    public StoreStats getStore() {
         return store;
     }
 
-    @Nullable public IndexingStats indexing() {
+    @Nullable
+    public IndexingStats indexing() {
         return indexing;
     }
 
-    @Nullable public IndexingStats getIndexing() {
+    @Nullable
+    public IndexingStats getIndexing() {
         return indexing;
     }
 
-    @Nullable public GetStats get() {
+    @Nullable
+    public GetStats get() {
         return get;
     }
 
-    @Nullable public GetStats getGet() {
+    @Nullable
+    public GetStats getGet() {
         return get;
     }
 
-    @Nullable public SearchStats search() {
+    @Nullable
+    public SearchStats search() {
         return search;
     }
 
-    @Nullable public SearchStats getSearch() {
+    @Nullable
+    public SearchStats getSearch() {
         return search;
     }
 
-    @Nullable public MergeStats merge() {
+    @Nullable
+    public MergeStats merge() {
         return merge;
     }
 
-    @Nullable public MergeStats getMerge() {
+    @Nullable
+    public MergeStats getMerge() {
         return merge;
     }
 
-    @Nullable public RefreshStats refresh() {
+    @Nullable
+    public RefreshStats refresh() {
         return refresh;
     }
 
-    @Nullable public RefreshStats getRefresh() {
+    @Nullable
+    public RefreshStats getRefresh() {
         return refresh;
     }
 
-    @Nullable public FlushStats flush() {
+    @Nullable
+    public FlushStats flush() {
         return flush;
     }
 
-    @Nullable public FlushStats getFlush() {
+    @Nullable
+    public FlushStats getFlush() {
         return flush;
     }
 
@@ -193,7 +217,8 @@ public class CommonStats implements Streamable, ToXContent {
         return stats;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         if (in.readBoolean()) {
             docs = DocsStats.readDocStats(in);
         }
@@ -220,7 +245,8 @@ public class CommonStats implements Streamable, ToXContent {
         }
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         if (docs == null) {
             out.writeBoolean(false);
         } else {
@@ -272,7 +298,8 @@ public class CommonStats implements Streamable, ToXContent {
     }
 
     // note, requires a wrapping object
-    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (docs != null) {
             docs.toXContent(builder, params);
         }

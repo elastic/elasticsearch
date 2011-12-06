@@ -16,14 +16,10 @@
 
 package org.elasticsearch.common.inject;
 
-import org.elasticsearch.common.inject.internal.Errors;
-import org.elasticsearch.common.inject.internal.ErrorsException;
-import org.elasticsearch.common.inject.internal.InternalContext;
-import org.elasticsearch.common.inject.internal.InternalFactory;
-import org.elasticsearch.common.inject.internal.SourceProvider;
+import org.elasticsearch.common.inject.internal.*;
 import org.elasticsearch.common.inject.spi.Dependency;
 
-import static org.elasticsearch.common.base.Preconditions.*;
+import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
  * @author crazybob@google.com (Bob Lee)
@@ -52,7 +48,8 @@ class InternalFactoryToProviderAdapter<T> implements InternalFactory<T> {
         }
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return initializable.toString();
     }
 }

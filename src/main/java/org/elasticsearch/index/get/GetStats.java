@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -141,7 +141,8 @@ public class GetStats implements Streamable, ToXContent {
         return this.current;
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.GET);
         builder.field(Fields.TOTAL, count());
         builder.field(Fields.TIME, time().toString());
@@ -177,7 +178,8 @@ public class GetStats implements Streamable, ToXContent {
         return stats;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         existsCount = in.readVLong();
         existsTimeInMillis = in.readVLong();
         missingCount = in.readVLong();
@@ -185,7 +187,8 @@ public class GetStats implements Streamable, ToXContent {
         current = in.readVLong();
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(existsCount);
         out.writeVLong(existsTimeInMillis);
         out.writeVLong(missingCount);

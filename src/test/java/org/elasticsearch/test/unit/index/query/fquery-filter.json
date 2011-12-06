@@ -1,0 +1,19 @@
+{
+    "filtered":{
+        "query":{
+            "term":{
+                "name.first":"shay"
+            }
+        },
+        "filter":{
+            "fquery":{
+                "query":{
+                    "term":{
+                        "name.last":"banon"
+                    }
+                },
+                "_name":"test"
+            }
+        }
+    }
+}

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -47,7 +47,7 @@ import java.util.Map;
 import java.util.concurrent.ScheduledFuture;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class LocalIndexShardGateway extends AbstractIndexShardComponent implements IndexShardGateway {
 
@@ -57,7 +57,8 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
 
     private final ScheduledFuture flushScheduler;
 
-    @Inject public LocalIndexShardGateway(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool, IndexShard indexShard) {
+    @Inject
+    public LocalIndexShardGateway(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool, IndexShard indexShard) {
         super(shardId, indexSettings);
         this.indexShard = (InternalIndexShard) indexShard;
 
@@ -74,15 +75,18 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
         }
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return "local";
     }
 
-    @Override public RecoveryStatus recoveryStatus() {
+    @Override
+    public RecoveryStatus recoveryStatus() {
         return recoveryStatus;
     }
 
-    @Override public void recover(boolean indexShouldExists, RecoveryStatus recoveryStatus) throws IndexShardGatewayRecoveryException {
+    @Override
+    public void recover(boolean indexShouldExists, RecoveryStatus recoveryStatus) throws IndexShardGatewayRecoveryException {
         recoveryStatus.index().startTime(System.currentTimeMillis());
         long version = -1;
         long translogId = -1;
@@ -191,42 +195,51 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
         recoveryStatus.translog().time(System.currentTimeMillis() - recoveryStatus.index().startTime());
     }
 
-    @Override public String type() {
+    @Override
+    public String type() {
         return "local";
     }
 
-    @Override public SnapshotStatus snapshot(Snapshot snapshot) {
+    @Override
+    public SnapshotStatus snapshot(Snapshot snapshot) {
         return null;
     }
 
-    @Override public SnapshotStatus lastSnapshotStatus() {
+    @Override
+    public SnapshotStatus lastSnapshotStatus() {
         return null;
     }
 
-    @Override public SnapshotStatus currentSnapshotStatus() {
+    @Override
+    public SnapshotStatus currentSnapshotStatus() {
         return null;
     }
 
-    @Override public boolean requiresSnapshot() {
+    @Override
+    public boolean requiresSnapshot() {
         return false;
     }
 
-    @Override public boolean requiresSnapshotScheduling() {
+    @Override
+    public boolean requiresSnapshotScheduling() {
         return false;
     }
 
-    @Override public void close(boolean delete) {
+    @Override
+    public void close(boolean delete) {
         if (flushScheduler != null) {
             flushScheduler.cancel(false);
         }
     }
 
-    @Override public SnapshotLock obtainSnapshotLock() throws Exception {
+    @Override
+    public SnapshotLock obtainSnapshotLock() throws Exception {
         return NO_SNAPSHOT_LOCK;
     }
 
     private class Sync implements Runnable {
-        @Override public void run() {
+        @Override
+        public void run() {
             if (indexShard.state() == IndexShardState.STARTED) {
                 indexShard.translog().sync();
             }

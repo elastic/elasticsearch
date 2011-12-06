@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -24,7 +24,7 @@ import org.elasticsearch.common.Classes;
 import java.io.*;
 
 /**
- * @author kimchy (Shay Banon)
+ *
  */
 class CompactObjectInputStream extends ObjectInputStream {
 
@@ -39,7 +39,8 @@ class CompactObjectInputStream extends ObjectInputStream {
         this.classLoader = classLoader;
     }
 
-    @Override protected void readStreamHeader() throws IOException,
+    @Override
+    protected void readStreamHeader() throws IOException,
             StreamCorruptedException {
         int version = readByte() & 0xFF;
         if (version != STREAM_VERSION) {
@@ -48,7 +49,8 @@ class CompactObjectInputStream extends ObjectInputStream {
         }
     }
 
-    @Override protected ObjectStreamClass readClassDescriptor()
+    @Override
+    protected ObjectStreamClass readClassDescriptor()
             throws IOException, ClassNotFoundException {
         int type = read();
         if (type < 0) {
@@ -67,7 +69,8 @@ class CompactObjectInputStream extends ObjectInputStream {
         }
     }
 
-    @Override protected Class<?> resolveClass(ObjectStreamClass desc) throws IOException, ClassNotFoundException {
+    @Override
+    protected Class<?> resolveClass(ObjectStreamClass desc) throws IOException, ClassNotFoundException {
         String className = desc.getName();
         try {
             return loadClass(className);

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -24,12 +24,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.thread.ThreadLocals;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class SingleValueStringFieldData extends StringFieldData {
 
     private static ThreadLocal<ThreadLocals.CleanableValue<String[]>> valuesCache = new ThreadLocal<ThreadLocals.CleanableValue<String[]>>() {
-        @Override protected ThreadLocals.CleanableValue<String[]> initialValue() {
+        @Override
+        protected ThreadLocals.CleanableValue<String[]> initialValue() {
             return new ThreadLocals.CleanableValue<String[]>(new String[1]);
         }
     };
@@ -42,7 +43,8 @@ public class SingleValueStringFieldData extends StringFieldData {
         this.ordinals = ordinals;
     }
 
-    @Override protected long computeSizeInBytes() {
+    @Override
+    protected long computeSizeInBytes() {
         return super.computeSizeInBytes() +
                 RamUsage.NUM_BYTES_INT * ordinals.length + RamUsage.NUM_BYTES_ARRAY_HEADER;
     }
@@ -51,19 +53,23 @@ public class SingleValueStringFieldData extends StringFieldData {
         return ordinals;
     }
 
-    @Override public void forEachOrdinalInDoc(int docId, OrdinalInDocProc proc) {
+    @Override
+    public void forEachOrdinalInDoc(int docId, OrdinalInDocProc proc) {
         proc.onOrdinal(docId, ordinals[docId]);
     }
 
-    @Override public boolean multiValued() {
+    @Override
+    public boolean multiValued() {
         return false;
     }
 
-    @Override public boolean hasValue(int docId) {
+    @Override
+    public boolean hasValue(int docId) {
         return ordinals[docId] != 0;
     }
 
-    @Override public void forEachValueInDoc(int docId, StringValueInDocProc proc) {
+    @Override
+    public void forEachValueInDoc(int docId, StringValueInDocProc proc) {
         int loc = ordinals[docId];
         if (loc == 0) {
             proc.onMissing(docId);
@@ -72,11 +78,13 @@ public class SingleValueStringFieldData extends StringFieldData {
         proc.onValue(docId, values[loc]);
     }
 
-    @Override public String value(int docId) {
+    @Override
+    public String value(int docId) {
         return values[ordinals[docId]];
     }
 
-    @Override public String[] values(int docId) {
+    @Override
+    public String[] values(int docId) {
         int loc = ordinals[docId];
         if (loc == 0) {
             return Strings.EMPTY_ARRAY;

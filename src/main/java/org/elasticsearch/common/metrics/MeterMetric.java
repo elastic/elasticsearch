@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.metrics;
 
-import org.elasticsearch.common.util.concurrent.jsr166e.LongAdder;
+import jsr166e.LongAdder;
 
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -30,7 +30,7 @@ import java.util.concurrent.TimeUnit;
  * fifteen-minute exponentially-weighted moving average throughputs.
  *
  * @see <a href="http://en.wikipedia.org/wiki/Moving_average#Exponential_moving_average">EMA</a>
- *
+ *      <p/>
  *      taken from codahale metric module, replaced with LongAdder
  */
 public class MeterMetric implements Metric {

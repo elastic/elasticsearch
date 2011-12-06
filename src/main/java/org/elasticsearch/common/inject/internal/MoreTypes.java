@@ -17,8 +17,8 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.ImmutableSet;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.inject.ConfigurationException;
 import org.elasticsearch.common.inject.TypeLiteral;
 import org.elasticsearch.common.inject.spi.Message;
@@ -29,7 +29,8 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.NoSuchElementException;
 
-import static org.elasticsearch.common.base.Preconditions.*;
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
  * Static methods for working with types that we aren't publishing in the
@@ -490,16 +491,19 @@ public class MoreTypes {
             return true;
         }
 
-        @Override public boolean equals(Object other) {
+        @Override
+        public boolean equals(Object other) {
             return other instanceof ParameterizedType
                     && MoreTypes.equals(this, (ParameterizedType) other);
         }
 
-        @Override public int hashCode() {
+        @Override
+        public int hashCode() {
             return MoreTypes.hashCode(this);
         }
 
-        @Override public String toString() {
+        @Override
+        public String toString() {
             return MoreTypes.toString(this);
         }
 
@@ -522,16 +526,19 @@ public class MoreTypes {
             return MoreTypes.isFullySpecified(componentType);
         }
 
-        @Override public boolean equals(Object o) {
+        @Override
+        public boolean equals(Object o) {
             return o instanceof GenericArrayType
                     && MoreTypes.equals(this, (GenericArrayType) o);
         }
 
-        @Override public int hashCode() {
+        @Override
+        public int hashCode() {
             return MoreTypes.hashCode(this);
         }
 
-        @Override public String toString() {
+        @Override
+        public String toString() {
             return MoreTypes.toString(this);
         }
 
@@ -579,16 +586,19 @@ public class MoreTypes {
                     && (lowerBound == null || MoreTypes.isFullySpecified(lowerBound));
         }
 
-        @Override public boolean equals(Object other) {
+        @Override
+        public boolean equals(Object other) {
             return other instanceof WildcardType
                     && MoreTypes.equals(this, (WildcardType) other);
         }
 
-        @Override public int hashCode() {
+        @Override
+        public int hashCode() {
             return MoreTypes.hashCode(this);
         }
 
-        @Override public String toString() {
+        @Override
+        public String toString() {
             return MoreTypes.toString(this);
         }
 
@@ -638,7 +648,8 @@ public class MoreTypes {
             return synthetic;
         }
 
-        @Override public String toString() {
+        @Override
+        public String toString() {
             return MoreTypes.toString(this);
         }
     }

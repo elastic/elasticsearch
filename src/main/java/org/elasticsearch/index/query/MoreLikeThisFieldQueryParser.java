@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,10 +19,10 @@
 
 package org.elasticsearch.index.query;
 
+import com.google.common.collect.Sets;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -31,23 +31,26 @@ import org.elasticsearch.index.mapper.MapperService;
 import java.io.IOException;
 import java.util.Set;
 
-import static org.elasticsearch.index.query.support.QueryParsers.*;
+import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameQuery;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class MoreLikeThisFieldQueryParser implements QueryParser {
 
     public static final String NAME = "mlt_field";
 
-    @Inject public MoreLikeThisFieldQueryParser() {
+    @Inject
+    public MoreLikeThisFieldQueryParser() {
     }
 
-    @Override public String[] names() {
+    @Override
+    public String[] names() {
         return new String[]{NAME, "more_like_this_field", Strings.toCamelCase(NAME), "moreLikeThisField"};
     }
 
-    @Override public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    @Override
+    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token = parser.nextToken();

@@ -54,9 +54,9 @@ import java.util.*;
 
 /**
  * High-performance single-document main memory Apache Lucene fulltext search index.
- *
+ * <p/>
  * <h4>Overview</h4>
- *
+ * <p/>
  * This class is a replacement/substitute for a large subset of
  * {@link RAMDirectory} functionality. It is designed to
  * enable maximum efficiency for on-the-fly matchmaking combining structured and
@@ -71,7 +71,7 @@ import java.util.*;
  * <pre>
  * float score = search(String text, Query query)
  * </pre>
- * <p>
+ * <p/>
  * Each instance can hold at most one Lucene "document", with a document containing
  * zero or more "fields", each field having a name and a fulltext value. The
  * fulltext value is tokenized (split and transformed) into zero or more index terms
@@ -82,7 +82,7 @@ import java.util.*;
  * being reduced to "fish" (stemming), resolve synonyms/inflexions/thesauri
  * (upon indexing and/or querying), etc. For details, see
  * <a target="_blank" href="http://today.java.net/pub/a/today/2003/07/30/LuceneIntro.html">Lucene Analyzer Intro</a>.
- * <p>
+ * <p/>
  * Arbitrary Lucene queries can be run against this class - see <a target="_blank"
  * href="../../../../../../../queryparsersyntax.html">Lucene Query Syntax</a>
  * as well as <a target="_blank"
@@ -90,7 +90,7 @@ import java.util.*;
  * Note that a Lucene query selects on the field names and associated (indexed)
  * tokenized terms, not on the original fulltext(s) - the latter are not stored
  * but rather thrown away immediately after tokenization.
- * <p>
+ * <p/>
  * For some interesting background information on search technology, see Bob Wyman's
  * <a target="_blank"
  * href="http://bobwyman.pubsub.com/main/2005/05/mary_hodder_poi.html">Prospective Search</a>,
@@ -99,10 +99,10 @@ import java.util.*;
  * A Call to Arms - Custom subscriptions</a>, and Tim Bray's
  * <a target="_blank"
  * href="http://www.tbray.org/ongoing/When/200x/2003/07/30/OnSearchTOC">On Search, the Series</a>.
- *
- *
+ * <p/>
+ * <p/>
  * <h4>Example Usage</h4>
- *
+ * <p/>
  * <pre>
  * Analyzer analyzer = PatternAnalyzer.DEFAULT_ANALYZER;
  * //Analyzer analyzer = new SimpleAnalyzer();
@@ -118,10 +118,10 @@ import java.util.*;
  * }
  * System.out.println("indexData=" + index.toString());
  * </pre>
- *
- *
+ * <p/>
+ * <p/>
  * <h4>Example XQuery Usage</h4>
- *
+ * <p/>
  * <pre>
  * (: An XQuery that finds all books authored by James that have something to do with "salmon fishing manuals", sorted by relevance :)
  * declare namespace lucene = "java:nux.xom.pool.FullTextUtil";
@@ -132,10 +132,10 @@ import java.util.*;
  * order by $score descending
  * return $book
  * </pre>
- *
- *
+ * <p/>
+ * <p/>
  * <h4>No thread safety guarantees</h4>
- *
+ * <p/>
  * An instance can be queried multiple times with the same or different queries,
  * but an instance is not thread-safe. If desired use idioms such as:
  * <pre>
@@ -144,14 +144,14 @@ import java.util.*;
  *    // read and/or write index (i.e. add fields and/or query)
  * }
  * </pre>
- *
- *
+ * <p/>
+ * <p/>
  * <h4>Performance Notes</h4>
- *
+ * <p/>
  * Internally there's a new data structure geared towards efficient indexing
  * and searching, plus the necessary support code to seamlessly plug into the Lucene
  * framework.
- * <p>
+ * <p/>
  * This class performs very well for very small texts (e.g. 10 chars)
  * as well as for large texts (e.g. 10 MB) and everything in between.
  * Typically, it is about 10-100 times faster than <code>RAMDirectory</code>.
@@ -159,11 +159,11 @@ import java.util.*;
  * large efficiency overheads for small to medium sized texts, both in time and space.
  * Indexing a field with N tokens takes O(N) in the best case, and O(N logN) in the worst
  * case. Memory consumption is probably larger than for <code>RAMDirectory</code>.
- * <p>
+ * <p/>
  * Example throughput of many simple term queries over a single MemoryIndex:
  * ~500000 queries/sec on a MacBook Pro, jdk 1.5.0_06, server VM.
  * As always, your mileage may vary.
- * <p>
+ * <p/>
  * If you're curious about
  * the whereabouts of bottlenecks, run java 1.5 with the non-perturbing '-server
  * -agentlib:hprof=cpu=samples,depth=10' flags, then study the trace log and
@@ -1019,7 +1019,7 @@ public class CustomMemoryIndex implements Serializable {
             }
             info.sortTerms();
             mapper.setExpectations(field, info.sortedTerms.length, stride != 1, true);
-            for (int i = info.sortedTerms.length; --i >= 0;) {
+            for (int i = info.sortedTerms.length; --i >= 0; ) {
 
                 ArrayIntList positions = info.sortedTerms[i].getValue();
                 int size = positions.size();
@@ -1058,7 +1058,7 @@ public class CustomMemoryIndex implements Serializable {
 
                 public String[] getTerms() {
                     String[] terms = new String[sortedTerms.length];
-                    for (int i = sortedTerms.length; --i >= 0;) {
+                    for (int i = sortedTerms.length; --i >= 0; ) {
                         terms[i] = sortedTerms[i].getKey();
                     }
                     return terms;
@@ -1066,7 +1066,7 @@ public class CustomMemoryIndex implements Serializable {
 
                 public int[] getTermFrequencies() {
                     int[] freqs = new int[sortedTerms.length];
-                    for (int i = sortedTerms.length; --i >= 0;) {
+                    for (int i = sortedTerms.length; --i >= 0; ) {
                         freqs[i] = numPositions(sortedTerms[i].getValue());
                     }
                     return freqs;

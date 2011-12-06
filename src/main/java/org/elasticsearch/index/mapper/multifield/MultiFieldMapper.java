@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,35 +19,23 @@
 
 package org.elasticsearch.index.mapper.multifield;
 
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.FieldMapperListener;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeContext;
-import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.mapper.ObjectMapperListener;
-import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
+import java.util.*;
 
-import static org.elasticsearch.common.collect.Lists.*;
-import static org.elasticsearch.common.collect.MapBuilder.*;
-import static org.elasticsearch.index.mapper.MapperBuilders.*;
-import static org.elasticsearch.index.mapper.core.TypeParsers.*;
+import static com.google.common.collect.Lists.newArrayList;
+import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
+import static org.elasticsearch.index.mapper.MapperBuilders.multiField;
+import static org.elasticsearch.index.mapper.core.TypeParsers.parsePathType;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class MultiFieldMapper implements Mapper, AllFieldMapper.IncludeInAll {
 
@@ -84,7 +72,8 @@ public class MultiFieldMapper implements Mapper, AllFieldMapper.IncludeInAll {
             return this;
         }
 
-        @Override public MultiFieldMapper build(BuilderContext context) {
+        @Override
+        public MultiFieldMapper build(BuilderContext context) {
             ContentPath.Type origPathType = context.path().pathType();
             context.path().pathType(pathType);
 
@@ -108,7 +97,8 @@ public class MultiFieldMapper implements Mapper, AllFieldMapper.IncludeInAll {
     }
 
     public static class TypeParser implements Mapper.TypeParser {
-        @Override public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        @Override
+        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             MultiFieldMapper.Builder builder = multiField(name);
 
             for (Map.Entry<String, Object> entry : node.entrySet()) {
@@ -170,17 +160,20 @@ public class MultiFieldMapper implements Mapper, AllFieldMapper.IncludeInAll {
         }
     }
 
-    @Override public String name() {
+    @Override
+    public String name() {
         return this.name;
     }
 
-    @Override public void includeInAll(Boolean includeInAll) {
+    @Override
+    public void includeInAll(Boolean includeInAll) {
         if (includeInAll != null && defaultMapper != null && (defaultMapper instanceof AllFieldMapper.IncludeInAll)) {
             ((AllFieldMapper.IncludeInAll) defaultMapper).includeInAll(includeInAll);
         }
     }
 
-    @Override public void includeInAllIfNotSet(Boolean includeInAll) {
+    @Override
+    public void includeInAllIfNotSet(Boolean includeInAll) {
         if (includeInAll != null && defaultMapper != null && (defaultMapper instanceof AllFieldMapper.IncludeInAll)) {
             ((AllFieldMapper.IncludeInAll) defaultMapper).includeInAllIfNotSet(includeInAll);
         }
@@ -198,7 +191,8 @@ public class MultiFieldMapper implements Mapper, AllFieldMapper.IncludeInAll {
         return this.mappers;
     }
 
-    @Override public void parse(ParseContext context) throws IOException {
+    @Override
+    public void parse(ParseContext context) throws IOException {
         ContentPath.Type origPathType = context.path().pathType();
         context.path().pathType(pathType);
 
@@ -216,7 +210,8 @@ public class MultiFieldMapper implements Mapper, AllFieldMapper.IncludeInAll {
         context.path().pathType(origPathType);
     }
 
-    @Override public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+    @Override
+    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
         if (!(mergeWith instanceof MultiFieldMapper) && !(mergeWith instanceof AbstractFieldMapper)) {
             mergeContext.addConflict("Can't merge a non multi_field / non simple mapping [" + mergeWith.name() + "] with a multi_field mapping [" + name() + "]");
             return;
@@ -274,7 +269,8 @@ public class MultiFieldMapper implements Mapper, AllFieldMapper.IncludeInAll {
         }
     }
 
-    @Override public void close() {
+    @Override
+    public void close() {
         if (defaultMapper != null) {
             defaultMapper.close();
         }
@@ -283,7 +279,8 @@ public class MultiFieldMapper implements Mapper, AllFieldMapper.IncludeInAll {
         }
     }
 
-    @Override public void traverse(FieldMapperListener fieldMapperListener) {
+    @Override
+    public void traverse(FieldMapperListener fieldMapperListener) {
         if (defaultMapper != null) {
             defaultMapper.traverse(fieldMapperListener);
         }
@@ -292,10 +289,12 @@ public class MultiFieldMapper implements Mapper, AllFieldMapper.IncludeInAll {
         }
     }
 
-    @Override public void traverse(ObjectMapperListener objectMapperListener) {
+    @Override
+    public void traverse(ObjectMapperListener objectMapperListener) {
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
         builder.field("type", CONTENT_TYPE);
         if (pathType != Defaults.PATH_TYPE) {

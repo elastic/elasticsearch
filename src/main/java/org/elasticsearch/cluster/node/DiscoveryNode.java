@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,9 +19,9 @@
 
 package org.elasticsearch.cluster.node;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -33,12 +33,12 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.util.Map;
 
-import static org.elasticsearch.common.transport.TransportAddressSerializers.*;
+import static org.elasticsearch.common.transport.TransportAddressSerializers.addressToStream;
 
 /**
  * A discovery node represents a node that is part of the cluster.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class DiscoveryNode implements Streamable, Serializable {
 
@@ -208,7 +208,8 @@ public class DiscoveryNode implements Streamable, Serializable {
         return node;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         nodeName = in.readUTF().intern();
         nodeId = in.readUTF().intern();
         address = TransportAddressSerializers.addressFromStream(in);
@@ -221,7 +222,8 @@ public class DiscoveryNode implements Streamable, Serializable {
         version = Version.readVersion(in);
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(nodeName);
         out.writeUTF(nodeId);
         addressToStream(out, address);
@@ -233,7 +235,8 @@ public class DiscoveryNode implements Streamable, Serializable {
         Version.writeVersion(version, out);
     }
 
-    @Override public boolean equals(Object obj) {
+    @Override
+    public boolean equals(Object obj) {
         if (!(obj instanceof DiscoveryNode))
             return false;
 
@@ -241,11 +244,13 @@ public class DiscoveryNode implements Streamable, Serializable {
         return this.nodeId.equals(other.nodeId);
     }
 
-    @Override public int hashCode() {
+    @Override
+    public int hashCode() {
         return nodeId.hashCode();
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         StringBuilder sb = new StringBuilder();
         if (nodeName.length() > 0) {
             sb.append('[').append(nodeName).append(']');

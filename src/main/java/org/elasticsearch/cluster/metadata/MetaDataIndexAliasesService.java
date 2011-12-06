@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,14 +19,14 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
 import org.elasticsearch.cluster.action.index.NodeAliasesUpdatedAction;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Lists;
-import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -45,12 +45,12 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.cluster.ClusterState.*;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
-import static org.elasticsearch.cluster.metadata.MetaData.*;
+import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.newIndexMetaDataBuilder;
+import static org.elasticsearch.cluster.metadata.MetaData.newMetaDataBuilder;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class MetaDataIndexAliasesService extends AbstractComponent {
 
@@ -60,7 +60,8 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
 
     private final NodeAliasesUpdatedAction aliasOperationPerformedAction;
 
-    @Inject public MetaDataIndexAliasesService(Settings settings, ClusterService clusterService, IndicesService indicesService, NodeAliasesUpdatedAction aliasOperationPerformedAction) {
+    @Inject
+    public MetaDataIndexAliasesService(Settings settings, ClusterService clusterService, IndicesService indicesService, NodeAliasesUpdatedAction aliasOperationPerformedAction) {
         super(settings);
         this.clusterService = clusterService;
         this.indicesService = indicesService;
@@ -69,7 +70,8 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
 
     public void indicesAliases(final Request request, final Listener listener) {
         clusterService.submitStateUpdateTask("index-aliases", new ProcessedClusterStateUpdateTask() {
-            @Override public ClusterState execute(ClusterState currentState) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
 
                 for (AliasAction aliasAction : request.actions) {
                     if (!currentState.metaData().hasIndex(aliasAction.index())) {
@@ -176,7 +178,8 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                 }
             }
 
-            @Override public void clusterStateProcessed(ClusterState clusterState) {
+            @Override
+            public void clusterStateProcessed(ClusterState clusterState) {
             }
         });
     }
@@ -225,7 +228,8 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
             this.version = version;
         }
 
-        @Override public void onAliasesUpdated(NodeAliasesUpdatedAction.NodeAliasesUpdatedResponse response) {
+        @Override
+        public void onAliasesUpdated(NodeAliasesUpdatedAction.NodeAliasesUpdatedResponse response) {
             if (version <= response.version()) {
                 logger.trace("Received NodeAliasesUpdatedResponse with version [{}] from [{}]", response.version(), response.nodeId());
                 if (countDown.decrementAndGet() == 0) {
@@ -237,7 +241,8 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
             }
         }
 
-        @Override public void onTimeout() {
+        @Override
+        public void onTimeout() {
             aliasOperationPerformedAction.remove(this);
             if (notified.compareAndSet(false, true)) {
                 listener.onResponse(new Response(false));

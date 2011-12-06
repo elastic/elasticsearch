@@ -19,13 +19,9 @@
 
 package org.elasticsearch.cluster.routing;
 
+import com.google.common.collect.*;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.Iterables;
-import org.elasticsearch.common.collect.Lists;
-import org.elasticsearch.common.collect.UnmodifiableIterator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.Immutable;
@@ -37,11 +33,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.collect.Lists.*;
-import static org.elasticsearch.common.collect.Maps.*;
+import static com.google.common.collect.Lists.newArrayList;
+import static com.google.common.collect.Maps.newHashMap;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 @Immutable
 public class RoutingTable implements Iterable<IndexRoutingTable> {
@@ -62,7 +58,8 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
         return this.version;
     }
 
-    @Override public UnmodifiableIterator<IndexRoutingTable> iterator() {
+    @Override
+    public UnmodifiableIterator<IndexRoutingTable> iterator() {
         return indicesRouting.values().iterator();
     }
 

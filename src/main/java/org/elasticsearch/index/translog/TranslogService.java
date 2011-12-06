@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -38,10 +38,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.ScheduledFuture;
 
-import static org.elasticsearch.common.unit.TimeValue.*;
+import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class TranslogService extends AbstractIndexShardComponent {
 
@@ -67,7 +67,8 @@ public class TranslogService extends AbstractIndexShardComponent {
 
     private final ApplySettings applySettings = new ApplySettings();
 
-    @Inject public TranslogService(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService, ThreadPool threadPool, IndexShard indexShard, Translog translog) {
+    @Inject
+    public TranslogService(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService, ThreadPool threadPool, IndexShard indexShard, Translog translog) {
         super(shardId, indexSettings);
         this.threadPool = threadPool;
         this.indexSettingsService = indexSettingsService;
@@ -103,7 +104,8 @@ public class TranslogService extends AbstractIndexShardComponent {
     }
 
     class ApplySettings implements IndexSettingsService.Listener {
-        @Override public void onRefreshSettings(Settings settings) {
+        @Override
+        public void onRefreshSettings(Settings settings) {
             int flushThresholdOperations = settings.getAsInt("index.translog.flush_threshold_ops", TranslogService.this.flushThresholdOperations);
             if (flushThresholdOperations != TranslogService.this.flushThresholdOperations) {
                 logger.info("updating flush_threshold_ops from [{}] to [{}]", TranslogService.this.flushThresholdOperations, flushThresholdOperations);
@@ -131,7 +133,8 @@ public class TranslogService extends AbstractIndexShardComponent {
 
         private volatile long lastFlushTime = System.currentTimeMillis();
 
-        @Override public void run() {
+        @Override
+        public void run() {
             if (indexShard.state() == IndexShardState.CLOSED) {
                 return;
             }
@@ -164,7 +167,8 @@ public class TranslogService extends AbstractIndexShardComponent {
 
         private void asyncFlushAndReschedule() {
             threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(new Runnable() {
-                @Override public void run() {
+                @Override
+                public void run() {
                     try {
                         if (indexShard.state() == IndexShardState.STARTED) {
                             indexShard.flush(new Engine.Flush());

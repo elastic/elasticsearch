@@ -16,8 +16,8 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import org.elasticsearch.common.base.Function;
-import org.elasticsearch.common.collect.MapMaker;
+import com.google.common.base.Function;
+import com.google.common.collect.MapMaker;
 
 import java.util.Map;
 

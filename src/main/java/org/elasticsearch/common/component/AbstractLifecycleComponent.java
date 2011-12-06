@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -26,7 +26,7 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public abstract class AbstractLifecycleComponent<T> extends AbstractComponent implements LifecycleComponent<T> {
 
@@ -58,19 +58,24 @@ public abstract class AbstractLifecycleComponent<T> extends AbstractComponent im
         super(settings, prefixSettings, loggerClass, componentClass);
     }
 
-    @Override public Lifecycle.State lifecycleState() {
+    @Override
+    public Lifecycle.State lifecycleState() {
         return this.lifecycle.state();
     }
 
-    @Override public void addLifecycleListener(LifecycleListener listener) {
+    @Override
+    public void addLifecycleListener(LifecycleListener listener) {
         listeners.add(listener);
     }
 
-    @Override public void removeLifecycleListener(LifecycleListener listener) {
+    @Override
+    public void removeLifecycleListener(LifecycleListener listener) {
         listeners.remove(listener);
     }
 
-    @SuppressWarnings({"unchecked"}) @Override public T start() throws ElasticSearchException {
+    @SuppressWarnings({"unchecked"})
+    @Override
+    public T start() throws ElasticSearchException {
         if (!lifecycle.canMoveToStarted()) {
             return (T) this;
         }
@@ -87,7 +92,9 @@ public abstract class AbstractLifecycleComponent<T> extends AbstractComponent im
 
     protected abstract void doStart() throws ElasticSearchException;
 
-    @SuppressWarnings({"unchecked"}) @Override public T stop() throws ElasticSearchException {
+    @SuppressWarnings({"unchecked"})
+    @Override
+    public T stop() throws ElasticSearchException {
         if (!lifecycle.canMoveToStopped()) {
             return (T) this;
         }
@@ -104,7 +111,8 @@ public abstract class AbstractLifecycleComponent<T> extends AbstractComponent im
 
     protected abstract void doStop() throws ElasticSearchException;
 
-    @Override public void close() throws ElasticSearchException {
+    @Override
+    public void close() throws ElasticSearchException {
         if (lifecycle.started()) {
             stop();
         }

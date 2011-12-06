@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,17 +19,13 @@
 
 package org.elasticsearch.search.facet.datehistogram;
 
-import org.elasticsearch.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableMap;
+import gnu.trove.impl.Constants;
+import gnu.trove.map.hash.TObjectIntHashMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.joda.time.Chronology;
-import org.elasticsearch.common.joda.time.DateTimeField;
-import org.elasticsearch.common.joda.time.DateTimeZone;
-import org.elasticsearch.common.joda.time.MutableDateTime;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.trove.impl.Constants;
-import org.elasticsearch.common.trove.map.hash.TObjectIntHashMap;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.field.data.FieldDataType;
@@ -39,20 +35,25 @@ import org.elasticsearch.search.facet.FacetCollector;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.facet.FacetProcessor;
 import org.elasticsearch.search.internal.SearchContext;
+import org.joda.time.Chronology;
+import org.joda.time.DateTimeField;
+import org.joda.time.DateTimeZone;
+import org.joda.time.MutableDateTime;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class DateHistogramFacetProcessor extends AbstractComponent implements FacetProcessor {
 
     private final ImmutableMap<String, DateFieldParser> dateFieldParsers;
     private final TObjectIntHashMap<String> rounding = new TObjectIntHashMap<String>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, -1);
 
-    @Inject public DateHistogramFacetProcessor(Settings settings) {
+    @Inject
+    public DateHistogramFacetProcessor(Settings settings) {
         super(settings);
         InternalDateHistogramFacet.registerStreams();
 
@@ -83,11 +84,13 @@ public class DateHistogramFacetProcessor extends AbstractComponent implements Fa
         rounding.put("halfCeiling", MutableDateTime.ROUND_HALF_CEILING);
     }
 
-    @Override public String[] types() {
+    @Override
+    public String[] types() {
         return new String[]{DateHistogramFacet.TYPE, "dateHistogram"};
     }
 
-    @Override public FacetCollector parse(String facetName, XContentParser parser, SearchContext context) throws IOException {
+    @Override
+    public FacetCollector parse(String facetName, XContentParser parser, SearchContext context) throws IOException {
         String keyField = null;
         String valueField = null;
         String valueScript = null;
@@ -205,7 +208,8 @@ public class DateHistogramFacetProcessor extends AbstractComponent implements Fa
         }
     }
 
-    @Override public Facet reduce(String name, List<Facet> facets) {
+    @Override
+    public Facet reduce(String name, List<Facet> facets) {
         InternalDateHistogramFacet first = (InternalDateHistogramFacet) facets.get(0);
         return first.reduce(name, facets);
     }
@@ -215,43 +219,50 @@ public class DateHistogramFacetProcessor extends AbstractComponent implements Fa
         DateTimeField parse(Chronology chronology);
 
         static class WeekOfWeekyear implements DateFieldParser {
-            @Override public DateTimeField parse(Chronology chronology) {
+            @Override
+            public DateTimeField parse(Chronology chronology) {
                 return chronology.weekOfWeekyear();
             }
         }
 
         static class YearOfCentury implements DateFieldParser {
-            @Override public DateTimeField parse(Chronology chronology) {
+            @Override
+            public DateTimeField parse(Chronology chronology) {
                 return chronology.yearOfCentury();
             }
         }
 
         static class MonthOfYear implements DateFieldParser {
-            @Override public DateTimeField parse(Chronology chronology) {
+            @Override
+            public DateTimeField parse(Chronology chronology) {
                 return chronology.monthOfYear();
             }
         }
 
         static class DayOfMonth implements DateFieldParser {
-            @Override public DateTimeField parse(Chronology chronology) {
+            @Override
+            public DateTimeField parse(Chronology chronology) {
                 return chronology.dayOfMonth();
             }
         }
 
         static class HourOfDay implements DateFieldParser {
-            @Override public DateTimeField parse(Chronology chronology) {
+            @Override
+            public DateTimeField parse(Chronology chronology) {
                 return chronology.hourOfDay();
             }
         }
 
         static class MinuteOfHour implements DateFieldParser {
-            @Override public DateTimeField parse(Chronology chronology) {
+            @Override
+            public DateTimeField parse(Chronology chronology) {
                 return chronology.minuteOfHour();
             }
         }
 
         static class SecondOfMinute implements DateFieldParser {
-            @Override public DateTimeField parse(Chronology chronology) {
+            @Override
+            public DateTimeField parse(Chronology chronology) {
                 return chronology.secondOfMinute();
             }
         }

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -28,10 +28,10 @@ import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.unit.TimeValue.*;
+import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class NodesShutdownRequest extends MasterNodeOperationRequest {
 
@@ -87,11 +87,13 @@ public class NodesShutdownRequest extends MasterNodeOperationRequest {
         return exit;
     }
 
-    @Override public ActionRequestValidationException validate() {
+    @Override
+    public ActionRequestValidationException validate() {
         return null;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         delay = readTimeValue(in);
         int size = in.readVInt();
@@ -104,7 +106,8 @@ public class NodesShutdownRequest extends MasterNodeOperationRequest {
         exit = in.readBoolean();
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         delay.writeTo(out);
         if (nodesIds == null) {

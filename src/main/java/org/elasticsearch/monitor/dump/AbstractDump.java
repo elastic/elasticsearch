@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,15 +19,15 @@
 
 package org.elasticsearch.monitor.dump;
 
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.ImmutableMap;
 
 import java.io.*;
 import java.util.ArrayList;
 import java.util.Map;
 
 /**
- * @author kimchy (Shay Banon)
+ *
  */
 public abstract class AbstractDump implements Dump {
 
@@ -48,23 +48,28 @@ public abstract class AbstractDump implements Dump {
         this.context = context;
     }
 
-    @Override public long timestamp() {
+    @Override
+    public long timestamp() {
         return timestamp;
     }
 
-    @Override public Map<String, Object> context() {
+    @Override
+    public Map<String, Object> context() {
         return this.context;
     }
 
-    @Override public String cause() {
+    @Override
+    public String cause() {
         return cause;
     }
 
-    @Override public File[] files() {
+    @Override
+    public File[] files() {
         return files.toArray(new File[files.size()]);
     }
 
-    @Override public File createFile(String name) throws DumpException {
+    @Override
+    public File createFile(String name) throws DumpException {
         File file = doCreateFile(name);
         files.add(file);
         return file;
@@ -72,7 +77,8 @@ public abstract class AbstractDump implements Dump {
 
     protected abstract File doCreateFile(String name) throws DumpException;
 
-    @Override public OutputStream createFileOutputStream(String name) throws DumpException {
+    @Override
+    public OutputStream createFileOutputStream(String name) throws DumpException {
         try {
             return new FileOutputStream(createFile(name));
         } catch (FileNotFoundException e) {
@@ -80,7 +86,8 @@ public abstract class AbstractDump implements Dump {
         }
     }
 
-    @Override public Writer createFileWriter(String name) throws DumpException {
+    @Override
+    public Writer createFileWriter(String name) throws DumpException {
         try {
             return new FileWriter(createFile(name));
         } catch (IOException e) {

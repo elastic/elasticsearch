@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -35,7 +35,8 @@ public class EntryPriorityQueue extends PriorityQueue<TermsFacet.Entry> {
         this.comparator = comparator;
     }
 
-    @Override protected boolean lessThan(TermsFacet.Entry a, TermsFacet.Entry b) {
+    @Override
+    protected boolean lessThan(TermsFacet.Entry a, TermsFacet.Entry b) {
         return comparator.compare(a, b) > 0; // reverse, since we reverse again when adding to a list
     }
 }

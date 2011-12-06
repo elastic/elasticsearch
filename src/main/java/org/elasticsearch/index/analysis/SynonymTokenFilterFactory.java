@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,12 +19,7 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.LowerCaseFilter;
-import org.apache.lucene.analysis.ReusableAnalyzerBase;
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.WhitespaceTokenizer;
+import org.apache.lucene.analysis.*;
 import org.apache.lucene.analysis.synonym.SolrSynonymParser;
 import org.apache.lucene.analysis.synonym.SynonymFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
@@ -50,8 +45,9 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
     private final SynonymMap synonymMap;
     private final boolean ignoreCase;
 
-    @Inject public SynonymTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, Environment env, IndicesAnalysisService indicesAnalysisService, Map<String, TokenizerFactoryFactory> tokenizerFactories,
-                                             @Assisted String name, @Assisted Settings settings) {
+    @Inject
+    public SynonymTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, Environment env, IndicesAnalysisService indicesAnalysisService, Map<String, TokenizerFactoryFactory> tokenizerFactories,
+                                     @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
 
         Reader rulesReader = null;
@@ -96,10 +92,10 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
 
             if ("wordnet".equalsIgnoreCase(settings.get("format"))) {
                 parser = new WordnetSynonymParser(true, expand, analyzer);
-                ((WordnetSynonymParser)parser).add(rulesReader);
+                ((WordnetSynonymParser) parser).add(rulesReader);
             } else {
                 parser = new SolrSynonymParser(true, expand, analyzer);
-                ((SolrSynonymParser)parser).add(rulesReader);
+                ((SolrSynonymParser) parser).add(rulesReader);
             }
 
             synonymMap = parser.build();
@@ -108,7 +104,8 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         }
     }
 
-    @Override public TokenStream create(TokenStream tokenStream) {
+    @Override
+    public TokenStream create(TokenStream tokenStream) {
         // fst is null means no synonyms
         return synonymMap.fst == null ? tokenStream : new SynonymFilter(tokenStream, synonymMap, ignoreCase);
     }

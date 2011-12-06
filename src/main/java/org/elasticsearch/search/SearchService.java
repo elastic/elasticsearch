@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search;
 
+import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticSearchException;
@@ -26,7 +27,6 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Unicode;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -47,19 +47,11 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.dfs.CachedDfSource;
 import org.elasticsearch.search.dfs.DfsPhase;
 import org.elasticsearch.search.dfs.DfsSearchResult;
-import org.elasticsearch.search.fetch.FetchPhase;
-import org.elasticsearch.search.fetch.FetchSearchRequest;
-import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.fetch.QueryFetchSearchResult;
-import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
+import org.elasticsearch.search.fetch.*;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.InternalSearchRequest;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.query.QueryPhase;
-import org.elasticsearch.search.query.QueryPhaseExecutionException;
-import org.elasticsearch.search.query.QuerySearchRequest;
-import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.query.ScrollQuerySearchResult;
+import org.elasticsearch.search.query.*;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -68,10 +60,10 @@ import java.util.Map;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static org.elasticsearch.common.unit.TimeValue.*;
+import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
@@ -103,8 +95,9 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     private final ImmutableMap<String, SearchParseElement> elementParsers;
 
-    @Inject public SearchService(Settings settings, ClusterService clusterService, IndicesService indicesService, IndicesLifecycle indicesLifecycle, ThreadPool threadPool,
-                                 ScriptService scriptService, DfsPhase dfsPhase, QueryPhase queryPhase, FetchPhase fetchPhase) {
+    @Inject
+    public SearchService(Settings settings, ClusterService clusterService, IndicesService indicesService, IndicesLifecycle indicesLifecycle, ThreadPool threadPool,
+                         ScriptService scriptService, DfsPhase dfsPhase, QueryPhase queryPhase, FetchPhase fetchPhase) {
         super(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
@@ -129,17 +122,20 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         this.keepAliveReaper = threadPool.scheduleWithFixedDelay(new Reaper(), keepAliveInterval);
     }
 
-    @Override protected void doStart() throws ElasticSearchException {
+    @Override
+    protected void doStart() throws ElasticSearchException {
     }
 
-    @Override protected void doStop() throws ElasticSearchException {
+    @Override
+    protected void doStop() throws ElasticSearchException {
         for (SearchContext context : activeContexts.values()) {
             freeContext(context);
         }
         activeContexts.clear();
     }
 
-    @Override protected void doClose() throws ElasticSearchException {
+    @Override
+    protected void doClose() throws ElasticSearchException {
         keepAliveReaper.cancel(false);
         indicesService.indicesLifecycle().removeListener(indicesLifecycleListener);
     }
@@ -619,17 +615,20 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     class CleanContextOnIndicesLifecycleListener extends IndicesLifecycle.Listener {
 
-        @Override public void beforeIndexClosed(IndexService indexService, boolean delete) {
+        @Override
+        public void beforeIndexClosed(IndexService indexService, boolean delete) {
             releaseContextsForIndex(indexService.index());
         }
 
-        @Override public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, boolean delete) {
+        @Override
+        public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, boolean delete) {
             releaseContextsForShard(shardId);
         }
     }
 
     class Reaper implements Runnable {
-        @Override public void run() {
+        @Override
+        public void run() {
             long time = threadPool.estimatedTimeInMillis();
             for (SearchContext context : activeContexts.values()) {
                 if (context.lastAccessTime() == -1) { // its being processed or timeout is disabled

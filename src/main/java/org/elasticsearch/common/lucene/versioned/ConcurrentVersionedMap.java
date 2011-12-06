@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -26,27 +26,31 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * An implementation of {@link VersionedMap} based on {@link ConcurrentHashMap}.
  *
- * @author kimchy (Shay Banon)
+ *
  */
 @ThreadSafe
 public class ConcurrentVersionedMap implements VersionedMap {
 
     private final ConcurrentHashMap<Integer, Integer> map = new ConcurrentHashMap<Integer, Integer>();
 
-    @Override public boolean beforeVersion(int key, int versionToCheck) {
+    @Override
+    public boolean beforeVersion(int key, int versionToCheck) {
         Integer result = map.get(key);
         return result == null || versionToCheck < result;
     }
 
-    @Override public void putVersion(int key, int version) {
+    @Override
+    public void putVersion(int key, int version) {
         map.put(key, version);
     }
 
-    @Override public void putVersionIfAbsent(int key, int version) {
+    @Override
+    public void putVersionIfAbsent(int key, int version) {
         map.putIfAbsent(key, version);
     }
 
-    @Override public void clear() {
+    @Override
+    public void clear() {
         map.clear();
     }
 }

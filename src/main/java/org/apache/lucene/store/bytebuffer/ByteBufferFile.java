@@ -23,7 +23,7 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class ByteBufferFile {
 

@@ -16,22 +16,11 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.collect.ImmutableSet;
-import org.elasticsearch.common.collect.Lists;
-import org.elasticsearch.common.inject.ConfigurationException;
-import org.elasticsearch.common.inject.CreationException;
-import org.elasticsearch.common.inject.Key;
-import org.elasticsearch.common.inject.MembersInjector;
-import org.elasticsearch.common.inject.Provider;
-import org.elasticsearch.common.inject.ProvisionException;
-import org.elasticsearch.common.inject.Scope;
-import org.elasticsearch.common.inject.TypeLiteral;
-import org.elasticsearch.common.inject.spi.Dependency;
-import org.elasticsearch.common.inject.spi.InjectionListener;
-import org.elasticsearch.common.inject.spi.InjectionPoint;
-import org.elasticsearch.common.inject.spi.Message;
-import org.elasticsearch.common.inject.spi.TypeListenerBinding;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
+import org.elasticsearch.common.inject.*;
+import org.elasticsearch.common.inject.spi.*;
 
 import java.io.PrintWriter;
 import java.io.Serializable;
@@ -41,20 +30,16 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Member;
 import java.lang.reflect.Type;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Formatter;
-import java.util.List;
+import java.util.*;
 
 /**
  * A collection of error messages. If this type is passed as a method parameter, the method is
  * considered to have executed succesfully only if new errors were not added to this collection.
- *
+ * <p/>
  * <p>Errors can be chained to provide additional context. To add context, call {@link #withSource}
  * to create a new Errors instance that contains additional context. All messages added to the
  * returned instance will contain full context.
- *
+ * <p/>
  * <p>To avoid messages with redundant context, {@link #withSource} should be added sparingly. A
  * good rule of thumb is to assume a ethod's caller has already specified enough context to
  * identify that method. When calling a method that's defined in a different context, call that

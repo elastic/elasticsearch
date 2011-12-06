@@ -30,7 +30,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import java.io.IOException;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class IndicesReplicationOperationRequest implements ActionRequest {
 
@@ -39,7 +39,8 @@ public class IndicesReplicationOperationRequest implements ActionRequest {
     protected String[] indices;
 
     private boolean threadedListener = false;
-    @Nullable private String routing;
+    @Nullable
+    private String routing;
 
 
     protected ReplicationType replicationType = ReplicationType.DEFAULT;
@@ -58,21 +59,24 @@ public class IndicesReplicationOperationRequest implements ActionRequest {
         return this;
     }
 
-    @Override public ActionRequestValidationException validate() {
+    @Override
+    public ActionRequestValidationException validate() {
         return null;
     }
 
     /**
      * Should the listener be called on a separate thread if needed.
      */
-    @Override public boolean listenerThreaded() {
+    @Override
+    public boolean listenerThreaded() {
         return this.threadedListener;
     }
 
     /**
      * Should the listener be called on a separate thread if needed.
      */
-    @Override public IndicesReplicationOperationRequest listenerThreaded(boolean threadedListener) {
+    @Override
+    public IndicesReplicationOperationRequest listenerThreaded(boolean threadedListener) {
         this.threadedListener = threadedListener;
         return this;
     }
@@ -89,7 +93,8 @@ public class IndicesReplicationOperationRequest implements ActionRequest {
         return null;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         replicationType = ReplicationType.fromId(in.readByte());
         consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
         timeout = TimeValue.readTimeValue(in);
@@ -99,7 +104,8 @@ public class IndicesReplicationOperationRequest implements ActionRequest {
         }
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeByte(replicationType.id());
         out.writeByte(consistencyLevel.id());
         timeout.writeTo(out);

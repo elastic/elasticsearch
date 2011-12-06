@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -26,24 +26,17 @@ import org.apache.lucene.index.Term;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.mapper.InternalMapper;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperBuilders;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeContext;
-import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.RootMapper;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.*;
-import static org.elasticsearch.index.mapper.core.TypeParsers.*;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class IndexFieldMapper extends AbstractFieldMapper<String> implements InternalMapper, RootMapper {
 
@@ -79,13 +72,15 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
             return this;
         }
 
-        @Override public IndexFieldMapper build(BuilderContext context) {
+        @Override
+        public IndexFieldMapper build(BuilderContext context) {
             return new IndexFieldMapper(name, indexName, store, termVector, boost, omitNorms, omitTermFreqAndPositions, enabled);
         }
     }
 
     public static class TypeParser implements Mapper.TypeParser {
-        @Override public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        @Override
+        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             IndexFieldMapper.Builder builder = MapperBuilders.index();
             parseField(builder, builder.name, node, parserContext);
 
@@ -127,19 +122,23 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
         return field == null ? null : value(field);
     }
 
-    @Override public String value(Fieldable field) {
+    @Override
+    public String value(Fieldable field) {
         return field.stringValue();
     }
 
-    @Override public String valueFromString(String value) {
+    @Override
+    public String valueFromString(String value) {
         return value;
     }
 
-    @Override public String valueAsString(Fieldable field) {
+    @Override
+    public String valueAsString(Fieldable field) {
         return value(field);
     }
 
-    @Override public String indexedValue(String value) {
+    @Override
+    public String indexedValue(String value) {
         return value;
     }
 
@@ -147,37 +146,45 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
         return names().createIndexNameTerm(value);
     }
 
-    @Override public void preParse(ParseContext context) throws IOException {
+    @Override
+    public void preParse(ParseContext context) throws IOException {
         // we pre parse it and not in parse, since its not part of the root object
         super.parse(context);
     }
 
-    @Override public void postParse(ParseContext context) throws IOException {
+    @Override
+    public void postParse(ParseContext context) throws IOException {
     }
 
-    @Override public void parse(ParseContext context) throws IOException {
+    @Override
+    public void parse(ParseContext context) throws IOException {
 
     }
 
-    @Override public void validate(ParseContext context) throws MapperParsingException {
+    @Override
+    public void validate(ParseContext context) throws MapperParsingException {
     }
 
-    @Override public boolean includeInObject() {
+    @Override
+    public boolean includeInObject() {
         return false;
     }
 
-    @Override protected Field parseCreateField(ParseContext context) throws IOException {
+    @Override
+    protected Field parseCreateField(ParseContext context) throws IOException {
         if (!enabled) {
             return null;
         }
         return new Field(names.indexName(), context.index(), store, index);
     }
 
-    @Override protected String contentType() {
+    @Override
+    protected String contentType() {
         return CONTENT_TYPE;
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // if all defaults, no need to write it at all
         if (store == Defaults.STORE && enabled == Defaults.ENABLED) {
             return builder;
@@ -193,7 +200,8 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
         return builder;
     }
 
-    @Override public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+    @Override
+    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
         // do nothing here, no merging, but also no exception
     }
 }

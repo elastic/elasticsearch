@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -26,7 +26,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class ConcurrentHashMapLong<T> implements ConcurrentMapLong<T> {
 
@@ -36,41 +36,50 @@ public class ConcurrentHashMapLong<T> implements ConcurrentMapLong<T> {
         this.map = new ConcurrentHashMap<Long, T>();
     }
 
-    @Override public T get(long key) {
+    @Override
+    public T get(long key) {
         return map.get(key);
     }
 
-    @Override public T remove(long key) {
+    @Override
+    public T remove(long key) {
         return map.remove(key);
     }
 
-    @Override public T put(long key, T value) {
+    @Override
+    public T put(long key, T value) {
         return map.put(key, value);
     }
 
-    @Override public T putIfAbsent(long key, T value) {
+    @Override
+    public T putIfAbsent(long key, T value) {
         return map.putIfAbsent(key, value);
     }
 
     // MAP DELEGATION
 
-    @Override public boolean isEmpty() {
+    @Override
+    public boolean isEmpty() {
         return map.isEmpty();
     }
 
-    @Override public int size() {
+    @Override
+    public int size() {
         return map.size();
     }
 
-    @Override public T get(Object key) {
+    @Override
+    public T get(Object key) {
         return map.get(key);
     }
 
-    @Override public boolean containsKey(Object key) {
+    @Override
+    public boolean containsKey(Object key) {
         return map.containsKey(key);
     }
 
-    @Override public boolean containsValue(Object value) {
+    @Override
+    public boolean containsValue(Object value) {
         return map.containsValue(value);
     }
 
@@ -90,11 +99,13 @@ public class ConcurrentHashMapLong<T> implements ConcurrentMapLong<T> {
         map.putAll(m);
     }
 
-    @Override public T remove(Object key) {
+    @Override
+    public T remove(Object key) {
         return map.remove(key);
     }
 
-    @Override public boolean remove(Object key, Object value) {
+    @Override
+    public boolean remove(Object key, Object value) {
         return map.remove(key, value);
     }
 
@@ -106,19 +117,23 @@ public class ConcurrentHashMapLong<T> implements ConcurrentMapLong<T> {
         return map.replace(key, value);
     }
 
-    @Override public void clear() {
+    @Override
+    public void clear() {
         map.clear();
     }
 
-    @Override public Set<Long> keySet() {
+    @Override
+    public Set<Long> keySet() {
         return map.keySet();
     }
 
-    @Override public Collection<T> values() {
+    @Override
+    public Collection<T> values() {
         return map.values();
     }
 
-    @Override public Set<Entry<Long, T>> entrySet() {
+    @Override
+    public Set<Entry<Long, T>> entrySet() {
         return map.entrySet();
     }
 
@@ -130,15 +145,18 @@ public class ConcurrentHashMapLong<T> implements ConcurrentMapLong<T> {
         return map.elements();
     }
 
-    @Override public boolean equals(Object o) {
+    @Override
+    public boolean equals(Object o) {
         return map.equals(o);
     }
 
-    @Override public int hashCode() {
+    @Override
+    public int hashCode() {
         return map.hashCode();
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return map.toString();
     }
 }

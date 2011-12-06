@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -41,7 +41,7 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * @author kimchy (Shay Banon)
+ *
  */
 public class NodeMappingCreatedAction extends AbstractComponent {
 
@@ -53,7 +53,8 @@ public class NodeMappingCreatedAction extends AbstractComponent {
 
     private final List<Listener> listeners = new CopyOnWriteArrayList<Listener>();
 
-    @Inject public NodeMappingCreatedAction(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterService clusterService) {
+    @Inject
+    public NodeMappingCreatedAction(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterService clusterService) {
         super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
@@ -64,7 +65,8 @@ public class NodeMappingCreatedAction extends AbstractComponent {
     public void add(final Listener listener, TimeValue timeout) {
         listeners.add(listener);
         threadPool.schedule(timeout, ThreadPool.Names.CACHED, new Runnable() {
-            @Override public void run() {
+            @Override
+            public void run() {
                 boolean removed = listeners.remove(listener);
                 if (removed) {
                     listener.onTimeout();
@@ -81,7 +83,8 @@ public class NodeMappingCreatedAction extends AbstractComponent {
         DiscoveryNodes nodes = clusterService.state().nodes();
         if (nodes.localNodeMaster()) {
             threadPool.cached().execute(new Runnable() {
-                @Override public void run() {
+                @Override
+                public void run() {
                     innerNodeIndexCreated(response);
                 }
             });
@@ -108,16 +111,19 @@ public class NodeMappingCreatedAction extends AbstractComponent {
 
         static final String ACTION = "cluster/nodeMappingCreated";
 
-        @Override public NodeMappingCreatedResponse newInstance() {
+        @Override
+        public NodeMappingCreatedResponse newInstance() {
             return new NodeMappingCreatedResponse();
         }
 
-        @Override public void messageReceived(NodeMappingCreatedResponse response, TransportChannel channel) throws Exception {
+        @Override
+        public void messageReceived(NodeMappingCreatedResponse response, TransportChannel channel) throws Exception {
             innerNodeIndexCreated(response);
             channel.sendResponse(VoidStreamable.INSTANCE);
         }
 
-        @Override public String executor() {
+        @Override
+        public String executor() {
             return ThreadPool.Names.SAME;
         }
     }
@@ -151,13 +157,15 @@ public class NodeMappingCreatedAction extends AbstractComponent {
             return nodeId;
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             out.writeUTF(index);
             out.writeUTF(type);
             out.writeUTF(nodeId);
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             index = in.readUTF();
             type = in.readUTF();
             nodeId = in.readUTF();

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -26,10 +26,10 @@ import org.elasticsearch.index.shard.IndexShardException;
 
 import java.io.IOException;
 
-import static org.elasticsearch.ExceptionsHelper.*;
+import static org.elasticsearch.ExceptionsHelper.detailedMessage;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class DefaultShardOperationFailedException implements ShardOperationFailedException {
 
@@ -55,15 +55,18 @@ public class DefaultShardOperationFailedException implements ShardOperationFaile
         this.reason = detailedMessage(t);
     }
 
-    @Override public String index() {
+    @Override
+    public String index() {
         return this.index;
     }
 
-    @Override public int shardId() {
+    @Override
+    public int shardId() {
         return this.shardId;
     }
 
-    @Override public String reason() {
+    @Override
+    public String reason() {
         return this.reason;
     }
 
@@ -73,7 +76,8 @@ public class DefaultShardOperationFailedException implements ShardOperationFaile
         return exp;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         if (in.readBoolean()) {
             index = in.readUTF();
         }
@@ -81,7 +85,8 @@ public class DefaultShardOperationFailedException implements ShardOperationFaile
         reason = in.readUTF();
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         if (index == null) {
             out.writeBoolean(false);
         } else {

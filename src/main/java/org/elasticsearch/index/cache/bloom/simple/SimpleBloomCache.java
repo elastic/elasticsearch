@@ -46,7 +46,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class SimpleBloomCache extends AbstractIndexComponent implements BloomCache, IndexReader.ReaderFinishedListener {
 
@@ -58,7 +58,8 @@ public class SimpleBloomCache extends AbstractIndexComponent implements BloomCac
 
     private final Object creationMutex = new Object();
 
-    @Inject public SimpleBloomCache(Index index, @IndexSettings Settings indexSettings, ThreadPool threadPool) {
+    @Inject
+    public SimpleBloomCache(Index index, @IndexSettings Settings indexSettings, ThreadPool threadPool) {
         super(index, indexSettings);
         this.threadPool = threadPool;
 
@@ -66,19 +67,23 @@ public class SimpleBloomCache extends AbstractIndexComponent implements BloomCac
         this.cache = ConcurrentCollections.newConcurrentMap();
     }
 
-    @Override public void close() throws ElasticSearchException {
+    @Override
+    public void close() throws ElasticSearchException {
         clear();
     }
 
-    @Override public void clear() {
+    @Override
+    public void clear() {
         cache.clear();
     }
 
-    @Override public void finished(IndexReader reader) {
+    @Override
+    public void finished(IndexReader reader) {
         clear(reader);
     }
 
-    @Override public void clear(IndexReader reader) {
+    @Override
+    public void clear(IndexReader reader) {
         ConcurrentMap<String, BloomFilterEntry> map = cache.remove(reader.getCoreCacheKey());
         // help soft/weak handling GC
         if (map != null) {
@@ -86,7 +91,8 @@ public class SimpleBloomCache extends AbstractIndexComponent implements BloomCac
         }
     }
 
-    @Override public long sizeInBytes() {
+    @Override
+    public long sizeInBytes() {
         // the overhead of the map is not really relevant...
         long sizeInBytes = 0;
         for (ConcurrentMap<String, BloomFilterEntry> map : cache.values()) {
@@ -97,7 +103,8 @@ public class SimpleBloomCache extends AbstractIndexComponent implements BloomCac
         return sizeInBytes;
     }
 
-    @Override public long sizeInBytes(String fieldName) {
+    @Override
+    public long sizeInBytes(String fieldName) {
         long sizeInBytes = 0;
         for (ConcurrentMap<String, BloomFilterEntry> map : cache.values()) {
             BloomFilterEntry filter = map.get(fieldName);
@@ -108,7 +115,8 @@ public class SimpleBloomCache extends AbstractIndexComponent implements BloomCac
         return sizeInBytes;
     }
 
-    @Override public BloomFilter filter(IndexReader reader, String fieldName, boolean asyncLoad) {
+    @Override
+    public BloomFilter filter(IndexReader reader, String fieldName, boolean asyncLoad) {
         int currentNumDocs = reader.numDocs();
         if (currentNumDocs == 0) {
             return BloomFilter.EMPTY;
@@ -171,7 +179,8 @@ public class SimpleBloomCache extends AbstractIndexComponent implements BloomCac
         }
 
         @SuppressWarnings({"StringEquality"})
-        @Override public void run() {
+        @Override
+        public void run() {
             TermDocs termDocs = null;
             TermEnum termEnum = null;
             try {

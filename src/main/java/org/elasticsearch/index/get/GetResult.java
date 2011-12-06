@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,10 +19,10 @@
 
 package org.elasticsearch.index.get;
 
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Unicode;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.compress.lzf.LZF;
 import org.elasticsearch.common.compress.lzf.LZFDecoder;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -38,9 +38,9 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
 
-import static org.elasticsearch.common.collect.Iterators.*;
-import static org.elasticsearch.common.collect.Maps.*;
-import static org.elasticsearch.index.get.GetField.*;
+import static com.google.common.collect.Iterators.emptyIterator;
+import static com.google.common.collect.Maps.newHashMapWithExpectedSize;
+import static org.elasticsearch.index.get.GetField.readGetField;
 
 /**
  */
@@ -229,7 +229,8 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
         return fields.get(name);
     }
 
-    @Override public Iterator<GetField> iterator() {
+    @Override
+    public Iterator<GetField> iterator() {
         if (fields == null) {
             return emptyIterator();
         }
@@ -245,7 +246,8 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
         static final XContentBuilderString FIELDS = new XContentBuilderString("fields");
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (!exists()) {
             builder.startObject();
             builder.field(Fields._INDEX, index);
@@ -298,7 +300,8 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
         return result;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         index = in.readUTF();
         type = in.readUTF();
         id = in.readUTF();
@@ -321,7 +324,8 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
         }
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(index);
         out.writeUTF(type);
         out.writeUTF(id);

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,7 +19,7 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.Modules;
@@ -29,7 +29,7 @@ import org.elasticsearch.transport.local.LocalTransportModule;
 import org.elasticsearch.transport.netty.NettyTransportModule;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class TransportModule extends AbstractModule implements SpawnModules {
 
@@ -39,7 +39,8 @@ public class TransportModule extends AbstractModule implements SpawnModules {
         this.settings = settings;
     }
 
-    @Override public Iterable<? extends Module> spawnModules() {
+    @Override
+    public Iterable<? extends Module> spawnModules() {
         Class<? extends Module> defaultTransportModule;
         if (settings.getAsBoolean("node.local", false)) {
             defaultTransportModule = LocalTransportModule.class;
@@ -49,7 +50,8 @@ public class TransportModule extends AbstractModule implements SpawnModules {
         return ImmutableList.of(Modules.createModule(settings.getAsClass("transport.type", defaultTransportModule, "org.elasticsearch.transport.", "TransportModule"), settings));
     }
 
-    @Override protected void configure() {
+    @Override
+    protected void configure() {
         bind(TransportService.class).asEagerSingleton();
         bind(TransportServiceManagement.class).asEagerSingleton();
     }

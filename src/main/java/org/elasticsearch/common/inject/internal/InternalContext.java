@@ -16,7 +16,7 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import org.elasticsearch.common.collect.Maps;
+import com.google.common.collect.Maps;
 import org.elasticsearch.common.inject.spi.Dependency;
 
 import java.util.Map;

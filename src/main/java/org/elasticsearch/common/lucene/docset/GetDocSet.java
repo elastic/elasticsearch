@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -24,7 +24,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import java.io.IOException;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public abstract class GetDocSet extends DocSet {
 
@@ -34,23 +34,28 @@ public abstract class GetDocSet extends DocSet {
         this.maxDoc = maxDoc;
     }
 
-    @Override public long sizeInBytes() {
+    @Override
+    public long sizeInBytes() {
         return 0;
     }
 
-    @Override public int length() {
+    @Override
+    public int length() {
         return maxDoc;
     }
 
-    @Override public DocIdSetIterator iterator() throws IOException {
+    @Override
+    public DocIdSetIterator iterator() throws IOException {
         return new DocIdSetIterator() {
             private int doc = -1;
 
-            @Override public int docID() {
+            @Override
+            public int docID() {
                 return doc;
             }
 
-            @Override public int nextDoc() throws IOException {
+            @Override
+            public int nextDoc() throws IOException {
                 do {
                     doc++;
                     if (doc >= maxDoc) {
@@ -60,7 +65,8 @@ public abstract class GetDocSet extends DocSet {
                 return doc;
             }
 
-            @Override public int advance(int target) throws IOException {
+            @Override
+            public int advance(int target) throws IOException {
                 if (target >= maxDoc) {
                     return doc = NO_MORE_DOCS;
                 }

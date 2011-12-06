@@ -16,7 +16,7 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import org.elasticsearch.common.collect.ImmutableSet;
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Key;
 import org.elasticsearch.common.inject.binder.AnnotatedConstantBindingBuilder;
@@ -121,7 +121,8 @@ public final class ConstantBindingBuilderImpl<T>
                 base.getSource(), key, base.getScoping(), ImmutableSet.<InjectionPoint>of(), instanceAsT));
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return "ConstantBindingBuilder";
     }
 }

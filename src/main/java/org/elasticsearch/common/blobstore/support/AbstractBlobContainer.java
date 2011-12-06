@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,10 +19,10 @@
 
 package org.elasticsearch.common.blobstore.support;
 
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.collect.ImmutableMap;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -31,7 +31,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public abstract class AbstractBlobContainer implements BlobContainer {
 
@@ -41,25 +41,30 @@ public abstract class AbstractBlobContainer implements BlobContainer {
         this.path = path;
     }
 
-    @Override public BlobPath path() {
+    @Override
+    public BlobPath path() {
         return this.path;
     }
 
-    @Override public byte[] readBlobFully(String blobName) throws IOException {
+    @Override
+    public byte[] readBlobFully(String blobName) throws IOException {
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<Throwable> failure = new AtomicReference<Throwable>();
         final ByteArrayOutputStream bos = new ByteArrayOutputStream();
 
         readBlob(blobName, new ReadBlobListener() {
-            @Override public void onPartial(byte[] data, int offset, int size) {
+            @Override
+            public void onPartial(byte[] data, int offset, int size) {
                 bos.write(data, offset, size);
             }
 
-            @Override public void onCompleted() {
+            @Override
+            public void onCompleted() {
                 latch.countDown();
             }
 
-            @Override public void onFailure(Throwable t) {
+            @Override
+            public void onFailure(Throwable t) {
                 failure.set(t);
                 latch.countDown();
             }
@@ -81,7 +86,8 @@ public abstract class AbstractBlobContainer implements BlobContainer {
         return bos.toByteArray();
     }
 
-    @Override public ImmutableMap<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) throws IOException {
+    @Override
+    public ImmutableMap<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) throws IOException {
         ImmutableMap<String, BlobMetaData> allBlobs = listBlobs();
         ImmutableMap.Builder<String, BlobMetaData> blobs = ImmutableMap.builder();
         for (BlobMetaData blob : allBlobs.values()) {
@@ -92,15 +98,18 @@ public abstract class AbstractBlobContainer implements BlobContainer {
         return blobs.build();
     }
 
-    @Override public void deleteBlobsByPrefix(final String blobNamePrefix) throws IOException {
+    @Override
+    public void deleteBlobsByPrefix(final String blobNamePrefix) throws IOException {
         deleteBlobsByFilter(new BlobNameFilter() {
-            @Override public boolean accept(String blobName) {
+            @Override
+            public boolean accept(String blobName) {
                 return blobName.startsWith(blobNamePrefix);
             }
         });
     }
 
-    @Override public void deleteBlobsByFilter(BlobNameFilter filter) throws IOException {
+    @Override
+    public void deleteBlobsByFilter(BlobNameFilter filter) throws IOException {
         ImmutableMap<String, BlobMetaData> blobs = listBlobs();
         for (BlobMetaData blob : blobs.values()) {
             if (filter.accept(blob.name())) {

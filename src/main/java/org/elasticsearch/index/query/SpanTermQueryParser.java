@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -29,23 +29,26 @@ import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.query.support.QueryParsers.*;
+import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameQuery;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class SpanTermQueryParser implements QueryParser {
 
     public static final String NAME = "span_term";
 
-    @Inject public SpanTermQueryParser() {
+    @Inject
+    public SpanTermQueryParser() {
     }
 
-    @Override public String[] names() {
+    @Override
+    public String[] names() {
         return new String[]{NAME, Strings.toCamelCase(NAME)};
     }
 
-    @Override public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    @Override
+    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token = parser.currentToken();

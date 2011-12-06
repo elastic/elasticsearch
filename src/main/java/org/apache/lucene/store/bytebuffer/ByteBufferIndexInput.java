@@ -23,7 +23,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class ByteBufferIndexInput extends IndexInput {
 

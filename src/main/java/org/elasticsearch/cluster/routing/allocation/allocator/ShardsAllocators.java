@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -45,34 +45,40 @@ public class ShardsAllocators extends AbstractComponent implements ShardsAllocat
         this(settings, new NoneGatewayAllocator(), new EvenShardsCountAllocator(settings));
     }
 
-    @Inject public ShardsAllocators(Settings settings, GatewayAllocator gatewayAllocator, ShardsAllocator allocator) {
+    @Inject
+    public ShardsAllocators(Settings settings, GatewayAllocator gatewayAllocator, ShardsAllocator allocator) {
         super(settings);
         this.gatewayAllocator = gatewayAllocator;
         this.allocator = allocator;
     }
 
-    @Override public void applyStartedShards(StartedRerouteAllocation allocation) {
+    @Override
+    public void applyStartedShards(StartedRerouteAllocation allocation) {
         gatewayAllocator.applyStartedShards(allocation);
         allocator.applyStartedShards(allocation);
     }
 
-    @Override public void applyFailedShards(FailedRerouteAllocation allocation) {
+    @Override
+    public void applyFailedShards(FailedRerouteAllocation allocation) {
         gatewayAllocator.applyFailedShards(allocation);
         allocator.applyFailedShards(allocation);
     }
 
-    @Override public boolean allocateUnassigned(RoutingAllocation allocation) {
+    @Override
+    public boolean allocateUnassigned(RoutingAllocation allocation) {
         boolean changed = false;
         changed |= gatewayAllocator.allocateUnassigned(allocation);
         changed |= allocator.allocateUnassigned(allocation);
         return changed;
     }
 
-    @Override public boolean rebalance(RoutingAllocation allocation) {
+    @Override
+    public boolean rebalance(RoutingAllocation allocation) {
         return allocator.rebalance(allocation);
     }
 
-    @Override public boolean move(MutableShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+    @Override
+    public boolean move(MutableShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         return allocator.move(shardRouting, node, allocation);
     }
 }

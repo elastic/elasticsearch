@@ -19,15 +19,11 @@
 
 package org.elasticsearch.index.percolator;
 
+import com.google.common.collect.Maps;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.DeletionAwareConstantScoreQuery;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Scorer;
-import org.elasticsearch.common.collect.Maps;
+import org.apache.lucene.search.*;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.settings.Settings;
@@ -51,7 +47,7 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class PercolatorService extends AbstractIndexComponent {
 
@@ -69,8 +65,9 @@ public class PercolatorService extends AbstractIndexComponent {
 
     private boolean initialQueriesFetchDone = false;
 
-    @Inject public PercolatorService(Index index, @IndexSettings Settings indexSettings, IndicesService indicesService,
-                                     PercolatorExecutor percolator) {
+    @Inject
+    public PercolatorService(Index index, @IndexSettings Settings indexSettings, IndicesService indicesService,
+                             PercolatorExecutor percolator) {
         super(index, indexSettings);
         this.indicesService = indicesService;
         this.percolator = percolator;
@@ -167,10 +164,12 @@ public class PercolatorService extends AbstractIndexComponent {
             return this.queries;
         }
 
-        @Override public void setScorer(Scorer scorer) throws IOException {
+        @Override
+        public void setScorer(Scorer scorer) throws IOException {
         }
 
-        @Override public void collect(int doc) throws IOException {
+        @Override
+        public void collect(int doc) throws IOException {
             // the _source is the query
             Document document = reader.document(doc, new UidAndSourceFieldSelector());
             String id = Uid.createUid(document.get(UidFieldMapper.NAME)).id();
@@ -182,18 +181,21 @@ public class PercolatorService extends AbstractIndexComponent {
             }
         }
 
-        @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
+        @Override
+        public void setNextReader(IndexReader reader, int docBase) throws IOException {
             this.reader = reader;
         }
 
-        @Override public boolean acceptsDocsOutOfOrder() {
+        @Override
+        public boolean acceptsDocsOutOfOrder() {
             return true;
         }
     }
 
     class ShardLifecycleListener extends IndicesLifecycle.Listener {
 
-        @Override public void afterIndexShardCreated(IndexShard indexShard) {
+        @Override
+        public void afterIndexShardCreated(IndexShard indexShard) {
             // add a listener that will update based on changes done to the _percolate index
             // the relevant indices with loaded queries
             if (indexShard.shardId().index().name().equals(INDEX_NAME)) {
@@ -201,7 +203,8 @@ public class PercolatorService extends AbstractIndexComponent {
             }
         }
 
-        @Override public void afterIndexShardStarted(IndexShard indexShard) {
+        @Override
+        public void afterIndexShardStarted(IndexShard indexShard) {
             if (indexShard.shardId().index().name().equals(INDEX_NAME)) {
                 // percolator index has started, fetch what we can from it and initialize the indices
                 // we have
@@ -252,21 +255,24 @@ public class PercolatorService extends AbstractIndexComponent {
 
     class RealTimePercolatorOperationListener extends IndexingOperationListener {
 
-        @Override public Engine.Create preCreate(Engine.Create create) {
+        @Override
+        public Engine.Create preCreate(Engine.Create create) {
             if (create.type().equals(index().name())) {
                 percolator.addQuery(create.id(), create.source(), create.sourceOffset(), create.sourceLength());
             }
             return create;
         }
 
-        @Override public Engine.Index preIndex(Engine.Index index) {
+        @Override
+        public Engine.Index preIndex(Engine.Index index) {
             if (index.type().equals(index().name())) {
                 percolator.addQuery(index.id(), index.source(), index.sourceOffset(), index.sourceLength());
             }
             return index;
         }
 
-        @Override public Engine.Delete preDelete(Engine.Delete delete) {
+        @Override
+        public Engine.Delete preDelete(Engine.Delete delete) {
             if (delete.type().equals(index().name())) {
                 percolator.removeQuery(delete.id());
             }

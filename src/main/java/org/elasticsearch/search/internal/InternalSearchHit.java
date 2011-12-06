@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,12 +19,12 @@
 
 package org.elasticsearch.search.internal;
 
+import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Unicode;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.compress.lzf.LZF;
 import org.elasticsearch.common.compress.lzf.LZFDecoder;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -43,13 +43,14 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
 
-import static org.elasticsearch.common.lucene.Lucene.*;
-import static org.elasticsearch.search.SearchShardTarget.*;
-import static org.elasticsearch.search.highlight.HighlightField.*;
-import static org.elasticsearch.search.internal.InternalSearchHitField.*;
+import static org.elasticsearch.common.lucene.Lucene.readExplanation;
+import static org.elasticsearch.common.lucene.Lucene.writeExplanation;
+import static org.elasticsearch.search.SearchShardTarget.readSearchShardTarget;
+import static org.elasticsearch.search.highlight.HighlightField.readHighlightField;
+import static org.elasticsearch.search.internal.InternalSearchHitField.readSearchHitField;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class InternalSearchHit implements SearchHit {
 
@@ -77,7 +78,8 @@ public class InternalSearchHit implements SearchHit {
 
     private Explanation explanation;
 
-    @Nullable private SearchShardTarget shard;
+    @Nullable
+    private SearchShardTarget shard;
 
     private Map<String, Object> sourceAsMap;
 
@@ -105,11 +107,13 @@ public class InternalSearchHit implements SearchHit {
         this.score = score;
     }
 
-    @Override public float score() {
+    @Override
+    public float score() {
         return this.score;
     }
 
-    @Override public float getScore() {
+    @Override
+    public float getScore() {
         return score();
     }
 
@@ -117,39 +121,48 @@ public class InternalSearchHit implements SearchHit {
         this.version = version;
     }
 
-    @Override public long version() {
+    @Override
+    public long version() {
         return this.version;
     }
 
-    @Override public long getVersion() {
+    @Override
+    public long getVersion() {
         return this.version;
     }
 
-    @Override public String index() {
+    @Override
+    public String index() {
         return shard.index();
     }
 
-    @Override public String getIndex() {
+    @Override
+    public String getIndex() {
         return index();
     }
 
-    @Override public String id() {
+    @Override
+    public String id() {
         return id;
     }
 
-    @Override public String getId() {
+    @Override
+    public String getId() {
         return id();
     }
 
-    @Override public String type() {
+    @Override
+    public String type() {
         return type;
     }
 
-    @Override public String getType() {
+    @Override
+    public String getType() {
         return type();
     }
 
-    @Override public byte[] source() {
+    @Override
+    public byte[] source() {
         if (source == null) {
             return null;
         }
@@ -163,15 +176,18 @@ public class InternalSearchHit implements SearchHit {
         return this.source;
     }
 
-    @Override public boolean isSourceEmpty() {
+    @Override
+    public boolean isSourceEmpty() {
         return source == null;
     }
 
-    @Override public Map<String, Object> getSource() {
+    @Override
+    public Map<String, Object> getSource() {
         return sourceAsMap();
     }
 
-    @Override public String sourceAsString() {
+    @Override
+    public String sourceAsString() {
         if (source == null) {
             return null;
         }
@@ -179,7 +195,8 @@ public class InternalSearchHit implements SearchHit {
     }
 
     @SuppressWarnings({"unchecked"})
-    @Override public Map<String, Object> sourceAsMap() throws ElasticSearchParseException {
+    @Override
+    public Map<String, Object> sourceAsMap() throws ElasticSearchParseException {
         if (source == null) {
             return null;
         }
@@ -202,15 +219,18 @@ public class InternalSearchHit implements SearchHit {
         }
     }
 
-    @Override public Iterator<SearchHitField> iterator() {
+    @Override
+    public Iterator<SearchHitField> iterator() {
         return fields.values().iterator();
     }
 
-    @Override public SearchHitField field(String fieldName) {
+    @Override
+    public SearchHitField field(String fieldName) {
         return fields().get(fieldName);
     }
 
-    @Override public Map<String, SearchHitField> fields() {
+    @Override
+    public Map<String, SearchHitField> fields() {
         if (fields == null) {
             return ImmutableMap.of();
         }
@@ -222,7 +242,8 @@ public class InternalSearchHit implements SearchHit {
         return this.fields;
     }
 
-    @Override public Map<String, SearchHitField> getFields() {
+    @Override
+    public Map<String, SearchHitField> getFields() {
         return fields();
     }
 
@@ -234,14 +255,16 @@ public class InternalSearchHit implements SearchHit {
         return highlightFields;
     }
 
-    @Override public Map<String, HighlightField> highlightFields() {
+    @Override
+    public Map<String, HighlightField> highlightFields() {
         if (highlightFields == null) {
             return ImmutableMap.of();
         }
         return this.highlightFields;
     }
 
-    @Override public Map<String, HighlightField> getHighlightFields() {
+    @Override
+    public Map<String, HighlightField> getHighlightFields() {
         return highlightFields();
     }
 
@@ -253,19 +276,23 @@ public class InternalSearchHit implements SearchHit {
         this.sortValues = sortValues;
     }
 
-    @Override public Object[] sortValues() {
+    @Override
+    public Object[] sortValues() {
         return sortValues;
     }
 
-    @Override public Object[] getSortValues() {
+    @Override
+    public Object[] getSortValues() {
         return sortValues();
     }
 
-    @Override public Explanation explanation() {
+    @Override
+    public Explanation explanation() {
         return explanation;
     }
 
-    @Override public Explanation getExplanation() {
+    @Override
+    public Explanation getExplanation() {
         return explanation();
     }
 
@@ -273,11 +300,13 @@ public class InternalSearchHit implements SearchHit {
         this.explanation = explanation;
     }
 
-    @Override public SearchShardTarget shard() {
+    @Override
+    public SearchShardTarget shard() {
         return shard;
     }
 
-    @Override public SearchShardTarget getShard() {
+    @Override
+    public SearchShardTarget getShard() {
         return shard();
     }
 
@@ -293,7 +322,8 @@ public class InternalSearchHit implements SearchHit {
         return this.matchedFilters;
     }
 
-    @Override public String[] getMatchedFilters() {
+    @Override
+    public String[] getMatchedFilters() {
         return this.matchedFilters;
     }
 
@@ -313,7 +343,8 @@ public class InternalSearchHit implements SearchHit {
         static final XContentBuilderString DETAILS = new XContentBuilderString("details");
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (explanation() != null) {
             builder.field("_shard", shard.shardId());
@@ -411,7 +442,8 @@ public class InternalSearchHit implements SearchHit {
         return hit;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         readFrom(in, InternalSearchHits.streamContext().streamShardTarget(InternalSearchHits.StreamContext.ShardTargetType.STREAM));
     }
 
@@ -544,7 +576,8 @@ public class InternalSearchHit implements SearchHit {
         }
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         writeTo(out, InternalSearchHits.streamContext().streamShardTarget(InternalSearchHits.StreamContext.ShardTargetType.STREAM));
     }
 

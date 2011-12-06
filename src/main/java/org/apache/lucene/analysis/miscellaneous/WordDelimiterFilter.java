@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -45,7 +45,7 @@ import java.io.IOException;
  * - trailing "'s" are removed for each subword
  * - "O'Neil's" -> "O", "Neil"
  * - Note: this step isn't performed in a separate filter because of possible subword combinations.
- *
+ * <p/>
  * The <b>combinations</b> parameter affects how subwords are combined:
  * - combinations="0" causes no subword combinations.
  * - "PowerShot" -> 0:"Power", 1:"Shot"  (0 and 1 are the token positions)
@@ -53,7 +53,7 @@ import java.io.IOException;
  * - "PowerShot" -> 0:"Power", 1:"Shot" 1:"PowerShot"
  * - "A's+B's&C's" -> 0:"A", 1:"B", 2:"C", 2:"ABC"
  * - "Super-Duper-XL500-42-AutoCoder!" -> 0:"Super", 1:"Duper", 2:"XL", 2:"SuperDuperXL", 3:"500" 4:"42", 5:"Auto", 6:"Coder", 6:"AutoCoder"
- *
+ * <p/>
  * One use for WordDelimiterFilter is to help match words with different subword delimiters.
  * For example, if the source text contained "wi-fi" one may want "wifi" "WiFi" "wi-fi" "wi+fi" queries to all match.
  * One way of doing so is to specify combinations="1" in the analyzer used for indexing, and combinations="0" (the default)

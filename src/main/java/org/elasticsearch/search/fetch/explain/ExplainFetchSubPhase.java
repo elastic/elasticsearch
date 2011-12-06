@@ -19,8 +19,8 @@
 
 package org.elasticsearch.search.fetch.explain;
 
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -31,26 +31,31 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class ExplainFetchSubPhase implements FetchSubPhase {
 
-    @Override public Map<String, ? extends SearchParseElement> parseElements() {
+    @Override
+    public Map<String, ? extends SearchParseElement> parseElements() {
         return ImmutableMap.of("explain", new ExplainParseElement());
     }
 
-    @Override public boolean hitsExecutionNeeded(SearchContext context) {
+    @Override
+    public boolean hitsExecutionNeeded(SearchContext context) {
         return false;
     }
 
-    @Override public void hitsExecute(SearchContext context, InternalSearchHit[] hits) throws ElasticSearchException {
+    @Override
+    public void hitsExecute(SearchContext context, InternalSearchHit[] hits) throws ElasticSearchException {
     }
 
-    @Override public boolean hitExecutionNeeded(SearchContext context) {
+    @Override
+    public boolean hitExecutionNeeded(SearchContext context) {
         return context.explain();
     }
 
-    @Override public void hitExecute(SearchContext context, HitContext hitContext) throws ElasticSearchException {
+    @Override
+    public void hitExecute(SearchContext context, HitContext hitContext) throws ElasticSearchException {
         try {
             // we use the top level doc id, since we work with the top level searcher
             hitContext.hit().explanation(context.searcher().explain(context.query(), hitContext.hit().docId()));

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -39,7 +39,7 @@ import org.elasticsearch.transport.VoidTransportResponseHandler;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ *
  */
 public class NodeMappingRefreshAction extends AbstractComponent {
 
@@ -51,8 +51,9 @@ public class NodeMappingRefreshAction extends AbstractComponent {
 
     private final MetaDataMappingService metaDataMappingService;
 
-    @Inject public NodeMappingRefreshAction(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterService clusterService,
-                                            MetaDataMappingService metaDataMappingService) {
+    @Inject
+    public NodeMappingRefreshAction(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterService clusterService,
+                                    MetaDataMappingService metaDataMappingService) {
         super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
@@ -65,7 +66,8 @@ public class NodeMappingRefreshAction extends AbstractComponent {
         DiscoveryNodes nodes = clusterService.state().nodes();
         if (nodes.localNodeMaster()) {
             threadPool.cached().execute(new Runnable() {
-                @Override public void run() {
+                @Override
+                public void run() {
                     innerMappingRefresh(request);
                 }
             });
@@ -83,16 +85,19 @@ public class NodeMappingRefreshAction extends AbstractComponent {
 
         static final String ACTION = "cluster/nodeMappingRefresh";
 
-        @Override public NodeMappingRefreshRequest newInstance() {
+        @Override
+        public NodeMappingRefreshRequest newInstance() {
             return new NodeMappingRefreshRequest();
         }
 
-        @Override public void messageReceived(NodeMappingRefreshRequest request, TransportChannel channel) throws Exception {
+        @Override
+        public void messageReceived(NodeMappingRefreshRequest request, TransportChannel channel) throws Exception {
             innerMappingRefresh(request);
             channel.sendResponse(VoidStreamable.INSTANCE);
         }
 
-        @Override public String executor() {
+        @Override
+        public String executor() {
             return ThreadPool.Names.SAME;
         }
     }
@@ -126,7 +131,8 @@ public class NodeMappingRefreshAction extends AbstractComponent {
             return nodeId;
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             out.writeUTF(index);
             out.writeVInt(types.length);
             for (String type : types) {
@@ -135,7 +141,8 @@ public class NodeMappingRefreshAction extends AbstractComponent {
             out.writeUTF(nodeId);
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             index = in.readUTF();
             types = new String[in.readVInt()];
             for (int i = 0; i < types.length; i++) {

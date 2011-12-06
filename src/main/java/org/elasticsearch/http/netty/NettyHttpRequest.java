@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,21 +19,21 @@
 
 package org.elasticsearch.http.netty;
 
-import org.elasticsearch.common.netty.handler.codec.http.HttpMethod;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.rest.support.AbstractRestRequest;
 import org.elasticsearch.rest.support.RestUtils;
+import org.jboss.netty.handler.codec.http.HttpMethod;
 
 import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.Map;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class NettyHttpRequest extends AbstractRestRequest implements HttpRequest {
 
-    private final org.elasticsearch.common.netty.handler.codec.http.HttpRequest request;
+    private final org.jboss.netty.handler.codec.http.HttpRequest request;
 
     private final Map<String, String> params;
 
@@ -41,7 +41,7 @@ public class NettyHttpRequest extends AbstractRestRequest implements HttpRequest
 
     private byte[] cachedData;
 
-    public NettyHttpRequest(org.elasticsearch.common.netty.handler.codec.http.HttpRequest request) {
+    public NettyHttpRequest(org.jboss.netty.handler.codec.http.HttpRequest request) {
         this.request = request;
         this.params = new HashMap<String, String>();
 
@@ -55,7 +55,8 @@ public class NettyHttpRequest extends AbstractRestRequest implements HttpRequest
         }
     }
 
-    @Override public Method method() {
+    @Override
+    public Method method() {
         HttpMethod httpMethod = request.getMethod();
         if (httpMethod == HttpMethod.GET)
             return Method.GET;
@@ -80,31 +81,38 @@ public class NettyHttpRequest extends AbstractRestRequest implements HttpRequest
         return Method.GET;
     }
 
-    @Override public String uri() {
+    @Override
+    public String uri() {
         return request.getUri();
     }
 
-    @Override public String rawPath() {
+    @Override
+    public String rawPath() {
         return rawPath;
     }
 
-    @Override public Map<String, String> params() {
+    @Override
+    public Map<String, String> params() {
         return params;
     }
 
-    @Override public boolean hasContent() {
+    @Override
+    public boolean hasContent() {
         return request.getContent().readableBytes() > 0;
     }
 
-    @Override public int contentLength() {
+    @Override
+    public int contentLength() {
         return request.getContent().readableBytes();
     }
 
-    @Override public boolean contentUnsafe() {
+    @Override
+    public boolean contentUnsafe() {
         return request.getContent().hasArray();
     }
 
-    @Override public byte[] contentByteArray() {
+    @Override
+    public byte[] contentByteArray() {
         if (request.getContent().hasArray()) {
             return request.getContent().array();
         }
@@ -116,7 +124,8 @@ public class NettyHttpRequest extends AbstractRestRequest implements HttpRequest
         return cachedData;
     }
 
-    @Override public int contentByteArrayOffset() {
+    @Override
+    public int contentByteArrayOffset() {
         if (request.getContent().hasArray()) {
             // get the array offset, and the reader index offset within it
             return request.getContent().arrayOffset() + request.getContent().readerIndex();
@@ -126,23 +135,28 @@ public class NettyHttpRequest extends AbstractRestRequest implements HttpRequest
 
     private static Charset UTF8 = Charset.forName("UTF-8");
 
-    @Override public String contentAsString() {
+    @Override
+    public String contentAsString() {
         return request.getContent().toString(UTF8);
     }
 
-    @Override public String header(String name) {
+    @Override
+    public String header(String name) {
         return request.getHeader(name);
     }
 
-    @Override public boolean hasParam(String key) {
+    @Override
+    public boolean hasParam(String key) {
         return params.containsKey(key);
     }
 
-    @Override public String param(String key) {
+    @Override
+    public String param(String key) {
         return params.get(key);
     }
 
-    @Override public String param(String key, String defaultValue) {
+    @Override
+    public String param(String key, String defaultValue) {
         String value = params.get(key);
         if (value == null) {
             return defaultValue;

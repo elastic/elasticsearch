@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -37,19 +37,21 @@ import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.Test;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.*;
-import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.hamcrest.MatcherAssert.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class LocalGatewayIndexStateTests extends AbstractNodesTests {
 
     private final ESLogger logger = Loggers.getLogger(LocalGatewayIndexStateTests.class);
 
-    @AfterMethod public void cleanAndCloseNodes() throws Exception {
+    @AfterMethod
+    public void cleanAndCloseNodes() throws Exception {
         for (int i = 0; i < 10; i++) {
             if (node("node" + i) != null) {
                 node("node" + i).stop();
@@ -62,7 +64,8 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         closeAllNodes();
     }
 
-    @Test public void testMappingMetaDataParsed() throws Exception {
+    @Test
+    public void testMappingMetaDataParsed() throws Exception {
         logger.info("--> cleaning nodes");
         buildNode("node1", settingsBuilder().put("gateway.type", "local"));
         buildNode("node2", settingsBuilder().put("gateway.type", "local"));
@@ -107,7 +110,8 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         assertThat(mappingMd.routing().required(), equalTo(true));
     }
 
-    @Test public void testSimpleOpenClose() throws Exception {
+    @Test
+    public void testSimpleOpenClose() throws Exception {
         logger.info("--> cleaning nodes");
         buildNode("node1", settingsBuilder().put("gateway.type", "local").build());
         buildNode("node2", settingsBuilder().put("gateway.type", "local").build());
@@ -226,7 +230,8 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         client("node1").prepareIndex("test", "type1", "2").setSource("field1", "value1").execute().actionGet();
     }
 
-    @Test public void testJustMasterNode() throws Exception {
+    @Test
+    public void testJustMasterNode() throws Exception {
         logger.info("--> cleaning nodes");
         buildNode("node1", settingsBuilder().put("gateway.type", "local").build());
         buildNode("node2", settingsBuilder().put("gateway.type", "local").build());
@@ -253,7 +258,8 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         assertThat(clusterStateResponse.state().metaData().hasIndex("test"), equalTo(true));
     }
 
-    @Test public void testJustMasterNodeAndJustDataNode() throws Exception {
+    @Test
+    public void testJustMasterNodeAndJustDataNode() throws Exception {
         logger.info("--> cleaning nodes");
         buildNode("node1", settingsBuilder().put("gateway.type", "local").build());
         buildNode("node2", settingsBuilder().put("gateway.type", "local").build());
@@ -273,7 +279,8 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         client("node1").prepareIndex("test", "type1").setSource("field1", "value1").setTimeout("100ms").execute().actionGet();
     }
 
-    @Test public void testTwoNodesSingleDoc() throws Exception {
+    @Test
+    public void testTwoNodesSingleDoc() throws Exception {
         logger.info("--> cleaning nodes");
         buildNode("node1", settingsBuilder().put("gateway.type", "local").build());
         buildNode("node2", settingsBuilder().put("gateway.type", "local").build());

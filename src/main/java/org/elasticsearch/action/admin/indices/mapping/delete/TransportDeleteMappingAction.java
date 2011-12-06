@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -46,7 +46,7 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * Delete mapping action.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class TransportDeleteMappingAction extends TransportMasterNodeOperationAction<DeleteMappingRequest, DeleteMappingResponse> {
 
@@ -56,61 +56,73 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
 
     private final TransportRefreshAction refreshAction;
 
-    @Inject public TransportDeleteMappingAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                                ThreadPool threadPool, MetaDataMappingService metaDataMappingService,
-                                                TransportDeleteByQueryAction deleteByQueryAction, TransportRefreshAction refreshAction) {
+    @Inject
+    public TransportDeleteMappingAction(Settings settings, TransportService transportService, ClusterService clusterService,
+                                        ThreadPool threadPool, MetaDataMappingService metaDataMappingService,
+                                        TransportDeleteByQueryAction deleteByQueryAction, TransportRefreshAction refreshAction) {
         super(settings, transportService, clusterService, threadPool);
         this.metaDataMappingService = metaDataMappingService;
         this.deleteByQueryAction = deleteByQueryAction;
         this.refreshAction = refreshAction;
     }
 
-    @Override protected String executor() {
+    @Override
+    protected String executor() {
         return ThreadPool.Names.MANAGEMENT;
     }
 
-    @Override protected String transportAction() {
+    @Override
+    protected String transportAction() {
         return TransportActions.Admin.Indices.Mapping.DELETE;
     }
 
-    @Override protected DeleteMappingRequest newRequest() {
+    @Override
+    protected DeleteMappingRequest newRequest() {
         return new DeleteMappingRequest();
     }
 
-    @Override protected DeleteMappingResponse newResponse() {
+    @Override
+    protected DeleteMappingResponse newResponse() {
         return new DeleteMappingResponse();
     }
 
-    @Override protected void doExecute(DeleteMappingRequest request, ActionListener<DeleteMappingResponse> listener) {
+    @Override
+    protected void doExecute(DeleteMappingRequest request, ActionListener<DeleteMappingResponse> listener) {
         // update to concrete indices
         request.indices(clusterService.state().metaData().concreteIndices(request.indices()));
         super.doExecute(request, listener);
     }
 
-    @Override protected ClusterBlockException checkBlock(DeleteMappingRequest request, ClusterState state) {
+    @Override
+    protected ClusterBlockException checkBlock(DeleteMappingRequest request, ClusterState state) {
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, request.indices());
     }
 
-    @Override protected DeleteMappingResponse masterOperation(final DeleteMappingRequest request, final ClusterState state) throws ElasticSearchException {
+    @Override
+    protected DeleteMappingResponse masterOperation(final DeleteMappingRequest request, final ClusterState state) throws ElasticSearchException {
 
         final AtomicReference<Throwable> failureRef = new AtomicReference<Throwable>();
         final CountDownLatch latch = new CountDownLatch(1);
         deleteByQueryAction.execute(Requests.deleteByQueryRequest(request.indices()).query(QueryBuilders.filteredQuery(QueryBuilders.matchAllQuery(), FilterBuilders.typeFilter(request.type()))), new ActionListener<DeleteByQueryResponse>() {
-            @Override public void onResponse(DeleteByQueryResponse deleteByQueryResponse) {
+            @Override
+            public void onResponse(DeleteByQueryResponse deleteByQueryResponse) {
                 refreshAction.execute(Requests.refreshRequest(request.indices()), new ActionListener<RefreshResponse>() {
-                    @Override public void onResponse(RefreshResponse refreshResponse) {
+                    @Override
+                    public void onResponse(RefreshResponse refreshResponse) {
                         metaDataMappingService.removeMapping(new MetaDataMappingService.RemoveRequest(request.indices(), request.type()));
                         latch.countDown();
                     }
 
-                    @Override public void onFailure(Throwable e) {
+                    @Override
+                    public void onFailure(Throwable e) {
                         metaDataMappingService.removeMapping(new MetaDataMappingService.RemoveRequest(request.indices(), request.type()));
                         latch.countDown();
                     }
                 });
             }
 
-            @Override public void onFailure(Throwable e) {
+            @Override
+            public void onFailure(Throwable e) {
                 failureRef.set(e);
                 latch.countDown();
             }

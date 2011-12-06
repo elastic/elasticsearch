@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -46,15 +46,15 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import static com.google.common.collect.Sets.newHashSet;
 import static org.elasticsearch.client.Requests.*;
-import static org.elasticsearch.common.collect.Sets.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.elasticsearch.index.query.FilterBuilders.*;
-import static org.hamcrest.MatcherAssert.*;
+import static org.elasticsearch.index.query.FilterBuilders.termFilter;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 @Test
 public class IndexAliasesTests extends AbstractNodesTests {
@@ -65,7 +65,8 @@ public class IndexAliasesTests extends AbstractNodesTests {
     protected Random random = new Random();
 
 
-    @BeforeClass public void startNodes() {
+    @BeforeClass
+    public void startNodes() {
         startNode("server1");
         startNode("server2");
         client1 = getClient1();
@@ -73,7 +74,8 @@ public class IndexAliasesTests extends AbstractNodesTests {
         clients = new Client[]{client1, client2};
     }
 
-    @AfterClass public void closeNodes() {
+    @AfterClass
+    public void closeNodes() {
         client1.close();
         client2.close();
         closeAllNodes();
@@ -91,7 +93,8 @@ public class IndexAliasesTests extends AbstractNodesTests {
         return clients[random.nextInt(clients.length)];
     }
 
-    @Test public void testAliases() throws Exception {
+    @Test
+    public void testAliases() throws Exception {
         // delete all indices
         client1.admin().indices().prepareDelete().execute().actionGet();
 
@@ -137,7 +140,8 @@ public class IndexAliasesTests extends AbstractNodesTests {
         assertThat(indexResponse.index(), equalTo("test_x"));
     }
 
-    @Test public void testFailedFilter() throws Exception {
+    @Test
+    public void testFailedFilter() throws Exception {
         // delete all indices
         client1.admin().indices().prepareDelete().execute().actionGet();
 
@@ -159,7 +163,8 @@ public class IndexAliasesTests extends AbstractNodesTests {
         }
     }
 
-    @Test public void testFilteringAliases() throws Exception {
+    @Test
+    public void testFilteringAliases() throws Exception {
         // delete all indices
         client1.admin().indices().prepareDelete().execute().actionGet();
 
@@ -184,7 +189,8 @@ public class IndexAliasesTests extends AbstractNodesTests {
 
     }
 
-    @Test public void testSearchingFilteringAliasesSingleIndex() throws Exception {
+    @Test
+    public void testSearchingFilteringAliasesSingleIndex() throws Exception {
         // delete all indices
         client1.admin().indices().prepareDelete().execute().actionGet();
 
@@ -233,7 +239,8 @@ public class IndexAliasesTests extends AbstractNodesTests {
         assertHits(searchResponse.hits(), "1", "2", "3", "4");
     }
 
-    @Test public void testSearchingFilteringAliasesTwoIndices() throws Exception {
+    @Test
+    public void testSearchingFilteringAliasesTwoIndices() throws Exception {
         // delete all indices
         client1.admin().indices().prepareDelete().execute().actionGet();
 
@@ -303,7 +310,8 @@ public class IndexAliasesTests extends AbstractNodesTests {
         assertThat(client1.prepareCount("foos", "aliasToTests").setQuery(QueryBuilders.termQuery("name", "something")).execute().actionGet().count(), equalTo(2L));
     }
 
-    @Test public void testSearchingFilteringAliasesMultipleIndices() throws Exception {
+    @Test
+    public void testSearchingFilteringAliasesMultipleIndices() throws Exception {
         // delete all indices
         client1.admin().indices().prepareDelete().execute().actionGet();
 
@@ -371,7 +379,8 @@ public class IndexAliasesTests extends AbstractNodesTests {
 
     }
 
-    @Test public void testDeletingByQueryFilteringAliases() throws Exception {
+    @Test
+    public void testDeletingByQueryFilteringAliases() throws Exception {
         // delete all indices
         client1.admin().indices().prepareDelete().execute().actionGet();
 
@@ -439,7 +448,8 @@ public class IndexAliasesTests extends AbstractNodesTests {
         assertHits(searchResponse.hits(), "4");
     }
 
-    @Test public void testWaitForAliasCreationMultipleShards() throws Exception {
+    @Test
+    public void testWaitForAliasCreationMultipleShards() throws Exception {
         // delete all indices
         client1.admin().indices().prepareDelete().execute().actionGet();
 
@@ -459,7 +469,8 @@ public class IndexAliasesTests extends AbstractNodesTests {
 
     }
 
-    @Test public void testWaitForAliasCreationSingleShard() throws Exception {
+    @Test
+    public void testWaitForAliasCreationSingleShard() throws Exception {
         // delete all indices
         client1.admin().indices().prepareDelete().execute().actionGet();
 
@@ -478,7 +489,8 @@ public class IndexAliasesTests extends AbstractNodesTests {
         }
     }
 
-    @Test public void testWaitForAliasSimultaneousUpdate() throws Exception {
+    @Test
+    public void testWaitForAliasSimultaneousUpdate() throws Exception {
         final int aliasCount = 10;
         // delete all indices
         client1.admin().indices().prepareDelete().execute().actionGet();
@@ -496,7 +508,8 @@ public class IndexAliasesTests extends AbstractNodesTests {
         for (int i = 0; i < aliasCount; i++) {
             final String aliasName = "alias" + i;
             executor.submit(new Runnable() {
-                @Override public void run() {
+                @Override
+                public void run() {
                     assertThat(client1.admin().indices().prepareAliases().addAlias("test", aliasName).execute().actionGet().acknowledged(), equalTo(true));
                     client2.index(indexRequest(aliasName).type("type1").id("1").source(source("1", "test")).refresh(true)).actionGet();
                 }
@@ -506,7 +519,8 @@ public class IndexAliasesTests extends AbstractNodesTests {
     }
 
 
-    @Test public void testWaitForAliasTimeout() throws Exception {
+    @Test
+    public void testWaitForAliasTimeout() throws Exception {
         client1.admin().indices().prepareDelete().execute().actionGet();
 
         logger.info("--> creating index [test]");
@@ -527,7 +541,8 @@ public class IndexAliasesTests extends AbstractNodesTests {
 
     }
 
-    @Test public void testSameAlias() throws Exception {
+    @Test
+    public void testSameAlias() throws Exception {
         client1.admin().indices().prepareDelete().execute().actionGet();
 
         logger.info("--> creating index [test]");

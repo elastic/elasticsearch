@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.admin.cluster.state;
 
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -36,7 +37,6 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationExplanation;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -54,21 +54,23 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class RestClusterStateAction extends BaseRestHandler {
 
     private final SettingsFilter settingsFilter;
 
-    @Inject public RestClusterStateAction(Settings settings, Client client, RestController controller,
-                                          SettingsFilter settingsFilter) {
+    @Inject
+    public RestClusterStateAction(Settings settings, Client client, RestController controller,
+                                  SettingsFilter settingsFilter) {
         super(settings, client);
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/state", this);
 
         this.settingsFilter = settingsFilter;
     }
 
-    @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
+    @Override
+    public void handleRequest(final RestRequest request, final RestChannel channel) {
         final ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest();
         clusterStateRequest.filterNodes(request.paramAsBoolean("filter_nodes", clusterStateRequest.filterNodes()));
         clusterStateRequest.filterRoutingTable(request.paramAsBoolean("filter_routing_table", clusterStateRequest.filterRoutingTable()));
@@ -78,7 +80,8 @@ public class RestClusterStateAction extends BaseRestHandler {
         clusterStateRequest.filteredIndexTemplates(request.paramAsStringArray("filter_index_templates", Strings.EMPTY_ARRAY));
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
-            @Override public void onResponse(ClusterStateResponse response) {
+            @Override
+            public void onResponse(ClusterStateResponse response) {
                 try {
                     ClusterState state = response.state();
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
@@ -297,7 +300,8 @@ public class RestClusterStateAction extends BaseRestHandler {
                         .endObject();
             }
 
-            @Override public void onFailure(Throwable e) {
+            @Override
+            public void onFailure(Throwable e) {
                 if (logger.isDebugEnabled()) {
                     logger.debug("failed to handle cluster state", e);
                 }

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -29,7 +29,7 @@ import java.io.IOException;
 import java.io.Serializable;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class ImmutableShardRouting implements Streamable, Serializable, ShardRouting {
 
@@ -82,67 +82,83 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
         this.version = version;
     }
 
-    @Override public String index() {
+    @Override
+    public String index() {
         return this.index;
     }
 
-    @Override public String getIndex() {
+    @Override
+    public String getIndex() {
         return index();
     }
 
-    @Override public int id() {
+    @Override
+    public int id() {
         return this.shardId;
     }
 
-    @Override public int getId() {
+    @Override
+    public int getId() {
         return id();
     }
 
-    @Override public long version() {
+    @Override
+    public long version() {
         return this.version;
     }
 
-    @Override public boolean unassigned() {
+    @Override
+    public boolean unassigned() {
         return state == ShardRoutingState.UNASSIGNED;
     }
 
-    @Override public boolean initializing() {
+    @Override
+    public boolean initializing() {
         return state == ShardRoutingState.INITIALIZING;
     }
 
-    @Override public boolean active() {
+    @Override
+    public boolean active() {
         return started() || relocating();
     }
 
-    @Override public boolean started() {
+    @Override
+    public boolean started() {
         return state == ShardRoutingState.STARTED;
     }
 
-    @Override public boolean relocating() {
+    @Override
+    public boolean relocating() {
         return state == ShardRoutingState.RELOCATING;
     }
 
-    @Override public boolean assignedToNode() {
+    @Override
+    public boolean assignedToNode() {
         return currentNodeId != null;
     }
 
-    @Override public String currentNodeId() {
+    @Override
+    public String currentNodeId() {
         return this.currentNodeId;
     }
 
-    @Override public String relocatingNodeId() {
+    @Override
+    public String relocatingNodeId() {
         return this.relocatingNodeId;
     }
 
-    @Override public boolean primary() {
+    @Override
+    public boolean primary() {
         return this.primary;
     }
 
-    @Override public ShardRoutingState state() {
+    @Override
+    public ShardRoutingState state() {
         return this.state;
     }
 
-    @Override public ShardId shardId() {
+    @Override
+    public ShardId shardId() {
         if (shardIdentifier != null) {
             return shardIdentifier;
         }
@@ -150,7 +166,8 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
         return shardIdentifier;
     }
 
-    @Override public ShardIterator shardsIt() {
+    @Override
+    public ShardIterator shardsIt() {
         return new PlainShardIterator(shardId(), asList);
     }
 
@@ -172,7 +189,8 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
         readFromThin(in);
     }
 
-    @Override public void readFromThin(StreamInput in) throws IOException {
+    @Override
+    public void readFromThin(StreamInput in) throws IOException {
         version = in.readLong();
         if (in.readBoolean()) {
             currentNodeId = in.readUTF();
@@ -186,7 +204,8 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
         state = ShardRoutingState.fromValue(in.readByte());
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         readFrom(in, in.readUTF(), in.readVInt());
     }
 
@@ -213,7 +232,8 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
         out.writeByte(state.value());
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(index);
         out.writeVInt(shardId);
         writeToThin(out);
@@ -249,11 +269,13 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
         return result;
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return shortSummary();
     }
 
-    @Override public String shortSummary() {
+    @Override
+    public String shortSummary() {
         StringBuilder sb = new StringBuilder();
         sb.append('[').append(index).append(']').append('[').append(shardId).append(']');
         sb.append(", node[").append(currentNodeId).append("], ");

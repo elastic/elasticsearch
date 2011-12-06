@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -22,10 +22,10 @@ package org.elasticsearch.discovery;
 /**
  * A listener that should be called by the {@link org.elasticsearch.discovery.Discovery} component
  * when the first valid initial cluster state has been submitted and processed by the cluster service.
- *
+ * <p/>
  * <p>Note, this listener should be registered with the discovery service before it has started.
  *
- * @author kimchy (Shay Banon)
+ *
  */
 public interface InitialStateDiscoveryListener {
 

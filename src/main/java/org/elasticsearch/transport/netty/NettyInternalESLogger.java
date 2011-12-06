@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -20,10 +20,10 @@
 package org.elasticsearch.transport.netty;
 
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.netty.logging.AbstractInternalLogger;
+import org.jboss.netty.logging.AbstractInternalLogger;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class NettyInternalESLogger extends AbstractInternalLogger {
 
@@ -33,51 +33,63 @@ public class NettyInternalESLogger extends AbstractInternalLogger {
         this.logger = logger;
     }
 
-    @Override public boolean isDebugEnabled() {
+    @Override
+    public boolean isDebugEnabled() {
         return logger.isDebugEnabled();
     }
 
-    @Override public boolean isInfoEnabled() {
+    @Override
+    public boolean isInfoEnabled() {
         return logger.isInfoEnabled();
     }
 
-    @Override public boolean isWarnEnabled() {
+    @Override
+    public boolean isWarnEnabled() {
         return logger.isWarnEnabled();
     }
 
-    @Override public boolean isErrorEnabled() {
+    @Override
+    public boolean isErrorEnabled() {
         return logger.isErrorEnabled();
     }
 
-    @Override public void debug(String msg) {
+    @Override
+    public void debug(String msg) {
         logger.debug(msg);
     }
 
-    @Override public void debug(String msg, Throwable cause) {
+    @Override
+    public void debug(String msg, Throwable cause) {
         logger.debug(msg, cause);
     }
 
-    @Override public void info(String msg) {
+    @Override
+    public void info(String msg) {
         logger.info(msg);
     }
 
-    @Override public void info(String msg, Throwable cause) {
+    @Override
+    public void info(String msg, Throwable cause) {
         logger.info(msg, cause);
     }
 
-    @Override public void warn(String msg) {
+    @Override
+    public void warn(String msg) {
         logger.warn(msg);
     }
 
-    @Override public void warn(String msg, Throwable cause) {
+    @Override
+    public void warn(String msg, Throwable cause) {
         logger.warn(msg, cause);
     }
 
-    @Override public void error(String msg) {
+    @Override
+    public void error(String msg) {
         logger.error(msg);
     }
 
-    @Override public void error(String msg, Throwable cause) {
+    @Override
+    public void error(String msg, Throwable cause) {
         logger.error(msg, cause);
     }
 }

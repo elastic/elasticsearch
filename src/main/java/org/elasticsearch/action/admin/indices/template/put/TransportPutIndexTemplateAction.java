@@ -38,39 +38,46 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * Put index template action.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class TransportPutIndexTemplateAction extends TransportMasterNodeOperationAction<PutIndexTemplateRequest, PutIndexTemplateResponse> {
 
     private final MetaDataIndexTemplateService indexTemplateService;
 
-    @Inject public TransportPutIndexTemplateAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                                   ThreadPool threadPool, MetaDataIndexTemplateService indexTemplateService) {
+    @Inject
+    public TransportPutIndexTemplateAction(Settings settings, TransportService transportService, ClusterService clusterService,
+                                           ThreadPool threadPool, MetaDataIndexTemplateService indexTemplateService) {
         super(settings, transportService, clusterService, threadPool);
         this.indexTemplateService = indexTemplateService;
     }
 
-    @Override protected String executor() {
+    @Override
+    protected String executor() {
         return ThreadPool.Names.MANAGEMENT;
     }
 
-    @Override protected String transportAction() {
+    @Override
+    protected String transportAction() {
         return TransportActions.Admin.Indices.PUT_INDEX_TEMPLATE;
     }
 
-    @Override protected PutIndexTemplateRequest newRequest() {
+    @Override
+    protected PutIndexTemplateRequest newRequest() {
         return new PutIndexTemplateRequest();
     }
 
-    @Override protected PutIndexTemplateResponse newResponse() {
+    @Override
+    protected PutIndexTemplateResponse newResponse() {
         return new PutIndexTemplateResponse();
     }
 
-    @Override protected ClusterBlockException checkBlock(PutIndexTemplateRequest request, ClusterState state) {
+    @Override
+    protected ClusterBlockException checkBlock(PutIndexTemplateRequest request, ClusterState state) {
         return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA, "");
     }
 
-    @Override protected PutIndexTemplateResponse masterOperation(PutIndexTemplateRequest request, ClusterState state) throws ElasticSearchException {
+    @Override
+    protected PutIndexTemplateResponse masterOperation(PutIndexTemplateRequest request, ClusterState state) throws ElasticSearchException {
         String cause = request.cause();
         if (cause.length() == 0) {
             cause = "api";
@@ -86,12 +93,14 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeOperatio
                 .mappings(request.mappings()),
 
                 new MetaDataIndexTemplateService.PutListener() {
-                    @Override public void onResponse(MetaDataIndexTemplateService.PutResponse response) {
+                    @Override
+                    public void onResponse(MetaDataIndexTemplateService.PutResponse response) {
                         responseRef.set(new PutIndexTemplateResponse(response.acknowledged()));
                         latch.countDown();
                     }
 
-                    @Override public void onFailure(Throwable t) {
+                    @Override
+                    public void onFailure(Throwable t) {
                         failureRef.set(t);
                         latch.countDown();
                     }

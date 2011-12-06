@@ -1,0 +1,7 @@
+{
+    query_string:{
+        default_field:"content",
+        phrase_slop:1,
+        query:"test"
+    }
+}

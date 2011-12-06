@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -20,20 +20,21 @@
 package org.elasticsearch.index.field.data.longs;
 
 import org.elasticsearch.common.RamUsage;
-import org.elasticsearch.common.joda.time.DateTimeZone;
-import org.elasticsearch.common.joda.time.MutableDateTime;
 import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.index.field.data.doubles.DoubleFieldData;
+import org.joda.time.DateTimeZone;
+import org.joda.time.MutableDateTime;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class MultiValueLongFieldData extends LongFieldData {
 
     private static final int VALUE_CACHE_SIZE = 10;
 
     private ThreadLocal<ThreadLocals.CleanableValue<double[][]>> doublesValuesCache = new ThreadLocal<ThreadLocals.CleanableValue<double[][]>>() {
-        @Override protected ThreadLocals.CleanableValue<double[][]> initialValue() {
+        @Override
+        protected ThreadLocals.CleanableValue<double[][]> initialValue() {
             double[][] value = new double[VALUE_CACHE_SIZE][];
             for (int i = 0; i < value.length; i++) {
                 value[i] = new double[i];
@@ -43,7 +44,8 @@ public class MultiValueLongFieldData extends LongFieldData {
     };
 
     private ThreadLocal<ThreadLocals.CleanableValue<MutableDateTime[][]>> dateTimesCache = new ThreadLocal<ThreadLocals.CleanableValue<MutableDateTime[][]>>() {
-        @Override protected ThreadLocals.CleanableValue<MutableDateTime[][]> initialValue() {
+        @Override
+        protected ThreadLocals.CleanableValue<MutableDateTime[][]> initialValue() {
             MutableDateTime[][] value = new MutableDateTime[VALUE_CACHE_SIZE][];
             for (int i = 0; i < value.length; i++) {
                 value[i] = new MutableDateTime[i];
@@ -57,7 +59,8 @@ public class MultiValueLongFieldData extends LongFieldData {
 
 
     private ThreadLocal<ThreadLocals.CleanableValue<long[][]>> valuesCache = new ThreadLocal<ThreadLocals.CleanableValue<long[][]>>() {
-        @Override protected ThreadLocals.CleanableValue<long[][]> initialValue() {
+        @Override
+        protected ThreadLocals.CleanableValue<long[][]> initialValue() {
             long[][] value = new long[VALUE_CACHE_SIZE][];
             for (int i = 0; i < value.length; i++) {
                 value[i] = new long[i];
@@ -74,7 +77,8 @@ public class MultiValueLongFieldData extends LongFieldData {
         this.ordinals = ordinals;
     }
 
-    @Override protected long computeSizeInBytes() {
+    @Override
+    protected long computeSizeInBytes() {
         long size = super.computeSizeInBytes();
         size += RamUsage.NUM_BYTES_ARRAY_HEADER; // for the top level array
         for (int[] ordinal : ordinals) {
@@ -83,11 +87,13 @@ public class MultiValueLongFieldData extends LongFieldData {
         return size;
     }
 
-    @Override public boolean multiValued() {
+    @Override
+    public boolean multiValued() {
         return true;
     }
 
-    @Override public boolean hasValue(int docId) {
+    @Override
+    public boolean hasValue(int docId) {
         for (int[] ordinal : ordinals) {
             if (ordinal[docId] != 0) {
                 return true;
@@ -96,7 +102,8 @@ public class MultiValueLongFieldData extends LongFieldData {
         return false;
     }
 
-    @Override public void forEachValueInDoc(int docId, StringValueInDocProc proc) {
+    @Override
+    public void forEachValueInDoc(int docId, StringValueInDocProc proc) {
         boolean found = false;
         for (int[] ordinal : ordinals) {
             int loc = ordinal[docId];
@@ -110,7 +117,8 @@ public class MultiValueLongFieldData extends LongFieldData {
         }
     }
 
-    @Override public void forEachValueInDoc(int docId, DoubleValueInDocProc proc) {
+    @Override
+    public void forEachValueInDoc(int docId, DoubleValueInDocProc proc) {
         for (int[] ordinal : ordinals) {
             int loc = ordinal[docId];
             if (loc != 0) {
@@ -119,7 +127,8 @@ public class MultiValueLongFieldData extends LongFieldData {
         }
     }
 
-    @Override public void forEachValueInDoc(int docId, LongValueInDocProc proc) {
+    @Override
+    public void forEachValueInDoc(int docId, LongValueInDocProc proc) {
         for (int[] ordinal : ordinals) {
             int loc = ordinal[docId];
             if (loc != 0) {
@@ -128,7 +137,8 @@ public class MultiValueLongFieldData extends LongFieldData {
         }
     }
 
-    @Override public void forEachValueInDoc(int docId, MissingDoubleValueInDocProc proc) {
+    @Override
+    public void forEachValueInDoc(int docId, MissingDoubleValueInDocProc proc) {
         boolean found = false;
         for (int[] ordinal : ordinals) {
             int loc = ordinal[docId];
@@ -142,7 +152,8 @@ public class MultiValueLongFieldData extends LongFieldData {
         }
     }
 
-    @Override public void forEachValueInDoc(int docId, MissingLongValueInDocProc proc) {
+    @Override
+    public void forEachValueInDoc(int docId, MissingLongValueInDocProc proc) {
         boolean found = false;
         for (int[] ordinal : ordinals) {
             int loc = ordinal[docId];
@@ -156,7 +167,8 @@ public class MultiValueLongFieldData extends LongFieldData {
         }
     }
 
-    @Override public void forEachOrdinalInDoc(int docId, OrdinalInDocProc proc) {
+    @Override
+    public void forEachOrdinalInDoc(int docId, OrdinalInDocProc proc) {
         boolean found = false;
         for (int[] ordinal : ordinals) {
             int loc = ordinal[docId];
@@ -170,7 +182,8 @@ public class MultiValueLongFieldData extends LongFieldData {
         }
     }
 
-    @Override public void forEachValueInDoc(int docId, ValueInDocProc proc) {
+    @Override
+    public void forEachValueInDoc(int docId, ValueInDocProc proc) {
         boolean found = false;
         for (int[] ordinal : ordinals) {
             int loc = ordinal[docId];
@@ -184,7 +197,8 @@ public class MultiValueLongFieldData extends LongFieldData {
         }
     }
 
-    @Override public void forEachValueInDoc(int docId, DateValueInDocProc proc) {
+    @Override
+    public void forEachValueInDoc(int docId, DateValueInDocProc proc) {
         MutableDateTime dateTime = dateTimeCache.get().get();
         for (int[] ordinal : ordinals) {
             int loc = ordinal[docId];
@@ -195,7 +209,8 @@ public class MultiValueLongFieldData extends LongFieldData {
         }
     }
 
-    @Override public void forEachValueInDoc(int docId, MutableDateTime dateTime, DateValueInDocProc proc) {
+    @Override
+    public void forEachValueInDoc(int docId, MutableDateTime dateTime, DateValueInDocProc proc) {
         for (int[] ordinal : ordinals) {
             int loc = ordinal[docId];
             if (loc != 0) {
@@ -205,7 +220,8 @@ public class MultiValueLongFieldData extends LongFieldData {
         }
     }
 
-    @Override public MutableDateTime[] dates(int docId) {
+    @Override
+    public MutableDateTime[] dates(int docId) {
         int length = 0;
         for (int[] ordinal : ordinals) {
             if (ordinal[docId] != 0) {
@@ -234,7 +250,8 @@ public class MultiValueLongFieldData extends LongFieldData {
         return dates;
     }
 
-    @Override public double[] doubleValues(int docId) {
+    @Override
+    public double[] doubleValues(int docId) {
         int length = 0;
         for (int[] ordinal : ordinals) {
             if (ordinal[docId] != 0) {
@@ -260,7 +277,8 @@ public class MultiValueLongFieldData extends LongFieldData {
         return doubles;
     }
 
-    @Override public long value(int docId) {
+    @Override
+    public long value(int docId) {
         for (int[] ordinal : ordinals) {
             int loc = ordinal[docId];
             if (loc != 0) {
@@ -270,7 +288,8 @@ public class MultiValueLongFieldData extends LongFieldData {
         return 0;
     }
 
-    @Override public long[] values(int docId) {
+    @Override
+    public long[] values(int docId) {
         int length = 0;
         for (int[] ordinal : ordinals) {
             if (ordinal[docId] != 0) {

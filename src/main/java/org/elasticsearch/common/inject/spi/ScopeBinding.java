@@ -21,7 +21,7 @@ import org.elasticsearch.common.inject.Scope;
 
 import java.lang.annotation.Annotation;
 
-import static org.elasticsearch.common.base.Preconditions.*;
+import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
  * Registration of a scope annotation with the scope that implements it. Instances are created

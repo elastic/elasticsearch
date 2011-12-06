@@ -19,11 +19,11 @@
 
 package org.elasticsearch.search.fetch.matchedfilters;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.lucene.docset.DocSet;
 import org.elasticsearch.common.lucene.docset.DocSets;
 import org.elasticsearch.search.SearchParseElement;
@@ -36,26 +36,31 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class MatchedFiltersFetchSubPhase implements FetchSubPhase {
 
-    @Override public Map<String, ? extends SearchParseElement> parseElements() {
+    @Override
+    public Map<String, ? extends SearchParseElement> parseElements() {
         return ImmutableMap.of();
     }
 
-    @Override public boolean hitsExecutionNeeded(SearchContext context) {
+    @Override
+    public boolean hitsExecutionNeeded(SearchContext context) {
         return false;
     }
 
-    @Override public void hitsExecute(SearchContext context, InternalSearchHit[] hits) throws ElasticSearchException {
+    @Override
+    public void hitsExecute(SearchContext context, InternalSearchHit[] hits) throws ElasticSearchException {
     }
 
-    @Override public boolean hitExecutionNeeded(SearchContext context) {
+    @Override
+    public boolean hitExecutionNeeded(SearchContext context) {
         return !context.parsedQuery().namedFilters().isEmpty();
     }
 
-    @Override public void hitExecute(SearchContext context, HitContext hitContext) throws ElasticSearchException {
+    @Override
+    public void hitExecute(SearchContext context, HitContext hitContext) throws ElasticSearchException {
         List<String> matchedFilters = Lists.newArrayListWithCapacity(2);
         for (Map.Entry<String, Filter> entry : context.parsedQuery().namedFilters().entrySet()) {
             String name = entry.getKey();

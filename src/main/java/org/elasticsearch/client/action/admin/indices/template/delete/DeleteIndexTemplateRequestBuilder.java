@@ -27,7 +27,7 @@ import org.elasticsearch.client.action.admin.indices.support.BaseIndicesRequestB
 import org.elasticsearch.common.unit.TimeValue;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class DeleteIndexTemplateRequestBuilder extends BaseIndicesRequestBuilder<DeleteIndexTemplateRequest, DeleteIndexTemplateResponse> {
 
@@ -69,7 +69,8 @@ public class DeleteIndexTemplateRequestBuilder extends BaseIndicesRequestBuilder
         return this;
     }
 
-    @Override protected void doExecute(ActionListener<DeleteIndexTemplateResponse> listener) {
+    @Override
+    protected void doExecute(ActionListener<DeleteIndexTemplateResponse> listener) {
         client.deleteTemplate(request, listener);
     }
 }

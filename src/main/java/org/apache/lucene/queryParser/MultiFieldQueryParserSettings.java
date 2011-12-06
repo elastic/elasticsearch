@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,12 +19,12 @@
 
 package org.apache.lucene.queryParser;
 
-import org.elasticsearch.common.trove.map.hash.TObjectFloatHashMap;
+import gnu.trove.map.hash.TObjectFloatHashMap;
 
 import java.util.List;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class MultiFieldQueryParserSettings extends QueryParserSettings {
 
@@ -65,7 +65,8 @@ public class MultiFieldQueryParserSettings extends QueryParserSettings {
         this.useDisMax = useDisMax;
     }
 
-    @Override public boolean equals(Object o) {
+    @Override
+    public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
@@ -85,7 +86,8 @@ public class MultiFieldQueryParserSettings extends QueryParserSettings {
         return true;
     }
 
-    @Override public int hashCode() {
+    @Override
+    public int hashCode() {
         int result = super.hashCode();
         result = 31 * result + (fields != null ? fields.hashCode() : 0);
         result = 31 * result + (boosts != null ? boosts.hashCode() : 0);

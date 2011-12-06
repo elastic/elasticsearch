@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -35,7 +35,7 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class AliasAction implements Streamable {
 
@@ -70,11 +70,14 @@ public class AliasAction implements Streamable {
 
     private String alias;
 
-    @Nullable private String filter;
+    @Nullable
+    private String filter;
 
-    @Nullable private String indexRouting;
+    @Nullable
+    private String indexRouting;
 
-    @Nullable private String searchRouting;
+    @Nullable
+    private String searchRouting;
 
     private AliasAction() {
 
@@ -175,7 +178,8 @@ public class AliasAction implements Streamable {
         return aliasAction;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         actionType = Type.fromValue(in.readByte());
         index = in.readUTF();
         alias = in.readUTF();
@@ -190,7 +194,8 @@ public class AliasAction implements Streamable {
         }
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeByte(actionType.value());
         out.writeUTF(index);
         out.writeUTF(alias);

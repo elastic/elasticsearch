@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -21,6 +21,7 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.StemmerOverrideFilter;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -29,7 +30,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.apache.lucene.util.Version;
 
 import java.util.HashMap;
 import java.util.List;
@@ -38,9 +38,10 @@ import java.util.Map;
 @AnalysisSettingsRequired
 public class StemmerOverrideTokenFilterFactory extends AbstractTokenFilterFactory {
 
-    private final Map<String,String> dictionary;
+    private final Map<String, String> dictionary;
 
-    @Inject public StemmerOverrideTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
+    @Inject
+    public StemmerOverrideTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
 
         List<String> rules = Analysis.getWordList(env, settings, "rules");
@@ -51,7 +52,8 @@ public class StemmerOverrideTokenFilterFactory extends AbstractTokenFilterFactor
         parseRules(rules, dictionary, "=>");
     }
 
-    @Override public TokenStream create(TokenStream tokenStream) {
+    @Override
+    public TokenStream create(TokenStream tokenStream) {
         return new StemmerOverrideFilter(Version.LUCENE_32, tokenStream, dictionary);
     }
 

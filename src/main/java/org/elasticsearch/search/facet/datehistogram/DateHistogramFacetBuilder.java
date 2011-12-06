@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.facet.datehistogram;
 
-import org.elasticsearch.common.collect.Maps;
+import com.google.common.collect.Maps;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilderException;
@@ -31,7 +31,7 @@ import java.util.Map;
 /**
  * A facet builder of date histogram facets.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class DateHistogramFacetBuilder extends AbstractFacetBuilder {
     private String keyFieldName;
@@ -129,7 +129,8 @@ public class DateHistogramFacetBuilder extends AbstractFacetBuilder {
      * Should the facet run in global mode (not bounded by the search query) or not (bounded by
      * the search query). Defaults to <tt>false</tt>.
      */
-    @Override public DateHistogramFacetBuilder global(boolean global) {
+    @Override
+    public DateHistogramFacetBuilder global(boolean global) {
         super.global(global);
         return this;
     }
@@ -137,7 +138,8 @@ public class DateHistogramFacetBuilder extends AbstractFacetBuilder {
     /**
      * Marks the facet to run in a specific scope.
      */
-    @Override public DateHistogramFacetBuilder scope(String scope) {
+    @Override
+    public DateHistogramFacetBuilder scope(String scope) {
         super.scope(scope);
         return this;
     }
@@ -145,7 +147,8 @@ public class DateHistogramFacetBuilder extends AbstractFacetBuilder {
     /**
      * An additional filter used to further filter down the set of documents the facet will run on.
      */
-    @Override public DateHistogramFacetBuilder facetFilter(FilterBuilder filter) {
+    @Override
+    public DateHistogramFacetBuilder facetFilter(FilterBuilder filter) {
         this.facetFilter = filter;
         return this;
     }
@@ -160,7 +163,8 @@ public class DateHistogramFacetBuilder extends AbstractFacetBuilder {
     }
 
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (keyFieldName == null) {
             throw new SearchSourceBuilderException("field must be set on date histogram facet for facet [" + name + "]");
         }

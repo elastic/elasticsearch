@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -41,20 +41,24 @@ public class ByteBufferDirectoryService extends AbstractIndexShardComponent impl
 
     private final ByteBufferCache byteBufferCache;
 
-    @Inject public ByteBufferDirectoryService(ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore, ByteBufferCache byteBufferCache) {
+    @Inject
+    public ByteBufferDirectoryService(ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore, ByteBufferCache byteBufferCache) {
         super(shardId, indexSettings);
         this.byteBufferCache = byteBufferCache;
     }
 
-    @Override public Directory[] build() {
+    @Override
+    public Directory[] build() {
         return new Directory[]{new CustomByteBufferDirectory(byteBufferCache)};
     }
 
-    @Override public void renameFile(Directory dir, String from, String to) throws IOException {
+    @Override
+    public void renameFile(Directory dir, String from, String to) throws IOException {
         ((CustomByteBufferDirectory) dir).renameTo(from, to);
     }
 
-    @Override public void fullDelete(Directory dir) {
+    @Override
+    public void fullDelete(Directory dir) {
     }
 
     static class CustomByteBufferDirectory extends ByteBufferDirectory {

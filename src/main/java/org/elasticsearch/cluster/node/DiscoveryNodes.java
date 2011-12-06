@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,11 +19,11 @@
 
 package org.elasticsearch.cluster.node;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.UnmodifiableIterator;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.collect.UnmodifiableIterator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
@@ -35,11 +35,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.common.collect.Lists.*;
-import static org.elasticsearch.common.collect.Maps.*;
+import static com.google.common.collect.Lists.newArrayList;
+import static com.google.common.collect.Maps.newHashMap;
 
 /**
- * @author kimchy (Shay Banon)
+ *
  */
 public class DiscoveryNodes implements Iterable<DiscoveryNode> {
 
@@ -63,7 +63,8 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
         this.localNodeId = localNodeId;
     }
 
-    @Override public UnmodifiableIterator<DiscoveryNode> iterator() {
+    @Override
+    public UnmodifiableIterator<DiscoveryNode> iterator() {
         return nodes.values().iterator();
     }
 
@@ -271,7 +272,8 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
         return new Delta(previousMasterNode, newMasterNode, localNodeId, ImmutableList.copyOf(removed), ImmutableList.copyOf(added));
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append("{");
         for (DiscoveryNode node : this) {

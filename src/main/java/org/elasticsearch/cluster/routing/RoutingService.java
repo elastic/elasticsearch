@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -20,11 +20,7 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -36,11 +32,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.Future;
 
-import static org.elasticsearch.cluster.ClusterState.*;
-import static org.elasticsearch.common.unit.TimeValue.*;
+import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
+import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class RoutingService extends AbstractLifecycleComponent<RoutingService> implements ClusterStateListener {
 
@@ -58,7 +54,8 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
 
     private volatile Future scheduledRoutingTableFuture;
 
-    @Inject public RoutingService(Settings settings, ThreadPool threadPool, ClusterService clusterService, AllocationService allocationService) {
+    @Inject
+    public RoutingService(Settings settings, ThreadPool threadPool, ClusterService clusterService, AllocationService allocationService) {
         super(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
@@ -66,11 +63,13 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
         this.schedule = componentSettings.getAsTime("schedule", timeValueSeconds(10));
     }
 
-    @Override protected void doStart() throws ElasticSearchException {
+    @Override
+    protected void doStart() throws ElasticSearchException {
         clusterService.addPriority(this);
     }
 
-    @Override protected void doStop() throws ElasticSearchException {
+    @Override
+    protected void doStop() throws ElasticSearchException {
         if (scheduledRoutingTableFuture != null) {
             scheduledRoutingTableFuture.cancel(true);
             scheduledRoutingTableFuture = null;
@@ -78,10 +77,12 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
         clusterService.remove(this);
     }
 
-    @Override protected void doClose() throws ElasticSearchException {
+    @Override
+    protected void doClose() throws ElasticSearchException {
     }
 
-    @Override public void clusterChanged(ClusterChangedEvent event) {
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
         if (event.source().equals(CLUSTER_UPDATE_TASK_SOURCE)) {
             // that's us, ignore this event
             return;
@@ -129,7 +130,8 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
                 return;
             }
             clusterService.submitStateUpdateTask(CLUSTER_UPDATE_TASK_SOURCE, new ClusterStateUpdateTask() {
-                @Override public ClusterState execute(ClusterState currentState) {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
                     RoutingAllocation.Result routingResult = allocationService.reroute(currentState);
                     if (!routingResult.changed()) {
                         // no state changed
@@ -146,7 +148,8 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
 
     private class RoutingTableUpdater implements Runnable {
 
-        @Override public void run() {
+        @Override
+        public void run() {
             reroute();
         }
     }

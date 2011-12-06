@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,14 +19,14 @@
 
 package org.elasticsearch.search.builder;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+import gnu.trove.iterator.TObjectFloatIterator;
+import gnu.trove.map.hash.TObjectFloatHashMap;
 import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Unicode;
-import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.io.BytesStream;
-import org.elasticsearch.common.trove.iterator.TObjectFloatIterator;
-import org.elasticsearch.common.trove.map.hash.TObjectFloatHashMap;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -48,7 +48,7 @@ import java.util.Map;
  * A search source builder allowing to easily build search source. Simple construction
  * using {@link org.elasticsearch.search.builder.SearchSourceBuilder#searchSource()}.
  *
- * @author kimchy (shay.banon)
+ *
  * @see org.elasticsearch.action.search.SearchRequest#source(SearchSourceBuilder)
  */
 public class SearchSourceBuilder implements ToXContent {
@@ -485,7 +485,8 @@ public class SearchSourceBuilder implements ToXContent {
         return this;
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).prettyPrint();
             toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -520,7 +521,8 @@ public class SearchSourceBuilder implements ToXContent {
     }
 
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
         if (from != -1) {

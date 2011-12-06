@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -23,8 +23,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.joda.time.DateTimeZone;
-import org.elasticsearch.common.joda.time.format.ISODateTimeFormat;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -43,27 +41,30 @@ import org.elasticsearch.search.facet.terms.longs.InternalLongTermsFacet;
 import org.elasticsearch.search.facet.terms.shorts.InternalShortTermsFacet;
 import org.elasticsearch.search.facet.termsstats.TermsStatsFacet;
 import org.elasticsearch.test.integration.AbstractNodesTests;
+import org.joda.time.DateTimeZone;
+import org.joda.time.format.ISODateTimeFormat;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.*;
-import static org.elasticsearch.index.query.FilterBuilders.*;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.FilterBuilders.termFilter;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.search.facet.FacetBuilders.*;
-import static org.hamcrest.MatcherAssert.*;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class SimpleFacetsTests extends AbstractNodesTests {
 
     private Client client;
 
-    @BeforeClass public void createNodes() throws Exception {
+    @BeforeClass
+    public void createNodes() throws Exception {
         Settings settings = ImmutableSettings.settingsBuilder().put("index.number_of_shards", numberOfShards()).put("index.number_of_replicas", 0).build();
         for (int i = 0; i < numberOfNodes(); i++) {
             startNode("node" + i, settings);
@@ -83,7 +84,8 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         return 5;
     }
 
-    @AfterClass public void closeNodes() {
+    @AfterClass
+    public void closeNodes() {
         client.close();
         closeAllNodes();
     }
@@ -139,7 +141,8 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         }
     }
 
-    @Test public void testSearchFilter() throws Exception {
+    @Test
+    public void testSearchFilter() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
@@ -193,7 +196,8 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         }
     }
 
-    @Test public void testFacetsWithSize0() throws Exception {
+    @Test
+    public void testFacetsWithSize0() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
@@ -254,7 +258,8 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         }
     }
 
-    @Test public void testTermsIndexFacet() throws Exception {
+    @Test
+    public void testTermsIndexFacet() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
             client.admin().indices().prepareDelete("test1").execute().actionGet();
@@ -305,7 +310,8 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         }
     }
 
-    @Test public void testFilterFacets() throws Exception {
+    @Test
+    public void testFilterFacets() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
@@ -341,7 +347,8 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         }
     }
 
-    @Test public void testTermsFacetsMissing() throws Exception {
+    @Test
+    public void testTermsFacetsMissing() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
@@ -384,11 +391,13 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         }
     }
 
-    @Test public void testTermsFacetsNoHint() throws Exception {
+    @Test
+    public void testTermsFacetsNoHint() throws Exception {
         testTermsFacets(null);
     }
 
-    @Test public void testTermsFacetsMapHint() throws Exception {
+    @Test
+    public void testTermsFacetsMapHint() throws Exception {
         testTermsFacets("map");
     }
 
@@ -757,7 +766,8 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         }
     }
 
-    @Test public void testTermFacetWithEqualTermDistribution() throws Exception {
+    @Test
+    public void testTermFacetWithEqualTermDistribution() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
@@ -803,7 +813,8 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         }
     }
 
-    @Test public void testStatsFacets() throws Exception {
+    @Test
+    public void testStatsFacets() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
@@ -901,7 +912,8 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         }
     }
 
-    @Test public void testHistoFacetEdge() throws Exception {
+    @Test
+    public void testHistoFacetEdge() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
@@ -946,7 +958,8 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         }
     }
 
-    @Test public void testHistoFacets() throws Exception {
+    @Test
+    public void testHistoFacets() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
@@ -1192,7 +1205,8 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         }
     }
 
-    @Test public void testRangeFacets() throws Exception {
+    @Test
+    public void testRangeFacets() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
@@ -1351,7 +1365,8 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         }
     }
 
-    @Test public void testDateHistoFacets() throws Exception {
+    @Test
+    public void testDateHistoFacets() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
@@ -1446,7 +1461,8 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         }
     }
 
-    @Test public void testTermsStatsFacets() throws Exception {
+    @Test
+    public void testTermsStatsFacets() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
@@ -1629,7 +1645,8 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         }
     }
 
-    @Test public void testNumericTermsStatsFacets() throws Exception {
+    @Test
+    public void testNumericTermsStatsFacets() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
@@ -1701,7 +1718,8 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         }
     }
 
-    @Test public void testTermsStatsFacets2() throws Exception {
+    @Test
+    public void testTermsStatsFacets2() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
@@ -1737,7 +1755,8 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         }
     }
 
-    @Test public void testQueryFacet() throws Exception {
+    @Test
+    public void testQueryFacet() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {

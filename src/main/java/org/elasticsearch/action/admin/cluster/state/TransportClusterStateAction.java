@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -33,43 +33,50 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import static org.elasticsearch.cluster.ClusterState.*;
-import static org.elasticsearch.cluster.metadata.MetaData.*;
+import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
+import static org.elasticsearch.cluster.metadata.MetaData.newMetaDataBuilder;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class TransportClusterStateAction extends TransportMasterNodeOperationAction<ClusterStateRequest, ClusterStateResponse> {
 
     private final ClusterName clusterName;
 
-    @Inject public TransportClusterStateAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                               ClusterName clusterName) {
+    @Inject
+    public TransportClusterStateAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
+                                       ClusterName clusterName) {
         super(settings, transportService, clusterService, threadPool);
         this.clusterName = clusterName;
     }
 
-    @Override protected String executor() {
+    @Override
+    protected String executor() {
         return ThreadPool.Names.CACHED;
     }
 
-    @Override protected String transportAction() {
+    @Override
+    protected String transportAction() {
         return TransportActions.Admin.Cluster.STATE;
     }
 
-    @Override protected ClusterStateRequest newRequest() {
+    @Override
+    protected ClusterStateRequest newRequest() {
         return new ClusterStateRequest();
     }
 
-    @Override protected ClusterStateResponse newResponse() {
+    @Override
+    protected ClusterStateResponse newResponse() {
         return new ClusterStateResponse();
     }
 
-    @Override protected boolean localExecute(ClusterStateRequest request) {
+    @Override
+    protected boolean localExecute(ClusterStateRequest request) {
         return request.local();
     }
 
-    @Override protected ClusterStateResponse masterOperation(ClusterStateRequest request, ClusterState state) throws ElasticSearchException {
+    @Override
+    protected ClusterStateResponse masterOperation(ClusterStateRequest request, ClusterState state) throws ElasticSearchException {
         ClusterState currentState = clusterService.state();
         ClusterState.Builder builder = newClusterStateBuilder();
         if (!request.filterNodes()) {

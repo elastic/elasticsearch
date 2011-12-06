@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.bulk;
 
+import com.google.common.collect.Lists;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.WriteConsistencyLevel;
@@ -26,7 +27,6 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -38,13 +38,13 @@ import org.elasticsearch.index.VersionType;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.action.Actions.*;
+import static org.elasticsearch.action.Actions.addValidationError;
 
 /**
  * A bulk request holds an ordered {@link IndexRequest}s and {@link DeleteRequest}s and allows to executes
  * it in a single batch.
  *
- * @author kimchy (shay.banon)
+ *
  * @see org.elasticsearch.client.Client#bulk(BulkRequest)
  */
 public class BulkRequest implements ActionRequest {
@@ -249,7 +249,8 @@ public class BulkRequest implements ActionRequest {
         return requests.size();
     }
 
-    @Override public ActionRequestValidationException validate() {
+    @Override
+    public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (requests.isEmpty()) {
             validationException = addValidationError("no requests added", validationException);
@@ -267,16 +268,19 @@ public class BulkRequest implements ActionRequest {
         return validationException;
     }
 
-    @Override public boolean listenerThreaded() {
+    @Override
+    public boolean listenerThreaded() {
         return listenerThreaded;
     }
 
-    @Override public BulkRequest listenerThreaded(boolean listenerThreaded) {
+    @Override
+    public BulkRequest listenerThreaded(boolean listenerThreaded) {
         this.listenerThreaded = listenerThreaded;
         return this;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         replicationType = ReplicationType.fromId(in.readByte());
         consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
         int size = in.readVInt();
@@ -295,7 +299,8 @@ public class BulkRequest implements ActionRequest {
         refresh = in.readBoolean();
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeByte(replicationType.id());
         out.writeByte(consistencyLevel.id());
         out.writeVInt(requests.size());

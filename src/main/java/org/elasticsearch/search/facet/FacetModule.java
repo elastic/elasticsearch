@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.facet;
 
-import org.elasticsearch.common.collect.Lists;
+import com.google.common.collect.Lists;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.search.facet.datehistogram.DateHistogramFacetProcessor;
@@ -35,7 +35,7 @@ import org.elasticsearch.search.facet.termsstats.TermsStatsFacetProcessor;
 import java.util.List;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class FacetModule extends AbstractModule {
 
@@ -57,7 +57,8 @@ public class FacetModule extends AbstractModule {
         processors.add(facetProcessor);
     }
 
-    @Override protected void configure() {
+    @Override
+    protected void configure() {
         Multibinder<FacetProcessor> multibinder = Multibinder.newSetBinder(binder(), FacetProcessor.class);
         for (Class<? extends FacetProcessor> processor : processors) {
             multibinder.addBinding().to(processor);

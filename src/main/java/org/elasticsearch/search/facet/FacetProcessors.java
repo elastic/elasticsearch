@@ -19,20 +19,21 @@
 
 package org.elasticsearch.search.facet;
 
-import org.elasticsearch.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 
 import java.util.Set;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class FacetProcessors {
 
     private final ImmutableMap<String, FacetProcessor> processors;
 
-    @Inject public FacetProcessors(Set<FacetProcessor> processors) {
+    @Inject
+    public FacetProcessors(Set<FacetProcessor> processors) {
         MapBuilder<String, FacetProcessor> builder = MapBuilder.newMapBuilder();
         for (FacetProcessor processor : processors) {
             for (String type : processor.types()) {

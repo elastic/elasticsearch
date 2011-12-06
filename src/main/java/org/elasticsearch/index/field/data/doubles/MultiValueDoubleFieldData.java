@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -23,14 +23,15 @@ import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.common.thread.ThreadLocals;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class MultiValueDoubleFieldData extends DoubleFieldData {
 
     private static final int VALUE_CACHE_SIZE = 10;
 
     private ThreadLocal<ThreadLocals.CleanableValue<double[][]>> valuesCache = new ThreadLocal<ThreadLocals.CleanableValue<double[][]>>() {
-        @Override protected ThreadLocals.CleanableValue<double[][]> initialValue() {
+        @Override
+        protected ThreadLocals.CleanableValue<double[][]> initialValue() {
             double[][] value = new double[VALUE_CACHE_SIZE][];
             for (int i = 0; i < value.length; i++) {
                 value[i] = new double[i];
@@ -47,7 +48,8 @@ public class MultiValueDoubleFieldData extends DoubleFieldData {
         this.ordinals = ordinals;
     }
 
-    @Override protected long computeSizeInBytes() {
+    @Override
+    protected long computeSizeInBytes() {
         long size = super.computeSizeInBytes();
         size += RamUsage.NUM_BYTES_ARRAY_HEADER; // for the top level array
         for (int[] ordinal : ordinals) {
@@ -56,11 +58,13 @@ public class MultiValueDoubleFieldData extends DoubleFieldData {
         return size;
     }
 
-    @Override public boolean multiValued() {
+    @Override
+    public boolean multiValued() {
         return true;
     }
 
-    @Override public boolean hasValue(int docId) {
+    @Override
+    public boolean hasValue(int docId) {
         for (int[] ordinal : ordinals) {
             if (ordinal[docId] != 0) {
                 return true;
@@ -69,7 +73,8 @@ public class MultiValueDoubleFieldData extends DoubleFieldData {
         return false;
     }
 
-    @Override public void forEachValueInDoc(int docId, StringValueInDocProc proc) {
+    @Override
+    public void forEachValueInDoc(int docId, StringValueInDocProc proc) {
         boolean found = false;
         for (int[] ordinal : ordinals) {
             int loc = ordinal[docId];
@@ -83,7 +88,8 @@ public class MultiValueDoubleFieldData extends DoubleFieldData {
         }
     }
 
-    @Override public void forEachValueInDoc(int docId, DoubleValueInDocProc proc) {
+    @Override
+    public void forEachValueInDoc(int docId, DoubleValueInDocProc proc) {
         for (int[] ordinal : ordinals) {
             int loc = ordinal[docId];
             if (loc != 0) {
@@ -92,7 +98,8 @@ public class MultiValueDoubleFieldData extends DoubleFieldData {
         }
     }
 
-    @Override public void forEachValueInDoc(int docId, LongValueInDocProc proc) {
+    @Override
+    public void forEachValueInDoc(int docId, LongValueInDocProc proc) {
         for (int[] ordinal : ordinals) {
             int loc = ordinal[docId];
             if (loc != 0) {
@@ -101,7 +108,8 @@ public class MultiValueDoubleFieldData extends DoubleFieldData {
         }
     }
 
-    @Override public void forEachValueInDoc(int docId, MissingDoubleValueInDocProc proc) {
+    @Override
+    public void forEachValueInDoc(int docId, MissingDoubleValueInDocProc proc) {
         boolean found = false;
         for (int[] ordinal : ordinals) {
             int loc = ordinal[docId];
@@ -115,7 +123,8 @@ public class MultiValueDoubleFieldData extends DoubleFieldData {
         }
     }
 
-    @Override public void forEachValueInDoc(int docId, MissingLongValueInDocProc proc) {
+    @Override
+    public void forEachValueInDoc(int docId, MissingLongValueInDocProc proc) {
         boolean found = false;
         for (int[] ordinal : ordinals) {
             int loc = ordinal[docId];
@@ -129,7 +138,8 @@ public class MultiValueDoubleFieldData extends DoubleFieldData {
         }
     }
 
-    @Override public void forEachValueInDoc(int docId, ValueInDocProc proc) {
+    @Override
+    public void forEachValueInDoc(int docId, ValueInDocProc proc) {
         boolean found = false;
         for (int[] ordinal : ordinals) {
             int loc = ordinal[docId];
@@ -143,7 +153,8 @@ public class MultiValueDoubleFieldData extends DoubleFieldData {
         }
     }
 
-    @Override public void forEachOrdinalInDoc(int docId, OrdinalInDocProc proc) {
+    @Override
+    public void forEachOrdinalInDoc(int docId, OrdinalInDocProc proc) {
         boolean found = false;
         for (int[] ordinal : ordinals) {
             int loc = ordinal[docId];
@@ -157,11 +168,13 @@ public class MultiValueDoubleFieldData extends DoubleFieldData {
         }
     }
 
-    @Override public double[] doubleValues(int docId) {
+    @Override
+    public double[] doubleValues(int docId) {
         return values(docId);
     }
 
-    @Override public double value(int docId) {
+    @Override
+    public double value(int docId) {
         for (int[] ordinal : ordinals) {
             int loc = ordinal[docId];
             if (loc != 0) {
@@ -171,7 +184,8 @@ public class MultiValueDoubleFieldData extends DoubleFieldData {
         return 0;
     }
 
-    @Override public double[] values(int docId) {
+    @Override
+    public double[] values(int docId) {
         int length = 0;
         for (int[] ordinal : ordinals) {
             if (ordinal[docId] != 0) {

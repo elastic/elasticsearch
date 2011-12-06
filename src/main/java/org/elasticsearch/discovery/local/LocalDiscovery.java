@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,13 +19,10 @@
 
 package org.elasticsearch.discovery.local;
 
+import jsr166y.LinkedTransferQueue;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
+import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeService;
@@ -33,7 +30,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.jsr166y.LinkedTransferQueue;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.InitialStateDiscoveryListener;
 import org.elasticsearch.transport.TransportService;
@@ -46,11 +42,12 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static org.elasticsearch.cluster.ClusterState.*;
-import static org.elasticsearch.common.collect.Sets.*;
+import static com.google.common.collect.Sets.newHashSet;
+import static org.elasticsearch.cluster.ClusterState.Builder;
+import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 
 /**
- * @author kimchy (Shay Banon)
+ *
  */
 public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implements Discovery {
 
@@ -75,8 +72,9 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
 
     private static final AtomicLong nodeIdGenerator = new AtomicLong();
 
-    @Inject public LocalDiscovery(Settings settings, ClusterName clusterName, TransportService transportService, ClusterService clusterService,
-                                  DiscoveryNodeService discoveryNodeService) {
+    @Inject
+    public LocalDiscovery(Settings settings, ClusterName clusterName, TransportService transportService, ClusterService clusterService,
+                          DiscoveryNodeService discoveryNodeService) {
         super(settings);
         this.clusterName = clusterName;
         this.clusterService = clusterService;
@@ -84,7 +82,8 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
         this.discoveryNodeService = discoveryNodeService;
     }
 
-    @Override protected void doStart() throws ElasticSearchException {
+    @Override
+    protected void doStart() throws ElasticSearchException {
         synchronized (clusterGroups) {
             ClusterGroup clusterGroup = clusterGroups.get(clusterName);
             if (clusterGroup == null) {
@@ -110,7 +109,8 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                 master = true;
                 final LocalDiscovery master = firstMaster;
                 clusterService.submitStateUpdateTask("local-disco-initial_connect(master)", new ProcessedClusterStateUpdateTask() {
-                    @Override public ClusterState execute(ClusterState currentState) {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
                         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.newNodesBuilder();
                         for (LocalDiscovery discovery : clusterGroups.get(clusterName).members()) {
                             nodesBuilder.put(discovery.localNode);
@@ -121,7 +121,8 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                         return newClusterStateBuilder().state(currentState).nodes(nodesBuilder).blocks(blocks).build();
                     }
 
-                    @Override public void clusterStateProcessed(ClusterState clusterState) {
+                    @Override
+                    public void clusterStateProcessed(ClusterState clusterState) {
                         sendInitialStateEventIfNeeded();
                     }
                 });
@@ -129,7 +130,8 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                 // update as fast as we can the local node state with the new metadata (so we create indices for example)
                 final ClusterState masterState = firstMaster.clusterService.state();
                 clusterService.submitStateUpdateTask("local-disco(detected_master)", new ClusterStateUpdateTask() {
-                    @Override public ClusterState execute(ClusterState currentState) {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
                         // make sure we have the local node id set, we might need it as a result of the new metadata
                         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.newNodesBuilder().putAll(currentState.nodes()).put(localNode).localNodeId(localNode.id());
                         return ClusterState.builder().state(currentState).metaData(masterState.metaData()).nodes(nodesBuilder).build();
@@ -139,7 +141,8 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                 // tell the master to send the fact that we are here
                 final LocalDiscovery master = firstMaster;
                 firstMaster.clusterService.submitStateUpdateTask("local-disco-receive(from node[" + localNode + "])", new ProcessedClusterStateUpdateTask() {
-                    @Override public ClusterState execute(ClusterState currentState) {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
                         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.newNodesBuilder();
                         for (LocalDiscovery discovery : clusterGroups.get(clusterName).members()) {
                             nodesBuilder.put(discovery.localNode);
@@ -148,7 +151,8 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                         return newClusterStateBuilder().state(currentState).nodes(nodesBuilder).build();
                     }
 
-                    @Override public void clusterStateProcessed(ClusterState clusterState) {
+                    @Override
+                    public void clusterStateProcessed(ClusterState clusterState) {
                         sendInitialStateEventIfNeeded();
                     }
                 });
@@ -156,7 +160,8 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
         } // else, no master node, the next node that will start will fill things in...
     }
 
-    @Override protected void doStop() throws ElasticSearchException {
+    @Override
+    protected void doStop() throws ElasticSearchException {
         synchronized (clusterGroups) {
             ClusterGroup clusterGroup = clusterGroups.get(clusterName);
             if (clusterGroup == null) {
@@ -191,7 +196,8 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
 
                 final LocalDiscovery master = firstMaster;
                 master.clusterService.submitStateUpdateTask("local-disco-update", new ClusterStateUpdateTask() {
-                    @Override public ClusterState execute(ClusterState currentState) {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
                         DiscoveryNodes newNodes = currentState.nodes().removeDeadMembers(newMembers, master.localNode.id());
                         DiscoveryNodes.Delta delta = newNodes.delta(currentState.nodes());
                         if (delta.added()) {
@@ -204,26 +210,32 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
         }
     }
 
-    @Override protected void doClose() throws ElasticSearchException {
+    @Override
+    protected void doClose() throws ElasticSearchException {
     }
 
-    @Override public DiscoveryNode localNode() {
+    @Override
+    public DiscoveryNode localNode() {
         return localNode;
     }
 
-    @Override public void addListener(InitialStateDiscoveryListener listener) {
+    @Override
+    public void addListener(InitialStateDiscoveryListener listener) {
         this.initialStateListeners.add(listener);
     }
 
-    @Override public void removeListener(InitialStateDiscoveryListener listener) {
+    @Override
+    public void removeListener(InitialStateDiscoveryListener listener) {
         this.initialStateListeners.remove(listener);
     }
 
-    @Override public String nodeDescription() {
+    @Override
+    public String nodeDescription() {
         return clusterName.value() + "/" + localNode.id();
     }
 
-    @Override public void publish(ClusterState clusterState) {
+    @Override
+    public void publish(ClusterState clusterState) {
         if (!master) {
             throw new ElasticSearchIllegalStateException("Shouldn't publish state when not master");
         }
@@ -243,7 +255,8 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                 // ignore cluster state messages that do not include "me", not in the game yet...
                 if (nodeSpecificClusterState.nodes().localNode() != null) {
                     discovery.clusterService.submitStateUpdateTask("local-disco-receive(from master)", new ProcessedClusterStateUpdateTask() {
-                        @Override public ClusterState execute(ClusterState currentState) {
+                        @Override
+                        public ClusterState execute(ClusterState currentState) {
                             ClusterState.Builder builder = ClusterState.builder().state(nodeSpecificClusterState);
                             // if the routing table did not change, use the original one
                             if (nodeSpecificClusterState.routingTable().version() == currentState.routingTable().version()) {
@@ -256,7 +269,8 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                             return builder.build();
                         }
 
-                        @Override public void clusterStateProcessed(ClusterState clusterState) {
+                        @Override
+                        public void clusterStateProcessed(ClusterState clusterState) {
                             sendInitialStateEventIfNeeded();
                         }
                     });

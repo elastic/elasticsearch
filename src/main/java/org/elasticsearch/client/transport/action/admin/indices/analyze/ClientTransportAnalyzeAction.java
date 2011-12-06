@@ -28,15 +28,17 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.TransportService;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class ClientTransportAnalyzeAction extends BaseClientTransportAction<AnalyzeRequest, AnalyzeResponse> {
 
-    @Inject public ClientTransportAnalyzeAction(Settings settings, TransportService transportService) {
+    @Inject
+    public ClientTransportAnalyzeAction(Settings settings, TransportService transportService) {
         super(settings, transportService, AnalyzeResponse.class);
     }
 
-    @Override protected String action() {
+    @Override
+    protected String action() {
         return TransportActions.Admin.Indices.ANALYZE;
     }
 }

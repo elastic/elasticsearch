@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -37,18 +37,19 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.action.Actions.*;
-import static org.elasticsearch.common.collect.Maps.*;
-import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
-import static org.elasticsearch.common.settings.ImmutableSettings.*;
-import static org.elasticsearch.common.unit.TimeValue.*;
+import static com.google.common.collect.Maps.newHashMap;
+import static org.elasticsearch.action.Actions.addValidationError;
+import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
+import static org.elasticsearch.common.settings.ImmutableSettings.readSettingsFromStream;
+import static org.elasticsearch.common.settings.ImmutableSettings.writeSettingsToStream;
+import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
 
 /**
  * A request to create an index. Best created with {@link org.elasticsearch.client.Requests#createIndexRequest(String)}.
- *
+ * <p/>
  * <p>The index created can optionally be created with {@link #settings(org.elasticsearch.common.settings.Settings)}.
  *
- * @author kimchy (shay.banon)
+ *
  * @see org.elasticsearch.client.IndicesAdminClient#create(CreateIndexRequest)
  * @see org.elasticsearch.client.Requests#createIndexRequest(String)
  * @see CreateIndexResponse
@@ -83,7 +84,8 @@ public class CreateIndexRequest extends MasterNodeOperationRequest {
         this.settings = settings;
     }
 
-    @Override public ActionRequestValidationException validate() {
+    @Override
+    public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (index == null) {
             validationException = addValidationError("index is missing", validationException);
@@ -245,7 +247,8 @@ public class CreateIndexRequest extends MasterNodeOperationRequest {
         return timeout(TimeValue.parseTimeValue(timeout, null));
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         cause = in.readUTF();
         index = in.readUTF();
@@ -257,7 +260,8 @@ public class CreateIndexRequest extends MasterNodeOperationRequest {
         }
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeUTF(cause);
         out.writeUTF(index);

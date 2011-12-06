@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -31,40 +31,48 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class TransportSinglePingAction extends TransportShardSingleOperationAction<SinglePingRequest, SinglePingResponse> {
 
-    @Inject public TransportSinglePingAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService) {
+    @Inject
+    public TransportSinglePingAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService) {
         super(settings, threadPool, clusterService, transportService);
     }
 
-    @Override protected String executor() {
+    @Override
+    protected String executor() {
         return ThreadPool.Names.CACHED;
     }
 
-    @Override protected String transportAction() {
+    @Override
+    protected String transportAction() {
         return TransportActions.Admin.Cluster.Ping.SINGLE;
     }
 
-    @Override protected String transportShardAction() {
+    @Override
+    protected String transportShardAction() {
         return "/cluster/ping/single/shard";
     }
 
-    @Override protected ShardIterator shards(ClusterState clusterState, SinglePingRequest request) throws ElasticSearchException {
+    @Override
+    protected ShardIterator shards(ClusterState clusterState, SinglePingRequest request) throws ElasticSearchException {
         return clusterService.operationRouting()
                 .getShards(clusterService.state(), request.index(), request.type, request.id, null, null);
     }
 
-    @Override protected SinglePingResponse shardOperation(SinglePingRequest request, int shardId) throws ElasticSearchException {
+    @Override
+    protected SinglePingResponse shardOperation(SinglePingRequest request, int shardId) throws ElasticSearchException {
         return new SinglePingResponse();
     }
 
-    @Override protected SinglePingRequest newRequest() {
+    @Override
+    protected SinglePingRequest newRequest() {
         return new SinglePingRequest();
     }
 
-    @Override protected SinglePingResponse newResponse() {
+    @Override
+    protected SinglePingResponse newResponse() {
         return new SinglePingResponse();
     }
 }

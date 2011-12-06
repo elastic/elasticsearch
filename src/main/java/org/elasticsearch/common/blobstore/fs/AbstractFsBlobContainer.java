@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,13 +19,13 @@
 
 package org.elasticsearch.common.blobstore.fs;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.io.Closeables;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.io.Closeables;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -33,7 +33,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public abstract class AbstractFsBlobContainer extends AbstractBlobContainer {
 
@@ -70,13 +70,16 @@ public abstract class AbstractFsBlobContainer extends AbstractBlobContainer {
         return new File(path, blobName).delete();
     }
 
-    @Override public boolean blobExists(String blobName) {
+    @Override
+    public boolean blobExists(String blobName) {
         return new File(path, blobName).exists();
     }
 
-    @Override public void readBlob(final String blobName, final ReadBlobListener listener) {
+    @Override
+    public void readBlob(final String blobName, final ReadBlobListener listener) {
         blobStore.executor().execute(new Runnable() {
-            @Override public void run() {
+            @Override
+            public void run() {
                 byte[] buffer = new byte[blobStore.bufferSizeInBytes()];
                 FileInputStream is = null;
                 try {

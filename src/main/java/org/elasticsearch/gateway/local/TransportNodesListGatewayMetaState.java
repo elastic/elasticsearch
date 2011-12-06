@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,6 +19,7 @@
 
 package org.elasticsearch.gateway.local;
 
+import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.FailedNodeException;
@@ -27,7 +28,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -42,13 +42,14 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class TransportNodesListGatewayMetaState extends TransportNodesOperationAction<TransportNodesListGatewayMetaState.Request, TransportNodesListGatewayMetaState.NodesLocalGatewayMetaState, TransportNodesListGatewayMetaState.NodeRequest, TransportNodesListGatewayMetaState.NodeLocalGatewayMetaState> {
 
     private LocalGateway gateway;
 
-    @Inject public TransportNodesListGatewayMetaState(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService) {
+    @Inject
+    public TransportNodesListGatewayMetaState(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService) {
         super(settings, clusterName, threadPool, clusterService, transportService);
     }
 
@@ -61,39 +62,48 @@ public class TransportNodesListGatewayMetaState extends TransportNodesOperationA
         return execute(new Request(nodesIds).timeout(timeout));
     }
 
-    @Override protected String executor() {
+    @Override
+    protected String executor() {
         return ThreadPool.Names.CACHED;
     }
 
-    @Override protected String transportAction() {
+    @Override
+    protected String transportAction() {
         return "/gateway/local/meta-state";
     }
 
-    @Override protected String transportNodeAction() {
+    @Override
+    protected String transportNodeAction() {
         return "/gateway/local/meta-state/node";
     }
 
-    @Override protected boolean transportCompress() {
+    @Override
+    protected boolean transportCompress() {
         return true; // compress since the metadata can become large
     }
 
-    @Override protected Request newRequest() {
+    @Override
+    protected Request newRequest() {
         return new Request();
     }
 
-    @Override protected NodeRequest newNodeRequest() {
+    @Override
+    protected NodeRequest newNodeRequest() {
         return new NodeRequest();
     }
 
-    @Override protected NodeRequest newNodeRequest(String nodeId, Request request) {
+    @Override
+    protected NodeRequest newNodeRequest(String nodeId, Request request) {
         return new NodeRequest(nodeId);
     }
 
-    @Override protected NodeLocalGatewayMetaState newNodeResponse() {
+    @Override
+    protected NodeLocalGatewayMetaState newNodeResponse() {
         return new NodeLocalGatewayMetaState();
     }
 
-    @Override protected NodesLocalGatewayMetaState newResponse(Request request, AtomicReferenceArray responses) {
+    @Override
+    protected NodesLocalGatewayMetaState newResponse(Request request, AtomicReferenceArray responses) {
         final List<NodeLocalGatewayMetaState> nodesList = Lists.newArrayList();
         final List<FailedNodeException> failures = Lists.newArrayList();
         for (int i = 0; i < responses.length(); i++) {
@@ -108,11 +118,13 @@ public class TransportNodesListGatewayMetaState extends TransportNodesOperationA
                 failures.toArray(new FailedNodeException[failures.size()]));
     }
 
-    @Override protected NodeLocalGatewayMetaState nodeOperation(NodeRequest request) throws ElasticSearchException {
+    @Override
+    protected NodeLocalGatewayMetaState nodeOperation(NodeRequest request) throws ElasticSearchException {
         return new NodeLocalGatewayMetaState(clusterService.localNode(), gateway.currentMetaState());
     }
 
-    @Override protected boolean accumulateExceptions() {
+    @Override
+    protected boolean accumulateExceptions() {
         return true;
     }
 
@@ -125,16 +137,19 @@ public class TransportNodesListGatewayMetaState extends TransportNodesOperationA
             super(nodesIds.toArray(new String[nodesIds.size()]));
         }
 
-        @Override public Request timeout(TimeValue timeout) {
+        @Override
+        public Request timeout(TimeValue timeout) {
             super.timeout(timeout);
             return this;
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
         }
     }
@@ -155,7 +170,8 @@ public class TransportNodesListGatewayMetaState extends TransportNodesOperationA
             return failures;
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             nodes = new NodeLocalGatewayMetaState[in.readVInt()];
             for (int i = 0; i < nodes.length; i++) {
@@ -164,7 +180,8 @@ public class TransportNodesListGatewayMetaState extends TransportNodesOperationA
             }
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeVInt(nodes.length);
             for (NodeLocalGatewayMetaState response : nodes) {
@@ -183,11 +200,13 @@ public class TransportNodesListGatewayMetaState extends TransportNodesOperationA
             super(nodeId);
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
         }
     }
@@ -208,14 +227,16 @@ public class TransportNodesListGatewayMetaState extends TransportNodesOperationA
             return state;
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             if (in.readBoolean()) {
                 state = LocalGatewayMetaState.Builder.readFrom(in);
             }
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             if (state == null) {
                 out.writeBoolean(false);

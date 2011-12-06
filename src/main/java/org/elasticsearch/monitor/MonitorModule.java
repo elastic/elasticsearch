@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -49,13 +49,13 @@ import org.elasticsearch.monitor.sigar.SigarService;
 
 import java.util.Map;
 
-import static org.elasticsearch.monitor.dump.cluster.ClusterDumpContributor.*;
-import static org.elasticsearch.monitor.dump.heap.HeapDumpContributor.*;
-import static org.elasticsearch.monitor.dump.summary.SummaryDumpContributor.*;
-import static org.elasticsearch.monitor.dump.thread.ThreadDumpContributor.*;
+import static org.elasticsearch.monitor.dump.cluster.ClusterDumpContributor.CLUSTER;
+import static org.elasticsearch.monitor.dump.heap.HeapDumpContributor.HEAP_DUMP;
+import static org.elasticsearch.monitor.dump.summary.SummaryDumpContributor.SUMMARY;
+import static org.elasticsearch.monitor.dump.thread.ThreadDumpContributor.THREAD_DUMP;
 
 /**
- * @author kimchy (Shay Banon)
+ *
  */
 public class MonitorModule extends AbstractModule {
 
@@ -69,7 +69,8 @@ public class MonitorModule extends AbstractModule {
         this.settings = settings;
     }
 
-    @Override protected void configure() {
+    @Override
+    protected void configure() {
         boolean sigarLoaded = false;
         try {
             settings.getClassLoader().loadClass("org.hyperic.sigar.Sigar");

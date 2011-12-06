@@ -19,17 +19,17 @@
 
 package org.elasticsearch.search.facet.terms.longs;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
+import gnu.trove.iterator.TLongIntIterator;
+import gnu.trove.map.hash.TLongIntHashMap;
+import gnu.trove.set.hash.TLongHashSet;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.collect.BoundedTreeSet;
-import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.thread.ThreadLocals;
-import org.elasticsearch.common.trove.iterator.TLongIntIterator;
-import org.elasticsearch.common.trove.map.hash.TLongIntHashMap;
-import org.elasticsearch.common.trove.set.hash.TLongHashSet;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.longs.LongFieldData;
@@ -43,19 +43,16 @@ import org.elasticsearch.search.facet.terms.support.EntryPriorityQueue;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.ArrayDeque;
-import java.util.Arrays;
-import java.util.Deque;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class TermsLongFacetCollector extends AbstractFacetCollector {
 
     static ThreadLocal<ThreadLocals.CleanableValue<Deque<TLongIntHashMap>>> cache = new ThreadLocal<ThreadLocals.CleanableValue<Deque<TLongIntHashMap>>>() {
-        @Override protected ThreadLocals.CleanableValue<Deque<TLongIntHashMap>> initialValue() {
+        @Override
+        protected ThreadLocals.CleanableValue<Deque<TLongIntHashMap>> initialValue() {
             return new ThreadLocals.CleanableValue<Deque<TLongIntHashMap>>(new ArrayDeque<TLongIntHashMap>());
         }
     };
@@ -127,24 +124,28 @@ public class TermsLongFacetCollector extends AbstractFacetCollector {
         }
     }
 
-    @Override public void setScorer(Scorer scorer) throws IOException {
+    @Override
+    public void setScorer(Scorer scorer) throws IOException {
         if (script != null) {
             script.setScorer(scorer);
         }
     }
 
-    @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
+    @Override
+    protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
         fieldData = (LongFieldData) fieldDataCache.cache(fieldDataType, reader, indexFieldName);
         if (script != null) {
             script.setNextReader(reader);
         }
     }
 
-    @Override protected void doCollect(int doc) throws IOException {
+    @Override
+    protected void doCollect(int doc) throws IOException {
         fieldData.forEachValueInDoc(doc, aggregator);
     }
 
-    @Override public Facet facet() {
+    @Override
+    public Facet facet() {
         TLongIntHashMap facets = aggregator.facets();
         if (facets.isEmpty()) {
             CacheRecycler.pushLongIntMap(facets);
@@ -193,7 +194,8 @@ public class TermsLongFacetCollector extends AbstractFacetCollector {
             }
         }
 
-        @Override public void onValue(int docId, long value) {
+        @Override
+        public void onValue(int docId, long value) {
             if (excluded != null && excluded.contains(value)) {
                 return;
             }
@@ -227,16 +229,19 @@ public class TermsLongFacetCollector extends AbstractFacetCollector {
             this.facets = facets;
         }
 
-        @Override public void onValue(long value) {
+        @Override
+        public void onValue(long value) {
             facets.putIfAbsent(value, 0);
         }
 
-        @Override public void onValue(int docId, long value) {
+        @Override
+        public void onValue(int docId, long value) {
             facets.adjustOrPutValue(value, 1, 1);
             total++;
         }
 
-        @Override public void onMissing(int docId) {
+        @Override
+        public void onMissing(int docId) {
             missing++;
         }
 

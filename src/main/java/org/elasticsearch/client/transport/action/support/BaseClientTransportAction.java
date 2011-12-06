@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -39,10 +39,10 @@ import org.elasticsearch.transport.TransportService;
 
 import java.lang.reflect.Constructor;
 
-import static org.elasticsearch.action.support.PlainActionFuture.*;
+import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public abstract class BaseClientTransportAction<Request extends ActionRequest, Response extends ActionResponse> extends AbstractComponent implements ClientTransportAction<Request, Response> {
 
@@ -61,31 +61,37 @@ public abstract class BaseClientTransportAction<Request extends ActionRequest, R
         responseConstructor.setAccessible(true);
     }
 
-    @Override public ActionFuture<Response> execute(DiscoveryNode node, Request request) throws ElasticSearchException {
+    @Override
+    public ActionFuture<Response> execute(DiscoveryNode node, Request request) throws ElasticSearchException {
         PlainActionFuture<Response> future = newFuture();
         request.listenerThreaded(false);
         execute(node, request, future);
         return future;
     }
 
-    @Override public void execute(DiscoveryNode node, final Request request, final ActionListener<Response> listener) {
+    @Override
+    public void execute(DiscoveryNode node, final Request request, final ActionListener<Response> listener) {
         transportService.sendRequest(node, action(), request, options(), new BaseTransportResponseHandler<Response>() {
-            @Override public Response newInstance() {
+            @Override
+            public Response newInstance() {
                 return BaseClientTransportAction.this.newInstance();
             }
 
-            @Override public String executor() {
+            @Override
+            public String executor() {
                 if (request.listenerThreaded()) {
                     return ThreadPool.Names.CACHED;
                 }
                 return ThreadPool.Names.SAME;
             }
 
-            @Override public void handleResponse(Response response) {
+            @Override
+            public void handleResponse(Response response) {
                 listener.onResponse(response);
             }
 
-            @Override public void handleException(TransportException exp) {
+            @Override
+            public void handleException(TransportException exp) {
                 listener.onFailure(exp);
             }
         });

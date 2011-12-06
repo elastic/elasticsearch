@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,12 +19,12 @@
 
 package org.elasticsearch.test.stress.get;
 
+import com.google.common.collect.Sets;
+import jsr166y.ThreadLocalRandom;
 import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.jsr166y.ThreadLocalRandom;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
 
@@ -55,7 +55,8 @@ public class MGetStress1 {
         final AtomicBoolean done = new AtomicBoolean();
         // start indexer
         Thread indexer = new Thread(new Runnable() {
-            @Override public void run() {
+            @Override
+            public void run() {
                 while (!done.get()) {
                     client.prepareIndex("test", "type", Integer.toString(ThreadLocalRandom.current().nextInt(NUMBER_OF_DOCS)))
                             .setSource("field", "value").execute().actionGet();
@@ -67,7 +68,8 @@ public class MGetStress1 {
 
         // start the mget one
         Thread mget = new Thread(new Runnable() {
-            @Override public void run() {
+            @Override
+            public void run() {
                 while (!done.get()) {
                     Set<String> ids = Sets.newHashSet();
                     for (int i = 0; i < MGET_BATCH; i++) {

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -27,13 +27,13 @@ import org.elasticsearch.index.settings.IndexSettings;
 
 import java.util.List;
 
-import static org.elasticsearch.common.collect.Lists.*;
+import static com.google.common.collect.Lists.newArrayList;
 
 /**
  * A custom analyzer that is built out of a single {@link org.apache.lucene.analysis.Tokenizer} and a list
  * of {@link org.apache.lucene.analysis.TokenFilter}s.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<CustomAnalyzer> {
 
@@ -41,8 +41,9 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
 
     private CustomAnalyzer customAnalyzer;
 
-    @Inject public CustomAnalyzerProvider(Index index, @IndexSettings Settings indexSettings,
-                                          @Assisted String name, @Assisted Settings settings) {
+    @Inject
+    public CustomAnalyzerProvider(Index index, @IndexSettings Settings indexSettings,
+                                  @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
         this.analyzerSettings = settings;
     }
@@ -83,7 +84,8 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
                 tokenFilters.toArray(new TokenFilterFactory[tokenFilters.size()]));
     }
 
-    @Override public CustomAnalyzer get() {
+    @Override
+    public CustomAnalyzer get() {
         return this.customAnalyzer;
     }
 }

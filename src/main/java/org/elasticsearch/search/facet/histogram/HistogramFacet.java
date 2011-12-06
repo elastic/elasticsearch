@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -28,7 +28,7 @@ import java.util.List;
 /**
  * Numeric histogram facet.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public interface HistogramFacet extends Facet, Iterable<HistogramFacet.Entry> {
 
@@ -50,7 +50,8 @@ public interface HistogramFacet extends Facet, Iterable<HistogramFacet.Entry> {
     public static enum ComparatorType {
         KEY((byte) 0, "key", new Comparator<Entry>() {
 
-            @Override public int compare(Entry o1, Entry o2) {
+            @Override
+            public int compare(Entry o1, Entry o2) {
                 // push nulls to the end
                 if (o1 == null) {
                     return 1;
@@ -63,7 +64,8 @@ public interface HistogramFacet extends Facet, Iterable<HistogramFacet.Entry> {
         }),
         COUNT((byte) 1, "count", new Comparator<Entry>() {
 
-            @Override public int compare(Entry o1, Entry o2) {
+            @Override
+            public int compare(Entry o1, Entry o2) {
                 // push nulls to the end
                 if (o1 == null) {
                     return 1;
@@ -76,7 +78,8 @@ public interface HistogramFacet extends Facet, Iterable<HistogramFacet.Entry> {
         }),
         TOTAL((byte) 2, "total", new Comparator<Entry>() {
 
-            @Override public int compare(Entry o1, Entry o2) {
+            @Override
+            public int compare(Entry o1, Entry o2) {
                 // push nulls to the end
                 if (o1 == null) {
                     return 1;

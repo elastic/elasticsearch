@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.highlight;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Document;
@@ -27,18 +29,9 @@ import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.highlight.*;
-import org.apache.lucene.search.vectorhighlight.CustomFieldQuery;
-import org.apache.lucene.search.vectorhighlight.FastVectorHighlighter;
-import org.apache.lucene.search.vectorhighlight.FieldQuery;
-import org.apache.lucene.search.vectorhighlight.FragListBuilder;
-import org.apache.lucene.search.vectorhighlight.FragmentsBuilder;
-import org.apache.lucene.search.vectorhighlight.ScoreOrderFragmentsBuilder;
-import org.apache.lucene.search.vectorhighlight.SimpleFragListBuilder;
-import org.apache.lucene.search.vectorhighlight.SimpleFragmentsBuilder;
-import org.apache.lucene.search.vectorhighlight.SingleFragListBuilder;
+import org.apache.lucene.search.highlight.Formatter;
+import org.apache.lucene.search.vectorhighlight.*;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.lucene.document.SingleFieldSelector;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
@@ -55,16 +48,12 @@ import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
-import static org.elasticsearch.common.collect.Maps.*;
+import static com.google.common.collect.Maps.newHashMap;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class HighlightPhase implements FetchSubPhase {
 
@@ -73,22 +62,27 @@ public class HighlightPhase implements FetchSubPhase {
         public static Encoder HTML = new SimpleHTMLEncoder();
     }
 
-    @Override public Map<String, ? extends SearchParseElement> parseElements() {
+    @Override
+    public Map<String, ? extends SearchParseElement> parseElements() {
         return ImmutableMap.of("highlight", new HighlighterParseElement());
     }
 
-    @Override public boolean hitsExecutionNeeded(SearchContext context) {
+    @Override
+    public boolean hitsExecutionNeeded(SearchContext context) {
         return false;
     }
 
-    @Override public void hitsExecute(SearchContext context, InternalSearchHit[] hits) throws ElasticSearchException {
+    @Override
+    public void hitsExecute(SearchContext context, InternalSearchHit[] hits) throws ElasticSearchException {
     }
 
-    @Override public boolean hitExecutionNeeded(SearchContext context) {
+    @Override
+    public boolean hitExecutionNeeded(SearchContext context) {
         return context.highlight() != null;
     }
 
-    @Override public void hitExecute(SearchContext context, HitContext hitContext) throws ElasticSearchException {
+    @Override
+    public void hitExecute(SearchContext context, HitContext hitContext) throws ElasticSearchException {
         // we use a cache to cache heavy things, mainly the rewrite in FieldQuery for FVH
         Map<FieldMapper, HighlightEntry> cache = (Map<FieldMapper, HighlightEntry>) hitContext.cache().get("highlight");
         if (cache == null) {

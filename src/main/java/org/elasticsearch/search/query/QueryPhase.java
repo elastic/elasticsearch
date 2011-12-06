@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,17 +19,10 @@
 
 package org.elasticsearch.search.query;
 
+import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilteredQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.*;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
@@ -48,17 +41,19 @@ import java.util.ArrayList;
 import java.util.Map;
 
 /**
- * @author kimchy (Shay Banon)
+ *
  */
 public class QueryPhase implements SearchPhase {
 
     private final FacetPhase facetPhase;
 
-    @Inject public QueryPhase(FacetPhase facetPhase) {
+    @Inject
+    public QueryPhase(FacetPhase facetPhase) {
         this.facetPhase = facetPhase;
     }
 
-    @Override public Map<String, ? extends SearchParseElement> parseElements() {
+    @Override
+    public Map<String, ? extends SearchParseElement> parseElements() {
         ImmutableMap.Builder<String, SearchParseElement> parseElements = ImmutableMap.builder();
         parseElements.put("from", new FromParseElement()).put("size", new SizeParseElement())
                 .put("indices_boost", new IndicesBoostParseElement())
@@ -78,7 +73,8 @@ public class QueryPhase implements SearchPhase {
         return parseElements.build();
     }
 
-    @Override public void preProcess(SearchContext context) {
+    @Override
+    public void preProcess(SearchContext context) {
         if (context.query() == null) {
             context.parsedQuery(ParsedQuery.MATCH_ALL_PARSED_QUERY);
         }
@@ -230,17 +226,21 @@ public class QueryPhase implements SearchPhase {
 
         private int totalHits = 0;
 
-        @Override public void setScorer(Scorer scorer) throws IOException {
+        @Override
+        public void setScorer(Scorer scorer) throws IOException {
         }
 
-        @Override public void collect(int doc) throws IOException {
+        @Override
+        public void collect(int doc) throws IOException {
             totalHits++;
         }
 
-        @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
+        @Override
+        public void setNextReader(IndexReader reader, int docBase) throws IOException {
         }
 
-        @Override public boolean acceptsDocsOutOfOrder() {
+        @Override
+        public boolean acceptsDocsOutOfOrder() {
             return true;
         }
 
@@ -278,11 +278,13 @@ public class QueryPhase implements SearchPhase {
             return new TopDocs(docs.size(), docs.toArray(new ScoreDoc[docs.size()]), 0f);
         }
 
-        @Override public void setScorer(Scorer scorer) throws IOException {
+        @Override
+        public void setScorer(Scorer scorer) throws IOException {
             this.scorer = scorer;
         }
 
-        @Override public void collect(int doc) throws IOException {
+        @Override
+        public void collect(int doc) throws IOException {
             if (counter >= from) {
                 docs.add(new ScoreDoc(docBase + doc, trackScores ? scorer.score() : 0f));
             }
@@ -292,18 +294,21 @@ public class QueryPhase implements SearchPhase {
             }
         }
 
-        @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
+        @Override
+        public void setNextReader(IndexReader reader, int docBase) throws IOException {
             this.docBase = docBase;
         }
 
-        @Override public boolean acceptsDocsOutOfOrder() {
+        @Override
+        public boolean acceptsDocsOutOfOrder() {
             return true;
         }
 
         public static final RuntimeException StopCollectingException = new StopCollectingException();
 
         static class StopCollectingException extends RuntimeException {
-            @Override public Throwable fillInStackTrace() {
+            @Override
+            public Throwable fillInStackTrace() {
                 return null;
             }
         }

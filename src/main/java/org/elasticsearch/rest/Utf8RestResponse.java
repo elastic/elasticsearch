@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -23,10 +23,10 @@ import org.apache.lucene.util.UnicodeUtil;
 
 /**
  * An http response that is built on top of {@link org.apache.lucene.util.UnicodeUtil.UTF8Result}.
- *
+ * <p/>
  * <p>Note, this class assumes that the utf8 result is not thread safe.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class Utf8RestResponse extends AbstractRestResponse implements RestResponse {
 
@@ -63,39 +63,48 @@ public class Utf8RestResponse extends AbstractRestResponse implements RestRespon
         this.suffixUtf8Result = suffixUtf8Result;
     }
 
-    @Override public boolean contentThreadSafe() {
+    @Override
+    public boolean contentThreadSafe() {
         return false;
     }
 
-    @Override public String contentType() {
+    @Override
+    public String contentType() {
         return "text/plain; charset=UTF-8";
     }
 
-    @Override public byte[] content() {
+    @Override
+    public byte[] content() {
         return utf8Result.result;
     }
 
-    @Override public int contentLength() {
+    @Override
+    public int contentLength() {
         return utf8Result.length;
     }
 
-    @Override public RestStatus status() {
+    @Override
+    public RestStatus status() {
         return status;
     }
 
-    @Override public byte[] prefixContent() {
+    @Override
+    public byte[] prefixContent() {
         return prefixUtf8Result != null ? prefixUtf8Result.result : null;
     }
 
-    @Override public int prefixContentLength() {
+    @Override
+    public int prefixContentLength() {
         return prefixUtf8Result != null ? prefixUtf8Result.length : 0;
     }
 
-    @Override public byte[] suffixContent() {
+    @Override
+    public byte[] suffixContent() {
         return suffixUtf8Result != null ? suffixUtf8Result.result : null;
     }
 
-    @Override public int suffixContentLength() {
+    @Override
+    public int suffixContentLength() {
         return suffixUtf8Result != null ? suffixUtf8Result.length : 0;
     }
 }

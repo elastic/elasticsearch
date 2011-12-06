@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -30,7 +30,7 @@ import java.util.Arrays;
 /**
  * A field highlighted with its highlighted fragments.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class HighlightField implements Streamable {
 
@@ -74,7 +74,8 @@ public class HighlightField implements Streamable {
         return fragments();
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return "[" + name + "], fragments[" + Arrays.toString(fragments) + "]";
     }
 
@@ -84,7 +85,8 @@ public class HighlightField implements Streamable {
         return field;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         name = in.readUTF();
         if (in.readBoolean()) {
             int size = in.readVInt();
@@ -99,7 +101,8 @@ public class HighlightField implements Streamable {
         }
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(name);
         if (fragments == null) {
             out.writeBoolean(false);

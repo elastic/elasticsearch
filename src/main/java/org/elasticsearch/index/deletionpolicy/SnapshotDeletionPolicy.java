@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -38,7 +38,7 @@ import java.util.concurrent.ConcurrentMap;
  * and if the deletion policy is used with all open index writers (JVM level) then the snapshot
  * state will not be deleted until it will be released.
  *
- * @author kimchy (shay.banon)
+ *
  */
 public class SnapshotDeletionPolicy extends AbstractIndexShardComponent implements IndexDeletionPolicy {
 
@@ -55,7 +55,8 @@ public class SnapshotDeletionPolicy extends AbstractIndexShardComponent implemen
     /**
      * Constructs a new snapshot deletion policy that wraps the provided deletion policy.
      */
-    @Inject public SnapshotDeletionPolicy(@Named("actual") IndexDeletionPolicy primary) {
+    @Inject
+    public SnapshotDeletionPolicy(@Named("actual") IndexDeletionPolicy primary) {
         super(((IndexShardComponent) primary).shardId(), ((IndexShardComponent) primary).indexSettings());
         this.primary = primary;
     }
@@ -77,7 +78,7 @@ public class SnapshotDeletionPolicy extends AbstractIndexShardComponent implemen
             primary.onCommit(snapshotCommits);
 
             // clean snapshots that their respective counts are 0 (should not really happen)
-            for (Iterator<SnapshotHolder> it = snapshots.values().iterator(); it.hasNext();) {
+            for (Iterator<SnapshotHolder> it = snapshots.values().iterator(); it.hasNext(); ) {
                 SnapshotHolder holder = it.next();
                 if (holder.counter <= 0) {
                     it.remove();
@@ -178,7 +179,8 @@ public class SnapshotDeletionPolicy extends AbstractIndexShardComponent implemen
             super(deletionPolicy, cp);
         }
 
-        @Override public boolean release() {
+        @Override
+        public boolean release() {
             if (released) {
                 return false;
             }

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,13 +19,13 @@
 
 package org.elasticsearch.action.search.type;
 
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchShardTarget;
@@ -42,16 +42,18 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
 
-import static org.elasticsearch.action.search.type.TransportSearchHelper.*;
+import static org.elasticsearch.action.search.type.TransportSearchHelper.buildScrollId;
 
 public class TransportSearchScanAction extends TransportSearchTypeAction {
 
-    @Inject public TransportSearchScanAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                             TransportSearchCache transportSearchCache, SearchServiceTransportAction searchService, SearchPhaseController searchPhaseController) {
+    @Inject
+    public TransportSearchScanAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+                                     TransportSearchCache transportSearchCache, SearchServiceTransportAction searchService, SearchPhaseController searchPhaseController) {
         super(settings, threadPool, clusterService, transportSearchCache, searchService, searchPhaseController);
     }
 
-    @Override protected void doExecute(SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
+    @Override
+    protected void doExecute(SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
         new AsyncAction(searchRequest, listener).start();
     }
 
@@ -63,19 +65,23 @@ public class TransportSearchScanAction extends TransportSearchTypeAction {
             super(request, listener);
         }
 
-        @Override protected String firstPhaseName() {
+        @Override
+        protected String firstPhaseName() {
             return "init_scan";
         }
 
-        @Override protected void sendExecuteFirstPhase(DiscoveryNode node, InternalSearchRequest request, SearchServiceListener<QuerySearchResult> listener) {
+        @Override
+        protected void sendExecuteFirstPhase(DiscoveryNode node, InternalSearchRequest request, SearchServiceListener<QuerySearchResult> listener) {
             searchService.sendExecuteScan(node, request, listener);
         }
 
-        @Override protected void processFirstPhaseResult(ShardRouting shard, QuerySearchResult result) {
+        @Override
+        protected void processFirstPhaseResult(ShardRouting shard, QuerySearchResult result) {
             queryResults.put(result.shardTarget(), result);
         }
 
-        @Override protected void moveToSecondPhase() throws Exception {
+        @Override
+        protected void moveToSecondPhase() throws Exception {
             final InternalSearchResponse internalResponse = searchPhaseController.merge(EMPTY_DOCS, queryResults, ImmutableMap.<SearchShardTarget, FetchSearchResultProvider>of());
             String scrollId = null;
             if (request.scroll() != null) {

@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.get;
 
+import com.google.common.collect.Iterators;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -115,7 +115,8 @@ public class MultiGetResponse implements ActionResponse, Iterable<MultiGetItemRe
             return failure;
         }
 
-        @Override public void readFrom(StreamInput in) throws IOException {
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
             index = in.readUTF();
             if (in.readBoolean()) {
                 type = in.readUTF();
@@ -124,7 +125,8 @@ public class MultiGetResponse implements ActionResponse, Iterable<MultiGetItemRe
             message = in.readUTF();
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             out.writeUTF(index);
             if (type == null) {
                 out.writeBoolean(false);
@@ -150,11 +152,13 @@ public class MultiGetResponse implements ActionResponse, Iterable<MultiGetItemRe
         return this.responses;
     }
 
-    @Override public Iterator<MultiGetItemResponse> iterator() {
+    @Override
+    public Iterator<MultiGetItemResponse> iterator() {
         return Iterators.forArray(responses);
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.startArray(Fields.DOCS);
         for (MultiGetItemResponse response : responses) {
@@ -184,14 +188,16 @@ public class MultiGetResponse implements ActionResponse, Iterable<MultiGetItemRe
         static final XContentBuilderString ERROR = new XContentBuilderString("error");
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         responses = new MultiGetItemResponse[in.readVInt()];
         for (int i = 0; i < responses.length; i++) {
             responses[i] = MultiGetItemResponse.readItemResponse(in);
         }
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(responses.length);
         for (MultiGetItemResponse response : responses) {
             response.writeTo(out);

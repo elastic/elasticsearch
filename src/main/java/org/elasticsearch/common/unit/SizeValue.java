@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -29,7 +29,7 @@ import java.io.IOException;
 import java.io.Serializable;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
 public class SizeValue implements Serializable, Streamable {
 
@@ -106,7 +106,8 @@ public class SizeValue implements Serializable, Streamable {
         return gigaFrac();
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         long singles = singles();
         double value = singles;
         String suffix = "";
@@ -156,16 +157,19 @@ public class SizeValue implements Serializable, Streamable {
         return sizeValue;
     }
 
-    @Override public void readFrom(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         size = in.readVLong();
         sizeUnit = SizeUnit.SINGLE;
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(singles());
     }
 
-    @Override public boolean equals(Object o) {
+    @Override
+    public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
@@ -177,7 +181,8 @@ public class SizeValue implements Serializable, Streamable {
         return true;
     }
 
-    @Override public int hashCode() {
+    @Override
+    public int hashCode() {
         int result = (int) (size ^ (size >>> 32));
         result = 31 * result + (sizeUnit != null ? sizeUnit.hashCode() : 0);
         return result;

@@ -60,6 +60,12 @@
             <artifactId>lucene-queries</artifactId>
             <version>${lucene.version}</version>
             <scope>compile</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>jakarta-regexp</groupId>
+                    <artifactId>jakarta-regexp</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.apache.lucene</groupId>
@@ -79,42 +85,42 @@
             <groupId>com.googlecode.concurrentlinkedhashmap</groupId>
             <artifactId>concurrentlinkedhashmap-lru</artifactId>
             <version>1.2</version>
-            <scope>provided</scope>
+            <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
             <version>r09</version>
-            <scope>provided</scope>
+            <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>org.elasticsearch</groupId>
             <artifactId>es-trove</artifactId>
             <version>3.0.0</version>
-            <scope>provided</scope>
+            <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>org.elasticsearch</groupId>
             <artifactId>es-jsr166y</artifactId>
             <version>20110918</version>
-            <scope>provided</scope>
+            <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>org.elasticsearch</groupId>
             <artifactId>es-jsr166e</artifactId>
             <version>20110918</version>
-            <scope>provided</scope>
+            <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>commons-codec</groupId>
             <artifactId>commons-codec</artifactId>
             <version>1.5</version>
-            <scope>provided</scope>
+            <scope>compile</scope>
         </dependency>
 
         <dependency>
@@ -122,42 +128,42 @@
             <artifactId>joda-time</artifactId>
             <!-- joda 2.0 moved to using volatile fields for datetime, which hurts performance for facets! -->
             <version>1.6.2</version>
-            <scope>provided</scope>
+            <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>org.mvel</groupId>
             <artifactId>mvel2</artifactId>
             <version>2.1.Beta7</version>
-            <scope>provided</scope>
+            <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>org.codehaus.jackson</groupId>
             <artifactId>jackson-core-asl</artifactId>
             <version>1.9.2</version>
-            <scope>provided</scope>
+            <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>org.codehaus.jackson</groupId>
             <artifactId>jackson-smile</artifactId>
             <version>1.9.2</version>
-            <scope>provided</scope>
+            <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>org.yaml</groupId>
             <artifactId>snakeyaml</artifactId>
             <version>1.6</version>
-            <scope>provided</scope>
+            <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>org.jboss.netty</groupId>
             <artifactId>netty</artifactId>
             <version>3.2.7.Final</version>
-            <scope>provided</scope>
+            <scope>compile</scope>
         </dependency>
         <!-- END: dependencies that are shaded -->
 
@@ -165,7 +171,7 @@
             <groupId>log4j</groupId>
             <artifactId>log4j</artifactId>
             <version>1.2.16</version>
-            <scope>provided</scope>
+            <scope>runtime</scope>
         </dependency>
 
         <dependency>
@@ -186,14 +192,14 @@
             <groupId>net.java.dev.jna</groupId>
             <artifactId>jna</artifactId>
             <version>3.3.0</version>
-            <scope>provided</scope>
+            <scope>runtime</scope>
         </dependency>
 
         <dependency>
             <groupId>jline</groupId>
             <artifactId>jline</artifactId>
             <version>1.0</version>
-            <scope>provided</scope>
+            <scope>runtime</scope>
         </dependency>
 
         <dependency>
@@ -293,6 +299,106 @@
                         </goals>
                     </execution>
                 </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>1.5</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <minimizeJar>true</minimizeJar>
+                    <artifactSet>
+                        <includes>
+                            <include>com.googlecode.concurrentlinkedhashmap:concurrentlinkedhashmap-lru</include>
+                            <include>com.google.guava:guava</include>
+                            <include>org.elasticsearch:es-trove</include>
+                            <include>org.elasticsearch:es-jsr166y</include>
+                            <include>org.elasticsearch:es-jsr166e</include>
+                            <include>commons-codec:commons-codec</include>
+                            <include>org.mvel:mvel2</include>
+                            <include>org.codehaus.jackson:jackson-core-asl</include>
+                            <include>org.codehaus.jackson:jackson-smile</include>
+                            <include>org.yaml:snakeyaml</include>
+                            <include>joda-time:joda-time</include>
+                            <include>org.jboss.netty:netty</include>
+                        </includes>
+                    </artifactSet>
+                    <relocations>
+                        <relocation>
+                            <pattern>com.googlecode.concurrentlinkedhashmap</pattern>
+                            <shadedPattern>org.elasticsearch.common.concurrentlinkedhashmap</shadedPattern>
+                        </relocation>
+                        <relocation>
+                            <pattern>com.google.common</pattern>
+                            <shadedPattern>org.elasticsearch.common</shadedPattern>
+                        </relocation>
+                        <relocation>
+                            <pattern>gnu.trove</pattern>
+                            <shadedPattern>org.elasticsearch.common.trove</shadedPattern>
+                        </relocation>
+                        <relocation>
+                            <pattern>jsr166y</pattern>
+                            <shadedPattern>org.elasticsearch.common.util.concurrent.jsr166y</shadedPattern>
+                        </relocation>
+                        <relocation>
+                            <pattern>jsr166e</pattern>
+                            <shadedPattern>org.elasticsearch.common.util.concurrent.jsr166e</shadedPattern>
+                        </relocation>
+                        <relocation>
+                            <pattern>org.apache.commons.codec</pattern>
+                            <shadedPattern>org.elasticsearch.common.codec</shadedPattern>
+                        </relocation>
+                        <relocation>
+                            <pattern>org.mvel2</pattern>
+                            <shadedPattern>org.elasticsearch.common.mvel2</shadedPattern>
+                        </relocation>
+                        <relocation>
+                            <pattern>org.codehaus.jackson</pattern>
+                            <shadedPattern>org.elasticsearch.common.jackson</shadedPattern>
+                        </relocation>
+                        <relocation>
+                            <pattern>org.yaml</pattern>
+                            <shadedPattern>org.elasticsearch.common.yaml</shadedPattern>
+                        </relocation>
+                        <relocation>
+                            <pattern>org.joda</pattern>
+                            <shadedPattern>org.elasticsearch.common.joda</shadedPattern>
+                        </relocation>
+                        <relocation>
+                            <pattern>org.jboss.netty</pattern>
+                            <shadedPattern>org.elasticsearch.common.netty</shadedPattern>
+                        </relocation>
+                    </relocations>
+                    <filters>
+                        <filter>
+                            <artifact>*:*</artifact>
+                            <excludes>
+                                <exclude>META-INF/**</exclude>
+                                <exclude>LICENSE</exclude>
+                                <exclude>NOTICE</exclude>
+                                <exclude>/*.txt</exclude>
+                                <exclude>build.properties</exclude>
+                            </excludes>
+                        </filter>
+                    </filters>
+                </configuration>
+            </plugin>
+            <plugin>
+                <artifactId>maven-assembly-plugin</artifactId>
+                <configuration>
+                    <outputDirectory>${project.build.directory}/releases/</outputDirectory>
+                    <descriptors>
+                        <descriptor>${basedir}/src/main/assemblies/targz-bin.xml</descriptor>
+                        <descriptor>${basedir}/src/main/assemblies/zip-bin.xml</descriptor>
+                    </descriptors>
+                </configuration>
             </plugin>
         </plugins>
     </build>

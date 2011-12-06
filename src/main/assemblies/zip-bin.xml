@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<assembly>
+    <id></id>
+    <formats>
+        <format>zip</format>
+    </formats>
+
+    <includeBaseDirectory>true</includeBaseDirectory>
+
+    <fileSets>
+        <fileSet>
+            <directory>bin</directory>
+            <outputDirectory>bin</outputDirectory>
+            <includes>
+                <include>*</include>
+            </includes>
+        </fileSet>
+
+        <fileSet>
+            <directory>lib/sigar</directory>
+            <outputDirectory>lib/sigar</outputDirectory>
+            <includes>
+                <include>*</include>
+            </includes>
+        </fileSet>
+    </fileSets>
+
+    <componentDescriptors>
+        <componentDescriptor>src/main/assemblies/common-bin.xml</componentDescriptor>
+    </componentDescriptors>
+</assembly>

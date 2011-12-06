@@ -196,18 +196,18 @@ We have just covered a very small portion of what ElasticSearch is all about. Fo
 
 h3. Building from Source
 
-ElasticSearch uses "Gradle":http://www.gradle.org for its build system.
+ElasticSearch uses "Maven":http://maven.apache.org for its build system.
 
-In order to create a distribution, simply run the @./gradlew@ command in the cloned directory.
+In order to create a distribution, simply run the @mvn assembly:assembly -DskipTests@ command in the cloned directory.
 
-The distribution will be created under @build/distributions@.
+The distribution will be created under @target/releases@.
 
 h1. License
 
 <pre>
 This software is licensed under the Apache 2 license, quoted below.
 
-Copyright 2009-2011 Shay Banon and ElasticSearch <http://www.elasticsearch.com>
+Copyright 2009-2011 Shay Banon and ElasticSearch <http://www.elasticsearch.org>
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not
 use this file except in compliance with the License. You may obtain a copy of

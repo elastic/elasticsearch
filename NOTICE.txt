@@ -1,12 +1,5 @@
 ElasticSearch
-Copyright 2009-2011 Elastic Search and Shay Banon
+Copyright 2009-2011 ElasticSearch and Shay Banon
 
 This product includes software developed by The Apache Software
 Foundation (http://www.apache.org/).
-
-This product makes use of the google-collections library from
-http://code.google.com/p/google-collections/.
-Copyright (C) 2008 Google Inc.
-
-Yaml support uses SnakeYaml Copyright of Andrey Somov under the
-Apache 2 License.

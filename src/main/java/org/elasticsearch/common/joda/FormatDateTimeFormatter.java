@@ -19,16 +19,12 @@
 
 package org.elasticsearch.common.joda;
 
-import org.elasticsearch.common.util.concurrent.Immutable;
 import org.joda.time.format.DateTimeFormatter;
 
 /**
  * A simple wrapper around {@link DateTimeFormatter} that retains the
  * format that was used to create it.
- *
- *
  */
-@Immutable
 public class FormatDateTimeFormatter {
 
     private final String format;

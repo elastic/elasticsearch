@@ -30,7 +30,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.Immutable;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
@@ -47,7 +46,6 @@ import static org.elasticsearch.common.settings.ImmutableSettings.*;
 /**
  *
  */
-@Immutable
 public class MetaData implements Iterable<IndexMetaData> {
 
     private static ImmutableSet<String> dynamicSettings = ImmutableSet.<String>builder()

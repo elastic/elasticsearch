@@ -22,15 +22,11 @@ package org.elasticsearch.index.mapper;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.UnmodifiableIterator;
-import org.elasticsearch.common.util.concurrent.Immutable;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 
 /**
  * A holder for several {@link org.elasticsearch.index.mapper.object.ObjectMapper}.
- *
- *
  */
-@Immutable
 public class ObjectMappers implements Iterable<ObjectMapper> {
 
     private final ImmutableList<ObjectMapper> objectMappers;

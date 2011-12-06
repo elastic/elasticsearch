@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.concurrent.Immutable;
 
 import java.io.IOException;
 import java.util.*;
@@ -38,7 +37,6 @@ import static com.google.common.collect.Lists.newArrayList;
 /**
  *
  */
-@Immutable
 public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
 
     private final String index;

@@ -19,18 +19,13 @@
 
 package org.elasticsearch.common.io;
 
-import org.elasticsearch.common.util.concurrent.NotThreadSafe;
-
 import java.io.IOException;
 import java.io.Writer;
 import java.util.Arrays;
 
 /**
  * A similar class to {@link java.io.CharArrayWriter} allowing to get the underlying <tt>char[]</tt> buffer.
- *
- *
  */
-@NotThreadSafe
 public class FastCharArrayWriter extends Writer {
 
     /**

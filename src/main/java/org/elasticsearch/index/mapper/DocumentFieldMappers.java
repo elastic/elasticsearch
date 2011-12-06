@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper;
 import com.google.common.collect.*;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.util.concurrent.Immutable;
 import org.elasticsearch.index.analysis.FieldNameAnalyzer;
 
 import java.util.Map;
@@ -34,7 +33,6 @@ import static com.google.common.collect.Maps.newHashMap;
 /**
  *
  */
-@Immutable
 public class DocumentFieldMappers implements Iterable<FieldMapper> {
 
     private final ImmutableList<FieldMapper> fieldMappers;

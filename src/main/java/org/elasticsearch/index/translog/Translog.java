@@ -29,8 +29,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.util.concurrent.NotThreadSafe;
-import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShardComponent;
 
@@ -40,7 +38,6 @@ import java.io.InputStream;
 /**
  *
  */
-@ThreadSafe
 public interface Translog extends IndexShardComponent {
 
     public static final String TRANSLOG_ID_KEY = "translog_id";
@@ -145,7 +142,6 @@ public interface Translog extends IndexShardComponent {
     /**
      * A snapshot of the transaction log, allows to iterate over all the transaction log operations.
      */
-    @NotThreadSafe
     static interface Snapshot extends Releasable {
 
         /**

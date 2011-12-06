@@ -31,7 +31,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.Immutable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -47,7 +46,6 @@ import static org.elasticsearch.common.settings.ImmutableSettings.*;
 /**
  *
  */
-@Immutable
 public class IndexMetaData {
 
     private static ImmutableSet<String> dynamicSettings = ImmutableSet.<String>builder()

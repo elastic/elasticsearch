@@ -22,16 +22,12 @@ package org.elasticsearch.index.mapper;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.UnmodifiableIterator;
-import org.elasticsearch.common.util.concurrent.Immutable;
 
 import java.util.List;
 
 /**
  * A holder for several {@link FieldMapper}.
- *
- *
  */
-@Immutable
 public class FieldMappers implements Iterable<FieldMapper> {
 
     private final ImmutableList<FieldMapper> fieldMappers;

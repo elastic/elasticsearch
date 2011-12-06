@@ -23,8 +23,6 @@ import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.NotThreadSafe;
-import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.analysis.AnalysisService;
 
@@ -34,12 +32,10 @@ import java.util.Map;
 /**
  *
  */
-@ThreadSafe
 public interface Mapper extends ToXContent {
 
     public static final Mapper[] EMPTY_ARRAY = new Mapper[0];
 
-    @NotThreadSafe
     public static class BuilderContext {
         private final Settings indexSettings;
         private final ContentPath contentPath;
@@ -59,7 +55,6 @@ public interface Mapper extends ToXContent {
         }
     }
 
-    @NotThreadSafe
     public static abstract class Builder<T extends Builder, Y extends Mapper> {
 
         public String name;

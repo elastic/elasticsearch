@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.util.concurrent.NotThreadSafe;
 
 import java.util.HashMap;
 import java.util.Iterator;
@@ -37,7 +36,6 @@ import static com.google.common.collect.Maps.newHashMap;
 /**
  *
  */
-@NotThreadSafe
 public class RoutingNodes implements Iterable<RoutingNode> {
 
     private final MetaData metaData;

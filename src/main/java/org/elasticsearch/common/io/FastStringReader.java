@@ -19,18 +19,15 @@
 
 package org.elasticsearch.common.io;
 
-import org.elasticsearch.common.util.concurrent.NotThreadSafe;
-
 import java.io.IOException;
 import java.io.Reader;
 
 /**
  * A character stream whose source is a string that is <b>not thread safe</b>
- *
+ * <p/>
  * (shay.banon
- *         )
+ * )
  */
-@NotThreadSafe
 public class FastStringReader extends CharSequenceReader {
 
     private String str;

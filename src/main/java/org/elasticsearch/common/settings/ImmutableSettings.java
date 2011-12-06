@@ -34,8 +34,6 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.Immutable;
-import org.elasticsearch.common.util.concurrent.ThreadSafe;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -51,11 +49,7 @@ import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 
 /**
  * An immutable implementation of {@link Settings}.
- *
- *
  */
-@ThreadSafe
-@Immutable
 public class ImmutableSettings implements Settings {
 
     private ImmutableMap<String, String> settings;

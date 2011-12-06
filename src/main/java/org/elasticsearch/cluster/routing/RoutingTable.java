@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.concurrent.Immutable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
 
@@ -39,7 +38,6 @@ import static com.google.common.collect.Maps.newHashMap;
 /**
  *
  */
-@Immutable
 public class RoutingTable implements Iterable<IndexRoutingTable> {
 
     public static final RoutingTable EMPTY_ROUTING_TABLE = builder().build();

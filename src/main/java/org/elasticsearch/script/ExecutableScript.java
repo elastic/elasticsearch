@@ -19,14 +19,9 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.common.util.concurrent.NotThreadSafe;
-
 /**
  * An executable script, can't be used concurrently.
- *
- *
  */
-@NotThreadSafe
 public interface ExecutableScript {
 
     void setNextVar(String name, Object value);

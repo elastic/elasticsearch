@@ -20,7 +20,6 @@
 package org.elasticsearch.common.component;
 
 import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.common.util.concurrent.ThreadSafe;
 
 /**
  * Lifecycle state. Allows the following transitions:
@@ -57,10 +56,7 @@ import org.elasticsearch.common.util.concurrent.ThreadSafe;
  *  // perofrm close logic here
  * }
  * </pre>
- *
- *
  */
-@ThreadSafe
 public class Lifecycle {
 
     public static enum State {

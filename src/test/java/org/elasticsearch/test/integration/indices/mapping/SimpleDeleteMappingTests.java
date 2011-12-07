@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.integration.indices.mapping;
 
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -79,6 +80,8 @@ public class SimpleDeleteMappingTests extends AbstractNodesTests {
                     .endObject()).execute().actionGet();
         }
 
+        ClusterHealthResponse clusterHealth = client1.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        assertThat(clusterHealth.timedOut(), equalTo(false));
         client1.admin().indices().prepareRefresh().execute().actionGet();
 
         for (int i = 0; i < 10; i++) {

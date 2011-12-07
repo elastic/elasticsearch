@@ -252,6 +252,8 @@ public class DocumentMapper implements ToXContent {
 
     private final Object mutex = new Object();
 
+    private boolean initMappersAdded = true;
+
     public DocumentMapper(String index, @Nullable Settings indexSettings, DocumentMapperParser docMapperParser,
                           RootObjectMapper rootObjectMapper,
                           ImmutableMap<String, Object> meta,
@@ -429,6 +431,11 @@ public class DocumentMapper implements ToXContent {
                 parser = XContentHelper.createParser(source.source(), source.sourceOffset(), source.sourceLength());
             }
             context.reset(parser, new Document(), source, listener);
+            // on a newly created instance of document mapper, we always consider it as new mappers that have been added
+            if (initMappersAdded) {
+                context.addedMapper();
+                initMappersAdded = false;
+            }
 
             // will result in START_OBJECT
             int countDownTokens = 0;

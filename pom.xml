@@ -102,10 +102,9 @@
         </dependency>
 
         <dependency>
-            <groupId>org.elasticsearch</groupId>
-            <artifactId>es-trove</artifactId>
-            <version>3.0.0</version>
-            <scope>compile</scope>
+            <groupId>net.sf.trove4j</groupId>
+            <artifactId>trove4j</artifactId>
+            <version>3.0.2</version>
         </dependency>
 
         <dependency>
@@ -325,7 +324,7 @@
                         <includes>
                             <include>com.googlecode.concurrentlinkedhashmap:concurrentlinkedhashmap-lru</include>
                             <include>com.google.guava:guava</include>
-                            <include>org.elasticsearch:es-trove</include>
+                            <include>net.sf.trove4j:trove4j</include>
                             <include>org.elasticsearch:es-jsr166y</include>
                             <include>org.elasticsearch:es-jsr166e</include>
                             <include>commons-codec:commons-codec</include>

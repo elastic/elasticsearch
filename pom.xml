@@ -399,21 +399,21 @@
             <plugin>
                 <artifactId>maven-assembly-plugin</artifactId>
                 <configuration>
-                    <outputDirectory>${project.build.directory}/releases/</outputDirectory>                                        
+                    <outputDirectory>${project.build.directory}/releases/</outputDirectory>
                     <descriptors>
                         <descriptor>${basedir}/src/main/assemblies/targz-bin.xml</descriptor>
                         <descriptor>${basedir}/src/main/assemblies/zip-bin.xml</descriptor>
-                    </descriptors>                    
+                    </descriptors>
                 </configuration>
                 <executions>
-                    <execution>                            
+                    <execution>
                         <phase>package</phase>
                         <goals>
                             <goal>single</goal>
                         </goals>
                     </execution>
-                </executions>   
-            </plugin>                        
+                </executions>
+            </plugin>
             <plugin>
                 <artifactId>maven-dependency-plugin</artifactId>
                 <executions>
@@ -424,19 +424,19 @@
                         </goals>
                         <configuration>
                             <outputDirectory>${project.build.directory}/lib</outputDirectory>
-                        </configuration>                        
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>
-            <plugin>                
+            <plugin>
                 <!-- some infos https://github.com/tcurdt/jdeb/blob/master/docs/maven.md 
                 -->
                 <artifactId>jdeb</artifactId>
                 <groupId>org.vafer</groupId>
                 <version>0.8</version>
                 <configuration>
-                    <deb>${project.build.directory}/releases/${artifactId}-${version}.deb</deb>
-                </configuration>                    
+                    <deb>${project.build.directory}/releases/${project.artifactId}-${project.version}.deb</deb>
+                </configuration>
                 <executions>
                     <execution>
                         <phase>package</phase>
@@ -444,33 +444,33 @@
                             <goal>jdeb</goal>
                         </goals>
                         <configuration>
-                            <dataSet>                                
-                                <data>                                    
+                            <dataSet>
+                                <data>
                                     <src>${project.basedir}/</src>
                                     <includes>*.txt, *.textile</includes>
                                     <type>directory</type>
                                     <mapper>
                                         <type>perm</type>
-                                        <prefix>/usr/share/elasticsearch</prefix>                                        
+                                        <prefix>/usr/share/elasticsearch</prefix>
                                         <user>root</user>
                                         <group>root</group>
                                     </mapper>
-                                </data>                                            
-                                <data>                                    
+                                </data>
+                                <data>
                                     <src>${project.basedir}/bin</src>
                                     <type>directory</type>
                                     <excludes>*.bat</excludes>
                                     <mapper>
                                         <type>perm</type>
-                                        <prefix>/usr/share/elasticsearch/bin</prefix>                                                                                
+                                        <prefix>/usr/share/elasticsearch/bin</prefix>
                                         <filemode>755</filemode>
                                         <user>root</user>
                                         <group>root</group>
-                                    </mapper>                                    
-                                </data>                                
-                                <data>                                    
+                                    </mapper>
+                                </data>
+                                <data>
                                     <src>${project.build.directory}/</src>
-                                    <includes>${project.build.finalName}.jar, ${project.basedir}/lib/sigar/*</includes>
+                                    <includes>${project.build.finalName}.jar</includes>
                                     <type>directory</type>
                                     <mapper>
                                         <type>perm</type>
@@ -478,9 +478,20 @@
                                         <user>root</user>
                                         <group>root</group>
                                     </mapper>
-                                </data>     
+                                </data>
                                 <data>
-                                    <src>${project.build.directory}/lib</src>                                    
+                                    <src>${project.basedir}/lib/sigar/</src>
+                                    <includes>sigar-*.jar, libsigar-*-linux.*</includes>
+                                    <type>directory</type>
+                                    <mapper>
+                                        <type>perm</type>
+                                        <prefix>/usr/share/elasticsearch/lib/sigar</prefix>
+                                        <user>root</user>
+                                        <group>root</group>
+                                    </mapper>
+                                </data>
+                                <data>
+                                    <src>${project.build.directory}/lib</src>
                                     <includes>lucene*, log4j*, jline*, jna*</includes>
                                     <type>directory</type>
                                     <mapper>
@@ -490,17 +501,17 @@
                                         <group>root</group>
                                     </mapper>
                                 </data>
-                                <data>                                    
+                                <data>
                                     <src>${project.basedir}/src/deb/default/</src>
                                     <type>directory</type>
                                     <mapper>
                                         <type>perm</type>
-                                        <prefix>/etc/default</prefix>                                        
+                                        <prefix>/etc/default</prefix>
                                         <user>root</user>
                                         <group>root</group>
                                     </mapper>
                                 </data>
-                                <data>                                    
+                                <data>
                                     <src>${project.basedir}/src/deb/init.d/</src>
                                     <type>directory</type>
                                     <mapper>
@@ -511,22 +522,22 @@
                                         <group>root</group>
                                     </mapper>
                                 </data>
-                                <data>                                    
+                                <data>
                                     <src>${project.basedir}/config</src>
                                     <type>directory</type>
                                     <mapper>
                                         <type>perm</type>
-                                        <prefix>/etc/elasticsearch</prefix>                                        
+                                        <prefix>/etc/elasticsearch</prefix>
                                         <user>root</user>
                                         <group>root</group>
                                     </mapper>
-                                </data>   
-                            </dataSet>                
+                                </data>
+                            </dataSet>
 
                         </configuration>
                     </execution>
                 </executions>
-            </plugin>            
+            </plugin>
         </plugins>
     </build>
 </project>

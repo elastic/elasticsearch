@@ -56,6 +56,8 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
      */
     TimeValue defaultRefreshInterval();
 
+    void enableGcDeletes(boolean enableGcDeletes);
+
     void updateIndexingBufferSize(ByteSizeValue indexingBufferSize);
 
     void addFailedEngineListener(FailedEngineListener listener);

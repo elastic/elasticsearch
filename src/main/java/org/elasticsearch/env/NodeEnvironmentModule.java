@@ -19,6 +19,7 @@
 
 package org.elasticsearch.env;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.AbstractModule;
 
 /**
@@ -26,11 +27,22 @@ import org.elasticsearch.common.inject.AbstractModule;
  */
 public class NodeEnvironmentModule extends AbstractModule {
 
+    private final NodeEnvironment nodeEnvironment;
+
     public NodeEnvironmentModule() {
+        this(null);
+    }
+
+    public NodeEnvironmentModule(@Nullable NodeEnvironment nodeEnvironment) {
+        this.nodeEnvironment = nodeEnvironment;
     }
 
     @Override
     protected void configure() {
-        bind(NodeEnvironment.class).asEagerSingleton();
+        if (nodeEnvironment != null) {
+            bind(NodeEnvironment.class).toInstance(nodeEnvironment);
+        } else {
+            bind(NodeEnvironment.class).asEagerSingleton();
+        }
     }
 }

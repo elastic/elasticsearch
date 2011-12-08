@@ -48,7 +48,7 @@ public class NodeEnvironment extends AbstractComponent {
     private final int localNodeId;
 
     @Inject
-    public NodeEnvironment(Settings settings, Environment environment) throws IOException {
+    public NodeEnvironment(Settings settings, Environment environment) {
         super(settings);
 
         if (!DiscoveryNode.nodeRequiresLocalStorage(settings)) {
@@ -117,7 +117,7 @@ public class NodeEnvironment extends AbstractComponent {
             }
         }
         if (locks[0] == null) {
-            throw new IOException("Failed to obtain node lock on " + Arrays.toString(environment.dataWithClusterFiles()), lastException);
+            throw new ElasticSearchIllegalStateException("Failed to obtain node lock, is the following location writable?: " + Arrays.toString(environment.dataWithClusterFiles()), lastException);
         }
 
         this.localNodeId = localNodeId;

@@ -92,6 +92,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
     private long gcDeletesInMillis;
 
+    private volatile boolean enableGcDeletes = true;
+
     private final ThreadPool threadPool;
 
     private final IndexSettingsService indexSettingsService;
@@ -286,6 +288,11 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         return new TimeValue(1, TimeUnit.SECONDS);
     }
 
+    @Override
+    public void enableGcDeletes(boolean enableGcDeletes) {
+        this.enableGcDeletes = enableGcDeletes;
+    }
+
     public GetResult get(Get get) throws EngineException {
         rwl.readLock().lock();
         try {
@@ -386,7 +393,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                 if (versionValue == null) {
                     currentVersion = loadCurrentVersionFromIndex(create.uid());
                 } else {
-                    if (versionValue.delete() && (threadPool.estimatedTimeInMillis() - versionValue.time()) > gcDeletesInMillis) {
+                    if (enableGcDeletes && versionValue.delete() && (threadPool.estimatedTimeInMillis() - versionValue.time()) > gcDeletesInMillis) {
                         currentVersion = -1; // deleted, and GC
                     } else {
                         currentVersion = versionValue.version();
@@ -510,7 +517,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                 if (versionValue == null) {
                     currentVersion = loadCurrentVersionFromIndex(index.uid());
                 } else {
-                    if (versionValue.delete() && (threadPool.estimatedTimeInMillis() - versionValue.time()) > gcDeletesInMillis) {
+                    if (enableGcDeletes && versionValue.delete() && (threadPool.estimatedTimeInMillis() - versionValue.time()) > gcDeletesInMillis) {
                         currentVersion = -1; // deleted, and GC
                     } else {
                         currentVersion = versionValue.version();
@@ -625,7 +632,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                 if (versionValue == null) {
                     currentVersion = loadCurrentVersionFromIndex(delete.uid());
                 } else {
-                    if (versionValue.delete() && (threadPool.estimatedTimeInMillis() - versionValue.time()) > gcDeletesInMillis) {
+                    if (enableGcDeletes && versionValue.delete() && (threadPool.estimatedTimeInMillis() - versionValue.time()) > gcDeletesInMillis) {
                         currentVersion = -1; // deleted, and GC
                     } else {
                         currentVersion = versionValue.version();
@@ -940,7 +947,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                     continue; // its a newer value, from after/during we refreshed, don't clear it
                 }
                 if (versionValue.delete()) {
-                    if ((time - versionValue.time()) > gcDeletesInMillis) {
+                    if (enableGcDeletes && (time - versionValue.time()) > gcDeletesInMillis) {
                         versionMap.remove(id);
                     }
                 } else {

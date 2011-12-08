@@ -410,7 +410,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     @Override
     public void refresh(Engine.Refresh refresh) throws ElasticSearchException {
-        writeAllowed();
+        verifyStarted();
         if (logger.isTraceEnabled()) {
             logger.trace("refresh with {}", refresh);
         }
@@ -475,7 +475,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     @Override
     public void flush(Engine.Flush flush) throws ElasticSearchException {
-        writeAllowed();
+        verifyStarted();
         if (logger.isTraceEnabled()) {
             logger.trace("flush with {}", flush);
         }
@@ -486,7 +486,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     @Override
     public void optimize(Engine.Optimize optimize) throws ElasticSearchException {
-        writeAllowed();
+        verifyStarted();
         if (logger.isTraceEnabled()) {
             logger.trace("optimize with {}", optimize);
         }
@@ -505,7 +505,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     @Override
     public void recover(Engine.RecoveryHandler recoveryHandler) throws EngineException {
-        writeAllowed();
+        verifyStarted();
         engine.recover(recoveryHandler);
     }
 
@@ -642,6 +642,13 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     }
 
     public void writeAllowed() throws IllegalIndexShardStateException {
+        IndexShardState state = this.state; // one time volatile read
+        if (state != IndexShardState.STARTED) {
+            throw new IndexShardNotStartedException(shardId, state);
+        }
+    }
+
+    public void verifyStarted() throws IllegalIndexShardStateException {
         IndexShardState state = this.state; // one time volatile read
         if (state != IndexShardState.STARTED) {
             throw new IndexShardNotStartedException(shardId, state);

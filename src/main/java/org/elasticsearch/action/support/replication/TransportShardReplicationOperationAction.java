@@ -533,7 +533,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 // async replication, notify the listener
                 listener.onResponse(response.response());
                 // now, trick the counter so it won't decrease to 0 and notify the listeners
-                replicaCounter = -100;
+                replicaCounter = Integer.MIN_VALUE;
             }
 
             // we add one to the replica count to do the postPrimaryOperation

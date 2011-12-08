@@ -170,9 +170,7 @@ public class TranslogService extends AbstractIndexShardComponent {
                 @Override
                 public void run() {
                     try {
-                        if (indexShard.state() == IndexShardState.STARTED) {
-                            indexShard.flush(new Engine.Flush());
-                        }
+                        indexShard.flush(new Engine.Flush());
                     } catch (EngineClosedException e) {
                         // we are being closed, ignore
                     } catch (FlushNotAllowedEngineException e) {

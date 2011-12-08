@@ -374,97 +374,94 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
     private void innerCreate(Create create, IndexWriter writer) throws IOException {
         synchronized (dirtyLock(create.uid())) {
             UidField uidField = create.uidField();
-            if (create.origin() == Operation.Origin.RECOVERY) {
-                uidField.version(create.version());
-                // we use update doc and not addDoc since we might get duplicates when using transient translog
-                if (create.docs().size() > 1) {
-                    writer.updateDocuments(create.uid(), create.docs(), create.analyzer());
-                } else {
-                    writer.updateDocument(create.uid(), create.docs().get(0), create.analyzer());
-                }
-                Translog.Location translogLocation = translog.add(new Translog.Create(create));
-                // on recovery, we get the actual version we want to use
-                if (create.version() != 0) {
-                    versionMap.put(create.uid().text(), new VersionValue(create.version(), false, threadPool.estimatedTimeInMillis(), translogLocation));
-                }
+            final long currentVersion;
+            VersionValue versionValue = versionMap.get(create.uid().text());
+            if (versionValue == null) {
+                currentVersion = loadCurrentVersionFromIndex(create.uid());
             } else {
-                long currentVersion;
-                VersionValue versionValue = versionMap.get(create.uid().text());
-                if (versionValue == null) {
-                    currentVersion = loadCurrentVersionFromIndex(create.uid());
+                if (enableGcDeletes && versionValue.delete() && (threadPool.estimatedTimeInMillis() - versionValue.time()) > gcDeletesInMillis) {
+                    currentVersion = -1; // deleted, and GC
                 } else {
-                    if (enableGcDeletes && versionValue.delete() && (threadPool.estimatedTimeInMillis() - versionValue.time()) > gcDeletesInMillis) {
-                        currentVersion = -1; // deleted, and GC
-                    } else {
-                        currentVersion = versionValue.version();
-                    }
+                    currentVersion = versionValue.version();
                 }
+            }
 
-                // same logic as index
-                long updatedVersion;
-                if (create.origin() == Operation.Origin.PRIMARY) {
-                    if (create.versionType() == VersionType.INTERNAL) { // internal version type
-                        long expectedVersion = create.version();
-                        if (expectedVersion != 0 && currentVersion != -2) { // -2 means we don't have a version, so ignore...
-                            // an explicit version is provided, see if there is a conflict
-                            // if the current version is -1, means we did not find anything, and
-                            // a version is provided, so we do expect to find a doc under that version
-                            // this is important, since we don't allow to preset a version in order to handle deletes
-                            if (currentVersion == -1) {
-                                throw new VersionConflictEngineException(shardId, create.type(), create.id(), -1, expectedVersion);
-                            } else if (expectedVersion != currentVersion) {
-                                throw new VersionConflictEngineException(shardId, create.type(), create.id(), currentVersion, expectedVersion);
-                            }
-                        }
-                        updatedVersion = currentVersion < 0 ? 1 : currentVersion + 1;
-                    } else { // external version type
-                        // an external version is provided, just check, if a local version exists, that its higher than it
-                        // the actual version checking is one in an external system, and we just want to not index older versions
-                        if (currentVersion >= 0) { // we can check!, its there
-                            if (currentVersion >= create.version()) {
-                                throw new VersionConflictEngineException(shardId, create.type(), create.id(), currentVersion, create.version());
-                            }
-                        }
-                        updatedVersion = create.version();
-                    }
-                } else { // if (index.origin() == Operation.Origin.REPLICA) {
+            // same logic as index
+            long updatedVersion;
+            if (create.origin() == Operation.Origin.PRIMARY) {
+                if (create.versionType() == VersionType.INTERNAL) { // internal version type
                     long expectedVersion = create.version();
-                    if (currentVersion != -2) { // -2 means we don't have a version, so ignore...
-                        // if it does not exists, and its considered the first index operation (replicas are 1 of)
-                        // then nothing to do
-                        if (!(currentVersion == -1 && create.version() == 1)) {
-                            // with replicas, we only check for previous version, we allow to set a future version
-                            if (expectedVersion <= currentVersion) {
-                                throw new VersionConflictEngineException(shardId, create.type(), create.id(), currentVersion, expectedVersion);
-                            }
+                    if (expectedVersion != 0 && currentVersion != -2) { // -2 means we don't have a version, so ignore...
+                        // an explicit version is provided, see if there is a conflict
+                        // if the current version is -1, means we did not find anything, and
+                        // a version is provided, so we do expect to find a doc under that version
+                        // this is important, since we don't allow to preset a version in order to handle deletes
+                        if (currentVersion == -1) {
+                            throw new VersionConflictEngineException(shardId, create.type(), create.id(), -1, expectedVersion);
+                        } else if (expectedVersion != currentVersion) {
+                            throw new VersionConflictEngineException(shardId, create.type(), create.id(), currentVersion, expectedVersion);
                         }
                     }
-                    // replicas already hold the "future" version
+                    updatedVersion = currentVersion < 0 ? 1 : currentVersion + 1;
+                } else { // external version type
+                    // an external version is provided, just check, if a local version exists, that its higher than it
+                    // the actual version checking is one in an external system, and we just want to not index older versions
+                    if (currentVersion >= 0) { // we can check!, its there
+                        if (currentVersion >= create.version()) {
+                            throw new VersionConflictEngineException(shardId, create.type(), create.id(), currentVersion, create.version());
+                        }
+                    }
                     updatedVersion = create.version();
                 }
+            } else { // if (index.origin() == Operation.Origin.REPLICA || index.origin() == Operation.Origin.RECOVERY) {
+                long expectedVersion = create.version();
+                if (currentVersion != -2) { // -2 means we don't have a version, so ignore...
+                    // if it does not exists, and its considered the first index operation (replicas/recovery are 1 of)
+                    // then nothing to check
+                    if (!(currentVersion == -1 && create.version() == 1)) {
+                        // with replicas/recovery, we only check for previous version, we allow to set a future version
+                        if (expectedVersion <= currentVersion) {
+                            if (create.origin() == Operation.Origin.RECOVERY) {
+                                return;
+                            } else {
+                                throw new VersionConflictEngineException(shardId, create.type(), create.id(), currentVersion, expectedVersion);
+                            }
+                        }
+                    }
+                }
+                // replicas already hold the "future" version
+                updatedVersion = create.version();
+            }
 
-                // if the doc does not exists or it exists but not delete
-                if (versionValue != null) {
-                    if (!versionValue.delete()) {
+            // if the doc does not exists or it exists but not delete
+            if (versionValue != null) {
+                if (!versionValue.delete()) {
+                    if (create.origin() == Operation.Origin.RECOVERY) {
+                        return;
+                    } else {
                         throw new DocumentAlreadyExistsEngineException(shardId, create.type(), create.id());
                     }
-                } else if (currentVersion != -1) {
-                    // its not deleted, its already there
+                }
+            } else if (currentVersion != -1) {
+                // its not deleted, its already there
+                if (create.origin() == Operation.Origin.RECOVERY) {
+                    return;
+                } else {
                     throw new DocumentAlreadyExistsEngineException(shardId, create.type(), create.id());
                 }
-
-                uidField.version(updatedVersion);
-                create.version(updatedVersion);
-
-                if (create.docs().size() > 1) {
-                    writer.addDocuments(create.docs(), create.analyzer());
-                } else {
-                    writer.addDocument(create.docs().get(0), create.analyzer());
-                }
-                Translog.Location translogLocation = translog.add(new Translog.Create(create));
-
-                versionMap.put(create.uid().text(), new VersionValue(updatedVersion, false, threadPool.estimatedTimeInMillis(), translogLocation));
             }
+
+            uidField.version(updatedVersion);
+            create.version(updatedVersion);
+
+            if (create.docs().size() > 1) {
+                writer.addDocuments(create.docs(), create.analyzer());
+            } else {
+                writer.addDocument(create.docs().get(0), create.analyzer());
+            }
+            Translog.Location translogLocation = translog.add(new Translog.Create(create));
+
+            versionMap.put(create.uid().text(), new VersionValue(updatedVersion, false, threadPool.estimatedTimeInMillis(), translogLocation));
         }
     }
 
@@ -499,94 +496,84 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
     private void innerIndex(Index index, IndexWriter writer) throws IOException {
         synchronized (dirtyLock(index.uid())) {
             UidField uidField = index.uidField();
-            if (index.origin() == Operation.Origin.RECOVERY) {
-                uidField.version(index.version());
+            final long currentVersion;
+            VersionValue versionValue = versionMap.get(index.uid().text());
+            if (versionValue == null) {
+                currentVersion = loadCurrentVersionFromIndex(index.uid());
+            } else {
+                if (enableGcDeletes && versionValue.delete() && (threadPool.estimatedTimeInMillis() - versionValue.time()) > gcDeletesInMillis) {
+                    currentVersion = -1; // deleted, and GC
+                } else {
+                    currentVersion = versionValue.version();
+                }
+            }
+
+            long updatedVersion;
+            if (index.origin() == Operation.Origin.PRIMARY) {
+                if (index.versionType() == VersionType.INTERNAL) { // internal version type
+                    long expectedVersion = index.version();
+                    if (expectedVersion != 0 && currentVersion != -2) { // -2 means we don't have a version, so ignore...
+                        // an explicit version is provided, see if there is a conflict
+                        // if the current version is -1, means we did not find anything, and
+                        // a version is provided, so we do expect to find a doc under that version
+                        // this is important, since we don't allow to preset a version in order to handle deletes
+                        if (currentVersion == -1) {
+                            throw new VersionConflictEngineException(shardId, index.type(), index.id(), -1, expectedVersion);
+                        } else if (expectedVersion != currentVersion) {
+                            throw new VersionConflictEngineException(shardId, index.type(), index.id(), currentVersion, expectedVersion);
+                        }
+                    }
+                    updatedVersion = currentVersion < 0 ? 1 : currentVersion + 1;
+                } else { // external version type
+                    // an external version is provided, just check, if a local version exists, that its higher than it
+                    // the actual version checking is one in an external system, and we just want to not index older versions
+                    if (currentVersion >= 0) { // we can check!, its there
+                        if (currentVersion >= index.version()) {
+                            throw new VersionConflictEngineException(shardId, index.type(), index.id(), currentVersion, index.version());
+                        }
+                    }
+                    updatedVersion = index.version();
+                }
+            } else { // if (index.origin() == Operation.Origin.REPLICA || index.origin() == Operation.Origin.RECOVERY) {
+                long expectedVersion = index.version();
+                if (currentVersion != -2) { // -2 means we don't have a version, so ignore...
+                    // if it does not exists, and its considered the first index operation (replicas/recovery are 1 of)
+                    // then nothing to check
+                    if (!(currentVersion == -1 && index.version() == 1)) {
+                        // with replicas/recovery, we only check for previous version, we allow to set a future version
+                        if (expectedVersion <= currentVersion) {
+                            if (index.origin() == Operation.Origin.RECOVERY) {
+                                return;
+                            } else {
+                                throw new VersionConflictEngineException(shardId, index.type(), index.id(), currentVersion, expectedVersion);
+                            }
+                        }
+                    }
+                }
+                // replicas already hold the "future" version
+                updatedVersion = index.version();
+            }
+
+            uidField.version(updatedVersion);
+            index.version(updatedVersion);
+
+            if (currentVersion == -1) {
+                // document does not exists, we can optimize for create
+                if (index.docs().size() > 1) {
+                    writer.addDocuments(index.docs(), index.analyzer());
+                } else {
+                    writer.addDocument(index.docs().get(0), index.analyzer());
+                }
+            } else {
                 if (index.docs().size() > 1) {
                     writer.updateDocuments(index.uid(), index.docs(), index.analyzer());
                 } else {
                     writer.updateDocument(index.uid(), index.docs().get(0), index.analyzer());
                 }
-                Translog.Location translogLocation = translog.add(new Translog.Index(index));
-                // on recovery, we get the actual version we want to use
-                if (index.version() != 0) {
-                    versionMap.put(index.uid().text(), new VersionValue(index.version(), false, threadPool.estimatedTimeInMillis(), translogLocation));
-                }
-            } else {
-                long currentVersion;
-                VersionValue versionValue = versionMap.get(index.uid().text());
-                if (versionValue == null) {
-                    currentVersion = loadCurrentVersionFromIndex(index.uid());
-                } else {
-                    if (enableGcDeletes && versionValue.delete() && (threadPool.estimatedTimeInMillis() - versionValue.time()) > gcDeletesInMillis) {
-                        currentVersion = -1; // deleted, and GC
-                    } else {
-                        currentVersion = versionValue.version();
-                    }
-                }
-
-                long updatedVersion;
-                if (index.origin() == Operation.Origin.PRIMARY) {
-                    if (index.versionType() == VersionType.INTERNAL) { // internal version type
-                        long expectedVersion = index.version();
-                        if (expectedVersion != 0 && currentVersion != -2) { // -2 means we don't have a version, so ignore...
-                            // an explicit version is provided, see if there is a conflict
-                            // if the current version is -1, means we did not find anything, and
-                            // a version is provided, so we do expect to find a doc under that version
-                            // this is important, since we don't allow to preset a version in order to handle deletes
-                            if (currentVersion == -1) {
-                                throw new VersionConflictEngineException(shardId, index.type(), index.id(), -1, expectedVersion);
-                            } else if (expectedVersion != currentVersion) {
-                                throw new VersionConflictEngineException(shardId, index.type(), index.id(), currentVersion, expectedVersion);
-                            }
-                        }
-                        updatedVersion = currentVersion < 0 ? 1 : currentVersion + 1;
-                    } else { // external version type
-                        // an external version is provided, just check, if a local version exists, that its higher than it
-                        // the actual version checking is one in an external system, and we just want to not index older versions
-                        if (currentVersion >= 0) { // we can check!, its there
-                            if (currentVersion >= index.version()) {
-                                throw new VersionConflictEngineException(shardId, index.type(), index.id(), currentVersion, index.version());
-                            }
-                        }
-                        updatedVersion = index.version();
-                    }
-                } else { // if (index.origin() == Operation.Origin.REPLICA) {
-                    long expectedVersion = index.version();
-                    if (currentVersion != -2) { // -2 means we don't have a version, so ignore...
-                        // if it does not exists, and its considered the first index operation (replicas are 1 of)
-                        // then nothing to do
-                        if (!(currentVersion == -1 && index.version() == 1)) {
-                            // with replicas, we only check for previous version, we allow to set a future version
-                            if (expectedVersion <= currentVersion) {
-                                throw new VersionConflictEngineException(shardId, index.type(), index.id(), currentVersion, expectedVersion);
-                            }
-                        }
-                    }
-                    // replicas already hold the "future" version
-                    updatedVersion = index.version();
-                }
-
-                uidField.version(updatedVersion);
-                index.version(updatedVersion);
-
-                if (currentVersion == -1) {
-                    // document does not exists, we can optimize for create
-                    if (index.docs().size() > 1) {
-                        writer.addDocuments(index.docs(), index.analyzer());
-                    } else {
-                        writer.addDocument(index.docs().get(0), index.analyzer());
-                    }
-                } else {
-                    if (index.docs().size() > 1) {
-                        writer.updateDocuments(index.uid(), index.docs(), index.analyzer());
-                    } else {
-                        writer.updateDocument(index.uid(), index.docs().get(0), index.analyzer());
-                    }
-                }
-                Translog.Location translogLocation = translog.add(new Translog.Index(index));
-
-                versionMap.put(index.uid().text(), new VersionValue(updatedVersion, false, threadPool.estimatedTimeInMillis(), translogLocation));
             }
+            Translog.Location translogLocation = translog.add(new Translog.Index(index));
+
+            versionMap.put(index.uid().text(), new VersionValue(updatedVersion, false, threadPool.estimatedTimeInMillis(), translogLocation));
         }
     }
 
@@ -619,80 +606,75 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
     private void innerDelete(Delete delete, IndexWriter writer) throws IOException {
         synchronized (dirtyLock(delete.uid())) {
-            if (delete.origin() == Operation.Origin.RECOVERY) {
-                writer.deleteDocuments(delete.uid());
-                Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
-                // update the version with the exact version from recovery, assuming we have it
-                if (delete.version() != 0) {
-                    versionMap.put(delete.uid().text(), new VersionValue(delete.version(), true, threadPool.estimatedTimeInMillis(), translogLocation));
-                }
+            final long currentVersion;
+            VersionValue versionValue = versionMap.get(delete.uid().text());
+            if (versionValue == null) {
+                currentVersion = loadCurrentVersionFromIndex(delete.uid());
             } else {
-                long currentVersion;
-                VersionValue versionValue = versionMap.get(delete.uid().text());
-                if (versionValue == null) {
-                    currentVersion = loadCurrentVersionFromIndex(delete.uid());
+                if (enableGcDeletes && versionValue.delete() && (threadPool.estimatedTimeInMillis() - versionValue.time()) > gcDeletesInMillis) {
+                    currentVersion = -1; // deleted, and GC
                 } else {
-                    if (enableGcDeletes && versionValue.delete() && (threadPool.estimatedTimeInMillis() - versionValue.time()) > gcDeletesInMillis) {
-                        currentVersion = -1; // deleted, and GC
-                    } else {
-                        currentVersion = versionValue.version();
-                    }
+                    currentVersion = versionValue.version();
                 }
+            }
 
-                long updatedVersion;
-                if (delete.origin() == Operation.Origin.PRIMARY) {
-                    if (delete.versionType() == VersionType.INTERNAL) { // internal version type
-                        if (delete.version() != 0 && currentVersion != -2) { // -2 means we don't have a version, so ignore...
-                            // an explicit version is provided, see if there is a conflict
-                            // if the current version is -1, means we did not find anything, and
-                            // a version is provided, so we do expect to find a doc under that version
-                            if (currentVersion == -1) {
-                                throw new VersionConflictEngineException(shardId, delete.type(), delete.id(), -1, delete.version());
-                            } else if (delete.version() != currentVersion) {
-                                throw new VersionConflictEngineException(shardId, delete.type(), delete.id(), currentVersion, delete.version());
-                            }
-                        }
-                        updatedVersion = currentVersion < 0 ? 1 : currentVersion + 1;
-                    } else { // External
+            long updatedVersion;
+            if (delete.origin() == Operation.Origin.PRIMARY) {
+                if (delete.versionType() == VersionType.INTERNAL) { // internal version type
+                    if (delete.version() != 0 && currentVersion != -2) { // -2 means we don't have a version, so ignore...
+                        // an explicit version is provided, see if there is a conflict
+                        // if the current version is -1, means we did not find anything, and
+                        // a version is provided, so we do expect to find a doc under that version
                         if (currentVersion == -1) {
-                            // its an external version, that's fine, we allow it to be set
-                            //throw new VersionConflictEngineException(shardId, delete.type(), delete.id(), -1, delete.version());
-                        } else if (currentVersion >= delete.version()) {
+                            throw new VersionConflictEngineException(shardId, delete.type(), delete.id(), -1, delete.version());
+                        } else if (delete.version() != currentVersion) {
                             throw new VersionConflictEngineException(shardId, delete.type(), delete.id(), currentVersion, delete.version());
                         }
-                        updatedVersion = delete.version();
                     }
-                } else { // if (delete.origin() == Operation.Origin.REPLICA) {
-                    // on replica, the version is the future value expected (returned from the operation on the primary)
-                    if (currentVersion != -2) { // -2 means we don't have a version in the index, ignore
-                        // only check if we have a version for it, otherwise, ignore (see later)
-                        if (currentVersion != -1) {
-                            // with replicas, we only check for previous version, we allow to set a future version
-                            if (delete.version() <= currentVersion) {
+                    updatedVersion = currentVersion < 0 ? 1 : currentVersion + 1;
+                } else { // External
+                    if (currentVersion == -1) {
+                        // its an external version, that's fine, we allow it to be set
+                        //throw new VersionConflictEngineException(shardId, delete.type(), delete.id(), -1, delete.version());
+                    } else if (currentVersion >= delete.version()) {
+                        throw new VersionConflictEngineException(shardId, delete.type(), delete.id(), currentVersion, delete.version());
+                    }
+                    updatedVersion = delete.version();
+                }
+            } else { // if (index.origin() == Operation.Origin.REPLICA || index.origin() == Operation.Origin.RECOVERY) {
+                // on replica, the version is the future value expected (returned from the operation on the primary)
+                if (currentVersion != -2) { // -2 means we don't have a version in the index, ignore
+                    // only check if we have a version for it, otherwise, ignore (see later)
+                    if (currentVersion != -1) {
+                        // with replicas, we only check for previous version, we allow to set a future version
+                        if (delete.version() <= currentVersion) {
+                            if (delete.origin() == Operation.Origin.RECOVERY) {
+                                return;
+                            } else {
                                 throw new VersionConflictEngineException(shardId, delete.type(), delete.id(), currentVersion - 1, delete.version());
                             }
                         }
                     }
-                    // replicas already hold the "future" version
-                    updatedVersion = delete.version();
                 }
+                // replicas already hold the "future" version
+                updatedVersion = delete.version();
+            }
 
-                if (currentVersion == -1) {
-                    // doc does not exists and no prior deletes
-                    delete.version(updatedVersion).notFound(true);
-                    Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
-                    versionMap.put(delete.uid().text(), new VersionValue(updatedVersion, true, threadPool.estimatedTimeInMillis(), translogLocation));
-                } else if (versionValue != null && versionValue.delete()) {
-                    // a "delete on delete", in this case, we still increment the version, log it, and return that version
-                    delete.version(updatedVersion).notFound(true);
-                    Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
-                    versionMap.put(delete.uid().text(), new VersionValue(updatedVersion, true, threadPool.estimatedTimeInMillis(), translogLocation));
-                } else {
-                    delete.version(updatedVersion);
-                    writer.deleteDocuments(delete.uid());
-                    Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
-                    versionMap.put(delete.uid().text(), new VersionValue(updatedVersion, true, threadPool.estimatedTimeInMillis(), translogLocation));
-                }
+            if (currentVersion == -1) {
+                // doc does not exists and no prior deletes
+                delete.version(updatedVersion).notFound(true);
+                Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
+                versionMap.put(delete.uid().text(), new VersionValue(updatedVersion, true, threadPool.estimatedTimeInMillis(), translogLocation));
+            } else if (versionValue != null && versionValue.delete()) {
+                // a "delete on delete", in this case, we still increment the version, log it, and return that version
+                delete.version(updatedVersion).notFound(true);
+                Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
+                versionMap.put(delete.uid().text(), new VersionValue(updatedVersion, true, threadPool.estimatedTimeInMillis(), translogLocation));
+            } else {
+                delete.version(updatedVersion);
+                writer.deleteDocuments(delete.uid());
+                Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
+                versionMap.put(delete.uid().text(), new VersionValue(updatedVersion, true, threadPool.estimatedTimeInMillis(), translogLocation));
             }
         }
     }

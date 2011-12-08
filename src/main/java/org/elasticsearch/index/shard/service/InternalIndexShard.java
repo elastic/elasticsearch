@@ -475,7 +475,10 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     @Override
     public void flush(Engine.Flush flush) throws ElasticSearchException {
-        verifyStarted();
+        // we allows flush while recovering, since we allow for operations to happen
+        // while recovering, and we want to keep the translog at bay (up to deletes, which
+        // we don't gc).
+        verifyStartedOrRecovering();
         if (logger.isTraceEnabled()) {
             logger.trace("flush with {}", flush);
         }
@@ -544,6 +547,9 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         if (checkIndexOnStartup) {
             checkIndex(true);
         }
+        // we disable deletes since we allow for operations to be executed against the shard while recovering
+        // but we need to make sure we don't loose deletes until we are done recovering
+        engine.enableGcDeletes(false);
         engine.start();
     }
 
@@ -572,6 +578,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         }
         startScheduledTasksIfNeeded();
         indicesLifecycle.afterIndexShardStarted(this);
+        engine.enableGcDeletes(true);
     }
 
     public void performRecoveryOperation(Translog.Operation operation) throws ElasticSearchException {
@@ -641,14 +648,18 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         }
     }
 
-    public void writeAllowed() throws IllegalIndexShardStateException {
+    private void writeAllowed() throws IllegalIndexShardStateException {
+        verifyStartedOrRecovering();
+    }
+
+    private void verifyStartedOrRecovering() throws IllegalIndexShardStateException {
         IndexShardState state = this.state; // one time volatile read
-        if (state != IndexShardState.STARTED) {
-            throw new IndexShardNotStartedException(shardId, state);
+        if (state != IndexShardState.STARTED && state != IndexShardState.RECOVERING) {
+            throw new IllegalIndexShardStateException(shardId, state, "write operation only allowed when started/recovering");
         }
     }
 
-    public void verifyStarted() throws IllegalIndexShardStateException {
+    private void verifyStarted() throws IllegalIndexShardStateException {
         IndexShardState state = this.state; // one time volatile read
         if (state != IndexShardState.STARTED) {
             throw new IndexShardNotStartedException(shardId, state);

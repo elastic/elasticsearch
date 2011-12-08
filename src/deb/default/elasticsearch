@@ -1,0 +1,24 @@
+# Run ElasticSearch as this user ID and group ID
+ES_USER=elasticsearch
+ES_GROUP=elasticsearch
+
+# Minimum Heap memory to run ElasticSearch
+ES_MIN_MEM=256m
+
+# Maximum Heap memory to run ElasticSearch
+ES_MAX_MEM=1g
+
+# ElasticSearch log directory
+LOG_DIR=/var/log/elasticsearch
+
+# ElasticSearch data directory
+DATA_DIR=/var/lib/elasticsearch
+
+# ElasticSearch work directory
+WORK_DIR=/tmp/elasticsearch
+
+# ElasticSearch configuration directory
+CONF_DIR=/etc/elasticsearch
+
+# ElasticSearch configuration file (elasticsearch.yml)
+CONF_FILE=/etc/elasticsearch/elasticsearch.yml

@@ -399,33 +399,44 @@
             <plugin>
                 <artifactId>maven-assembly-plugin</artifactId>
                 <configuration>
-                    <outputDirectory>${project.build.directory}/releases/</outputDirectory>
+                    <outputDirectory>${project.build.directory}/releases/</outputDirectory>                                        
                     <descriptors>
                         <descriptor>${basedir}/src/main/assemblies/targz-bin.xml</descriptor>
                         <descriptor>${basedir}/src/main/assemblies/zip-bin.xml</descriptor>
-                    </descriptors>
+                    </descriptors>                    
                 </configuration>
-            </plugin>
+                <executions>
+                    <execution>                            
+                        <phase>package</phase>
+                        <goals>
+                            <goal>single</goal>
+                        </goals>
+                    </execution>
+                </executions>   
+            </plugin>                        
             <plugin>
                 <artifactId>maven-dependency-plugin</artifactId>
                 <executions>
                     <execution>
-                        <phase>package</phase>
+                        <phase>prepare-package</phase>
                         <goals>
                             <goal>copy-dependencies</goal>
                         </goals>
                         <configuration>
                             <outputDirectory>${project.build.directory}/lib</outputDirectory>
-                        </configuration>
+                        </configuration>                        
                     </execution>
                 </executions>
             </plugin>
-            <plugin>
+            <plugin>                
                 <!-- some infos https://github.com/tcurdt/jdeb/blob/master/docs/maven.md 
                 -->
                 <artifactId>jdeb</artifactId>
                 <groupId>org.vafer</groupId>
-                <version>0.9-SNAPSHOT</version>
+                <version>0.8</version>
+                <configuration>
+                    <deb>${project.build.directory}/releases/${artifactId}-${version}.deb</deb>
+                </configuration>                    
                 <executions>
                     <execution>
                         <phase>package</phase>
@@ -433,9 +444,7 @@
                             <goal>jdeb</goal>
                         </goals>
                         <configuration>
-                            <dataSet>
-                                <!-- tarfileset(dir: explodedDistDir, prefix: "/usr/share/elasticsearch",
-                                     includes: "*.txt, *.textile", username: "root", group: "root") -->
+                            <dataSet>                                
                                 <data>                                    
                                     <src>${project.basedir}/</src>
                                     <includes>*.txt, *.textile</includes>
@@ -447,7 +456,6 @@
                                         <group>root</group>
                                     </mapper>
                                 </data>                                            
-                                <!-- tarfileset(dir: explodedDistBinDir, prefix: "/usr/share/elasticsearch/bin", excludes: "*.bat", filemode: "755", username: "root", group: "root") -->
                                 <data>                                    
                                     <src>${project.basedir}/bin</src>
                                     <type>directory</type>
@@ -459,8 +467,7 @@
                                         <user>root</user>
                                         <group>root</group>
                                     </mapper>                                    
-                                </data>
-                                <!-- tarfileset(dir: explodedDistLibDir, prefix: "/usr/share/elasticsearch/lib", includes: "*.jar, sigar/*", username: "root", group: "root") -->
+                                </data>                                
                                 <data>                                    
                                     <src>${project.build.directory}/</src>
                                     <includes>${project.build.finalName}.jar, ${project.basedir}/lib/sigar/*</includes>
@@ -472,9 +479,9 @@
                                         <group>root</group>
                                     </mapper>
                                 </data>     
-                                <data>             
-                                    <!-- via copy dependencies-->
+                                <data>
                                     <src>${project.build.directory}/lib</src>                                    
+                                    <includes>lucene*, log4j*, jline*, jna*</includes>
                                     <type>directory</type>
                                     <mapper>
                                         <type>perm</type>
@@ -482,11 +489,7 @@
                                         <user>root</user>
                                         <group>root</group>
                                     </mapper>
-                                </data> 
-                                <!--
-                                    tarfileset(dir: "pkg/debian/default", includes: "elasticsearch", prefix: "/etc/default", username: "root", group: "root")
-                                    -->
-
+                                </data>
                                 <data>                                    
                                     <src>${project.basedir}/src/deb/default/</src>
                                     <type>directory</type>
@@ -496,10 +499,7 @@
                                         <user>root</user>
                                         <group>root</group>
                                     </mapper>
-                                </data>   
-                                <!--
-                                    tarfileset(dir: "pkg/debian/init.d", includes: "elasticsearch", prefix: "/etc/init.d", filemode: "755", username: "root", group: "root")
-                                    -->
+                                </data>
                                 <data>                                    
                                     <src>${project.basedir}/src/deb/init.d/</src>
                                     <type>directory</type>
@@ -510,11 +510,7 @@
                                         <user>root</user>
                                         <group>root</group>
                                     </mapper>
-                                </data>   
-
-                                <!--                                                                 
-                                    tarfileset(dir: explodedDistConfigDir, prefix: "/etc/elasticsearch", username: "root", group: "root")
-                                -->
+                                </data>
                                 <data>                                    
                                     <src>${project.basedir}/config</src>
                                     <type>directory</type>
@@ -530,7 +526,7 @@
                         </configuration>
                     </execution>
                 </executions>
-            </plugin>
+            </plugin>            
         </plugins>
     </build>
 </project>

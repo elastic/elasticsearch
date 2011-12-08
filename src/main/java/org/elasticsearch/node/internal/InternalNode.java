@@ -117,6 +117,8 @@ public final class InternalNode implements Node {
         this.settings = pluginsService.updatedSettings();
         this.environment = tuple.v2();
 
+        NodeEnvironment nodeEnvironment = new NodeEnvironment(this.settings, this.environment);
+
         ModulesBuilder modules = new ModulesBuilder();
         modules.add(new PluginsModule(settings, pluginsService));
         modules.add(new SettingsModule(settings));
@@ -126,7 +128,7 @@ public final class InternalNode implements Node {
         modules.add(new ScriptModule(settings));
         modules.add(new JmxModule(settings));
         modules.add(new EnvironmentModule(environment));
-        modules.add(new NodeEnvironmentModule());
+        modules.add(new NodeEnvironmentModule(nodeEnvironment));
         modules.add(new ClusterNameModule(settings));
         modules.add(new ThreadPoolModule(settings));
         modules.add(new DiscoveryModule(settings));

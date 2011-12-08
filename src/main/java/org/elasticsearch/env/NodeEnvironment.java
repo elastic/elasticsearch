@@ -33,6 +33,7 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  *
@@ -116,7 +117,7 @@ public class NodeEnvironment extends AbstractComponent {
             }
         }
         if (locks[0] == null) {
-            throw new IOException("Failed to obtain node lock", lastException);
+            throw new IOException("Failed to obtain node lock on " + Arrays.toString(environment.dataWithClusterFiles()), lastException);
         }
 
         this.localNodeId = localNodeId;

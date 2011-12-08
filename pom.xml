@@ -406,6 +406,131 @@
                     </descriptors>
                 </configuration>
             </plugin>
+            <plugin>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>copy-dependencies</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/lib</outputDirectory>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <!-- some infos https://github.com/tcurdt/jdeb/blob/master/docs/maven.md 
+                -->
+                <artifactId>jdeb</artifactId>
+                <groupId>org.vafer</groupId>
+                <version>0.9-SNAPSHOT</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>jdeb</goal>
+                        </goals>
+                        <configuration>
+                            <dataSet>
+                                <!-- tarfileset(dir: explodedDistDir, prefix: "/usr/share/elasticsearch",
+                                     includes: "*.txt, *.textile", username: "root", group: "root") -->
+                                <data>                                    
+                                    <src>${project.basedir}/</src>
+                                    <includes>*.txt, *.textile</includes>
+                                    <type>directory</type>
+                                    <mapper>
+                                        <type>perm</type>
+                                        <prefix>/usr/share/elasticsearch</prefix>                                        
+                                        <user>root</user>
+                                        <group>root</group>
+                                    </mapper>
+                                </data>                                            
+                                <!-- tarfileset(dir: explodedDistBinDir, prefix: "/usr/share/elasticsearch/bin", excludes: "*.bat", filemode: "755", username: "root", group: "root") -->
+                                <data>                                    
+                                    <src>${project.basedir}/bin</src>
+                                    <type>directory</type>
+                                    <excludes>*.bat</excludes>
+                                    <mapper>
+                                        <type>perm</type>
+                                        <prefix>/usr/share/elasticsearch/bin</prefix>                                                                                
+                                        <filemode>755</filemode>
+                                        <user>root</user>
+                                        <group>root</group>
+                                    </mapper>                                    
+                                </data>
+                                <!-- tarfileset(dir: explodedDistLibDir, prefix: "/usr/share/elasticsearch/lib", includes: "*.jar, sigar/*", username: "root", group: "root") -->
+                                <data>                                    
+                                    <src>${project.build.directory}/</src>
+                                    <includes>${project.build.finalName}.jar, ${project.basedir}/lib/sigar/*</includes>
+                                    <type>directory</type>
+                                    <mapper>
+                                        <type>perm</type>
+                                        <prefix>/usr/share/elasticsearch/lib</prefix>
+                                        <user>root</user>
+                                        <group>root</group>
+                                    </mapper>
+                                </data>     
+                                <data>             
+                                    <!-- via copy dependencies-->
+                                    <src>${project.build.directory}/lib</src>                                    
+                                    <type>directory</type>
+                                    <mapper>
+                                        <type>perm</type>
+                                        <prefix>/usr/share/elasticsearch/lib</prefix>
+                                        <user>root</user>
+                                        <group>root</group>
+                                    </mapper>
+                                </data> 
+                                <!--
+                                    tarfileset(dir: "pkg/debian/default", includes: "elasticsearch", prefix: "/etc/default", username: "root", group: "root")
+                                    -->
+
+                                <data>                                    
+                                    <src>${project.basedir}/src/deb/default/</src>
+                                    <type>directory</type>
+                                    <mapper>
+                                        <type>perm</type>
+                                        <prefix>/etc/default</prefix>                                        
+                                        <user>root</user>
+                                        <group>root</group>
+                                    </mapper>
+                                </data>   
+                                <!--
+                                    tarfileset(dir: "pkg/debian/init.d", includes: "elasticsearch", prefix: "/etc/init.d", filemode: "755", username: "root", group: "root")
+                                    -->
+                                <data>                                    
+                                    <src>${project.basedir}/src/deb/init.d/</src>
+                                    <type>directory</type>
+                                    <mapper>
+                                        <type>perm</type>
+                                        <prefix>/etc/init.d</prefix>
+                                        <filemode>755</filemode>
+                                        <user>root</user>
+                                        <group>root</group>
+                                    </mapper>
+                                </data>   
+
+                                <!--                                                                 
+                                    tarfileset(dir: explodedDistConfigDir, prefix: "/etc/elasticsearch", username: "root", group: "root")
+                                -->
+                                <data>                                    
+                                    <src>${project.basedir}/config</src>
+                                    <type>directory</type>
+                                    <mapper>
+                                        <type>perm</type>
+                                        <prefix>/etc/elasticsearch</prefix>                                        
+                                        <user>root</user>
+                                        <group>root</group>
+                                    </mapper>
+                                </data>   
+                            </dataSet>                
+
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
 </project>

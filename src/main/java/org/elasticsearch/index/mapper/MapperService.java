@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 import com.google.common.collect.UnmodifiableIterator;
@@ -125,12 +126,12 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         }
 
         try {
-            defaultMappingSource = Streams.copyToString(new InputStreamReader(defaultMappingUrl.openStream(), "UTF-8"));
+            defaultMappingSource = Streams.copyToString(new InputStreamReader(defaultMappingUrl.openStream(), Charsets.UTF_8));
         } catch (IOException e) {
             throw new MapperException("Failed to load default mapping source from [" + defaultMappingLocation + "]", e);
         }
 
-        logger.debug("using dynamic[{}], default mapping: location[{}] and source[{}]", dynamic, defaultMappingLocation, defaultMappingSource);
+        logger.debug("using dynamic[{}], default mapping: default_mapping_location[{}], loaded_from[{}] and source[{}]", dynamic, defaultMappingLocation, defaultMappingUrl, defaultMappingSource);
     }
 
     public void close() {

@@ -46,6 +46,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
@@ -503,7 +504,11 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                     retry(fromDiscoveryListener, shard.shardId());
                     return;
                 }
-                if (!(e instanceof VersionConflictEngineException)) {
+                if (e instanceof ElasticSearchException && ((ElasticSearchException) e).status() == RestStatus.CONFLICT) {
+                    if (logger.isTraceEnabled()) {
+                        logger.trace(shard.shortSummary() + ": Failed to execute [" + request + "]", e);
+                    }
+                } else {
                     if (logger.isDebugEnabled()) {
                         logger.debug(shard.shortSummary() + ": Failed to execute [" + request + "]", e);
                     }

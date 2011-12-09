@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.io.stream;
 
-import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UTFDataFormatException;
@@ -224,10 +223,7 @@ public abstract class StreamInput extends InputStream {
      * Reads a boolean.
      */
     public final boolean readBoolean() throws IOException {
-        byte ch = readByte();
-        if (ch < 0)
-            throw new EOFException();
-        return (ch != 0);
+        return readByte() != 0;
     }
 
 

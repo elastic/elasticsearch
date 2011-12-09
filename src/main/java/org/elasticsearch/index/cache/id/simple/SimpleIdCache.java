@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.cache.id.simple;
 
-import gnu.trove.ExtTObjectIntHasMap;
 import gnu.trove.impl.Constants;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
@@ -31,6 +30,7 @@ import org.elasticsearch.common.BytesWrap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.trove.ExtTObjectIntHasMap;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;

@@ -20,7 +20,6 @@
 package org.elasticsearch.test.integration.search.embedded;
 
 import com.google.common.collect.ImmutableMap;
-import gnu.trove.ExtTIntArrayList;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
@@ -34,6 +33,7 @@ import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.trove.ExtTIntArrayList;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.node.settings.NodeSettingsService;

@@ -45,6 +45,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static com.google.common.collect.Sets.newHashSet;
 import static org.elasticsearch.client.Requests.*;
@@ -516,6 +517,11 @@ public class IndexAliasesTests extends AbstractNodesTests {
             });
         }
         executor.shutdown();
+        boolean done = executor.awaitTermination(10, TimeUnit.SECONDS);
+        assertThat(done, equalTo(true));
+        if (!done) {
+            executor.shutdownNow();
+        }
     }
 
 

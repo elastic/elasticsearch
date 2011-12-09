@@ -19,12 +19,12 @@
 
 package org.elasticsearch.common;
 
-import gnu.trove.ExtTDoubleObjectHashMap;
-import gnu.trove.ExtTHashMap;
-import gnu.trove.ExtTLongObjectHashMap;
 import gnu.trove.map.hash.*;
 import jsr166y.LinkedTransferQueue;
 import org.elasticsearch.common.compress.lzf.BufferRecycler;
+import org.elasticsearch.common.trove.ExtTDoubleObjectHashMap;
+import org.elasticsearch.common.trove.ExtTHashMap;
+import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 
 import java.lang.ref.SoftReference;
 import java.util.Arrays;

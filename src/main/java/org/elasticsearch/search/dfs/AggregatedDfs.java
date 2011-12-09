@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.dfs;
 
-import gnu.trove.ExtTObjectIntHasMap;
 import gnu.trove.impl.Constants;
 import gnu.trove.iterator.TObjectIntIterator;
 import gnu.trove.map.hash.TObjectIntHashMap;
@@ -27,6 +26,7 @@ import org.apache.lucene.index.Term;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.trove.ExtTObjectIntHasMap;
 
 import java.io.IOException;
 

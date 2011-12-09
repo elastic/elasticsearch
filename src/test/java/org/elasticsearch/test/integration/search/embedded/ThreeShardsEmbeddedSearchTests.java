@@ -21,13 +21,13 @@ package org.elasticsearch.test.integration.search.embedded;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
-import gnu.trove.ExtTIntArrayList;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.trove.ExtTIntArrayList;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.search.*;

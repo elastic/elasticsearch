@@ -20,10 +20,10 @@
 package org.elasticsearch.search.facet.termsstats.longs;
 
 import com.google.common.collect.ImmutableList;
-import gnu.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.facet.Facet;
@@ -67,6 +67,7 @@ public class InternalTermsStatsLongFacet extends InternalTermsStatsFacet {
         public LongEntry(long term, long count, long totalCount, double total, double min, double max) {
             this.term = term;
             this.count = count;
+            this.totalCount = totalCount;
             this.total = total;
             this.min = min;
             this.max = max;
@@ -251,7 +252,6 @@ public class InternalTermsStatsLongFacet extends InternalTermsStatsFacet {
         }
         int missing = 0;
         ExtTLongObjectHashMap<LongEntry> map = CacheRecycler.popLongObjectMap();
-        map.clear();
         for (Facet facet : facets) {
             InternalTermsStatsLongFacet tsFacet = (InternalTermsStatsLongFacet) facet;
             missing += tsFacet.missing;

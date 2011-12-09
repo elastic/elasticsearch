@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package gnu.trove;
+package org.elasticsearch.common.trove;
 
 import gnu.trove.map.TDoubleObjectMap;
 import gnu.trove.map.hash.TDoubleObjectHashMap;

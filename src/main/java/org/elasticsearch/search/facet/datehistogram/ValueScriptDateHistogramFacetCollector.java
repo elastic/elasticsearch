@@ -19,10 +19,10 @@
 
 package org.elasticsearch.search.facet.datehistogram;
 
-import gnu.trove.ExtTLongObjectHashMap;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.longs.LongFieldData;
@@ -41,8 +41,6 @@ import java.util.Map;
 /**
  * A histogram facet collector that uses the same field as the key as well as the
  * value.
- *
- *
  */
 public class ValueScriptDateHistogramFacetCollector extends AbstractFacetCollector {
 

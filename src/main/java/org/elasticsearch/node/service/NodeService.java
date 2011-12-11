@@ -48,7 +48,7 @@ public class NodeService extends AbstractComponent {
     @Nullable
     private HttpServer httpServer;
 
-    private volatile ImmutableMap<String, String> nodeAttributes = ImmutableMap.of();
+    private volatile ImmutableMap<String, String> serviceAttributes = ImmutableMap.of();
 
     @Inject
     public NodeService(Settings settings, MonitorService monitorService, ClusterService clusterService, TransportService transportService, IndicesService indicesService) {
@@ -63,16 +63,33 @@ public class NodeService extends AbstractComponent {
         this.httpServer = httpServer;
     }
 
-    public synchronized void putNodeAttribute(String key, String value) {
-        nodeAttributes = new MapBuilder<String, String>().putAll(nodeAttributes).put(key, value).immutableMap();
+    @Deprecated
+    public void putNodeAttribute(String key, String value) {
+        putAttribute(key, value);
     }
 
-    public synchronized void removeNodeAttribute(String key) {
-        nodeAttributes = new MapBuilder<String, String>().putAll(nodeAttributes).remove(key).immutableMap();
+    @Deprecated
+    public void removeNodeAttribute(String key) {
+        removeAttribute(key);
+    }
+
+    public synchronized void putAttribute(String key, String value) {
+        serviceAttributes = new MapBuilder<String, String>().putAll(serviceAttributes).put(key, value).immutableMap();
+    }
+
+    public synchronized void removeAttribute(String key) {
+        serviceAttributes = new MapBuilder<String, String>().putAll(serviceAttributes).remove(key).immutableMap();
+    }
+
+    /**
+     * Attributes different services in the node can add to be reported as part of the node info (for example).
+     */
+    public ImmutableMap<String, String> attributes() {
+        return this.serviceAttributes;
     }
 
     public NodeInfo info() {
-        return new NodeInfo(clusterService.state().nodes().localNode(), nodeAttributes, settings,
+        return new NodeInfo(clusterService.state().nodes().localNode(), serviceAttributes, settings,
                 monitorService.osService().info(), monitorService.processService().info(),
                 monitorService.jvmService().info(), monitorService.networkService().info(),
                 transportService.info(), httpServer == null ? null : httpServer.info());

@@ -33,6 +33,7 @@ import org.elasticsearch.common.UUID;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.Discovery;
@@ -45,6 +46,7 @@ import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.discovery.zen.ping.ZenPingService;
 import org.elasticsearch.discovery.zen.publish.PublishClusterStateAction;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -106,6 +108,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     private final AtomicBoolean initialStateSent = new AtomicBoolean();
 
+    @Nullable
+    private NodeService nodeService;
+
     @Inject
     public ZenDiscovery(Settings settings, ClusterName clusterName, ThreadPool threadPool,
                         TransportService transportService, ClusterService clusterService, NodeSettingsService nodeSettingsService,
@@ -135,6 +140,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         this.publishClusterState = new PublishClusterStateAction(settings, transportService, this, new NewClusterStateListener());
         this.pingService.setNodesProvider(this);
         this.membership = new MembershipAction(settings, transportService, this, new MembershipListener());
+    }
+
+    public void setNodeService(@Nullable NodeService nodeService) {
+        this.nodeService = nodeService;
     }
 
     @Override
@@ -225,6 +234,11 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         }
         // have not decided yet, just send the local node
         return newNodesBuilder().put(localNode).localNodeId(localNode.id()).build();
+    }
+
+    @Override
+    public NodeService nodeService() {
+        return this.nodeService;
     }
 
     @Override

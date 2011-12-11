@@ -39,12 +39,10 @@ import java.util.Map;
 
 /**
  * Node information (static, does not change over time).
- *
- *
  */
 public class NodeInfo extends NodeOperationResponse {
 
-    private ImmutableMap<String, String> attributes;
+    private ImmutableMap<String, String> serviceAttributes;
 
     private Settings settings;
 
@@ -63,11 +61,11 @@ public class NodeInfo extends NodeOperationResponse {
     NodeInfo() {
     }
 
-    public NodeInfo(DiscoveryNode node, ImmutableMap<String, String> attributes, Settings settings,
+    public NodeInfo(DiscoveryNode node, ImmutableMap<String, String> serviceAttributes, Settings settings,
                     OsInfo os, ProcessInfo process, JvmInfo jvm, NetworkInfo network,
                     TransportInfo transport, @Nullable HttpInfo http) {
         super(node);
-        this.attributes = attributes;
+        this.serviceAttributes = serviceAttributes;
         this.settings = settings;
         this.os = os;
         this.process = process;
@@ -78,17 +76,17 @@ public class NodeInfo extends NodeOperationResponse {
     }
 
     /**
-     * The attributes of the node.
+     * The service attributes of the node.
      */
-    public ImmutableMap<String, String> attributes() {
-        return this.attributes;
+    public ImmutableMap<String, String> serviceAttributes() {
+        return this.serviceAttributes;
     }
 
     /**
      * The attributes of the node.
      */
-    public ImmutableMap<String, String> getAttributes() {
-        return attributes();
+    public ImmutableMap<String, String> getServiceAttributes() {
+        return serviceAttributes();
     }
 
     /**
@@ -191,7 +189,7 @@ public class NodeInfo extends NodeOperationResponse {
         for (int i = 0; i < size; i++) {
             builder.put(in.readUTF(), in.readUTF());
         }
-        attributes = builder.build();
+        serviceAttributes = builder.build();
         settings = ImmutableSettings.readSettingsFromStream(in);
         if (in.readBoolean()) {
             os = OsInfo.readOsInfo(in);
@@ -216,8 +214,8 @@ public class NodeInfo extends NodeOperationResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeVInt(attributes.size());
-        for (Map.Entry<String, String> entry : attributes.entrySet()) {
+        out.writeVInt(serviceAttributes.size());
+        for (Map.Entry<String, String> entry : serviceAttributes.entrySet()) {
             out.writeUTF(entry.getKey());
             out.writeUTF(entry.getValue());
         }

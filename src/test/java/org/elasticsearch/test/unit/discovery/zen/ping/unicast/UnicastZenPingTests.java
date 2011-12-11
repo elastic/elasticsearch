@@ -29,6 +29,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
+import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty.NettyTransport;
@@ -69,6 +70,11 @@ public class UnicastZenPingTests {
             public DiscoveryNodes nodes() {
                 return DiscoveryNodes.newNodesBuilder().put(nodeA).localNodeId("A").build();
             }
+
+            @Override
+            public NodeService nodeService() {
+                return null;
+            }
         });
         zenPingA.start();
 
@@ -77,6 +83,11 @@ public class UnicastZenPingTests {
             @Override
             public DiscoveryNodes nodes() {
                 return DiscoveryNodes.newNodesBuilder().put(nodeB).localNodeId("B").build();
+            }
+
+            @Override
+            public NodeService nodeService() {
+                return null;
             }
         });
         zenPingB.start();

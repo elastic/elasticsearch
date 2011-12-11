@@ -1,8 +1,8 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
+ * Licensed to Elastic Search and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
+ * regarding copyright ownership. Elastic Search licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -32,16 +32,15 @@ import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.hamcrest.MatcherAssert;
 import org.testng.annotations.Test;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
-import static org.hamcrest.Matchers.instanceOf;
+import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
+import static org.hamcrest.Matchers.*;
 
 /**
- *
+ * @author kimchy (shay.banon)
  */
 public class SimpleIcuAnalysisTests {
 
-    @Test
-    public void testDefaultsIcuAnalysis() {
+    @Test public void testDefaultsIcuAnalysis() {
         Index index = new Index("test");
 
         Injector parentInjector = new ModulesBuilder().add(new SettingsModule(EMPTY_SETTINGS), new EnvironmentModule(new Environment(EMPTY_SETTINGS)), new IndicesAnalysisModule()).createInjector();
@@ -53,7 +52,19 @@ public class SimpleIcuAnalysisTests {
 
         AnalysisService analysisService = injector.getInstance(AnalysisService.class);
 
+        TokenizerFactory tokenizerFactory = analysisService.tokenizer("icu_tokenizer");
+        MatcherAssert.assertThat(tokenizerFactory, instanceOf(IcuTokenizerFactory.class));
+        
         TokenFilterFactory filterFactory = analysisService.tokenFilter("icu_normalizer");
         MatcherAssert.assertThat(filterFactory, instanceOf(IcuNormalizerTokenFilterFactory.class));
+        
+        filterFactory = analysisService.tokenFilter("icu_folding");
+        MatcherAssert.assertThat(filterFactory, instanceOf(IcuFoldingTokenFilterFactory.class));
+
+        filterFactory = analysisService.tokenFilter("icu_collation");
+        MatcherAssert.assertThat(filterFactory, instanceOf(IcuCollationTokenFilterFactory.class));
+        
+        filterFactory = analysisService.tokenFilter("icu_transform");
+        MatcherAssert.assertThat(filterFactory, instanceOf(IcuTransformTokenFilterFactory.class));
     }
 }

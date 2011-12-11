@@ -235,13 +235,23 @@ public class MetaDataMappingService extends AbstractComponent {
                     throw new IndexMissingException(new Index("_all"));
                 }
 
-                logger.info("[{}] remove_mapping [{}]", request.indices, request.mappingType);
                 MetaData.Builder builder = newMetaDataBuilder().metaData(currentState.metaData());
+                boolean changed = false;
                 for (String indexName : request.indices) {
-                    if (currentState.metaData().hasIndex(indexName)) {
-                        builder.put(newIndexMetaDataBuilder(currentState.metaData().index(indexName)).removeMapping(request.mappingType));
+                    IndexMetaData indexMetaData = currentState.metaData().index(indexName);
+                    if (indexMetaData != null) {
+                        if (indexMetaData.mappings().containsKey(request.mappingType)) {
+                            builder.put(newIndexMetaDataBuilder(indexMetaData).removeMapping(request.mappingType));
+                            changed = true;
+                        }
                     }
                 }
+
+                if (!changed) {
+                    return currentState;
+                }
+
+                logger.info("[{}] remove_mapping [{}]", request.indices, request.mappingType);
 
                 return ClusterState.builder().state(currentState).metaData(builder).build();
             }

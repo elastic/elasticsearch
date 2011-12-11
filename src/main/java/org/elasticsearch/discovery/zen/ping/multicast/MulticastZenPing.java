@@ -75,6 +75,8 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
 
     private final NetworkService networkService;
 
+    private final boolean sendPing;
+
 
     private volatile DiscoveryNodesProvider nodesProvider;
 
@@ -112,6 +114,8 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
         this.group = componentSettings.get("group", "224.2.2.4");
         this.bufferSize = componentSettings.getAsInt("buffer_size", 2048);
         this.ttl = componentSettings.getAsInt("ttl", 3);
+
+        this.sendPing = componentSettings.getAsBoolean("send_ping", true);
 
         logger.debug("using group [{}], with port [{}], ttl [{}], and address [{}]", group, port, ttl, address);
 
@@ -221,6 +225,15 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
 
     @Override
     public void ping(final PingListener listener, final TimeValue timeout) {
+        if (!sendPing) {
+            threadPool.cached().execute(new Runnable() {
+                @Override
+                public void run() {
+                    listener.onPing(new PingResponse[0]);
+                }
+            });
+            return;
+        }
         final int id = pingIdGenerator.incrementAndGet();
         receivedResponses.put(id, new ConcurrentHashMap<DiscoveryNode, PingResponse>());
         sendPingRequest(id, true);

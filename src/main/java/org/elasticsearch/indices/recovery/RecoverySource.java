@@ -56,8 +56,6 @@ public class RecoverySource extends AbstractComponent {
         public static final String START_RECOVERY = "index/shard/recovery/startRecovery";
     }
 
-    private final ThreadPool threadPool;
-
     private final TransportService transportService;
 
     private final IndicesService indicesService;
@@ -66,10 +64,9 @@ public class RecoverySource extends AbstractComponent {
 
 
     @Inject
-    public RecoverySource(Settings settings, ThreadPool threadPool, TransportService transportService, IndicesService indicesService,
+    public RecoverySource(Settings settings, TransportService transportService, IndicesService indicesService,
                           RecoverySettings recoverySettings) {
         super(settings);
-        this.threadPool = threadPool;
         this.transportService = transportService;
         this.indicesService = indicesService;
 

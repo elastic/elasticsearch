@@ -142,6 +142,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         this.membership = new MembershipAction(settings, transportService, this, new MembershipListener());
     }
 
+    @Override
     public void setNodeService(@Nullable NodeService nodeService) {
         this.nodeService = nodeService;
     }

@@ -28,6 +28,7 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.monitor.MonitorService;
@@ -51,12 +52,13 @@ public class NodeService extends AbstractComponent {
     private volatile ImmutableMap<String, String> serviceAttributes = ImmutableMap.of();
 
     @Inject
-    public NodeService(Settings settings, MonitorService monitorService, ClusterService clusterService, TransportService transportService, IndicesService indicesService) {
+    public NodeService(Settings settings, MonitorService monitorService, Discovery discovery, ClusterService clusterService, TransportService transportService, IndicesService indicesService) {
         super(settings);
         this.monitorService = monitorService;
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.indicesService = indicesService;
+        discovery.setNodeService(this);
     }
 
     public void setHttpServer(@Nullable HttpServer httpServer) {

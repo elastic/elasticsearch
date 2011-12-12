@@ -21,6 +21,7 @@ package org.elasticsearch.discovery.zen.ping.multicast;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -445,6 +446,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                 XContentBuilder builder = XContentFactory.contentBuilder(contentType);
                 builder.startObject().startObject("response");
                 builder.field("cluster_name", MulticastZenPing.this.clusterName.value());
+                builder.startObject("version").field("number", Version.CURRENT.number()).field("snapshot_build", Version.CURRENT.snapshot).endObject();
                 builder.field("transport_address", localNode.address().toString());
 
                 if (nodesProvider.nodeService() != null) {

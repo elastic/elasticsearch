@@ -28,18 +28,21 @@ import org.apache.lucene.search.MultiTermQuery;
  */
 public class QueryParserSettings {
 
+    public static final boolean DEFAULT_ALLOW_LEADING_WILDCARD = true;
+    public static final boolean DEFAULT_ANALYZE_WILDCARD = false;
+
     private String queryString;
     private String defaultField;
     private float boost = 1.0f;
     private MapperQueryParser.Operator defaultOperator = QueryParser.Operator.OR;
     private boolean autoGeneratePhraseQueries = false;
-    private boolean allowLeadingWildcard = true;
+    private boolean allowLeadingWildcard = DEFAULT_ALLOW_LEADING_WILDCARD;
     private boolean lowercaseExpandedTerms = true;
     private boolean enablePositionIncrements = true;
     private int phraseSlop = 0;
     private float fuzzyMinSim = FuzzyQuery.defaultMinSimilarity;
     private int fuzzyPrefixLength = FuzzyQuery.defaultPrefixLength;
-    private boolean analyzeWildcard = false;
+    private boolean analyzeWildcard = DEFAULT_ANALYZE_WILDCARD;
     private boolean escape = false;
     private Analyzer analyzer = null;
     private MultiTermQuery.RewriteMethod rewriteMethod = MultiTermQuery.CONSTANT_SCORE_AUTO_REWRITE_DEFAULT;

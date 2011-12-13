@@ -64,7 +64,7 @@ public class NodeInfo extends NodeOperationResponse {
     NodeInfo() {
     }
 
-    public NodeInfo(String hostname, DiscoveryNode node, ImmutableMap<String, String> serviceAttributes, Settings settings,
+    public NodeInfo(@Nullable String hostname, DiscoveryNode node, ImmutableMap<String, String> serviceAttributes, Settings settings,
                     OsInfo os, ProcessInfo process, JvmInfo jvm, NetworkInfo network,
                     TransportInfo transport, @Nullable HttpInfo http) {
         super(node);

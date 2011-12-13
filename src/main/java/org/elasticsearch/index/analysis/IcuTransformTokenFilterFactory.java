@@ -30,7 +30,6 @@ import org.elasticsearch.index.settings.IndexSettings;
 
 
 /**
- * @author joergprante
  */
 public class IcuTransformTokenFilterFactory extends AbstractTokenFilterFactory {
 

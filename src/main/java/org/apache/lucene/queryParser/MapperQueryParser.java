@@ -50,8 +50,6 @@ import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameQu
  * <p/>
  * <p>Also breaks fields with [type].[name] into a boolean query that must include the type
  * as well as the query on the name.
- *
- *
  */
 public class MapperQueryParser extends QueryParser {
 
@@ -229,7 +227,15 @@ public class MapperQueryParser extends QueryParser {
         if (tlist.size() == 1) {
             return super.getPrefixQuery(field, tlist.get(0));
         } else {
-            return super.getPrefixQuery(field, termStr);
+            // build a boolean query with prefix on each one...
+            List<BooleanClause> clauses = new ArrayList<BooleanClause>();
+            for (String token : tlist) {
+                clauses.add(new BooleanClause(super.getPrefixQuery(field, token), BooleanClause.Occur.SHOULD));
+            }
+            return getBooleanQuery(clauses, true);
+
+            //return super.getPrefixQuery(field, termStr);
+
             /* this means that the analyzer used either added or consumed
 * (common for a stemmer) tokens, and we can't build a PrefixQuery */
 //            throw new ParseException("Cannot build PrefixQuery with analyzer "

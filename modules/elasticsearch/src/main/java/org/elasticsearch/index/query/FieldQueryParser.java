@@ -26,6 +26,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.support.QueryParsers;
 
@@ -40,7 +41,13 @@ public class FieldQueryParser implements QueryParser {
 
     public static final String NAME = "field";
 
-    @Inject public FieldQueryParser() {
+    private final boolean defaultAnalyzeWildcard;
+    private final boolean defaultAllowLeadingWildcard;
+
+    @Inject
+    public FieldQueryParser(Settings settings) {
+        this.defaultAnalyzeWildcard = settings.getAsBoolean("indices.query.query_string.analyze_wildcard", QueryParserSettings.DEFAULT_ANALYZE_WILDCARD);
+        this.defaultAllowLeadingWildcard = settings.getAsBoolean("indices.query.query_string.allowLeadingWildcard", QueryParserSettings.DEFAULT_ALLOW_LEADING_WILDCARD);
     }
 
     @Override public String[] names() {
@@ -56,6 +63,9 @@ public class FieldQueryParser implements QueryParser {
 
         QueryParserSettings qpSettings = new QueryParserSettings();
         qpSettings.defaultField(fieldName);
+        qpSettings.analyzeWildcard(defaultAnalyzeWildcard);
+        qpSettings.allowLeadingWildcard(defaultAllowLeadingWildcard);
+
         token = parser.nextToken();
         if (token == XContentParser.Token.START_OBJECT) {
             String currentFieldName = null;

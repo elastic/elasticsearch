@@ -44,13 +44,13 @@ public class IndicesQueriesRegistry {
         addQueryParser(queryParsers, new DisMaxQueryParser());
         addQueryParser(queryParsers, new IdsQueryParser());
         addQueryParser(queryParsers, new MatchAllQueryParser());
-        addQueryParser(queryParsers, new QueryStringQueryParser());
+        addQueryParser(queryParsers, new QueryStringQueryParser(settings));
         addQueryParser(queryParsers, new BoostingQueryParser());
         addQueryParser(queryParsers, new BoolQueryParser(settings));
         addQueryParser(queryParsers, new TermQueryParser());
         addQueryParser(queryParsers, new TermsQueryParser());
         addQueryParser(queryParsers, new FuzzyQueryParser());
-        addQueryParser(queryParsers, new FieldQueryParser());
+        addQueryParser(queryParsers, new FieldQueryParser(settings));
         addQueryParser(queryParsers, new RangeQueryParser());
         addQueryParser(queryParsers, new PrefixQueryParser());
         addQueryParser(queryParsers, new WildcardQueryParser());

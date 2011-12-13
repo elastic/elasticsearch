@@ -22,13 +22,14 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.queryParser.MapperQueryParser;
 import org.apache.lucene.queryParser.MultiFieldQueryParserSettings;
 import org.apache.lucene.queryParser.ParseException;
+import org.apache.lucene.queryParser.QueryParserSettings;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Lists;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.trove.impl.Constants;
 import org.elasticsearch.common.trove.map.hash.TObjectFloatHashMap;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -46,7 +47,12 @@ public class QueryStringQueryParser implements QueryParser {
 
     public static final String NAME = "query_string";
 
-    @Inject public QueryStringQueryParser() {
+    private final boolean defaultAnalyzeWildcard;
+    private final boolean defaultAllowLeadingWildcard;
+
+    public QueryStringQueryParser(Settings settings) {
+        this.defaultAnalyzeWildcard = settings.getAsBoolean("indices.query.query_string.analyze_wildcard", QueryParserSettings.DEFAULT_ANALYZE_WILDCARD);
+        this.defaultAllowLeadingWildcard = settings.getAsBoolean("indices.query.query_string.allowLeadingWildcard", QueryParserSettings.DEFAULT_ALLOW_LEADING_WILDCARD);
     }
 
     @Override public String[] names() {
@@ -58,6 +64,8 @@ public class QueryStringQueryParser implements QueryParser {
 
         MultiFieldQueryParserSettings qpSettings = new MultiFieldQueryParserSettings();
         qpSettings.defaultField(AllFieldMapper.NAME);
+        qpSettings.analyzeWildcard(defaultAnalyzeWildcard);
+        qpSettings.allowLeadingWildcard(defaultAllowLeadingWildcard);
 
         String currentFieldName = null;
         XContentParser.Token token;

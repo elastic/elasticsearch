@@ -40,7 +40,7 @@ public class BoolQueryParser implements QueryParser {
     public static final String NAME = "bool";
 
     @Inject public BoolQueryParser(Settings settings) {
-        BooleanQuery.setMaxClauseCount(settings.getAsInt("index.query.bool.max_clause_count", BooleanQuery.getMaxClauseCount()));
+        BooleanQuery.setMaxClauseCount(settings.getAsInt("index.query.bool.max_clause_count", settings.getAsInt("indices.query.bool.max_clause_count", BooleanQuery.getMaxClauseCount())));
     }
 
     @Override public String[] names() {

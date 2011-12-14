@@ -65,89 +65,92 @@ public class NestedFilterParser implements FilterParser {
         NestedQueryParser.LateBindingParentFilter usAsParentFilter = new NestedQueryParser.LateBindingParentFilter();
         NestedQueryParser.parentFilterContext.set(usAsParentFilter);
 
-        String currentFieldName = null;
-        XContentParser.Token token;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                if ("query".equals(currentFieldName)) {
-                    query = parseContext.parseInnerQuery();
-                } else if ("filter".equals(currentFieldName)) {
-                    filter = parseContext.parseInnerFilter();
-                }
-            } else if (token.isValue()) {
-                if ("path".equals(currentFieldName)) {
-                    path = parser.text();
-                } else if ("boost".equals(currentFieldName)) {
-                    boost = parser.floatValue();
-                } else if ("_scope".equals(currentFieldName)) {
-                    scope = parser.text();
-                } else if ("_name".equals(currentFieldName)) {
-                    filterName = parser.text();
-                } else if ("_cache".equals(currentFieldName)) {
-                    cache = parser.booleanValue();
-                } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
-                    cacheKey = new CacheKeyFilter.Key(parser.text());
+        try {
+            String currentFieldName = null;
+            XContentParser.Token token;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (token == XContentParser.Token.START_OBJECT) {
+                    if ("query".equals(currentFieldName)) {
+                        query = parseContext.parseInnerQuery();
+                    } else if ("filter".equals(currentFieldName)) {
+                        filter = parseContext.parseInnerFilter();
+                    }
+                } else if (token.isValue()) {
+                    if ("path".equals(currentFieldName)) {
+                        path = parser.text();
+                    } else if ("boost".equals(currentFieldName)) {
+                        boost = parser.floatValue();
+                    } else if ("_scope".equals(currentFieldName)) {
+                        scope = parser.text();
+                    } else if ("_name".equals(currentFieldName)) {
+                        filterName = parser.text();
+                    } else if ("_cache".equals(currentFieldName)) {
+                        cache = parser.booleanValue();
+                    } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
+                        cacheKey = new CacheKeyFilter.Key(parser.text());
+                    }
                 }
             }
-        }
-        if (query == null && filter == null) {
-            throw new QueryParsingException(parseContext.index(), "[nested] requires either 'query' or 'filter' field");
-        }
-        if (path == null) {
-            throw new QueryParsingException(parseContext.index(), "[nested] requires 'path' field");
-        }
-
-        if (filter != null) {
-            query = new DeletionAwareConstantScoreQuery(filter);
-        }
-
-        query.setBoost(boost);
-
-        MapperService.SmartNameObjectMapper mapper = parseContext.smartObjectMapper(path);
-        if (mapper == null) {
-            throw new QueryParsingException(parseContext.index(), "[nested] failed to find nested object under path [" + path + "]");
-        }
-        ObjectMapper objectMapper = mapper.mapper();
-        if (objectMapper == null) {
-            throw new QueryParsingException(parseContext.index(), "[nested] failed to find nested object under path [" + path + "]");
-        }
-        if (!objectMapper.nested().isNested()) {
-            throw new QueryParsingException(parseContext.index(), "[nested] nested object under path [" + path + "] is not of nested type");
-        }
-
-        Filter childFilter = parseContext.cacheFilter(objectMapper.nestedTypeFilter(), null);
-        usAsParentFilter.filter = childFilter;
-        // wrap the child query to only work on the nested path type
-        query = new FilteredQuery(query, childFilter);
-
-        Filter parentFilter = currentParentFilterContext;
-        if (parentFilter == null) {
-            parentFilter = NonNestedDocsFilter.INSTANCE;
-            if (mapper.hasDocMapper()) {
-                // filter based on the type...
-                parentFilter = mapper.docMapper().typeFilter();
+            if (query == null && filter == null) {
+                throw new QueryParsingException(parseContext.index(), "[nested] requires either 'query' or 'filter' field");
             }
-            parentFilter = parseContext.cacheFilter(parentFilter, null);
-        }
+            if (path == null) {
+                throw new QueryParsingException(parseContext.index(), "[nested] requires 'path' field");
+            }
 
-        // restore the thread local one...
-        NestedQueryParser.parentFilterContext.set(currentParentFilterContext);
+            if (filter != null) {
+                query = new DeletionAwareConstantScoreQuery(filter);
+            }
 
-        BlockJoinQuery joinQuery = new BlockJoinQuery(query, parentFilter, BlockJoinQuery.ScoreMode.None);
+            query.setBoost(boost);
 
-        if (scope != null) {
-            SearchContext.current().addNestedQuery(scope, joinQuery);
-        }
+            MapperService.SmartNameObjectMapper mapper = parseContext.smartObjectMapper(path);
+            if (mapper == null) {
+                throw new QueryParsingException(parseContext.index(), "[nested] failed to find nested object under path [" + path + "]");
+            }
+            ObjectMapper objectMapper = mapper.mapper();
+            if (objectMapper == null) {
+                throw new QueryParsingException(parseContext.index(), "[nested] failed to find nested object under path [" + path + "]");
+            }
+            if (!objectMapper.nested().isNested()) {
+                throw new QueryParsingException(parseContext.index(), "[nested] nested object under path [" + path + "] is not of nested type");
+            }
 
-        Filter joinFilter = new QueryWrapperFilter(joinQuery);
-        if (cache) {
-            joinFilter = parseContext.cacheFilter(joinFilter, cacheKey);
+            Filter childFilter = parseContext.cacheFilter(objectMapper.nestedTypeFilter(), null);
+            usAsParentFilter.filter = childFilter;
+            // wrap the child query to only work on the nested path type
+            query = new FilteredQuery(query, childFilter);
+
+            Filter parentFilter = currentParentFilterContext;
+            if (parentFilter == null) {
+                parentFilter = NonNestedDocsFilter.INSTANCE;
+                if (mapper.hasDocMapper()) {
+                    // filter based on the type...
+                    parentFilter = mapper.docMapper().typeFilter();
+                }
+                parentFilter = parseContext.cacheFilter(parentFilter, null);
+            }
+
+
+            BlockJoinQuery joinQuery = new BlockJoinQuery(query, parentFilter, BlockJoinQuery.ScoreMode.None);
+
+            if (scope != null) {
+                SearchContext.current().addNestedQuery(scope, joinQuery);
+            }
+
+            Filter joinFilter = new QueryWrapperFilter(joinQuery);
+            if (cache) {
+                joinFilter = parseContext.cacheFilter(joinFilter, cacheKey);
+            }
+            if (filterName != null) {
+                parseContext.addNamedFilter(filterName, joinFilter);
+            }
+            return joinFilter;
+        } finally {
+            // restore the thread local one...
+            NestedQueryParser.parentFilterContext.set(currentParentFilterContext);
         }
-        if (filterName != null) {
-            parseContext.addNamedFilter(filterName, joinFilter);
-        }
-        return joinFilter;
     }
 }

@@ -22,6 +22,8 @@ package org.elasticsearch.cluster.metadata;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.cluster.block.ClusterBlock;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
@@ -51,7 +53,10 @@ public class IndexMetaData {
     private static ImmutableSet<String> dynamicSettings = ImmutableSet.<String>builder()
             .add(IndexMetaData.SETTING_NUMBER_OF_REPLICAS)
             .add(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS)
+            .add(IndexMetaData.SETTING_READ_ONLY)
             .build();
+
+    public static final ClusterBlock INDEX_READ_ONLY_BLOCK = new ClusterBlock(5, "index read-only", false, false, ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA);
 
     public static ImmutableSet<String> dynamicSettings() {
         return dynamicSettings;
@@ -110,6 +115,8 @@ public class IndexMetaData {
     public static final String SETTING_NUMBER_OF_REPLICAS = "index.number_of_replicas";
 
     public static final String SETTING_AUTO_EXPAND_REPLICAS = "index.auto_expand_replicas";
+
+    public static final String SETTING_READ_ONLY = "index.read_only";
 
     private final String index;
 
@@ -189,6 +196,14 @@ public class IndexMetaData {
 
     public int getTotalNumberOfShards() {
         return totalNumberOfShards();
+    }
+
+    public boolean readOnly() {
+        return settings.getAsBoolean(SETTING_READ_ONLY, false);
+    }
+
+    public boolean getreadOnly() {
+        return readOnly();
     }
 
     public Settings settings() {

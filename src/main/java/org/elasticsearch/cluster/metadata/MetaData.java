@@ -22,6 +22,8 @@ package org.elasticsearch.cluster.metadata;
 import com.google.common.collect.*;
 import gnu.trove.set.hash.THashSet;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.cluster.block.ClusterBlock;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -47,8 +49,12 @@ import static org.elasticsearch.common.settings.ImmutableSettings.*;
  *
  */
 public class MetaData implements Iterable<IndexMetaData> {
+    public static final String SETTING_READ_ONLY = "cluster.read_only";
+
+    public static final ClusterBlock CLUSTER_READ_ONLY_BLOCK = new ClusterBlock(6, "cluster read-only", false, false, ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA);
 
     private static ImmutableSet<String> dynamicSettings = ImmutableSet.<String>builder()
+            .add("cluster.read_only")
             .build();
 
     public static ImmutableSet<String> dynamicSettings() {

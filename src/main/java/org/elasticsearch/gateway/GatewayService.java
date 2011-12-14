@@ -258,10 +258,18 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                         metaDataBuilder.put(entry.getValue());
                     }
 
+
+                    if (recoveredState.metaData().settings().getAsBoolean(MetaData.SETTING_READ_ONLY, false) || currentState.metaData().settings().getAsBoolean(MetaData.SETTING_READ_ONLY, false)) {
+                        blocks.addGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK);
+                    }
+
                     for (IndexMetaData indexMetaData : recoveredState.metaData()) {
                         metaDataBuilder.put(indexMetaData);
                         if (indexMetaData.state() == IndexMetaData.State.CLOSE) {
                             blocks.addIndexBlock(indexMetaData.index(), MetaDataStateIndexService.INDEX_CLOSED_BLOCK);
+                        }
+                        if (indexMetaData.readOnly()) {
+                            blocks.addIndexBlock(indexMetaData.index(), IndexMetaData.INDEX_READ_ONLY_BLOCK);
                         }
                     }
 

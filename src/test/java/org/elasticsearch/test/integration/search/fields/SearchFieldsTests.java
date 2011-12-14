@@ -30,7 +30,7 @@ import org.testng.annotations.Test;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -99,6 +99,15 @@ public class SearchFieldsTests extends AbstractNodesTests {
         searchResponse = client.prepareSearch().setQuery(matchAllQuery()).addField("*").execute().actionGet();
         assertThat(searchResponse.hits().getTotalHits(), equalTo(1l));
         assertThat(searchResponse.hits().hits().length, equalTo(1));
+        assertThat(searchResponse.hits().getAt(0).source(), nullValue());
+        assertThat(searchResponse.hits().getAt(0).fields().size(), equalTo(2));
+        assertThat(searchResponse.hits().getAt(0).fields().get("field1").value().toString(), equalTo("value1"));
+        assertThat(searchResponse.hits().getAt(0).fields().get("field3").value().toString(), equalTo("value3"));
+
+        searchResponse = client.prepareSearch().setQuery(matchAllQuery()).addField("*").addField("_source").execute().actionGet();
+        assertThat(searchResponse.hits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.hits().hits().length, equalTo(1));
+        assertThat(searchResponse.hits().getAt(0).source(), notNullValue());
         assertThat(searchResponse.hits().getAt(0).fields().size(), equalTo(2));
         assertThat(searchResponse.hits().getAt(0).fields().get("field1").value().toString(), equalTo("value1"));
         assertThat(searchResponse.hits().getAt(0).fields().get("field3").value().toString(), equalTo("value3"));

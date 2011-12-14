@@ -24,6 +24,7 @@ import com.google.common.collect.Lists;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.IndexReader;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.document.ResetFieldSelector;
 import org.elasticsearch.index.Index;
@@ -87,22 +88,34 @@ public class FetchPhase implements SearchPhase {
     public void execute(SearchContext context) {
         ResetFieldSelector fieldSelector;
         List<String> extractFieldNames = null;
+        boolean sourceRequested = false;
         if (context.hasScriptFields() && !context.hasFieldNames()) {
             // we ask for script fields, and no field names, don't load the source
             fieldSelector = UidFieldSelector.INSTANCE;
+            sourceRequested = false;
         } else if (!context.hasFieldNames()) {
             fieldSelector = new UidAndSourceFieldSelector();
+            sourceRequested = true;
         } else if (context.fieldNames().isEmpty()) {
             fieldSelector = UidFieldSelector.INSTANCE;
-        } else if (context.fieldNames().get(0).equals("*")) {
-            // asked for all stored fields, just return null so all of them will be loaded
-            // don't load the source field in this case, makes little sense to get it with all stored fields
-            fieldSelector = AllButSourceFieldSelector.INSTANCE;
+            sourceRequested = false;
         } else {
-            FieldMappersFieldSelector fieldSelectorMapper = new FieldMappersFieldSelector();
+            boolean loadAllStored = false;
+            FieldMappersFieldSelector fieldSelectorMapper = null;
             for (String fieldName : context.fieldNames()) {
+                if (fieldName.equals("*")) {
+                    loadAllStored = true;
+                    continue;
+                }
+                if (fieldName.equals(SourceFieldMapper.NAME)) {
+                    sourceRequested = true;
+                    continue;
+                }
                 FieldMappers x = context.smartNameFieldMappers(fieldName);
                 if (x != null && x.mapper().stored()) {
+                    if (fieldSelectorMapper == null) {
+                        fieldSelectorMapper = new FieldMappersFieldSelector();
+                    }
                     fieldSelectorMapper.add(x);
                 } else {
                     if (extractFieldNames == null) {
@@ -111,8 +124,25 @@ public class FetchPhase implements SearchPhase {
                     extractFieldNames.add(fieldName);
                 }
             }
-            fieldSelectorMapper.add(UidFieldMapper.NAME);
-            fieldSelector = fieldSelectorMapper;
+
+            if (loadAllStored) {
+                if (sourceRequested || extractFieldNames != null) {
+                    fieldSelector = null; // load everything, including _source
+                } else {
+                    fieldSelector = AllButSourceFieldSelector.INSTANCE;
+                }
+            } else if (fieldSelectorMapper != null) {
+                // we are asking specific stored fields, just add the UID and be done
+                fieldSelectorMapper.add(UidFieldMapper.NAME);
+                if (extractFieldNames != null) {
+                    fieldSelectorMapper.add(SourceFieldMapper.NAME);
+                }
+                fieldSelector = fieldSelectorMapper;
+            } else if (extractFieldNames != null) {
+                fieldSelector = new UidAndSourceFieldSelector();
+            } else {
+                fieldSelector = UidFieldSelector.INSTANCE;
+            }
         }
 
         InternalSearchHit[] hits = new InternalSearchHit[context.docIdsToLoadSize()];
@@ -131,7 +161,7 @@ public class FetchPhase implements SearchPhase {
 
             // get the version
 
-            InternalSearchHit searchHit = new InternalSearchHit(docId, uid.id(), uid.type(), source, null);
+            InternalSearchHit searchHit = new InternalSearchHit(docId, uid.id(), uid.type(), sourceRequested ? source : null, null);
             hits[index] = searchHit;
 
             for (Object oField : doc.getFields()) {
@@ -245,9 +275,9 @@ public class FetchPhase implements SearchPhase {
         throw new FetchPhaseExecutionException(context, "Failed to load uid from the index, missing internal _uid field, current fields in the doc [" + fieldNames + "]");
     }
 
-    private Document loadDocument(SearchContext context, ResetFieldSelector fieldSelector, int docId) {
+    private Document loadDocument(SearchContext context, @Nullable ResetFieldSelector fieldSelector, int docId) {
         try {
-            fieldSelector.reset();
+            if (fieldSelector != null) fieldSelector.reset();
             return context.searcher().doc(docId, fieldSelector);
         } catch (IOException e) {
             throw new FetchPhaseExecutionException(context, "Failed to fetch doc id [" + docId + "]", e);

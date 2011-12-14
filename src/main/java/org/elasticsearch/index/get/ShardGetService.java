@@ -293,7 +293,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
                             } else {
                                 if (searchLookup == null) {
                                     searchLookup = new SearchLookup(mapperService, indexCache.fieldData());
-                                    searchLookup.source().setNextSource(SourceLookup.sourceAsMap(source.source.bytes(), source.source.offset(), source.source.length()));
+                                    searchLookup.source().setNextSource(source.source.bytes(), source.source.offset(), source.source.length());
                                 }
 
                                 FieldMapper<?> x = docMapper.mappers().smartNameFieldMapper(field);

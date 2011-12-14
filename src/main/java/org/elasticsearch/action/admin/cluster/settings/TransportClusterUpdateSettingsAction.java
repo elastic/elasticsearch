@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -111,12 +112,22 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
                         return currentState;
                     }
 
+                    Settings persistentSettingsBuilt = persistentSettings.build();
+                    Settings transientSettingsBuilt = transientSettings.build();
                     MetaData.Builder metaData = MetaData.builder().metaData(currentState.metaData())
-                            .persistentSettings(persistentSettings.build())
-                            .transientSettings(transientSettings.build());
+                            .persistentSettings(persistentSettingsBuilt)
+                            .transientSettings(transientSettingsBuilt);
 
+                    ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
+                    Boolean updatedReadOnly = persistentSettingsBuilt.getAsBoolean(MetaData.SETTING_READ_ONLY, false) || transientSettingsBuilt.getAsBoolean(MetaData.SETTING_READ_ONLY, false);
+                    if (updatedReadOnly) {
+                        blocks.addGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK);
+                    }
+                    else {
+                        blocks.removeGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK);
+                    }
 
-                    return ClusterState.builder().state(currentState).metaData(metaData).build();
+                    return ClusterState.builder().state(currentState).metaData(metaData).blocks(blocks).build();
                 } catch (Exception e) {
                     latch.countDown();
                     logger.warn("failed to update cluster settings", e);

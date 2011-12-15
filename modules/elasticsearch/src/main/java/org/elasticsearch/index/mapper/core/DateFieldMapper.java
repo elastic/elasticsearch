@@ -383,7 +383,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
                 long time = Long.parseLong(value);
                 return timeUnit.toMillis(time);
             } catch (NumberFormatException e1) {
-                throw new MapperParsingException("failed to parse date field, tried both date format [" + dateTimeFormatter.format() + "], and timestamp number", e);
+                throw new MapperParsingException("failed to parse date field [" + value + "], tried both date format [" + dateTimeFormatter.format() + "], and timestamp number", e);
             }
         }
     }
@@ -394,14 +394,28 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         }
         try {
             MutableDateTime dateTime = new MutableDateTime(3000, 12, 31, 23, 59, 59, 999, DateTimeZone.UTC);
-            dateTimeFormatter.parser().parseInto(dateTime, value, 0);
+            int location = dateTimeFormatter.parser().parseInto(dateTime, value, 0);
+            // if we parsed all the string value, we are good
+            if (location == value.length()) {
+                return dateTime.getMillis();
+            }
+            // if we did not manage to parse, or the year is really high year which is unreasonable
+            // see if its a number
+            if (location <= 0 || dateTime.getYear() > 5000) {
+                try {
+                    long time = Long.parseLong(value);
+                    return timeUnit.toMillis(time);
+                } catch (NumberFormatException e1) {
+                    throw new MapperParsingException("failed to parse date field [" + value + "], tried both date format [" + dateTimeFormatter.format() + "], and timestamp number");
+                }
+            }
             return dateTime.getMillis();
         } catch (RuntimeException e) {
             try {
                 long time = Long.parseLong(value);
                 return timeUnit.toMillis(time);
             } catch (NumberFormatException e1) {
-                throw new MapperParsingException("failed to parse date field, tried both date format [" + dateTimeFormatter.format() + "], and timestamp number", e);
+                throw new MapperParsingException("failed to parse date field [" + value + "], tried both date format [" + dateTimeFormatter.format() + "], and timestamp number", e);
             }
         }
     }

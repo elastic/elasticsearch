@@ -27,6 +27,7 @@ import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -36,6 +37,7 @@ import org.elasticsearch.index.analysis.NumericFloatAnalyzer;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
 
 import java.io.IOException;
@@ -154,11 +156,25 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
     }
 
     @Override
+    public Query fieldQuery(String value, @Nullable QueryParseContext context) {
+        float fValue = Float.parseFloat(value);
+        return NumericRangeQuery.newFloatRange(names.indexName(), precisionStep,
+                fValue, fValue, true, true);
+    }
+
+    @Override
     public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
         return NumericRangeQuery.newFloatRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : Float.parseFloat(lowerTerm),
                 upperTerm == null ? null : Float.parseFloat(upperTerm),
                 includeLower, includeUpper);
+    }
+
+    @Override
+    public Filter fieldFilter(String value, @Nullable QueryParseContext context) {
+        float fValue = Float.parseFloat(value);
+        return NumericRangeFilter.newFloatRange(names.indexName(), precisionStep,
+                fValue, fValue, true, true);
     }
 
     @Override

@@ -26,6 +26,7 @@ import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
@@ -44,6 +45,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeContext;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
 
 import java.io.IOException;
@@ -219,11 +221,23 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
                 true, true);
     }
 
+    @Override public Query fieldQuery(String value, @Nullable QueryParseContext context) {
+        long lValue = parseStringValue(value);
+        return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
+                lValue, lValue, true, true);
+    }
+
     @Override public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
         return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : parseStringValue(lowerTerm),
                 upperTerm == null ? null : includeUpper ? parseUpperInclusiveStringValue(upperTerm) : parseStringValue(upperTerm),
                 includeLower, includeUpper);
+    }
+
+    @Override public Filter fieldFilter(String value, @Nullable QueryParseContext context) {
+        long lValue = parseStringValue(value);
+        return NumericRangeFilter.newLongRange(names.indexName(), precisionStep,
+                lValue, lValue, true, true);
     }
 
     @Override public Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {

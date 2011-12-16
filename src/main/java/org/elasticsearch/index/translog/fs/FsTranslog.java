@@ -149,7 +149,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
                 }
             }
             try {
-                newFile = new FsTranslogFile(shardId, id, new RafReference(new File(location, "translog-" + id)));
+                newFile = new SimpleFsTranslogFile(shardId, id, new RafReference(new File(location, "translog-" + id)));
             } catch (IOException e) {
                 throw new TranslogException(shardId, "failed to create new translog file", e);
             }
@@ -184,7 +184,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
                     location = file;
                 }
             }
-            this.trans = new FsTranslogFile(shardId, id, new RafReference(new File(location, "translog-" + id)));
+            this.trans = new SimpleFsTranslogFile(shardId, id, new RafReference(new File(location, "translog-" + id)));
         } catch (IOException e) {
             throw new TranslogException(shardId, "failed to create new translog file", e);
         } finally {

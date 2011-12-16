@@ -20,9 +20,9 @@
 package org.elasticsearch.test.unit.index.translog.fs;
 
 import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.test.unit.index.translog.AbstractSimpleTranslogTests;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.fs.FsTranslog;
+import org.elasticsearch.test.unit.index.translog.AbstractSimpleTranslogTests;
 import org.testng.annotations.AfterClass;
 
 import java.io.File;
@@ -32,15 +32,15 @@ import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_
 /**
  *
  */
-public class FsChannelSimpleTranslogTests extends AbstractSimpleTranslogTests {
+public class FsSimpleTranslogTests extends AbstractSimpleTranslogTests {
 
     @Override
     protected Translog create() {
-        return new FsTranslog(shardId, EMPTY_SETTINGS, new File("work/fs-translog"));
+        return new FsTranslog(shardId, EMPTY_SETTINGS, new File("data/fs-translog"));
     }
 
     @AfterClass
     public void cleanup() {
-        FileSystemUtils.deleteRecursively(new File("work/fs-translog"), true);
+        FileSystemUtils.deleteRecursively(new File("data/fs-translog"), true);
     }
 }

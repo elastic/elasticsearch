@@ -130,7 +130,7 @@ public class QueryStringQueryParser implements QueryParser {
                         throw new QueryParsingException(parseContext.index(), "Query default operator [" + op + "] is not allowed");
                     }
                 } else if ("analyzer".equals(currentFieldName)) {
-                    qpSettings.analyzer(parseContext.analysisService().analyzer(parser.text()));
+                    qpSettings.forcedAnalyzer(parseContext.analysisService().analyzer(parser.text()));
                 } else if ("allow_leading_wildcard".equals(currentFieldName) || "allowLeadingWildcard".equals(currentFieldName)) {
                     qpSettings.allowLeadingWildcard(parser.booleanValue());
                 } else if ("auto_generate_phrase_queries".equals(currentFieldName) || "autoGeneratePhraseQueries".equals(currentFieldName)) {
@@ -165,9 +165,7 @@ public class QueryStringQueryParser implements QueryParser {
         if (qpSettings.queryString() == null) {
             throw new QueryParsingException(parseContext.index(), "query_string must be provided with a [query]");
         }
-        if (qpSettings.analyzer() == null) {
-            qpSettings.analyzer(parseContext.mapperService().searchAnalyzer());
-        }
+        qpSettings.defaultAnalyzer(parseContext.mapperService().searchAnalyzer());
 
         if (qpSettings.escape()) {
             qpSettings.queryString(org.apache.lucene.queryParser.QueryParser.escape(qpSettings.queryString()));

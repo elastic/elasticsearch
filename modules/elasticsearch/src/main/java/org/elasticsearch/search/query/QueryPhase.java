@@ -85,6 +85,10 @@ public class QueryPhase implements SearchPhase {
         if (context.queryBoost() != 1.0f) {
             context.parsedQuery(new ParsedQuery(new FunctionScoreQuery(context.query(), new BoostScoreFunction(context.queryBoost())), context.parsedQuery()));
         }
+        Filter searchFilter = context.mapperService().searchFilter(context.types());
+        if (searchFilter != null) {
+            context.parsedQuery(new ParsedQuery(new FilteredQuery(context.query(), context.filterCache().cache(searchFilter)), context.parsedQuery()));
+        }
         facetPhase.preProcess(context);
     }
 
@@ -169,10 +173,6 @@ public class QueryPhase implements SearchPhase {
             searchContext.queryResult().size(searchContext.size());
 
             Query query = searchContext.query();
-            Filter searchFilter = searchContext.mapperService().searchFilter(searchContext.types());
-            if (searchFilter != null) {
-                query = new FilteredQuery(query, searchContext.filterCache().cache(searchFilter));
-            }
 
             TopDocs topDocs;
             int numDocs = searchContext.from() + searchContext.size();

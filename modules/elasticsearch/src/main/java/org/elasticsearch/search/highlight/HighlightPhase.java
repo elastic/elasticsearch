@@ -133,16 +133,26 @@ public class HighlightPhase implements FetchSubPhase {
                     // QueryScorer uses WeightedSpanTermExtractor to extract terms, but we can't really plug into
                     // it, so, we hack here (and really only support top level queries)
                     Query query = context.parsedQuery().query();
-                    if (query instanceof FunctionScoreQuery) {
-                        query = ((FunctionScoreQuery) query).getSubQuery();
-                    } else if (query instanceof FiltersFunctionScoreQuery) {
-                        query = ((FiltersFunctionScoreQuery) query).getSubQuery();
-                    } else if (query instanceof ConstantScoreQuery) {
-                        ConstantScoreQuery q = (ConstantScoreQuery) query;
-                        if (q.getQuery() != null) {
-                            query = q.getQuery();
+                    while (true) {
+                        boolean extracted = false;
+                        if (query instanceof FunctionScoreQuery) {
+                            query = ((FunctionScoreQuery) query).getSubQuery();
+                            extracted = true;
+                        } else if (query instanceof FiltersFunctionScoreQuery) {
+                            query = ((FiltersFunctionScoreQuery) query).getSubQuery();
+                            extracted = true;
+                        } else if (query instanceof ConstantScoreQuery) {
+                            ConstantScoreQuery q = (ConstantScoreQuery) query;
+                            if (q.getQuery() != null) {
+                                query = q.getQuery();
+                                extracted = true;
+                            }
+                        }
+                        if (!extracted) {
+                            break;
                         }
                     }
+
                     QueryScorer queryScorer = new QueryScorer(query, null);
                     queryScorer.setExpandMultiTermQuery(true);
                     Fragmenter fragmenter;

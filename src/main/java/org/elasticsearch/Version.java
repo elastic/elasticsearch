@@ -58,7 +58,7 @@ public class Version {
         return fromId(in.readVInt());
     }
 
-    private static Version fromId(int id) {
+    public static Version fromId(int id) {
         switch (id) {
             case V_0_18_0_ID:
                 return V_0_18_0;

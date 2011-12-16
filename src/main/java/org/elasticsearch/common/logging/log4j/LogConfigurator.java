@@ -60,7 +60,7 @@ public class LogConfigurator {
             .put("simple", "org.apache.log4j.SimpleLayout")
             .put("html", "org.apache.log4j.HTMLLayout")
             .put("pattern", "org.apache.log4j.PatternLayout")
-            .put("consolePattern", "org.elasticsearch.common.logging.log4j.JLinePatternLayout")
+            .put("consolePattern", "org.apache.log4j.PatternLayout")
             .put("ttcc", "org.apache.log4j.TTCCLayout")
             .put("xml", "org.apache.log4j.XMLLayout")
             .immutableMap();

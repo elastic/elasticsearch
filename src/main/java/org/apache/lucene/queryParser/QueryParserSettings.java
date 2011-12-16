@@ -44,7 +44,8 @@ public class QueryParserSettings {
     private int fuzzyPrefixLength = FuzzyQuery.defaultPrefixLength;
     private boolean analyzeWildcard = DEFAULT_ANALYZE_WILDCARD;
     private boolean escape = false;
-    private Analyzer analyzer = null;
+    private Analyzer defaultAnalyzer = null;
+    private Analyzer forcedAnalyzer = null;
     private MultiTermQuery.RewriteMethod rewriteMethod = MultiTermQuery.CONSTANT_SCORE_AUTO_REWRITE_DEFAULT;
     private String minimumShouldMatch;
 
@@ -144,12 +145,20 @@ public class QueryParserSettings {
         this.escape = escape;
     }
 
-    public Analyzer analyzer() {
-        return analyzer;
+    public Analyzer defaultAnalyzer() {
+        return defaultAnalyzer;
     }
 
-    public void analyzer(Analyzer analyzer) {
-        this.analyzer = analyzer;
+    public void defaultAnalyzer(Analyzer defaultAnalyzer) {
+        this.defaultAnalyzer = defaultAnalyzer;
+    }
+
+    public Analyzer forcedAnalyzer() {
+        return forcedAnalyzer;
+    }
+
+    public void forcedAnalyzer(Analyzer forcedAnalyzer) {
+        this.forcedAnalyzer = forcedAnalyzer;
     }
 
     public boolean analyzeWildcard() {
@@ -193,7 +202,10 @@ public class QueryParserSettings {
         if (fuzzyPrefixLength != that.fuzzyPrefixLength) return false;
         if (lowercaseExpandedTerms != that.lowercaseExpandedTerms) return false;
         if (phraseSlop != that.phraseSlop) return false;
-        if (analyzer != null ? !analyzer.equals(that.analyzer) : that.analyzer != null) return false;
+        if (defaultAnalyzer != null ? !defaultAnalyzer.equals(that.defaultAnalyzer) : that.defaultAnalyzer != null)
+            return false;
+        if (forcedAnalyzer != null ? !forcedAnalyzer.equals(that.forcedAnalyzer) : that.forcedAnalyzer != null)
+            return false;
         if (defaultField != null ? !defaultField.equals(that.defaultField) : that.defaultField != null) return false;
         if (defaultOperator != that.defaultOperator) return false;
         if (queryString != null ? !queryString.equals(that.queryString) : that.queryString != null) return false;
@@ -219,7 +231,8 @@ public class QueryParserSettings {
         result = 31 * result + (fuzzyMinSim != +0.0f ? Float.floatToIntBits(fuzzyMinSim) : 0);
         result = 31 * result + fuzzyPrefixLength;
         result = 31 * result + (escape ? 1 : 0);
-        result = 31 * result + (analyzer != null ? analyzer.hashCode() : 0);
+        result = 31 * result + (defaultAnalyzer != null ? defaultAnalyzer.hashCode() : 0);
+        result = 31 * result + (forcedAnalyzer != null ? forcedAnalyzer.hashCode() : 0);
         result = 31 * result + (analyzeWildcard ? 1 : 0);
         return result;
     }

@@ -91,7 +91,7 @@ public class FieldQueryParser implements QueryParser {
                     } else if ("phrase_slop".equals(currentFieldName) || "phraseSlop".equals(currentFieldName)) {
                         qpSettings.phraseSlop(parser.intValue());
                     } else if ("analyzer".equals(currentFieldName)) {
-                        qpSettings.analyzer(parseContext.analysisService().analyzer(parser.text()));
+                        qpSettings.forcedAnalyzer(parseContext.analysisService().analyzer(parser.text()));
                     } else if ("default_operator".equals(currentFieldName) || "defaultOperator".equals(currentFieldName)) {
                         String op = parser.text();
                         if ("or".equalsIgnoreCase(op)) {
@@ -123,9 +123,7 @@ public class FieldQueryParser implements QueryParser {
             parser.nextToken();
         }
 
-        if (qpSettings.analyzer() == null) {
-            qpSettings.analyzer(parseContext.mapperService().searchAnalyzer());
-        }
+        qpSettings.defaultAnalyzer(parseContext.mapperService().searchAnalyzer());
 
         if (qpSettings.queryString() == null) {
             throw new QueryParsingException(parseContext.index(), "No value specified for term query");

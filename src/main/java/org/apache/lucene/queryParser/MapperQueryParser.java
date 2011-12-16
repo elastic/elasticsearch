@@ -64,6 +64,8 @@ public class MapperQueryParser extends QueryParser {
 
     private final QueryParseContext parseContext;
 
+    private boolean forcedAnalyzer;
+
     private FieldMapper currentMapper;
 
     private boolean analyzeWildcard;
@@ -74,14 +76,15 @@ public class MapperQueryParser extends QueryParser {
     }
 
     public MapperQueryParser(QueryParserSettings settings, QueryParseContext parseContext) {
-        super(Lucene.QUERYPARSER_VERSION, settings.defaultField(), settings.analyzer());
+        super(Lucene.QUERYPARSER_VERSION, settings.defaultField(), settings.defaultAnalyzer());
         this.parseContext = parseContext;
         reset(settings);
     }
 
     public void reset(QueryParserSettings settings) {
         this.field = settings.defaultField();
-        this.analyzer = settings.analyzer();
+        this.forcedAnalyzer = settings.forcedAnalyzer() != null;
+        this.analyzer = forcedAnalyzer ? settings.forcedAnalyzer() : settings.defaultAnalyzer();
         setMultiTermRewriteMethod(settings.rewriteMethod());
         setEnablePositionIncrements(settings.enablePositionIncrements());
         setAutoGeneratePhraseQueries(settings.autoGeneratePhraseQueries());
@@ -121,7 +124,9 @@ public class MapperQueryParser extends QueryParser {
         try {
             MapperService.SmartNameFieldMappers fieldMappers = parseContext.smartFieldMappers(field);
             if (fieldMappers != null) {
-                analyzer = fieldMappers.searchAnalyzer();
+                if (!forcedAnalyzer) {
+                    analyzer = fieldMappers.searchAnalyzer();
+                }
                 currentMapper = fieldMappers.fieldMappers().mapper();
                 if (currentMapper != null) {
                     Query query = null;
@@ -182,7 +187,9 @@ public class MapperQueryParser extends QueryParser {
         try {
             MapperService.SmartNameFieldMappers fieldMappers = parseContext.smartFieldMappers(field);
             if (fieldMappers != null) {
-                analyzer = fieldMappers.searchAnalyzer();
+                if (!forcedAnalyzer) {
+                    analyzer = fieldMappers.searchAnalyzer();
+                }
                 currentMapper = fieldMappers.fieldMappers().mapper();
                 if (currentMapper != null) {
                     indexedNameField = currentMapper.names().indexName();
@@ -256,7 +263,9 @@ public class MapperQueryParser extends QueryParser {
         try {
             MapperService.SmartNameFieldMappers fieldMappers = parseContext.smartFieldMappers(field);
             if (fieldMappers != null) {
-                analyzer = fieldMappers.searchAnalyzer();
+                if (!forcedAnalyzer) {
+                    analyzer = fieldMappers.searchAnalyzer();
+                }
                 currentMapper = fieldMappers.fieldMappers().mapper();
                 if (currentMapper != null) {
                     indexedNameField = currentMapper.names().indexName();

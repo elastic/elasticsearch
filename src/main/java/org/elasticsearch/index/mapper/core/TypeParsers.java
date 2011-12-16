@@ -149,7 +149,7 @@ public class TypeParsers {
         } else if ("full".equals(path)) {
             return ContentPath.Type.FULL;
         } else {
-            throw new MapperParsingException("Wrong value for pathType [" + path + "] for objet [" + name + "]");
+            throw new MapperParsingException("Wrong value for pathType [" + path + "] for object [" + name + "]");
         }
     }
 

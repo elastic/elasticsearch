@@ -105,4 +105,9 @@ public class SimpleFsTranslogFile implements FsTranslogFile {
             // ignore
         }
     }
+
+    @Override
+    public void reuse(FsTranslogFile other) {
+        // nothing to do there
+    }
 }

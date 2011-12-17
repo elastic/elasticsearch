@@ -274,7 +274,7 @@ public class Store extends AbstractIndexShardComponent {
     /**
      * The idea of the store directory is to cache file level meta data, as well as md5 of it
      */
-    protected class StoreDirectory extends Directory implements ForceSyncDirectory {
+    class StoreDirectory extends Directory implements ForceSyncDirectory {
 
         private final Directory[] delegates;
 

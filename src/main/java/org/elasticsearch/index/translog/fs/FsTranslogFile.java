@@ -19,12 +19,41 @@
 
 package org.elasticsearch.index.translog.fs;
 
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogException;
 
 import java.io.IOException;
 
 public interface FsTranslogFile {
+
+    public static enum Type {
+
+        SIMPLE() {
+            @Override
+            public FsTranslogFile create(ShardId shardId, long id, RafReference raf, int bufferSize) throws IOException {
+                return new SimpleFsTranslogFile(shardId, id, raf);
+            }
+        },
+        BUFFERED() {
+            @Override
+            public FsTranslogFile create(ShardId shardId, long id, RafReference raf, int bufferSize) throws IOException {
+                return new BufferingFsTranslogFile(shardId, id, raf, bufferSize);
+            }
+        };
+
+        public abstract FsTranslogFile create(ShardId shardId, long id, RafReference raf, int bufferSize) throws IOException;
+
+        public static Type fromString(String type) throws ElasticSearchIllegalArgumentException {
+            if (SIMPLE.name().equalsIgnoreCase(type)) {
+                return SIMPLE;
+            } else if (BUFFERED.name().equalsIgnoreCase(type)) {
+                return BUFFERED;
+            }
+            throw new ElasticSearchIllegalArgumentException("No translog fs type [" + type + "]");
+        }
+    }
 
     long id();
 
@@ -36,9 +65,11 @@ public interface FsTranslogFile {
 
     byte[] read(Translog.Location location) throws IOException;
 
-    void close(boolean delete);
+    void close(boolean delete) throws TranslogException;
 
     FsChannelSnapshot snapshot() throws TranslogException;
+
+    void reuse(FsTranslogFile other) throws TranslogException;
 
     void sync();
 }

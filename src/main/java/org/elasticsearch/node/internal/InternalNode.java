@@ -61,7 +61,7 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cache.filter.IndicesNodeFilterCache;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
-import org.elasticsearch.indices.memory.IndexingMemoryBufferController;
+import org.elasticsearch.indices.memory.IndexingMemoryController;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
 import org.elasticsearch.jmx.JmxModule;
 import org.elasticsearch.jmx.JmxService;
@@ -176,7 +176,7 @@ public final class InternalNode implements Node {
         }
 
         injector.getInstance(IndicesService.class).start();
-        injector.getInstance(IndexingMemoryBufferController.class).start();
+        injector.getInstance(IndexingMemoryController.class).start();
         injector.getInstance(IndicesClusterStateService.class).start();
         injector.getInstance(IndicesTTLService.class).start();
         injector.getInstance(RiversManager.class).start();
@@ -218,7 +218,7 @@ public final class InternalNode implements Node {
         // stop any changes happening as a result of cluster state changes
         injector.getInstance(IndicesClusterStateService.class).stop();
         // we close indices first, so operations won't be allowed on it
-        injector.getInstance(IndexingMemoryBufferController.class).stop();
+        injector.getInstance(IndexingMemoryController.class).stop();
         injector.getInstance(IndicesTTLService.class).stop();
         injector.getInstance(IndicesService.class).stop();
         // sleep a bit to let operations finish with indices service
@@ -272,7 +272,7 @@ public final class InternalNode implements Node {
         injector.getInstance(IndicesClusterStateService.class).close();
         stopWatch.stop().start("indices");
         injector.getInstance(IndicesNodeFilterCache.class).close();
-        injector.getInstance(IndexingMemoryBufferController.class).close();
+        injector.getInstance(IndexingMemoryController.class).close();
         injector.getInstance(IndicesTTLService.class).close();
         injector.getInstance(IndicesService.class).close();
         stopWatch.stop().start("routing");

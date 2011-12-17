@@ -32,12 +32,12 @@ import java.io.File;
 /**
  *
  */
-public class FsSimpleTranslogTests extends AbstractSimpleTranslogTests {
+public class FsBufferedTranslogTests extends AbstractSimpleTranslogTests {
 
     @Override
     protected Translog create() {
         return new FsTranslog(shardId,
-                ImmutableSettings.settingsBuilder().put("index.translog.fs.type", FsTranslogFile.Type.SIMPLE.name()).build(),
+                ImmutableSettings.settingsBuilder().put("index.translog.fs.type", FsTranslogFile.Type.BUFFERED.name()).build(),
                 new File("data/fs-translog"));
     }
 

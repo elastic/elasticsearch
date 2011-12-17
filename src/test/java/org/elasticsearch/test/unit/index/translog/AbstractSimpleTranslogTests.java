@@ -20,14 +20,18 @@
 package org.elasticsearch.test.unit.index.translog;
 
 import org.apache.lucene.index.Term;
+import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogStreams;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
+
+import java.io.IOException;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -53,6 +57,21 @@ public abstract class AbstractSimpleTranslogTests {
     }
 
     protected abstract Translog create();
+
+    @Test
+    public void testRead() throws IOException {
+        Translog.Location loc1 = translog.add(new Translog.Create("test", "1", new byte[]{1}));
+        Translog.Location loc2 = translog.add(new Translog.Create("test", "2", new byte[]{2}));
+        assertThat(TranslogStreams.readSource(translog.read(loc1)).source, equalTo(new BytesHolder(new byte[]{1})));
+        assertThat(TranslogStreams.readSource(translog.read(loc2)).source, equalTo(new BytesHolder(new byte[]{2})));
+        translog.sync();
+        assertThat(TranslogStreams.readSource(translog.read(loc1)).source, equalTo(new BytesHolder(new byte[]{1})));
+        assertThat(TranslogStreams.readSource(translog.read(loc2)).source, equalTo(new BytesHolder(new byte[]{2})));
+        Translog.Location loc3 = translog.add(new Translog.Create("test", "2", new byte[]{3}));
+        assertThat(TranslogStreams.readSource(translog.read(loc3)).source, equalTo(new BytesHolder(new byte[]{3})));
+        translog.sync();
+        assertThat(TranslogStreams.readSource(translog.read(loc3)).source, equalTo(new BytesHolder(new byte[]{3})));
+    }
 
     @Test
     public void testTransientTranslog() {

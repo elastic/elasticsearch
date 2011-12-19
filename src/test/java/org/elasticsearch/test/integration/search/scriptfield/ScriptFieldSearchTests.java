@@ -145,6 +145,7 @@ public class ScriptFieldSearchTests extends AbstractNodesTests {
             // its ok
         }
         client.admin().indices().prepareCreate("test").execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
         client.prepareIndex("test", "type1", "1")
                 .setSource(jsonBuilder().startObject()
                         .startObject("obj1").field("test", "something").endObject()

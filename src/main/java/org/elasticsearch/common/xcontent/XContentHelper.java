@@ -187,6 +187,8 @@ public class XContentHelper {
             case VALUE_NULL:
                 generator.writeNull();
                 break;
+            case VALUE_EMBEDDED_OBJECT:
+                generator.writeBinary(parser.binaryValue());
         }
     }
 

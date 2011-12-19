@@ -146,14 +146,14 @@
         <dependency>
             <groupId>org.codehaus.jackson</groupId>
             <artifactId>jackson-core-asl</artifactId>
-            <version>1.9.2</version>
+            <version>1.9.3</version>
             <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>org.codehaus.jackson</groupId>
             <artifactId>jackson-smile</artifactId>
-            <version>1.9.2</version>
+            <version>1.9.3</version>
             <scope>compile</scope>
         </dependency>
 

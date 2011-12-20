@@ -19,8 +19,8 @@
 
 package org.elasticsearch.common.util.concurrent;
 
+import jsr166y.LinkedTransferQueue;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.concurrent.*;
 
@@ -29,11 +29,24 @@ import java.util.concurrent.*;
  */
 public class EsExecutors {
 
-    public static ExecutorService newCachedThreadPool(TimeValue keepAlive, ThreadFactory threadFactory) {
-        return new ThreadPoolExecutor(0, Integer.MAX_VALUE,
-                keepAlive.millis(), TimeUnit.MILLISECONDS,
-                new SynchronousQueue<Runnable>(),
-                threadFactory);
+    public static ThreadPoolExecutor newScalingExecutorService(int min, int max, long keepAliveTime, TimeUnit unit,
+                                                               ThreadFactory threadFactory) {
+        ExecutorScalingQueue<Runnable> queue = new ExecutorScalingQueue<Runnable>();
+        // we force the execution, since we might run into concurrency issues in offer for ScalingBlockingQueue
+        ThreadPoolExecutor executor = new ThreadPoolExecutor(min, max, keepAliveTime, unit, queue, threadFactory,
+                new ForceQueuePolicy());
+        queue.executor = executor;
+        return executor;
+    }
+
+    public static ThreadPoolExecutor newBlockingExecutorService(int min, int max, long keepAliveTime, TimeUnit unit,
+                                                                ThreadFactory threadFactory, int capacity,
+                                                                long waitTime, TimeUnit waitTimeUnit) {
+        ExecutorBlockingQueue<Runnable> queue = new ExecutorBlockingQueue<Runnable>(capacity);
+        ThreadPoolExecutor executor = new ThreadPoolExecutor(min, max, keepAliveTime, unit, queue, threadFactory,
+                new TimedBlockingPolicy(waitTimeUnit.toMillis(waitTime)));
+        queue.executor = executor;
+        return executor;
     }
 
     public static String threadName(Settings settings, String namePrefix) {
@@ -87,5 +100,85 @@ public class EsExecutors {
      * Cannot instantiate.
      */
     private EsExecutors() {
+    }
+
+    static class ExecutorScalingQueue<E> extends LinkedTransferQueue<E> {
+
+        ThreadPoolExecutor executor;
+
+        public ExecutorScalingQueue() {
+        }
+
+        @Override
+        public boolean offer(E e) {
+            int left = executor.getMaximumPoolSize() - executor.getCorePoolSize();
+            if (!tryTransfer(e)) {
+                if (left > 0) {
+                    return false;
+                } else {
+                    return super.offer(e);
+                }
+            } else {
+                return true;
+            }
+        }
+    }
+
+    static class ExecutorBlockingQueue<E> extends ArrayBlockingQueue<E> {
+
+        ThreadPoolExecutor executor;
+
+        ExecutorBlockingQueue(int capacity) {
+            super(capacity);
+        }
+
+        @Override
+        public boolean offer(E o) {
+            int allWorkingThreads = executor.getActiveCount() + super.size();
+            return allWorkingThreads < executor.getPoolSize() && super.offer(o);
+        }
+    }
+
+
+    /**
+     * A handler for rejected tasks that adds the specified element to this queue,
+     * waiting if necessary for space to become available.
+     */
+    static class ForceQueuePolicy implements RejectedExecutionHandler {
+        public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
+            try {
+                executor.getQueue().put(r);
+            } catch (InterruptedException e) {
+                //should never happen since we never wait
+                throw new RejectedExecutionException(e);
+            }
+        }
+    }
+
+    /**
+     * A handler for rejected tasks that inserts the specified element into this
+     * queue, waiting if necessary up to the specified wait time for space to become
+     * available.
+     */
+    static class TimedBlockingPolicy implements RejectedExecutionHandler {
+        private final long waitTime;
+
+        /**
+         * @param waitTime wait time in milliseconds for space to become available.
+         */
+        public TimedBlockingPolicy(long waitTime) {
+            this.waitTime = waitTime;
+        }
+
+        public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
+            try {
+                boolean successful = executor.getQueue().offer(r, waitTime, TimeUnit.MILLISECONDS);
+                if (!successful)
+                    throw new RejectedExecutionException("Rejected execution after waiting "
+                            + waitTime + " ms for task [" + r.getClass() + "] to be executed.");
+            } catch (InterruptedException e) {
+                throw new RejectedExecutionException(e);
+            }
+        }
     }
 }

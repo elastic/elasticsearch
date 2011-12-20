@@ -19,22 +19,22 @@
 
 package org.elasticsearch.test.unit.common.util.concurrent;
 
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadBarrier;
-import org.elasticsearch.common.util.concurrent.TransferThreadPoolExecutor;
 import org.testng.annotations.Test;
 
-import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThan;
 
 /**
- *
  */
-@Test(enabled = false)
-public class ScalingThreadPoolTest {
+@Test
+public class EsExecutorsTests {
 
     @Test
     public void testScaleUp() throws Exception {
@@ -42,8 +42,7 @@ public class ScalingThreadPoolTest {
         final int max = 4;
         final ThreadBarrier barrier = new ThreadBarrier(max + 1);
 
-//        ThreadPoolExecutor pool = (ThreadPoolExecutor) DynamicExecutors.newScalingThreadPool(min, max, Long.MAX_VALUE);
-        TransferThreadPoolExecutor pool = TransferThreadPoolExecutor.newScalingExecutor(min, max, Long.MAX_VALUE, TimeUnit.NANOSECONDS, Executors.defaultThreadFactory());
+        ThreadPoolExecutor pool = EsExecutors.newScalingExecutorService(min, max, 100, TimeUnit.DAYS, EsExecutors.daemonThreadFactory("test"));
         assertThat("Min property", pool.getCorePoolSize(), equalTo(min));
         assertThat("Max property", pool.getMaximumPoolSize(), equalTo(max));
 
@@ -77,8 +76,7 @@ public class ScalingThreadPoolTest {
         final int max = 4;
         final ThreadBarrier barrier = new ThreadBarrier(max + 1);
 
-//        ThreadPoolExecutor pool = (ThreadPoolExecutor) DynamicExecutors.newScalingThreadPool(min, max, 0 /*keep alive*/);
-        TransferThreadPoolExecutor pool = TransferThreadPoolExecutor.newScalingExecutor(min, max, 0, TimeUnit.NANOSECONDS, Executors.defaultThreadFactory());
+        ThreadPoolExecutor pool = EsExecutors.newScalingExecutorService(min, max, 10, TimeUnit.MILLISECONDS, EsExecutors.daemonThreadFactory("test"));
         assertThat("Min property", pool.getCorePoolSize(), equalTo(min));
         assertThat("Max property", pool.getMaximumPoolSize(), equalTo(max));
 
@@ -108,34 +106,29 @@ public class ScalingThreadPoolTest {
 //        assertThat("not all tasks completed", pool.getCompletedTaskCount(), equalTo((long) max));
         assertThat("wrong active count", pool.getActiveCount(), equalTo(0));
         //Assert.assertEquals("wrong pool size. ", min, pool.getPoolSize()); //BUG in ThreadPool - Bug ID: 6458662
-        assertThat("idle threads didn't shrink below max. (" + pool.getPoolSize() + ")", pool.getPoolSize(), greaterThan(0));
+        //assertThat("idle threads didn't stay above min (" + pool.getPoolSize() + ")", pool.getPoolSize(), greaterThan(0));
         assertThat("idle threads didn't shrink below max. (" + pool.getPoolSize() + ")", pool.getPoolSize(), lessThan(max));
         pool.shutdown();
     }
 
 
     @Test
-    public void testScaleAbove() throws Exception {
+    public void testBlocking() throws Exception {
         final int min = 2;
         final int max = 4;
-        final int ntasks = 16;
+        final long waitTime = 1000; //1 second
         final ThreadBarrier barrier = new ThreadBarrier(max + 1);
 
-//        ThreadPoolExecutor pool = (ThreadPoolExecutor) DynamicExecutors.newScalingThreadPool(min, max, Long.MAX_VALUE);
-        TransferThreadPoolExecutor pool = TransferThreadPoolExecutor.newScalingExecutor(min, max, Long.MAX_VALUE, TimeUnit.NANOSECONDS, Executors.defaultThreadFactory());
+        ThreadPoolExecutor pool = EsExecutors.newBlockingExecutorService(min, max, 60, TimeUnit.SECONDS, EsExecutors.daemonThreadFactory("test"), 1, waitTime, TimeUnit.MILLISECONDS);
         assertThat("Min property", pool.getCorePoolSize(), equalTo(min));
         assertThat("Max property", pool.getMaximumPoolSize(), equalTo(max));
 
-        final AtomicInteger tasksExecuted = new AtomicInteger();
-        for (int i = 0; i < ntasks; ++i) {
-            final int id = i;
+        for (int i = 0; i < max; ++i) {
             pool.execute(new Runnable() {
                 public void run() {
-                    tasksExecuted.incrementAndGet();
                     try {
-                        if (id < max) {
-                            barrier.await();
-                        }
+                        barrier.await();
+                        barrier.await();
                     } catch (Throwable e) {
                         barrier.reset(e);
                     }
@@ -147,14 +140,32 @@ public class ScalingThreadPoolTest {
             Thread.sleep(100);
         }
 
-        assertThat("wrong number of pooled tasks", pool.getQueueSize(), equalTo(ntasks - max));
         barrier.await();
+        assertThat("wrong pool size", pool.getPoolSize(), equalTo(max));
+        assertThat("wrong active size", pool.getActiveCount(), equalTo(max));
 
-        //wait around for one second
-        Thread.sleep(1000);
-        assertThat("tasks not complete", tasksExecuted.get(), equalTo(ntasks));
-//        assertThat("didn't scale above core pool size. (" + pool.getLargestPoolSize() + ")", pool.getLargestPoolSize(), greaterThan(min));
-//        assertThat("Largest pool size exceeds max. (" + pool.getLargestPoolSize() + ")", pool.getLargestPoolSize(), lessThanOrEqualTo(max));
+        //Queue should be empty, lets occupy it's only free space
+        assertThat("queue isn't empty", pool.getQueue().size(), equalTo(0));
+        pool.execute(new Runnable() {
+            public void run() {
+                //dummy task
+            }
+        });
+        assertThat("queue isn't full", pool.getQueue().size(), equalTo(1));
+
+        //request should block since queue is full
+        try {
+            pool.execute(new Runnable() {
+                public void run() {
+                    //dummy task
+                }
+            });
+            assertThat("Should have thrown RejectedExecutionException", false, equalTo(true));
+        } catch (RejectedExecutionException e) {
+            //caught expected exception
+        }
+
+        barrier.await();
         pool.shutdown();
     }
 }

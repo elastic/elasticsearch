@@ -98,4 +98,17 @@ public class PathTrieTests {
         assertThat(trie.retrieve("/b/testX", params), equalTo("test2"));
         assertThat(params.get("name"), equalTo("testX"));
     }
+
+    @Test
+    public void testPreferNonWildcardExecution() {
+        PathTrie<String> trie = new PathTrie<String>();
+        trie.insert("{test}", "test1");
+        trie.insert("b", "test2");
+        trie.insert("{test}/a", "test3");
+        trie.insert("b/a", "test4");
+
+        Map<String, String> params = newHashMap();
+        assertThat(trie.retrieve("/b", params), equalTo("test2"));
+        assertThat(trie.retrieve("/b/a", params), equalTo("test4"));
+    }
 }

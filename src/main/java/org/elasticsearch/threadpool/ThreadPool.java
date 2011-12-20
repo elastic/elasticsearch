@@ -32,7 +32,6 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.DynamicExecutors;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 
 import java.util.Map;
@@ -194,7 +193,7 @@ public class ThreadPool extends AbstractComponent {
             int min = settings.getAsInt("min", defaultSettings.getAsInt("min", 1));
             int size = settings.getAsInt("size", defaultSettings.getAsInt("size", Runtime.getRuntime().availableProcessors() * 5));
             logger.debug("creating thread_pool [{}], type [{}], min [{}], size [{}], keep_alive [{}]", name, type, min, size, keepAlive);
-            return DynamicExecutors.newScalingThreadPool(min, size, keepAlive.millis(), threadFactory);
+            return EsExecutors.newScalingExecutorService(min, size, keepAlive.millis(), TimeUnit.MILLISECONDS, threadFactory);
         } else if ("blocking".equals(type)) {
             TimeValue keepAlive = settings.getAsTime("keep_alive", defaultSettings.getAsTime("keep_alive", timeValueMinutes(5)));
             int min = settings.getAsInt("min", defaultSettings.getAsInt("min", 1));
@@ -202,7 +201,7 @@ public class ThreadPool extends AbstractComponent {
             SizeValue capacity = settings.getAsSize("queue_size", defaultSettings.getAsSize("queue_size", new SizeValue(1000)));
             TimeValue waitTime = settings.getAsTime("wait_time", defaultSettings.getAsTime("wait_time", timeValueSeconds(60)));
             logger.debug("creating thread_pool [{}], type [{}], min [{}], size [{}], queue_size [{}], keep_alive [{}], wait_time [{}]", name, type, min, size, capacity.singles(), keepAlive, waitTime);
-            return DynamicExecutors.newBlockingThreadPool(min, size, keepAlive.millis(), (int) capacity.singles(), waitTime.millis(), threadFactory);
+            return EsExecutors.newBlockingExecutorService(min, size, keepAlive.millis(), TimeUnit.MILLISECONDS, threadFactory, (int) capacity.singles(), waitTime.millis(), TimeUnit.MILLISECONDS);
         }
         throw new ElasticSearchIllegalArgumentException("No type found [" + type + "], for [" + name + "]");
     }

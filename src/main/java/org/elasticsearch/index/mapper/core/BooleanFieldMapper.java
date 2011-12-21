@@ -151,6 +151,9 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
         if (value == null || value.length() == 0) {
             return "F";
         }
+        if (value.length() == 1 && value.charAt(0) == 'F') {
+            return "F";
+        }
         if (Booleans.parseBoolean(value, false)) {
             return "T";
         }

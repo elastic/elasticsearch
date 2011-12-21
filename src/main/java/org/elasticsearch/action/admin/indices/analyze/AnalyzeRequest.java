@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.analyze;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.single.custom.SingleCustomOperationRequest;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -40,10 +41,23 @@ public class AnalyzeRequest extends SingleCustomOperationRequest {
 
     private String analyzer;
 
+    private String tokenizer;
+
+    private String[] tokenFilters;
+
     private String field;
 
     AnalyzeRequest() {
 
+    }
+
+    /**
+     * Constructs a new analyzer request for the provided text.
+     *
+     * @param text The text to analyze
+     */
+    public AnalyzeRequest(String text) {
+        this.text = text;
     }
 
     /**
@@ -52,7 +66,7 @@ public class AnalyzeRequest extends SingleCustomOperationRequest {
      * @param index The index name
      * @param text  The text to analyze
      */
-    public AnalyzeRequest(String index, String text) {
+    public AnalyzeRequest(@Nullable String index, String text) {
         this.index = index;
         this.text = text;
     }
@@ -79,6 +93,24 @@ public class AnalyzeRequest extends SingleCustomOperationRequest {
         return this.analyzer;
     }
 
+    public AnalyzeRequest tokenizer(String tokenizer) {
+        this.tokenizer = tokenizer;
+        return this;
+    }
+
+    public String tokenizer() {
+        return this.tokenizer;
+    }
+
+    public AnalyzeRequest tokenFilters(String... tokenFilters) {
+        this.tokenFilters = tokenFilters;
+        return this;
+    }
+
+    public String[] tokenFilters() {
+        return this.tokenFilters;
+    }
+
     public AnalyzeRequest field(String field) {
         this.field = field;
         return this;
@@ -101,9 +133,6 @@ public class AnalyzeRequest extends SingleCustomOperationRequest {
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
-        if (index == null) {
-            validationException = addValidationError("index is missing", validationException);
-        }
         if (text == null) {
             validationException = addValidationError("text is missing", validationException);
         }
@@ -113,10 +142,22 @@ public class AnalyzeRequest extends SingleCustomOperationRequest {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        index = in.readUTF();
+        if (in.readBoolean()) {
+            index = in.readUTF();
+        }
         text = in.readUTF();
         if (in.readBoolean()) {
             analyzer = in.readUTF();
+        }
+        if (in.readBoolean()) {
+            tokenizer = in.readUTF();
+        }
+        int size = in.readVInt();
+        if (size > 0) {
+            tokenFilters = new String[size];
+            for (int i = 0; i < size; i++) {
+                tokenFilters[i] = in.readUTF();
+            }
         }
         if (in.readBoolean()) {
             field = in.readUTF();
@@ -126,9 +167,23 @@ public class AnalyzeRequest extends SingleCustomOperationRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeUTF(index);
+        if (index == null) {
+            out.writeBoolean(false);
+            out.writeUTF(index);
+        } else {
+            out.writeUTF(index);
+        }
         out.writeUTF(text);
         writeOption(out, analyzer);
+        writeOption(out, tokenizer);
+        if (tokenFilters == null) {
+            out.writeVInt(0);
+        } else {
+            out.writeVInt(tokenFilters.length);
+            for (String tokenFilter : tokenFilters) {
+                out.writeUTF(tokenFilter);
+            }
+        }
         writeOption(out, field);
     }
 

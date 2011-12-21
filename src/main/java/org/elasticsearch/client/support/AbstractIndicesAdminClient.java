@@ -40,6 +40,7 @@ import org.elasticsearch.client.action.admin.indices.status.IndicesStatusRequest
 import org.elasticsearch.client.action.admin.indices.template.delete.DeleteIndexTemplateRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
+import org.elasticsearch.common.Nullable;
 
 /**
  *
@@ -132,8 +133,13 @@ public abstract class AbstractIndicesAdminClient implements InternalIndicesAdmin
     }
 
     @Override
-    public AnalyzeRequestBuilder prepareAnalyze(String index, String text) {
+    public AnalyzeRequestBuilder prepareAnalyze(@Nullable String index, String text) {
         return new AnalyzeRequestBuilder(this, index, text);
+    }
+
+    @Override
+    public AnalyzeRequestBuilder prepareAnalyze(String text) {
+        return new AnalyzeRequestBuilder(this, null, text);
     }
 
     @Override

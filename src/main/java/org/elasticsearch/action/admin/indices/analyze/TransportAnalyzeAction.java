@@ -35,10 +35,14 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FastStringReader;
+import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.analysis.*;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -52,11 +56,14 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
 
     private final IndicesService indicesService;
 
+    private final IndicesAnalysisService indicesAnalysisService;
+
     @Inject
     public TransportAnalyzeAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                  IndicesService indicesService) {
+                                  IndicesService indicesService, IndicesAnalysisService indicesAnalysisService) {
         super(settings, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
+        this.indicesAnalysisService = indicesAnalysisService;
     }
 
     @Override
@@ -86,16 +93,27 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
 
     @Override
     protected ShardsIterator shards(ClusterState clusterState, AnalyzeRequest request) {
+        if (request.index() == null) {
+            // just execute locally....
+            return null;
+        }
         request.index(clusterState.metaData().concreteIndex(request.index()));
         return clusterState.routingTable().index(request.index()).randomAllActiveShardsIt();
     }
 
     @Override
     protected AnalyzeResponse shardOperation(AnalyzeRequest request, int shardId) throws ElasticSearchException {
-        IndexService indexService = indicesService.indexServiceSafe(request.index());
+        IndexService indexService = null;
+        if (request.index() != null) {
+            indexService = indicesService.indexServiceSafe(request.index());
+        }
         Analyzer analyzer = null;
+        boolean closeAnalyzer = false;
         String field = null;
         if (request.field() != null) {
+            if (indexService == null) {
+                throw new ElasticSearchIllegalArgumentException("No index provided, and trying to analyzer based on a specific field which requires the index parameter");
+            }
             FieldMapper fieldMapper = indexService.mapperService().smartNameFieldMapper(request.field());
             if (fieldMapper != null) {
                 analyzer = fieldMapper.indexAnalyzer();
@@ -106,9 +124,58 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
             field = "_all";
         }
         if (analyzer == null && request.analyzer() != null) {
-            analyzer = indexService.analysisService().analyzer(request.analyzer());
+            if (indexService == null) {
+                analyzer = indicesAnalysisService.analyzer(request.analyzer());
+            } else {
+                analyzer = indexService.analysisService().analyzer(request.analyzer());
+            }
+            if (analyzer == null) {
+                throw new ElasticSearchIllegalArgumentException("failed to find analyzer [" + request.analyzer() + "]");
+            }
+        } else if (request.tokenizer() != null) {
+            TokenizerFactory tokenizerFactory;
+            if (indexService == null) {
+                TokenizerFactoryFactory tokenizerFactoryFactory = indicesAnalysisService.tokenizerFactoryFactory(request.tokenizer());
+                if (tokenizerFactoryFactory == null) {
+                    throw new ElasticSearchIllegalArgumentException("failed to find global tokenizer under [" + request.tokenizer() + "]");
+                }
+                tokenizerFactory = tokenizerFactoryFactory.create(request.tokenizer(), ImmutableSettings.Builder.EMPTY_SETTINGS);
+            } else {
+                tokenizerFactory = indexService.analysisService().tokenizer(request.tokenizer());
+                if (tokenizerFactory == null) {
+                    throw new ElasticSearchIllegalArgumentException("failed to find tokenizer under [" + request.tokenizer() + "]");
+                }
+            }
+            TokenFilterFactory[] tokenFilterFactories = new TokenFilterFactory[0];
+            if (request.tokenFilters() != null && request.tokenFilters().length > 0) {
+                tokenFilterFactories = new TokenFilterFactory[request.tokenFilters().length];
+                for (int i = 0; i < request.tokenFilters().length; i++) {
+                    String tokenFilterName = request.tokenFilters()[i];
+                    if (indexService == null) {
+                        TokenFilterFactoryFactory tokenFilterFactoryFactory = indicesAnalysisService.tokenFilterFactoryFactory(tokenFilterName);
+                        if (tokenFilterFactoryFactory == null) {
+                            throw new ElasticSearchIllegalArgumentException("failed to find global token filter under [" + request.tokenizer() + "]");
+                        }
+                        tokenFilterFactories[i] = tokenFilterFactoryFactory.create(tokenFilterName, ImmutableSettings.Builder.EMPTY_SETTINGS);
+                    } else {
+                        tokenFilterFactories[i] = indexService.analysisService().tokenFilter(tokenFilterName);
+                        if (tokenFilterFactories[i] == null) {
+                            throw new ElasticSearchIllegalArgumentException("failed to find token filter under [" + request.tokenizer() + "]");
+                        }
+                    }
+                    if (tokenFilterFactories[i] == null) {
+                        throw new ElasticSearchIllegalArgumentException("failed to find token filter under [" + request.tokenizer() + "]");
+                    }
+                }
+            }
+            analyzer = new CustomAnalyzer(tokenizerFactory, new CharFilterFactory[0], tokenFilterFactories);
+            closeAnalyzer = true;
         } else if (analyzer == null) {
-            analyzer = indexService.analysisService().defaultIndexAnalyzer();
+            if (indexService == null) {
+                analyzer = Lucene.STANDARD_ANALYZER;
+            } else {
+                analyzer = indexService.analysisService().defaultIndexAnalyzer();
+            }
         }
         if (analyzer == null) {
             throw new ElasticSearchIllegalArgumentException("failed to find analyzer");
@@ -142,6 +209,9 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
                 } catch (IOException e) {
                     // ignore
                 }
+            }
+            if (closeAnalyzer) {
+                analyzer.close();
             }
         }
 

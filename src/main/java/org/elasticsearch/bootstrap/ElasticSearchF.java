@@ -11,7 +11,7 @@ public class ElasticSearchF {
     }
 
     public static void main(String[] args) {
-        System.setProperty("es-foreground", "yes");
+        System.setProperty("es.foreground", "yes");
         Bootstrap.main(args);
     }
 }

@@ -38,6 +38,7 @@ import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.node.internal.InternalSettingsPerparer;
 
 import java.io.File;
+import java.io.RandomAccessFile;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 
@@ -142,9 +143,28 @@ public class Bootstrap {
     public static void main(String[] args) {
         System.setProperty("es.logger.prefix", "");
         bootstrap = new Bootstrap();
-        String pidFile = System.getProperty("es-pidfile");
+        final String pidFile = System.getProperty("es.pidfile", System.getProperty("es-pidfile"));
 
-        boolean foreground = System.getProperty("es-foreground") != null;
+        if (pidFile != null) {
+            try {
+                File fPidFile = new File(pidFile);
+                if (fPidFile.getParentFile() != null) {
+                    FileSystemUtils.mkdirs(fPidFile.getParentFile());
+                }
+                RandomAccessFile rafPidFile = new RandomAccessFile(fPidFile, "rw");
+                rafPidFile.writeBytes(Long.toString(JvmInfo.jvmInfo().pid()) + "\n");
+                rafPidFile.close();
+
+                fPidFile.deleteOnExit();
+            } catch (Exception e) {
+                String errorMessage = buildErrorMessage("pid", e);
+                System.err.println(errorMessage);
+                System.err.flush();
+                System.exit(3);
+            }
+        }
+
+        boolean foreground = System.getProperty("es.foreground", System.getProperty("es-foreground")) != null;
         // handle the wrapper system property, if its a service, don't run as a service
         if (System.getProperty("wrapper.service", "XXX").equalsIgnoreCase("true")) {
             foreground = false;
@@ -179,10 +199,6 @@ public class Bootstrap {
                 System.out.close();
             }
             bootstrap.setup(true, tuple);
-
-            if (pidFile != null) {
-                new File(pidFile).deleteOnExit();
-            }
 
             stage = "Startup";
             bootstrap.start();

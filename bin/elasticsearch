@@ -114,20 +114,20 @@ launch_service()
     es_parms="-Delasticsearch"
 
     if [ "x$pidpath" != "x" ]; then
-        es_parms="$es_parms -Des-pidfile=$pidpath"
+        es_parms="$es_parms -Des.pidfile=$pidpath"
     fi
 
-    # The es-daemon option will tell ElasticSearch to close stdout/stderr,
-    # but it's up to us not to background.
+    # The es-foreground option will tell ElasticSearch not to close stdout/stderr, but it's up to us not to background.
     if [ "x$foreground" != "x" ]; then
-        es_parms="$es_parms -Des-foreground=yes"
+        es_parms="$es_parms -Des.foreground=yes"
         exec "$JAVA" $JAVA_OPTS $ES_JAVA_OPTS $es_parms -Des.path.home="$ES_HOME" -cp "$ES_CLASSPATH" $props \
                 org.elasticsearch.bootstrap.ElasticSearch
     else
         # Startup ElasticSearch, background it, and write the pid.
         exec "$JAVA" $JAVA_OPTS $ES_JAVA_OPTS $es_parms -Des.path.home="$ES_HOME" -cp "$ES_CLASSPATH" $props \
                     org.elasticsearch.bootstrap.ElasticSearch <&- &
-        [ ! -z "$pidpath" ] && printf '%d' $! > "$pidpath"
+        # no longer need to write the pid, the elasticsearch process will do it
+        # [ ! -z "$pidpath" ] && printf '%d' $! > "$pidpath"
     fi
 
     return $?

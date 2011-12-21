@@ -129,7 +129,7 @@ public class NodeEnvironment extends AbstractComponent {
         if (logger.isTraceEnabled()) {
             StringBuilder sb = new StringBuilder("node data locations details:\n");
             for (File file : nodesFiles) {
-                sb.append(" -> ").append(file.getAbsolutePath()).append(", free_space [").append(new ByteSizeValue(file.getFreeSpace())).append(", usable_space [").append(new ByteSizeValue(file.getUsableSpace())).append("\n");
+                sb.append(" -> ").append(file.getAbsolutePath()).append(", free_space [").append(new ByteSizeValue(file.getFreeSpace())).append("], usable_space [").append(new ByteSizeValue(file.getUsableSpace())).append("]\n");
             }
             logger.trace(sb.toString());
         }

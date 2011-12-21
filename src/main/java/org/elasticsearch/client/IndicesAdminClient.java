@@ -81,10 +81,10 @@ import org.elasticsearch.client.action.admin.indices.stats.IndicesStatsRequestBu
 import org.elasticsearch.client.action.admin.indices.status.IndicesStatusRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.template.delete.DeleteIndexTemplateRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
+import org.elasticsearch.common.Nullable;
 
 /**
  * Administrative actions/operations against indices.
- *
  *
  * @see AdminClient#indices()
  */
@@ -495,7 +495,14 @@ public interface IndicesAdminClient {
      * @param index The index name
      * @param text  The text to analyze
      */
-    AnalyzeRequestBuilder prepareAnalyze(String index, String text);
+    AnalyzeRequestBuilder prepareAnalyze(@Nullable String index, String text);
+
+    /**
+     * Analyze text.
+     *
+     * @param text The text to analyze
+     */
+    AnalyzeRequestBuilder prepareAnalyze(String text);
 
     /**
      * Puts an index template.

@@ -35,12 +35,47 @@ public class AnalyzeRequestBuilder extends BaseIndicesRequestBuilder<AnalyzeRequ
     }
 
     /**
+     * Sets the index to use to analyzer the text (for example, if it holds specific analyzers
+     * registered).
+     */
+    public AnalyzeRequestBuilder setIndex(String index) {
+        request.index(index);
+        return this;
+    }
+
+    /**
      * Sets the analyzer name to use in order to analyze the text.
      *
      * @param analyzer The analyzer name.
      */
     public AnalyzeRequestBuilder setAnalyzer(String analyzer) {
         request.analyzer(analyzer);
+        return this;
+    }
+
+    /**
+     * Sets the field that its analyzer will be used to analyze the text. Note, requires an index
+     * to be set.
+     */
+    public AnalyzeRequestBuilder setField(String field) {
+        request.field(field);
+        return this;
+    }
+
+    /**
+     * Instead of setting the analyzer, sets the tokenizer that will be used as part of a custom
+     * analyzer.
+     */
+    public AnalyzeRequestBuilder setTokenizer(String tokenizer) {
+        request.tokenizer(tokenizer);
+        return this;
+    }
+
+    /**
+     * Sets token filters that will be used on top of a tokenizer provided.
+     */
+    public AnalyzeRequestBuilder setTokenFilters(String... tokenFilters) {
+        request.tokenFilters(tokenFilters);
         return this;
     }
 
@@ -56,10 +91,5 @@ public class AnalyzeRequestBuilder extends BaseIndicesRequestBuilder<AnalyzeRequ
     @Override
     protected void doExecute(ActionListener<AnalyzeResponse> listener) {
         client.analyze(request, listener);
-    }
-
-    public AnalyzeRequestBuilder setField(String field) {
-        request.field(field);
-        return this;
     }
 }

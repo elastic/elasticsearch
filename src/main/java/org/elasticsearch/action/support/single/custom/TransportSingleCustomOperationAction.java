@@ -76,6 +76,9 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
 
     protected abstract String executor();
 
+    /**
+     * Can return null to execute on this local node.
+     */
     protected abstract ShardsIterator shards(ClusterState state, Request request);
 
     protected abstract Response shardOperation(Request request, int shardId) throws ElasticSearchException;
@@ -124,6 +127,35 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
          * First get should try and use a shard that exists on a local node for better performance
          */
         private void performFirst() {
+            if (shardsIt == null) {
+                // just execute it on the local node
+                if (request.operationThreaded()) {
+                    request.beforeLocalFork();
+                    threadPool.executor(executor()).execute(new Runnable() {
+                        @Override
+                        public void run() {
+                            try {
+                                Response response = shardOperation(request, -1);
+                                listener.onResponse(response);
+                            } catch (Exception e) {
+                                shardsIt.reset();
+                                onFailure(null, e);
+                            }
+                        }
+                    });
+                    return;
+                } else {
+                    try {
+                        final Response response = shardOperation(request, -1);
+                        listener.onResponse(response);
+                        return;
+                    } catch (Exception e) {
+                        onFailure(null, e);
+                    }
+                }
+                return;
+            }
+
             if (request.preferLocalShard()) {
                 boolean foundLocal = false;
                 ShardRouting shardX;
@@ -169,7 +201,7 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
         }
 
         private void perform(final Exception lastException) {
-            final ShardRouting shard = shardsIt.nextOrNull();
+            final ShardRouting shard = shardsIt == null ? null : shardsIt.nextOrNull();
             if (shard == null) {
                 Exception failure = lastException;
                 if (failure == null) {

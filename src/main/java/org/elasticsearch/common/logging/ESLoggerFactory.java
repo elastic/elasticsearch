@@ -32,7 +32,9 @@ public abstract class ESLoggerFactory {
 
     static {
         try {
-            Class.forName("org.apache.log4j.Logger");
+            Class<?> loggerClazz = Class.forName("org.apache.log4j.Logger");
+            // below will throw a NoSuchMethod failure with using slf4j log4j bridge
+            loggerClazz.getMethod("setLevel", Class.forName("org.apache.log4j.Level"));
             defaultFactory = new Log4jESLoggerFactory();
         } catch (Throwable e) {
             // no log4j

@@ -21,6 +21,9 @@ package org.elasticsearch.index.analysis.phonetic;
 
 import org.apache.commons.codec.Encoder;
 import org.apache.commons.codec.language.*;
+import org.apache.commons.codec.language.bm.BeiderMorseEncoder;
+import org.apache.commons.codec.language.bm.NameType;
+import org.apache.commons.codec.language.bm.RuleType;
 import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
@@ -67,6 +70,25 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
             DoubleMetaphone doubleMetaphone = new DoubleMetaphone();
             doubleMetaphone.setMaxCodeLen(settings.getAsInt("max_code_len", doubleMetaphone.getMaxCodeLen()));
             this.encoder = doubleMetaphone;
+        } else if ("bm".equalsIgnoreCase(encoder) || "beider_morse".equalsIgnoreCase(encoder)) {
+            BeiderMorseEncoder bm = new BeiderMorseEncoder();
+            String ruleType = settings.get("rule_type", "approx");
+            if ("approx".equalsIgnoreCase(ruleType)) {
+                bm.setRuleType(RuleType.APPROX);
+            } else if ("exact".equalsIgnoreCase(ruleType)) {
+                bm.setRuleType(RuleType.EXACT);
+            } else {
+                throw new ElasticSearchIllegalArgumentException("No matching rule type [" + ruleType + "] for beider morse encoder");
+            }
+            String nameType = settings.get("name_type", "generic");
+            if ("GENERIC".equalsIgnoreCase(nameType)) {
+                bm.setNameType(NameType.GENERIC);
+            } else if ("ASHKENAZI".equalsIgnoreCase(nameType)) {
+                bm.setNameType(NameType.ASHKENAZI);
+            } else if ("SEPHARDIC".equalsIgnoreCase(nameType)) {
+                bm.setNameType(NameType.SEPHARDIC);
+            }
+            this.encoder = bm;
         } else {
             throw new ElasticSearchIllegalArgumentException("unknown encoder [" + encoder + "] for phonetic token filter");
         }

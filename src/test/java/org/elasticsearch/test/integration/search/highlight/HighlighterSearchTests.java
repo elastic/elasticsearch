@@ -473,7 +473,8 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         }
 
         SearchResponse search = client.prepareSearch()
-                .setQuery(fieldQuery("title", "test")).setEncoder("html")
+                .setQuery(fieldQuery("title", "test"))
+                .setHighlighterEncoder("html")
                 .addHighlightedField("title", 50, 1, 10)
                 .execute().actionGet();
 
@@ -510,7 +511,8 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         }
 
         SearchResponse search = client.prepareSearch()
-                .setQuery(fieldQuery("title", "test")).setEncoder("html")
+                .setQuery(fieldQuery("title", "test"))
+                .setHighlighterEncoder("html")
                 .addHighlightedField("title", 50, 1, 10)
                 .execute().actionGet();
 

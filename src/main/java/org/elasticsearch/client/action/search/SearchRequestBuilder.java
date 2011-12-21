@@ -42,8 +42,6 @@ import java.util.Map;
 
 /**
  * A search action request builder.
- *
- *
  */
 public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, SearchResponse> {
 
@@ -579,7 +577,7 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
     /**
      * The encoder to set for highlighting
      */
-    public SearchRequestBuilder setEncoder(String encoder) {
+    public SearchRequestBuilder setHighlighterEncoder(String encoder) {
         highlightBuilder().encoder(encoder);
         return this;
     }

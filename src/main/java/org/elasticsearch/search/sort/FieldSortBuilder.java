@@ -25,8 +25,6 @@ import java.io.IOException;
 
 /**
  * A sort builder to sort based on a document field.
- *
- *
  */
 public class FieldSortBuilder extends SortBuilder {
 
@@ -35,6 +33,8 @@ public class FieldSortBuilder extends SortBuilder {
     private SortOrder order;
 
     private Object missing;
+
+    private Boolean ignoreUnampped;
 
     /**
      * Constructs a new sort based on a document field.
@@ -64,6 +64,15 @@ public class FieldSortBuilder extends SortBuilder {
         return this;
     }
 
+    /**
+     * Sets if the field does not exists in the index, it should be ignored and not sorted by or not. Defaults
+     * to <tt>false</tt> (not ignoring).
+     */
+    public FieldSortBuilder ignoreUnmapped(boolean ignoreUnmapped) {
+        this.ignoreUnampped = ignoreUnmapped;
+        return this;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(fieldName);
@@ -72,6 +81,9 @@ public class FieldSortBuilder extends SortBuilder {
         }
         if (missing != null) {
             builder.field("missing", missing);
+        }
+        if (ignoreUnampped != null) {
+            builder.field("ignore_unmapped", ignoreUnampped);
         }
         builder.endObject();
         return builder;

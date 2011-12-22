@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.integration.search.sort;
 
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
@@ -562,5 +563,36 @@ public class SimpleSortTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("2"));
         assertThat(searchResponse.hits().getAt(1).id(), equalTo("1"));
         assertThat(searchResponse.hits().getAt(2).id(), equalTo("3"));
+    }
+
+    @Test
+    public void testIgnoreUnmapped() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+
+        client.prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+                .field("id", "1")
+                .field("i_value", -1)
+                .field("d_value", -1.1)
+                .endObject()).execute().actionGet();
+
+        client.admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
+
+        logger.info("--> sort with an unmapped field, verify it fails");
+        try {
+            SearchResponse searchResponse = client.prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addSort(SortBuilders.fieldSort("kkk"))
+                    .execute().actionGet();
+            assert false;
+        } catch (SearchPhaseExecutionException e) {
+
+        }
+
+        SearchResponse searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(SortBuilders.fieldSort("kkk").ignoreUnmapped(true))
+                .execute().actionGet();
+
+        assertThat(searchResponse.failedShards(), equalTo(0));
     }
 }

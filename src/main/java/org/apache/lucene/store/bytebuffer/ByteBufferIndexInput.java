@@ -19,11 +19,12 @@ package org.apache.lucene.store.bytebuffer;
 
 import org.apache.lucene.store.IndexInput;
 
+import java.io.EOFException;
 import java.io.IOException;
+import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 
 /**
- *
  */
 public class ByteBufferIndexInput extends IndexInput {
 
@@ -38,8 +39,12 @@ public class ByteBufferIndexInput extends IndexInput {
     private long bufferStart;
     private final int BUFFER_SIZE;
 
-    public ByteBufferIndexInput(ByteBufferFile file) throws IOException {
+    private volatile boolean closed = false;
+
+    public ByteBufferIndexInput(String name, ByteBufferFile file) throws IOException {
+        super("BBIndexInput(name=" + name + ")");
         this.file = file;
+        this.file.incRef();
         this.length = file.getLength();
         this.BUFFER_SIZE = file.bufferSize;
 
@@ -51,7 +56,13 @@ public class ByteBufferIndexInput extends IndexInput {
 
     @Override
     public void close() {
-        // nothing to do here
+        // we protected from double closing the index input since
+        // some tests do that...
+        if (closed) {
+            return;
+        }
+        closed = true;
+        file.decRef();
     }
 
     @Override
@@ -59,32 +70,38 @@ public class ByteBufferIndexInput extends IndexInput {
         return length;
     }
 
-//    @Override
-//    public short readShort() throws IOException {
-//        try {
-//            return currentBuffer.getShort();
-//        } catch (BufferUnderflowException e) {
-//            return super.readShort();
-//        }
-//    }
-//
-//    @Override
-//    public int readInt() throws IOException {
-//        try {
-//            return currentBuffer.getInt();
-//        } catch (BufferUnderflowException e) {
-//            return super.readInt();
-//        }
-//    }
-//
-//    @Override
-//    public long readLong() throws IOException {
-//        try {
-//            return currentBuffer.getLong();
-//        } catch (BufferUnderflowException e) {
-//            return super.readLong();
-//        }
-//    }
+    @Override
+    public short readShort() throws IOException {
+        try {
+            currentBuffer.mark();
+            return currentBuffer.getShort();
+        } catch (BufferUnderflowException e) {
+            currentBuffer.reset();
+            return super.readShort();
+        }
+    }
+
+    @Override
+    public int readInt() throws IOException {
+        try {
+            currentBuffer.mark();
+            return currentBuffer.getInt();
+        } catch (BufferUnderflowException e) {
+            currentBuffer.reset();
+            return super.readInt();
+        }
+    }
+
+    @Override
+    public long readLong() throws IOException {
+        try {
+            currentBuffer.mark();
+            return currentBuffer.getLong();
+        } catch (BufferUnderflowException e) {
+            currentBuffer.reset();
+            return super.readLong();
+        }
+    }
 
     @Override
     public byte readByte() throws IOException {
@@ -120,27 +137,28 @@ public class ByteBufferIndexInput extends IndexInput {
     public void seek(long pos) throws IOException {
         if (currentBuffer == EMPTY_BUFFER || pos < bufferStart || pos >= bufferStart + BUFFER_SIZE) {
             currentBufferIndex = (int) (pos / BUFFER_SIZE);
-            if (currentBufferIndex >= file.numBuffers()) {
-                // if we are past EOF, don't throw one here, instead, move it to the last position in the last buffer
-                currentBufferIndex = file.numBuffers() - 1;
-                currentBuffer = currentBufferIndex == -1 ? EMPTY_BUFFER : file.getBuffer(currentBufferIndex);
-                currentBuffer.position(currentBuffer.limit());
-                return;
-            } else {
-                switchCurrentBuffer(false);
-            }
+            switchCurrentBuffer(false);
         }
         try {
             currentBuffer.position((int) (pos % BUFFER_SIZE));
+            // Grrr, need to wrap in IllegalArgumentException since tests (if not other places)
+            // expect an IOException...
         } catch (IllegalArgumentException e) {
-            currentBuffer.position(currentBuffer.limit());
+            IOException ioException = new IOException("seeking past position");
+            ioException.initCause(e);
+            throw ioException;
         }
     }
 
     private void switchCurrentBuffer(boolean enforceEOF) throws IOException {
         if (currentBufferIndex >= file.numBuffers()) {
+            // end of file reached, no more buffers left
             if (enforceEOF) {
-                throw new IOException("Read past EOF");
+                throw new EOFException("Read past EOF (resource: " + this + ")");
+            } else {
+                // Force EOF if a read takes place at this position
+                currentBufferIndex--;
+                currentBuffer.position(currentBuffer.limit());
             }
         } else {
             ByteBuffer buffer = file.getBuffer(currentBufferIndex);
@@ -152,8 +170,16 @@ public class ByteBufferIndexInput extends IndexInput {
             long buflen = length - bufferStart;
             if (buflen < BUFFER_SIZE) {
                 currentBuffer.limit((int) buflen);
-                if (enforceEOF && buflen == 0) {
-                    throw new IOException("Read past EOF");
+            }
+
+            // we need to enforce EOF here as well...
+            if (!currentBuffer.hasRemaining()) {
+                if (enforceEOF) {
+                    throw new EOFException("Read past EOF (resource: " + this + ")");
+                } else {
+                    // Force EOF if a read takes place at this position
+                    currentBufferIndex--;
+                    currentBuffer.position(currentBuffer.limit());
                 }
             }
         }
@@ -162,6 +188,7 @@ public class ByteBufferIndexInput extends IndexInput {
     @Override
     public Object clone() {
         ByteBufferIndexInput cloned = (ByteBufferIndexInput) super.clone();
+        cloned.file.incRef(); // inc ref on cloned one
         if (currentBuffer != EMPTY_BUFFER) {
             cloned.currentBuffer = currentBuffer.asReadOnlyBuffer();
             cloned.currentBuffer.position(currentBuffer.position());

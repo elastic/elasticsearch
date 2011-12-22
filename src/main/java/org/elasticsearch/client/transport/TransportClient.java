@@ -43,6 +43,8 @@ import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.validate.ValidateRequest;
+import org.elasticsearch.action.validate.ValidateResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.client.transport.action.ClientTransportActionModule;
@@ -317,6 +319,16 @@ public class TransportClient extends AbstractClient {
     @Override
     public void count(CountRequest request, ActionListener<CountResponse> listener) {
         internalClient.count(request, listener);
+    }
+
+    @Override
+    public ActionFuture<ValidateResponse> validate(ValidateRequest request) {
+        return internalClient.validate(request);
+    }
+
+    @Override
+    public void validate(ValidateRequest request, ActionListener<ValidateResponse> listener) {
+        internalClient.validate(request, listener);
     }
 
     @Override

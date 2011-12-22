@@ -70,6 +70,7 @@ import org.elasticsearch.rest.action.mlt.RestMoreLikeThisAction;
 import org.elasticsearch.rest.action.percolate.RestPercolateAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchScrollAction;
+import org.elasticsearch.rest.action.validate.RestValidateAction;
 
 import java.util.List;
 
@@ -149,6 +150,8 @@ public class RestActionModule extends AbstractModule {
 
         bind(RestSearchAction.class).asEagerSingleton();
         bind(RestSearchScrollAction.class).asEagerSingleton();
+        
+        bind(RestValidateAction.class).asEagerSingleton();
 
         bind(RestMoreLikeThisAction.class).asEagerSingleton();
 

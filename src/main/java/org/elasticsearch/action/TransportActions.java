@@ -29,6 +29,8 @@ public class TransportActions {
     public static final String INDEX = "indices/index/shard/index";
 
     public static final String COUNT = "indices/count";
+    
+    public static final String VALIDATE = "indices/validate";
 
     public static final String DELETE = "indices/index/shard/delete";
 

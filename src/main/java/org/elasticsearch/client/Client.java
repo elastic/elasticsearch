@@ -41,6 +41,8 @@ import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.validate.ValidateRequest;
+import org.elasticsearch.action.validate.ValidateResponse;
 import org.elasticsearch.client.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.client.action.count.CountRequestBuilder;
 import org.elasticsearch.client.action.delete.DeleteRequestBuilder;
@@ -52,6 +54,7 @@ import org.elasticsearch.client.action.mlt.MoreLikeThisRequestBuilder;
 import org.elasticsearch.client.action.percolate.PercolateRequestBuilder;
 import org.elasticsearch.client.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.action.search.SearchScrollRequestBuilder;
+import org.elasticsearch.client.action.validate.ValidateRequestBuilder;
 import org.elasticsearch.common.Nullable;
 
 /**
@@ -273,6 +276,29 @@ public interface Client {
      * A count of all the documents matching a specific query.
      */
     CountRequestBuilder prepareCount(String... indices);
+
+    /**
+     * A count of all the documents matching a specific query.
+     *
+     * @param request The count request
+     * @return The result future
+     * @see Requests#countRequest(String...)
+     */
+    ActionFuture<ValidateResponse> validate(ValidateRequest request);
+
+    /**
+     * A count of all the documents matching a specific query.
+     *
+     * @param request  The count request
+     * @param listener A listener to be notified of the result
+     * @see Requests#countRequest(String...)
+     */
+    void validate(ValidateRequest request, ActionListener<ValidateResponse> listener);
+
+    /**
+     * A count of all the documents matching a specific query.
+     */
+    ValidateRequestBuilder prepareValidate(String... indices);
 
     /**
      * Search across one or more indices and one or more types with a query.

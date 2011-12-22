@@ -43,7 +43,11 @@ import org.elasticsearch.action.percolate.PercolateRequest;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.percolate.TransportPercolateAction;
 import org.elasticsearch.action.search.*;
+import org.elasticsearch.action.validate.TransportValidateAction;
+import org.elasticsearch.action.validate.ValidateRequest;
+import org.elasticsearch.action.validate.ValidateResponse;
 import org.elasticsearch.client.AdminClient;
+import org.elasticsearch.client.action.validate.ValidateRequestBuilder;
 import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.common.inject.Inject;
@@ -73,6 +77,8 @@ public class NodeClient extends AbstractClient implements InternalClient {
 
     private final TransportCountAction countAction;
 
+    private final TransportValidateAction validateAction;
+
     private final TransportSearchAction searchAction;
 
     private final TransportSearchScrollAction searchScrollAction;
@@ -85,7 +91,7 @@ public class NodeClient extends AbstractClient implements InternalClient {
     public NodeClient(Settings settings, ThreadPool threadPool, NodeAdminClient admin,
                       TransportIndexAction indexAction, TransportDeleteAction deleteAction, TransportBulkAction bulkAction,
                       TransportDeleteByQueryAction deleteByQueryAction, TransportGetAction getAction, TransportMultiGetAction multiGetAction, TransportCountAction countAction,
-                      TransportSearchAction searchAction, TransportSearchScrollAction searchScrollAction,
+                      TransportSearchAction searchAction, TransportValidateAction validateAction, TransportSearchScrollAction searchScrollAction,
                       TransportMoreLikeThisAction moreLikeThisAction, TransportPercolateAction percolateAction) {
         this.threadPool = threadPool;
         this.admin = admin;
@@ -96,6 +102,7 @@ public class NodeClient extends AbstractClient implements InternalClient {
         this.getAction = getAction;
         this.multiGetAction = multiGetAction;
         this.countAction = countAction;
+        this.validateAction = validateAction;
         this.searchAction = searchAction;
         this.searchScrollAction = searchScrollAction;
         this.moreLikeThisAction = moreLikeThisAction;
@@ -185,6 +192,16 @@ public class NodeClient extends AbstractClient implements InternalClient {
     @Override
     public void count(CountRequest request, ActionListener<CountResponse> listener) {
         countAction.execute(request, listener);
+    }
+
+    @Override
+    public ActionFuture<ValidateResponse> validate(ValidateRequest request) {
+        return validateAction.execute(request);
+    }
+
+    @Override
+    public void validate(ValidateRequest request, ActionListener<ValidateResponse> listener) {
+        validateAction.execute(request, listener);
     }
 
     @Override

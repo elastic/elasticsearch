@@ -23,13 +23,14 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.AfterClass;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 import java.util.Arrays;
 
 import static org.elasticsearch.client.Requests.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.termFilter;
 import static org.elasticsearch.index.query.QueryBuilders.*;
@@ -46,27 +47,27 @@ public class CustomScoreSearchTests extends AbstractNodesTests {
 
     private Client client;
 
-    @BeforeMethod
+    @BeforeClass
     public void createNodes() throws Exception {
-        startNode("server1");
+        startNode("node1");
         client = getClient();
     }
 
-    @AfterMethod
+    @AfterClass
     public void closeNodes() {
         client.close();
         closeAllNodes();
     }
 
     protected Client getClient() {
-        return client("server1");
+        return client("node1");
     }
 
     @Test
     public void testCustomScriptBoost() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
+        client.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
 
-        client.admin().indices().create(createIndexRequest("test")).actionGet();
         client.index(indexRequest("test").type("type1").id("1")
                 .source(jsonBuilder().startObject().field("test", "value beck").field("num1", 1.0f).endObject())).actionGet();
         client.index(indexRequest("test").type("type1").id("2")
@@ -152,6 +153,7 @@ public class CustomScoreSearchTests extends AbstractNodesTests {
     @Test
     public void testCustomFiltersScore() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
+        client.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
 
         client.prepareIndex("test", "type", "1").setSource("field", "value1", "color", "red").execute().actionGet();
         client.prepareIndex("test", "type", "2").setSource("field", "value2", "color", "blue").execute().actionGet();

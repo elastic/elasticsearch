@@ -32,6 +32,12 @@ import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.gateway.GatewayException;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
+
+import static java.util.concurrent.Executors.newSingleThreadExecutor;
+import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
+
 /**
  *
  */
@@ -40,6 +46,8 @@ public abstract class SharedStorageGateway extends AbstractLifecycleComponent<Ga
     private final ClusterService clusterService;
 
     private final ThreadPool threadPool;
+
+    private ExecutorService writeStateExecutor;
 
     public SharedStorageGateway(Settings settings, ThreadPool threadPool, ClusterService clusterService) {
         super(settings);
@@ -50,11 +58,18 @@ public abstract class SharedStorageGateway extends AbstractLifecycleComponent<Ga
     @Override
     protected void doStart() throws ElasticSearchException {
         clusterService.add(this);
+        this.writeStateExecutor = newSingleThreadExecutor(daemonThreadFactory(settings, "gateway#writeMetaData"));
     }
 
     @Override
     protected void doStop() throws ElasticSearchException {
         clusterService.remove(this);
+        writeStateExecutor.shutdown();
+        try {
+            writeStateExecutor.awaitTermination(10, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            // ignore
+        }
     }
 
     @Override
@@ -101,7 +116,7 @@ public abstract class SharedStorageGateway extends AbstractLifecycleComponent<Ga
             if (!event.metaDataChanged()) {
                 return;
             }
-            threadPool.cached().execute(new Runnable() {
+            writeStateExecutor.execute(new Runnable() {
                 @Override
                 public void run() {
                     logger.debug("writing to gateway {} ...", this);

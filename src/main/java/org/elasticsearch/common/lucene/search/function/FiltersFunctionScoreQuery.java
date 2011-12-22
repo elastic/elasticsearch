@@ -69,7 +69,7 @@ public class FiltersFunctionScoreQuery extends Query {
         }
     }
 
-    public static enum ScoreMode {First, Avg, Max, Total}
+    public static enum ScoreMode {First, Avg, Max, Total, Min, Multiply}
 
     Query subQuery;
     final FilterFunction[] filterFunctions;
@@ -178,7 +178,9 @@ public class FiltersFunctionScoreQuery extends Query {
             } else {
                 int count = 0;
                 float total = 0;
+                float multiply = 1;
                 float max = Float.NEGATIVE_INFINITY;
+                float min = Float.POSITIVE_INFINITY;
                 ArrayList<Explanation> filtersExplanations = new ArrayList<Explanation>();
                 for (FilterFunction filterFunction : filterFunctions) {
                     DocSet docSet = DocSets.convert(reader, filterFunction.filter.getDocIdSet(reader));
@@ -188,7 +190,9 @@ public class FiltersFunctionScoreQuery extends Query {
                         float sc = functionExplanation.getValue();
                         count++;
                         total += sc;
+                        multiply *= sc;
                         max = Math.max(sc, max);
+                        min = Math.min(sc, min);
                         Explanation res = new ComplexExplanation(true, sc, "custom score, product of:");
                         res.addDetail(new Explanation(1.0f, "match filter: " + filterFunction.filter.toString()));
                         res.addDetail(functionExplanation);
@@ -205,8 +209,14 @@ public class FiltersFunctionScoreQuery extends Query {
                         case Max:
                             sc = max;
                             break;
+                        case Min:
+                            sc = min;
+                            break;
                         case Total:
                             sc = total;
+                            break;
+                        case Multiply:
+                            sc = multiply;
                             break;
                     }
                     sc *= getValue();
@@ -279,12 +289,25 @@ public class FiltersFunctionScoreQuery extends Query {
                 if (maxScore != Float.NEGATIVE_INFINITY) {
                     score = maxScore;
                 }
+            } else if (scoreMode == ScoreMode.Min) {
+                float minScore = Float.POSITIVE_INFINITY;
+                for (int i = 0; i < filterFunctions.length; i++) {
+                    if (docSets[i].get(docId)) {
+                        minScore = Math.min(filterFunctions[i].function.score(docId, score), minScore);
+                    }
+                }
+                if (minScore != Float.POSITIVE_INFINITY) {
+                    score = minScore;
+                }
             } else { // Avg / Total
                 float totalScore = 0.0f;
+                float multiplicativeScore = 1.0f;
                 int count = 0;
                 for (int i = 0; i < filterFunctions.length; i++) {
                     if (docSets[i].get(docId)) {
-                        totalScore += filterFunctions[i].function.score(docId, score);
+                        float tempScore = filterFunctions[i].function.score(docId, score);
+                        totalScore += tempScore;
+                        multiplicativeScore *= tempScore;
                         count++;
                     }
                 }
@@ -292,6 +315,9 @@ public class FiltersFunctionScoreQuery extends Query {
                     score = totalScore;
                     if (scoreMode == ScoreMode.Avg) {
                         score /= count;
+                    }
+                    else if (scoreMode == ScoreMode.Multiply) {
+                        score = multiplicativeScore;
                     }
                 }
             }

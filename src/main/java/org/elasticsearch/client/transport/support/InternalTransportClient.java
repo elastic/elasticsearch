@@ -42,6 +42,8 @@ import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.validate.ValidateRequest;
+import org.elasticsearch.action.validate.ValidateResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.client.support.AbstractClient;
@@ -57,6 +59,7 @@ import org.elasticsearch.client.transport.action.mlt.ClientTransportMoreLikeThis
 import org.elasticsearch.client.transport.action.percolate.ClientTransportPercolateAction;
 import org.elasticsearch.client.transport.action.search.ClientTransportSearchAction;
 import org.elasticsearch.client.transport.action.search.ClientTransportSearchScrollAction;
+import org.elasticsearch.client.transport.action.validate.ClientTransportValidateAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -87,6 +90,8 @@ public class InternalTransportClient extends AbstractClient implements InternalC
 
     private final ClientTransportCountAction countAction;
 
+    private final ClientTransportValidateAction validateAction;
+
     private final ClientTransportSearchAction searchAction;
 
     private final ClientTransportSearchScrollAction searchScrollAction;
@@ -99,7 +104,7 @@ public class InternalTransportClient extends AbstractClient implements InternalC
     public InternalTransportClient(Settings settings, ThreadPool threadPool,
                                    TransportClientNodesService nodesService, InternalTransportAdminClient adminClient,
                                    ClientTransportIndexAction indexAction, ClientTransportDeleteAction deleteAction, ClientTransportBulkAction bulkAction, ClientTransportGetAction getAction, ClientTransportMultiGetAction multiGetAction,
-                                   ClientTransportDeleteByQueryAction deleteByQueryAction, ClientTransportCountAction countAction,
+                                   ClientTransportDeleteByQueryAction deleteByQueryAction, ClientTransportCountAction countAction, ClientTransportValidateAction validateAction,
                                    ClientTransportSearchAction searchAction, ClientTransportSearchScrollAction searchScrollAction,
                                    ClientTransportMoreLikeThisAction moreLikeThisAction, ClientTransportPercolateAction percolateAction) {
         this.threadPool = threadPool;
@@ -113,6 +118,7 @@ public class InternalTransportClient extends AbstractClient implements InternalC
         this.multiGetAction = multiGetAction;
         this.deleteByQueryAction = deleteByQueryAction;
         this.countAction = countAction;
+        this.validateAction = validateAction;
         this.searchAction = searchAction;
         this.searchScrollAction = searchScrollAction;
         this.moreLikeThisAction = moreLikeThisAction;
@@ -270,6 +276,26 @@ public class InternalTransportClient extends AbstractClient implements InternalC
             @Override
             public void doWithNode(DiscoveryNode node, ActionListener<CountResponse> listener) throws ElasticSearchException {
                 countAction.execute(node, request, listener);
+            }
+        }, listener);
+    }
+
+    @Override
+    public ActionFuture<ValidateResponse> validate(final ValidateRequest request) {
+        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<ValidateResponse>>() {
+            @Override
+            public ActionFuture<ValidateResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
+                return validateAction.execute(node, request);
+            }
+        });
+    }
+
+    @Override
+    public void validate(final ValidateRequest request, final ActionListener<ValidateResponse> listener) {
+        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<ValidateResponse>() {
+            @Override
+            public void doWithNode(DiscoveryNode node, ActionListener<ValidateResponse> listener) throws ElasticSearchException {
+                validateAction.execute(node, request, listener);
             }
         }, listener);
     }

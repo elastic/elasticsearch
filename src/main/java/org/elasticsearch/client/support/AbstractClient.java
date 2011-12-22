@@ -30,6 +30,7 @@ import org.elasticsearch.client.action.mlt.MoreLikeThisRequestBuilder;
 import org.elasticsearch.client.action.percolate.PercolateRequestBuilder;
 import org.elasticsearch.client.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.action.search.SearchScrollRequestBuilder;
+import org.elasticsearch.client.action.validate.ValidateRequestBuilder;
 import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.Nullable;
 
@@ -101,6 +102,11 @@ public abstract class AbstractClient implements InternalClient {
     @Override
     public CountRequestBuilder prepareCount(String... indices) {
         return new CountRequestBuilder(this).setIndices(indices);
+    }
+
+    @Override
+    public ValidateRequestBuilder prepareValidate(String... indices) {
+        return new ValidateRequestBuilder(this).setIndices(indices);
     }
 
     @Override

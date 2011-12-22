@@ -182,7 +182,7 @@ public class HighlightPhase implements FetchSubPhase {
                     SearchLookup lookup = context.lookup();
                     lookup.setNextReader(hitContext.reader());
                     lookup.setNextDocId(hitContext.docId());
-                    textsToHighlight = lookup.source().extractRawValues(mapper.names().fullName());
+                    textsToHighlight = lookup.source().extractRawValues(mapper.names().sourcePath());
                 }
 
                 // a HACK to make highlighter do highlighting, even though its using the single frag list builder

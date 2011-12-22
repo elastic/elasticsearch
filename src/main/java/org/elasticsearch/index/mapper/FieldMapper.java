@@ -44,6 +44,8 @@ public interface FieldMapper<T> {
 
         private final String fullName;
 
+        private final String sourcePath;
+
         private final Term indexNameTermFactory;
 
         public Names(String name) {
@@ -51,10 +53,15 @@ public interface FieldMapper<T> {
         }
 
         public Names(String name, String indexName, String indexNameClean, String fullName) {
+            this(name, indexName, indexNameClean, fullName, fullName);
+        }
+
+        public Names(String name, String indexName, String indexNameClean, String fullName, @Nullable String sourcePath) {
             this.name = name.intern();
             this.indexName = indexName.intern();
             this.indexNameClean = indexNameClean.intern();
             this.fullName = fullName.intern();
+            this.sourcePath = sourcePath == null ? this.fullName : sourcePath.intern();
             this.indexNameTermFactory = new Term(indexName, "");
         }
 
@@ -85,6 +92,13 @@ public interface FieldMapper<T> {
          */
         public String fullName() {
             return fullName;
+        }
+
+        /**
+         * The dot path notation to extract the value from source.
+         */
+        public String sourcePath() {
+            return sourcePath;
         }
 
         public Term createIndexNameTerm(String value) {

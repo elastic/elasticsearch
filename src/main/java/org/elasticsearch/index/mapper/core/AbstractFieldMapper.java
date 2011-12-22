@@ -182,7 +182,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         }
 
         protected Names buildNames(BuilderContext context) {
-            return new Names(name, buildIndexName(context), indexName == null ? name : indexName, buildFullName(context));
+            return new Names(name, buildIndexName(context), indexName == null ? name : indexName, buildFullName(context), context.path().sourcePath());
         }
 
         protected String buildIndexName(BuilderContext context) {

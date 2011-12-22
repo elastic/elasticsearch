@@ -54,7 +54,7 @@ public class SourceSimpleFragmentsBuilder extends SimpleFragmentsBuilder {
         lookup.setNextReader(reader);
         lookup.setNextDocId(docId);
 
-        List<Object> values = lookup.source().extractRawValues(mapper.names().fullName());
+        List<Object> values = lookup.source().extractRawValues(mapper.names().sourcePath());
         if (values.isEmpty()) {
             return EMPTY_FIELDS;
         }

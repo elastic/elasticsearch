@@ -145,6 +145,28 @@ public class XBooleanFilter extends Filter {
         }
     }
 
+    public void addMust(Filter filter) {
+        if (mustFilters == null) {
+            mustFilters = new ArrayList<Filter>();
+        }
+        mustFilters.add(filter);
+    }
+
+    public void addShould(Filter filter) {
+        if (shouldFilters == null) {
+            shouldFilters = new ArrayList<Filter>();
+        }
+        shouldFilters.add(filter);
+    }
+
+    public void addNot(Filter filter) {
+        if (notFilters == null) {
+            notFilters = new ArrayList<Filter>();
+        }
+        notFilters.add(filter);
+    }
+
+
     private boolean equalFilters(ArrayList<Filter> filters1, ArrayList<Filter> filters2) {
         return (filters1 == filters2) ||
                 ((filters1 != null) && filters1.equals(filters2));

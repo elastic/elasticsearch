@@ -25,8 +25,6 @@ import java.io.IOException;
 
 /**
  * A filer for a field based on several terms matching on any of them.
- *
- *
  */
 public class TermsFilterBuilder extends BaseFilterBuilder {
 
@@ -38,6 +36,8 @@ public class TermsFilterBuilder extends BaseFilterBuilder {
     private String cacheKey;
 
     private String filterName;
+
+    private String execution;
 
     /**
      * A filer for a field based on several terms matching on any of them.
@@ -117,6 +117,15 @@ public class TermsFilterBuilder extends BaseFilterBuilder {
     }
 
     /**
+     * Sets the execution mode for the terms filter. Cane be either "plain", "bool"
+     * "and". Defaults to "plain".
+     */
+    public TermsFilterBuilder execution(String execution) {
+        this.execution = execution;
+        return this;
+    }
+
+    /**
      * Sets the filter name for the filter that can be used when searching for matched_filters per hit.
      */
     public TermsFilterBuilder filterName(String filterName) {
@@ -145,6 +154,10 @@ public class TermsFilterBuilder extends BaseFilterBuilder {
             builder.value(value);
         }
         builder.endArray();
+
+        if (execution != null) {
+            builder.field("execution", execution);
+        }
 
         if (filterName != null) {
             builder.field("_name", filterName);

@@ -28,14 +28,12 @@ import java.util.Arrays;
 /**
  *
  */
-public class HandlesStreamOutput extends StreamOutput {
+public class HandlesStreamOutput extends AdapterStreamOutput {
 
-    private static final int DEFAULT_IDENTITY_THRESHOLD = 100;
+    private static final int DEFAULT_IDENTITY_THRESHOLD = 50;
 
     // a threshold above which strings will use identity check
     private final int identityThreshold;
-
-    private StreamOutput out;
 
     private final TObjectIntHashMap<String> handles = new TObjectIntHashMap<String>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, -1);
 
@@ -46,7 +44,7 @@ public class HandlesStreamOutput extends StreamOutput {
     }
 
     public HandlesStreamOutput(StreamOutput out, int identityThreshold) {
-        this.out = out;
+        super(out);
         this.identityThreshold = identityThreshold;
     }
 
@@ -79,21 +77,6 @@ public class HandlesStreamOutput extends StreamOutput {
     }
 
     @Override
-    public void writeByte(byte b) throws IOException {
-        out.writeByte(b);
-    }
-
-    @Override
-    public void writeBytes(byte[] b, int offset, int length) throws IOException {
-        out.writeBytes(b, offset, length);
-    }
-
-    public void cleanHandles() {
-        handles.clear();
-        identityHandles.clear();
-    }
-
-    @Override
     public void reset() throws IOException {
         handles.clear();
         identityHandles.clear();
@@ -101,24 +84,9 @@ public class HandlesStreamOutput extends StreamOutput {
     }
 
     public void reset(StreamOutput out) throws IOException {
-        this.out = out;
+        super.reset(out);
         reset();
     }
-
-    @Override
-    public void flush() throws IOException {
-        out.flush();
-    }
-
-    @Override
-    public void close() throws IOException {
-        out.close();
-    }
-
-    public StreamOutput wrappedOut() {
-        return this.out;
-    }
-
 
     /**
      * Lightweight identity hash table which maps objects to integer handles,

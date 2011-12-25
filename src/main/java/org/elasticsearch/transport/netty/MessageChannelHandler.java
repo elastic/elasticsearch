@@ -186,15 +186,15 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         byte status = buffer.readByte();
         boolean isRequest = TransportStreams.statusIsRequest(status);
 
-        HandlesStreamInput handlesStream;
+        HandlesStreamInput wrappedStream;
         if (TransportStreams.statusIsCompress(status)) {
-            handlesStream = CachedStreamInput.cachedHandlesLzf(streamIn);
+            wrappedStream = CachedStreamInput.cachedHandlesLzf(streamIn);
         } else {
-            handlesStream = CachedStreamInput.cachedHandles(streamIn);
+            wrappedStream = CachedStreamInput.cachedHandles(streamIn);
         }
 
         if (isRequest) {
-            String action = handleRequest(channel, handlesStream, requestId);
+            String action = handleRequest(channel, wrappedStream, requestId);
             if (buffer.readerIndex() != expectedIndexReader) {
                 if (buffer.readerIndex() < expectedIndexReader) {
                     logger.warn("Message not fully read (request) for [{}] and action [{}], resetting", requestId, action);
@@ -208,9 +208,9 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
             // ignore if its null, the adapter logs it
             if (handler != null) {
                 if (TransportStreams.statusIsError(status)) {
-                    handlerResponseError(handlesStream, handler);
+                    handlerResponseError(wrappedStream, handler);
                 } else {
-                    handleResponse(handlesStream, handler);
+                    handleResponse(wrappedStream, handler);
                 }
             } else {
                 // if its null, skip those bytes
@@ -225,7 +225,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
                 buffer.readerIndex(expectedIndexReader);
             }
         }
-        handlesStream.cleanHandles();
+        wrappedStream.cleanHandles();
     }
 
     private void handleResponse(StreamInput buffer, final TransportResponseHandler handler) {

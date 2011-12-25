@@ -140,6 +140,10 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         }
     }
 
+    public boolean hasNested() {
+        return this.hasNested;
+    }
+
     @Override public UnmodifiableIterator<DocumentMapper> iterator() {
         return mappers.values().iterator();
     }

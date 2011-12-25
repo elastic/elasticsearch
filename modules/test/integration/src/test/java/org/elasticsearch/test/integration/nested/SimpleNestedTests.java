@@ -1,8 +1,8 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -25,7 +25,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.facet.FacetBuilders;
 import org.elasticsearch.search.facet.termsstats.TermsStatsFacet;
 import org.elasticsearch.test.integration.AbstractNodesTests;
@@ -35,6 +35,7 @@ import org.testng.annotations.Test;
 
 import java.util.Arrays;
 
+import static org.elasticsearch.common.settings.ImmutableSettings.*;
 import static org.elasticsearch.common.xcontent.XContentFactory.*;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
@@ -46,18 +47,21 @@ public class SimpleNestedTests extends AbstractNodesTests {
 
     private Client client;
 
-    @BeforeClass public void createNodes() throws Exception {
+    @BeforeClass
+    public void createNodes() throws Exception {
         startNode("node1");
         startNode("node2");
         client = client("node1");
     }
 
-    @AfterClass public void closeNodes() {
+    @AfterClass
+    public void closeNodes() {
         client.close();
         closeAllNodes();
     }
 
-    @Test public void simpleNested() throws Exception {
+    @Test
+    public void simpleNested() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
 
         client.admin().indices().prepareCreate("test")
@@ -175,7 +179,120 @@ public class SimpleNestedTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
     }
 
-    @Test public void multiNested() throws Exception {
+    @Test
+    public void simpleNestedDeletedByQuery1() throws Exception {
+        simpleNestedDeleteByQuery(3, 0);
+    }
+
+    @Test
+    public void simpleNestedDeletedByQuery2() throws Exception {
+        simpleNestedDeleteByQuery(3, 1);
+    }
+
+    @Test
+    public void simpleNestedDeletedByQuery3() throws Exception {
+        simpleNestedDeleteByQuery(3, 2);
+    }
+
+    private void simpleNestedDeleteByQuery(int total, int docToDelete) throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+
+        client.admin().indices().prepareCreate("test")
+                .setSettings(settingsBuilder().put("index.number_of_shards", 1).put("index.referesh_interval", -1).build())
+                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("nested1")
+                        .field("type", "nested")
+                        .endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
+
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+
+        for (int i = 0; i < total; i++) {
+            client.prepareIndex("test", "type1", Integer.toString(i)).setSource(jsonBuilder().startObject()
+                    .field("field1", "value1")
+                    .startArray("nested1")
+                    .startObject()
+                    .field("n_field1", "n_value1_1")
+                    .field("n_field2", "n_value2_1")
+                    .endObject()
+                    .startObject()
+                    .field("n_field1", "n_value1_2")
+                    .field("n_field2", "n_value2_2")
+                    .endObject()
+                    .endArray()
+                    .endObject()).execute().actionGet();
+        }
+
+
+        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        IndicesStatusResponse statusResponse = client.admin().indices().prepareStatus().execute().actionGet();
+        assertThat(statusResponse.index("test").docs().numDocs(), equalTo(total * 3));
+
+        client.prepareDeleteByQuery("test").setQuery(QueryBuilders.idsQuery("type1").ids(Integer.toString(docToDelete))).execute().actionGet();
+        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        statusResponse = client.admin().indices().prepareStatus().execute().actionGet();
+        assertThat(statusResponse.index("test").docs().numDocs(), equalTo((total * 3) - 3));
+
+        for (int i = 0; i < total; i++) {
+            assertThat(client.prepareGet("test", "type1", Integer.toString(i)).execute().actionGet().exists(), equalTo(i != docToDelete));
+        }
+    }
+
+    @Test
+    public void noChildrenNestedDeletedByQuery1() throws Exception {
+        noChildrenNestedDeleteByQuery(3, 0);
+    }
+
+    @Test
+    public void noChildrenNestedDeletedByQuery2() throws Exception {
+        noChildrenNestedDeleteByQuery(3, 1);
+    }
+
+    @Test
+    public void noChildrenNestedDeletedByQuery3() throws Exception {
+        noChildrenNestedDeleteByQuery(3, 2);
+    }
+
+    private void noChildrenNestedDeleteByQuery(int total, int docToDelete) throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+
+        client.admin().indices().prepareCreate("test")
+                .setSettings(settingsBuilder().put("index.number_of_shards", 1).put("index.referesh_interval", -1).build())
+                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("nested1")
+                        .field("type", "nested")
+                        .endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
+
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+
+        for (int i = 0; i < total; i++) {
+            client.prepareIndex("test", "type1", Integer.toString(i)).setSource(jsonBuilder().startObject()
+                    .field("field1", "value1")
+                    .endObject()).execute().actionGet();
+        }
+
+
+        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        IndicesStatusResponse statusResponse = client.admin().indices().prepareStatus().execute().actionGet();
+        assertThat(statusResponse.index("test").docs().numDocs(), equalTo(total));
+
+        client.prepareDeleteByQuery("test").setQuery(QueryBuilders.idsQuery("type1").ids(Integer.toString(docToDelete))).execute().actionGet();
+        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        statusResponse = client.admin().indices().prepareStatus().execute().actionGet();
+        assertThat(statusResponse.index("test").docs().numDocs(), equalTo((total) - 1));
+
+        for (int i = 0; i < total; i++) {
+            assertThat(client.prepareGet("test", "type1", Integer.toString(i)).execute().actionGet().exists(), equalTo(i != docToDelete));
+        }
+    }
+
+    @Test
+    public void multiNested() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
 
         client.admin().indices().prepareCreate("test")
@@ -249,11 +366,13 @@ public class SimpleNestedTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().totalHits(), equalTo(0l));
     }
 
-    @Test public void testFacetsSingleShard() throws Exception {
+    @Test
+    public void testFacetsSingleShard() throws Exception {
         testFacets(1);
     }
 
-    @Test public void testFacetsMultiShards() throws Exception {
+    @Test
+    public void testFacetsMultiShards() throws Exception {
         testFacets(3);
     }
 
@@ -261,7 +380,7 @@ public class SimpleNestedTests extends AbstractNodesTests {
         client.admin().indices().prepareDelete().execute().actionGet();
 
         client.admin().indices().prepareCreate("test")
-                .setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", numberOfShards))
+                .setSettings(settingsBuilder().put("number_of_shards", numberOfShards))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("nested1")
                         .field("type", "nested").startObject("properties")

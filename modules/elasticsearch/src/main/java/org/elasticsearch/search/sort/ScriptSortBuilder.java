@@ -97,6 +97,9 @@ public class ScriptSortBuilder extends SortBuilder {
         if (order == SortOrder.DESC) {
             builder.field("reverse", true);
         }
+        if (lang != null) {
+            builder.field("lang", this.lang);
+        }
         if (this.params != null) {
             builder.field("params", this.params);
         }

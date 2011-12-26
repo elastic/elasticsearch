@@ -116,6 +116,10 @@ public class SourceLookup implements Map {
         return XContentMapValues.extractRawValues(path, loadSourceIfNeeded());
     }
 
+    public Object filter(String[] includes, String[] excludes) {
+        return XContentMapValues.filter(loadSourceIfNeeded(), includes, excludes);
+    }
+
     public Object extractValue(String path) {
         return XContentMapValues.extractValue(path, loadSourceIfNeeded());
     }

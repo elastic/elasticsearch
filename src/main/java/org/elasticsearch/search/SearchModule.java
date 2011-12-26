@@ -30,6 +30,7 @@ import org.elasticsearch.search.facet.FacetModule;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.explain.ExplainFetchSubPhase;
 import org.elasticsearch.search.fetch.matchedfilters.MatchedFiltersFetchSubPhase;
+import org.elasticsearch.search.fetch.partial.PartialFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.script.ScriptFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.version.VersionFetchSubPhase;
 import org.elasticsearch.search.highlight.HighlightPhase;
@@ -55,6 +56,7 @@ public class SearchModule extends AbstractModule implements SpawnModules {
         bind(FetchPhase.class).asEagerSingleton();
         bind(ExplainFetchSubPhase.class).asEagerSingleton();
         bind(ScriptFieldsFetchSubPhase.class).asEagerSingleton();
+        bind(PartialFieldsFetchSubPhase.class).asEagerSingleton();
         bind(VersionFetchSubPhase.class).asEagerSingleton();
         bind(MatchedFiltersFetchSubPhase.class).asEagerSingleton();
         bind(HighlightPhase.class).asEagerSingleton();

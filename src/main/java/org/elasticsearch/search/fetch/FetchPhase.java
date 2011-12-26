@@ -44,6 +44,7 @@ import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.fetch.explain.ExplainFetchSubPhase;
 import org.elasticsearch.search.fetch.matchedfilters.MatchedFiltersFetchSubPhase;
+import org.elasticsearch.search.fetch.partial.PartialFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.script.ScriptFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.version.VersionFetchSubPhase;
 import org.elasticsearch.search.highlight.HighlightPhase;
@@ -66,9 +67,9 @@ public class FetchPhase implements SearchPhase {
     private final FetchSubPhase[] fetchSubPhases;
 
     @Inject
-    public FetchPhase(HighlightPhase highlightPhase, ScriptFieldsFetchSubPhase scriptFieldsPhase,
+    public FetchPhase(HighlightPhase highlightPhase, ScriptFieldsFetchSubPhase scriptFieldsPhase, PartialFieldsFetchSubPhase partialFieldsPhase,
                       MatchedFiltersFetchSubPhase matchFiltersPhase, ExplainFetchSubPhase explainPhase, VersionFetchSubPhase versionPhase) {
-        this.fetchSubPhases = new FetchSubPhase[]{scriptFieldsPhase, matchFiltersPhase, explainPhase, highlightPhase, versionPhase};
+        this.fetchSubPhases = new FetchSubPhase[]{scriptFieldsPhase, partialFieldsPhase, matchFiltersPhase, explainPhase, highlightPhase, versionPhase};
     }
 
     @Override
@@ -89,13 +90,19 @@ public class FetchPhase implements SearchPhase {
         ResetFieldSelector fieldSelector;
         List<String> extractFieldNames = null;
         boolean sourceRequested = false;
-        if (context.hasScriptFields() && !context.hasFieldNames()) {
-            // we ask for script fields, and no field names, don't load the source
-            fieldSelector = UidFieldSelector.INSTANCE;
-            sourceRequested = false;
-        } else if (!context.hasFieldNames()) {
-            fieldSelector = new UidAndSourceFieldSelector();
-            sourceRequested = true;
+        if (!context.hasFieldNames()) {
+            if (context.hasPartialFields()) {
+                // partial fields need the source, so fetch it, but don't return it
+                fieldSelector = new UidAndSourceFieldSelector();
+                sourceRequested = false;
+            } else if (context.hasScriptFields()) {
+                // we ask for script fields, and no field names, don't load the source
+                fieldSelector = UidFieldSelector.INSTANCE;
+                sourceRequested = false;
+            } else {
+                fieldSelector = new UidAndSourceFieldSelector();
+                sourceRequested = true;
+            }
         } else if (context.fieldNames().isEmpty()) {
             fieldSelector = UidFieldSelector.INSTANCE;
             sourceRequested = false;

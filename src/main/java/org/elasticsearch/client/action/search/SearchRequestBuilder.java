@@ -27,6 +27,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.action.support.BaseRequestBuilder;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.FilterBuilder;
@@ -389,6 +390,32 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
      */
     public SearchRequestBuilder addScriptField(String name, String script, Map<String, Object> params) {
         sourceBuilder().scriptField(name, script, params);
+        return this;
+    }
+
+    /**
+     * Adds a partial field based on _source, with an "include" and/or "exclude" set which can include simple wildcard
+     * elements.
+     *
+     * @param name    The name of the field
+     * @param include An optional include (optionally wildcarded) pattern from _source
+     * @param exclude An optional exclude (optionally wildcarded) pattern from _source
+     */
+    public SearchRequestBuilder addPartialField(String name, @Nullable String include, @Nullable String exclude) {
+        sourceBuilder().partialField(name, include, exclude);
+        return this;
+    }
+
+    /**
+     * Adds a partial field based on _source, with an "includes" and/or "excludes set which can include simple wildcard
+     * elements.
+     *
+     * @param name     The name of the field
+     * @param includes An optional list of includes (optionally wildcarded) patterns from _source
+     * @param excludes An optional list of excludes (optionally wildcarded) patterns from _source
+     */
+    public SearchRequestBuilder addPartialField(String name, @Nullable String[] includes, @Nullable String[] excludes) {
+        sourceBuilder().partialField(name, includes, excludes);
         return this;
     }
 

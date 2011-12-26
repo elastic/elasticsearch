@@ -146,7 +146,9 @@ public class XContentMapValues {
             if (includes.length > 0) {
                 boolean atLeastOnOneIncludeMatched = false;
                 for (String include : includes) {
-                    if (Regex.simpleMatch(include, path)) {
+                    // check for prefix as well, something like: obj1.arr1.*
+                    // note, this does not work well with middle matches, like obj1.*.obj3
+                    if (include.startsWith(path) || Regex.simpleMatch(include, path)) {
                         atLeastOnOneIncludeMatched = true;
                         break;
                     }

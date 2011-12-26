@@ -50,6 +50,7 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.facet.SearchContextFacets;
 import org.elasticsearch.search.fetch.FetchSearchResult;
+import org.elasticsearch.search.fetch.partial.PartialFieldsContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -117,6 +118,8 @@ public class SearchContext implements Releasable {
     private boolean version = false; // by default, we don't return versions
 
     private List<String> fieldNames;
+    private ScriptFieldsContext scriptFields;
+    private PartialFieldsContext partialFields;
 
     private int from = -1;
 
@@ -145,8 +148,6 @@ public class SearchContext implements Releasable {
     private SearchContextFacets facets;
 
     private SearchContextHighlight highlight;
-
-    private ScriptFieldsContext scriptFields;
 
     private SearchLookup searchLookup;
 
@@ -276,6 +277,17 @@ public class SearchContext implements Releasable {
             scriptFields = new ScriptFieldsContext();
         }
         return this.scriptFields;
+    }
+
+    public boolean hasPartialFields() {
+        return partialFields != null;
+    }
+
+    public PartialFieldsContext partialFields() {
+        if (partialFields == null) {
+            partialFields = new PartialFieldsContext();
+        }
+        return this.partialFields;
     }
 
     public ContextIndexSearcher searcher() {

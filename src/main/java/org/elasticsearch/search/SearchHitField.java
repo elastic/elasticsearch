@@ -26,7 +26,6 @@ import java.util.List;
 /**
  * A single field name and values part of a {@link SearchHit}.
  *
- *
  * @see SearchHit
  */
 public interface SearchHitField extends Streamable, Iterable<Object> {
@@ -44,12 +43,12 @@ public interface SearchHitField extends Streamable, Iterable<Object> {
     /**
      * The first value of the hit.
      */
-    Object value();
+    <V> V value();
 
     /**
      * The first value of the hit.
      */
-    Object getValue();
+    <V> V getValue();
 
     /**
      * The field values.

@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.service.IndexShard;
@@ -47,8 +48,6 @@ import static com.google.common.collect.Lists.newArrayList;
 
 /**
  * Refresh action.
- *
- *
  */
 public class TransportRefreshAction extends TransportBroadcastOperationAction<RefreshRequest, RefreshResponse, ShardRefreshRequest, ShardRefreshResponse> {
 
@@ -93,6 +92,9 @@ public class TransportRefreshAction extends TransportBroadcastOperationAction<Re
             return true;
         }
         if (actual instanceof IndexMissingException) {
+            return true;
+        }
+        if (actual instanceof IndexShardMissingException) {
             return true;
         }
         return false;

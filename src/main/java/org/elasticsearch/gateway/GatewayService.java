@@ -268,7 +268,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                         if (indexMetaData.state() == IndexMetaData.State.CLOSE) {
                             blocks.addIndexBlock(indexMetaData.index(), MetaDataStateIndexService.INDEX_CLOSED_BLOCK);
                         }
-                        if (indexMetaData.readOnly()) {
+                        if (indexMetaData.settings().getAsBoolean(IndexMetaData.SETTING_READ_ONLY, false)) {
                             blocks.addIndexBlock(indexMetaData.index(), IndexMetaData.INDEX_READ_ONLY_BLOCK);
                         }
                     }

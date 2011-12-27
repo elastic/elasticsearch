@@ -49,9 +49,9 @@ import static org.elasticsearch.common.settings.ImmutableSettings.*;
  *
  */
 public class MetaData implements Iterable<IndexMetaData> {
-    public static final String SETTING_READ_ONLY = "cluster.read_only";
+    public static final String SETTING_READ_ONLY = "cluster.blocks.read_only";
 
-    public static final ClusterBlock CLUSTER_READ_ONLY_BLOCK = new ClusterBlock(6, "cluster read-only", false, false, ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA);
+    public static final ClusterBlock CLUSTER_READ_ONLY_BLOCK = new ClusterBlock(6, "cluster read-only (api)", false, false, ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA);
 
     private static ImmutableSet<String> dynamicSettings = ImmutableSet.<String>builder()
             .add("cluster.read_only")
@@ -718,9 +718,17 @@ public class MetaData implements Iterable<IndexMetaData> {
             return this;
         }
 
+        public Settings transientSettings() {
+            return this.transientSettings;
+        }
+
         public Builder transientSettings(Settings settings) {
             this.transientSettings = settings;
             return this;
+        }
+
+        public Settings persistentSettings() {
+            return this.persistentSettings;
         }
 
         public Builder persistentSettings(Settings settings) {

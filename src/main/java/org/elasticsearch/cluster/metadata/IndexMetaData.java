@@ -56,7 +56,7 @@ public class IndexMetaData {
             .add(IndexMetaData.SETTING_READ_ONLY)
             .build();
 
-    public static final ClusterBlock INDEX_READ_ONLY_BLOCK = new ClusterBlock(5, "index read-only", false, false, ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA);
+    public static final ClusterBlock INDEX_READ_ONLY_BLOCK = new ClusterBlock(5, "index read-only (api)", false, false, ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA);
 
     public static ImmutableSet<String> dynamicSettings() {
         return dynamicSettings;
@@ -111,12 +111,9 @@ public class IndexMetaData {
     }
 
     public static final String SETTING_NUMBER_OF_SHARDS = "index.number_of_shards";
-
     public static final String SETTING_NUMBER_OF_REPLICAS = "index.number_of_replicas";
-
     public static final String SETTING_AUTO_EXPAND_REPLICAS = "index.auto_expand_replicas";
-
-    public static final String SETTING_READ_ONLY = "index.read_only";
+    public static final String SETTING_READ_ONLY = "index.blocks.read_only";
 
     private final String index;
 
@@ -196,14 +193,6 @@ public class IndexMetaData {
 
     public int getTotalNumberOfShards() {
         return totalNumberOfShards();
-    }
-
-    public boolean readOnly() {
-        return settings.getAsBoolean(SETTING_READ_ONLY, false);
-    }
-
-    public boolean getreadOnly() {
-        return readOnly();
     }
 
     public Settings settings() {

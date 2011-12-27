@@ -17,9 +17,8 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.metadata;
+package org.elasticsearch.test.integration.readonly;
 
-import java.util.HashMap;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.exists.IndicesExistsResponse;
@@ -31,97 +30,77 @@ import org.elasticsearch.client.action.admin.indices.settings.UpdateSettingsRequ
 import org.elasticsearch.client.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.node.NodeBuilder;
+import org.elasticsearch.test.integration.AbstractNodesTests;
+import org.testng.annotations.AfterMethod;
 import org.testng.annotations.Test;
 
-import static org.elasticsearch.node.NodeBuilder.*;
-import static org.hamcrest.MatcherAssert.*;
-import static org.hamcrest.Matchers.*;
+import java.util.HashMap;
+
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.notNullValue;
 
 @Test
-public class ClusterBlockTests {
-    @Test public void testClusterReadOnly() throws Exception {
-        Node node = newNode();
-        try {
-            Client client = node.client();
-            try {
-                // cluster.read_only = null: write and metadata not blocked
-                canCreateIndex(client, "test1");
-                canIndexDocument(client, "test1");
-                setIndexReadOnly(client, "test1", "false");
-                canIndexExists(client, "test1");
+public class ClusterAndIndexReaderOnlyTests extends AbstractNodesTests {
 
-                // cluster.read_only = true: block write and metadata
-                setClusterReadOnly(client, "true");
-                canNotCreateIndex(client, "test2");
-                // even if index has index.read_only = false
-                canNotIndexDocument(client, "test1");
-                canNotIndexExists(client, "test1");
-
-                // cluster.read_only = false: removes the block
-                setClusterReadOnly(client, "false");
-                canCreateIndex(client, "test2");
-                canIndexDocument(client, "test2");
-                canIndexDocument(client, "test1");
-                canIndexExists(client, "test1");
-            }
-            finally {
-                client.close();
-            }
-        }
-        finally {
-            node.close();
-        }
+    @AfterMethod
+    public void closeNodes() {
+        closeAllNodes();
     }
 
-    @Test public void testIndexReadOnly() throws Exception {
-        Node node = newNode();
-        try {
-            Client client = node.client();
-            try {
-                // newly created an index has no blocks
-                canCreateIndex(client, "ro");
-                canIndexDocument(client, "ro");
-                canIndexExists(client, "ro");
+    @Test
+    public void verifyReadOnly() throws Exception {
+        Node node1 = startNode("node1");
+        Client client = node1.client();
 
-                // adds index write and metadata block
-                setIndexReadOnly(client, "ro", "true");
-                canNotIndexDocument(client, "ro");
-                canNotIndexExists(client, "ro");
+        // cluster.read_only = null: write and metadata not blocked
+        canCreateIndex(client, "test1");
+        canIndexDocument(client, "test1");
+        setIndexReadOnly(client, "test1", "false");
+        canIndexExists(client, "test1");
 
-                // other indices not blocked
-                canCreateIndex(client, "rw");
-                canIndexDocument(client, "rw");
-                canIndexExists(client, "rw");
+        // cluster.read_only = true: block write and metadata
+        setClusterReadOnly(client, "true");
+        canNotCreateIndex(client, "test2");
+        // even if index has index.read_only = false
+        canNotIndexDocument(client, "test1");
+        canNotIndexExists(client, "test1");
 
-                // blocks can be removed
-                setIndexReadOnly(client, "ro", "false");
-                canIndexDocument(client, "ro");
-                canIndexExists(client, "ro");
-            }
-            finally {
-                client.close();
-            }
-        }
-        finally {
-            node.close();
-        }
-    }
+        // cluster.read_only = false: removes the block
+        setClusterReadOnly(client, "false");
+        canCreateIndex(client, "test2");
+        canIndexDocument(client, "test2");
+        canIndexDocument(client, "test1");
+        canIndexExists(client, "test1");
 
-    private Node newNode() {
-        ImmutableSettings.Builder settingsBuilder = ImmutableSettings.settingsBuilder().put("gateway.type", "none");
-        NodeBuilder nodeBuilder = nodeBuilder().local(true).loadConfigSettings(false).clusterName("ClusterBlockTests").settings(settingsBuilder);
-        return nodeBuilder.node();
+
+        // newly created an index has no blocks
+        canCreateIndex(client, "ro");
+        canIndexDocument(client, "ro");
+        canIndexExists(client, "ro");
+
+        // adds index write and metadata block
+        setIndexReadOnly(client, "ro", "true");
+        canNotIndexDocument(client, "ro");
+        canNotIndexExists(client, "ro");
+
+        // other indices not blocked
+        canCreateIndex(client, "rw");
+        canIndexDocument(client, "rw");
+        canIndexExists(client, "rw");
+
+        // blocks can be removed
+        setIndexReadOnly(client, "ro", "false");
+        canIndexDocument(client, "ro");
+        canIndexExists(client, "ro");
     }
 
     private void canCreateIndex(Client client, String index) {
         try {
             CreateIndexResponse r = client.admin().indices().prepareCreate(index).execute().actionGet();
             assertThat(r, notNullValue());
-        }
-        catch (ClusterBlockException e) {
+        } catch (ClusterBlockException e) {
             assert false;
         }
     }
@@ -130,8 +109,7 @@ public class ClusterBlockTests {
         try {
             client.admin().indices().prepareCreate(index).execute().actionGet();
             assert false;
-        }
-        catch (ClusterBlockException e) {
+        } catch (ClusterBlockException e) {
             // all is well
         }
     }
@@ -142,8 +120,7 @@ public class ClusterBlockTests {
             builder.setSource("foo", "bar");
             IndexResponse r = builder.execute().actionGet();
             assertThat(r, notNullValue());
-        }
-        catch (ClusterBlockException e) {
+        } catch (ClusterBlockException e) {
             assert false;
         }
     }
@@ -154,8 +131,7 @@ public class ClusterBlockTests {
             builder.setSource("foo", "bar");
             builder.execute().actionGet();
             assert false;
-        }
-        catch (ClusterBlockException e) {
+        } catch (ClusterBlockException e) {
             // all is well
         }
     }
@@ -164,8 +140,7 @@ public class ClusterBlockTests {
         try {
             IndicesExistsResponse r = client.admin().indices().prepareExists(index).execute().actionGet();
             assertThat(r, notNullValue());
-        }
-        catch (ClusterBlockException e) {
+        } catch (ClusterBlockException e) {
             assert false;
         }
     }
@@ -174,8 +149,7 @@ public class ClusterBlockTests {
         try {
             IndicesExistsResponse r = client.admin().indices().prepareExists(index).execute().actionGet();
             assert false;
-        }
-        catch (ClusterBlockException e) {
+        } catch (ClusterBlockException e) {
             // all is well
         }
     }

@@ -170,8 +170,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                         for (String index : actualIndices) {
                             if (updatedReadOnly) {
                                 blocks.addIndexBlock(index, IndexMetaData.INDEX_READ_ONLY_BLOCK);
-                            }
-                            else {
+                            } else {
                                 blocks.removeIndexBlock(index, IndexMetaData.INDEX_READ_ONLY_BLOCK);
                             }
                         }

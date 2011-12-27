@@ -112,18 +112,15 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
                         return currentState;
                     }
 
-                    Settings persistentSettingsBuilt = persistentSettings.build();
-                    Settings transientSettingsBuilt = transientSettings.build();
                     MetaData.Builder metaData = MetaData.builder().metaData(currentState.metaData())
-                            .persistentSettings(persistentSettingsBuilt)
-                            .transientSettings(transientSettingsBuilt);
+                            .persistentSettings(persistentSettings.build())
+                            .transientSettings(transientSettings.build());
 
                     ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
-                    Boolean updatedReadOnly = persistentSettingsBuilt.getAsBoolean(MetaData.SETTING_READ_ONLY, false) || transientSettingsBuilt.getAsBoolean(MetaData.SETTING_READ_ONLY, false);
+                    boolean updatedReadOnly = metaData.persistentSettings().getAsBoolean(MetaData.SETTING_READ_ONLY, false) || metaData.transientSettings().getAsBoolean(MetaData.SETTING_READ_ONLY, false);
                     if (updatedReadOnly) {
                         blocks.addGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK);
-                    }
-                    else {
+                    } else {
                         blocks.removeGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK);
                     }
 

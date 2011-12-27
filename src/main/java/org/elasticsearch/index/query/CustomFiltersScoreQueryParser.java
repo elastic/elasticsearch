@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import gnu.trove.list.array.TFloatArrayList;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticSearchIllegalStateException;
@@ -62,9 +61,7 @@ public class CustomFiltersScoreQueryParser implements QueryParser {
         Map<String, Object> vars = null;
 
         FiltersFunctionScoreQuery.ScoreMode scoreMode = FiltersFunctionScoreQuery.ScoreMode.First;
-        ArrayList<Filter> filters = new ArrayList<Filter>();
-        ArrayList<String> scripts = new ArrayList<String>();
-        TFloatArrayList boosts = new TFloatArrayList();
+        NestedGroup rootGroup = new NestedGroup(null, scoreMode);
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -79,35 +76,7 @@ public class CustomFiltersScoreQueryParser implements QueryParser {
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("filters".equals(currentFieldName)) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        String script = null;
-                        Filter filter = null;
-                        float fboost = Float.NaN;
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            if (token == XContentParser.Token.FIELD_NAME) {
-                                currentFieldName = parser.currentName();
-                            } else if (token == XContentParser.Token.START_OBJECT) {
-                                if ("filter".equals(currentFieldName)) {
-                                    filter = parseContext.parseInnerFilter();
-                                }
-                            } else if (token.isValue()) {
-                                if ("script".equals(currentFieldName)) {
-                                    script = parser.text();
-                                } else if ("boost".equals(currentFieldName)) {
-                                    fboost = parser.floatValue();
-                                }
-                            }
-                        }
-                        if (script == null && fboost == -1) {
-                            throw new QueryParsingException(parseContext.index(), "[custom_filters_score] missing 'script' or 'boost' in filters array element");
-                        }
-                        if (filter == null) {
-                            throw new QueryParsingException(parseContext.index(), "[custom_filters_score] missing 'filter' in filters array element");
-                        }
-                        filters.add(filter);
-                        scripts.add(script);
-                        boosts.add(fboost);
-                    }
+                    parseFilterLevel(parseContext, parser, rootGroup);
                 }
             } else if (token.isValue()) {
                 if ("lang".equals(currentFieldName)) {
@@ -116,19 +85,8 @@ public class CustomFiltersScoreQueryParser implements QueryParser {
                     boost = parser.floatValue();
                 } else if ("score_mode".equals(currentFieldName) || "scoreMode".equals(currentFieldName)) {
                     String sScoreMode = parser.text();
-                    if ("avg".equals(sScoreMode)) {
-                        scoreMode = FiltersFunctionScoreQuery.ScoreMode.Avg;
-                    } else if ("max".equals(sScoreMode)) {
-                        scoreMode = FiltersFunctionScoreQuery.ScoreMode.Max;
-                    } else if ("min".equals(sScoreMode)) {
-                        scoreMode = FiltersFunctionScoreQuery.ScoreMode.Min;
-                    } else if ("total".equals(sScoreMode)) {
-                        scoreMode = FiltersFunctionScoreQuery.ScoreMode.Total;
-                    } else if ("multiply".equals(sScoreMode)) {
-                        scoreMode = FiltersFunctionScoreQuery.ScoreMode.Multiply;
-                    } else if ("first".equals(sScoreMode)) {
-                        scoreMode = FiltersFunctionScoreQuery.ScoreMode.First;
-                    } else {
+                    rootGroup.scoreMode = stringToScoreMode(sScoreMode);
+                    if (rootGroup.scoreMode == null) {
                         throw new QueryParsingException(parseContext.index(), "illegal score_mode for nested query [" + sScoreMode + "]");
                     }
                 }
@@ -137,28 +95,151 @@ public class CustomFiltersScoreQueryParser implements QueryParser {
         if (query == null) {
             throw new QueryParsingException(parseContext.index(), "[custom_filters_score] requires 'query' field");
         }
-        if (filters.isEmpty()) {
-            throw new QueryParsingException(parseContext.index(), "[custom_filters_score] requires 'filters' field");
-        }
 
         SearchContext context = SearchContext.current();
         if (context == null) {
             throw new ElasticSearchIllegalStateException("No search context on going...");
         }
-        FiltersFunctionScoreQuery.FilterFunction[] filterFunctions = new FiltersFunctionScoreQuery.FilterFunction[filters.size()];
-        for (int i = 0; i < filterFunctions.length; i++) {
-            ScoreFunction scoreFunction;
-            String script = scripts.get(i);
-            if (script != null) {
-                SearchScript searchScript = context.scriptService().search(context.lookup(), scriptLang, script, vars);
-                scoreFunction = new CustomScoreQueryParser.ScriptScoreFunction(script, vars, searchScript);
-            } else {
-                scoreFunction = new BoostScoreFunction(boosts.get(i));
-            }
-            filterFunctions[i] = new FiltersFunctionScoreQuery.FilterFunction(filters.get(i), scoreFunction);
-        }
-        FiltersFunctionScoreQuery functionScoreQuery = new FiltersFunctionScoreQuery(query, scoreMode, filterFunctions);
+
+        FiltersFunctionScoreQuery.FilterScoreGroup filterGroups = buildFunctionGroups(context, scriptLang, vars, rootGroup);
+
+        FiltersFunctionScoreQuery functionScoreQuery = new FiltersFunctionScoreQuery(query, filterGroups);
         functionScoreQuery.setBoost(boost);
         return functionScoreQuery;
+    }
+
+    private FiltersFunctionScoreQuery.ScoreMode stringToScoreMode(final String sScoreMode) {
+        if ("avg".equals(sScoreMode)) {
+            return FiltersFunctionScoreQuery.ScoreMode.Avg;
+        } else if ("max".equals(sScoreMode)) {
+            return FiltersFunctionScoreQuery.ScoreMode.Max;
+        } else if ("min".equals(sScoreMode)) {
+            return FiltersFunctionScoreQuery.ScoreMode.Min;
+        } else if ("total".equals(sScoreMode)) {
+            return FiltersFunctionScoreQuery.ScoreMode.Total;
+        } else if ("multiply".equals(sScoreMode)) {
+            return FiltersFunctionScoreQuery.ScoreMode.Multiply;
+        } else if ("first".equals(sScoreMode)) {
+            return FiltersFunctionScoreQuery.ScoreMode.First;
+        } else {
+            return null;
+        }
+    }
+
+    private void parseFilterLevel(final QueryParseContext parseContext, final XContentParser parser, final NestedGroup currentGroup) throws IOException, QueryParsingException {
+        String currentFieldName = null;
+        XContentParser.Token token;
+
+        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+            String script = null;
+            Filter filter = null;
+            float fboost = Float.NaN;
+            boolean possibleNonNestedObjectStarted = false;
+
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (token == XContentParser.Token.START_ARRAY) {
+                    FiltersFunctionScoreQuery.ScoreMode currentScoreMode = stringToScoreMode(currentFieldName);
+                    if (currentScoreMode == null) {
+                        throw new QueryParsingException(parseContext.index(), "illegal nested grouping label: " + currentFieldName);
+                    }
+                    NestedGroup subGroup = new NestedGroup(currentGroup, currentScoreMode);
+                    parseFilterLevel(parseContext, parser, subGroup);
+                    currentGroup.add(subGroup);
+                    possibleNonNestedObjectStarted = false;
+                    continue;
+                } else if (token == XContentParser.Token.START_OBJECT) {
+                    possibleNonNestedObjectStarted = true;
+                    if ("filter".equals(currentFieldName)) {
+                        filter = parseContext.parseInnerFilter();
+                    }
+                } else if (token.isValue()) {
+                    if ("script".equals(currentFieldName)) {
+                        script = parser.text();
+                    } else if ("boost".equals(currentFieldName)) {
+                        fboost = parser.floatValue();
+                    }
+                }
+            }
+
+            if (possibleNonNestedObjectStarted) {
+                if (script == null && fboost == -1) {
+                    throw new QueryParsingException(parseContext.index(), "[custom_filters_score] missing 'script' or 'boost' in filters array element");
+                }
+                if (filter == null) {
+                    throw new QueryParsingException(parseContext.index(), "[custom_filters_score] missing 'filter' in filters array element");
+                }
+
+                currentGroup.add(new NestedFilter(filter, script, fboost));
+            }
+        }
+
+        if (currentGroup.isEmpty()) {
+            throw new QueryParsingException(parseContext.index(), "[custom_filters_score] requires 'filters' field");
+        }
+    }
+
+    private FiltersFunctionScoreQuery.FilterScoreGroup buildFunctionGroups(final SearchContext context, final String scriptLang, final Map<String, Object> vars, final NestedGroup currentNesting) {
+        ArrayList<FiltersFunctionScoreQuery.FilterItem> filterItems = new ArrayList<FiltersFunctionScoreQuery.FilterItem>(currentNesting.size());
+        for (NestedItem nestedItem : currentNesting.items) {
+            if (nestedItem instanceof NestedGroup) {
+                filterItems.add(buildFunctionGroups(context, scriptLang, vars, (NestedGroup) nestedItem));
+            } else if (nestedItem instanceof NestedFilter) {
+                NestedFilter filter = (NestedFilter) nestedItem;
+                ScoreFunction scoreFunction;
+                String script = filter.script;
+                if (script != null) {
+                    SearchScript searchScript = context.scriptService().search(context.lookup(), scriptLang, script, vars);
+                    scoreFunction = new CustomScoreQueryParser.ScriptScoreFunction(script, vars, searchScript);
+                } else {
+                    scoreFunction = new BoostScoreFunction(filter.boost);
+                }
+                filterItems.add(new FiltersFunctionScoreQuery.FilterFunction(filter.filter, scoreFunction));
+            }
+        }
+        return new FiltersFunctionScoreQuery.FilterScoreGroup(currentNesting.scoreMode, filterItems.toArray(new FiltersFunctionScoreQuery.FilterItem[filterItems.size()]));
+    }
+
+
+    private abstract class NestedItem {
+
+    }
+
+    private class NestedFilter extends NestedItem {
+        Filter filter;
+        String script;
+        Float boost;
+
+        private NestedFilter(Filter filter, String script, Float boost) {
+            this.filter = filter;
+            this.script = script;
+            this.boost = boost;
+        }
+    }
+
+    private class NestedGroup extends NestedItem {
+        NestedGroup parent;
+        FiltersFunctionScoreQuery.ScoreMode scoreMode;
+        ArrayList<NestedItem> items = new ArrayList<NestedItem>();
+
+
+        public NestedGroup(NestedGroup parent, FiltersFunctionScoreQuery.ScoreMode scoreMode) {
+            this.parent = parent;
+            this.scoreMode = scoreMode;
+        }
+
+        public void add(NestedItem item) {
+            items.add(item);
+        }
+
+        public boolean isEmpty() {
+            return items.isEmpty();
+        }
+
+        public int size() {
+            return items.size();
+        }
+
     }
 }

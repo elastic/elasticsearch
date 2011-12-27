@@ -29,8 +29,6 @@ import java.util.Map;
 
 /**
  * A query that uses a filters with a script associated with them to compute the score.
- *
- *
  */
 public class CustomFiltersScoreQueryBuilder extends BaseQueryBuilder {
 
@@ -42,32 +40,34 @@ public class CustomFiltersScoreQueryBuilder extends BaseQueryBuilder {
 
     private Map<String, Object> params = null;
 
-    private String scoreMode;
-
-    private ArrayList<FilterBuilder> filters = new ArrayList<FilterBuilder>();
-    private ArrayList<String> scripts = new ArrayList<String>();
-    private TFloatArrayList boosts = new TFloatArrayList();
+    private CustomFiltersScoreGroup filters = new CustomFiltersScoreGroup();
 
     public CustomFiltersScoreQueryBuilder(QueryBuilder queryBuilder) {
         this.queryBuilder = queryBuilder;
     }
 
     public CustomFiltersScoreQueryBuilder add(FilterBuilder filter, String script) {
-        this.filters.add(filter);
-        this.scripts.add(script);
-        this.boosts.add(-1);
+        this.filters.add(filter, script);
         return this;
     }
 
     public CustomFiltersScoreQueryBuilder add(FilterBuilder filter, float boost) {
-        this.filters.add(filter);
-        this.scripts.add(null);
-        this.boosts.add(boost);
+        this.filters.add(filter, boost);
         return this;
     }
 
     public CustomFiltersScoreQueryBuilder scoreMode(String scoreMode) {
-        this.scoreMode = scoreMode;
+        this.filters.scoreMode(scoreMode);
+        return this;
+    }
+
+    public CustomFiltersScoreQueryBuilder add(CustomFiltersScoreGroup queryBuilder) {
+        filters.add(queryBuilder);
+        return this;
+    }
+
+    public CustomFiltersScoreQueryBuilder set(CustomFiltersScoreGroup queryBuilder) {
+        filters = queryBuilder;
         return this;
     }
 
@@ -117,23 +117,14 @@ public class CustomFiltersScoreQueryBuilder extends BaseQueryBuilder {
         builder.field("query");
         queryBuilder.toXContent(builder, params);
 
+        // COMMIT COMMENT: 26-Dec-2011 === create a query that matches the old style (previous version) if nested score_mode groups are not used
+
         builder.startArray("filters");
-        for (int i = 0; i < filters.size(); i++) {
-            builder.startObject();
-            builder.field("filter");
-            filters.get(i).toXContent(builder, params);
-            String script = scripts.get(i);
-            if (script != null) {
-                builder.field("script", script);
-            } else {
-                builder.field("boost", boosts.get(i));
-            }
-            builder.endObject();
-        }
+        this.filters.doXContent(builder, params, false);
         builder.endArray();
 
-        if (scoreMode != null) {
-            builder.field("score_mode", scoreMode);
+        if (this.filters.scoreMode != null) {
+            builder.field("score_mode", this.filters.scoreMode);
         }
 
         if (lang != null) {
@@ -146,5 +137,88 @@ public class CustomFiltersScoreQueryBuilder extends BaseQueryBuilder {
             builder.field("boost", boost);
         }
         builder.endObject();
+    }
+
+    protected static class CustomFiltersScoreFilter {
+        FilterBuilder filter;
+        String script;
+        float boost;
+
+        public CustomFiltersScoreFilter(FilterBuilder filter, String script) {
+            this.filter = filter;
+            this.script = script;
+            this.boost = -1;
+        }
+
+        public CustomFiltersScoreFilter(FilterBuilder filter, float boost) {
+            this.filter = filter;
+            this.script = null;
+            this.boost = boost;
+        }
+
+        protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("filter");
+            filter.toXContent(builder, params);
+            if (script != null) {
+                builder.field("script", script);
+            } else {
+                builder.field("boost", boost);
+            }
+            builder.endObject();
+        }
+    }
+
+
+    public static class CustomFiltersScoreGroup {
+        private String scoreMode;
+        private ArrayList<Object> filters = new ArrayList<Object>();
+
+        public CustomFiltersScoreGroup() {
+
+        }
+
+        public CustomFiltersScoreGroup(String scoreMode) {
+            this.scoreMode = scoreMode;
+        }
+
+        public CustomFiltersScoreGroup add(FilterBuilder filter, String script) {
+            filters.add(new CustomFiltersScoreFilter(filter, script));
+            return this;
+        }
+
+        public CustomFiltersScoreGroup add(FilterBuilder filter, float boost) {
+            filters.add(new CustomFiltersScoreFilter(filter, boost));
+            return this;
+        }
+
+        public CustomFiltersScoreGroup add(CustomFiltersScoreGroup queryBuilder) {
+            filters.add(queryBuilder);
+            return this;
+        }
+
+        public CustomFiltersScoreGroup scoreMode(String scoreMode) {
+            this.scoreMode = scoreMode;
+            return this;
+        }
+
+        protected void doXContent(XContentBuilder builder, Params params, boolean withGrouping) throws IOException {
+            if (withGrouping) {
+                builder.startObject();
+                builder.startArray(scoreMode != null ? scoreMode : "first");
+            }
+            for (Object item : filters) {
+                if (item instanceof CustomFiltersScoreFilter) {
+                    ((CustomFiltersScoreFilter) item).doXContent(builder, params);
+                } else if (item instanceof CustomFiltersScoreGroup) {
+                    ((CustomFiltersScoreGroup) item).doXContent(builder, params, true);
+                }
+            }
+            if (withGrouping) {
+                builder.endArray();
+                builder.endObject();
+            }
+        }
+
     }
 }

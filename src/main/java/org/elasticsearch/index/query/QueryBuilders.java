@@ -435,6 +435,10 @@ public abstract class QueryBuilders {
         return new CustomFiltersScoreQueryBuilder(queryBuilder);
     }
 
+    public static CustomFiltersScoreQueryBuilder.CustomFiltersScoreGroup customFiltersScoreGroup(String scoreMode) {
+        return new CustomFiltersScoreQueryBuilder.CustomFiltersScoreGroup(scoreMode);
+    }
+
     /**
      * A more like this query that finds documents that are "like" the provided {@link MoreLikeThisQueryBuilder#likeText(String)}
      * which is checked against the fields the query is constructed with.

@@ -25,13 +25,16 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.index.query.CustomFiltersScoreQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.AfterClass;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 import java.util.Arrays;
 
-import static org.elasticsearch.client.Requests.*;
+import static org.elasticsearch.client.Requests.indexRequest;
+import static org.elasticsearch.client.Requests.refreshRequest;
+import static org.elasticsearch.client.Requests.searchRequest;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.termFilter;
 import static org.elasticsearch.index.query.QueryBuilders.*;
@@ -48,27 +51,27 @@ public class CustomScoreSearchTests extends AbstractNodesTests {
 
     private Client client;
 
-    @BeforeMethod
+    @BeforeClass
     public void createNodes() throws Exception {
-        startNode("server1");
+        startNode("node1");
         client = getClient();
     }
 
-    @AfterMethod
+    @AfterClass
     public void closeNodes() {
         client.close();
         closeAllNodes();
     }
 
     protected Client getClient() {
-        return client("server1");
+        return client("node1");
     }
 
     @Test
     public void testCustomScriptBoost() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
+        client.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
 
-        client.admin().indices().create(createIndexRequest("test")).actionGet();
         client.index(indexRequest("test").type("type1").id("1")
                 .source(jsonBuilder().startObject().field("test", "value beck").field("num1", 1.0f).endObject())).actionGet();
         client.index(indexRequest("test").type("type1").id("2")
@@ -154,6 +157,7 @@ public class CustomScoreSearchTests extends AbstractNodesTests {
     @Test
     public void testCustomFiltersScore() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
+        client.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
 
         client.prepareIndex("test", "type", "1").setSource("field", "value1", "color", "red").execute().actionGet();
         client.prepareIndex("test", "type", "2").setSource("field", "value2", "color", "blue").execute().actionGet();
@@ -297,11 +301,12 @@ public class CustomScoreSearchTests extends AbstractNodesTests {
     @Test
     public void testCustomFiltersScoreWithGroups() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
-                                                                                                                                        // max   min   mult   total   avg
-        client.prepareIndex("test", "type", "1").setSource("field", "value1", "color", "red", "extra", "thing").execute().actionGet();  //  x     x    30      12      8
-        client.prepareIndex("test", "type", "2").setSource("field", "value2", "color", "blue").execute().actionGet();                   //  x     8     x       6      x
-        client.prepareIndex("test", "type", "3").setSource("field", "value3", "color", "red").execute().actionGet();                    //  3     x    10      12     10
-        client.prepareIndex("test", "type", "4").setSource("field", "value4", "color", "blue").execute().actionGet();                   //  4     6     4      10      4
+        client.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+
+        client.prepareIndex("test", "type", "1").setSource("field", "value1", "color", "red", "extra", "thing").execute().actionGet();
+        client.prepareIndex("test", "type", "2").setSource("field", "value2", "color", "blue").execute().actionGet();
+        client.prepareIndex("test", "type", "3").setSource("field", "value3", "color", "red").execute().actionGet();
+        client.prepareIndex("test", "type", "4").setSource("field", "value4", "color", "blue").execute().actionGet();
 
         // make sure tests apply the boosts to the right value (i.e. get Max then multiply against base score, to test this
         // a non 1.0F boost for each field is needed.

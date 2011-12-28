@@ -126,10 +126,11 @@ public class NestedFilterParser implements FilterParser {
             Filter parentFilter = currentParentFilterContext;
             if (parentFilter == null) {
                 parentFilter = NonNestedDocsFilter.INSTANCE;
-                if (mapper.hasDocMapper()) {
-                    // filter based on the type...
-                    parentFilter = mapper.docMapper().typeFilter();
-                }
+                // don't do special parent filtering, since we might have same nested mapping on two different types
+                //if (mapper.hasDocMapper()) {
+                //    // filter based on the type...
+                //    parentFilter = mapper.docMapper().typeFilter();
+                //}
                 parentFilter = parseContext.cacheFilter(parentFilter, null);
             }
 

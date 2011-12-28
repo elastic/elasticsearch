@@ -54,7 +54,7 @@ public class MetaData implements Iterable<IndexMetaData> {
     public static final ClusterBlock CLUSTER_READ_ONLY_BLOCK = new ClusterBlock(6, "cluster read-only (api)", false, false, ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA);
 
     private static ImmutableSet<String> dynamicSettings = ImmutableSet.<String>builder()
-            .add("cluster.read_only")
+            .add(SETTING_READ_ONLY)
             .build();
 
     public static ImmutableSet<String> dynamicSettings() {

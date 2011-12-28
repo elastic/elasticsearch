@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.validate;
+package org.elasticsearch.action.admin.indices.validate.query;
 
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
 import org.elasticsearch.common.Nullable;
@@ -32,7 +32,7 @@ import java.io.IOException;
  *
  *
  */
-class ShardValidateRequest extends BroadcastShardOperationRequest {
+class ShardValidateQueryRequest extends BroadcastShardOperationRequest {
 
     private byte[] querySource;
     private int querySourceOffset;
@@ -43,11 +43,11 @@ class ShardValidateRequest extends BroadcastShardOperationRequest {
     @Nullable
     private String[] filteringAliases;
 
-    ShardValidateRequest() {
+    ShardValidateQueryRequest() {
 
     }
 
-    public ShardValidateRequest(String index, int shardId, @Nullable String[] filteringAliases, ValidateRequest request) {
+    public ShardValidateQueryRequest(String index, int shardId, @Nullable String[] filteringAliases, ValidateQueryRequest request) {
         super(index, shardId);
         this.querySource = request.querySource();
         this.querySourceOffset = request.querySourceOffset();

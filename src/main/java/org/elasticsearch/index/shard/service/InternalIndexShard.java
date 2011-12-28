@@ -51,7 +51,6 @@ import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.query.IndexQueryParserService;
-import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchService;
@@ -517,28 +516,6 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     public Engine.Searcher searcher() {
         readAllowed();
         return engine.searcher();
-    }
-
-    @Override
-    public boolean validate(byte[] querySource, @Nullable String[] filteringAliases, String... types) throws ElasticSearchException {
-        return validate(querySource, 0, querySource.length, filteringAliases, types);
-    }
-
-    @Override
-    public boolean validate(byte[] querySource, int querySourceOffset, int querySourceLength, @Nullable String[] filteringAliases, String... types) throws ElasticSearchException {
-        readAllowed();
-        if (querySourceLength == 0) {
-            return true;
-        } else {
-            try {
-                queryParserService.parse(querySource, querySourceOffset, querySourceLength);
-            } catch (QueryParsingException e) {
-                return false;
-            } catch (AssertionError e) {
-                return false;
-            }
-        }
-        return true;
     }
 
     public void close(String reason) {

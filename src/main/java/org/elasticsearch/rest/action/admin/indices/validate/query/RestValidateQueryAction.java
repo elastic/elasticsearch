@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.rest.action.validate;
+package org.elasticsearch.rest.action.admin.indices.validate.query;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
-import org.elasticsearch.action.validate.ValidateRequest;
-import org.elasticsearch.action.validate.ValidateResponse;
+import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
+import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -43,45 +43,45 @@ import static org.elasticsearch.rest.action.support.RestActions.splitTypes;
 /**
  *
  */
-public class RestValidateAction extends BaseRestHandler {
+public class RestValidateQueryAction extends BaseRestHandler {
 
     @Inject
-    public RestValidateAction(Settings settings, Client client, RestController controller) {
+    public RestValidateQueryAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
-        controller.registerHandler(GET, "/_validate", this);
-        controller.registerHandler(POST, "/_validate", this);
-        controller.registerHandler(GET, "/{index}/_validate", this);
-        controller.registerHandler(POST, "/{index}/_validate", this);
-        controller.registerHandler(GET, "/{index}/{type}/_validate", this);
-        controller.registerHandler(POST, "/{index}/{type}/_validate", this);
+        controller.registerHandler(GET, "/_validate/query", this);
+        controller.registerHandler(POST, "/_validate/query", this);
+        controller.registerHandler(GET, "/{index}/_validate/query", this);
+        controller.registerHandler(POST, "/{index}/_validate/query", this);
+        controller.registerHandler(GET, "/{index}/{type}/_validate/query", this);
+        controller.registerHandler(POST, "/{index}/{type}/_validate/query", this);
     }
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
-        ValidateRequest validateRequest = new ValidateRequest(RestActions.splitIndices(request.param("index")));
+        ValidateQueryRequest validateQueryRequest = new ValidateQueryRequest(RestActions.splitIndices(request.param("index")));
         // we just send back a response, no need to fork a listener
-        validateRequest.listenerThreaded(false);
+        validateQueryRequest.listenerThreaded(false);
         try {
             BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operation_threading"), BroadcastOperationThreading.SINGLE_THREAD);
             if (operationThreading == BroadcastOperationThreading.NO_THREADS) {
                 // since we don't spawn, don't allow no_threads, but change it to a single thread
                 operationThreading = BroadcastOperationThreading.SINGLE_THREAD;
             }
-            validateRequest.operationThreading(operationThreading);
+            validateQueryRequest.operationThreading(operationThreading);
             if (request.hasContent()) {
-                validateRequest.query(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength(), true);
+                validateQueryRequest.query(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength(), true);
             } else {
                 String source = request.param("source");
                 if (source != null) {
-                    validateRequest.query(source);
+                    validateQueryRequest.query(source);
                 } else {
                     byte[] querySource = RestActions.parseQuerySource(request);
                     if (querySource != null) {
-                        validateRequest.query(querySource);
+                        validateQueryRequest.query(querySource);
                     }
                 }
             }
-            validateRequest.types(splitTypes(request.param("type")));
+            validateQueryRequest.types(splitTypes(request.param("type")));
         } catch (Exception e) {
             try {
                 XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
@@ -92,9 +92,9 @@ public class RestValidateAction extends BaseRestHandler {
             return;
         }
 
-        client.validate(validateRequest, new ActionListener<ValidateResponse>() {
+        client.admin().indices().validateQuery(validateQueryRequest, new ActionListener<ValidateQueryResponse>() {
             @Override
-            public void onResponse(ValidateResponse response) {
+            public void onResponse(ValidateQueryResponse response) {
                 try {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();

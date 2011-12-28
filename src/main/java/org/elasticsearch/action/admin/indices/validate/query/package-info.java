@@ -20,4 +20,4 @@
 /**
  * Validate action.
  */
-package org.elasticsearch.action.validate;
+package org.elasticsearch.action.admin.indices.validate.query;

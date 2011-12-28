@@ -105,10 +105,6 @@ public interface IndexShard extends IndexShardComponent {
 
     Engine.Searcher searcher();
 
-    boolean validate(byte[] querySource, @Nullable String[] filteringAliases, String... types) throws ElasticSearchException;
-
-    boolean validate(byte[] querySource, int querySourceOffset, int querySourceLength, @Nullable String[] filteringAliases, String... types) throws ElasticSearchException;
-
     /**
      * Returns <tt>true</tt> if this shard can ignore a recovery attempt made to it (since the already doing/done it)
      */

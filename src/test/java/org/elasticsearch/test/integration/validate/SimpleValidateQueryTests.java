@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class SimpleValidateTests extends AbstractNodesTests {
+public class SimpleValidateQueryTests extends AbstractNodesTests {
 
         private Client client;
 
@@ -70,15 +70,15 @@ public class SimpleValidateTests extends AbstractNodesTests {
 
             client.admin().indices().prepareRefresh().execute().actionGet();
 
-            assertThat(client.prepareValidate("test").setQuery("foo".getBytes()).execute().actionGet().valid(), equalTo(false));
-            assertThat(client.prepareValidate("test").setQuery(QueryBuilders.queryString("_id:1")).execute().actionGet().valid(), equalTo(true));
-            assertThat(client.prepareValidate("test").setQuery(QueryBuilders.queryString("_i:d:1")).execute().actionGet().valid(), equalTo(false));
+            assertThat(client.admin().indices().prepareValidateQuery("test").setQuery("foo".getBytes()).execute().actionGet().valid(), equalTo(false));
+            assertThat(client.admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("_id:1")).execute().actionGet().valid(), equalTo(true));
+            assertThat(client.admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("_i:d:1")).execute().actionGet().valid(), equalTo(false));
 
-            assertThat(client.prepareValidate("test").setQuery(QueryBuilders.queryString("foo:1")).execute().actionGet().valid(), equalTo(true));
-            assertThat(client.prepareValidate("test").setQuery(QueryBuilders.queryString("bar:hey")).execute().actionGet().valid(), equalTo(false));
+            assertThat(client.admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("foo:1")).execute().actionGet().valid(), equalTo(true));
+            assertThat(client.admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("bar:hey")).execute().actionGet().valid(), equalTo(false));
 
-            assertThat(client.prepareValidate("test").setQuery(QueryBuilders.queryString("nonexistent:hello")).execute().actionGet().valid(), equalTo(true));
+            assertThat(client.admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("nonexistent:hello")).execute().actionGet().valid(), equalTo(true));
 
-            assertThat(client.prepareValidate("test").setQuery(QueryBuilders.queryString("foo:1 AND")).execute().actionGet().valid(), equalTo(false));
+            assertThat(client.admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("foo:1 AND")).execute().actionGet().valid(), equalTo(false));
         }
 }

@@ -39,6 +39,7 @@ import org.elasticsearch.client.action.admin.indices.stats.IndicesStatsRequestBu
 import org.elasticsearch.client.action.admin.indices.status.IndicesStatusRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.template.delete.DeleteIndexTemplateRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
+import org.elasticsearch.client.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 import org.elasticsearch.common.Nullable;
 
@@ -150,5 +151,10 @@ public abstract class AbstractIndicesAdminClient implements InternalIndicesAdmin
     @Override
     public DeleteIndexTemplateRequestBuilder prepareDeleteTemplate(String name) {
         return new DeleteIndexTemplateRequestBuilder(this, name);
+    }
+
+    @Override
+    public ValidateQueryRequestBuilder prepareValidateQuery(String... indices) {
+        return new ValidateQueryRequestBuilder(this).setIndices(indices);
     }
 }

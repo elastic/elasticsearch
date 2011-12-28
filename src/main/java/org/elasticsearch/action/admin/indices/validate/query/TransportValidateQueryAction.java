@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.validate;
+package org.elasticsearch.action.admin.indices.validate.query;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ShardOperationFailedException;
@@ -32,6 +32,8 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.IndexQueryParserService;
+import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -47,12 +49,12 @@ import static com.google.common.collect.Lists.newArrayList;
 /**
  *
  */
-public class TransportValidateAction extends TransportBroadcastOperationAction<ValidateRequest, ValidateResponse, ShardValidateRequest, ShardValidateResponse> {
+public class TransportValidateQueryAction extends TransportBroadcastOperationAction<ValidateQueryRequest, ValidateQueryResponse, ShardValidateQueryRequest, ShardValidateQueryResponse> {
 
     private final IndicesService indicesService;
 
     @Inject
-    public TransportValidateAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, IndicesService indicesService) {
+    public TransportValidateQueryAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, IndicesService indicesService) {
         super(settings, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
     }
@@ -64,51 +66,51 @@ public class TransportValidateAction extends TransportBroadcastOperationAction<V
 
     @Override
     protected String transportAction() {
-        return TransportActions.VALIDATE;
+        return TransportActions.Admin.Indices.VALIDATE_QUERY;
     }
 
     @Override
     protected String transportShardAction() {
-        return "indices/validate/shard";
+        return "indices/validateQuery/shard";
     }
 
     @Override
-    protected ValidateRequest newRequest() {
-        return new ValidateRequest();
+    protected ValidateQueryRequest newRequest() {
+        return new ValidateQueryRequest();
     }
 
     @Override
-    protected ShardValidateRequest newShardRequest() {
-        return new ShardValidateRequest();
+    protected ShardValidateQueryRequest newShardRequest() {
+        return new ShardValidateQueryRequest();
     }
 
     @Override
-    protected ShardValidateRequest newShardRequest(ShardRouting shard, ValidateRequest request) {
+    protected ShardValidateQueryRequest newShardRequest(ShardRouting shard, ValidateQueryRequest request) {
         String[] filteringAliases = clusterService.state().metaData().filteringAliases(shard.index(), request.indices());
-        return new ShardValidateRequest(shard.index(), shard.id(), filteringAliases, request);
+        return new ShardValidateQueryRequest(shard.index(), shard.id(), filteringAliases, request);
     }
 
     @Override
-    protected ShardValidateResponse newShardResponse() {
-        return new ShardValidateResponse();
+    protected ShardValidateQueryResponse newShardResponse() {
+        return new ShardValidateQueryResponse();
     }
 
     @Override
-    protected GroupShardsIterator shards(ValidateRequest request, String[] concreteIndices, ClusterState clusterState) {
+    protected GroupShardsIterator shards(ValidateQueryRequest request, String[] concreteIndices, ClusterState clusterState) {
         // Hard-code routing to limit request to a single shard.
         Map<String, Set<String>> routingMap = clusterState.metaData().resolveSearchRouting("0", request.indices());
         return clusterService.operationRouting().searchShards(clusterState, request.indices(), concreteIndices, null, routingMap, "_local");
     }
 
     @Override
-    protected void checkBlock(ValidateRequest request, String[] concreteIndices, ClusterState state) {
+    protected void checkBlock(ValidateQueryRequest request, String[] concreteIndices, ClusterState state) {
         for (String index : concreteIndices) {
             state.blocks().indexBlocked(ClusterBlockLevel.READ, index);
         }
     }
 
     @Override
-    protected ValidateResponse newResponse(ValidateRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
+    protected ValidateQueryResponse newResponse(ValidateQueryRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
         int successfulShards = 0;
         int failedShards = 0;
         boolean valid = true;
@@ -124,18 +126,29 @@ public class TransportValidateAction extends TransportBroadcastOperationAction<V
                 }
                 shardFailures.add(new DefaultShardOperationFailedException((BroadcastShardOperationFailedException) shardResponse));
             } else {
-                valid = valid && ((ShardValidateResponse) shardResponse).valid();
+                valid = valid && ((ShardValidateQueryResponse) shardResponse).valid();
                 successfulShards++;
             }
         }
-        return new ValidateResponse(valid, shardsResponses.length(), successfulShards, failedShards, shardFailures);
+        return new ValidateQueryResponse(valid, shardsResponses.length(), successfulShards, failedShards, shardFailures);
     }
 
     @Override
-    protected ShardValidateResponse shardOperation(ShardValidateRequest request) throws ElasticSearchException {
-        IndexShard indexShard = indicesService.indexServiceSafe(request.index()).shardSafe(request.shardId());
-        boolean valid = indexShard.validate(request.querySource(), request.querySourceOffset(), request.querySourceLength(),
-                request.filteringAliases(), request.types());
-        return new ShardValidateResponse(request.index(), request.shardId(), valid);
+    protected ShardValidateQueryResponse shardOperation(ShardValidateQueryRequest request) throws ElasticSearchException {
+        IndexQueryParserService queryParserService = indicesService.indexServiceSafe(request.index()).queryParserService();
+        boolean valid;
+        if (request.querySourceLength() == 0) {
+            valid = true;
+        } else {
+            try {
+                queryParserService.parse(request.querySource(), request.querySourceOffset(), request.querySourceLength());
+                valid = true;
+            } catch (QueryParsingException e) {
+                valid = false;
+            } catch (AssertionError e) {
+                valid = false;
+            }
+        }
+        return new ShardValidateQueryResponse(request.index(), request.shardId(), valid);
     }
 }

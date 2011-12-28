@@ -38,8 +38,6 @@ import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.new
 
 /**
  * A base concurrent filter cache that accepts the actual cache to use.
- *
- *
  */
 public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComponent implements FilterCache, IndexReader.ReaderFinishedListener {
 
@@ -163,7 +161,7 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
         }
 
         public String toString() {
-            return "FilterCacheFilterWrapper(" + filter + ")";
+            return "cache(" + filter + ")";
         }
 
         public boolean equals(Object o) {

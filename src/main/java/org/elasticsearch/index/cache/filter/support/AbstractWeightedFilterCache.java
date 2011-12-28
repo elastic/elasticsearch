@@ -173,7 +173,7 @@ public abstract class AbstractWeightedFilterCache extends AbstractIndexComponent
         }
 
         public String toString() {
-            return "FilterCacheFilterWrapper(" + filter + ")";
+            return "cache(" + filter + ")";
         }
 
         public boolean equals(Object o) {

@@ -109,6 +109,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
                     }
 
                     if (!changed) {
+                        latch.countDown();
                         return currentState;
                     }
 

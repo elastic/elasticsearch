@@ -97,7 +97,7 @@ public class TransportValidateAction extends TransportBroadcastOperationAction<V
     protected GroupShardsIterator shards(ValidateRequest request, String[] concreteIndices, ClusterState clusterState) {
         // Hard-code routing to limit request to a single shard.
         Map<String, Set<String>> routingMap = clusterState.metaData().resolveSearchRouting("0", request.indices());
-        return clusterService.operationRouting().searchShards(clusterState, request.indices(), concreteIndices, null, routingMap, null);
+        return clusterService.operationRouting().searchShards(clusterState, request.indices(), concreteIndices, null, routingMap, "_local");
     }
 
     @Override

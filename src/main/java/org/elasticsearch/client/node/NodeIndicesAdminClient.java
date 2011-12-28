@@ -81,6 +81,9 @@ import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteInd
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.validate.query.TransportValidateQueryAction;
+import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
+import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.support.AbstractIndicesAdminClient;
 import org.elasticsearch.common.inject.Inject;
@@ -134,6 +137,8 @@ public class NodeIndicesAdminClient extends AbstractIndicesAdminClient implement
 
     private final TransportDeleteIndexTemplateAction deleteIndexTemplateAction;
 
+    private final TransportValidateQueryAction validateQueryAction;
+
     @Inject
     public NodeIndicesAdminClient(Settings settings, ThreadPool threadPool, TransportIndicesExistsAction indicesExistsAction, TransportIndicesStatsAction indicesStatsAction, TransportIndicesStatusAction indicesStatusAction, TransportIndicesSegmentsAction indicesSegmentsAction,
                                   TransportCreateIndexAction createIndexAction, TransportDeleteIndexAction deleteIndexAction,
@@ -142,7 +147,7 @@ public class NodeIndicesAdminClient extends AbstractIndicesAdminClient implement
                                   TransportPutMappingAction putMappingAction, TransportDeleteMappingAction deleteMappingAction, TransportGatewaySnapshotAction gatewaySnapshotAction,
                                   TransportIndicesAliasesAction indicesAliasesAction, TransportClearIndicesCacheAction clearIndicesCacheAction,
                                   TransportUpdateSettingsAction updateSettingsAction, TransportAnalyzeAction analyzeAction,
-                                  TransportPutIndexTemplateAction putIndexTemplateAction, TransportDeleteIndexTemplateAction deleteIndexTemplateAction) {
+                                  TransportPutIndexTemplateAction putIndexTemplateAction, TransportDeleteIndexTemplateAction deleteIndexTemplateAction, TransportValidateQueryAction validateQueryAction) {
         this.threadPool = threadPool;
         this.indicesExistsAction = indicesExistsAction;
         this.indicesStatsAction = indicesStatsAction;
@@ -164,6 +169,7 @@ public class NodeIndicesAdminClient extends AbstractIndicesAdminClient implement
         this.analyzeAction = analyzeAction;
         this.putIndexTemplateAction = putIndexTemplateAction;
         this.deleteIndexTemplateAction = deleteIndexTemplateAction;
+        this.validateQueryAction = validateQueryAction;
     }
 
     @Override
@@ -369,5 +375,15 @@ public class NodeIndicesAdminClient extends AbstractIndicesAdminClient implement
     @Override
     public void deleteTemplate(DeleteIndexTemplateRequest request, ActionListener<DeleteIndexTemplateResponse> listener) {
         deleteIndexTemplateAction.execute(request, listener);
+    }
+
+    @Override
+    public ActionFuture<ValidateQueryResponse> validateQuery(ValidateQueryRequest request) {
+        return validateQueryAction.execute(request);
+    }
+
+    @Override
+    public void validateQuery(ValidateQueryRequest request, ActionListener<ValidateQueryResponse> listener) {
+        validateQueryAction.execute(request, listener);
     }
 }

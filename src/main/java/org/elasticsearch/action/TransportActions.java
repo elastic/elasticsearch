@@ -29,8 +29,6 @@ public class TransportActions {
     public static final String INDEX = "indices/index/shard/index";
 
     public static final String COUNT = "indices/count";
-    
-    public static final String VALIDATE = "indices/validate";
 
     public static final String DELETE = "indices/index/shard/delete";
 
@@ -69,6 +67,7 @@ public class TransportActions {
             public static final String ANALYZE = "indices/analyze";
             public static final String PUT_INDEX_TEMPLATE = "indices/putIndexTemplate";
             public static final String DELETE_INDEX_TEMPLATE = "indices/deleteIndexTemplate";
+            public static final String VALIDATE_QUERY = "indices/validateQuery";
 
             public static class Gateway {
                 public static final String SNAPSHOT = "indices/gateway/snapshot";

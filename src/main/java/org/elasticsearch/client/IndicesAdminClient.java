@@ -61,6 +61,8 @@ import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplat
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
+import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
+import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.client.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.analyze.AnalyzeRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.cache.clear.ClearIndicesCacheRequestBuilder;
@@ -81,6 +83,7 @@ import org.elasticsearch.client.action.admin.indices.stats.IndicesStatsRequestBu
 import org.elasticsearch.client.action.admin.indices.status.IndicesStatusRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.template.delete.DeleteIndexTemplateRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
+import org.elasticsearch.client.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
 import org.elasticsearch.common.Nullable;
 
 /**
@@ -537,4 +540,27 @@ public interface IndicesAdminClient {
      * @param name The name of the template.
      */
     DeleteIndexTemplateRequestBuilder prepareDeleteTemplate(String name);
+
+    /**
+     * Validate a query for correctness.
+     *
+     * @param request The count request
+     * @return The result future
+     * @see Requests#countRequest(String...)
+     */
+    ActionFuture<ValidateQueryResponse> validateQuery(ValidateQueryRequest request);
+
+    /**
+     * Validate a query for correctness.
+     *
+     * @param request  The count request
+     * @param listener A listener to be notified of the result
+     * @see Requests#countRequest(String...)
+     */
+    void validateQuery(ValidateQueryRequest request, ActionListener<ValidateQueryResponse> listener);
+
+    /**
+     * Validate a query for correctness.
+     */
+    ValidateQueryRequestBuilder prepareValidateQuery(String... indices);
 }

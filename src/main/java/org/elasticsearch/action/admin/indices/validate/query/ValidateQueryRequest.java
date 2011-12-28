@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.validate;
+package org.elasticsearch.action.admin.indices.validate.query;
 
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchGenerationException;
@@ -25,7 +25,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Required;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Unicode;
@@ -49,7 +48,7 @@ import java.util.Map;
  *
  *
  */
-public class ValidateRequest extends BroadcastOperationRequest {
+public class ValidateQueryRequest extends BroadcastOperationRequest {
 
     private static final XContentType contentType = Requests.CONTENT_TYPE;
 
@@ -60,14 +59,14 @@ public class ValidateRequest extends BroadcastOperationRequest {
 
     private String[] types = Strings.EMPTY_ARRAY;
 
-    ValidateRequest() {
+    ValidateQueryRequest() {
     }
 
     /**
      * Constructs a new validate request against the provided indices. No indices provided means it will
      * run against all indices.
      */
-    public ValidateRequest(String... indices) {
+    public ValidateQueryRequest(String... indices) {
         super(indices);
     }
 
@@ -81,7 +80,7 @@ public class ValidateRequest extends BroadcastOperationRequest {
      * Controls the operation threading model.
      */
     @Override
-    public ValidateRequest operationThreading(BroadcastOperationThreading operationThreading) {
+    public ValidateQueryRequest operationThreading(BroadcastOperationThreading operationThreading) {
         super.operationThreading(operationThreading);
         return this;
     }
@@ -99,12 +98,12 @@ public class ValidateRequest extends BroadcastOperationRequest {
      * Should the listener be called on a separate thread if needed.
      */
     @Override
-    public ValidateRequest listenerThreaded(boolean threadedListener) {
+    public ValidateQueryRequest listenerThreaded(boolean threadedListener) {
         super.listenerThreaded(threadedListener);
         return this;
     }
 
-    public ValidateRequest indices(String... indices) {
+    public ValidateQueryRequest indices(String... indices) {
         this.indices = indices;
         return this;
     }
@@ -130,7 +129,7 @@ public class ValidateRequest extends BroadcastOperationRequest {
      * @see org.elasticsearch.index.query.QueryBuilders
      */
     @Required
-    public ValidateRequest query(QueryBuilder queryBuilder) {
+    public ValidateQueryRequest query(QueryBuilder queryBuilder) {
         BytesStream bos = queryBuilder.buildAsUnsafeBytes();
         this.querySource = bos.underlyingBytes();
         this.querySourceOffset = 0;
@@ -143,7 +142,7 @@ public class ValidateRequest extends BroadcastOperationRequest {
      * The query source to execute in the form of a map.
      */
     @Required
-    public ValidateRequest query(Map querySource) {
+    public ValidateQueryRequest query(Map querySource) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             builder.map(querySource);
@@ -154,7 +153,7 @@ public class ValidateRequest extends BroadcastOperationRequest {
     }
 
     @Required
-    public ValidateRequest query(XContentBuilder builder) {
+    public ValidateQueryRequest query(XContentBuilder builder) {
         try {
             this.querySource = builder.underlyingBytes();
             this.querySourceOffset = 0;
@@ -171,7 +170,7 @@ public class ValidateRequest extends BroadcastOperationRequest {
      * or {@link #query(org.elasticsearch.index.query.QueryBuilder)}.
      */
     @Required
-    public ValidateRequest query(String querySource) {
+    public ValidateQueryRequest query(String querySource) {
         UnicodeUtil.UTF8Result result = Unicode.fromStringAsUtf8(querySource);
         this.querySource = result.result;
         this.querySourceOffset = 0;
@@ -184,7 +183,7 @@ public class ValidateRequest extends BroadcastOperationRequest {
      * The query source to validate.
      */
     @Required
-    public ValidateRequest query(byte[] querySource) {
+    public ValidateQueryRequest query(byte[] querySource) {
         return query(querySource, 0, querySource.length, false);
     }
 
@@ -192,7 +191,7 @@ public class ValidateRequest extends BroadcastOperationRequest {
      * The query source to validate.
      */
     @Required
-    public ValidateRequest query(byte[] querySource, int offset, int length, boolean unsafe) {
+    public ValidateQueryRequest query(byte[] querySource, int offset, int length, boolean unsafe) {
         this.querySource = querySource;
         this.querySourceOffset = offset;
         this.querySourceLength = length;
@@ -210,7 +209,7 @@ public class ValidateRequest extends BroadcastOperationRequest {
     /**
      * The types of documents the query will run against. Defaults to all types.
      */
-    public ValidateRequest types(String... types) {
+    public ValidateQueryRequest types(String... types) {
         this.types = types;
         return this;
     }

@@ -17,46 +17,34 @@
  * under the License.
  */
 
-package org.elasticsearch.action.validate;
+package org.elasticsearch.action.admin.indices.validate.query;
 
-import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastShardOperationResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.util.List;
 
 /**
- * The response of the validate action.
+ * Internal validate response of a shard validate request executed directly against a specific shard.
  *
  *
  */
-public class ValidateResponse extends BroadcastOperationResponse {
+class ShardValidateQueryResponse extends BroadcastShardOperationResponse {
 
     private boolean valid;
 
-    ValidateResponse() {
+    ShardValidateQueryResponse() {
 
     }
 
-    ValidateResponse(boolean valid, int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
-        super(totalShards, successfulShards, failedShards, shardFailures);
+    public ShardValidateQueryResponse(String index, int shardId, boolean valid) {
+        super(index, shardId);
         this.valid = valid;
     }
 
-    /**
-     * A boolean denoting whether the query is valid.
-     */
-    public boolean valid() {
-        return valid;
-    }
-
-    /**
-     * A boolean denoting whether the query is valid.
-     */
-    public boolean getValid() {
-        return valid;
+    boolean valid() {
+        return this.valid;
     }
 
     @Override

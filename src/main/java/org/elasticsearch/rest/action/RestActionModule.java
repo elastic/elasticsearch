@@ -58,6 +58,7 @@ import org.elasticsearch.rest.action.admin.indices.status.RestIndicesStatusActio
 import org.elasticsearch.rest.action.admin.indices.template.delete.RestDeleteIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.template.get.RestGetIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.template.put.RestPutIndexTemplateAction;
+import org.elasticsearch.rest.action.admin.indices.validate.query.RestValidateQueryAction;
 import org.elasticsearch.rest.action.bulk.RestBulkAction;
 import org.elasticsearch.rest.action.count.RestCountAction;
 import org.elasticsearch.rest.action.delete.RestDeleteAction;
@@ -149,6 +150,8 @@ public class RestActionModule extends AbstractModule {
 
         bind(RestSearchAction.class).asEagerSingleton();
         bind(RestSearchScrollAction.class).asEagerSingleton();
+        
+        bind(RestValidateQueryAction.class).asEagerSingleton();
 
         bind(RestMoreLikeThisAction.class).asEagerSingleton();
 

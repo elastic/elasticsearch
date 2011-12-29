@@ -1,4 +1,4 @@
-ICU Analysis for ElasticSearch
+Smart Chinese Analysis for ElasticSearch
 ==================================
 
 The Smart Chinese Analysis plugin integrates Lucene Smart Chinese analysis module into elasticsearch.

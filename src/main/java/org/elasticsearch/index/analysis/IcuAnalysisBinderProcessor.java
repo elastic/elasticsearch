@@ -25,22 +25,14 @@ public class IcuAnalysisBinderProcessor extends AnalysisModule.AnalysisBinderPro
 
     @Override
     public void processTokenizers(TokenizersBindings tokenizersBindings) {
-        tokenizersBindings.processTokenizer("icuTokenizer", IcuTokenizerFactory.class);
         tokenizersBindings.processTokenizer("icu_tokenizer", IcuTokenizerFactory.class);
     }
 
     @Override
     public void processTokenFilters(TokenFiltersBindings tokenFiltersBindings) {
-        tokenFiltersBindings.processTokenFilter("icuNormalizer", IcuNormalizerTokenFilterFactory.class);
         tokenFiltersBindings.processTokenFilter("icu_normalizer", IcuNormalizerTokenFilterFactory.class);
-
-        tokenFiltersBindings.processTokenFilter("icuFolding", IcuFoldingTokenFilterFactory.class);
         tokenFiltersBindings.processTokenFilter("icu_folding", IcuFoldingTokenFilterFactory.class);
-
-        tokenFiltersBindings.processTokenFilter("icuCollation", IcuCollationTokenFilterFactory.class);
         tokenFiltersBindings.processTokenFilter("icu_collation", IcuCollationTokenFilterFactory.class);
-
-        tokenFiltersBindings.processTokenFilter("icuTransform", IcuTransformTokenFilterFactory.class);
         tokenFiltersBindings.processTokenFilter("icu_transform", IcuTransformTokenFilterFactory.class);
     }
 }

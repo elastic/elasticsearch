@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.validate.query;
 
+import jsr166y.ThreadLocalRandom;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.TransportActions;
@@ -34,7 +35,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.QueryParsingException;
-import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -97,8 +97,8 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
 
     @Override
     protected GroupShardsIterator shards(ValidateQueryRequest request, String[] concreteIndices, ClusterState clusterState) {
-        // Hard-code routing to limit request to a single shard.
-        Map<String, Set<String>> routingMap = clusterState.metaData().resolveSearchRouting("0", request.indices());
+        // Hard-code routing to limit request to a single shard, but still, randomize it...
+        Map<String, Set<String>> routingMap = clusterState.metaData().resolveSearchRouting(Integer.toString(ThreadLocalRandom.current().nextInt(1000)), request.indices());
         return clusterService.operationRouting().searchShards(clusterState, request.indices(), concreteIndices, null, routingMap, "_local");
     }
 

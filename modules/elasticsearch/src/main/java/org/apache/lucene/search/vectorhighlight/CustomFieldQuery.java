@@ -22,7 +22,6 @@ package org.apache.lucene.search.vectorhighlight;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.MultiTermQueryWrapperFilter;
@@ -69,12 +68,7 @@ public class CustomFieldQuery extends FieldQuery {
     }
 
     @Override void flatten(Query sourceQuery, IndexReader reader, Collection<Query> flatQueries) throws IOException {
-        if (sourceQuery instanceof DisjunctionMaxQuery) {
-            DisjunctionMaxQuery dmq = (DisjunctionMaxQuery) sourceQuery;
-            for (Query query : dmq) {
-                flatten(query, reader, flatQueries);
-            }
-        } else if (sourceQuery instanceof SpanTermQuery) {
+        if (sourceQuery instanceof SpanTermQuery) {
             TermQuery termQuery = new TermQuery(((SpanTermQuery) sourceQuery).getTerm());
             if (!flatQueries.contains(termQuery)) {
                 flatQueries.add(termQuery);

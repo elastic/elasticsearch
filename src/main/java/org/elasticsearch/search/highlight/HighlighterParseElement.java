@@ -45,8 +45,6 @@ import static com.google.common.collect.Lists.newArrayList;
  *  }
  * }
  * </pre>
- *
- *
  */
 public class HighlighterParseElement implements SearchParseElement {
 
@@ -71,6 +69,7 @@ public class HighlighterParseElement implements SearchParseElement {
         String[] globalPostTags = DEFAULT_POST_TAGS;
         boolean globalScoreOrdered = false;
         boolean globalHighlightFilter = false;
+        boolean globalRequireFieldMatch = false;
         int globalFragmentSize = 100;
         int globalNumOfFragments = 5;
         String globalEncoder = "default";
@@ -109,6 +108,8 @@ public class HighlighterParseElement implements SearchParseElement {
                     globalNumOfFragments = parser.intValue();
                 } else if ("encoder".equals(topLevelFieldName)) {
                     globalEncoder = parser.text();
+                } else if ("require_field_match".equals(topLevelFieldName) || "requireFieldMatch".equals(topLevelFieldName)) {
+                    globalRequireFieldMatch = parser.booleanValue();
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("fields".equals(topLevelFieldName)) {
@@ -147,6 +148,8 @@ public class HighlighterParseElement implements SearchParseElement {
                                         field.highlightFilter(parser.booleanValue());
                                     } else if ("order".equals(fieldName)) {
                                         field.scoreOrdered("score".equals(parser.text()));
+                                    } else if ("require_field_match".equals(fieldName) || "requireFieldMatch".equals(fieldName)) {
+                                        field.requireFieldMatch(parser.booleanValue());
                                     }
                                 }
                             }
@@ -183,7 +186,9 @@ public class HighlighterParseElement implements SearchParseElement {
             if (field.encoder() == null) {
                 field.encoder(globalEncoder);
             }
-
+            if (field.requireFieldMatch() == null) {
+                field.requireFieldMatch(globalRequireFieldMatch);
+            }
         }
 
         context.highlight(new SearchContextHighlight(fields));

@@ -84,9 +84,9 @@ public class HighlightPhase implements FetchSubPhase {
     @Override
     public void hitExecute(SearchContext context, HitContext hitContext) throws ElasticSearchException {
         // we use a cache to cache heavy things, mainly the rewrite in FieldQuery for FVH
-        Map<FieldMapper, HighlightEntry> cache = (Map<FieldMapper, HighlightEntry>) hitContext.cache().get("highlight");
+        HighlighterEntry cache = (HighlighterEntry) hitContext.cache().get("highlight");
         if (cache == null) {
-            cache = Maps.newHashMap();
+            cache = new HighlighterEntry();
             hitContext.cache().put("highlight", cache);
         }
 
@@ -119,7 +119,7 @@ public class HighlightPhase implements FetchSubPhase {
             // if we can do highlighting using Term Vectors, use FastVectorHighlighter, otherwise, use the
             // slower plain highlighter
             if (mapper.termVector() != Field.TermVector.WITH_POSITIONS_OFFSETS) {
-                HighlightEntry entry = cache.get(mapper);
+                MapperHighlightEntry entry = cache.mappers.get(mapper);
                 if (entry == null) {
                     // Don't use the context.query() since it might be rewritten, and we need to pass the non rewritten queries to
                     // let the highlighter handle MultiTerm ones
@@ -158,11 +158,11 @@ public class HighlightPhase implements FetchSubPhase {
                     Formatter formatter = new SimpleHTMLFormatter(field.preTags()[0], field.postTags()[0]);
 
 
-                    entry = new HighlightEntry();
+                    entry = new MapperHighlightEntry();
                     entry.highlighter = new Highlighter(formatter, encoder, queryScorer);
                     entry.highlighter.setTextFragmenter(fragmenter);
 
-                    cache.put(mapper, entry);
+                    cache.mappers.put(mapper, entry);
                 }
 
                 List<Object> textsToHighlight;
@@ -232,7 +232,8 @@ public class HighlightPhase implements FetchSubPhase {
                 }
             } else {
                 try {
-                    HighlightEntry entry = cache.get(mapper);
+                    MapperHighlightEntry entry = cache.mappers.get(mapper);
+                    FieldQuery fieldQuery = null;
                     if (entry == null) {
                         FragListBuilder fragListBuilder;
                         FragmentsBuilder fragmentsBuilder;
@@ -264,18 +265,30 @@ public class HighlightPhase implements FetchSubPhase {
                                 }
                             }
                         }
-                        entry = new HighlightEntry();
+                        entry = new MapperHighlightEntry();
                         entry.fragListBuilder = fragListBuilder;
                         entry.fragmentsBuilder = fragmentsBuilder;
-                        // parameters to FVH are not requires since:
-                        // first two booleans are not relevant since they are set on the CustomFieldQuery (phrase and fieldMatch)
-                        // fragment builders are used explicitly
-                        entry.fvh = new FastVectorHighlighter(true, false, fragListBuilder, fragmentsBuilder);
+                        if (cache.fvh == null) {
+                            // parameters to FVH are not requires since:
+                            // first two booleans are not relevant since they are set on the CustomFieldQuery (phrase and fieldMatch)
+                            // fragment builders are used explicitly
+                            cache.fvh = new FastVectorHighlighter();
+                        }
                         CustomFieldQuery.highlightFilters.set(field.highlightFilter());
-                        // we use top level reader to rewrite the query against all readers, with use caching it across hits (and across readers...)
-                        entry.fieldQuery = new CustomFieldQuery(context.parsedQuery().query(), hitContext.topLevelReader(), true, field.requireFieldMatch());
-
-                        cache.put(mapper, entry);
+                        if (field.requireFieldMatch()) {
+                            if (cache.fieldMatchFieldQuery == null) {
+                                // we use top level reader to rewrite the query against all readers, with use caching it across hits (and across readers...)
+                                cache.fieldMatchFieldQuery = new CustomFieldQuery(context.parsedQuery().query(), hitContext.topLevelReader(), true, field.requireFieldMatch());
+                            }
+                            fieldQuery = cache.fieldMatchFieldQuery;
+                        } else {
+                            if (cache.noFieldMatchFieldQuery == null) {
+                                // we use top level reader to rewrite the query against all readers, with use caching it across hits (and across readers...)
+                                cache.noFieldMatchFieldQuery = new CustomFieldQuery(context.parsedQuery().query(), hitContext.topLevelReader(), true, field.requireFieldMatch());
+                            }
+                            fieldQuery = cache.noFieldMatchFieldQuery;
+                        }
+                        cache.mappers.put(mapper, entry);
                     }
 
                     String[] fragments;
@@ -283,7 +296,7 @@ public class HighlightPhase implements FetchSubPhase {
                     // a HACK to make highlighter do highlighting, even though its using the single frag list builder
                     int numberOfFragments = field.numberOfFragments() == 0 ? 1 : field.numberOfFragments();
                     // we highlight against the low level reader and docId, because if we load source, we want to reuse it if possible
-                    fragments = entry.fvh.getBestFragments(entry.fieldQuery, hitContext.reader(), hitContext.docId(), mapper.names().indexName(), field.fragmentCharSize(), numberOfFragments,
+                    fragments = cache.fvh.getBestFragments(fieldQuery, hitContext.reader(), hitContext.docId(), mapper.names().indexName(), field.fragmentCharSize(), numberOfFragments,
                             entry.fragListBuilder, entry.fragmentsBuilder, field.preTags(), field.postTags(), encoder);
 
                     if (fragments != null && fragments.length > 0) {
@@ -299,12 +312,17 @@ public class HighlightPhase implements FetchSubPhase {
         hitContext.hit().highlightFields(highlightFields);
     }
 
-    static class HighlightEntry {
-        public FastVectorHighlighter fvh;
-        public FieldQuery fieldQuery;
+    static class MapperHighlightEntry {
         public FragListBuilder fragListBuilder;
         public FragmentsBuilder fragmentsBuilder;
 
         public Highlighter highlighter;
+    }
+
+    static class HighlighterEntry {
+        public FastVectorHighlighter fvh;
+        public FieldQuery noFieldMatchFieldQuery;
+        public FieldQuery fieldMatchFieldQuery;
+        public Map<FieldMapper, MapperHighlightEntry> mappers = Maps.newHashMap();
     }
 }

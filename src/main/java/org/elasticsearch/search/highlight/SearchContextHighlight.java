@@ -56,6 +56,8 @@ public class SearchContextHighlight {
 
         private Boolean highlightFilter;
 
+        private Boolean requireFieldMatch;
+
         public Field(String field) {
             this.field = field;
         }
@@ -128,5 +130,12 @@ public class SearchContextHighlight {
             this.highlightFilter = highlightFilter;
         }
 
+        public Boolean requireFieldMatch() {
+            return requireFieldMatch;
+        }
+
+        public void requireFieldMatch(boolean requireFieldMatch) {
+            this.requireFieldMatch = requireFieldMatch;
+        }
     }
 }

@@ -147,7 +147,7 @@ public class HighlightPhase implements FetchSubPhase {
                         }
                     }
 
-                    QueryScorer queryScorer = new QueryScorer(query, null);
+                    QueryScorer queryScorer = new QueryScorer(query, field.requireFieldMatch() ? mapper.names().indexName() : null);
                     queryScorer.setExpandMultiTermQuery(true);
                     Fragmenter fragmenter;
                     if (field.numberOfFragments() == 0) {
@@ -267,10 +267,13 @@ public class HighlightPhase implements FetchSubPhase {
                         entry = new HighlightEntry();
                         entry.fragListBuilder = fragListBuilder;
                         entry.fragmentsBuilder = fragmentsBuilder;
+                        // parameters to FVH are not requires since:
+                        // first two booleans are not relevant since they are set on the CustomFieldQuery (phrase and fieldMatch)
+                        // fragment builders are used explicitly
                         entry.fvh = new FastVectorHighlighter(true, false, fragListBuilder, fragmentsBuilder);
                         CustomFieldQuery.highlightFilters.set(field.highlightFilter());
                         // we use top level reader to rewrite the query against all readers, with use caching it across hits (and across readers...)
-                        entry.fieldQuery = new CustomFieldQuery(context.parsedQuery().query(), hitContext.topLevelReader(), entry.fvh);
+                        entry.fieldQuery = new CustomFieldQuery(context.parsedQuery().query(), hitContext.topLevelReader(), true, field.requireFieldMatch());
 
                         cache.put(mapper, entry);
                     }

@@ -20,11 +20,10 @@
 package org.elasticsearch.search.facet.datehistogram;
 
 import com.google.common.collect.ImmutableMap;
-import gnu.trove.impl.Constants;
-import gnu.trove.map.hash.TObjectIntHashMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.joda.TimeZoneRounding;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -38,7 +37,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.joda.time.Chronology;
 import org.joda.time.DateTimeField;
 import org.joda.time.DateTimeZone;
-import org.joda.time.MutableDateTime;
+import org.joda.time.chrono.ISOChronology;
 
 import java.io.IOException;
 import java.util.List;
@@ -50,7 +49,6 @@ import java.util.Map;
 public class DateHistogramFacetProcessor extends AbstractComponent implements FacetProcessor {
 
     private final ImmutableMap<String, DateFieldParser> dateFieldParsers;
-    private final TObjectIntHashMap<String> rounding = new TObjectIntHashMap<String>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, -1);
 
     @Inject
     public DateHistogramFacetProcessor(Settings settings) {
@@ -73,15 +71,6 @@ public class DateHistogramFacetProcessor extends AbstractComponent implements Fa
                 .put("second", new DateFieldParser.SecondOfMinute())
                 .put("1s", new DateFieldParser.SecondOfMinute())
                 .immutableMap();
-
-        rounding.put("floor", MutableDateTime.ROUND_FLOOR);
-        rounding.put("ceiling", MutableDateTime.ROUND_CEILING);
-        rounding.put("half_even", MutableDateTime.ROUND_HALF_EVEN);
-        rounding.put("halfEven", MutableDateTime.ROUND_HALF_EVEN);
-        rounding.put("half_floor", MutableDateTime.ROUND_HALF_FLOOR);
-        rounding.put("halfFloor", MutableDateTime.ROUND_HALF_FLOOR);
-        rounding.put("half_ceiling", MutableDateTime.ROUND_HALF_CEILING);
-        rounding.put("halfCeiling", MutableDateTime.ROUND_HALF_CEILING);
     }
 
     @Override
@@ -96,10 +85,11 @@ public class DateHistogramFacetProcessor extends AbstractComponent implements Fa
         String valueScript = null;
         String scriptLang = null;
         Map<String, Object> params = null;
-        boolean intervalSet = false;
-        long interval = 1;
-        String sInterval = null;
-        MutableDateTime dateTime = new MutableDateTime(DateTimeZone.UTC);
+        String interval = null;
+        DateTimeZone preZone = DateTimeZone.UTC;
+        DateTimeZone postZone = DateTimeZone.UTC;
+        float factor = 1.0f;
+        Chronology chronology = ISOChronology.getInstanceUTC();
         DateHistogramFacet.ComparatorType comparatorType = DateHistogramFacet.ComparatorType.TIME;
         XContentParser.Token token;
         String fieldName = null;
@@ -118,29 +108,15 @@ public class DateHistogramFacetProcessor extends AbstractComponent implements Fa
                 } else if ("value_field".equals(fieldName) || "valueField".equals(fieldName)) {
                     valueField = parser.text();
                 } else if ("interval".equals(fieldName)) {
-                    intervalSet = true;
-                    if (token == XContentParser.Token.VALUE_NUMBER) {
-                        interval = parser.longValue();
-                    } else {
-                        sInterval = parser.text();
-                    }
+                    interval = parser.text();
                 } else if ("time_zone".equals(fieldName) || "timeZone".equals(fieldName)) {
-                    if (token == XContentParser.Token.VALUE_NUMBER) {
-                        dateTime.setZone(DateTimeZone.forOffsetHours(parser.intValue()));
-                    } else {
-                        String text = parser.text();
-                        int index = text.indexOf(':');
-                        if (index != -1) {
-                            // format like -02:30
-                            dateTime.setZone(DateTimeZone.forOffsetHoursMinutes(
-                                    Integer.parseInt(text.substring(0, index)),
-                                    Integer.parseInt(text.substring(index + 1))
-                            ));
-                        } else {
-                            // id, listed here: http://joda-time.sourceforge.net/timezones.html
-                            dateTime.setZone(DateTimeZone.forID(text));
-                        }
-                    }
+                    preZone = parseZone(parser, token);
+                } else if ("pre_zone".equals(fieldName) || "preZone".equals(fieldName)) {
+                    preZone = parseZone(parser, token);
+                } else if ("post_zone".equals(fieldName) || "postZone".equals(fieldName)) {
+                    postZone = parseZone(parser, token);
+                } else if ("factor".equals(fieldName)) {
+                    factor = parser.floatValue();
                 } else if ("value_script".equals(fieldName) || "valueScript".equals(fieldName)) {
                     valueScript = parser.text();
                 } else if ("order".equals(fieldName) || "comparator".equals(fieldName)) {
@@ -163,48 +139,46 @@ public class DateHistogramFacetProcessor extends AbstractComponent implements Fa
             throw new FacetPhaseExecutionException(facetName, "(key) field [" + keyField + "] is not of type date");
         }
 
-        if (!intervalSet) {
+        if (interval == null) {
             throw new FacetPhaseExecutionException(facetName, "[interval] is required to be set for histogram facet");
         }
 
-        // we set the rounding after we set the zone, for it to take affect
-        if (sInterval != null) {
-            int index = sInterval.indexOf(':');
-            if (index != -1) {
-                // set with rounding
-                DateFieldParser fieldParser = dateFieldParsers.get(sInterval.substring(0, index));
-                if (fieldParser == null) {
-                    throw new FacetPhaseExecutionException(facetName, "failed to parse interval [" + sInterval + "] with custom rounding using built in intervals (year/month/...)");
-                }
-                DateTimeField field = fieldParser.parse(dateTime.getChronology());
-                int rounding = this.rounding.get(sInterval.substring(index + 1));
-                if (rounding == -1) {
-                    throw new FacetPhaseExecutionException(facetName, "failed to parse interval [" + sInterval + "], rounding type [" + (sInterval.substring(index + 1)) + "] not found");
-                }
-                dateTime.setRounding(field, rounding);
-            } else {
-                DateFieldParser fieldParser = dateFieldParsers.get(sInterval);
-                if (fieldParser != null) {
-                    DateTimeField field = fieldParser.parse(dateTime.getChronology());
-                    dateTime.setRounding(field, MutableDateTime.ROUND_FLOOR);
-                } else {
-                    // time interval
-                    try {
-                        interval = TimeValue.parseTimeValue(sInterval, null).millis();
-                    } catch (Exception e) {
-                        throw new FacetPhaseExecutionException(facetName, "failed to parse interval [" + sInterval + "], tried both as built in intervals (year/month/...) and as a time format");
-                    }
-                }
-            }
+        TimeZoneRounding.Builder tzRoundingBuilder;
+        DateFieldParser fieldParser = dateFieldParsers.get(interval);
+        if (fieldParser != null) {
+            tzRoundingBuilder = TimeZoneRounding.builder(fieldParser.parse(chronology));
+        } else {
+            // the interval is a time value?
+            tzRoundingBuilder = TimeZoneRounding.builder(TimeValue.parseTimeValue(interval, null));
         }
 
+        TimeZoneRounding tzRounding = tzRoundingBuilder.preZone(preZone).postZone(postZone).factor(factor).build();
 
         if (valueScript != null) {
-            return new ValueScriptDateHistogramFacetCollector(facetName, keyField, scriptLang, valueScript, params, dateTime, interval, comparatorType, context);
+            return new ValueScriptDateHistogramFacetCollector(facetName, keyField, scriptLang, valueScript, params, tzRounding, comparatorType, context);
         } else if (valueField == null) {
-            return new CountDateHistogramFacetCollector(facetName, keyField, dateTime, interval, comparatorType, context);
+            return new CountDateHistogramFacetCollector(facetName, keyField, tzRounding, comparatorType, context);
         } else {
-            return new ValueDateHistogramFacetCollector(facetName, keyField, valueField, dateTime, interval, comparatorType, context);
+            return new ValueDateHistogramFacetCollector(facetName, keyField, valueField, tzRounding, comparatorType, context);
+        }
+    }
+
+    private DateTimeZone parseZone(XContentParser parser, XContentParser.Token token) throws IOException {
+        if (token == XContentParser.Token.VALUE_NUMBER) {
+            return DateTimeZone.forOffsetHours(parser.intValue());
+        } else {
+            String text = parser.text();
+            int index = text.indexOf(':');
+            if (index != -1) {
+                // format like -02:30
+                return DateTimeZone.forOffsetHoursMinutes(
+                        Integer.parseInt(text.substring(0, index)),
+                        Integer.parseInt(text.substring(index + 1))
+                );
+            } else {
+                // id, listed here: http://joda-time.sourceforge.net/timezones.html
+                return DateTimeZone.forID(text);
+            }
         }
     }
 

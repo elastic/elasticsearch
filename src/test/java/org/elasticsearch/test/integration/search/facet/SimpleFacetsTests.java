@@ -1424,19 +1424,19 @@ public class SimpleFacetsTests extends AbstractNodesTests {
             facet = searchResponse.facets().facet("stats2");
             assertThat(facet.name(), equalTo("stats2"));
             assertThat(facet.entries().size(), equalTo(2));
-            assertThat(facet.entries().get(0).time(), equalTo(timeInMillis("2009-03-04", DateTimeZone.forOffsetHours(-2))));
+            assertThat(facet.entries().get(0).time(), equalTo(utcTimeInMillis("2009-03-04")));
             assertThat(facet.entries().get(0).count(), equalTo(1l));
-            assertThat(facet.entries().get(1).time(), equalTo(timeInMillis("2009-03-05", DateTimeZone.forOffsetHours(-2))));
+            assertThat(facet.entries().get(1).time(), equalTo(utcTimeInMillis("2009-03-05")));
             assertThat(facet.entries().get(1).count(), equalTo(2l));
 
             // time zone causes the dates to shift by 2
             facet = searchResponse.facets().facet("stats3");
             assertThat(facet.name(), equalTo("stats3"));
             assertThat(facet.entries().size(), equalTo(2));
-            assertThat(facet.entries().get(0).time(), equalTo(timeInMillis("2009-03-04", DateTimeZone.forOffsetHours(-2))));
+            assertThat(facet.entries().get(0).time(), equalTo(utcTimeInMillis("2009-03-04")));
             assertThat(facet.entries().get(0).count(), equalTo(1l));
             assertThat(facet.entries().get(0).total(), equalTo(1d));
-            assertThat(facet.entries().get(1).time(), equalTo(timeInMillis("2009-03-05", DateTimeZone.forOffsetHours(-2))));
+            assertThat(facet.entries().get(1).time(), equalTo(utcTimeInMillis("2009-03-05")));
             assertThat(facet.entries().get(1).count(), equalTo(2l));
             assertThat(facet.entries().get(1).total(), equalTo(5d));
 
@@ -1444,10 +1444,10 @@ public class SimpleFacetsTests extends AbstractNodesTests {
             facet = searchResponse.facets().facet("stats4");
             assertThat(facet.name(), equalTo("stats4"));
             assertThat(facet.entries().size(), equalTo(2));
-            assertThat(facet.entries().get(0).time(), equalTo(timeInMillis("2009-03-04", DateTimeZone.forOffsetHours(-2))));
+            assertThat(facet.entries().get(0).time(), equalTo(utcTimeInMillis("2009-03-04")));
             assertThat(facet.entries().get(0).count(), equalTo(1l));
             assertThat(facet.entries().get(0).total(), equalTo(2d));
-            assertThat(facet.entries().get(1).time(), equalTo(timeInMillis("2009-03-05", DateTimeZone.forOffsetHours(-2))));
+            assertThat(facet.entries().get(1).time(), equalTo(utcTimeInMillis("2009-03-05")));
             assertThat(facet.entries().get(1).count(), equalTo(2l));
             assertThat(facet.entries().get(1).total(), equalTo(10d));
 

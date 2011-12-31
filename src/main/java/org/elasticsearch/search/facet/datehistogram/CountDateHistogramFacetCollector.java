@@ -22,6 +22,7 @@ package org.elasticsearch.search.facet.datehistogram;
 import gnu.trove.map.hash.TLongLongHashMap;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.common.joda.TimeZoneRounding;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.longs.LongFieldData;
@@ -31,21 +32,16 @@ import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.internal.SearchContext;
-import org.joda.time.MutableDateTime;
 
 import java.io.IOException;
 
 /**
  * A date histogram facet collector that uses the same field as the key as well as the
  * value.
- *
- *
  */
 public class CountDateHistogramFacetCollector extends AbstractFacetCollector {
 
     private final String indexFieldName;
-
-    private final MutableDateTime dateTime;
 
     private final DateHistogramFacet.ComparatorType comparatorType;
 
@@ -57,9 +53,8 @@ public class CountDateHistogramFacetCollector extends AbstractFacetCollector {
 
     private final DateHistogramProc histoProc;
 
-    public CountDateHistogramFacetCollector(String facetName, String fieldName, MutableDateTime dateTime, long interval, DateHistogramFacet.ComparatorType comparatorType, SearchContext context) {
+    public CountDateHistogramFacetCollector(String facetName, String fieldName, TimeZoneRounding tzRounding, DateHistogramFacet.ComparatorType comparatorType, SearchContext context) {
         super(facetName);
-        this.dateTime = dateTime;
         this.comparatorType = comparatorType;
         this.fieldDataCache = context.fieldDataCache();
 
@@ -77,17 +72,12 @@ public class CountDateHistogramFacetCollector extends AbstractFacetCollector {
 
         indexFieldName = mapper.names().indexName();
         fieldDataType = mapper.fieldDataType();
-
-        if (interval == 1) {
-            histoProc = new DateHistogramProc();
-        } else {
-            histoProc = new IntervalDateHistogramProc(interval);
-        }
+        histoProc = new DateHistogramProc(tzRounding);
     }
 
     @Override
     protected void doCollect(int doc) throws IOException {
-        fieldData.forEachValueInDoc(doc, dateTime, histoProc);
+        fieldData.forEachValueInDoc(doc, histoProc);
     }
 
     @Override
@@ -100,36 +90,23 @@ public class CountDateHistogramFacetCollector extends AbstractFacetCollector {
         return new InternalCountDateHistogramFacet(facetName, comparatorType, histoProc.counts(), true);
     }
 
-    public static long bucket(long value, long interval) {
-        return ((value / interval) * interval);
-    }
+    public static class DateHistogramProc implements LongFieldData.LongValueInDocProc {
 
-    public static class DateHistogramProc implements LongFieldData.DateValueInDocProc {
+        private final TLongLongHashMap counts = CacheRecycler.popLongLongMap();
 
-        protected final TLongLongHashMap counts = CacheRecycler.popLongLongMap();
+        private final TimeZoneRounding tzRounding;
+
+        public DateHistogramProc(TimeZoneRounding tzRounding) {
+            this.tzRounding = tzRounding;
+        }
 
         @Override
-        public void onValue(int docId, MutableDateTime dateTime) {
-            counts.adjustOrPutValue(dateTime.getMillis(), 1, 1);
+        public void onValue(int docId, long value) {
+            counts.adjustOrPutValue(tzRounding.calc(value), 1, 1);
         }
 
         public TLongLongHashMap counts() {
             return counts;
-        }
-    }
-
-    public static class IntervalDateHistogramProc extends DateHistogramProc {
-
-        private final long interval;
-
-        public IntervalDateHistogramProc(long interval) {
-            this.interval = interval;
-        }
-
-        @Override
-        public void onValue(int docId, MutableDateTime dateTime) {
-            long bucket = bucket(dateTime.getMillis(), interval);
-            counts.adjustOrPutValue(bucket, 1, 1);
         }
     }
 }

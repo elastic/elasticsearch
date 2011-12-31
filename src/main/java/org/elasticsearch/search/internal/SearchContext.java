@@ -55,6 +55,7 @@ import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.scan.ScanContext;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -105,6 +106,9 @@ public class SearchContext implements Releasable {
     private final QuerySearchResult queryResult;
 
     private final FetchSearchResult fetchResult;
+
+    // lazy initialized only if needed
+    private ScanContext scanContext;
 
     private float queryBoost = 1.0f;
 
@@ -180,6 +184,9 @@ public class SearchContext implements Releasable {
 
     @Override
     public boolean release() throws ElasticSearchException {
+        if (scanContext != null) {
+            scanContext.clear();
+        }
         // clear and scope phase we  have
         if (scopePhases != null) {
             for (ScopePhase scopePhase : scopePhases) {
@@ -545,6 +552,13 @@ public class SearchContext implements Releasable {
             nestedQueries = new HashMap<String, BlockJoinQuery>();
         }
         nestedQueries.put(scope, query);
+    }
+
+    public ScanContext scanContext() {
+        if (scanContext == null) {
+            scanContext = new ScanContext();
+        }
+        return scanContext;
     }
 
     public MapperService.SmartNameFieldMappers smartFieldMappers(String name) {

@@ -53,6 +53,8 @@ public class Lucene {
 
     public static final int NO_DOC = -1;
 
+    public static ScoreDoc[] EMPTY_SCORE_DOCS = new ScoreDoc[0];
+
     public static Version parseVersion(@Nullable String version, Version defaultVersion, ESLogger logger) {
         if (version == null) {
             return defaultVersion;

@@ -222,6 +222,10 @@ public class SearchScanScrollingTests extends AbstractNodesTests {
                 }
             }
             client.prepareIndex("test", "type1", id).setRouting(routing).setSource("field", i).execute().actionGet();
+            // make some segments
+            if (i % 10 == 0) {
+                client.admin().indices().prepareFlush().execute().actionGet();
+            }
         }
 
         client.admin().indices().prepareRefresh().execute().actionGet();

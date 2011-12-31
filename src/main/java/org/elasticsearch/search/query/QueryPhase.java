@@ -176,20 +176,6 @@ public class QueryPhase implements SearchPhase {
                 // if 0 was asked, change it to 1 since 0 is not allowed
                 numDocs = 1;
             }
-            boolean sort = false;
-            // try and optimize for a case where the sorting is based on score, this is how we work by default!
-            if (searchContext.sort() != null) {
-                if (searchContext.sort().getSort().length > 1) {
-                    sort = true;
-                } else {
-                    SortField sortField = searchContext.sort().getSort()[0];
-                    if (sortField.getType() == SortField.SCORE && !sortField.getReverse()) {
-                        sort = false;
-                    } else {
-                        sort = true;
-                    }
-                }
-            }
 
             if (searchContext.searchType() == SearchType.COUNT) {
                 CountCollector countCollector = new CountCollector();
@@ -207,7 +193,7 @@ public class QueryPhase implements SearchPhase {
                     // all is well
                 }
                 topDocs = scanCollector.topDocs();
-            } else if (sort) {
+            } else if (searchContext.sort() != null) {
                 topDocs = searchContext.searcher().search(query, null, numDocs, searchContext.sort());
             } else {
                 topDocs = searchContext.searcher().search(query, numDocs);

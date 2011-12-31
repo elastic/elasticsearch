@@ -76,7 +76,21 @@ public class SortParseElement implements SearchParseElement {
             addCompoundSortField(parser, context, sortFields);
         }
         if (!sortFields.isEmpty()) {
-            context.sort(new Sort(sortFields.toArray(new SortField[sortFields.size()])));
+            // optimize if we just sort on score non reversed, we don't really need sorting
+            boolean sort;
+            if (sortFields.size() > 1) {
+                sort = true;
+            } else {
+                SortField sortField = sortFields.get(0);
+                if (sortField.getType() == SortField.SCORE && !sortField.getReverse()) {
+                    sort = false;
+                } else {
+                    sort = true;
+                }
+            }
+            if (sort) {
+                context.sort(new Sort(sortFields.toArray(new SortField[sortFields.size()])));
+            }
         }
     }
 

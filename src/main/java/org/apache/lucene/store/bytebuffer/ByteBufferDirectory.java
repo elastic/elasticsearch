@@ -28,6 +28,7 @@ import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * A memory based directory that uses {@link java.nio.ByteBuffer} in order to store the directory content.
@@ -47,6 +48,8 @@ public class ByteBufferDirectory extends Directory {
     private final ByteBufferAllocator allocator;
 
     private final boolean internalAllocator;
+
+    final AtomicLong sizeInBytes = new AtomicLong();
 
     /**
      * Constructs a new directory using {@link PlainByteBufferAllocator}.
@@ -72,6 +75,13 @@ public class ByteBufferDirectory extends Directory {
         } catch (IOException e) {
             // will not happen
         }
+    }
+
+    /**
+     * Returns the size in bytes of the directory, chunk by buffer size.
+     */
+    public long sizeInBytes() {
+        return sizeInBytes.get();
     }
 
     public void sync(Collection<String> names) throws IOException {
@@ -123,6 +133,7 @@ public class ByteBufferDirectory extends Directory {
         ByteBufferFile file = files.remove(name);
         if (file == null)
             throw new FileNotFoundException(name);
+        sizeInBytes.addAndGet(-file.sizeInBytes.get());
         file.delete();
     }
 
@@ -143,6 +154,7 @@ public class ByteBufferDirectory extends Directory {
         ByteBufferFile file = new ByteBufferFile(this, allocator.sizeInBytes(allocatorType));
         ByteBufferFile existing = files.put(name, file);
         if (existing != null) {
+            sizeInBytes.addAndGet(-existing.sizeInBytes.get());
             existing.delete();
         }
         return new ByteBufferIndexOutput(name, allocator, allocatorType, file);

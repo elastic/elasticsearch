@@ -20,6 +20,7 @@ package org.apache.lucene.store.bytebuffer;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  */
@@ -34,6 +35,8 @@ public class ByteBufferFile {
     private volatile long lastModified = System.currentTimeMillis();
 
     private final AtomicInteger refCount = new AtomicInteger(1);
+
+    final AtomicLong sizeInBytes = new AtomicLong();
 
     public ByteBufferFile(ByteBufferDirectory dir, int bufferSize) {
         this.dir = dir;
@@ -60,6 +63,8 @@ public class ByteBufferFile {
 
     protected final void addBuffer(ByteBuffer buffer) {
         buffers.add(buffer);
+        sizeInBytes.addAndGet(buffer.remaining());
+        dir.sizeInBytes.addAndGet(buffer.remaining());
     }
 
     protected final ByteBuffer getBuffer(int index) {

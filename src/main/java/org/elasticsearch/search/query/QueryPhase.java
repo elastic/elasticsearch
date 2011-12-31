@@ -179,11 +179,7 @@ public class QueryPhase implements SearchPhase {
 
             if (searchContext.searchType() == SearchType.COUNT) {
                 CountCollector countCollector = new CountCollector();
-                try {
-                    searchContext.searcher().search(query, countCollector);
-                } catch (ScanCollector.StopCollectingException e) {
-                    // all is well
-                }
+                searchContext.searcher().search(query, countCollector);
                 topDocs = countCollector.topDocs();
             } else if (searchContext.searchType() == SearchType.SCAN) {
                 ScanCollector scanCollector = new ScanCollector(searchContext.from(), searchContext.size(), searchContext.trackScores());

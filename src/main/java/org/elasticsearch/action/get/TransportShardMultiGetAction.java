@@ -22,6 +22,7 @@ package org.elasticsearch.action.get;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.single.shard.TransportShardSingleOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -63,12 +64,12 @@ public class TransportShardMultiGetAction extends TransportShardSingleOperationA
 
     @Override
     protected String transportAction() {
-        return "indices/mget/shard";
+        return TransportActions.MULTI_GET + "/shard";
     }
 
     @Override
     protected String transportShardAction() {
-        return "indices/mget/shard/s";
+        return TransportActions.MULTI_GET + "/shard/s";
     }
 
     @Override

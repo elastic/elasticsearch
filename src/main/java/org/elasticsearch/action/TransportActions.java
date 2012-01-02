@@ -24,39 +24,26 @@ package org.elasticsearch.action;
  */
 public class TransportActions {
 
-    public static final String BULK = "indices/bulk";
-
-    public static final String INDEX = "indices/index/shard/index";
-
+    public static final String BULK = "bulk";
+    public static final String INDEX = "index";
     public static final String UPDATE = "update";
-
-    public static final String COUNT = "indices/count";
-
-    public static final String DELETE = "indices/index/shard/delete";
-
-    public static final String DELETE_BY_QUERY = "indices/deleteByQuery";
-
-    public static final String GET = "indices/get";
-
-    public static final String MULTI_GET = "indices/mget";
-
-    public static final String SEARCH = "indices/search";
-
-    public static final String SEARCH_SCROLL = "indices/searchScroll";
-
-    public static final String TERMS = "indices/terms";
-
-    public static final String MORE_LIKE_THIS = "indices/moreLikeThis";
-
-    public static final String PERCOLATE = "indices/percolate";
+    public static final String COUNT = "count";
+    public static final String DELETE = "delete";
+    public static final String DELETE_BY_QUERY = "deleteByQuery";
+    public static final String GET = "get";
+    public static final String MULTI_GET = "mget";
+    public static final String SEARCH = "search";
+    public static final String SEARCH_SCROLL = "searchScroll";
+    public static final String MORE_LIKE_THIS = "mlt";
+    public static final String PERCOLATE = "percolate";
 
     public static class Admin {
 
         public static class Indices {
-            public static final String CREATE = "indices/createIndex";
-            public static final String DELETE = "indices/deleteIndex";
-            public static final String OPEN = "indices/openIndex";
-            public static final String CLOSE = "indices/closeIndex";
+            public static final String CREATE = "indices/create";
+            public static final String DELETE = "indices/delete";
+            public static final String OPEN = "indices/open";
+            public static final String CLOSE = "indices/close";
             public static final String FLUSH = "indices/flush";
             public static final String REFRESH = "indices/refresh";
             public static final String OPTIMIZE = "indices/optimize";

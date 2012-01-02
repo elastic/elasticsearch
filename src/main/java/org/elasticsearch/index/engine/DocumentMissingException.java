@@ -33,6 +33,6 @@ public class DocumentMissingException extends EngineException {
 
     @Override
     public RestStatus status() {
-        return RestStatus.CONFLICT;
+        return RestStatus.NOT_FOUND;
     }
 }

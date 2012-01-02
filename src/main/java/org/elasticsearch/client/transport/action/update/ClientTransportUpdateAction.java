@@ -17,18 +17,28 @@
  * under the License.
  */
 
-package org.elasticsearch.test.integration.document;
+package org.elasticsearch.client.transport.action.update;
 
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.action.TransportActions;
+import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.client.transport.action.support.BaseClientTransportAction;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.transport.TransportService;
 
 /**
  *
  */
-public class LocalDocumentActionsTests extends DocumentActionsTests {
+public class ClientTransportUpdateAction extends BaseClientTransportAction<UpdateRequest, UpdateResponse> {
+
+    @Inject
+    public ClientTransportUpdateAction(Settings settings, TransportService transportService) {
+        super(settings, transportService, UpdateResponse.class);
+    }
 
     @Override
-    protected Settings nodeSettings() {
-        return ImmutableSettings.settingsBuilder().put("node.local", true).build();
+    protected String action() {
+        return TransportActions.UPDATE;
     }
 }

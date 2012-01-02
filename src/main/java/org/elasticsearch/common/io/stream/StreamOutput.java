@@ -19,8 +19,13 @@
 
 package org.elasticsearch.common.io.stream;
 
+import org.elasticsearch.common.Nullable;
+
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -208,5 +213,68 @@ public abstract class StreamOutput extends OutputStream {
     @Override
     public void write(byte[] b, int off, int len) throws IOException {
         writeBytes(b, off, len);
+    }
+
+    public void writeMap(@Nullable Map<String, Object> map) throws IOException {
+        writeValue(map);
+    }
+
+    private void writeValue(@Nullable Object value) throws IOException {
+        if (value == null) {
+            writeByte((byte) -1);
+            return;
+        }
+        Class type = value.getClass();
+        if (type == String.class) {
+            writeByte((byte) 0);
+            writeUTF((String) value);
+        } else if (type == Integer.class) {
+            writeByte((byte) 1);
+            writeInt((Integer) value);
+        } else if (type == Long.class) {
+            writeByte((byte) 2);
+            writeLong((Long) value);
+        } else if (type == Float.class) {
+            writeByte((byte) 3);
+            writeFloat((Float) value);
+        } else if (type == Double.class) {
+            writeByte((byte) 4);
+            writeDouble((Double) value);
+        } else if (type == Boolean.class) {
+            writeByte((byte) 5);
+            writeBoolean((Boolean) value);
+        } else if (type == byte[].class) {
+            writeByte((byte) 6);
+            writeVInt(((byte[]) value).length);
+            writeBytes(((byte[]) value));
+        } else if (value instanceof List) {
+            writeByte((byte) 7);
+            List list = (List) value;
+            writeVInt(list.size());
+            for (Object o : list) {
+                writeValue(o);
+            }
+        } else if (value instanceof Object[]) {
+            writeByte((byte) 8);
+            Object[] list = (Object[]) value;
+            writeVInt(list.length);
+            for (Object o : list) {
+                writeValue(o);
+            }
+        } else if (value instanceof Map) {
+            if (value instanceof LinkedHashMap) {
+                writeByte((byte) 9);
+            } else {
+                writeByte((byte) 10);
+            }
+            Map<String, Object> map = (Map<String, Object>) value;
+            writeVInt(map.size());
+            for (Map.Entry<String, Object> entry : map.entrySet()) {
+                writeUTF(entry.getKey());
+                writeValue(entry.getValue());
+            }
+        } else {
+            throw new IOException("Can't write type [" + type + "]");
+        }
     }
 }

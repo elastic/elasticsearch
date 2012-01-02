@@ -43,6 +43,8 @@ import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.client.transport.action.ClientTransportActionModule;
@@ -80,8 +82,6 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
  * <p/>
  * <p>The transport client important modules used is the {@link org.elasticsearch.transport.TransportModule} which is
  * started in client mode (only connects, no bind).
- *
- *
  */
 public class TransportClient extends AbstractClient {
 
@@ -257,6 +257,16 @@ public class TransportClient extends AbstractClient {
     @Override
     public void index(IndexRequest request, ActionListener<IndexResponse> listener) {
         internalClient.index(request, listener);
+    }
+
+    @Override
+    public ActionFuture<UpdateResponse> update(UpdateRequest request) {
+        return internalClient.update(request);
+    }
+
+    @Override
+    public void update(UpdateRequest request, ActionListener<UpdateResponse> listener) {
+        internalClient.update(request, listener);
     }
 
     @Override

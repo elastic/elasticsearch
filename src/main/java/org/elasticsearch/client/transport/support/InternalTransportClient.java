@@ -42,6 +42,8 @@ import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.client.support.AbstractClient;
@@ -57,6 +59,7 @@ import org.elasticsearch.client.transport.action.mlt.ClientTransportMoreLikeThis
 import org.elasticsearch.client.transport.action.percolate.ClientTransportPercolateAction;
 import org.elasticsearch.client.transport.action.search.ClientTransportSearchAction;
 import org.elasticsearch.client.transport.action.search.ClientTransportSearchScrollAction;
+import org.elasticsearch.client.transport.action.update.ClientTransportUpdateAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -74,6 +77,8 @@ public class InternalTransportClient extends AbstractClient implements InternalC
     private final InternalTransportAdminClient adminClient;
 
     private final ClientTransportIndexAction indexAction;
+
+    private final ClientTransportUpdateAction updateAction;
 
     private final ClientTransportDeleteAction deleteAction;
 
@@ -98,7 +103,7 @@ public class InternalTransportClient extends AbstractClient implements InternalC
     @Inject
     public InternalTransportClient(Settings settings, ThreadPool threadPool,
                                    TransportClientNodesService nodesService, InternalTransportAdminClient adminClient,
-                                   ClientTransportIndexAction indexAction, ClientTransportDeleteAction deleteAction, ClientTransportBulkAction bulkAction, ClientTransportGetAction getAction, ClientTransportMultiGetAction multiGetAction,
+                                   ClientTransportIndexAction indexAction, ClientTransportUpdateAction updateAction, ClientTransportDeleteAction deleteAction, ClientTransportBulkAction bulkAction, ClientTransportGetAction getAction, ClientTransportMultiGetAction multiGetAction,
                                    ClientTransportDeleteByQueryAction deleteByQueryAction, ClientTransportCountAction countAction,
                                    ClientTransportSearchAction searchAction, ClientTransportSearchScrollAction searchScrollAction,
                                    ClientTransportMoreLikeThisAction moreLikeThisAction, ClientTransportPercolateAction percolateAction) {
@@ -107,6 +112,7 @@ public class InternalTransportClient extends AbstractClient implements InternalC
         this.adminClient = adminClient;
 
         this.indexAction = indexAction;
+        this.updateAction = updateAction;
         this.deleteAction = deleteAction;
         this.bulkAction = bulkAction;
         this.getAction = getAction;
@@ -150,6 +156,26 @@ public class InternalTransportClient extends AbstractClient implements InternalC
             @Override
             public void doWithNode(DiscoveryNode node, ActionListener<IndexResponse> listener) throws ElasticSearchException {
                 indexAction.execute(node, request, listener);
+            }
+        }, listener);
+    }
+
+    @Override
+    public ActionFuture<UpdateResponse> update(final UpdateRequest request) {
+        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<UpdateResponse>>() {
+            @Override
+            public ActionFuture<UpdateResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
+                return updateAction.execute(node, request);
+            }
+        });
+    }
+
+    @Override
+    public void update(final UpdateRequest request, final ActionListener<UpdateResponse> listener) {
+        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<UpdateResponse>() {
+            @Override
+            public void doWithNode(DiscoveryNode node, ActionListener<UpdateResponse> listener) throws ElasticSearchException {
+                updateAction.execute(node, request, listener);
             }
         }, listener);
     }

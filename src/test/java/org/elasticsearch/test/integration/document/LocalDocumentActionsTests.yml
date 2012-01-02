@@ -1,8 +1,0 @@
-node:
-  local: true
-cluster:
-  routing:
-    schedule: 100ms
-index:
-  number_of_shards: 5
-  number_of_replicas: 1

@@ -230,7 +230,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
         if (filtered) {
             // we don't update the context source if we filter, we want to keep it as is...
 
-            Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(data, dataOffset, dataLength);
+            Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(data, dataOffset, dataLength, true);
             Map<String, Object> filteredSource = XContentMapValues.filter(mapTuple.v2(), includes, excludes);
             CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
             StreamOutput streamOutput;

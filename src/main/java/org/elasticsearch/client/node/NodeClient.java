@@ -43,6 +43,9 @@ import org.elasticsearch.action.percolate.PercolateRequest;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.percolate.TransportPercolateAction;
 import org.elasticsearch.action.search.*;
+import org.elasticsearch.action.update.TransportUpdateAction;
+import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.client.support.AbstractClient;
@@ -60,6 +63,8 @@ public class NodeClient extends AbstractClient implements InternalClient {
     private final NodeAdminClient admin;
 
     private final TransportIndexAction indexAction;
+
+    private final TransportUpdateAction updateAction;
 
     private final TransportDeleteAction deleteAction;
 
@@ -83,13 +88,14 @@ public class NodeClient extends AbstractClient implements InternalClient {
 
     @Inject
     public NodeClient(Settings settings, ThreadPool threadPool, NodeAdminClient admin,
-                      TransportIndexAction indexAction, TransportDeleteAction deleteAction, TransportBulkAction bulkAction,
+                      TransportIndexAction indexAction, TransportUpdateAction updateAction, TransportDeleteAction deleteAction, TransportBulkAction bulkAction,
                       TransportDeleteByQueryAction deleteByQueryAction, TransportGetAction getAction, TransportMultiGetAction multiGetAction, TransportCountAction countAction,
                       TransportSearchAction searchAction, TransportSearchScrollAction searchScrollAction,
                       TransportMoreLikeThisAction moreLikeThisAction, TransportPercolateAction percolateAction) {
         this.threadPool = threadPool;
         this.admin = admin;
         this.indexAction = indexAction;
+        this.updateAction = updateAction;
         this.deleteAction = deleteAction;
         this.bulkAction = bulkAction;
         this.deleteByQueryAction = deleteByQueryAction;
@@ -125,6 +131,16 @@ public class NodeClient extends AbstractClient implements InternalClient {
     @Override
     public void index(IndexRequest request, ActionListener<IndexResponse> listener) {
         indexAction.execute(request, listener);
+    }
+
+    @Override
+    public ActionFuture<UpdateResponse> update(UpdateRequest request) {
+        return updateAction.execute(request);
+    }
+
+    @Override
+    public void update(UpdateRequest request, ActionListener<UpdateResponse> listener) {
+        updateAction.execute(request, listener);
     }
 
     @Override

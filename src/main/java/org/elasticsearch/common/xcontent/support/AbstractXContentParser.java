@@ -124,4 +124,13 @@ public abstract class AbstractXContentParser implements XContentParser {
             close();
         }
     }
+
+    @Override
+    public Map<String, Object> mapOrderedAndClose() throws IOException {
+        try {
+            return mapOrdered();
+        } finally {
+            close();
+        }
+    }
 }

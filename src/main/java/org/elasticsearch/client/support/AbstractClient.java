@@ -30,6 +30,7 @@ import org.elasticsearch.client.action.mlt.MoreLikeThisRequestBuilder;
 import org.elasticsearch.client.action.percolate.PercolateRequestBuilder;
 import org.elasticsearch.client.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.action.search.SearchScrollRequestBuilder;
+import org.elasticsearch.client.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.Nullable;
 
@@ -51,6 +52,16 @@ public abstract class AbstractClient implements InternalClient {
     @Override
     public IndexRequestBuilder prepareIndex(String index, String type, @Nullable String id) {
         return prepareIndex().setIndex(index).setType(type).setId(id);
+    }
+
+    @Override
+    public UpdateRequestBuilder prepareUpdate() {
+        return new UpdateRequestBuilder(this, null, null, null);
+    }
+
+    @Override
+    public UpdateRequestBuilder prepareUpdate(String index, String type, String id) {
+        return new UpdateRequestBuilder(this, index, type, id);
     }
 
     @Override

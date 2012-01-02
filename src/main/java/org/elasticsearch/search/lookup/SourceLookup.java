@@ -76,7 +76,7 @@ public class SourceLookup implements Map {
     }
 
     public static Map<String, Object> sourceAsMap(byte[] bytes, int offset, int length) throws ElasticSearchParseException {
-        return XContentHelper.convertToMap(bytes, offset, length).v2();
+        return XContentHelper.convertToMap(bytes, offset, length, false).v2();
     }
 
     public void setNextReader(IndexReader reader) {

@@ -20,6 +20,7 @@
             <useTransitiveFiltering>true</useTransitiveFiltering>
             <includes>
                 <include>com.amazonaws:aws-java-sdk</include>
+                <include>org.apache.httpcomponents:httpclient</include>
             </includes>
         </dependencySet>
     </dependencySets>

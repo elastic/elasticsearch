@@ -51,7 +51,19 @@
             <version>1.2.15</version>
             <scope>compile</scope>
             <exclusions>
+                <!-- We need to exclude httpclient, since it pulls the wrong version -->
+                <exclusion>
+                    <groupId>org.apache.httpcomponents</groupId>
+                    <artifactId>httpclient</artifactId>
+                </exclusion>
             </exclusions>
+        </dependency>
+
+        <!-- We need to explicitly set the http client version since aws-java-sdk pulls the wrong version -->
+        <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpclient</artifactId>
+            <version>4.1.1</version>
         </dependency>
 
         <dependency>

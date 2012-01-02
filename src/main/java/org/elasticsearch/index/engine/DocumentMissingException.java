@@ -25,9 +25,9 @@ import org.elasticsearch.rest.RestStatus;
 /**
  *
  */
-public class DocumentMissingEngineException extends EngineException {
+public class DocumentMissingException extends EngineException {
 
-    public DocumentMissingEngineException(ShardId shardId, String type, String id) {
+    public DocumentMissingException(ShardId shardId, String type, String id) {
         super(shardId, "[" + type + "][" + id + "]: document missing");
     }
 

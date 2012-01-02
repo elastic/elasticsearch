@@ -41,7 +41,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.engine.DocumentMissingEngineException;
+import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -279,7 +279,7 @@ public class DocumentActionsTests extends AbstractNodesTests {
         try {
             client1.prepareUpdate("test", "type1", "1").setScript("ctx._source.field++").execute().actionGet();
             assert false;
-        } catch (DocumentMissingEngineException e) {
+        } catch (DocumentMissingException e) {
             // all is well
         }
 

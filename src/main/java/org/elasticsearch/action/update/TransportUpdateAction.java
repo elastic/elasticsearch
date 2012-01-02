@@ -44,8 +44,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.engine.DocumentMissingEngineException;
-import org.elasticsearch.index.engine.DocumentSourceMissingEngineException;
+import org.elasticsearch.index.engine.DocumentMissingException;
+import org.elasticsearch.index.engine.DocumentSourceMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
@@ -151,13 +151,13 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
 
         // no doc, what to do, what to do...
         if (!getResult.exists()) {
-            listener.onFailure(new DocumentMissingEngineException(new ShardId(request.index(), request.shardId()), request.type(), request.id()));
+            listener.onFailure(new DocumentMissingException(new ShardId(request.index(), request.shardId()), request.type(), request.id()));
             return;
         }
 
         if (getResult.internalSourceRef() == null) {
             // no source, we can't do nothing, through a failure...
-            listener.onFailure(new DocumentSourceMissingEngineException(new ShardId(request.index(), request.shardId()), request.type(), request.id()));
+            listener.onFailure(new DocumentSourceMissingException(new ShardId(request.index(), request.shardId()), request.type(), request.id()));
             return;
         }
 

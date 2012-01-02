@@ -25,9 +25,9 @@ import org.elasticsearch.rest.RestStatus;
 /**
  *
  */
-public class DocumentAlreadyExistsEngineException extends EngineException {
+public class DocumentAlreadyExistsException extends EngineException {
 
-    public DocumentAlreadyExistsEngineException(ShardId shardId, String type, String id) {
+    public DocumentAlreadyExistsException(ShardId shardId, String type, String id) {
         super(shardId, "[" + type + "][" + id + "]: document already exists");
     }
 

@@ -342,7 +342,7 @@ public class MappingMetaData {
      * Converts the serialized compressed form of the mappings into a parsed map.
      */
     public Map<String, Object> sourceAsMap() throws IOException {
-        Map<String, Object> mapping = XContentHelper.convertToMap(source.compressed(), 0, source.compressed().length).v2();
+        Map<String, Object> mapping = XContentHelper.convertToMap(source.compressed(), 0, source.compressed().length, true).v2();
         if (mapping.size() == 1 && mapping.containsKey(type())) {
             // the type name is the root value, reduce it
             mapping = (Map<String, Object>) mapping.get(type());

@@ -1,13 +1,13 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
+ * Licensed to Elastic Search and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
+ * regarding copyright ownership. Elastic Search licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,18 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.test.integration.document;
+package org.elasticsearch.index.engine;
 
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.RestStatus;
 
 /**
  *
  */
-public class LocalDocumentActionsTests extends DocumentActionsTests {
+public class DocumentSourceMissingEngineException extends EngineException {
+
+    public DocumentSourceMissingEngineException(ShardId shardId, String type, String id) {
+        super(shardId, "[" + type + "][" + id + "]: document source missing");
+    }
 
     @Override
-    protected Settings nodeSettings() {
-        return ImmutableSettings.settingsBuilder().put("node.local", true).build();
+    public RestStatus status() {
+        return RestStatus.BAD_REQUEST;
     }
 }

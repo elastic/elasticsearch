@@ -22,6 +22,8 @@ package org.elasticsearch.test.integration.client.transport;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.network.NetworkUtils;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.test.integration.document.DocumentActionsTests;
@@ -38,6 +40,7 @@ public class TransportClientDocumentActionsTests extends DocumentActionsTests {
     protected Client getClient1() {
         TransportAddress server1Address = ((InternalNode) node("server1")).injector().getInstance(TransportService.class).boundAddress().publishAddress();
         TransportClient client = new TransportClient(settingsBuilder()
+                .put(nodeSettings())
                 .put("cluster.name", "test-cluster-" + NetworkUtils.getLocalAddress().getHostName())
                 .put("client.transport.sniff", false).build());
         client.addTransportAddress(server1Address);
@@ -48,9 +51,15 @@ public class TransportClientDocumentActionsTests extends DocumentActionsTests {
     protected Client getClient2() {
         TransportAddress server2Address = ((InternalNode) node("server2")).injector().getInstance(TransportService.class).boundAddress().publishAddress();
         TransportClient client = new TransportClient(settingsBuilder()
+                .put(nodeSettings())
                 .put("cluster.name", "test-cluster-" + NetworkUtils.getLocalAddress().getHostName())
                 .put("client.transport.sniff", false).build());
         client.addTransportAddress(server2Address);
         return client;
+    }
+
+    @Override
+    protected Settings nodeSettings() {
+        return ImmutableSettings.settingsBuilder().put("client.transport.nodes_sampler_interval", "30s").build();
     }
 }

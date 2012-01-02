@@ -61,6 +61,7 @@ import org.elasticsearch.client.transport.action.index.ClientTransportIndexActio
 import org.elasticsearch.client.transport.action.percolate.ClientTransportPercolateAction;
 import org.elasticsearch.client.transport.action.search.ClientTransportSearchAction;
 import org.elasticsearch.client.transport.action.search.ClientTransportSearchScrollAction;
+import org.elasticsearch.client.transport.action.update.ClientTransportUpdateAction;
 import org.elasticsearch.common.inject.AbstractModule;
 
 /**
@@ -80,6 +81,7 @@ public class ClientTransportActionModule extends AbstractModule {
         bind(ClientTransportSearchScrollAction.class).asEagerSingleton();
         bind(ClientTransportBulkAction.class).asEagerSingleton();
         bind(ClientTransportPercolateAction.class).asEagerSingleton();
+        bind(ClientTransportUpdateAction.class).asEagerSingleton();
 
         bind(ClientTransportIndicesExistsAction.class).asEagerSingleton();
         bind(ClientTransportIndicesStatsAction.class).asEagerSingleton();

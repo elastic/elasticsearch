@@ -71,6 +71,7 @@ import org.elasticsearch.action.percolate.TransportPercolateAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.action.search.type.*;
+import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.common.inject.AbstractModule;
 
 /**
@@ -126,6 +127,7 @@ public class TransportActionModule extends AbstractModule {
         bind(TransportIndexDeleteAction.class).asEagerSingleton();
         bind(TransportShardDeleteAction.class).asEagerSingleton();
         bind(TransportCountAction.class).asEagerSingleton();
+        bind(TransportUpdateAction.class).asEagerSingleton();
 
         bind(TransportMultiGetAction.class).asEagerSingleton();
         bind(TransportShardMultiGetAction.class).asEagerSingleton();

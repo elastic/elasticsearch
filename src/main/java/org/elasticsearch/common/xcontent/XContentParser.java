@@ -122,6 +122,8 @@ public interface XContentParser {
 
     Map<String, Object> mapAndClose() throws IOException;
 
+    Map<String, Object> mapOrderedAndClose() throws IOException;
+
     String text() throws IOException;
 
     String textOrNull() throws IOException;

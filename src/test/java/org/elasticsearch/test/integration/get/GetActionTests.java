@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test.integration.document;
+package org.elasticsearch.test.integration.get;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;

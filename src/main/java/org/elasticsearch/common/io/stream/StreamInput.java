@@ -19,9 +19,12 @@
 
 package org.elasticsearch.common.io.stream;
 
+import org.elasticsearch.common.Nullable;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UTFDataFormatException;
+import java.util.*;
 
 /**
  *
@@ -249,4 +252,65 @@ public abstract class StreamInput extends InputStream {
 //        readBytes(b, off, len);
 //        return len;
 //    }
+
+    public
+    @Nullable
+    Map<String, Object> readMap() throws IOException {
+        return (Map<String, Object>) readFieldValue();
+    }
+
+    @SuppressWarnings({"unchecked"})
+    private
+    @Nullable
+    Object readFieldValue() throws IOException {
+        byte type = readByte();
+        if (type == -1) {
+            return null;
+        } else if (type == 0) {
+            return readUTF();
+        } else if (type == 1) {
+            return readInt();
+        } else if (type == 2) {
+            return readLong();
+        } else if (type == 3) {
+            return readFloat();
+        } else if (type == 4) {
+            return readDouble();
+        } else if (type == 5) {
+            return readBoolean();
+        } else if (type == 6) {
+            int bytesSize = readVInt();
+            byte[] value = new byte[bytesSize];
+            readFully(value);
+            return value;
+        } else if (type == 7) {
+            int size = readVInt();
+            List list = new ArrayList(size);
+            for (int i = 0; i < size; i++) {
+                list.add(readFieldValue());
+            }
+            return list;
+        } else if (type == 8) {
+            int size = readVInt();
+            Object[] list = new Object[size];
+            for (int i = 0; i < size; i++) {
+                list[i] = readFieldValue();
+            }
+            return list;
+        } else if (type == 9 || type == 10) {
+            int size = readVInt();
+            Map map;
+            if (type == 9) {
+                map = new LinkedHashMap(size);
+            } else {
+                map = new HashMap(size);
+            }
+            for (int i = 0; i < size; i++) {
+                map.put(readUTF(), readFieldValue());
+            }
+            return map;
+        } else {
+            throw new IOException("Can't read unknown type [" + type + "]");
+        }
+    }
 }

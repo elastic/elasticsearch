@@ -28,6 +28,8 @@ public class TransportActions {
 
     public static final String INDEX = "indices/index/shard/index";
 
+    public static final String UPDATE = "update";
+
     public static final String COUNT = "indices/count";
 
     public static final String DELETE = "indices/index/shard/delete";

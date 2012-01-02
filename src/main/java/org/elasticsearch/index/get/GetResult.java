@@ -180,6 +180,13 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
     }
 
     /**
+     * Internal source representation, might be compressed....
+     */
+    public BytesHolder internalSourceRef() {
+        return source;
+    }
+
+    /**
      * Is the source empty (not available) or not.
      */
     public boolean isSourceEmpty() {

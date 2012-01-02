@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RoutingMissingException;
+import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -102,7 +103,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
 
     @Override
     protected String transportAction() {
-        return "indices/index/shard/bulk";
+        return TransportActions.BULK + "/shard";
     }
 
     @Override

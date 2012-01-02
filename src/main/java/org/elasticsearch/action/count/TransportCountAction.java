@@ -69,7 +69,7 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
 
     @Override
     protected String transportShardAction() {
-        return "indices/count/shard";
+        return TransportActions.COUNT + "/shard";
     }
 
     @Override

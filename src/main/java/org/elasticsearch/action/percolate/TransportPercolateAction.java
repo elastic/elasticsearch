@@ -70,7 +70,7 @@ public class TransportPercolateAction extends TransportSingleCustomOperationActi
 
     @Override
     protected String transportShardAction() {
-        return "indices/percolate/shard";
+        return TransportActions.PERCOLATE + "/shard";
     }
 
     @Override

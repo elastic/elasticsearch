@@ -40,8 +40,6 @@ import org.elasticsearch.transport.TransportService;
 
 /**
  * Performs the get operation.
- *
- *
  */
 public class TransportGetAction extends TransportShardSingleOperationAction<GetRequest, GetResponse> {
 
@@ -70,7 +68,7 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
 
     @Override
     protected String transportShardAction() {
-        return "indices/get/shard";
+        return TransportActions.GET + "/shard";
     }
 
     @Override

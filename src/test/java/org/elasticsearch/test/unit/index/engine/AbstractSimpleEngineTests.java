@@ -61,7 +61,6 @@ import java.util.concurrent.Future;
 import static org.elasticsearch.common.lucene.DocumentBuilder.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
-import static org.elasticsearch.test.unit.index.engine.EngineSearcherTotalHitsMatcher.engineSearcherTotalHits;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
@@ -825,7 +824,7 @@ public abstract class AbstractSimpleEngineTests {
         try {
             engine.create(create);
             assert false;
-        } catch (DocumentAlreadyExistsEngineException e) {
+        } catch (DocumentAlreadyExistsException e) {
             // all is well
         }
     }
@@ -843,7 +842,7 @@ public abstract class AbstractSimpleEngineTests {
         try {
             engine.create(create);
             assert false;
-        } catch (DocumentAlreadyExistsEngineException e) {
+        } catch (DocumentAlreadyExistsException e) {
             // all is well
         }
     }

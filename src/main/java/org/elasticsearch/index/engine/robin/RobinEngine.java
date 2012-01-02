@@ -439,7 +439,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                     if (create.origin() == Operation.Origin.RECOVERY) {
                         return;
                     } else {
-                        throw new DocumentAlreadyExistsEngineException(shardId, create.type(), create.id());
+                        throw new DocumentAlreadyExistsException(shardId, create.type(), create.id());
                     }
                 }
             } else if (currentVersion != -1) {
@@ -447,7 +447,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                 if (create.origin() == Operation.Origin.RECOVERY) {
                     return;
                 } else {
-                    throw new DocumentAlreadyExistsEngineException(shardId, create.type(), create.id());
+                    throw new DocumentAlreadyExistsException(shardId, create.type(), create.id());
                 }
             }
 

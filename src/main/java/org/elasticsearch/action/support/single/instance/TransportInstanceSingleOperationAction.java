@@ -83,10 +83,6 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
 
     }
 
-    protected boolean retryRequired(ShardIterator shardIt, ClusterState state) {
-        return false;
-    }
-
     protected boolean retryOnFailure(Throwable e) {
         return false;
     }

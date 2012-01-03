@@ -11,8 +11,22 @@
         <fileSet>
             <directory>bin</directory>
             <outputDirectory>bin</outputDirectory>
+            <lineEnding>dos</lineEnding>
             <includes>
-                <include>*</include>
+                <include>elasticsearch.bat</include>
+                <include>plugin.bat</include>
+            </includes>
+        </fileSet>
+        <fileSet>
+            <directory>bin</directory>
+            <outputDirectory>bin</outputDirectory>
+            <fileMode>0755</fileMode>
+            <directoryMode>0755</directoryMode>
+            <lineEnding>unix</lineEnding>
+            <includes>
+                <include>elasticsearch.in.sh</include>
+                <include>elasticsearch</include>
+                <include>plugin</include>
             </includes>
         </fileSet>
 

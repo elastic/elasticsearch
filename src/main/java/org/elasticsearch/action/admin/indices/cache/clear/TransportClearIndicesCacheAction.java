@@ -43,8 +43,6 @@ import static com.google.common.collect.Lists.newArrayList;
 
 /**
  * Indices clear cache action.
- *
- *
  */
 public class TransportClearIndicesCacheAction extends TransportBroadcastOperationAction<ClearIndicesCacheRequest, ClearIndicesCacheResponse, ShardClearIndicesCacheRequest, ShardClearIndicesCacheResponse> {
 
@@ -66,12 +64,6 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastOperatio
     protected String transportAction() {
         return TransportActions.Admin.Indices.Cache.CLEAR;
     }
-
-    @Override
-    protected String transportShardAction() {
-        return "indices/cache/clear/shard";
-    }
-
 
     @Override
     protected ClearIndicesCacheRequest newRequest() {

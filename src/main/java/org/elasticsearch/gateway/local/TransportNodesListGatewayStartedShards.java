@@ -75,11 +75,6 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
     }
 
     @Override
-    protected String transportNodeAction() {
-        return "/gateway/local/started-shards/node";
-    }
-
-    @Override
     protected boolean transportCompress() {
         return true; // this can become big...
     }

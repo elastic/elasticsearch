@@ -70,11 +70,6 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
     }
 
     @Override
-    protected String transportShardAction() {
-        return "indices/validateQuery/shard";
-    }
-
-    @Override
     protected ValidateQueryRequest newRequest() {
         return new ValidateQueryRequest();
     }

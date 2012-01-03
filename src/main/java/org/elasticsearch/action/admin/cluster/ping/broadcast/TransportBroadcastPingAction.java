@@ -60,11 +60,6 @@ public class TransportBroadcastPingAction extends TransportBroadcastOperationAct
     }
 
     @Override
-    protected String transportShardAction() {
-        return "/cluster/ping/broadcast/shard";
-    }
-
-    @Override
     protected BroadcastPingRequest newRequest() {
         return new BroadcastPingRequest();
     }

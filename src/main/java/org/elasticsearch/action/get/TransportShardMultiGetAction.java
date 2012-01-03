@@ -64,11 +64,6 @@ public class TransportShardMultiGetAction extends TransportShardSingleOperationA
     }
 
     @Override
-    protected String transportShardAction() {
-        return TransportActions.MULTI_GET + "/shard/s";
-    }
-
-    @Override
     protected MultiGetShardRequest newRequest() {
         return new MultiGetShardRequest();
     }

@@ -67,11 +67,6 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
     }
 
     @Override
-    protected String transportShardAction() {
-        return TransportActions.GET + "/shard";
-    }
-
-    @Override
     protected void checkBlock(GetRequest request, ClusterState state) {
         state.blocks().indexBlockedRaiseException(ClusterBlockLevel.READ, request.index());
     }

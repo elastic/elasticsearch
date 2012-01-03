@@ -73,11 +73,6 @@ public class TransportNodesListGatewayMetaState extends TransportNodesOperationA
     }
 
     @Override
-    protected String transportNodeAction() {
-        return "/gateway/local/meta-state/node";
-    }
-
-    @Override
     protected boolean transportCompress() {
         return true; // compress since the metadata can become large
     }

@@ -71,11 +71,6 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastOperationA
     }
 
     @Override
-    protected String transportShardAction() {
-        return "indices/segments/shard";
-    }
-
-    @Override
     protected IndicesSegmentsRequest newRequest() {
         return new IndicesSegmentsRequest();
     }

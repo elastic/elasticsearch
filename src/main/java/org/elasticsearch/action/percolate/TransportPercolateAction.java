@@ -69,11 +69,6 @@ public class TransportPercolateAction extends TransportSingleCustomOperationActi
     }
 
     @Override
-    protected String transportShardAction() {
-        return TransportActions.PERCOLATE + "/shard";
-    }
-
-    @Override
     protected ShardsIterator shards(ClusterState clusterState, PercolateRequest request) {
         request.index(clusterState.metaData().concreteIndex(request.index()));
         return clusterState.routingTable().index(request.index()).randomAllActiveShardsIt();

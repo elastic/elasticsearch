@@ -44,8 +44,6 @@ import static com.google.common.collect.Lists.newArrayList;
 
 /**
  * Optimize index/indices action.
- *
- *
  */
 public class TransportOptimizeAction extends TransportBroadcastOperationAction<OptimizeRequest, OptimizeResponse, ShardOptimizeRequest, ShardOptimizeResponse> {
 
@@ -68,11 +66,6 @@ public class TransportOptimizeAction extends TransportBroadcastOperationAction<O
     @Override
     protected String transportAction() {
         return TransportActions.Admin.Indices.OPTIMIZE;
-    }
-
-    @Override
-    protected String transportShardAction() {
-        return "indices/optimize/shard";
     }
 
     @Override

@@ -61,11 +61,6 @@ public class TransportNodesInfoAction extends TransportNodesOperationAction<Node
     }
 
     @Override
-    protected String transportNodeAction() {
-        return "/cluster/nodes/info/node";
-    }
-
-    @Override
     protected NodesInfoResponse newResponse(NodesInfoRequest nodesInfoRequest, AtomicReferenceArray responses) {
         final List<NodeInfo> nodesInfos = new ArrayList<NodeInfo>();
         for (int i = 0; i < responses.length(); i++) {

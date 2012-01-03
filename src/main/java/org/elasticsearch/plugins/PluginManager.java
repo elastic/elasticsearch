@@ -208,6 +208,14 @@ public class PluginManager {
             pluginFile.delete();
         }
 
+        File binFile = new File(extractLocation, "bin");
+        if (binFile.exists() && binFile.isDirectory()) {
+            File toLocation = new File(new File(environment.homeFile(), "bin"), name);
+            System.out.println("Found bin, moving to " + toLocation.getAbsolutePath());
+            FileSystemUtils.deleteRecursively(toLocation);
+            binFile.renameTo(toLocation);
+        }
+
         // try and identify the plugin type, see if it has no .class or .jar files in it
         // so its probably a _site, and it it does not have a _site in it, move everything to _site
         if (!new File(extractLocation, "_site").exists()) {
@@ -232,6 +240,10 @@ public class PluginManager {
         pluginToDelete = new File(environment.pluginsFile(), name + ".zip");
         if (pluginToDelete.exists()) {
             pluginToDelete.delete();
+        }
+        File binLocation = new File(new File(environment.homeFile(), "bin"), name);
+        if (binLocation.exists()) {
+            FileSystemUtils.deleteRecursively(binLocation);
         }
     }
 

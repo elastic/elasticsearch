@@ -71,11 +71,6 @@ public class TransportRefreshAction extends TransportBroadcastOperationAction<Re
     }
 
     @Override
-    protected String transportShardAction() {
-        return "indices/refresh/shard";
-    }
-
-    @Override
     protected RefreshRequest newRequest() {
         return new RefreshRequest();
     }

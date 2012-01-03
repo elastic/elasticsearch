@@ -80,11 +80,6 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
     }
 
     @Override
-    protected String transportShardAction() {
-        return "indices/status/shard";
-    }
-
-    @Override
     protected IndicesStatusRequest newRequest() {
         return new IndicesStatusRequest();
     }

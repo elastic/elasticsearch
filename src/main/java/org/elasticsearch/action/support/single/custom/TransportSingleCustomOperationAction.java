@@ -58,7 +58,7 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
         this.transportService = transportService;
 
         this.transportAction = transportAction();
-        this.transportShardAction = transportShardAction();
+        this.transportShardAction = transportAction() + "/s";
         this.executor = executor();
 
         transportService.registerHandler(transportAction, new TransportHandler());
@@ -71,8 +71,6 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
     }
 
     protected abstract String transportAction();
-
-    protected abstract String transportShardAction();
 
     protected abstract String executor();
 

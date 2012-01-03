@@ -61,11 +61,6 @@ public class TransportNodesStatsAction extends TransportNodesOperationAction<Nod
     }
 
     @Override
-    protected String transportNodeAction() {
-        return "/cluster/nodes/stats/node";
-    }
-
-    @Override
     protected NodesStatsResponse newResponse(NodesStatsRequest nodesInfoRequest, AtomicReferenceArray responses) {
         final List<NodeStats> nodeStats = Lists.newArrayList();
         for (int i = 0; i < responses.length(); i++) {

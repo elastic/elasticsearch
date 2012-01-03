@@ -61,7 +61,7 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
         this.transportService = transportService;
 
         this.transportAction = transportAction();
-        this.transportNodeAction = transportNodeAction();
+        this.transportNodeAction = transportAction() + "/n";
         this.executor = executor();
 
         transportService.registerHandler(transportAction, new TransportHandler());
@@ -74,8 +74,6 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
     }
 
     protected abstract String transportAction();
-
-    protected abstract String transportNodeAction();
 
     protected boolean transportCompress() {
         return false;

@@ -80,11 +80,6 @@ public class TransportNodesRestartAction extends TransportNodesOperationAction<N
     }
 
     @Override
-    protected String transportNodeAction() {
-        return "/cluster/nodes/restart/node";
-    }
-
-    @Override
     protected NodesRestartResponse newResponse(NodesRestartRequest nodesShutdownRequest, AtomicReferenceArray responses) {
         final List<NodesRestartResponse.NodeRestartResponse> nodeRestartResponses = newArrayList();
         for (int i = 0; i < responses.length(); i++) {

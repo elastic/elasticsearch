@@ -65,11 +65,6 @@ public class TransportGatewaySnapshotAction extends TransportBroadcastOperationA
     }
 
     @Override
-    protected String transportShardAction() {
-        return "indices/gateway/snapshot/shard";
-    }
-
-    @Override
     protected GatewaySnapshotRequest newRequest() {
         return new GatewaySnapshotRequest();
     }

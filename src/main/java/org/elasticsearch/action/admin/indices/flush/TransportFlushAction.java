@@ -44,8 +44,6 @@ import static com.google.common.collect.Lists.newArrayList;
 
 /**
  * Flush Action.
- *
- *
  */
 public class TransportFlushAction extends TransportBroadcastOperationAction<FlushRequest, FlushResponse, ShardFlushRequest, ShardFlushResponse> {
 
@@ -65,11 +63,6 @@ public class TransportFlushAction extends TransportBroadcastOperationAction<Flus
     @Override
     protected String transportAction() {
         return TransportActions.Admin.Indices.FLUSH;
-    }
-
-    @Override
-    protected String transportShardAction() {
-        return "indices/flush/shard";
     }
 
     @Override

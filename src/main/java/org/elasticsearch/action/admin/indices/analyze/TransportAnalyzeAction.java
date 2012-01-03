@@ -87,11 +87,6 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
     }
 
     @Override
-    protected String transportShardAction() {
-        return "indices/analyze/shard";
-    }
-
-    @Override
     protected ShardsIterator shards(ClusterState clusterState, AnalyzeRequest request) {
         if (request.index() == null) {
             // just execute locally....

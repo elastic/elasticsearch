@@ -49,11 +49,21 @@ public class BoostScoreFunction implements ScoreFunction {
     }
 
     @Override
-    public Explanation explain(int docId, Explanation subQueryExpl) {
+    public float factor(int docId) {
+        return boost;
+    }
+
+    @Override
+    public Explanation explainScore(int docId, Explanation subQueryExpl) {
         Explanation exp = new Explanation(boost * subQueryExpl.getValue(), "static boost function: product of:");
         exp.addDetail(subQueryExpl);
         exp.addDetail(new Explanation(boost, "boostFactor"));
         return exp;
+    }
+
+    @Override
+    public Explanation explainFactor(int docId) {
+        return new Explanation(boost, "boostFactor");
     }
 
     @Override
@@ -71,5 +81,10 @@ public class BoostScoreFunction implements ScoreFunction {
     @Override
     public int hashCode() {
         return (boost != +0.0f ? Float.floatToIntBits(boost) : 0);
+    }
+
+    @Override
+    public String toString() {
+        return "boost[" + boost + "]";
     }
 }

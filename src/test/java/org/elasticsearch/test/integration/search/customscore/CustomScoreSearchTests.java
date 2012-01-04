@@ -164,8 +164,8 @@ public class CustomScoreSearchTests extends AbstractNodesTests {
 
         SearchResponse searchResponse = client.prepareSearch("test")
                 .setQuery(customFiltersScoreQuery(matchAllQuery())
-                        .add(termFilter("field", "value4"), "_score * 2")
-                        .add(termFilter("field", "value2"), "_score * 3"))
+                        .add(termFilter("field", "value4"), "2")
+                        .add(termFilter("field", "value2"), "3"))
                 .setExplain(true)
                 .execute().actionGet();
 

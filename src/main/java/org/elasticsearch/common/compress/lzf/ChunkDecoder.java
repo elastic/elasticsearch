@@ -163,7 +163,7 @@ public abstract class ChunkDecoder {
             ++blockNr;
         }
         // one more sanity check:
-        if (ptr != data.length) {
+        if (ptr != end) {
             throw new IOException("Corrupt input data: block #" + blockNr + " extends " + (data.length - ptr) + " beyond end of input");
         }
         return uncompressedSize;

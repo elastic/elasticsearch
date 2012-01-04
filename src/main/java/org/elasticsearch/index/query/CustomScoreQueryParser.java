@@ -125,11 +125,23 @@ public class CustomScoreQueryParser implements QueryParser {
         }
 
         @Override
-        public Explanation explain(int docId, Explanation subQueryExpl) {
+        public float factor(int docId) {
+            // just the factor, so don't provide _score
+            script.setNextDocId(docId);
+            return script.runAsFloat();
+        }
+
+        @Override
+        public Explanation explainScore(int docId, Explanation subQueryExpl) {
             float score = score(docId, subQueryExpl.getValue());
             Explanation exp = new Explanation(score, "script score function: product of:");
             exp.addDetail(subQueryExpl);
             return exp;
+        }
+
+        @Override
+        public Explanation explainFactor(int docId) {
+            return new Explanation(factor(docId), "scriptFactor");
         }
 
         @Override

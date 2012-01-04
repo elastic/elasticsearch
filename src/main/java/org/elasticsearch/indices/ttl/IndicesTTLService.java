@@ -42,9 +42,10 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.internal.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.mapper.selector.UidFieldSelector;
+import org.elasticsearch.index.mapper.selector.UidAndRoutingFieldSelector;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.service.IndexShard;
@@ -173,7 +174,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
                 List<DocToPurge> docsToPurge = expiredDocsCollector.getDocsToPurge();
                 BulkRequestBuilder bulkRequest = client.prepareBulk();
                 for (DocToPurge docToPurge : docsToPurge) {
-                    bulkRequest.add(new DeleteRequest().index(shardToPurge.routingEntry().index()).type(docToPurge.type).id(docToPurge.id).version(docToPurge.version));
+                    bulkRequest.add(new DeleteRequest().index(shardToPurge.routingEntry().index()).type(docToPurge.type).id(docToPurge.id).version(docToPurge.version).routing(docToPurge.routing));
                     bulkRequest = processBulkIfNeeded(bulkRequest, false);
                 }
                 processBulkIfNeeded(bulkRequest, true);
@@ -189,11 +190,13 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
         public final String type;
         public final String id;
         public final long version;
+        public final String routing;
 
-        public DocToPurge(String type, String id, long version) {
+        public DocToPurge(String type, String id, long version, String routing) {
             this.type = type;
             this.id = id;
             this.version = version;
+            this.routing = routing;
         }
     }
 
@@ -213,11 +216,12 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
 
         public void collect(int doc) {
             try {
-                Document document = indexReader.document(doc, UidFieldSelector.INSTANCE);
+                Document document = indexReader.document(doc, new UidAndRoutingFieldSelector());
                 String uid = document.getFieldable(UidFieldMapper.NAME).stringValue();
                 long version = UidField.loadVersion(indexReader, UidFieldMapper.TERM_FACTORY.createTerm(uid));
-                docsToPurge.add(new DocToPurge(Uid.typeFromUid(uid), Uid.idFromUid(uid), version));
+                docsToPurge.add(new DocToPurge(Uid.typeFromUid(uid), Uid.idFromUid(uid), version, document.get(RoutingFieldMapper.NAME)));
             } catch (Exception e) {
+                logger.trace("failed to collect doc", e);
             }
         }
 

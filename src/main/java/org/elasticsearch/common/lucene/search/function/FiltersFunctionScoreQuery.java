@@ -165,7 +165,7 @@ public class FiltersFunctionScoreQuery extends Query {
                     if (docSet.get(doc)) {
                         filterFunction.function.setNextReader(reader);
                         Explanation functionExplanation = filterFunction.function.explainFactor(doc);
-                        float sc = getValue() * functionExplanation.getValue();
+                        float sc = getValue() * subQueryExpl.getValue() * functionExplanation.getValue();
                         Explanation res = new ComplexExplanation(true, sc, "custom score, product of:");
                         res.addDetail(new Explanation(1.0f, "match filter: " + filterFunction.filter.toString()));
                         res.addDetail(functionExplanation);
@@ -185,13 +185,13 @@ public class FiltersFunctionScoreQuery extends Query {
                     if (docSet.get(doc)) {
                         filterFunction.function.setNextReader(reader);
                         Explanation functionExplanation = filterFunction.function.explainFactor(doc);
-                        float sc = functionExplanation.getValue();
+                        float factor = functionExplanation.getValue();
                         count++;
-                        total += sc;
-                        multiply *= sc;
-                        max = Math.max(sc, max);
-                        min = Math.min(sc, min);
-                        Explanation res = new ComplexExplanation(true, sc, "custom score, product of:");
+                        total += factor;
+                        multiply *= factor;
+                        max = Math.max(factor, max);
+                        min = Math.min(factor, min);
+                        Explanation res = new ComplexExplanation(true, factor, "custom score, product of:");
                         res.addDetail(new Explanation(1.0f, "match filter: " + filterFunction.filter.toString()));
                         res.addDetail(functionExplanation);
                         res.addDetail(new Explanation(getValue(), "queryBoost"));
@@ -199,25 +199,26 @@ public class FiltersFunctionScoreQuery extends Query {
                     }
                 }
                 if (count > 0) {
-                    float sc = 0;
+                    float factor = 0;
                     switch (scoreMode) {
                         case Avg:
-                            sc = total / count;
+                            factor = total / count;
                             break;
                         case Max:
-                            sc = max;
+                            factor = max;
                             break;
                         case Min:
-                            sc = min;
+                            factor = min;
                             break;
                         case Total:
-                            sc = total;
+                            factor = total;
                             break;
                         case Multiply:
-                            sc = multiply;
+                            factor = multiply;
                             break;
                     }
-                    sc *= getValue();
+
+                    float sc = factor * subQueryExpl.getValue() * getValue();
                     Explanation res = new ComplexExplanation(true, sc, "custom score, score mode [" + scoreMode.toString().toLowerCase() + "]");
                     res.addDetail(subQueryExpl);
                     for (Explanation explanation : filtersExplanations) {

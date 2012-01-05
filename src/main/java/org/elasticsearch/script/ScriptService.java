@@ -19,9 +19,10 @@
 
 package org.elasticsearch.script;
 
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.MapMaker;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -54,7 +55,8 @@ public class ScriptService extends AbstractComponent {
 
     private final ConcurrentMap<String, CompiledScript> staticCache = ConcurrentCollections.newConcurrentMap();
 
-    private final ConcurrentMap<CacheKey, CompiledScript> cache = new MapMaker().softValues().makeMap();
+    // TODO expose some cache aspects like expiration and max size
+    private final Cache<CacheKey, CompiledScript> cache = CacheBuilder.newBuilder().build();
 
     public ScriptService(Settings settings) {
         this(settings, new Environment(), ImmutableSet.<ScriptEngineService>builder()
@@ -141,7 +143,7 @@ public class ScriptService extends AbstractComponent {
             lang = defaultLang;
         }
         CacheKey cacheKey = new CacheKey(lang, script);
-        compiled = cache.get(cacheKey);
+        compiled = cache.getIfPresent(cacheKey);
         if (compiled != null) {
             return compiled;
         }
@@ -180,7 +182,7 @@ public class ScriptService extends AbstractComponent {
     }
 
     public void clear() {
-        cache.clear();
+        cache.invalidateAll();
     }
 
     public static class CacheKey {

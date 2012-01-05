@@ -204,7 +204,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 public void onFailure(Throwable e) {
                     e = ExceptionsHelper.unwrapCause(e);
                     if (e instanceof VersionConflictEngineException) {
-                        if ((retryCount + 1) < request.retryOnConflict()) {
+                        if (retryCount < request.retryOnConflict()) {
                             threadPool.executor(executor()).execute(new Runnable() {
                                 @Override
                                 public void run() {
@@ -231,7 +231,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 public void onFailure(Throwable e) {
                     e = ExceptionsHelper.unwrapCause(e);
                     if (e instanceof VersionConflictEngineException) {
-                        if ((retryCount + 1) < request.retryOnConflict()) {
+                        if (retryCount < request.retryOnConflict()) {
                             threadPool.executor(executor()).execute(new Runnable() {
                                 @Override
                                 public void run() {

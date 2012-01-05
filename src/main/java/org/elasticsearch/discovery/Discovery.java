@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.node.service.NodeService;
+import org.elasticsearch.rest.RestStatus;
 
 /**
  * A pluggable module allowing to implement discovery of other nodes, publishing of the cluster
@@ -34,7 +35,7 @@ import org.elasticsearch.node.service.NodeService;
  */
 public interface Discovery extends LifecycleComponent<Discovery> {
 
-    final ClusterBlock NO_MASTER_BLOCK = new ClusterBlock(2, "no master", true, true, ClusterBlockLevel.ALL);
+    final ClusterBlock NO_MASTER_BLOCK = new ClusterBlock(2, "no master", true, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL);
 
     DiscoveryNode localNode();
 

@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
+import org.elasticsearch.rest.RestStatus;
 
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 
@@ -43,7 +44,7 @@ import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
  */
 public class MetaDataStateIndexService extends AbstractComponent {
 
-    public static final ClusterBlock INDEX_CLOSED_BLOCK = new ClusterBlock(4, "index closed", false, false, ClusterBlockLevel.READ_WRITE);
+    public static final ClusterBlock INDEX_CLOSED_BLOCK = new ClusterBlock(4, "index closed", false, false, RestStatus.FORBIDDEN, ClusterBlockLevel.READ_WRITE);
 
     private final ClusterService clusterService;
 

@@ -32,8 +32,6 @@ import java.util.Set;
 
 /**
  * Represents current cluster level blocks to block dirty operations done against the cluster.
- *
- *
  */
 public class ClusterBlocks {
 
@@ -109,6 +107,20 @@ public class ClusterBlocks {
 
     public boolean hasIndexBlock(String index, ClusterBlock block) {
         return indicesBlocks.containsKey(index) && indicesBlocks.get(index).contains(block);
+    }
+
+    public void globalBlockedRaiseException(ClusterBlockLevel level) throws ClusterBlockException {
+        ClusterBlockException blockException = globalBlockedException(level);
+        if (blockException != null) {
+            throw blockException;
+        }
+    }
+
+    public ClusterBlockException globalBlockedException(ClusterBlockLevel level) {
+        if (global(level).isEmpty()) {
+            return null;
+        }
+        return new ClusterBlockException(ImmutableSet.copyOf(global(level)));
     }
 
     public void indexBlockedRaiseException(ClusterBlockLevel level, String index) throws ClusterBlockException {

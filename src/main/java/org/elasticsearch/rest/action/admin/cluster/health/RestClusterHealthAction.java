@@ -53,6 +53,7 @@ public class RestClusterHealthAction extends BaseRestHandler {
         ClusterHealthRequest clusterHealthRequest = clusterHealthRequest(RestActions.splitIndices(request.param("index")));
         int level = 0;
         try {
+            clusterHealthRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterHealthRequest.masterNodeTimeout()));
             clusterHealthRequest.timeout(request.paramAsTime("timeout", clusterHealthRequest.timeout()));
             String waitForStatus = request.param("wait_for_status");
             if (waitForStatus != null) {

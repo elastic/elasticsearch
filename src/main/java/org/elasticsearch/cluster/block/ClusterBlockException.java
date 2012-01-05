@@ -51,13 +51,21 @@ public class ClusterBlockException extends ElasticSearchException {
     private static String buildMessage(ImmutableSet<ClusterBlock> blocks) {
         StringBuilder sb = new StringBuilder("blocked by: ");
         for (ClusterBlock block : blocks) {
-            sb.append("[").append(block.id()).append("/").append(block.description()).append("];");
+            sb.append("[").append(block.status()).append("/").append(block.id()).append("/").append(block.description()).append("];");
         }
         return sb.toString();
     }
 
     @Override
     public RestStatus status() {
-        return RestStatus.SERVICE_UNAVAILABLE;
+        RestStatus status = null;
+        for (ClusterBlock block : blocks) {
+            if (status == null) {
+                status = block.status();
+            } else if (status.getStatus() < block.status().getStatus()) {
+                status = block.status();
+            }
+        }
+        return status;
     }
 }

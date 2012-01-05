@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -43,14 +44,17 @@ public class ClusterBlock implements Serializable, Streamable, ToXContent {
 
     private boolean disableStatePersistence = false;
 
+    private RestStatus status;
+
     ClusterBlock() {
     }
 
-    public ClusterBlock(int id, String description, boolean retryable, boolean disableStatePersistence, ClusterBlockLevel... levels) {
+    public ClusterBlock(int id, String description, boolean retryable, boolean disableStatePersistence, RestStatus status, ClusterBlockLevel... levels) {
         this.id = id;
         this.description = description;
         this.retryable = retryable;
         this.disableStatePersistence = disableStatePersistence;
+        this.status = status;
         this.levels = levels;
     }
 
@@ -60,6 +64,10 @@ public class ClusterBlock implements Serializable, Streamable, ToXContent {
 
     public String description() {
         return this.description;
+    }
+
+    public RestStatus status() {
+        return this.status;
     }
 
     public ClusterBlockLevel[] levels() {
@@ -123,6 +131,7 @@ public class ClusterBlock implements Serializable, Streamable, ToXContent {
         }
         retryable = in.readBoolean();
         disableStatePersistence = in.readBoolean();
+        status = RestStatus.readFrom(in);
     }
 
     @Override
@@ -135,6 +144,7 @@ public class ClusterBlock implements Serializable, Streamable, ToXContent {
         }
         out.writeBoolean(retryable);
         out.writeBoolean(disableStatePersistence);
+        RestStatus.writeTo(out, status);
     }
 
     public String toString() {

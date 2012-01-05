@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.block;
 
 import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.rest.RestStatus;
 
 /**
  *
@@ -53,5 +54,10 @@ public class ClusterBlockException extends ElasticSearchException {
             sb.append("[").append(block.id()).append("/").append(block.description()).append("];");
         }
         return sb.toString();
+    }
+
+    @Override
+    public RestStatus status() {
+        return RestStatus.SERVICE_UNAVAILABLE;
     }
 }

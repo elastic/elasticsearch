@@ -33,7 +33,7 @@ public abstract class MasterNodeOperationRequest implements ActionRequest {
 
     public static TimeValue DEFAULT_MASTER_NODE_TIMEOUT = TimeValue.timeValueSeconds(30);
 
-    private TimeValue masterNodeTimeout = DEFAULT_MASTER_NODE_TIMEOUT;
+    protected TimeValue masterNodeTimeout = DEFAULT_MASTER_NODE_TIMEOUT;
 
     @Override
     public boolean listenerThreaded() {

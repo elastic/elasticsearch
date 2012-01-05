@@ -20,6 +20,7 @@
 package org.elasticsearch.discovery;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.rest.RestStatus;
 
 /**
  *
@@ -28,5 +29,10 @@ public class MasterNotDiscoveredException extends ElasticSearchException {
 
     public MasterNotDiscoveredException() {
         super("");
+    }
+
+    @Override
+    public RestStatus status() {
+        return RestStatus.SERVICE_UNAVAILABLE;
     }
 }

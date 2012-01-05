@@ -82,7 +82,7 @@ public final class Modules {
      * Returns a new module that installs all of {@code modules}.
      */
     public static Module combine(Module... modules) {
-        return combine(ImmutableSet.of(modules));
+        return combine(ImmutableSet.copyOf(modules));
     }
 
     /**

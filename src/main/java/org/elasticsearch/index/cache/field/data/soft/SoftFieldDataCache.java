@@ -19,9 +19,11 @@
 
 package org.elasticsearch.index.cache.field.data.soft;
 
-import com.google.common.collect.MapEvictionListener;
-import com.google.common.collect.MapMaker;
-import org.elasticsearch.common.Nullable;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.RemovalListener;
+import com.google.common.cache.RemovalNotification;
+import org.elasticsearch.common.cache.CacheBuilderHelper;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
@@ -30,12 +32,10 @@ import org.elasticsearch.index.cache.field.data.support.AbstractConcurrentMapFie
 import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.index.settings.IndexSettings;
 
-import java.util.concurrent.ConcurrentMap;
-
 /**
  *
  */
-public class SoftFieldDataCache extends AbstractConcurrentMapFieldDataCache implements MapEvictionListener<String, FieldData> {
+public class SoftFieldDataCache extends AbstractConcurrentMapFieldDataCache implements RemovalListener<String, FieldData> {
 
     private final CounterMetric evictions = new CounterMetric();
 
@@ -45,8 +45,10 @@ public class SoftFieldDataCache extends AbstractConcurrentMapFieldDataCache impl
     }
 
     @Override
-    protected ConcurrentMap<String, FieldData> buildFieldDataMap() {
-        return new MapMaker().softValues().evictionListener(this).makeMap();
+    protected Cache<String, FieldData> buildFieldDataMap() {
+        CacheBuilder<String, FieldData> cacheBuilder = CacheBuilder.newBuilder().softValues().removalListener(this);
+        CacheBuilderHelper.disableStats(cacheBuilder);
+        return cacheBuilder.build();
     }
 
     @Override
@@ -60,7 +62,9 @@ public class SoftFieldDataCache extends AbstractConcurrentMapFieldDataCache impl
     }
 
     @Override
-    public void onEviction(@Nullable String s, @Nullable FieldData fieldData) {
-        evictions.inc();
+    public void onRemoval(RemovalNotification<String, FieldData> removalNotification) {
+        if (removalNotification.wasEvicted()) {
+            evictions.inc();
+        }
     }
 }

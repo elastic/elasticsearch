@@ -59,7 +59,7 @@ import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.http.HttpServerModule;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.cache.filter.IndicesNodeFilterCache;
+import org.elasticsearch.indices.cache.filter.IndicesFilterCache;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.memory.IndexingMemoryController;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
@@ -271,7 +271,7 @@ public final class InternalNode implements Node {
         stopWatch.stop().start("indices_cluster");
         injector.getInstance(IndicesClusterStateService.class).close();
         stopWatch.stop().start("indices");
-        injector.getInstance(IndicesNodeFilterCache.class).close();
+        injector.getInstance(IndicesFilterCache.class).close();
         injector.getInstance(IndexingMemoryController.class).close();
         injector.getInstance(IndicesTTLService.class).close();
         injector.getInstance(IndicesService.class).close();

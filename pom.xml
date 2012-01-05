@@ -82,16 +82,9 @@
 
         <!-- START: dependencies that are shaded -->
         <dependency>
-            <groupId>com.googlecode.concurrentlinkedhashmap</groupId>
-            <artifactId>concurrentlinkedhashmap-lru</artifactId>
-            <version>1.2</version>
-            <scope>compile</scope>
-        </dependency>
-
-        <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
-            <version>10.0.1</version>
+            <version>11.0</version>
             <scope>compile</scope>
             <exclusions>
                 <exclusion>
@@ -315,7 +308,6 @@
                     <minimizeJar>true</minimizeJar>
                     <artifactSet>
                         <includes>
-                            <include>com.googlecode.concurrentlinkedhashmap:concurrentlinkedhashmap-lru</include>
                             <include>com.google.guava:guava</include>
                             <include>net.sf.trove4j:trove4j</include>
                             <include>org.elasticsearch:es-jsr166y</include>
@@ -330,10 +322,6 @@
                         </includes>
                     </artifactSet>
                     <relocations>
-                        <relocation>
-                            <pattern>com.googlecode.concurrentlinkedhashmap</pattern>
-                            <shadedPattern>org.elasticsearch.common.concurrentlinkedhashmap</shadedPattern>
-                        </relocation>
                         <relocation>
                             <pattern>com.google.common</pattern>
                             <shadedPattern>org.elasticsearch.common</shadedPattern>

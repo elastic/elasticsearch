@@ -49,7 +49,7 @@ public class UpdateRequest extends InstanceShardOperationRequest {
     @Nullable
     Map<String, Object> scriptParams;
 
-    int retryOnConflict = 1;
+    int retryOnConflict = 0;
 
     private ReplicationType replicationType = ReplicationType.DEFAULT;
     private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;

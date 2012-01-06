@@ -32,6 +32,8 @@ import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.single.custom.TransportSingleCustomOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FastStringReader;
@@ -87,13 +89,26 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
     }
 
     @Override
-    protected ShardsIterator shards(ClusterState clusterState, AnalyzeRequest request) {
+    protected ClusterBlockException checkGlobalBlock(ClusterState state, AnalyzeRequest request) {
+        return state.blocks().globalBlockedException(ClusterBlockLevel.READ);
+    }
+
+    @Override
+    protected ClusterBlockException checkRequestBlock(ClusterState state, AnalyzeRequest request) {
+        if (request.index() != null) {
+            request.index(state.metaData().concreteIndex(request.index()));
+            return state.blocks().indexBlockedException(ClusterBlockLevel.READ, request.index());
+        }
+        return null;
+    }
+
+    @Override
+    protected ShardsIterator shards(ClusterState state, AnalyzeRequest request) {
         if (request.index() == null) {
             // just execute locally....
             return null;
         }
-        request.index(clusterState.metaData().concreteIndex(request.index()));
-        return clusterState.routingTable().index(request.index()).randomAllActiveShardsIt();
+        return state.routingTable().index(request.index()).randomAllActiveShardsIt();
     }
 
     @Override

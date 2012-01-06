@@ -34,6 +34,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.BaseAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
@@ -138,6 +139,9 @@ public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
 
     private void executeBulk(final BulkRequest bulkRequest, final long startTime, final ActionListener<BulkResponse> listener) {
         ClusterState clusterState = clusterService.state();
+        // TODO use timeout to wait here if its blocked...
+        clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.WRITE);
+
         MetaData metaData = clusterState.metaData();
         for (ActionRequest request : bulkRequest.requests) {
             if (request instanceof IndexRequest) {
@@ -152,6 +156,7 @@ public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
                 indexRequest.process(metaData, aliasOrIndex, mappingMd, allowIdGeneration);
             } else if (request instanceof DeleteRequest) {
                 DeleteRequest deleteRequest = (DeleteRequest) request;
+                deleteRequest.routing(clusterState.metaData().resolveIndexRouting(deleteRequest.routing(), deleteRequest.index()));
                 deleteRequest.index(clusterState.metaData().concreteIndex(deleteRequest.index()));
             }
         }

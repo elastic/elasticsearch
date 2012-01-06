@@ -26,6 +26,7 @@ import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.BaseAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardIterator;
@@ -81,11 +82,15 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
 
     protected abstract Response newResponse();
 
-    protected void checkBlock(Request request, ClusterState state) {
+    protected abstract ClusterBlockException checkGlobalBlock(ClusterState state, Request request);
 
+    protected abstract ClusterBlockException checkRequestBlock(ClusterState state, Request request);
+
+    protected void resolveRequest(ClusterState state, Request request) {
+        request.index(state.metaData().concreteIndex(request.index()));
     }
 
-    protected abstract ShardIterator shards(ClusterState clusterState, Request request) throws ElasticSearchException;
+    protected abstract ShardIterator shards(ClusterState state, Request request) throws ElasticSearchException;
 
     class AsyncSingleAction {
 
@@ -102,12 +107,16 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
             this.listener = listener;
 
             ClusterState clusterState = clusterService.state();
-
             nodes = clusterState.nodes();
-
-            request.index(clusterState.metaData().concreteIndex(request.index()));
-
-            checkBlock(request, clusterState);
+            ClusterBlockException blockException = checkGlobalBlock(clusterState, request);
+            if (blockException != null) {
+                throw blockException;
+            }
+            resolveRequest(clusterState, request);
+            blockException = checkRequestBlock(clusterState, request);
+            if (blockException != null) {
+                throw blockException;
+            }
 
             this.shardIt = shards(clusterState, request);
         }

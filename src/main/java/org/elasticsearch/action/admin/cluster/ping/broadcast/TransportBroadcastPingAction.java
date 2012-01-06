@@ -27,6 +27,8 @@ import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedE
 import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
@@ -65,8 +67,18 @@ public class TransportBroadcastPingAction extends TransportBroadcastOperationAct
     }
 
     @Override
-    protected GroupShardsIterator shards(BroadcastPingRequest request, String[] concreteIndices, ClusterState clusterState) {
+    protected GroupShardsIterator shards(ClusterState clusterState, BroadcastPingRequest request, String[] concreteIndices) {
         return clusterService.operationRouting().searchShards(clusterState, request.indices(), concreteIndices, request.queryHint(), null, null);
+    }
+
+    @Override
+    protected ClusterBlockException checkGlobalBlock(ClusterState state, BroadcastPingRequest request) {
+        return state.blocks().globalBlockedException(ClusterBlockLevel.READ);
+    }
+
+    @Override
+    protected ClusterBlockException checkRequestBlock(ClusterState state, BroadcastPingRequest request, String[] concreteIndices) {
+        return null;
     }
 
     @Override

@@ -24,6 +24,8 @@ import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.single.shard.TransportShardSingleOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -51,7 +53,17 @@ public class TransportSinglePingAction extends TransportShardSingleOperationActi
     }
 
     @Override
-    protected ShardIterator shards(ClusterState clusterState, SinglePingRequest request) throws ElasticSearchException {
+    protected ClusterBlockException checkGlobalBlock(ClusterState state, SinglePingRequest request) {
+        return state.blocks().globalBlockedException(ClusterBlockLevel.READ);
+    }
+
+    @Override
+    protected ClusterBlockException checkRequestBlock(ClusterState state, SinglePingRequest singlePingRequest) {
+        return null;
+    }
+
+    @Override
+    protected ShardIterator shards(ClusterState state, SinglePingRequest request) throws ElasticSearchException {
         return clusterService.operationRouting()
                 .getShards(clusterService.state(), request.index(), request.type, request.id, null, null);
     }

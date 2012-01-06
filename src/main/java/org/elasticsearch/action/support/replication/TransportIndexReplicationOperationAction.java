@@ -26,6 +26,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.BaseAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.inject.Inject;
@@ -60,12 +61,17 @@ public abstract class TransportIndexReplicationOperationAction<Request extends I
 
     @Override
     protected void doExecute(final Request request, final ActionListener<Response> listener) {
-
         ClusterState clusterState = clusterService.state();
+        ClusterBlockException blockException = checkGlobalBlock(clusterState, request);
+        if (blockException != null) {
+            throw blockException;
+        }
         // update to concrete index
         request.index(clusterState.metaData().concreteIndex(request.index()));
-
-        checkBlock(request, clusterState);
+        blockException = checkRequestBlock(clusterState, request);
+        if (blockException != null) {
+            throw blockException;
+        }
 
         GroupShardsIterator groups;
         try {
@@ -122,9 +128,9 @@ public abstract class TransportIndexReplicationOperationAction<Request extends I
 
     protected abstract boolean accumulateExceptions();
 
-    protected void checkBlock(Request request, ClusterState state) {
+    protected abstract ClusterBlockException checkGlobalBlock(ClusterState state, Request request);
 
-    }
+    protected abstract ClusterBlockException checkRequestBlock(ClusterState state, Request request);
 
     private class TransportHandler extends BaseTransportRequestHandler<Request> {
 

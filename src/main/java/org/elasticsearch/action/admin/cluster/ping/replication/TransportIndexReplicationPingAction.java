@@ -21,6 +21,9 @@ package org.elasticsearch.action.admin.cluster.ping.replication;
 
 import org.elasticsearch.action.support.replication.TransportIndexReplicationOperationAction;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.inject.Inject;
@@ -84,5 +87,15 @@ public class TransportIndexReplicationPingAction extends TransportIndexReplicati
     @Override
     protected ShardReplicationPingRequest newShardRequestInstance(IndexReplicationPingRequest indexRequest, int shardId) {
         return new ShardReplicationPingRequest(indexRequest, shardId);
+    }
+
+    @Override
+    protected ClusterBlockException checkGlobalBlock(ClusterState state, IndexReplicationPingRequest request) {
+        return state.blocks().globalBlockedException(ClusterBlockLevel.READ);
+    }
+
+    @Override
+    protected ClusterBlockException checkRequestBlock(ClusterState state, IndexReplicationPingRequest request) {
+        return state.blocks().indexBlockedException(ClusterBlockLevel.READ, request.index());
     }
 }

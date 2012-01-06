@@ -25,6 +25,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.BaseAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -65,12 +66,16 @@ public abstract class TransportIndicesReplicationOperationAction<Request extends
     @Override
     protected void doExecute(final Request request, final ActionListener<Response> listener) {
         ClusterState clusterState = clusterService.state();
-
+        ClusterBlockException blockException = checkGlobalBlock(clusterState, request);
+        if (blockException != null) {
+            throw blockException;
+        }
         // get actual indices
-
         String[] concreteIndices = clusterState.metaData().concreteIndices(request.indices());
-
-        checkBlock(request, concreteIndices, clusterState);
+        blockException = checkRequestBlock(clusterState, request, concreteIndices);
+        if (blockException != null) {
+            throw blockException;
+        }
 
         final AtomicInteger indexCounter = new AtomicInteger();
         final AtomicInteger completionCounter = new AtomicInteger(concreteIndices.length);
@@ -120,9 +125,9 @@ public abstract class TransportIndicesReplicationOperationAction<Request extends
 
     protected abstract boolean accumulateExceptions();
 
-    protected void checkBlock(Request request, String[] concreteIndices, ClusterState state) {
+    protected abstract ClusterBlockException checkGlobalBlock(ClusterState state, Request request);
 
-    }
+    protected abstract ClusterBlockException checkRequestBlock(ClusterState state, Request request, String[] concreteIndices);
 
     private class TransportHandler extends BaseTransportRequestHandler<Request> {
 

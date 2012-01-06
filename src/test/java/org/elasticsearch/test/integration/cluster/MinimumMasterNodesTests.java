@@ -67,6 +67,7 @@ public class MinimumMasterNodesTests extends AbstractZenNodesTests {
 
 
         Settings settings = settingsBuilder()
+                .put("discovery.type", "zen")
                 .put("discovery.zen.minimum_master_nodes", 2)
                 .put("discovery.zen.ping_timeout", "200ms")
                 .put("discovery.initial_state_timeout", "500ms")
@@ -194,6 +195,7 @@ public class MinimumMasterNodesTests extends AbstractZenNodesTests {
 
 
         Settings settings = settingsBuilder()
+                .put("discovery.type", "zen")
                 .put("discovery.zen.minimum_master_nodes", 3)
                 .put("discovery.zen.ping_timeout", "200ms")
                 .put("discovery.initial_state_timeout", "500ms")

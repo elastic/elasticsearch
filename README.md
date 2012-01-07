@@ -10,6 +10,8 @@ In order to install the plugin, simply run: `bin/plugin -install elasticsearch/e
     ---------------------------------------------
     | master                   | 0.18 -> master |
     ---------------------------------------------
+    | 1.0.0                    | 0.18 -> master |
+    ---------------------------------------------
 
 A `phonetic` token filter that can be configured with different `encoder` types: `metaphone`, `soundex`, `caverphone`, `refined_soundex`, `double_metaphone` (uses "commons codec":http://jakarta.apache.org/commons/codec/api-release/org/apache/commons/codec/language/package-summary.html).
 

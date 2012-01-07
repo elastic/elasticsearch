@@ -115,13 +115,6 @@
         </dependency>
 
         <dependency>
-            <groupId>commons-codec</groupId>
-            <artifactId>commons-codec</artifactId>
-            <version>1.6</version>
-            <scope>compile</scope>
-        </dependency>
-
-        <dependency>
             <groupId>joda-time</groupId>
             <artifactId>joda-time</artifactId>
             <!-- joda 2.0 moved to using volatile fields for datetime, which hurts performance for facets! -->
@@ -312,7 +305,6 @@
                             <include>net.sf.trove4j:trove4j</include>
                             <include>org.elasticsearch:es-jsr166y</include>
                             <include>org.elasticsearch:es-jsr166e</include>
-                            <include>commons-codec:commons-codec</include>
                             <include>org.mvel:mvel2</include>
                             <include>org.codehaus.jackson:jackson-core-asl</include>
                             <include>org.codehaus.jackson:jackson-smile</include>
@@ -337,10 +329,6 @@
                         <relocation>
                             <pattern>jsr166e</pattern>
                             <shadedPattern>org.elasticsearch.common.util.concurrent.jsr166e</shadedPattern>
-                        </relocation>
-                        <relocation>
-                            <pattern>org.apache.commons.codec</pattern>
-                            <shadedPattern>org.elasticsearch.common.codec</shadedPattern>
                         </relocation>
                         <relocation>
                             <pattern>org.mvel2</pattern>

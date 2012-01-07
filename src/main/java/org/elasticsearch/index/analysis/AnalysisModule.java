@@ -31,7 +31,6 @@ import org.elasticsearch.common.settings.NoClassSettingsException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.analysis.compound.DictionaryCompoundWordTokenFilterFactory;
 import org.elasticsearch.index.analysis.compound.HyphenationCompoundWordTokenFilterFactory;
-import org.elasticsearch.index.analysis.phonetic.PhoneticTokenFilterFactory;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 
 import java.util.LinkedList;
@@ -452,7 +451,6 @@ public class AnalysisModule extends AbstractModule {
             tokenFiltersBindings.processTokenFilter("elision", ElisionTokenFilterFactory.class);
 
             tokenFiltersBindings.processTokenFilter("pattern_replace", PatternReplaceTokenFilterFactory.class);
-            tokenFiltersBindings.processTokenFilter("phonetic", PhoneticTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("dictionary_decompounder", DictionaryCompoundWordTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("hyphenation_decompounder", HyphenationCompoundWordTokenFilterFactory.class);
 

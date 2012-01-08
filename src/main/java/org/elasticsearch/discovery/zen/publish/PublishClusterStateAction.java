@@ -95,7 +95,7 @@ public class PublishClusterStateAction extends AbstractComponent {
         }
     }
 
-    private class PublishClusterStateRequest implements Streamable {
+    class PublishClusterStateRequest implements Streamable {
 
         private byte[] clusterStateInBytes;
 
@@ -130,7 +130,7 @@ public class PublishClusterStateAction extends AbstractComponent {
 
         @Override
         public void messageReceived(PublishClusterStateRequest request, TransportChannel channel) throws Exception {
-            StreamInput in = CachedStreamInput.cachedHandlesLzf(new BytesStreamInput(request.clusterStateInBytes));
+            StreamInput in = CachedStreamInput.cachedHandlesLzf(new BytesStreamInput(request.clusterStateInBytes, false));
             ClusterState clusterState = ClusterState.Builder.readFrom(in, nodesProvider.nodes().localNode());
             listener.onNewClusterState(clusterState);
             channel.sendResponse(VoidStreamable.INSTANCE);

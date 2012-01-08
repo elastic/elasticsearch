@@ -396,7 +396,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                                 }
                             }
                             if (internal) {
-                                StreamInput input = CachedStreamInput.cachedHandles(new BytesStreamInput(datagramPacketReceive.getData(), datagramPacketReceive.getOffset() + INTERNAL_HEADER.length, datagramPacketReceive.getLength()));
+                                StreamInput input = CachedStreamInput.cachedHandles(new BytesStreamInput(datagramPacketReceive.getData(), datagramPacketReceive.getOffset() + INTERNAL_HEADER.length, datagramPacketReceive.getLength(), true));
                                 Version version = Version.readVersion(input);
                                 id = input.readInt();
                                 clusterName = ClusterName.readClusterName(input);

@@ -40,7 +40,7 @@ public class XContentHelper {
 
     public static XContentParser createParser(byte[] data, int offset, int length) throws IOException {
         if (LZF.isCompressed(data, offset, length)) {
-            BytesStreamInput siBytes = new BytesStreamInput(data, offset, length);
+            BytesStreamInput siBytes = new BytesStreamInput(data, offset, length, false);
             LZFStreamInput siLzf = CachedStreamInput.cachedLzf(siBytes);
             XContentType contentType = XContentFactory.xContentType(siLzf);
             siLzf.resetToBufferStart();
@@ -55,7 +55,7 @@ public class XContentHelper {
             XContentParser parser;
             XContentType contentType;
             if (LZF.isCompressed(data, offset, length)) {
-                BytesStreamInput siBytes = new BytesStreamInput(data, offset, length);
+                BytesStreamInput siBytes = new BytesStreamInput(data, offset, length, false);
                 LZFStreamInput siLzf = CachedStreamInput.cachedLzf(siBytes);
                 contentType = XContentFactory.xContentType(siLzf);
                 siLzf.resetToBufferStart();

@@ -20,11 +20,12 @@
 package org.elasticsearch.rest.action.admin.indices.validate.query;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.BytesStream;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
@@ -75,9 +76,9 @@ public class RestValidateQueryAction extends BaseRestHandler {
                 if (source != null) {
                     validateQueryRequest.query(source);
                 } else {
-                    byte[] querySource = RestActions.parseQuerySource(request);
+                    BytesStream querySource = RestActions.parseQuerySource(request);
                     if (querySource != null) {
-                        validateQueryRequest.query(querySource);
+                        validateQueryRequest.query(querySource.underlyingBytes(), 0, querySource.size(), false);
                     }
                 }
             }

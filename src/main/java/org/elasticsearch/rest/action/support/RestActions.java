@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.BytesStream;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
@@ -69,7 +70,7 @@ public class RestActions {
         builder.endObject();
     }
 
-    public static byte[] parseQuerySource(RestRequest request) {
+    public static BytesStream parseQuerySource(RestRequest request) {
         String queryString = request.param("q");
         if (queryString == null) {
             return null;

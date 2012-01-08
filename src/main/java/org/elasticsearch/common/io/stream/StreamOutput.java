@@ -76,9 +76,13 @@ public abstract class StreamOutput extends OutputStream {
         writeBytes(bytes, offset, length);
     }
 
-    public void writeBytesHolder(BytesHolder bytes) throws IOException {
-        writeVInt(bytes.length());
-        writeBytes(bytes.bytes(), bytes.offset(), bytes.length());
+    public void writeBytesHolder(@Nullable BytesHolder bytes) throws IOException {
+        if (bytes == null) {
+            writeVInt(0);
+        } else {
+            writeVInt(bytes.length());
+            writeBytes(bytes.bytes(), bytes.offset(), bytes.length());
+        }
     }
 
     public final void writeShort(short v) throws IOException {

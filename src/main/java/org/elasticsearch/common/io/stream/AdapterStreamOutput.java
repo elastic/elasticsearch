@@ -20,6 +20,7 @@
 package org.elasticsearch.common.io.stream;
 
 import org.elasticsearch.common.BytesHolder;
+import org.elasticsearch.common.Nullable;
 
 import java.io.IOException;
 
@@ -82,7 +83,7 @@ public class AdapterStreamOutput extends StreamOutput {
     }
 
     @Override
-    public void writeBytesHolder(BytesHolder bytes) throws IOException {
+    public void writeBytesHolder(@Nullable BytesHolder bytes) throws IOException {
         out.writeBytesHolder(bytes);
     }
 

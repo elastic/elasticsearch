@@ -22,6 +22,7 @@ package org.elasticsearch.search.internal;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Unicode;
@@ -66,7 +67,7 @@ public class InternalSearchHit implements SearchHit {
 
     private long version = -1;
 
-    private byte[] source;
+    private BytesHolder source;
 
     private Map<String, SearchHitField> fields = ImmutableMap.of();
 
@@ -91,7 +92,7 @@ public class InternalSearchHit implements SearchHit {
         this.docId = docId;
         this.id = id;
         this.type = type;
-        this.source = source;
+        this.source = source == null ? null : new BytesHolder(source);
         this.fields = fields;
     }
 
@@ -166,14 +167,14 @@ public class InternalSearchHit implements SearchHit {
         if (source == null) {
             return null;
         }
-        if (LZF.isCompressed(source)) {
+        if (LZF.isCompressed(source.bytes(), source.offset(), source.length())) {
             try {
-                this.source = LZFDecoder.decode(source);
+                this.source = new BytesHolder(LZFDecoder.decode(source.bytes(), source.offset(), source.length()));
             } catch (IOException e) {
                 throw new ElasticSearchParseException("failed to decompress source", e);
             }
         }
-        return this.source;
+        return this.source.copyBytes();
     }
 
     @Override
@@ -191,7 +192,7 @@ public class InternalSearchHit implements SearchHit {
         if (source == null) {
             return null;
         }
-        return Unicode.fromBytes(source());
+        return Unicode.fromBytes(source.bytes(), source.offset(), source.length());
     }
 
     @SuppressWarnings({"unchecked"})
@@ -362,7 +363,7 @@ public class InternalSearchHit implements SearchHit {
             builder.field(Fields._SCORE, score);
         }
         if (source != null) {
-            RestXContentBuilder.restDocumentSource(source, builder, params);
+            RestXContentBuilder.restDocumentSource(source.bytes(), source.offset(), source.length(), builder, params);
         }
         if (fields != null && !fields.isEmpty()) {
             builder.startObject(Fields.FIELDS);
@@ -452,15 +453,14 @@ public class InternalSearchHit implements SearchHit {
         id = in.readUTF();
         type = in.readUTF();
         version = in.readLong();
-        int size = in.readVInt();
-        if (size > 0) {
-            source = new byte[size];
-            in.readFully(source);
+        source = in.readBytesReference();
+        if (source.length() == 0) {
+            source = null;
         }
         if (in.readBoolean()) {
             explanation = readExplanation(in);
         }
-        size = in.readVInt();
+        int size = in.readVInt();
         if (size == 0) {
             fields = ImmutableMap.of();
         } else if (size == 1) {
@@ -586,12 +586,7 @@ public class InternalSearchHit implements SearchHit {
         out.writeUTF(id);
         out.writeUTF(type);
         out.writeLong(version);
-        if (source == null) {
-            out.writeVInt(0);
-        } else {
-            out.writeVInt(source.length);
-            out.writeBytes(source);
-        }
+        out.writeBytesHolder(source);
         if (explanation == null) {
             out.writeBoolean(false);
         } else {

@@ -27,6 +27,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.CloseableComponent;
 import org.elasticsearch.common.lease.Releasable;
@@ -692,7 +693,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
     static class DeleteByQuery {
         private final Query query;
-        private final byte[] source;
+        private final BytesHolder source;
         private final String[] filteringAliases;
         private final Filter aliasFilter;
         private final String[] types;
@@ -700,7 +701,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         private long startTime;
         private long endTime;
 
-        public DeleteByQuery(Query query, byte[] source, @Nullable String[] filteringAliases, @Nullable Filter aliasFilter, String... types) {
+        public DeleteByQuery(Query query, BytesHolder source, @Nullable String[] filteringAliases, @Nullable Filter aliasFilter, String... types) {
             this.query = query;
             this.source = source;
             this.types = types;
@@ -712,7 +713,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return this.query;
         }
 
-        public byte[] source() {
+        public BytesHolder source() {
             return this.source;
         }
 

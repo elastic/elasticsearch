@@ -25,10 +25,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Required;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.Unicode;
+import org.elasticsearch.common.*;
 import org.elasticsearch.common.io.BytesStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -47,7 +44,6 @@ import java.util.Map;
  * <p/>
  * <p>The request requires the query source to be set either using {@link #query(org.elasticsearch.index.query.QueryBuilder)},
  * or {@link #query(byte[])}.
- *
  *
  * @see CountResponse
  * @see org.elasticsearch.client.Client#count(CountRequest)
@@ -292,11 +288,11 @@ public class CountRequest extends BroadcastOperationRequest {
             routing = in.readUTF();
         }
 
+        BytesHolder bytes = in.readBytesReference();
         querySourceUnsafe = false;
-        querySourceOffset = 0;
-        querySourceLength = in.readVInt();
-        querySource = new byte[querySourceLength];
-        in.readFully(querySource);
+        querySource = bytes.bytes();
+        querySourceOffset = bytes.offset();
+        querySourceLength = bytes.length();
 
         int typesSize = in.readVInt();
         if (typesSize > 0) {
@@ -325,8 +321,7 @@ public class CountRequest extends BroadcastOperationRequest {
             out.writeUTF(routing);
         }
 
-        out.writeVInt(querySourceLength);
-        out.writeBytes(querySource, querySourceOffset, querySourceLength);
+        out.writeBytesHolder(querySource, querySourceOffset, querySourceLength());
 
         out.writeVInt(types.length);
         for (String type : types) {

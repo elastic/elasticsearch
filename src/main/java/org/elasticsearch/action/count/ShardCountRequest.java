@@ -20,6 +20,7 @@
 package org.elasticsearch.action.count;
 
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
+import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -29,8 +30,6 @@ import java.io.IOException;
 
 /**
  * Internal count request executed directly against a specific index shard.
- *
- *
  */
 class ShardCountRequest extends BroadcastShardOperationRequest {
 
@@ -87,10 +86,12 @@ class ShardCountRequest extends BroadcastShardOperationRequest {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         minScore = in.readFloat();
-        querySourceLength = in.readVInt();
-        querySourceOffset = 0;
-        querySource = new byte[querySourceLength];
-        in.readFully(querySource);
+
+        BytesHolder bytes = in.readBytesHolder();
+        querySource = bytes.bytes();
+        querySourceOffset = bytes.offset();
+        querySourceLength = bytes.length();
+
         int typesSize = in.readVInt();
         if (typesSize > 0) {
             types = new String[typesSize];
@@ -111,8 +112,9 @@ class ShardCountRequest extends BroadcastShardOperationRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeFloat(minScore);
-        out.writeVInt(querySourceLength);
-        out.writeBytes(querySource, querySourceOffset, querySourceLength);
+
+        out.writeBytesHolder(querySource, querySourceOffset, querySourceLength);
+
         out.writeVInt(types.length);
         for (String type : types) {
             out.writeUTF(type);

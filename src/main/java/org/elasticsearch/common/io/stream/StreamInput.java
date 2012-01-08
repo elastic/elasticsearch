@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.io.stream;
 
+import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Nullable;
 
 import java.io.IOException;
@@ -50,6 +51,27 @@ public abstract class StreamInput extends InputStream {
      * @param len    the number of bytes to read
      */
     public abstract void readBytes(byte[] b, int offset, int len) throws IOException;
+
+    /**
+     * Reads a fresh copy of the bytes.
+     */
+    public BytesHolder readBytesHolder() throws IOException {
+        int size = readVInt();
+        if (size == 0) {
+            return BytesHolder.EMPTY;
+        }
+        byte[] bytes = new byte[size];
+        readBytes(bytes, 0, size);
+        return new BytesHolder(bytes, 0, size);
+    }
+
+    /**
+     * Reads a bytes reference from this stream, might hold an actual reference to the underlying
+     * bytes of the stream.
+     */
+    public BytesHolder readBytesReference() throws IOException {
+        return readBytesHolder();
+    }
 
     public void readFully(byte[] b) throws IOException {
         readBytes(b, 0, b.length);

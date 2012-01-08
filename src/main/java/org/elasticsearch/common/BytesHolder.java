@@ -28,6 +28,8 @@ import java.util.Arrays;
 
 public class BytesHolder implements Streamable {
 
+    public static final BytesHolder EMPTY = new BytesHolder(Bytes.EMPTY_ARRAY, 0, 0);
+
     private byte[] bytes;
     private int offset;
     private int length;
@@ -75,7 +77,7 @@ public class BytesHolder implements Streamable {
         offset = 0;
         length = in.readVInt();
         bytes = new byte[length];
-        in.readFully(bytes);
+        in.readBytes(bytes, 0, length);
     }
 
     @Override

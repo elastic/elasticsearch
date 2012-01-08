@@ -87,7 +87,7 @@ class ShardCountRequest extends BroadcastShardOperationRequest {
         super.readFrom(in);
         minScore = in.readFloat();
 
-        BytesHolder bytes = in.readBytesHolder();
+        BytesHolder bytes = in.readBytesReference();
         querySource = bytes.bytes();
         querySourceOffset = bytes.offset();
         querySourceLength = bytes.length();

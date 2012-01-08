@@ -19,12 +19,12 @@
 
 package org.elasticsearch.http.netty;
 
+import com.google.common.base.Charsets;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.rest.support.AbstractRestRequest;
 import org.elasticsearch.rest.support.RestUtils;
 import org.jboss.netty.handler.codec.http.HttpMethod;
 
-import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -108,7 +108,10 @@ public class NettyHttpRequest extends AbstractRestRequest implements HttpRequest
 
     @Override
     public boolean contentUnsafe() {
-        return request.getContent().hasArray();
+        // the netty HTTP handling always copy over the buffer to its own buffer, either in NioWorker internally
+        // when reading, or using a cumalation buffer
+        return false;
+        //return request.getContent().hasArray();
     }
 
     @Override
@@ -133,11 +136,9 @@ public class NettyHttpRequest extends AbstractRestRequest implements HttpRequest
         return 0;
     }
 
-    private static Charset UTF8 = Charset.forName("UTF-8");
-
     @Override
     public String contentAsString() {
-        return request.getContent().toString(UTF8);
+        return request.getContent().toString(Charsets.UTF_8);
     }
 
     @Override

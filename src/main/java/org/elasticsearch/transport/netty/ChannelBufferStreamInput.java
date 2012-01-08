@@ -120,9 +120,6 @@ public class ChannelBufferStreamInput extends StreamInput {
 
     @Override
     public byte readByte() throws IOException {
-        if (available() == 0) {
-            throw new EOFException();
-        }
         return buffer.readByte();
     }
 

@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.validate.query;
 
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
+import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -29,14 +30,10 @@ import java.io.IOException;
 
 /**
  * Internal validate request executed directly against a specific index shard.
- *
- *
  */
 class ShardValidateQueryRequest extends BroadcastShardOperationRequest {
 
-    private byte[] querySource;
-    private int querySourceOffset;
-    private int querySourceLength;
+    private BytesHolder querySource;
 
     private String[] types = Strings.EMPTY_ARRAY;
 
@@ -50,22 +47,12 @@ class ShardValidateQueryRequest extends BroadcastShardOperationRequest {
     public ShardValidateQueryRequest(String index, int shardId, @Nullable String[] filteringAliases, ValidateQueryRequest request) {
         super(index, shardId);
         this.querySource = request.querySource();
-        this.querySourceOffset = request.querySourceOffset();
-        this.querySourceLength = request.querySourceLength();
         this.types = request.types();
         this.filteringAliases = filteringAliases;
     }
 
-    public byte[] querySource() {
+    public BytesHolder querySource() {
         return querySource;
-    }
-
-    public int querySourceOffset() {
-        return querySourceOffset;
-    }
-
-    public int querySourceLength() {
-        return querySourceLength;
     }
 
     public String[] types() {
@@ -79,10 +66,8 @@ class ShardValidateQueryRequest extends BroadcastShardOperationRequest {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        querySourceLength = in.readVInt();
-        querySourceOffset = 0;
-        querySource = new byte[querySourceLength];
-        in.readFully(querySource);
+        querySource = in.readBytesReference();
+
         int typesSize = in.readVInt();
         if (typesSize > 0) {
             types = new String[typesSize];
@@ -102,8 +87,8 @@ class ShardValidateQueryRequest extends BroadcastShardOperationRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeVInt(querySourceLength);
-        out.writeBytes(querySource, querySourceOffset, querySourceLength);
+        out.writeBytesHolder(querySource);
+
         out.writeVInt(types.length);
         for (String type : types) {
             out.writeUTF(type);

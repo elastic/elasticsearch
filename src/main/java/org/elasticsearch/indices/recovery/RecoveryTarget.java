@@ -59,8 +59,6 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
  * <p/>
  * <p>Note, it can be safely assumed that there will only be a single recovery per shard (index+id) and
  * not several of them (since we don't allocate several shard replicas to the same node).
- *
- *
  */
 public class RecoveryTarget extends AbstractComponent {
 
@@ -534,10 +532,10 @@ public class RecoveryTarget extends AbstractComponent {
             synchronized (indexOutput) {
                 try {
                     if (recoverySettings.rateLimiter() != null) {
-                        recoverySettings.rateLimiter().pause(request.contentLength());
+                        recoverySettings.rateLimiter().pause(request.content().length());
                     }
-                    indexOutput.writeBytes(request.content(), request.contentLength());
-                    onGoingRecovery.currentFilesSize.addAndGet(request.contentLength());
+                    indexOutput.writeBytes(request.content().bytes(), request.content().offset(), request.content().length());
+                    onGoingRecovery.currentFilesSize.addAndGet(request.length());
                     if (indexOutput.getFilePointer() == request.length()) {
                         // we are done
                         indexOutput.close();

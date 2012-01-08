@@ -26,10 +26,6 @@
                     "type":"stop",
                     "stopwords":["stop2-1", "stop2-2"]
                 },
-                "metaphone":{
-                    "type":"phonetic",
-                    "encoder":"metaphone"
-                },
                 "my":{
                     "type":"org.elasticsearch.test.unit.index.analysis.filter1.MyFilterTokenFilterFactory"
                 },

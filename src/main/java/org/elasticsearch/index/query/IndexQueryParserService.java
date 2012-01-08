@@ -159,8 +159,8 @@ public class IndexQueryParserService extends AbstractIndexComponent {
     public ParsedQuery parse(QueryBuilder queryBuilder) throws ElasticSearchException {
         XContentParser parser = null;
         try {
-            BytesStream unsafeBytes = queryBuilder.buildAsUnsafeBytes();
-            parser = XContentFactory.xContent(unsafeBytes.underlyingBytes(), 0, unsafeBytes.size()).createParser(unsafeBytes.underlyingBytes(), 0, unsafeBytes.size());
+            BytesStream bytes = queryBuilder.buildAsBytes();
+            parser = XContentFactory.xContent(bytes.underlyingBytes(), 0, bytes.size()).createParser(bytes.underlyingBytes(), 0, bytes.size());
             return parse(cache.get(), parser);
         } catch (QueryParsingException e) {
             throw e;

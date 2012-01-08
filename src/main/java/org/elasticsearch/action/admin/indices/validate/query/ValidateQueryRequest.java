@@ -121,11 +121,11 @@ public class ValidateQueryRequest extends BroadcastOperationRequest {
      */
     @Required
     public ValidateQueryRequest query(QueryBuilder queryBuilder) {
-        BytesStream bos = queryBuilder.buildAsUnsafeBytes();
+        BytesStream bos = queryBuilder.buildAsBytes();
         this.querySource = bos.underlyingBytes();
         this.querySourceOffset = 0;
         this.querySourceLength = bos.size();
-        this.querySourceUnsafe = true;
+        this.querySourceUnsafe = false;
         return this;
     }
 

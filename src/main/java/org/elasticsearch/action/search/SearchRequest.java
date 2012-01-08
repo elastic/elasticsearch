@@ -25,7 +25,7 @@ import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.Bytes;
+import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Unicode;
@@ -55,7 +55,6 @@ import static org.elasticsearch.search.Scroll.readScroll;
  * is required. The search source is the different search options, including facets and such.
  * <p/>
  * <p>There is an option to specify an addition search source using the {@link #extraSource(org.elasticsearch.search.builder.SearchSourceBuilder)}.
- *
  *
  * @see org.elasticsearch.client.Requests#searchRequest(String...)
  * @see org.elasticsearch.client.Client#search(SearchRequest)
@@ -551,25 +550,17 @@ public class SearchRequest implements ActionRequest {
             timeout = readTimeValue(in);
         }
 
+        BytesHolder bytes = in.readBytesReference();
         sourceUnsafe = false;
-        sourceOffset = 0;
-        sourceLength = in.readVInt();
-        if (sourceLength == 0) {
-            source = Bytes.EMPTY_ARRAY;
-        } else {
-            source = new byte[sourceLength];
-            in.readFully(source);
-        }
+        source = bytes.bytes();
+        sourceOffset = bytes.offset();
+        sourceLength = bytes.length();
 
+        bytes = in.readBytesReference();
         extraSourceUnsafe = false;
-        extraSourceOffset = 0;
-        extraSourceLength = in.readVInt();
-        if (extraSourceLength == 0) {
-            extraSource = Bytes.EMPTY_ARRAY;
-        } else {
-            extraSource = new byte[extraSourceLength];
-            in.readFully(extraSource);
-        }
+        extraSource = bytes.bytes();
+        extraSourceOffset = bytes.offset();
+        extraSourceLength = bytes.length();
 
         int typesSize = in.readVInt();
         if (typesSize > 0) {
@@ -621,18 +612,8 @@ public class SearchRequest implements ActionRequest {
             out.writeBoolean(true);
             timeout.writeTo(out);
         }
-        if (source == null) {
-            out.writeVInt(0);
-        } else {
-            out.writeVInt(sourceLength);
-            out.writeBytes(source, sourceOffset, sourceLength);
-        }
-        if (extraSource == null) {
-            out.writeVInt(0);
-        } else {
-            out.writeVInt(extraSourceLength);
-            out.writeBytes(extraSource, extraSourceOffset, extraSourceLength);
-        }
+        out.writeBytesHolder(source, sourceOffset, sourceLength);
+        out.writeBytesHolder(extraSource, extraSourceOffset, extraSourceLength);
         out.writeVInt(types.length);
         for (String type : types) {
             out.writeUTF(type);

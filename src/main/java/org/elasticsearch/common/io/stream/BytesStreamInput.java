@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.io.stream;
 
+import org.elasticsearch.common.BytesHolder;
+
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.UTFDataFormatException;
@@ -42,6 +44,14 @@ public class BytesStreamInput extends StreamInput {
         this.buf = buf;
         this.pos = offset;
         this.count = Math.min(offset + length, buf.length);
+    }
+
+    @Override
+    public BytesHolder readBytesReference() throws IOException {
+        int size = readVInt();
+        BytesHolder bytes = new BytesHolder(buf, pos, size);
+        pos += size;
+        return bytes;
     }
 
     @Override

@@ -137,7 +137,6 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
             process(context, channel, cumulation, dataLen);
         }
 
-        // TODO: we can potentially create a cumulation buffer cache, pop/push style
         if (!cumulation.readable()) {
             this.cumulation = null;
         }
@@ -180,6 +179,8 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         int markedReaderIndex = buffer.readerIndex();
         int expectedIndexReader = markedReaderIndex + size;
 
+        // netty always copies a buffer, either in NioWorker in its read handler, where it copies to a fresh
+        // buffer, or in the cumlation buffer, which is cleaned each time
         StreamInput streamIn = new ChannelBufferStreamInput(buffer, size);
 
         long requestId = buffer.readLong();

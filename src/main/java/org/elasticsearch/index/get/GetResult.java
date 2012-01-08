@@ -170,8 +170,7 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
     public BytesHolder sourceRef() {
         if (LZF.isCompressed(source.bytes(), source.offset(), source.length())) {
             try {
-                // TODO decompress without doing an extra copy!
-                this.source = new BytesHolder(LZFDecoder.decode(source.copyBytes()));
+                this.source = new BytesHolder(LZFDecoder.decode(source.bytes(), source.offset(), source.length()));
             } catch (IOException e) {
                 throw new ElasticSearchParseException("failed to decompress source", e);
             }
@@ -315,8 +314,9 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
         version = in.readLong();
         exists = in.readBoolean();
         if (exists) {
-            if (in.readBoolean()) {
-                source = BytesHolder.readBytesHolder(in);
+            source = in.readBytesReference();
+            if (source.length() == 0) {
+                source = null;
             }
             int size = in.readVInt();
             if (size == 0) {
@@ -339,12 +339,7 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
         out.writeLong(version);
         out.writeBoolean(exists);
         if (exists) {
-            if (source == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                source.writeTo(out);
-            }
+            out.writeBytesHolder(source);
             if (fields == null) {
                 out.writeVInt(0);
             } else {

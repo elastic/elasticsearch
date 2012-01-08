@@ -59,13 +59,6 @@ public class ChannelBufferStreamInput extends StreamInput {
         return bytes;
     }
 
-    /**
-     * Returns the number of read bytes by this stream so far.
-     */
-    public int readBytes() {
-        return buffer.readerIndex() - startIndex;
-    }
-
     @Override
     public int available() throws IOException {
         return endIndex - buffer.readerIndex();

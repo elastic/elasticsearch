@@ -207,7 +207,7 @@ public abstract class BlobStoreGateway extends SharedStorageGateway {
         XContentParser parser = null;
         try {
             if (LZF.isCompressed(data)) {
-                BytesStreamInput siBytes = new BytesStreamInput(data);
+                BytesStreamInput siBytes = new BytesStreamInput(data, false);
                 LZFStreamInput siLzf = CachedStreamInput.cachedLzf(siBytes);
                 parser = XContentFactory.xContent(XContentType.JSON).createParser(siLzf);
             } else {

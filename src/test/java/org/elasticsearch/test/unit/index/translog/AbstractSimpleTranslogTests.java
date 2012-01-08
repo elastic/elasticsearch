@@ -140,11 +140,11 @@ public abstract class AbstractSimpleTranslogTests {
 
         assertThat(snapshot.hasNext(), equalTo(true));
         Translog.Create create = (Translog.Create) snapshot.next();
-        assertThat(create.source(), equalTo(new byte[]{1}));
+        assertThat(create.source().copyBytes(), equalTo(new byte[]{1}));
 
         assertThat(snapshot.hasNext(), equalTo(true));
         Translog.Index index = (Translog.Index) snapshot.next();
-        assertThat(index.source(), equalTo(new byte[]{2}));
+        assertThat(index.source().copyBytes(), equalTo(new byte[]{2}));
 
         assertThat(snapshot.hasNext(), equalTo(true));
         Translog.Delete delete = (Translog.Delete) snapshot.next();
@@ -183,7 +183,7 @@ public abstract class AbstractSimpleTranslogTests {
         snapshot = translog.snapshot();
         assertThat(snapshot.hasNext(), equalTo(true));
         Translog.Create create = (Translog.Create) snapshot.next();
-        assertThat(create.source(), equalTo(new byte[]{1}));
+        assertThat(create.source().copyBytes(), equalTo(new byte[]{1}));
         snapshot.release();
 
         Translog.Snapshot snapshot1 = translog.snapshot();
@@ -201,7 +201,7 @@ public abstract class AbstractSimpleTranslogTests {
         snapshot = translog.snapshot(snapshot1);
         assertThat(snapshot.hasNext(), equalTo(true));
         Translog.Index index = (Translog.Index) snapshot.next();
-        assertThat(index.source(), equalTo(new byte[]{2}));
+        assertThat(index.source().copyBytes(), equalTo(new byte[]{2}));
         assertThat(snapshot.hasNext(), equalTo(false));
         assertThat(snapshot.estimatedTotalOperations(), equalTo(2));
         snapshot.release();
@@ -230,7 +230,7 @@ public abstract class AbstractSimpleTranslogTests {
         snapshot = translog.snapshot(actualSnapshot);
         assertThat(snapshot.hasNext(), equalTo(true));
         Translog.Index index = (Translog.Index) snapshot.next();
-        assertThat(index.source(), equalTo(new byte[]{3}));
+        assertThat(index.source().copyBytes(), equalTo(new byte[]{3}));
         assertThat(snapshot.hasNext(), equalTo(false));
 
         actualSnapshot.release();

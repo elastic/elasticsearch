@@ -396,7 +396,7 @@ public abstract class AbstractSimpleEngineTests {
                 MatcherAssert.assertThat(snapshotIndexCommit1, SnapshotIndexCommitExistsMatcher.snapshotIndexCommitExists());
                 assertThat(translogSnapshot1.hasNext(), equalTo(true));
                 Translog.Create create1 = (Translog.Create) translogSnapshot1.next();
-                assertThat(create1.source(), equalTo(B_1));
+                assertThat(create1.source().copyBytes(), equalTo(B_1));
                 assertThat(translogSnapshot1.hasNext(), equalTo(false));
 
                 Future<Object> future = executorService.submit(new Callable<Object>() {
@@ -429,7 +429,7 @@ public abstract class AbstractSimpleEngineTests {
                         assertThat(snapshotIndexCommit2.getSegmentsFileName(), not(equalTo(snapshotIndexCommit1.getSegmentsFileName())));
                         assertThat(translogSnapshot2.hasNext(), equalTo(true));
                         Translog.Create create3 = (Translog.Create) translogSnapshot2.next();
-                        assertThat(create3.source(), equalTo(B_3));
+                        assertThat(create3.source().copyBytes(), equalTo(B_3));
                         assertThat(translogSnapshot2.hasNext(), equalTo(false));
                         return null;
                     }
@@ -503,7 +503,7 @@ public abstract class AbstractSimpleEngineTests {
             public void phase2(Translog.Snapshot snapshot) throws EngineException {
                 assertThat(snapshot.hasNext(), equalTo(true));
                 Translog.Create create = (Translog.Create) snapshot.next();
-                assertThat(create.source(), equalTo(B_2));
+                assertThat(create.source().copyBytes(), equalTo(B_2));
                 assertThat(snapshot.hasNext(), equalTo(false));
             }
 
@@ -535,7 +535,7 @@ public abstract class AbstractSimpleEngineTests {
                 assertThat(snapshot.hasNext(), equalTo(true));
                 Translog.Create create = (Translog.Create) snapshot.next();
                 assertThat(snapshot.hasNext(), equalTo(false));
-                assertThat(create.source(), equalTo(B_2));
+                assertThat(create.source().copyBytes(), equalTo(B_2));
 
                 // add for phase3
                 ParsedDocument doc3 = new ParsedDocument("3", "3", "test", null, -1, -1, doc().add(uidField("3")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, B_3, false);
@@ -547,7 +547,7 @@ public abstract class AbstractSimpleEngineTests {
                 assertThat(snapshot.hasNext(), equalTo(true));
                 Translog.Create create = (Translog.Create) snapshot.next();
                 assertThat(snapshot.hasNext(), equalTo(false));
-                assertThat(create.source(), equalTo(B_3));
+                assertThat(create.source().copyBytes(), equalTo(B_3));
             }
         });
 

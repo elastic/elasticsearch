@@ -35,18 +35,24 @@ public class BytesStreamInput extends StreamInput {
 
     protected int count;
 
-    public BytesStreamInput(byte buf[]) {
-        this(buf, 0, buf.length);
+    private final boolean unsafe;
+
+    public BytesStreamInput(byte buf[], boolean unsafe) {
+        this(buf, 0, buf.length, unsafe);
     }
 
-    public BytesStreamInput(byte buf[], int offset, int length) {
+    public BytesStreamInput(byte buf[], int offset, int length, boolean unsafe) {
         this.buf = buf;
         this.pos = offset;
         this.count = Math.min(offset + length, buf.length);
+        this.unsafe = unsafe;
     }
 
     @Override
     public BytesHolder readBytesReference() throws IOException {
+        if (unsafe) {
+            return readBytesHolder();
+        }
         int size = readVInt();
         BytesHolder bytes = new BytesHolder(buf, pos, size);
         pos += size;

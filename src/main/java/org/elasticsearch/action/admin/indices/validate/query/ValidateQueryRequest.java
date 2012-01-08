@@ -25,6 +25,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Required;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Unicode;
@@ -45,8 +46,6 @@ import java.util.Map;
  * <p/>
  * <p>The request requires the query source to be set either using {@link #query(org.elasticsearch.index.query.QueryBuilder)},
  * or {@link #query(byte[])}.
- *
- *
  */
 public class ValidateQueryRequest extends BroadcastOperationRequest {
 
@@ -111,16 +110,8 @@ public class ValidateQueryRequest extends BroadcastOperationRequest {
     /**
      * The query source to execute.
      */
-    byte[] querySource() {
-        return querySource;
-    }
-
-    int querySourceOffset() {
-        return querySourceOffset;
-    }
-
-    int querySourceLength() {
-        return querySourceLength;
+    BytesHolder querySource() {
+        return new BytesHolder(querySource, querySourceOffset, querySourceLength);
     }
 
     /**
@@ -218,11 +209,11 @@ public class ValidateQueryRequest extends BroadcastOperationRequest {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
 
+        BytesHolder bytes = in.readBytesReference();
         querySourceUnsafe = false;
-        querySourceOffset = 0;
-        querySourceLength = in.readVInt();
-        querySource = new byte[querySourceLength];
-        in.readFully(querySource);
+        querySource = bytes.bytes();
+        querySourceOffset = bytes.offset();
+        querySourceLength = bytes.length();
 
         int typesSize = in.readVInt();
         if (typesSize > 0) {
@@ -237,8 +228,7 @@ public class ValidateQueryRequest extends BroadcastOperationRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
 
-        out.writeVInt(querySourceLength);
-        out.writeBytes(querySource, querySourceOffset, querySourceLength);
+        out.writeBytesHolder(querySource, querySourceOffset, querySourceLength);
 
         out.writeVInt(types.length);
         for (String type : types) {
@@ -248,6 +238,6 @@ public class ValidateQueryRequest extends BroadcastOperationRequest {
 
     @Override
     public String toString() {
-        return "[" + Arrays.toString(indices) + "]" + Arrays.toString(types) + ", querySource[" + Unicode.fromBytes(querySource) + "]";
+        return "[" + Arrays.toString(indices) + "]" + Arrays.toString(types) + ", querySource[" + Unicode.fromBytes(querySource, querySourceOffset, querySourceLength) + "]";
     }
 }

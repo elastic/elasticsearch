@@ -136,11 +136,11 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
     protected ShardValidateQueryResponse shardOperation(ShardValidateQueryRequest request) throws ElasticSearchException {
         IndexQueryParserService queryParserService = indicesService.indexServiceSafe(request.index()).queryParserService();
         boolean valid;
-        if (request.querySourceLength() == 0) {
+        if (request.querySource().length() == 0) {
             valid = true;
         } else {
             try {
-                queryParserService.parse(request.querySource(), request.querySourceOffset(), request.querySourceLength());
+                queryParserService.parse(request.querySource().bytes(), request.querySource().offset(), request.querySource().length());
                 valid = true;
             } catch (QueryParsingException e) {
                 valid = false;

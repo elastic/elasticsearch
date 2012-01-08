@@ -34,11 +34,6 @@ import java.util.Map;
 public abstract class StreamOutput extends OutputStream {
 
     /**
-     * bytearr is initialized on demand by writeUTF
-     */
-    private byte[] bytearr = null;
-
-    /**
      * Writes a single byte.
      */
     public abstract void writeByte(byte b) throws IOException;
@@ -138,55 +133,22 @@ public abstract class StreamOutput extends OutputStream {
      * Writes a string.
      */
     public void writeUTF(String str) throws IOException {
-        int strlen = str.length();
-        int utflen = 0;
-        int c, count = 0;
-
-        /* use charAt instead of copying String to char array */
-        for (int i = 0; i < strlen; i++) {
+        int charCount = str.length();
+        writeVInt(charCount);
+        int c;
+        for (int i = 0; i < charCount; i++) {
             c = str.charAt(i);
-            if ((c >= 0x0001) && (c <= 0x007F)) {
-                utflen++;
+            if (c <= 0x007F) {
+                writeByte((byte) c);
             } else if (c > 0x07FF) {
-                utflen += 3;
+                writeByte((byte) (0xE0 | c >> 12 & 0x0F));
+                writeByte((byte) (0x80 | c >> 6 & 0x3F));
+                writeByte((byte) (0x80 | c >> 0 & 0x3F));
             } else {
-                utflen += 2;
+                writeByte((byte) (0xC0 | c >> 6 & 0x1F));
+                writeByte((byte) (0x80 | c >> 0 & 0x3F));
             }
         }
-
-        if (this.bytearr == null || (this.bytearr.length < (utflen + 4)))
-            this.bytearr = new byte[(utflen * 2) + 4];
-        byte[] bytearr = this.bytearr;
-
-        // same as writeInt
-        bytearr[count++] = (byte) (utflen >> 24);
-        bytearr[count++] = (byte) (utflen >> 16);
-        bytearr[count++] = (byte) (utflen >> 8);
-        bytearr[count++] = (byte) (utflen);
-
-        int i = 0;
-        for (i = 0; i < strlen; i++) {
-            c = str.charAt(i);
-            if (!((c >= 0x0001) && (c <= 0x007F))) break;
-            bytearr[count++] = (byte) c;
-        }
-
-        for (; i < strlen; i++) {
-            c = str.charAt(i);
-            if ((c >= 0x0001) && (c <= 0x007F)) {
-                bytearr[count++] = (byte) c;
-
-            } else if (c > 0x07FF) {
-                bytearr[count++] = (byte) (0xE0 | ((c >> 12) & 0x0F));
-                bytearr[count++] = (byte) (0x80 | ((c >> 6) & 0x3F));
-                bytearr[count++] = (byte) (0x80 | ((c >> 0) & 0x3F));
-            } else {
-                bytearr[count++] = (byte) (0xC0 | ((c >> 6) & 0x1F));
-                bytearr[count++] = (byte) (0x80 | ((c >> 0) & 0x3F));
-            }
-        }
-        writeBytes(bytearr, 0, utflen + 4);
-//        return utflen + 2;
     }
 
     public void writeFloat(float v) throws IOException {

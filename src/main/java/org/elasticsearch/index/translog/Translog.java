@@ -553,7 +553,7 @@ public interface Translog extends IndexShardComponent {
     }
 
     static class DeleteByQuery implements Operation {
-        private byte[] source;
+        private BytesHolder source;
         @Nullable
         private String[] filteringAliases;
         private String[] types = Strings.EMPTY_ARRAY;
@@ -565,7 +565,7 @@ public interface Translog extends IndexShardComponent {
             this(deleteByQuery.source(), deleteByQuery.filteringAliases(), deleteByQuery.types());
         }
 
-        public DeleteByQuery(byte[] source, String[] filteringAliases, String... types) {
+        public DeleteByQuery(BytesHolder source, String[] filteringAliases, String... types) {
             this.source = source;
             this.types = types == null ? Strings.EMPTY_ARRAY : types;
             this.filteringAliases = filteringAliases;
@@ -578,10 +578,10 @@ public interface Translog extends IndexShardComponent {
 
         @Override
         public long estimateSize() {
-            return source.length + 8;
+            return source.length() + 8;
         }
 
-        public byte[] source() {
+        public BytesHolder source() {
             return this.source;
         }
 
@@ -601,8 +601,7 @@ public interface Translog extends IndexShardComponent {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             int version = in.readVInt(); // version
-            source = new byte[in.readVInt()];
-            in.readFully(source);
+            source = in.readBytesReference();
             if (version < 2) {
                 // for query_parser_name, which was removed
                 if (in.readBoolean()) {
@@ -630,8 +629,7 @@ public interface Translog extends IndexShardComponent {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(2); // version
-            out.writeVInt(source.length);
-            out.writeBytes(source);
+            out.writeBytesHolder(source);
             out.writeVInt(types.length);
             for (String type : types) {
                 out.writeUTF(type);

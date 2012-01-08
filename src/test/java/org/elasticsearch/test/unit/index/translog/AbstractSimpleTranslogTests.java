@@ -130,7 +130,7 @@ public abstract class AbstractSimpleTranslogTests {
         assertThat(snapshot.estimatedTotalOperations(), equalTo(3));
         snapshot.release();
 
-        translog.add(new Translog.DeleteByQuery(new byte[]{4}, null));
+        translog.add(new Translog.DeleteByQuery(new BytesHolder(new byte[]{4}), null));
         snapshot = translog.snapshot();
         MatcherAssert.assertThat(snapshot, TranslogSizeMatcher.translogSize(4));
         assertThat(snapshot.estimatedTotalOperations(), equalTo(4));
@@ -152,7 +152,7 @@ public abstract class AbstractSimpleTranslogTests {
 
         assertThat(snapshot.hasNext(), equalTo(true));
         Translog.DeleteByQuery deleteByQuery = (Translog.DeleteByQuery) snapshot.next();
-        assertThat(deleteByQuery.source(), equalTo(new byte[]{4}));
+        assertThat(deleteByQuery.source().copyBytes(), equalTo(new byte[]{4}));
 
         assertThat(snapshot.hasNext(), equalTo(false));
 

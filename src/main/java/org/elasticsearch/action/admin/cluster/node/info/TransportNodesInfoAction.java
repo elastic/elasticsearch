@@ -26,11 +26,14 @@ import org.elasticsearch.action.support.nodes.TransportNodesOperationAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReferenceArray;
@@ -84,7 +87,7 @@ public class TransportNodesInfoAction extends TransportNodesOperationAction<Node
 
     @Override
     protected NodeInfoRequest newNodeRequest(String nodeId, NodesInfoRequest request) {
-        return new NodeInfoRequest(nodeId);
+        return new NodeInfoRequest(nodeId, request);
     }
 
     @Override
@@ -93,8 +96,9 @@ public class TransportNodesInfoAction extends TransportNodesOperationAction<Node
     }
 
     @Override
-    protected NodeInfo nodeOperation(NodeInfoRequest nodeInfoRequest) throws ElasticSearchException {
-        return nodeService.info();
+    protected NodeInfo nodeOperation(NodeInfoRequest nodeRequest) throws ElasticSearchException {
+        NodesInfoRequest request = nodeRequest.request;
+        return nodeService.info(request.settings(), request.os(), request.process(), request.jvm(), request.network(), request.transport(), request.http());
     }
 
     @Override
@@ -102,13 +106,29 @@ public class TransportNodesInfoAction extends TransportNodesOperationAction<Node
         return false;
     }
 
-    protected static class NodeInfoRequest extends NodeOperationRequest {
+    static class NodeInfoRequest extends NodeOperationRequest {
 
-        private NodeInfoRequest() {
+        NodesInfoRequest request;
+
+        NodeInfoRequest() {
         }
 
-        private NodeInfoRequest(String nodeId) {
+        NodeInfoRequest(String nodeId, NodesInfoRequest request) {
             super(nodeId);
+            this.request = request;
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+            request = new NodesInfoRequest();
+            request.readFrom(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            request.writeTo(out);
         }
     }
 }

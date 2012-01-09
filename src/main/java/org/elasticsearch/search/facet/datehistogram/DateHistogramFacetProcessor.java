@@ -88,6 +88,8 @@ public class DateHistogramFacetProcessor extends AbstractComponent implements Fa
         String interval = null;
         DateTimeZone preZone = DateTimeZone.UTC;
         DateTimeZone postZone = DateTimeZone.UTC;
+        long preOffset = 0;
+        long postOffset = 0;
         float factor = 1.0f;
         Chronology chronology = ISOChronology.getInstanceUTC();
         DateHistogramFacet.ComparatorType comparatorType = DateHistogramFacet.ComparatorType.TIME;
@@ -115,6 +117,10 @@ public class DateHistogramFacetProcessor extends AbstractComponent implements Fa
                     preZone = parseZone(parser, token);
                 } else if ("post_zone".equals(fieldName) || "postZone".equals(fieldName)) {
                     postZone = parseZone(parser, token);
+                } else if ("pre_offset".equals(fieldName) || "preOffset".equals(fieldName)) {
+                    preOffset = parseOffset(parser.text());
+                } else if ("post_offset".equals(fieldName) || "postOffset".equals(fieldName)) {
+                    postOffset = parseOffset(parser.text());
                 } else if ("factor".equals(fieldName)) {
                     factor = parser.floatValue();
                 } else if ("value_script".equals(fieldName) || "valueScript".equals(fieldName)) {
@@ -152,7 +158,11 @@ public class DateHistogramFacetProcessor extends AbstractComponent implements Fa
             tzRoundingBuilder = TimeZoneRounding.builder(TimeValue.parseTimeValue(interval, null));
         }
 
-        TimeZoneRounding tzRounding = tzRoundingBuilder.preZone(preZone).postZone(postZone).factor(factor).build();
+        TimeZoneRounding tzRounding = tzRoundingBuilder
+                .preZone(preZone).postZone(postZone)
+                .preOffset(preOffset).postOffset(postOffset)
+                .factor(factor)
+                .build();
 
         if (valueScript != null) {
             return new ValueScriptDateHistogramFacetCollector(facetName, keyField, scriptLang, valueScript, params, tzRounding, comparatorType, context);
@@ -161,6 +171,13 @@ public class DateHistogramFacetProcessor extends AbstractComponent implements Fa
         } else {
             return new ValueDateHistogramFacetCollector(facetName, keyField, valueField, tzRounding, comparatorType, context);
         }
+    }
+
+    private long parseOffset(String offset) throws IOException {
+        if (offset.charAt(0) == '-') {
+            return -TimeValue.parseTimeValue(offset.substring(1), null).millis();
+        }
+        return TimeValue.parseTimeValue(offset, null).millis();
     }
 
     private DateTimeZone parseZone(XContentParser parser, XContentParser.Token token) throws IOException {

@@ -39,6 +39,71 @@ public class NodesInfoRequestBuilder extends BaseClusterRequestBuilder<NodesInfo
         return this;
     }
 
+    /**
+     * Clears all info flags.
+     */
+    public NodesInfoRequestBuilder clear() {
+        request.clear();
+        return this;
+    }
+
+    /**
+     * Should the node settings be returned.
+     */
+    public NodesInfoRequestBuilder setSettings(boolean settings) {
+        request.settings(settings);
+        return this;
+    }
+
+    /**
+     * Should the node OS info be returned.
+     */
+    public NodesInfoRequestBuilder setOs(boolean os) {
+        request.os(os);
+        return this;
+    }
+
+    /**
+     * Should the node OS process be returned.
+     */
+    public NodesInfoRequestBuilder setProcess(boolean process) {
+        request.process(process);
+        return this;
+    }
+
+    /**
+     * Should the node JVM info be returned.
+     */
+    public NodesInfoRequestBuilder setJvm(boolean jvm) {
+        request.jvm(jvm);
+        return this;
+    }
+
+    /**
+     * Should the node Network info be returned.
+     */
+    public NodesInfoRequestBuilder setNetwork(boolean network) {
+        request.network(network);
+        return this;
+    }
+
+    /**
+     * Should the node Transport info be returned.
+     */
+    public NodesInfoRequestBuilder setTransport(boolean transport) {
+        request.transport(transport);
+        return this;
+    }
+
+    /**
+     * Should the node HTTP info be returned.
+     */
+    public NodesInfoRequestBuilder setHttp(boolean http) {
+        request.http(http);
+        return this;
+    }
+
+
     @Override
     protected void doExecute(ActionListener<NodesInfoResponse> listener) {
         client.nodesInfo(request, listener);

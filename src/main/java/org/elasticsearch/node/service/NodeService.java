@@ -19,8 +19,6 @@
 
 package org.elasticsearch.node.service;
 
-import java.net.InetAddress;
-
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -36,6 +34,8 @@ import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.transport.TransportService;
+
+import java.net.InetAddress;
 
 /**
  */
@@ -105,6 +105,18 @@ public class NodeService extends AbstractComponent {
                 monitorService.osService().info(), monitorService.processService().info(),
                 monitorService.jvmService().info(), monitorService.networkService().info(),
                 transportService.info(), httpServer == null ? null : httpServer.info());
+    }
+
+    public NodeInfo info(boolean settings, boolean os, boolean process, boolean jvm, boolean network, boolean transport, boolean http) {
+        return new NodeInfo(hostname, clusterService.state().nodes().localNode(), serviceAttributes,
+                settings ? this.settings : null,
+                os ? monitorService.osService().info() : null,
+                process ? monitorService.processService().info() : null,
+                jvm ? monitorService.jvmService().info() : null,
+                network ? monitorService.networkService().info() : null,
+                transport ? transportService.info() : null,
+                http ? (httpServer == null ? null : httpServer.info()) : null
+        );
     }
 
     public NodeStats stats() {

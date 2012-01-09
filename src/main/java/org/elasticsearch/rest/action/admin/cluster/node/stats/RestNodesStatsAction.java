@@ -20,7 +20,6 @@
 package org.elasticsearch.rest.action.admin.cluster.node.stats;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.client.Client;
@@ -43,54 +42,59 @@ public class RestNodesStatsAction extends BaseRestHandler {
         super(settings, client);
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/nodes/stats", this);
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/nodes/{nodeId}/stats", this);
+
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats", this);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats", this);
+
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/indices", new RestIndicesHandler());
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/indices", new RestIndicesHandler());
+
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/os", new RestOsHandler());
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/os", new RestOsHandler());
+
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/process", new RestProcessHandler());
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/process", new RestProcessHandler());
+
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/jvm", new RestJvmHandler());
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/jvm", new RestJvmHandler());
+
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/network", new RestNetworkHandler());
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/network", new RestNetworkHandler());
+
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/transport", new RestTransportHandler());
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/transport", new RestTransportHandler());
+
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/http", new RestHttpHandler());
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/http", new RestHttpHandler());
     }
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         String[] nodesIds = RestActions.splitNodes(request.param("nodeId"));
         NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(nodesIds);
+        boolean clear = request.paramAsBoolean("clear", false);
+        if (clear) {
+            nodesStatsRequest.clear();
+        }
+        nodesStatsRequest.indices(request.paramAsBoolean("indices", nodesStatsRequest.indices()));
+        nodesStatsRequest.os(request.paramAsBoolean("os", nodesStatsRequest.os()));
+        nodesStatsRequest.process(request.paramAsBoolean("process", nodesStatsRequest.process()));
+        nodesStatsRequest.jvm(request.paramAsBoolean("jvm", nodesStatsRequest.jvm()));
+        nodesStatsRequest.network(request.paramAsBoolean("network", nodesStatsRequest.network()));
+        nodesStatsRequest.transport(request.paramAsBoolean("transport", nodesStatsRequest.transport()));
+        nodesStatsRequest.http(request.paramAsBoolean("http", nodesStatsRequest.http()));
+        executeNodeStats(request, channel, nodesStatsRequest);
+    }
+
+    void executeNodeStats(final RestRequest request, final RestChannel channel, final NodesStatsRequest nodesStatsRequest) {
         nodesStatsRequest.listenerThreaded(false);
         client.admin().cluster().nodesStats(nodesStatsRequest, new ActionListener<NodesStatsResponse>() {
             @Override
-            public void onResponse(NodesStatsResponse result) {
+            public void onResponse(NodesStatsResponse response) {
                 try {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
-                    builder.field("cluster_name", result.clusterName().value());
-
-                    builder.startObject("nodes");
-                    for (NodeStats nodeStats : result) {
-                        builder.startObject(nodeStats.node().id(), XContentBuilder.FieldCaseConversion.NONE);
-
-                        builder.field("name", nodeStats.node().name(), XContentBuilder.FieldCaseConversion.NONE);
-
-                        if (nodeStats.indices() != null) {
-                            nodeStats.indices().toXContent(builder, request);
-                        }
-
-                        if (nodeStats.os() != null) {
-                            nodeStats.os().toXContent(builder, request);
-                        }
-                        if (nodeStats.process() != null) {
-                            nodeStats.process().toXContent(builder, request);
-                        }
-                        if (nodeStats.jvm() != null) {
-                            nodeStats.jvm().toXContent(builder, request);
-                        }
-                        if (nodeStats.network() != null) {
-                            nodeStats.network().toXContent(builder, request);
-                        }
-                        if (nodeStats.transport() != null) {
-                            nodeStats.transport().toXContent(builder, request);
-                        }
-                        if (nodeStats.http() != null) {
-                            nodeStats.http().toXContent(builder, request);
-                        }
-
-                        builder.endObject();
-                    }
-                    builder.endObject();
-
+                    response.toXContent(builder, request);
                     builder.endObject();
                     channel.sendResponse(new XContentRestResponse(request, RestStatus.OK, builder));
                 } catch (Exception e) {
@@ -107,5 +111,68 @@ public class RestNodesStatsAction extends BaseRestHandler {
                 }
             }
         });
+    }
+
+    class RestIndicesHandler implements RestHandler {
+        @Override
+        public void handleRequest(final RestRequest request, final RestChannel channel) {
+            NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(RestActions.splitNodes(request.param("nodeId")));
+            nodesStatsRequest.clear().indices(true);
+            executeNodeStats(request, channel, nodesStatsRequest);
+        }
+    }
+
+    class RestOsHandler implements RestHandler {
+        @Override
+        public void handleRequest(final RestRequest request, final RestChannel channel) {
+            NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(RestActions.splitNodes(request.param("nodeId")));
+            nodesStatsRequest.clear().os(true);
+            executeNodeStats(request, channel, nodesStatsRequest);
+        }
+    }
+
+    class RestProcessHandler implements RestHandler {
+        @Override
+        public void handleRequest(final RestRequest request, final RestChannel channel) {
+            NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(RestActions.splitNodes(request.param("nodeId")));
+            nodesStatsRequest.clear().process(true);
+            executeNodeStats(request, channel, nodesStatsRequest);
+        }
+    }
+
+    class RestJvmHandler implements RestHandler {
+        @Override
+        public void handleRequest(final RestRequest request, final RestChannel channel) {
+            NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(RestActions.splitNodes(request.param("nodeId")));
+            nodesStatsRequest.clear().jvm(true);
+            executeNodeStats(request, channel, nodesStatsRequest);
+        }
+    }
+
+    class RestNetworkHandler implements RestHandler {
+        @Override
+        public void handleRequest(final RestRequest request, final RestChannel channel) {
+            NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(RestActions.splitNodes(request.param("nodeId")));
+            nodesStatsRequest.clear().network(true);
+            executeNodeStats(request, channel, nodesStatsRequest);
+        }
+    }
+
+    class RestTransportHandler implements RestHandler {
+        @Override
+        public void handleRequest(final RestRequest request, final RestChannel channel) {
+            NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(RestActions.splitNodes(request.param("nodeId")));
+            nodesStatsRequest.clear().transport(true);
+            executeNodeStats(request, channel, nodesStatsRequest);
+        }
+    }
+
+    class RestHttpHandler implements RestHandler {
+        @Override
+        public void handleRequest(final RestRequest request, final RestChannel channel) {
+            NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(RestActions.splitNodes(request.param("nodeId")));
+            nodesStatsRequest.clear().http(true);
+            executeNodeStats(request, channel, nodesStatsRequest);
+        }
     }
 }

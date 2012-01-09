@@ -39,6 +39,12 @@ public class TimeZoneRoundingTests {
     public void testUTCMonthRounding() {
         TimeZoneRounding tzRounding = TimeZoneRounding.builder(chronology().monthOfYear()).build();
         assertThat(tzRounding.calc(utc("2009-02-03T01:01:01")), equalTo(utc("2009-02-01T00:00:00.000Z")));
+
+        tzRounding = TimeZoneRounding.builder(chronology().weekOfWeekyear()).build();
+        assertThat(tzRounding.calc(utc("2012-01-10T01:01:01")), equalTo(utc("2012-01-09T00:00:00.000Z")));
+
+        tzRounding = TimeZoneRounding.builder(chronology().weekOfWeekyear()).postOffset(-TimeValue.timeValueHours(24).millis()).build();
+        assertThat(tzRounding.calc(utc("2012-01-10T01:01:01")), equalTo(utc("2012-01-08T00:00:00.000Z")));
     }
 
     @Test

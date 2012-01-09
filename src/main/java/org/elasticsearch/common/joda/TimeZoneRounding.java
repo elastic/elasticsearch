@@ -48,6 +48,9 @@ public abstract class TimeZoneRounding {
 
         private float factor = 1.0f;
 
+        private long preOffset;
+        private long postOffset;
+
         public Builder(DateTimeField field) {
             this.field = field;
             this.interval = -1;
@@ -68,6 +71,16 @@ public abstract class TimeZoneRounding {
             return this;
         }
 
+        public Builder preOffset(long preOffset) {
+            this.preOffset = preOffset;
+            return this;
+        }
+
+        public Builder postOffset(long postOffset) {
+            this.postOffset = postOffset;
+            return this;
+        }
+
         public Builder factor(float factor) {
             this.factor = factor;
             return this;
@@ -77,7 +90,7 @@ public abstract class TimeZoneRounding {
             TimeZoneRounding timeZoneRounding;
             if (field != null) {
                 if (preTz.equals(DateTimeZone.UTC) && postTz.equals(DateTimeZone.UTC)) {
-                    return new UTCTimeZoneRoundingFloor(field);
+                    timeZoneRounding = new UTCTimeZoneRoundingFloor(field);
                 } else if (field.getDurationField().getUnitMillis() < DateTimeConstants.MILLIS_PER_HOUR * 12) {
                     timeZoneRounding = new TimeTimeZoneRoundingFloor(field, preTz, postTz);
                 } else {
@@ -85,12 +98,15 @@ public abstract class TimeZoneRounding {
                 }
             } else {
                 if (preTz.equals(DateTimeZone.UTC) && postTz.equals(DateTimeZone.UTC)) {
-                    return new UTCIntervalTimeZoneRounding(interval);
+                    timeZoneRounding = new UTCIntervalTimeZoneRounding(interval);
                 } else if (interval < DateTimeConstants.MILLIS_PER_HOUR * 12) {
                     timeZoneRounding = new TimeIntervalTimeZoneRounding(interval, preTz, postTz);
                 } else {
                     timeZoneRounding = new DayIntervalTimeZoneRounding(interval, preTz, postTz);
                 }
+            }
+            if (preOffset != 0 || postOffset != 0) {
+                timeZoneRounding = new PrePostTimeZoneRounding(timeZoneRounding, preOffset, postOffset);
             }
             if (factor != 1.0f) {
                 timeZoneRounding = new FactorTimeZoneRounding(timeZoneRounding, factor);
@@ -235,6 +251,25 @@ public abstract class TimeZoneRounding {
         @Override
         public long calc(long utcMillis) {
             return timeZoneRounding.calc((long) (factor * utcMillis));
+        }
+    }
+
+    static class PrePostTimeZoneRounding extends TimeZoneRounding {
+
+        private final TimeZoneRounding timeZoneRounding;
+
+        private final long preOffset;
+        private final long postOffset;
+
+        PrePostTimeZoneRounding(TimeZoneRounding timeZoneRounding, long preOffset, long postOffset) {
+            this.timeZoneRounding = timeZoneRounding;
+            this.preOffset = preOffset;
+            this.postOffset = postOffset;
+        }
+
+        @Override
+        public long calc(long utcMillis) {
+            return postOffset + timeZoneRounding.calc(utcMillis + preOffset);
         }
     }
 }

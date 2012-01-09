@@ -27,11 +27,14 @@ import org.elasticsearch.action.support.nodes.TransportNodesOperationAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
@@ -84,7 +87,7 @@ public class TransportNodesStatsAction extends TransportNodesOperationAction<Nod
 
     @Override
     protected NodeStatsRequest newNodeRequest(String nodeId, NodesStatsRequest request) {
-        return new NodeStatsRequest(nodeId);
+        return new NodeStatsRequest(nodeId, request);
     }
 
     @Override
@@ -93,8 +96,9 @@ public class TransportNodesStatsAction extends TransportNodesOperationAction<Nod
     }
 
     @Override
-    protected NodeStats nodeOperation(NodeStatsRequest request) throws ElasticSearchException {
-        return nodeService.stats();
+    protected NodeStats nodeOperation(NodeStatsRequest nodeStatsRequest) throws ElasticSearchException {
+        NodesStatsRequest request = nodeStatsRequest.request;
+        return nodeService.stats(request.indices(), request.os(), request.process(), request.jvm(), request.network(), request.transport(), request.http());
     }
 
     @Override
@@ -102,13 +106,29 @@ public class TransportNodesStatsAction extends TransportNodesOperationAction<Nod
         return false;
     }
 
-    protected static class NodeStatsRequest extends NodeOperationRequest {
+    static class NodeStatsRequest extends NodeOperationRequest {
 
-        private NodeStatsRequest() {
+        NodesStatsRequest request;
+
+        NodeStatsRequest() {
         }
 
-        private NodeStatsRequest(String nodeId) {
+        NodeStatsRequest(String nodeId, NodesStatsRequest request) {
             super(nodeId);
+            this.request = request;
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+            request = new NodesStatsRequest();
+            request.readFrom(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            request.writeTo(out);
         }
     }
 }

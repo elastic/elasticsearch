@@ -36,32 +36,41 @@ import java.io.IOException;
 
 /**
  * Node statistics (static, does not change over time).
- *
- *
  */
 public class NodeStats extends NodeOperationResponse {
 
+    @Nullable
+    private String hostname;
+
+    @Nullable
     private NodeIndicesStats indices;
 
+    @Nullable
     private OsStats os;
 
+    @Nullable
     private ProcessStats process;
 
+    @Nullable
     private JvmStats jvm;
 
+    @Nullable
     private NetworkStats network;
 
+    @Nullable
     private TransportStats transport;
 
+    @Nullable
     private HttpStats http;
 
     NodeStats() {
     }
 
-    public NodeStats(DiscoveryNode node, NodeIndicesStats indices,
-                     OsStats os, ProcessStats process, JvmStats jvm, NetworkStats network,
-                     TransportStats transport, @Nullable HttpStats http) {
+    public NodeStats(DiscoveryNode node, @Nullable String hostname, @Nullable NodeIndicesStats indices,
+                     @Nullable OsStats os, @Nullable ProcessStats process, @Nullable JvmStats jvm, @Nullable NetworkStats network,
+                     @Nullable TransportStats transport, @Nullable HttpStats http) {
         super(node);
+        this.hostname = hostname;
         this.indices = indices;
         this.os = os;
         this.process = process;
@@ -71,9 +80,20 @@ public class NodeStats extends NodeOperationResponse {
         this.http = http;
     }
 
+    @Nullable
+    public String hostname() {
+        return this.hostname;
+    }
+
+    @Nullable
+    public String getHostname() {
+        return this.hostname;
+    }
+
     /**
      * Indices level stats.
      */
+    @Nullable
     public NodeIndicesStats indices() {
         return this.indices;
     }
@@ -81,6 +101,7 @@ public class NodeStats extends NodeOperationResponse {
     /**
      * Indices level stats.
      */
+    @Nullable
     public NodeIndicesStats getIndices() {
         return indices();
     }
@@ -88,6 +109,7 @@ public class NodeStats extends NodeOperationResponse {
     /**
      * Operating System level statistics.
      */
+    @Nullable
     public OsStats os() {
         return this.os;
     }
@@ -95,6 +117,7 @@ public class NodeStats extends NodeOperationResponse {
     /**
      * Operating System level statistics.
      */
+    @Nullable
     public OsStats getOs() {
         return os();
     }
@@ -102,6 +125,7 @@ public class NodeStats extends NodeOperationResponse {
     /**
      * Process level statistics.
      */
+    @Nullable
     public ProcessStats process() {
         return process;
     }
@@ -109,6 +133,7 @@ public class NodeStats extends NodeOperationResponse {
     /**
      * Process level statistics.
      */
+    @Nullable
     public ProcessStats getProcess() {
         return process();
     }
@@ -116,6 +141,7 @@ public class NodeStats extends NodeOperationResponse {
     /**
      * JVM level statistics.
      */
+    @Nullable
     public JvmStats jvm() {
         return jvm;
     }
@@ -123,6 +149,7 @@ public class NodeStats extends NodeOperationResponse {
     /**
      * JVM level statistics.
      */
+    @Nullable
     public JvmStats getJvm() {
         return jvm();
     }
@@ -130,6 +157,7 @@ public class NodeStats extends NodeOperationResponse {
     /**
      * Network level statistics.
      */
+    @Nullable
     public NetworkStats network() {
         return network;
     }
@@ -137,22 +165,27 @@ public class NodeStats extends NodeOperationResponse {
     /**
      * Network level statistics.
      */
+    @Nullable
     public NetworkStats getNetwork() {
         return network();
     }
 
+    @Nullable
     public TransportStats transport() {
         return this.transport;
     }
 
+    @Nullable
     public TransportStats getTransport() {
         return transport();
     }
 
+    @Nullable
     public HttpStats http() {
         return this.http;
     }
 
+    @Nullable
     public HttpStats getHttp() {
         return http();
     }
@@ -166,6 +199,9 @@ public class NodeStats extends NodeOperationResponse {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
+        if (in.readBoolean()) {
+            hostname = in.readUTF();
+        }
         if (in.readBoolean()) {
             indices = NodeIndicesStats.readIndicesStats(in);
         }
@@ -192,6 +228,12 @@ public class NodeStats extends NodeOperationResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        if (hostname == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeUTF(hostname);
+        }
         if (indices == null) {
             out.writeBoolean(false);
         } else {

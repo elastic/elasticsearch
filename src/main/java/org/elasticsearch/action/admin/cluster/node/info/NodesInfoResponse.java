@@ -89,11 +89,13 @@ public class NodesInfoResponse extends NodesOperationResponse<NodeInfo> implemen
                 }
             }
 
-            builder.startObject("attributes");
-            for (Map.Entry<String, String> attr : nodeInfo.node().attributes().entrySet()) {
-                builder.field(attr.getKey(), attr.getValue());
+            if (!nodeInfo.node().attributes().isEmpty()) {
+                builder.startObject("attributes");
+                for (Map.Entry<String, String> attr : nodeInfo.node().attributes().entrySet()) {
+                    builder.field(attr.getKey(), attr.getValue());
+                }
+                builder.endObject();
             }
-            builder.endObject();
 
 
             if (nodeInfo.settings() != null) {

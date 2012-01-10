@@ -116,6 +116,9 @@ public class NodesInfoResponse extends NodesOperationResponse<NodeInfo> implemen
             if (nodeInfo.jvm() != null) {
                 nodeInfo.jvm().toXContent(builder, params);
             }
+            if (nodeInfo.threadPool() != null) {
+                nodeInfo.threadPool().toXContent(builder, params);
+            }
             if (nodeInfo.network() != null) {
                 nodeInfo.network().toXContent(builder, params);
             }

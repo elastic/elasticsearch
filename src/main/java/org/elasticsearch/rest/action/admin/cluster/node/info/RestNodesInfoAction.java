@@ -61,6 +61,9 @@ public class RestNodesInfoAction extends BaseRestHandler {
         controller.registerHandler(RestRequest.Method.GET, "/_nodes/jvm", new RestJvmHandler());
         controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/jvm", new RestJvmHandler());
 
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/thread_pool", new RestThreadPoolHandler());
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/thread_pool", new RestThreadPoolHandler());
+
         controller.registerHandler(RestRequest.Method.GET, "/_nodes/network", new RestNetworkHandler());
         controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/network", new RestNetworkHandler());
 
@@ -86,6 +89,7 @@ public class RestNodesInfoAction extends BaseRestHandler {
         nodesInfoRequest.os(request.paramAsBoolean("os", nodesInfoRequest.os()));
         nodesInfoRequest.process(request.paramAsBoolean("process", nodesInfoRequest.process()));
         nodesInfoRequest.jvm(request.paramAsBoolean("jvm", nodesInfoRequest.jvm()));
+        nodesInfoRequest.threadPool(request.paramAsBoolean("thread_pool", nodesInfoRequest.threadPool()));
         nodesInfoRequest.network(request.paramAsBoolean("network", nodesInfoRequest.network()));
         nodesInfoRequest.transport(request.paramAsBoolean("transport", nodesInfoRequest.transport()));
         nodesInfoRequest.http(request.paramAsBoolean("http", nodesInfoRequest.http()));
@@ -154,6 +158,15 @@ public class RestNodesInfoAction extends BaseRestHandler {
         public void handleRequest(final RestRequest request, final RestChannel channel) {
             NodesInfoRequest nodesInfoRequest = new NodesInfoRequest(RestActions.splitNodes(request.param("nodeId")));
             nodesInfoRequest.clear().jvm(true);
+            executeNodeRequest(request, channel, nodesInfoRequest);
+        }
+    }
+
+    class RestThreadPoolHandler implements RestHandler {
+        @Override
+        public void handleRequest(final RestRequest request, final RestChannel channel) {
+            NodesInfoRequest nodesInfoRequest = new NodesInfoRequest(RestActions.splitNodes(request.param("nodeId")));
+            nodesInfoRequest.clear().threadPool(true);
             executeNodeRequest(request, channel, nodesInfoRequest);
         }
     }

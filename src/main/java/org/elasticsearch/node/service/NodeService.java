@@ -33,6 +33,7 @@ import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.monitor.MonitorService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.net.InetAddress;
@@ -40,6 +41,8 @@ import java.net.InetAddress;
 /**
  */
 public class NodeService extends AbstractComponent {
+
+    private final ThreadPool threadPool;
 
     private final MonitorService monitorService;
 
@@ -58,8 +61,9 @@ public class NodeService extends AbstractComponent {
     private String hostname;
 
     @Inject
-    public NodeService(Settings settings, MonitorService monitorService, Discovery discovery, ClusterService clusterService, TransportService transportService, IndicesService indicesService) {
+    public NodeService(Settings settings, ThreadPool threadPool, MonitorService monitorService, Discovery discovery, ClusterService clusterService, TransportService transportService, IndicesService indicesService) {
         super(settings);
+        this.threadPool = threadPool;
         this.monitorService = monitorService;
         this.clusterService = clusterService;
         this.transportService = transportService;
@@ -101,18 +105,25 @@ public class NodeService extends AbstractComponent {
     }
 
     public NodeInfo info() {
-        return new NodeInfo(hostname, clusterService.state().nodes().localNode(), serviceAttributes, settings,
-                monitorService.osService().info(), monitorService.processService().info(),
-                monitorService.jvmService().info(), monitorService.networkService().info(),
-                transportService.info(), httpServer == null ? null : httpServer.info());
+        return new NodeInfo(hostname, clusterService.state().nodes().localNode(), serviceAttributes,
+                settings,
+                monitorService.osService().info(),
+                monitorService.processService().info(),
+                monitorService.jvmService().info(),
+                threadPool.info(),
+                monitorService.networkService().info(),
+                transportService.info(),
+                httpServer == null ? null : httpServer.info()
+        );
     }
 
-    public NodeInfo info(boolean settings, boolean os, boolean process, boolean jvm, boolean network, boolean transport, boolean http) {
+    public NodeInfo info(boolean settings, boolean os, boolean process, boolean jvm, boolean threadPool, boolean network, boolean transport, boolean http) {
         return new NodeInfo(hostname, clusterService.state().nodes().localNode(), serviceAttributes,
                 settings ? this.settings : null,
                 os ? monitorService.osService().info() : null,
                 process ? monitorService.processService().info() : null,
                 jvm ? monitorService.jvmService().info() : null,
+                threadPool ? this.threadPool.info() : null,
                 network ? monitorService.networkService().info() : null,
                 transport ? transportService.info() : null,
                 http ? (httpServer == null ? null : httpServer.info()) : null
@@ -122,13 +133,19 @@ public class NodeService extends AbstractComponent {
     public NodeStats stats() {
         // for indices stats we want to include previous allocated shards stats as well (it will
         // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
-        return new NodeStats(clusterService.state().nodes().localNode(), hostname, indicesService.stats(true),
-                monitorService.osService().stats(), monitorService.processService().stats(),
-                monitorService.jvmService().stats(), monitorService.networkService().stats(),
-                transportService.stats(), httpServer == null ? null : httpServer.stats());
+        return new NodeStats(clusterService.state().nodes().localNode(), hostname,
+                indicesService.stats(true),
+                monitorService.osService().stats(),
+                monitorService.processService().stats(),
+                monitorService.jvmService().stats(),
+                threadPool.stats(),
+                monitorService.networkService().stats(),
+                transportService.stats(),
+                httpServer == null ? null : httpServer.stats()
+        );
     }
 
-    public NodeStats stats(boolean indices, boolean os, boolean process, boolean jvm, boolean network, boolean transport, boolean http) {
+    public NodeStats stats(boolean indices, boolean os, boolean process, boolean jvm, boolean threadPool, boolean network, boolean transport, boolean http) {
         // for indices stats we want to include previous allocated shards stats as well (it will
         // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
         return new NodeStats(clusterService.state().nodes().localNode(), hostname,
@@ -136,8 +153,10 @@ public class NodeService extends AbstractComponent {
                 os ? monitorService.osService().stats() : null,
                 process ? monitorService.processService().stats() : null,
                 jvm ? monitorService.jvmService().stats() : null,
+                threadPool ? this.threadPool.stats() : null,
                 network ? monitorService.networkService().stats() : null,
                 transport ? transportService.stats() : null,
-                http ? (httpServer == null ? null : httpServer.stats()) : null);
+                http ? (httpServer == null ? null : httpServer.stats()) : null
+        );
     }
 }

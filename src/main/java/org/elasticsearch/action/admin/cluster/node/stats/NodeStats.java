@@ -30,6 +30,7 @@ import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.monitor.network.NetworkStats;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.monitor.process.ProcessStats;
+import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.transport.TransportStats;
 
 import java.io.IOException;
@@ -55,6 +56,9 @@ public class NodeStats extends NodeOperationResponse {
     private JvmStats jvm;
 
     @Nullable
+    private ThreadPoolStats threadPool;
+
+    @Nullable
     private NetworkStats network;
 
     @Nullable
@@ -67,7 +71,7 @@ public class NodeStats extends NodeOperationResponse {
     }
 
     public NodeStats(DiscoveryNode node, @Nullable String hostname, @Nullable NodeIndicesStats indices,
-                     @Nullable OsStats os, @Nullable ProcessStats process, @Nullable JvmStats jvm, @Nullable NetworkStats network,
+                     @Nullable OsStats os, @Nullable ProcessStats process, @Nullable JvmStats jvm, @Nullable ThreadPoolStats threadPool, @Nullable NetworkStats network,
                      @Nullable TransportStats transport, @Nullable HttpStats http) {
         super(node);
         this.hostname = hostname;
@@ -75,6 +79,7 @@ public class NodeStats extends NodeOperationResponse {
         this.os = os;
         this.process = process;
         this.jvm = jvm;
+        this.threadPool = threadPool;
         this.network = network;
         this.transport = transport;
         this.http = http;
@@ -155,6 +160,22 @@ public class NodeStats extends NodeOperationResponse {
     }
 
     /**
+     * Thread Pool level statistics.
+     */
+    @Nullable
+    public ThreadPoolStats threadPool() {
+        return this.threadPool;
+    }
+
+    /**
+     * Thread Pool level statistics.
+     */
+    @Nullable
+    public ThreadPoolStats getThreadPool() {
+        return threadPool();
+    }
+
+    /**
      * Network level statistics.
      */
     @Nullable
@@ -215,6 +236,9 @@ public class NodeStats extends NodeOperationResponse {
             jvm = JvmStats.readJvmStats(in);
         }
         if (in.readBoolean()) {
+            threadPool = ThreadPoolStats.readThreadPoolStats(in);
+        }
+        if (in.readBoolean()) {
             network = NetworkStats.readNetworkStats(in);
         }
         if (in.readBoolean()) {
@@ -257,6 +281,12 @@ public class NodeStats extends NodeOperationResponse {
         } else {
             out.writeBoolean(true);
             jvm.writeTo(out);
+        }
+        if (threadPool == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            threadPool.writeTo(out);
         }
         if (network == null) {
             out.writeBoolean(false);

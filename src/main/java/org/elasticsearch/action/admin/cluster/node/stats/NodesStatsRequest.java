@@ -34,6 +34,7 @@ public class NodesStatsRequest extends NodesOperationRequest {
     private boolean os;
     private boolean process;
     private boolean jvm;
+    private boolean threadPool;
     private boolean network;
     private boolean transport;
     private boolean http;
@@ -57,6 +58,7 @@ public class NodesStatsRequest extends NodesOperationRequest {
         this.os = false;
         this.process = false;
         this.jvm = false;
+        this.threadPool = false;
         this.network = false;
         this.transport = false;
         this.http = false;
@@ -124,6 +126,21 @@ public class NodesStatsRequest extends NodesOperationRequest {
     }
 
     /**
+     * Should the node Thread Pool be returned.
+     */
+    public boolean threadPool() {
+        return this.threadPool;
+    }
+
+    /**
+     * Should the node Thread Pool be returned.
+     */
+    public NodesStatsRequest threadPool(boolean threadPool) {
+        this.threadPool = threadPool;
+        return this;
+    }
+
+    /**
      * Should the node Network be returned.
      */
     public boolean network() {
@@ -175,6 +192,7 @@ public class NodesStatsRequest extends NodesOperationRequest {
         os = in.readBoolean();
         process = in.readBoolean();
         jvm = in.readBoolean();
+        threadPool = in.readBoolean();
         network = in.readBoolean();
         transport = in.readBoolean();
         http = in.readBoolean();
@@ -187,6 +205,7 @@ public class NodesStatsRequest extends NodesOperationRequest {
         out.writeBoolean(os);
         out.writeBoolean(process);
         out.writeBoolean(jvm);
+        out.writeBoolean(threadPool);
         out.writeBoolean(network);
         out.writeBoolean(transport);
         out.writeBoolean(http);

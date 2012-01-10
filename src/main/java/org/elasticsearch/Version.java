@@ -50,6 +50,8 @@ public class Version {
     public static final Version V_0_18_6 = new Version(V_0_18_6_ID, false);
     public static final int V_0_18_7_ID = /*00*/180799;
     public static final Version V_0_18_7 = new Version(V_0_18_7_ID, false);
+    public static final int V_0_18_8_ID = /*00*/180899;
+    public static final Version V_0_18_8 = new Version(V_0_18_8_ID, false);
 
     public static final int V_0_19_0_ID = /*00*/190099;
     public static final Version V_0_19_0 = new Version(V_0_19_0_ID, true);
@@ -78,6 +80,8 @@ public class Version {
                 return V_0_18_6;
             case V_0_18_7_ID:
                 return V_0_18_7;
+            case V_0_18_8_ID:
+                return V_0_18_8;
 
             case V_0_19_0_ID:
                 return V_0_19_0;

@@ -220,6 +220,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                             return;
                         }
                     }
+                    listener.onFailure(e);
                 }
             });
         } else if ("delete".equals(operation)) {

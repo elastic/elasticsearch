@@ -80,6 +80,14 @@ public class NodesInfoRequestBuilder extends BaseClusterRequestBuilder<NodesInfo
     }
 
     /**
+     * Should the node thread pool info be returned.
+     */
+    public NodesInfoRequestBuilder setThreadPool(boolean threadPool) {
+        request.threadPool(threadPool);
+        return this;
+    }
+
+    /**
      * Should the node Network info be returned.
      */
     public NodesInfoRequestBuilder setNetwork(boolean network) {

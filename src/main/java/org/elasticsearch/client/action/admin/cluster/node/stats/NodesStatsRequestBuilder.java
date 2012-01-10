@@ -80,6 +80,14 @@ public class NodesStatsRequestBuilder extends BaseClusterRequestBuilder<NodesSta
     }
 
     /**
+     * Should the node thread pool stats be returned.
+     */
+    public NodesStatsRequestBuilder setThreadPool(boolean threadPool) {
+        request.threadPool(threadPool);
+        return this;
+    }
+
+    /**
      * Should the node Network stats be returned.
      */
     public NodesStatsRequestBuilder setNetwork(boolean network) {

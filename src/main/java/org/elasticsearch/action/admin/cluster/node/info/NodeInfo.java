@@ -32,6 +32,7 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.network.NetworkInfo;
 import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.monitor.process.ProcessInfo;
+import org.elasticsearch.threadpool.ThreadPoolInfo;
 import org.elasticsearch.transport.TransportInfo;
 
 import java.io.IOException;
@@ -61,6 +62,9 @@ public class NodeInfo extends NodeOperationResponse {
     private JvmInfo jvm;
 
     @Nullable
+    private ThreadPoolInfo threadPool;
+
+    @Nullable
     private NetworkInfo network;
 
     @Nullable
@@ -73,7 +77,7 @@ public class NodeInfo extends NodeOperationResponse {
     }
 
     public NodeInfo(@Nullable String hostname, DiscoveryNode node, @Nullable ImmutableMap<String, String> serviceAttributes, @Nullable Settings settings,
-                    @Nullable OsInfo os, @Nullable ProcessInfo process, @Nullable JvmInfo jvm, @Nullable NetworkInfo network,
+                    @Nullable OsInfo os, @Nullable ProcessInfo process, @Nullable JvmInfo jvm, @Nullable ThreadPoolInfo threadPool, @Nullable NetworkInfo network,
                     @Nullable TransportInfo transport, @Nullable HttpInfo http) {
         super(node);
         this.hostname = hostname;
@@ -82,6 +86,7 @@ public class NodeInfo extends NodeOperationResponse {
         this.os = os;
         this.process = process;
         this.jvm = jvm;
+        this.threadPool = threadPool;
         this.network = network;
         this.transport = transport;
         this.http = http;
@@ -183,6 +188,16 @@ public class NodeInfo extends NodeOperationResponse {
         return jvm();
     }
 
+    @Nullable
+    public ThreadPoolInfo threadPool() {
+        return this.threadPool;
+    }
+
+    @Nullable
+    public ThreadPoolInfo getThreadPool() {
+        return threadPool();
+    }
+
     /**
      * Network level information.
      */
@@ -252,6 +267,9 @@ public class NodeInfo extends NodeOperationResponse {
             jvm = JvmInfo.readJvmInfo(in);
         }
         if (in.readBoolean()) {
+            threadPool = ThreadPoolInfo.readThreadPoolInfo(in);
+        }
+        if (in.readBoolean()) {
             network = NetworkInfo.readNetworkInfo(in);
         }
         if (in.readBoolean()) {
@@ -304,6 +322,12 @@ public class NodeInfo extends NodeOperationResponse {
         } else {
             out.writeBoolean(true);
             jvm.writeTo(out);
+        }
+        if (threadPool == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            threadPool.writeTo(out);
         }
         if (network == null) {
             out.writeBoolean(false);

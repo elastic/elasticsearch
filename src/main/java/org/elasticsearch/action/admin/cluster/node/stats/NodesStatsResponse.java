@@ -95,6 +95,9 @@ public class NodesStatsResponse extends NodesOperationResponse<NodeStats> implem
             if (nodeStats.jvm() != null) {
                 nodeStats.jvm().toXContent(builder, params);
             }
+            if (nodeStats.threadPool() != null) {
+                nodeStats.threadPool().toXContent(builder, params);
+            }
             if (nodeStats.network() != null) {
                 nodeStats.network().toXContent(builder, params);
             }

@@ -41,6 +41,7 @@ import static org.elasticsearch.index.query.FilterBuilders.nestedFilter;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 @Test
 public class SimpleNestedTests extends AbstractNodesTests {
@@ -99,6 +100,7 @@ public class SimpleNestedTests extends AbstractNodesTests {
         client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
         GetResponse getResponse = client.prepareGet("test", "type1", "1").execute().actionGet();
         assertThat(getResponse.exists(), equalTo(true));
+        assertThat(getResponse.source(), notNullValue());
 
         // check the numDocs
         IndicesStatusResponse statusResponse = client.admin().indices().prepareStatus().execute().actionGet();

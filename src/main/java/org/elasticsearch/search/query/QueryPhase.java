@@ -24,6 +24,7 @@ import org.apache.lucene.search.*;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.index.query.ParsedQuery;
@@ -81,7 +82,13 @@ public class QueryPhase implements SearchPhase {
         }
         Filter searchFilter = context.mapperService().searchFilter(context.types());
         if (searchFilter != null) {
-            context.parsedQuery(new ParsedQuery(new FilteredQuery(context.query(), context.filterCache().cache(searchFilter)), context.parsedQuery()));
+            if (Queries.isMatchAllQuery(context.query())) {
+                Query q = new DeletionAwareConstantScoreQuery(context.filterCache().cache(searchFilter));
+                q.setBoost(context.query().getBoost());
+                context.parsedQuery(new ParsedQuery(q, context.parsedQuery()));
+            } else {
+                context.parsedQuery(new ParsedQuery(new FilteredQuery(context.query(), context.filterCache().cache(searchFilter)), context.parsedQuery()));
+            }
         }
         facetPhase.preProcess(context);
     }

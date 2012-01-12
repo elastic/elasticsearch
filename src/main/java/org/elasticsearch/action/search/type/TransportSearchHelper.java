@@ -66,7 +66,6 @@ public abstract class TransportSearchHelper {
         internalRequest.source(request.source(), request.sourceOffset(), request.sourceLength());
         internalRequest.extraSource(request.extraSource(), request.extraSourceOffset(), request.extraSourceLength());
         internalRequest.scroll(request.scroll());
-        internalRequest.timeout(request.timeout());
         internalRequest.filteringAliases(filteringAliases);
         internalRequest.types(request.types());
         internalRequest.nowInMillis(nowInMillis);

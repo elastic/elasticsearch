@@ -44,7 +44,6 @@ import java.util.Arrays;
 import java.util.Map;
 
 import static org.elasticsearch.action.Actions.addValidationError;
-import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
 import static org.elasticsearch.search.Scroll.readScroll;
 
 /**
@@ -88,8 +87,6 @@ public class SearchRequest implements ActionRequest {
     private Scroll scroll;
 
     private String[] types = Strings.EMPTY_ARRAY;
-
-    private TimeValue timeout;
 
     private boolean listenerThreaded = false;
     private SearchOperationThreading operationThreading = SearchOperationThreading.THREAD_PER_SHARD;
@@ -501,28 +498,6 @@ public class SearchRequest implements ActionRequest {
         return scroll(new Scroll(TimeValue.parseTimeValue(keepAlive, null)));
     }
 
-    /**
-     * An optional timeout to control how long search is allowed to take.
-     */
-    public TimeValue timeout() {
-        return timeout;
-    }
-
-    /**
-     * An optional timeout to control how long search is allowed to take.
-     */
-    public SearchRequest timeout(TimeValue timeout) {
-        this.timeout = timeout;
-        return this;
-    }
-
-    /**
-     * An optional timeout to control how long search is allowed to take.
-     */
-    public SearchRequest timeout(String timeout) {
-        return timeout(TimeValue.parseTimeValue(timeout, null));
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         operationThreading = SearchOperationThreading.fromId(in.readByte());
@@ -545,9 +520,6 @@ public class SearchRequest implements ActionRequest {
 
         if (in.readBoolean()) {
             scroll = readScroll(in);
-        }
-        if (in.readBoolean()) {
-            timeout = readTimeValue(in);
         }
 
         BytesHolder bytes = in.readBytesReference();
@@ -605,12 +577,6 @@ public class SearchRequest implements ActionRequest {
         } else {
             out.writeBoolean(true);
             scroll.writeTo(out);
-        }
-        if (timeout == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            timeout.writeTo(out);
         }
         out.writeBytesHolder(source, sourceOffset, sourceLength);
         out.writeBytesHolder(extraSource, extraSourceOffset, extraSourceLength);

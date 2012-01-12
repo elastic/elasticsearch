@@ -68,6 +68,7 @@ public class QueryPhase implements SearchPhase {
                 .put("track_scores", new TrackScoresParseElement())
                 .put("min_score", new MinScoreParseElement())
                 .put("minScore", new MinScoreParseElement())
+                .put("timeout", new TimeoutParseElement())
                 .putAll(facetPhase.parseElements());
         return parseElements.build();
     }
@@ -94,6 +95,7 @@ public class QueryPhase implements SearchPhase {
     }
 
     public void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
+        searchContext.queryResult().searchTimedOut(false);
         // set the filter on the searcher
         if (searchContext.scopePhases() != null) {
             // we have scoped queries, refresh the id cache

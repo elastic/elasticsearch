@@ -62,7 +62,7 @@ public class TransportNodesShutdownAction extends TransportMasterNodeOperationAc
         super(settings, transportService, clusterService, threadPool);
         this.node = node;
         this.clusterName = clusterName;
-        this.disabled = componentSettings.getAsBoolean("disabled", false);
+        this.disabled = settings.getAsBoolean("action.disable_shutdown", componentSettings.getAsBoolean("disabled", false));
         this.delay = componentSettings.getAsTime("delay", TimeValue.timeValueMillis(200));
 
         this.transportService.registerHandler(NodeShutdownRequestHandler.ACTION, new NodeShutdownRequestHandler());

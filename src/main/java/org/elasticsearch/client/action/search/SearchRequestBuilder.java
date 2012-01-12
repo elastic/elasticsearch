@@ -115,7 +115,7 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
      * An optional timeout to control how long search is allowed to take.
      */
     public SearchRequestBuilder setTimeout(TimeValue timeout) {
-        request.timeout(timeout);
+        sourceBuilder().timeout(timeout);
         return this;
     }
 
@@ -123,7 +123,7 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
      * An optional timeout to control how long search is allowed to take.
      */
     public SearchRequestBuilder setTimeout(String timeout) {
-        request.timeout(timeout);
+        sourceBuilder().timeout(timeout);
         return this;
     }
 

@@ -28,7 +28,6 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.cache.filter.FilterCache;
@@ -111,6 +110,9 @@ public class SearchContext implements Releasable {
     private ScanContext scanContext;
 
     private float queryBoost = 1.0f;
+
+    // timeout in millis
+    private long timeoutInMillis = -1;
 
 
     private List<String> groupStats;
@@ -337,8 +339,12 @@ public class SearchContext implements Releasable {
         return indexService.cache().idCache();
     }
 
-    public TimeValue timeout() {
-        return request.timeout();
+    public long timeoutInMillis() {
+        return timeoutInMillis;
+    }
+
+    public void timeoutInMillis(long timeoutInMillis) {
+        this.timeoutInMillis = timeoutInMillis;
     }
 
     public SearchContext minimumScore(float minimumScore) {

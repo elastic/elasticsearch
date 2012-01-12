@@ -28,6 +28,7 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.io.BytesStream;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -92,6 +93,8 @@ public class SearchSourceBuilder implements ToXContent {
     private boolean trackScores = false;
 
     private Float minScore;
+
+    private long timeoutInMillis = -1;
 
     private List<String> fieldNames;
     private List<ScriptField> scriptFields;
@@ -273,6 +276,22 @@ public class SearchSourceBuilder implements ToXContent {
      */
     public SearchSourceBuilder version(Boolean version) {
         this.version = version;
+        return this;
+    }
+
+    /**
+     * An optional timeout to control how long search is allowed to take.
+     */
+    public SearchSourceBuilder timeout(TimeValue timeout) {
+        this.timeoutInMillis = timeout.millis();
+        return this;
+    }
+
+    /**
+     * An optional timeout to control how long search is allowed to take.
+     */
+    public SearchSourceBuilder timeout(String timeout) {
+        this.timeoutInMillis = TimeValue.parseTimeValue(timeout, null).millis();
         return this;
     }
 
@@ -562,6 +581,10 @@ public class SearchSourceBuilder implements ToXContent {
         }
         if (size != -1) {
             builder.field("size", size);
+        }
+
+        if (timeoutInMillis != -1) {
+            builder.field("timeout", timeoutInMillis);
         }
 
         if (queryBuilder != null) {

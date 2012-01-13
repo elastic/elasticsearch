@@ -39,6 +39,6 @@ public class ClientTransportPutIndexTemplateAction extends BaseClientTransportAc
 
     @Override
     protected String action() {
-        return TransportActions.Admin.Indices.PUT_INDEX_TEMPLATE;
+        return TransportActions.Admin.Indices.Template.PUT;
     }
 }

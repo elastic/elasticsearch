@@ -37,8 +37,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Put index template action.
- *
- *
  */
 public class TransportPutIndexTemplateAction extends TransportMasterNodeOperationAction<PutIndexTemplateRequest, PutIndexTemplateResponse> {
 
@@ -58,7 +56,7 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeOperatio
 
     @Override
     protected String transportAction() {
-        return TransportActions.Admin.Indices.PUT_INDEX_TEMPLATE;
+        return TransportActions.Admin.Indices.Template.PUT;
     }
 
     @Override

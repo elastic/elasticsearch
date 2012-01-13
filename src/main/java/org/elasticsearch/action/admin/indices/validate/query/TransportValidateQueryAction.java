@@ -67,7 +67,7 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
 
     @Override
     protected String transportAction() {
-        return TransportActions.Admin.Indices.VALIDATE_QUERY;
+        return TransportActions.Admin.Indices.Validate.QUERY;
     }
 
     @Override

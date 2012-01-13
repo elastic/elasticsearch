@@ -22,6 +22,7 @@ package org.elasticsearch.client.transport.support;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
@@ -88,10 +89,13 @@ import org.elasticsearch.client.transport.action.admin.indices.status.ClientTran
 import org.elasticsearch.client.transport.action.admin.indices.template.delete.ClientTransportDeleteIndexTemplateAction;
 import org.elasticsearch.client.transport.action.admin.indices.template.put.ClientTransportPutIndexTemplateAction;
 import org.elasticsearch.client.transport.action.admin.indices.validate.query.ClientTransportValidateQueryAction;
+import org.elasticsearch.client.transport.action.support.BaseClientTransportAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
+
+import java.util.Map;
 
 /**
  *
@@ -146,37 +150,30 @@ public class InternalTransportIndicesAdminClient extends AbstractIndicesAdminCli
 
     @Inject
     public InternalTransportIndicesAdminClient(Settings settings, TransportClientNodesService nodesService, ThreadPool threadPool,
-                                               ClientTransportIndicesExistsAction indicesExistsAction, ClientTransportIndicesStatusAction indicesStatusAction, ClientTransportIndicesStatsAction indicesStatsAction, ClientTransportIndicesSegmentsAction indicesSegmentsAction,
-                                               ClientTransportCreateIndexAction createIndexAction, ClientTransportDeleteIndexAction deleteIndexAction,
-                                               ClientTransportCloseIndexAction closeIndexAction, ClientTransportOpenIndexAction openIndexAction,
-                                               ClientTransportRefreshAction refreshAction, ClientTransportFlushAction flushAction, ClientTransportOptimizeAction optimizeAction,
-                                               ClientTransportPutMappingAction putMappingAction, ClientTransportDeleteMappingAction deleteMappingAction, ClientTransportGatewaySnapshotAction gatewaySnapshotAction,
-                                               ClientTransportIndicesAliasesAction indicesAliasesAction, ClientTransportClearIndicesCacheAction clearIndicesCacheAction,
-                                               ClientTransportUpdateSettingsAction updateSettingsAction, ClientTransportAnalyzeAction analyzeAction, ClientTransportValidateQueryAction validateQueryAction,
-                                               ClientTransportPutIndexTemplateAction putIndexTemplateAction, ClientTransportDeleteIndexTemplateAction deleteIndexTemplateAction) {
+                                               Map<String, BaseClientTransportAction> actions) {
         this.nodesService = nodesService;
         this.threadPool = threadPool;
-        this.indicesExistsAction = indicesExistsAction;
-        this.indicesStatsAction = indicesStatsAction;
-        this.indicesStatusAction = indicesStatusAction;
-        this.indicesSegmentsAction = indicesSegmentsAction;
-        this.createIndexAction = createIndexAction;
-        this.deleteIndexAction = deleteIndexAction;
-        this.closeIndexAction = closeIndexAction;
-        this.openIndexAction = openIndexAction;
-        this.refreshAction = refreshAction;
-        this.flushAction = flushAction;
-        this.optimizeAction = optimizeAction;
-        this.putMappingAction = putMappingAction;
-        this.deleteMappingAction = deleteMappingAction;
-        this.gatewaySnapshotAction = gatewaySnapshotAction;
-        this.indicesAliasesAction = indicesAliasesAction;
-        this.clearIndicesCacheAction = clearIndicesCacheAction;
-        this.updateSettingsAction = updateSettingsAction;
-        this.analyzeAction = analyzeAction;
-        this.putIndexTemplateAction = putIndexTemplateAction;
-        this.deleteIndexTemplateAction = deleteIndexTemplateAction;
-        this.validateQueryAction = validateQueryAction;
+        this.indicesExistsAction = (ClientTransportIndicesExistsAction) actions.get(TransportActions.Admin.Indices.EXISTS);
+        this.indicesStatsAction = (ClientTransportIndicesStatsAction) actions.get(TransportActions.Admin.Indices.STATS);
+        this.indicesStatusAction = (ClientTransportIndicesStatusAction) actions.get(TransportActions.Admin.Indices.STATUS);
+        this.indicesSegmentsAction = (ClientTransportIndicesSegmentsAction) actions.get(TransportActions.Admin.Indices.SEGMENTS);
+        this.createIndexAction = (ClientTransportCreateIndexAction) actions.get(TransportActions.Admin.Indices.CREATE);
+        this.deleteIndexAction = (ClientTransportDeleteIndexAction) actions.get(TransportActions.Admin.Indices.DELETE);
+        this.closeIndexAction = (ClientTransportCloseIndexAction) actions.get(TransportActions.Admin.Indices.CLOSE);
+        this.openIndexAction = (ClientTransportOpenIndexAction) actions.get(TransportActions.Admin.Indices.OPEN);
+        this.refreshAction = (ClientTransportRefreshAction) actions.get(TransportActions.Admin.Indices.REFRESH);
+        this.flushAction = (ClientTransportFlushAction) actions.get(TransportActions.Admin.Indices.FLUSH);
+        this.optimizeAction = (ClientTransportOptimizeAction) actions.get(TransportActions.Admin.Indices.OPTIMIZE);
+        this.putMappingAction = (ClientTransportPutMappingAction) actions.get(TransportActions.Admin.Indices.Mapping.PUT);
+        this.deleteMappingAction = (ClientTransportDeleteMappingAction) actions.get(TransportActions.Admin.Indices.Mapping.DELETE);
+        this.gatewaySnapshotAction = (ClientTransportGatewaySnapshotAction) actions.get(TransportActions.Admin.Indices.Gateway.SNAPSHOT);
+        this.indicesAliasesAction = (ClientTransportIndicesAliasesAction) actions.get(TransportActions.Admin.Indices.ALIASES);
+        this.clearIndicesCacheAction = (ClientTransportClearIndicesCacheAction) actions.get(TransportActions.Admin.Indices.Cache.CLEAR);
+        this.updateSettingsAction = (ClientTransportUpdateSettingsAction) actions.get(TransportActions.Admin.Indices.UPDATE_SETTINGS);
+        this.analyzeAction = (ClientTransportAnalyzeAction) actions.get(TransportActions.Admin.Indices.ANALYZE);
+        this.putIndexTemplateAction = (ClientTransportPutIndexTemplateAction) actions.get(TransportActions.Admin.Indices.Template.PUT);
+        this.deleteIndexTemplateAction = (ClientTransportDeleteIndexTemplateAction) actions.get(TransportActions.Admin.Indices.Template.DELETE);
+        this.validateQueryAction = (ClientTransportValidateQueryAction) actions.get(TransportActions.Admin.Indices.Validate.QUERY);
     }
 
     @Override

@@ -20,6 +20,6 @@ public class ClientTransportValidateQueryAction extends BaseClientTransportActio
 
     @Override
     protected String action() {
-        return TransportActions.Admin.Indices.VALIDATE_QUERY;
+        return TransportActions.Admin.Indices.Validate.QUERY;
     }
 }

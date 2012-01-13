@@ -21,6 +21,7 @@ package org.elasticsearch.client.node;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.TransportBulkAction;
@@ -43,6 +44,7 @@ import org.elasticsearch.action.percolate.PercolateRequest;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.percolate.TransportPercolateAction;
 import org.elasticsearch.action.search.*;
+import org.elasticsearch.action.support.BaseAction;
 import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -52,6 +54,8 @@ import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
+
+import java.util.Map;
 
 /**
  *
@@ -87,25 +91,21 @@ public class NodeClient extends AbstractClient implements InternalClient {
     private final TransportPercolateAction percolateAction;
 
     @Inject
-    public NodeClient(Settings settings, ThreadPool threadPool, NodeAdminClient admin,
-                      TransportIndexAction indexAction, TransportUpdateAction updateAction, TransportDeleteAction deleteAction, TransportBulkAction bulkAction,
-                      TransportDeleteByQueryAction deleteByQueryAction, TransportGetAction getAction, TransportMultiGetAction multiGetAction, TransportCountAction countAction,
-                      TransportSearchAction searchAction, TransportSearchScrollAction searchScrollAction,
-                      TransportMoreLikeThisAction moreLikeThisAction, TransportPercolateAction percolateAction) {
+    public NodeClient(Settings settings, ThreadPool threadPool, NodeAdminClient admin, Map<String, BaseAction> actions) {
         this.threadPool = threadPool;
         this.admin = admin;
-        this.indexAction = indexAction;
-        this.updateAction = updateAction;
-        this.deleteAction = deleteAction;
-        this.bulkAction = bulkAction;
-        this.deleteByQueryAction = deleteByQueryAction;
-        this.getAction = getAction;
-        this.multiGetAction = multiGetAction;
-        this.countAction = countAction;
-        this.searchAction = searchAction;
-        this.searchScrollAction = searchScrollAction;
-        this.moreLikeThisAction = moreLikeThisAction;
-        this.percolateAction = percolateAction;
+        this.indexAction = (TransportIndexAction) actions.get(TransportActions.INDEX);
+        this.updateAction = (TransportUpdateAction) actions.get(TransportActions.UPDATE);
+        this.deleteAction = (TransportDeleteAction) actions.get(TransportActions.DELETE);
+        this.bulkAction = (TransportBulkAction) actions.get(TransportActions.BULK);
+        this.deleteByQueryAction = (TransportDeleteByQueryAction) actions.get(TransportActions.DELETE_BY_QUERY);
+        this.getAction = (TransportGetAction) actions.get(TransportActions.GET);
+        this.multiGetAction = (TransportMultiGetAction) actions.get(TransportActions.MULTI_GET);
+        this.countAction = (TransportCountAction) actions.get(TransportActions.COUNT);
+        this.searchAction = (TransportSearchAction) actions.get(TransportActions.SEARCH);
+        this.searchScrollAction = (TransportSearchScrollAction) actions.get(TransportActions.SEARCH_SCROLL);
+        this.moreLikeThisAction = (TransportMoreLikeThisAction) actions.get(TransportActions.MORE_LIKE_THIS);
+        this.percolateAction = (TransportPercolateAction) actions.get(TransportActions.PERCOLATE);
     }
 
     @Override

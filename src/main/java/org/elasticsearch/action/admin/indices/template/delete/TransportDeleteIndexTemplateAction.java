@@ -37,8 +37,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Delete index action.
- *
- *
  */
 public class TransportDeleteIndexTemplateAction extends TransportMasterNodeOperationAction<DeleteIndexTemplateRequest, DeleteIndexTemplateResponse> {
 
@@ -58,7 +56,7 @@ public class TransportDeleteIndexTemplateAction extends TransportMasterNodeOpera
 
     @Override
     protected String transportAction() {
-        return TransportActions.Admin.Indices.DELETE_INDEX_TEMPLATE;
+        return TransportActions.Admin.Indices.Template.DELETE;
     }
 
     @Override

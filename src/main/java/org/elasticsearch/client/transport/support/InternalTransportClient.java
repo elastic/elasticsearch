@@ -22,6 +22,7 @@ package org.elasticsearch.client.transport.support;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.count.CountRequest;
@@ -59,11 +60,14 @@ import org.elasticsearch.client.transport.action.mlt.ClientTransportMoreLikeThis
 import org.elasticsearch.client.transport.action.percolate.ClientTransportPercolateAction;
 import org.elasticsearch.client.transport.action.search.ClientTransportSearchAction;
 import org.elasticsearch.client.transport.action.search.ClientTransportSearchScrollAction;
+import org.elasticsearch.client.transport.action.support.BaseClientTransportAction;
 import org.elasticsearch.client.transport.action.update.ClientTransportUpdateAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
+
+import java.util.Map;
 
 /**
  *
@@ -103,26 +107,23 @@ public class InternalTransportClient extends AbstractClient implements InternalC
     @Inject
     public InternalTransportClient(Settings settings, ThreadPool threadPool,
                                    TransportClientNodesService nodesService, InternalTransportAdminClient adminClient,
-                                   ClientTransportIndexAction indexAction, ClientTransportUpdateAction updateAction, ClientTransportDeleteAction deleteAction, ClientTransportBulkAction bulkAction, ClientTransportGetAction getAction, ClientTransportMultiGetAction multiGetAction,
-                                   ClientTransportDeleteByQueryAction deleteByQueryAction, ClientTransportCountAction countAction,
-                                   ClientTransportSearchAction searchAction, ClientTransportSearchScrollAction searchScrollAction,
-                                   ClientTransportMoreLikeThisAction moreLikeThisAction, ClientTransportPercolateAction percolateAction) {
+                                   Map<String, BaseClientTransportAction> actions) {
         this.threadPool = threadPool;
         this.nodesService = nodesService;
         this.adminClient = adminClient;
 
-        this.indexAction = indexAction;
-        this.updateAction = updateAction;
-        this.deleteAction = deleteAction;
-        this.bulkAction = bulkAction;
-        this.getAction = getAction;
-        this.multiGetAction = multiGetAction;
-        this.deleteByQueryAction = deleteByQueryAction;
-        this.countAction = countAction;
-        this.searchAction = searchAction;
-        this.searchScrollAction = searchScrollAction;
-        this.moreLikeThisAction = moreLikeThisAction;
-        this.percolateAction = percolateAction;
+        this.indexAction = (ClientTransportIndexAction) actions.get(TransportActions.INDEX);
+        this.updateAction = (ClientTransportUpdateAction) actions.get(TransportActions.UPDATE);
+        this.deleteAction = (ClientTransportDeleteAction) actions.get(TransportActions.DELETE);
+        this.bulkAction = (ClientTransportBulkAction) actions.get(TransportActions.BULK);
+        this.getAction = (ClientTransportGetAction) actions.get(TransportActions.GET);
+        this.multiGetAction = (ClientTransportMultiGetAction) actions.get(TransportActions.MULTI_GET);
+        this.deleteByQueryAction = (ClientTransportDeleteByQueryAction) actions.get(TransportActions.DELETE_BY_QUERY);
+        this.countAction = (ClientTransportCountAction) actions.get(TransportActions.COUNT);
+        this.searchAction = (ClientTransportSearchAction) actions.get(TransportActions.SEARCH);
+        this.searchScrollAction = (ClientTransportSearchScrollAction) actions.get(TransportActions.SEARCH_SCROLL);
+        this.moreLikeThisAction = (ClientTransportMoreLikeThisAction) actions.get(TransportActions.MORE_LIKE_THIS);
+        this.percolateAction = (ClientTransportPercolateAction) actions.get(TransportActions.PERCOLATE);
     }
 
     @Override

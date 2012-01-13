@@ -22,6 +22,7 @@ package org.elasticsearch.client.transport.support;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
@@ -58,10 +59,13 @@ import org.elasticsearch.client.transport.action.admin.cluster.ping.single.Clien
 import org.elasticsearch.client.transport.action.admin.cluster.reroute.ClientTransportClusterRerouteAction;
 import org.elasticsearch.client.transport.action.admin.cluster.settings.ClientTransportClusterUpdateSettingsAction;
 import org.elasticsearch.client.transport.action.admin.cluster.state.ClientTransportClusterStateAction;
+import org.elasticsearch.client.transport.action.support.BaseClientTransportAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
+
+import java.util.Map;
 
 /**
  *
@@ -96,22 +100,20 @@ public class InternalTransportClusterAdminClient extends AbstractClusterAdminCli
 
     @Inject
     public InternalTransportClusterAdminClient(Settings settings, TransportClientNodesService nodesService, ThreadPool threadPool,
-                                               ClientTransportClusterHealthAction clusterHealthAction, ClientTransportClusterStateAction clusterStateAction, ClientTransportClusterRerouteAction clusterRerouteAction, ClientTransportClusterUpdateSettingsAction clusterUpdateSettingsAction,
-                                               ClientTransportSinglePingAction singlePingAction, ClientTransportReplicationPingAction replicationPingAction, ClientTransportBroadcastPingAction broadcastPingAction,
-                                               ClientTransportNodesInfoAction nodesInfoAction, ClientTransportNodesShutdownAction nodesShutdownAction, ClientTransportNodesRestartAction nodesRestartAction, ClientTransportNodesStatsAction nodesStatsAction) {
+                                               Map<String, BaseClientTransportAction> actions) {
         this.nodesService = nodesService;
         this.threadPool = threadPool;
-        this.clusterHealthAction = clusterHealthAction;
-        this.clusterRerouteAction = clusterRerouteAction;
-        this.clusterStateAction = clusterStateAction;
-        this.clusterUpdateSettingsAction = clusterUpdateSettingsAction;
-        this.nodesInfoAction = nodesInfoAction;
-        this.nodesShutdownAction = nodesShutdownAction;
-        this.nodesRestartAction = nodesRestartAction;
-        this.singlePingAction = singlePingAction;
-        this.replicationPingAction = replicationPingAction;
-        this.broadcastPingAction = broadcastPingAction;
-        this.nodesStatsAction = nodesStatsAction;
+        this.clusterHealthAction = (ClientTransportClusterHealthAction) actions.get(TransportActions.Admin.Cluster.HEALTH);
+        this.clusterRerouteAction = (ClientTransportClusterRerouteAction) actions.get(TransportActions.Admin.Cluster.REROUTE);
+        this.clusterStateAction = (ClientTransportClusterStateAction) actions.get(TransportActions.Admin.Cluster.STATE);
+        this.clusterUpdateSettingsAction = (ClientTransportClusterUpdateSettingsAction) actions.get(TransportActions.Admin.Cluster.UPDATE_SETTINGS);
+        this.nodesInfoAction = (ClientTransportNodesInfoAction) actions.get(TransportActions.Admin.Cluster.Node.INFO);
+        this.nodesShutdownAction = (ClientTransportNodesShutdownAction) actions.get(TransportActions.Admin.Cluster.Node.SHUTDOWN);
+        this.nodesRestartAction = (ClientTransportNodesRestartAction) actions.get(TransportActions.Admin.Cluster.Node.RESTART);
+        this.singlePingAction = (ClientTransportSinglePingAction) actions.get(TransportActions.Admin.Cluster.Ping.SINGLE);
+        this.replicationPingAction = (ClientTransportReplicationPingAction) actions.get(TransportActions.Admin.Cluster.Ping.REPLICATION);
+        this.broadcastPingAction = (ClientTransportBroadcastPingAction) actions.get(TransportActions.Admin.Cluster.Ping.BROADCAST);
+        this.nodesStatsAction = (ClientTransportNodesStatsAction) actions.get(TransportActions.Admin.Cluster.Node.STATS);
     }
 
     @Override

@@ -39,6 +39,6 @@ public class ClientTransportDeleteIndexTemplateAction extends BaseClientTranspor
 
     @Override
     protected String action() {
-        return TransportActions.Admin.Indices.DELETE_INDEX_TEMPLATE;
+        return TransportActions.Admin.Indices.Template.DELETE;
     }
 }

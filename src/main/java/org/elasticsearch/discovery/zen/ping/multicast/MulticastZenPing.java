@@ -21,6 +21,7 @@ package org.elasticsearch.discovery.zen.ping.multicast;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -35,7 +36,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
-import org.elasticsearch.discovery.zen.ping.ZenPingException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
@@ -239,14 +239,14 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
         }
         final int id = pingIdGenerator.incrementAndGet();
         receivedResponses.put(id, new ConcurrentHashMap<DiscoveryNode, PingResponse>());
-        sendPingRequest(id, true);
+        sendPingRequest(id);
         // try and send another ping request halfway through (just in case someone woke up during it...)
         // this can be a good trade-off to nailing the initial lookup or un-delivered messages
         threadPool.schedule(TimeValue.timeValueMillis(timeout.millis() / 2), ThreadPool.Names.CACHED, new Runnable() {
             @Override
             public void run() {
                 try {
-                    sendPingRequest(id, false);
+                    sendPingRequest(id);
                 } catch (Exception e) {
                     logger.warn("[{}] failed to send second ping request", e, id);
                 }
@@ -261,7 +261,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
         });
     }
 
-    private void sendPingRequest(int id, boolean remove) {
+    private void sendPingRequest(int id) {
         if (multicastSocket == null) {
             return;
         }
@@ -275,27 +275,21 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                 clusterName.writeTo(out);
                 nodesProvider.nodes().localNode().writeTo(out);
                 datagramPacketSend.setData(cachedEntry.bytes().copiedByteArray());
-            } catch (IOException e) {
-                if (remove) {
-                    receivedResponses.remove(id);
-                }
-                throw new ZenPingException("Failed to serialize ping request", e);
-            } finally {
-                CachedStreamOutput.pushEntry(cachedEntry);
-            }
-            try {
                 multicastSocket.send(datagramPacketSend);
                 if (logger.isTraceEnabled()) {
                     logger.trace("[{}] sending ping request", id);
                 }
-            } catch (IOException e) {
-                if (remove) {
-                    receivedResponses.remove(id);
-                }
+            } catch (Exception e) {
                 if (lifecycle.stoppedOrClosed()) {
                     return;
                 }
-                throw new ZenPingException("Failed to send ping request over multicast on " + multicastSocket, e);
+                if (logger.isDebugEnabled()) {
+                    logger.debug("failed to send multicast ping request", e);
+                } else {
+                    logger.warn("failed to send multicast ping request: {}", ExceptionsHelper.detailedMessage(e));
+                }
+            } finally {
+                CachedStreamOutput.pushEntry(cachedEntry);
             }
         }
     }

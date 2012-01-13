@@ -19,6 +19,8 @@
 
 package org.elasticsearch.client.transport.action;
 
+import com.google.common.collect.Maps;
+import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.client.transport.action.admin.cluster.health.ClientTransportClusterHealthAction;
 import org.elasticsearch.client.transport.action.admin.cluster.node.info.ClientTransportNodesInfoAction;
 import org.elasticsearch.client.transport.action.admin.cluster.node.restart.ClientTransportNodesRestartAction;
@@ -61,60 +63,100 @@ import org.elasticsearch.client.transport.action.index.ClientTransportIndexActio
 import org.elasticsearch.client.transport.action.percolate.ClientTransportPercolateAction;
 import org.elasticsearch.client.transport.action.search.ClientTransportSearchAction;
 import org.elasticsearch.client.transport.action.search.ClientTransportSearchScrollAction;
+import org.elasticsearch.client.transport.action.support.BaseClientTransportAction;
 import org.elasticsearch.client.transport.action.update.ClientTransportUpdateAction;
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.multibindings.MapBinder;
+
+import java.util.Map;
 
 /**
  *
  */
 public class ClientTransportActionModule extends AbstractModule {
 
+    private final Map<String, ActionEntry> actions = Maps.newHashMap();
+
+    static class ActionEntry {
+        public final String name;
+        public final Class<? extends BaseClientTransportAction> action;
+        public final Class[] supportActions;
+
+        ActionEntry(String name, Class<? extends BaseClientTransportAction> action, Class... supportActions) {
+            this.name = name;
+            this.action = action;
+            this.supportActions = supportActions;
+        }
+    }
+
+    /**
+     * Registers a custom action under the provided action name, the actual action implementation, and
+     * any supported actions (bind as singletons).
+     *
+     * @param actionName     The action name
+     * @param action         The action itself
+     * @param supportActions Support actions.
+     */
+    public void registerAction(String actionName, Class<? extends BaseClientTransportAction> action, Class... supportActions) {
+        actions.put(actionName, new ActionEntry(actionName, action, supportActions));
+    }
+
     @Override
     protected void configure() {
-        bind(ClientTransportIndexAction.class).asEagerSingleton();
-        bind(ClientTransportDeleteAction.class).asEagerSingleton();
-        bind(ClientTransportDeleteByQueryAction.class).asEagerSingleton();
-        bind(ClientTransportGetAction.class).asEagerSingleton();
-        bind(ClientTransportMultiGetAction.class).asEagerSingleton();
-        bind(ClientTransportCountAction.class).asEagerSingleton();
-        bind(ClientTransportSearchAction.class).asEagerSingleton();
-        bind(ClientTransportSearchScrollAction.class).asEagerSingleton();
-        bind(ClientTransportBulkAction.class).asEagerSingleton();
-        bind(ClientTransportPercolateAction.class).asEagerSingleton();
-        bind(ClientTransportUpdateAction.class).asEagerSingleton();
+        registerAction(TransportActions.INDEX, ClientTransportIndexAction.class);
+        registerAction(TransportActions.DELETE, ClientTransportDeleteAction.class);
+        registerAction(TransportActions.DELETE_BY_QUERY, ClientTransportDeleteByQueryAction.class);
+        registerAction(TransportActions.GET, ClientTransportGetAction.class);
+        registerAction(TransportActions.MULTI_GET, ClientTransportMultiGetAction.class);
+        registerAction(TransportActions.COUNT, ClientTransportCountAction.class);
+        registerAction(TransportActions.SEARCH, ClientTransportSearchAction.class);
+        registerAction(TransportActions.SEARCH_SCROLL, ClientTransportSearchScrollAction.class);
+        registerAction(TransportActions.BULK, ClientTransportBulkAction.class);
+        registerAction(TransportActions.PERCOLATE, ClientTransportPercolateAction.class);
+        registerAction(TransportActions.UPDATE, ClientTransportUpdateAction.class);
 
-        bind(ClientTransportIndicesExistsAction.class).asEagerSingleton();
-        bind(ClientTransportIndicesStatsAction.class).asEagerSingleton();
-        bind(ClientTransportIndicesStatusAction.class).asEagerSingleton();
-        bind(ClientTransportIndicesSegmentsAction.class).asEagerSingleton();
-        bind(ClientTransportRefreshAction.class).asEagerSingleton();
-        bind(ClientTransportFlushAction.class).asEagerSingleton();
-        bind(ClientTransportOptimizeAction.class).asEagerSingleton();
-        bind(ClientTransportCreateIndexAction.class).asEagerSingleton();
-        bind(ClientTransportDeleteIndexAction.class).asEagerSingleton();
-        bind(ClientTransportCloseIndexAction.class).asEagerSingleton();
-        bind(ClientTransportOpenIndexAction.class).asEagerSingleton();
-        bind(ClientTransportPutMappingAction.class).asEagerSingleton();
-        bind(ClientTransportDeleteMappingAction.class).asEagerSingleton();
-        bind(ClientTransportGatewaySnapshotAction.class).asEagerSingleton();
-        bind(ClientTransportIndicesAliasesAction.class).asEagerSingleton();
-        bind(ClientTransportClearIndicesCacheAction.class).asEagerSingleton();
-        bind(ClientTransportUpdateSettingsAction.class).asEagerSingleton();
-        bind(ClientTransportAnalyzeAction.class).asEagerSingleton();
-        bind(ClientTransportPutIndexTemplateAction.class).asEagerSingleton();
-        bind(ClientTransportDeleteIndexTemplateAction.class).asEagerSingleton();
-        bind(ClientTransportValidateQueryAction.class).asEagerSingleton();
+        registerAction(TransportActions.Admin.Indices.EXISTS, ClientTransportIndicesExistsAction.class);
+        registerAction(TransportActions.Admin.Indices.STATS, ClientTransportIndicesStatsAction.class);
+        registerAction(TransportActions.Admin.Indices.STATUS, ClientTransportIndicesStatusAction.class);
+        registerAction(TransportActions.Admin.Indices.SEGMENTS, ClientTransportIndicesSegmentsAction.class);
+        registerAction(TransportActions.Admin.Indices.REFRESH, ClientTransportRefreshAction.class);
+        registerAction(TransportActions.Admin.Indices.FLUSH, ClientTransportFlushAction.class);
+        registerAction(TransportActions.Admin.Indices.OPTIMIZE, ClientTransportOptimizeAction.class);
+        registerAction(TransportActions.Admin.Indices.CREATE, ClientTransportCreateIndexAction.class);
+        registerAction(TransportActions.Admin.Indices.DELETE, ClientTransportDeleteIndexAction.class);
+        registerAction(TransportActions.Admin.Indices.CLOSE, ClientTransportCloseIndexAction.class);
+        registerAction(TransportActions.Admin.Indices.OPEN, ClientTransportOpenIndexAction.class);
+        registerAction(TransportActions.Admin.Indices.Mapping.PUT, ClientTransportPutMappingAction.class);
+        registerAction(TransportActions.Admin.Indices.Mapping.DELETE, ClientTransportDeleteMappingAction.class);
+        registerAction(TransportActions.Admin.Indices.Gateway.SNAPSHOT, ClientTransportGatewaySnapshotAction.class);
+        registerAction(TransportActions.Admin.Indices.ALIASES, ClientTransportIndicesAliasesAction.class);
+        registerAction(TransportActions.Admin.Indices.Cache.CLEAR, ClientTransportClearIndicesCacheAction.class);
+        registerAction(TransportActions.Admin.Indices.UPDATE_SETTINGS, ClientTransportUpdateSettingsAction.class);
+        registerAction(TransportActions.Admin.Indices.ANALYZE, ClientTransportAnalyzeAction.class);
+        registerAction(TransportActions.Admin.Indices.Template.PUT, ClientTransportPutIndexTemplateAction.class);
+        registerAction(TransportActions.Admin.Indices.Template.DELETE, ClientTransportDeleteIndexTemplateAction.class);
+        registerAction(TransportActions.Admin.Indices.Validate.QUERY, ClientTransportValidateQueryAction.class);
 
-        bind(ClientTransportNodesInfoAction.class).asEagerSingleton();
-        bind(ClientTransportNodesStatsAction.class).asEagerSingleton();
-        bind(ClientTransportNodesShutdownAction.class).asEagerSingleton();
-        bind(ClientTransportNodesRestartAction.class).asEagerSingleton();
-        bind(ClientTransportSinglePingAction.class).asEagerSingleton();
-        bind(ClientTransportReplicationPingAction.class).asEagerSingleton();
-        bind(ClientTransportBroadcastPingAction.class).asEagerSingleton();
-        bind(ClientTransportClusterStateAction.class).asEagerSingleton();
-        bind(ClientTransportClusterHealthAction.class).asEagerSingleton();
-        bind(ClientTransportClusterUpdateSettingsAction.class).asEagerSingleton();
-        bind(ClientTransportClusterRerouteAction.class).asEagerSingleton();
+        registerAction(TransportActions.Admin.Cluster.Node.INFO, ClientTransportNodesInfoAction.class);
+        registerAction(TransportActions.Admin.Cluster.Node.STATS, ClientTransportNodesStatsAction.class);
+        registerAction(TransportActions.Admin.Cluster.Node.SHUTDOWN, ClientTransportNodesShutdownAction.class);
+        registerAction(TransportActions.Admin.Cluster.Node.RESTART, ClientTransportNodesRestartAction.class);
+        registerAction(TransportActions.Admin.Cluster.Ping.SINGLE, ClientTransportSinglePingAction.class);
+        registerAction(TransportActions.Admin.Cluster.Ping.REPLICATION, ClientTransportReplicationPingAction.class);
+        registerAction(TransportActions.Admin.Cluster.Ping.BROADCAST, ClientTransportBroadcastPingAction.class);
+        registerAction(TransportActions.Admin.Cluster.STATE, ClientTransportClusterStateAction.class);
+        registerAction(TransportActions.Admin.Cluster.HEALTH, ClientTransportClusterHealthAction.class);
+        registerAction(TransportActions.Admin.Cluster.UPDATE_SETTINGS, ClientTransportClusterUpdateSettingsAction.class);
+        registerAction(TransportActions.Admin.Cluster.REROUTE, ClientTransportClusterRerouteAction.class);
+
+        MapBinder<String, BaseClientTransportAction> actionsBinder
+                = MapBinder.newMapBinder(binder(), String.class, BaseClientTransportAction.class);
+
+        for (Map.Entry<String, ActionEntry> entry : actions.entrySet()) {
+            actionsBinder.addBinding(entry.getKey()).to(entry.getValue().action).asEagerSingleton();
+            for (Class supportAction : entry.getValue().supportActions) {
+                bind(supportAction).asEagerSingleton();
+            }
+        }
     }
 }

@@ -54,9 +54,6 @@ public class TransportActions {
             public static final String ALIASES = "indices/aliases";
             public static final String UPDATE_SETTINGS = "indices/updateSettings";
             public static final String ANALYZE = "indices/analyze";
-            public static final String PUT_INDEX_TEMPLATE = "indices/putIndexTemplate";
-            public static final String DELETE_INDEX_TEMPLATE = "indices/deleteIndexTemplate";
-            public static final String VALIDATE_QUERY = "indices/validateQuery";
 
             public static class Gateway {
                 public static final String SNAPSHOT = "indices/gateway/snapshot";
@@ -65,6 +62,15 @@ public class TransportActions {
             public static class Mapping {
                 public static final String PUT = "indices/mapping/put";
                 public static final String DELETE = "indices/mapping/delete";
+            }
+
+            public static class Template {
+                public static final String PUT = "indices/template/put";
+                public static final String DELETE = "indices/template/delete";
+            }
+
+            public static class Validate {
+                public static final String QUERY = "indices/validate/query";
             }
 
             public static class Cache {

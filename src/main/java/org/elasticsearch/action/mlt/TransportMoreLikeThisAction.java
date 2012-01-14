@@ -30,7 +30,7 @@ import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
-import org.elasticsearch.action.support.BaseAction;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.inject.Inject;
@@ -58,10 +58,8 @@ import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 
 /**
  * The more like this action.
- *
- *
  */
-public class TransportMoreLikeThisAction extends BaseAction<MoreLikeThisRequest, SearchResponse> {
+public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisRequest, SearchResponse> {
 
     private final TransportSearchAction searchAction;
 

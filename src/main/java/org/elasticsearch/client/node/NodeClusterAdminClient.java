@@ -55,7 +55,7 @@ import org.elasticsearch.action.admin.cluster.settings.TransportClusterUpdateSet
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.cluster.state.TransportClusterStateAction;
-import org.elasticsearch.action.support.BaseAction;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.InternalClusterAdminClient;
 import org.elasticsearch.client.support.AbstractClusterAdminClient;
 import org.elasticsearch.common.inject.Inject;
@@ -94,7 +94,7 @@ public class NodeClusterAdminClient extends AbstractClusterAdminClient implement
     private final TransportNodesRestartAction nodesRestart;
 
     @Inject
-    public NodeClusterAdminClient(Settings settings, ThreadPool threadPool, Map<String, BaseAction> actions) {
+    public NodeClusterAdminClient(Settings settings, ThreadPool threadPool, Map<String, TransportAction> actions) {
         this.threadPool = threadPool;
         this.clusterRerouteAction = (TransportClusterRerouteAction) actions.get(TransportActions.Admin.Cluster.REROUTE);
         this.clusterHealthAction = (TransportClusterHealthAction) actions.get(TransportActions.Admin.Cluster.HEALTH);

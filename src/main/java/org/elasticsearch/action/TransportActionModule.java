@@ -72,7 +72,7 @@ import org.elasticsearch.action.percolate.TransportPercolateAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.action.search.type.*;
-import org.elasticsearch.action.support.BaseAction;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
@@ -88,10 +88,10 @@ public class TransportActionModule extends AbstractModule {
 
     static class ActionEntry {
         public final String name;
-        public final Class<? extends BaseAction> action;
+        public final Class<? extends TransportAction> action;
         public final Class[] supportActions;
 
-        ActionEntry(String name, Class<? extends BaseAction> action, Class... supportActions) {
+        ActionEntry(String name, Class<? extends TransportAction> action, Class... supportActions) {
             this.name = name;
             this.action = action;
             this.supportActions = supportActions;
@@ -111,7 +111,7 @@ public class TransportActionModule extends AbstractModule {
      * @param action         The action itself
      * @param supportActions Support actions.
      */
-    public void registerAction(String actionName, Class<? extends BaseAction> action, Class... supportActions) {
+    public void registerAction(String actionName, Class<? extends TransportAction> action, Class... supportActions) {
         actions.put(actionName, new ActionEntry(actionName, action, supportActions));
     }
 
@@ -183,8 +183,8 @@ public class TransportActionModule extends AbstractModule {
         registerAction(TransportActions.MORE_LIKE_THIS, TransportMoreLikeThisAction.class);
         registerAction(TransportActions.PERCOLATE, TransportPercolateAction.class);
 
-        MapBinder<String, BaseAction> actionsBinder
-                = MapBinder.newMapBinder(binder(), String.class, BaseAction.class);
+        MapBinder<String, TransportAction> actionsBinder
+                = MapBinder.newMapBinder(binder(), String.class, TransportAction.class);
 
         for (Map.Entry<String, ActionEntry> entry : actions.entrySet()) {
             actionsBinder.addBinding(entry.getKey()).to(entry.getValue().action).asEagerSingleton();

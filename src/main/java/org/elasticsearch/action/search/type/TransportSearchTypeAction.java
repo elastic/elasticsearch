@@ -21,7 +21,7 @@ package org.elasticsearch.action.search.type;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.*;
-import org.elasticsearch.action.support.BaseAction;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -54,7 +54,7 @@ import static org.elasticsearch.action.search.type.TransportSearchHelper.interna
 /**
  *
  */
-public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest, SearchResponse> {
+public abstract class TransportSearchTypeAction extends TransportAction<SearchRequest, SearchResponse> {
 
     protected final ClusterService clusterService;
 

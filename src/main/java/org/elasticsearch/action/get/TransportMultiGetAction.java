@@ -22,7 +22,7 @@ package org.elasticsearch.action.get;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.TransportActions;
-import org.elasticsearch.action.support.BaseAction;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -38,7 +38,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class TransportMultiGetAction extends BaseAction<MultiGetRequest, MultiGetResponse> {
+public class TransportMultiGetAction extends TransportAction<MultiGetRequest, MultiGetResponse> {
 
     private final ClusterService clusterService;
 

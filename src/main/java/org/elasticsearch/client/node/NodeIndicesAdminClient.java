@@ -85,7 +85,7 @@ import org.elasticsearch.action.admin.indices.template.put.TransportPutIndexTemp
 import org.elasticsearch.action.admin.indices.validate.query.TransportValidateQueryAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
-import org.elasticsearch.action.support.BaseAction;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.support.AbstractIndicesAdminClient;
 import org.elasticsearch.common.inject.Inject;
@@ -144,7 +144,7 @@ public class NodeIndicesAdminClient extends AbstractIndicesAdminClient implement
     private final TransportValidateQueryAction validateQueryAction;
 
     @Inject
-    public NodeIndicesAdminClient(Settings settings, ThreadPool threadPool, Map<String, BaseAction> actions) {
+    public NodeIndicesAdminClient(Settings settings, ThreadPool threadPool, Map<String, TransportAction> actions) {
         this.threadPool = threadPool;
         this.indicesExistsAction = (TransportIndicesExistsAction) actions.get(TransportActions.Admin.Indices.EXISTS);
         this.indicesStatsAction = (TransportIndicesStatsAction) actions.get(TransportActions.Admin.Indices.STATS);

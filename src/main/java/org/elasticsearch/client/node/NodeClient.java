@@ -44,7 +44,7 @@ import org.elasticsearch.action.percolate.PercolateRequest;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.percolate.TransportPercolateAction;
 import org.elasticsearch.action.search.*;
-import org.elasticsearch.action.support.BaseAction;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -91,7 +91,7 @@ public class NodeClient extends AbstractClient implements InternalClient {
     private final TransportPercolateAction percolateAction;
 
     @Inject
-    public NodeClient(Settings settings, ThreadPool threadPool, NodeAdminClient admin, Map<String, BaseAction> actions) {
+    public NodeClient(Settings settings, ThreadPool threadPool, NodeAdminClient admin, Map<String, TransportAction> actions) {
         this.threadPool = threadPool;
         this.admin = admin;
         this.indexAction = (TransportIndexAction) actions.get(TransportActions.INDEX);

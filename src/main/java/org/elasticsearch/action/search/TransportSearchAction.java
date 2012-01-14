@@ -22,7 +22,7 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.search.type.*;
-import org.elasticsearch.action.support.BaseAction;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.inject.Inject;
@@ -41,7 +41,7 @@ import static org.elasticsearch.action.search.SearchType.*;
 /**
  *
  */
-public class TransportSearchAction extends BaseAction<SearchRequest, SearchResponse> {
+public class TransportSearchAction extends TransportAction<SearchRequest, SearchResponse> {
 
     private final ClusterService clusterService;
 

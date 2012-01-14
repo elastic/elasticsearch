@@ -30,16 +30,15 @@ import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
 /**
  *
  */
-public abstract class BaseAction<Request extends ActionRequest, Response extends ActionResponse> extends AbstractComponent implements Action<Request, Response> {
+public abstract class TransportAction<Request extends ActionRequest, Response extends ActionResponse> extends AbstractComponent {
 
     protected final ThreadPool threadPool;
 
-    protected BaseAction(Settings settings, ThreadPool threadPool) {
+    protected TransportAction(Settings settings, ThreadPool threadPool) {
         super(settings);
         this.threadPool = threadPool;
     }
 
-    @Override
     public ActionFuture<Response> execute(Request request) throws ElasticSearchException {
         PlainActionFuture<Response> future = newFuture();
         // since we don't have a listener, and we release a possible lock with the future
@@ -49,7 +48,6 @@ public abstract class BaseAction<Request extends ActionRequest, Response extends
         return future;
     }
 
-    @Override
     public void execute(Request request, ActionListener<Response> listener) {
         if (request.listenerThreaded()) {
             listener = new ThreadedActionListener<Response>(threadPool, listener);

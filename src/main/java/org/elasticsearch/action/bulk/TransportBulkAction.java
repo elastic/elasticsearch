@@ -31,7 +31,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.BaseAction;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -57,7 +57,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  *
  */
-public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
+public class TransportBulkAction extends TransportAction<BulkRequest, BulkResponse> {
 
     private final boolean autoCreateIndex;
 

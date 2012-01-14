@@ -21,7 +21,7 @@ package org.elasticsearch.action.support.broadcast;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.BaseAction;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -42,7 +42,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  *
  */
 public abstract class TransportBroadcastOperationAction<Request extends BroadcastOperationRequest, Response extends BroadcastOperationResponse, ShardRequest extends BroadcastShardOperationRequest, ShardResponse extends BroadcastShardOperationResponse>
-        extends BaseAction<Request, Response> {
+        extends TransportAction<Request, Response> {
 
     protected final ClusterService clusterService;
 

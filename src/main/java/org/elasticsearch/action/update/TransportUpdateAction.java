@@ -208,20 +208,20 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
             }
         }
 
-        // TODO percolate?
-
         // TODO: external version type, does it make sense here? does not seem like it...
 
         if (operation == null || "index".equals(operation)) {
             IndexRequest indexRequest = Requests.indexRequest(request.index()).type(request.type()).id(request.id()).routing(routing).parent(parent)
                     .source(source, sourceAndContent.v1())
                     .version(getResult.version()).replicationType(request.replicationType()).consistencyLevel(request.consistencyLevel())
-                    .timestamp(timestamp).ttl(ttl);
+                    .timestamp(timestamp).ttl(ttl)
+                    .percolate(request.percolate());
             indexRequest.operationThreaded(false);
             indexAction.execute(indexRequest, new ActionListener<IndexResponse>() {
                 @Override
                 public void onResponse(IndexResponse response) {
                     UpdateResponse update = new UpdateResponse(response.index(), response.type(), response.id(), response.version());
+                    update.matches(response.matches());
                     listener.onResponse(update);
                 }
 

@@ -65,6 +65,7 @@ public class RestUpdateAction extends BaseRestHandler {
         if (consistencyLevel != null) {
             updateRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
         }
+        updateRequest.percolate(request.param("percolate", null));
         // we just send a response, no need to fork
         updateRequest.listenerThreaded(false);
         updateRequest.script(request.param("script"));
@@ -114,6 +115,13 @@ public class RestUpdateAction extends BaseRestHandler {
                             .field(Fields._TYPE, response.type())
                             .field(Fields._ID, response.id())
                             .field(Fields._VERSION, response.version());
+                    if (response.matches() != null) {
+                        builder.startArray(Fields.MATCHES);
+                        for (String match : response.matches()) {
+                            builder.value(match);
+                        }
+                        builder.endArray();
+                    }
                     builder.endObject();
                     RestStatus status = OK;
                     if (response.version() == 1) {
@@ -142,5 +150,6 @@ public class RestUpdateAction extends BaseRestHandler {
         static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
         static final XContentBuilderString _ID = new XContentBuilderString("_id");
         static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
+        static final XContentBuilderString MATCHES = new XContentBuilderString("matches");
     }
 }

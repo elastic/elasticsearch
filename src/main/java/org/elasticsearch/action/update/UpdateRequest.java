@@ -51,6 +51,8 @@ public class UpdateRequest extends InstanceShardOperationRequest {
 
     int retryOnConflict = 0;
 
+    private String percolate;
+
     private ReplicationType replicationType = ReplicationType.DEFAULT;
     private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
 
@@ -240,6 +242,20 @@ public class UpdateRequest extends InstanceShardOperationRequest {
     }
 
     /**
+     * Causes the update request document to be percolated. The parameter is the percolate query
+     * to use to reduce the percolated queries that are going to run against this doc. Can be
+     * set to <tt>*</tt> to indicate that all percolate queries should be run.
+     */
+    public UpdateRequest percolate(String percolate) {
+        this.percolate = percolate;
+        return this;
+    }
+
+    public String percolate() {
+        return this.percolate;
+    }
+
+    /**
      * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
      */
     public UpdateRequest timeout(TimeValue timeout) {
@@ -297,6 +313,9 @@ public class UpdateRequest extends InstanceShardOperationRequest {
         }
         scriptParams = in.readMap();
         retryOnConflict = in.readVInt();
+        if (in.readBoolean()) {
+            percolate = in.readUTF();
+        }
     }
 
     @Override
@@ -321,5 +340,11 @@ public class UpdateRequest extends InstanceShardOperationRequest {
         }
         out.writeMap(scriptParams);
         out.writeVInt(retryOnConflict);
+        if (percolate == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeUTF(percolate);
+        }
     }
 }

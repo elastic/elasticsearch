@@ -37,14 +37,12 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.action.Actions.addValidationError;
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.cluster.metadata.AliasAction.readAliasAction;
 import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
 
 /**
  * A request to add/remove aliases for one or more indices.
- *
- *
  */
 public class IndicesAliasesRequest extends MasterNodeOperationRequest {
 

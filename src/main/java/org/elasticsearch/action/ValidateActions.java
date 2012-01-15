@@ -22,7 +22,7 @@ package org.elasticsearch.action;
 /**
  *
  */
-public class Actions {
+public class ValidateActions {
 
     public static ActionRequestValidationException addValidationError(String error, ActionRequestValidationException validationException) {
         if (validationException == null) {

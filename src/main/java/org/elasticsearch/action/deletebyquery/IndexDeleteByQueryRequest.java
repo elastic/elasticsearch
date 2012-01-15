@@ -32,7 +32,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import java.io.IOException;
 import java.util.Set;
 
-import static org.elasticsearch.action.Actions.addValidationError;
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * Delete by query request to execute on a specific index.

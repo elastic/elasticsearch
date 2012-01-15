@@ -27,7 +27,9 @@ import org.elasticsearch.action.ListenableActionFuture;
 /**
  *
  */
-public interface RequestBuilder<Request extends ActionRequest, Response extends ActionResponse> {
+public interface ActionRequestBuilder<Request extends ActionRequest, Response extends ActionResponse> {
+
+    Request request();
 
     ListenableActionFuture<Response> execute();
 

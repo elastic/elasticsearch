@@ -555,7 +555,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         assertThat(Arrays.toString(search.shardFailures()), search.failedShards(), equalTo(0));
 
         SearchHit hit = search.hits().getAt(0);
-        assertThat(hit.highlightFields().get("title").fragments()[0], equalTo(" is a <em>test</em> "));
+        assertThat(hit.highlightFields().get("title").fragments()[0], equalTo("this is a <em>test</em> "));
 
         // search on title.key and highlight on title
         search = client.prepareSearch()
@@ -596,7 +596,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         assertThat(Arrays.toString(search.shardFailures()), search.failedShards(), equalTo(0));
 
         SearchHit hit = search.hits().getAt(0);
-        assertThat(hit.highlightFields().get("title").fragments()[0], equalTo(" is a <em>test</em> "));
+        assertThat(hit.highlightFields().get("title").fragments()[0], equalTo("this is a <em>test</em> "));
 
         // search on title.key and highlight on title.key
         search = client.prepareSearch()

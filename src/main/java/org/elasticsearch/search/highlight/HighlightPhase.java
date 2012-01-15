@@ -36,6 +36,7 @@ import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.lucene.document.SingleFieldSelector;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
+import org.elasticsearch.common.lucene.search.vectorhighlight.SimpleBoundaryScanner2;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -237,13 +238,19 @@ public class HighlightPhase implements FetchSubPhase {
                     if (entry == null) {
                         FragListBuilder fragListBuilder;
                         FragmentsBuilder fragmentsBuilder;
+
+                        BoundaryScanner boundaryScanner = SimpleBoundaryScanner2.DEFAULT;
+                        if (field.boundaryMaxScan() != SimpleBoundaryScanner2.DEFAULT_MAX_SCAN || field.boundaryChars() != SimpleBoundaryScanner2.DEFAULT_BOUNDARY_CHARS) {
+                            boundaryScanner = new SimpleBoundaryScanner2(field.boundaryMaxScan(), field.boundaryChars());
+                        }
+
                         if (field.numberOfFragments() == 0) {
                             fragListBuilder = new SingleFragListBuilder();
 
                             if (mapper.stored()) {
-                                fragmentsBuilder = new SimpleFragmentsBuilder(field.preTags(), field.postTags());
+                                fragmentsBuilder = new SimpleFragmentsBuilder(field.preTags(), field.postTags(), boundaryScanner);
                             } else {
-                                fragmentsBuilder = new SourceSimpleFragmentsBuilder(mapper, context, field.preTags(), field.postTags());
+                                fragmentsBuilder = new SourceSimpleFragmentsBuilder(mapper, context, field.preTags(), field.postTags(), boundaryScanner);
                             }
                         } else {
                             if (field.fragmentOffset() == -1)
@@ -253,15 +260,15 @@ public class HighlightPhase implements FetchSubPhase {
 
                             if (field.scoreOrdered()) {
                                 if (mapper.stored()) {
-                                    fragmentsBuilder = new ScoreOrderFragmentsBuilder(field.preTags(), field.postTags());
+                                    fragmentsBuilder = new ScoreOrderFragmentsBuilder(field.preTags(), field.postTags(), boundaryScanner);
                                 } else {
-                                    fragmentsBuilder = new SourceScoreOrderFragmentsBuilder(mapper, context, field.preTags(), field.postTags());
+                                    fragmentsBuilder = new SourceScoreOrderFragmentsBuilder(mapper, context, field.preTags(), field.postTags(), boundaryScanner);
                                 }
                             } else {
                                 if (mapper.stored()) {
-                                    fragmentsBuilder = new SimpleFragmentsBuilder(field.preTags(), field.postTags());
+                                    fragmentsBuilder = new SimpleFragmentsBuilder(field.preTags(), field.postTags(), boundaryScanner);
                                 } else {
-                                    fragmentsBuilder = new SourceSimpleFragmentsBuilder(mapper, context, field.preTags(), field.postTags());
+                                    fragmentsBuilder = new SourceSimpleFragmentsBuilder(mapper, context, field.preTags(), field.postTags(), boundaryScanner);
                                 }
                             }
                         }

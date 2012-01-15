@@ -30,8 +30,10 @@ import java.util.Collection;
 
 /**
  * A base class for a plugin.
- *
- *
+ * <p/>
+ * A plugin can be dynamically injected with {@link Module} by implementing <tt>onModule(AnyModule)</tt> method
+ * removing the need to override {@link #processModule(org.elasticsearch.common.inject.Module)} and check using
+ * instanceof.
  */
 public abstract class AbstractPlugin implements Plugin {
 

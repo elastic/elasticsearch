@@ -19,17 +19,17 @@
 
 package org.elasticsearch.client.support;
 
-import org.elasticsearch.client.action.admin.cluster.health.ClusterHealthRequestBuilder;
-import org.elasticsearch.client.action.admin.cluster.node.info.NodesInfoRequestBuilder;
-import org.elasticsearch.client.action.admin.cluster.node.restart.NodesRestartRequestBuilder;
-import org.elasticsearch.client.action.admin.cluster.node.shutdown.NodesShutdownRequestBuilder;
-import org.elasticsearch.client.action.admin.cluster.node.stats.NodesStatsRequestBuilder;
-import org.elasticsearch.client.action.admin.cluster.ping.broadcast.BroadcastPingRequestBuilder;
-import org.elasticsearch.client.action.admin.cluster.ping.replication.ReplicationPingRequestBuilder;
-import org.elasticsearch.client.action.admin.cluster.ping.single.SinglePingRequestBuilder;
-import org.elasticsearch.client.action.admin.cluster.reroute.ClusterRerouteRequestBuilder;
-import org.elasticsearch.client.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
-import org.elasticsearch.client.action.admin.cluster.state.ClusterStateRequestBuilder;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequestBuilder;
+import org.elasticsearch.action.admin.cluster.node.restart.NodesRestartRequestBuilder;
+import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownRequestBuilder;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestBuilder;
+import org.elasticsearch.action.admin.cluster.ping.broadcast.BroadcastPingRequestBuilder;
+import org.elasticsearch.action.admin.cluster.ping.replication.ReplicationPingRequestBuilder;
+import org.elasticsearch.action.admin.cluster.ping.single.SinglePingRequestBuilder;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequestBuilder;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateRequestBuilder;
 import org.elasticsearch.client.internal.InternalClusterAdminClient;
 
 /**

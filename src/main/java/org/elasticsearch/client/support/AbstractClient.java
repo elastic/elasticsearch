@@ -19,18 +19,18 @@
 
 package org.elasticsearch.client.support;
 
-import org.elasticsearch.client.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.client.action.count.CountRequestBuilder;
-import org.elasticsearch.client.action.delete.DeleteRequestBuilder;
-import org.elasticsearch.client.action.deletebyquery.DeleteByQueryRequestBuilder;
-import org.elasticsearch.client.action.get.GetRequestBuilder;
-import org.elasticsearch.client.action.get.MultiGetRequestBuilder;
-import org.elasticsearch.client.action.index.IndexRequestBuilder;
-import org.elasticsearch.client.action.mlt.MoreLikeThisRequestBuilder;
-import org.elasticsearch.client.action.percolate.PercolateRequestBuilder;
-import org.elasticsearch.client.action.search.SearchRequestBuilder;
-import org.elasticsearch.client.action.search.SearchScrollRequestBuilder;
-import org.elasticsearch.client.action.update.UpdateRequestBuilder;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.count.CountRequestBuilder;
+import org.elasticsearch.action.delete.DeleteRequestBuilder;
+import org.elasticsearch.action.deletebyquery.DeleteByQueryRequestBuilder;
+import org.elasticsearch.action.get.GetRequestBuilder;
+import org.elasticsearch.action.get.MultiGetRequestBuilder;
+import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.mlt.MoreLikeThisRequestBuilder;
+import org.elasticsearch.action.percolate.PercolateRequestBuilder;
+import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.search.SearchScrollRequestBuilder;
+import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.Nullable;
 

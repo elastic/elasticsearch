@@ -19,9 +19,9 @@
 
 package org.elasticsearch.test.integration.indices.analyze;
 
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequestBuilder;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.action.admin.indices.analyze.AnalyzeRequestBuilder;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;

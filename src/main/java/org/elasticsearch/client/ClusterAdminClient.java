@@ -22,42 +22,41 @@ package org.elasticsearch.client;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.restart.NodesRestartRequest;
+import org.elasticsearch.action.admin.cluster.node.restart.NodesRestartRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.restart.NodesRestartResponse;
 import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownRequest;
+import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.ping.broadcast.BroadcastPingRequest;
+import org.elasticsearch.action.admin.cluster.ping.broadcast.BroadcastPingRequestBuilder;
 import org.elasticsearch.action.admin.cluster.ping.broadcast.BroadcastPingResponse;
 import org.elasticsearch.action.admin.cluster.ping.replication.ReplicationPingRequest;
+import org.elasticsearch.action.admin.cluster.ping.replication.ReplicationPingRequestBuilder;
 import org.elasticsearch.action.admin.cluster.ping.replication.ReplicationPingResponse;
 import org.elasticsearch.action.admin.cluster.ping.single.SinglePingRequest;
+import org.elasticsearch.action.admin.cluster.ping.single.SinglePingRequestBuilder;
 import org.elasticsearch.action.admin.cluster.ping.single.SinglePingResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequestBuilder;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateRequestBuilder;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.client.action.admin.cluster.health.ClusterHealthRequestBuilder;
-import org.elasticsearch.client.action.admin.cluster.node.info.NodesInfoRequestBuilder;
-import org.elasticsearch.client.action.admin.cluster.node.restart.NodesRestartRequestBuilder;
-import org.elasticsearch.client.action.admin.cluster.node.shutdown.NodesShutdownRequestBuilder;
-import org.elasticsearch.client.action.admin.cluster.node.stats.NodesStatsRequestBuilder;
-import org.elasticsearch.client.action.admin.cluster.ping.broadcast.BroadcastPingRequestBuilder;
-import org.elasticsearch.client.action.admin.cluster.ping.replication.ReplicationPingRequestBuilder;
-import org.elasticsearch.client.action.admin.cluster.ping.single.SinglePingRequestBuilder;
-import org.elasticsearch.client.action.admin.cluster.reroute.ClusterRerouteRequestBuilder;
-import org.elasticsearch.client.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
-import org.elasticsearch.client.action.admin.cluster.state.ClusterStateRequestBuilder;
 
 /**
  * Administrative actions/operations against indices.
- *
  *
  * @see AdminClient#cluster()
  */

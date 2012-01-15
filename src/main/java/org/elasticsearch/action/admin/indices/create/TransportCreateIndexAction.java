@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -37,8 +36,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Create index action.
- *
- *
  */
 public class TransportCreateIndexAction extends TransportMasterNodeOperationAction<CreateIndexRequest, CreateIndexResponse> {
 
@@ -58,7 +55,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeOperationActi
 
     @Override
     protected String transportAction() {
-        return TransportActions.Admin.Indices.CREATE;
+        return CreateIndexAction.NAME;
     }
 
     @Override

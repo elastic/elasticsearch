@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.cluster.node.stats;
 
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.nodes.NodeOperationRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesOperationAction;
 import org.elasticsearch.cluster.ClusterName;
@@ -60,7 +59,7 @@ public class TransportNodesStatsAction extends TransportNodesOperationAction<Nod
 
     @Override
     protected String transportAction() {
-        return TransportActions.Admin.Cluster.Node.STATS;
+        return NodesStatsAction.NAME;
     }
 
     @Override

@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.cluster.settings;
 
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -63,7 +62,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
 
     @Override
     protected String transportAction() {
-        return TransportActions.Admin.Cluster.UPDATE_SETTINGS;
+        return ClusterUpdateSettingsAction.NAME;
     }
 
     @Override

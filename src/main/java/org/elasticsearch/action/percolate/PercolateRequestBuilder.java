@@ -32,6 +32,10 @@ import java.util.Map;
  */
 public class PercolateRequestBuilder extends BaseRequestBuilder<PercolateRequest, PercolateResponse> {
 
+    public PercolateRequestBuilder(Client client) {
+        super(client, new PercolateRequest());
+    }
+
     public PercolateRequestBuilder(Client client, String index, String type) {
         super(client, new PercolateRequest(index, type));
     }

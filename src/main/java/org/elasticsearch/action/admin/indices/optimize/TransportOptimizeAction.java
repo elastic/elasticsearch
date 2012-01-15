@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.indices.optimize;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
@@ -67,7 +66,7 @@ public class TransportOptimizeAction extends TransportBroadcastOperationAction<O
 
     @Override
     protected String transportAction() {
-        return TransportActions.Admin.Indices.OPTIMIZE;
+        return OptimizeAction.NAME;
     }
 
     @Override

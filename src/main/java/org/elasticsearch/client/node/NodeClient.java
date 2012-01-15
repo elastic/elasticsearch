@@ -19,38 +19,13 @@
 
 package org.elasticsearch.client.node;
 
-import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.TransportActions;
-import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.bulk.TransportBulkAction;
-import org.elasticsearch.action.count.CountRequest;
-import org.elasticsearch.action.count.CountResponse;
-import org.elasticsearch.action.count.TransportCountAction;
-import org.elasticsearch.action.delete.DeleteRequest;
-import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.delete.TransportDeleteAction;
-import org.elasticsearch.action.deletebyquery.DeleteByQueryRequest;
-import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
-import org.elasticsearch.action.deletebyquery.TransportDeleteByQueryAction;
-import org.elasticsearch.action.get.*;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.index.TransportIndexAction;
-import org.elasticsearch.action.mlt.MoreLikeThisRequest;
-import org.elasticsearch.action.mlt.TransportMoreLikeThisAction;
-import org.elasticsearch.action.percolate.PercolateRequest;
-import org.elasticsearch.action.percolate.PercolateResponse;
-import org.elasticsearch.action.percolate.TransportPercolateAction;
-import org.elasticsearch.action.search.*;
+import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.action.*;
 import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.action.update.TransportUpdateAction;
-import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.client.support.AbstractClient;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -66,46 +41,19 @@ public class NodeClient extends AbstractClient implements InternalClient {
 
     private final NodeAdminClient admin;
 
-    private final TransportIndexAction indexAction;
-
-    private final TransportUpdateAction updateAction;
-
-    private final TransportDeleteAction deleteAction;
-
-    private final TransportBulkAction bulkAction;
-
-    private final TransportDeleteByQueryAction deleteByQueryAction;
-
-    private final TransportGetAction getAction;
-
-    private final TransportMultiGetAction multiGetAction;
-
-    private final TransportCountAction countAction;
-
-    private final TransportSearchAction searchAction;
-
-    private final TransportSearchScrollAction searchScrollAction;
-
-    private final TransportMoreLikeThisAction moreLikeThisAction;
-
-    private final TransportPercolateAction percolateAction;
+    private final ImmutableMap<Action, TransportAction> actions;
 
     @Inject
-    public NodeClient(Settings settings, ThreadPool threadPool, NodeAdminClient admin, Map<String, TransportAction> actions) {
+    public NodeClient(Settings settings, ThreadPool threadPool, NodeAdminClient admin, Map<GenericAction, TransportAction> actions) {
         this.threadPool = threadPool;
         this.admin = admin;
-        this.indexAction = (TransportIndexAction) actions.get(TransportActions.INDEX);
-        this.updateAction = (TransportUpdateAction) actions.get(TransportActions.UPDATE);
-        this.deleteAction = (TransportDeleteAction) actions.get(TransportActions.DELETE);
-        this.bulkAction = (TransportBulkAction) actions.get(TransportActions.BULK);
-        this.deleteByQueryAction = (TransportDeleteByQueryAction) actions.get(TransportActions.DELETE_BY_QUERY);
-        this.getAction = (TransportGetAction) actions.get(TransportActions.GET);
-        this.multiGetAction = (TransportMultiGetAction) actions.get(TransportActions.MULTI_GET);
-        this.countAction = (TransportCountAction) actions.get(TransportActions.COUNT);
-        this.searchAction = (TransportSearchAction) actions.get(TransportActions.SEARCH);
-        this.searchScrollAction = (TransportSearchScrollAction) actions.get(TransportActions.SEARCH_SCROLL);
-        this.moreLikeThisAction = (TransportMoreLikeThisAction) actions.get(TransportActions.MORE_LIKE_THIS);
-        this.percolateAction = (TransportPercolateAction) actions.get(TransportActions.PERCOLATE);
+        MapBuilder<Action, TransportAction> actionsBuilder = new MapBuilder<Action, TransportAction>();
+        for (Map.Entry<GenericAction, TransportAction> entry : actions.entrySet()) {
+            if (entry.getKey() instanceof Action) {
+                actionsBuilder.put((Action) entry.getKey(), entry.getValue());
+            }
+        }
+        this.actions = actionsBuilder.immutableMap();
     }
 
     @Override
@@ -124,122 +72,14 @@ public class NodeClient extends AbstractClient implements InternalClient {
     }
 
     @Override
-    public ActionFuture<IndexResponse> index(IndexRequest request) {
-        return indexAction.execute(request);
+    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response>> ActionFuture<Response> execute(Action<Request, Response, RequestBuilder> action, Request request) {
+        TransportAction<Request, Response> transportAction = actions.get(action);
+        return transportAction.execute(request);
     }
 
     @Override
-    public void index(IndexRequest request, ActionListener<IndexResponse> listener) {
-        indexAction.execute(request, listener);
-    }
-
-    @Override
-    public ActionFuture<UpdateResponse> update(UpdateRequest request) {
-        return updateAction.execute(request);
-    }
-
-    @Override
-    public void update(UpdateRequest request, ActionListener<UpdateResponse> listener) {
-        updateAction.execute(request, listener);
-    }
-
-    @Override
-    public ActionFuture<DeleteResponse> delete(DeleteRequest request) {
-        return deleteAction.execute(request);
-    }
-
-    @Override
-    public void delete(DeleteRequest request, ActionListener<DeleteResponse> listener) {
-        deleteAction.execute(request, listener);
-    }
-
-    @Override
-    public ActionFuture<BulkResponse> bulk(BulkRequest request) {
-        return bulkAction.execute(request);
-    }
-
-    @Override
-    public void bulk(BulkRequest request, ActionListener<BulkResponse> listener) {
-        bulkAction.execute(request, listener);
-    }
-
-    @Override
-    public ActionFuture<DeleteByQueryResponse> deleteByQuery(DeleteByQueryRequest request) {
-        return deleteByQueryAction.execute(request);
-    }
-
-    @Override
-    public void deleteByQuery(DeleteByQueryRequest request, ActionListener<DeleteByQueryResponse> listener) {
-        deleteByQueryAction.execute(request, listener);
-    }
-
-    @Override
-    public ActionFuture<GetResponse> get(GetRequest request) {
-        return getAction.execute(request);
-    }
-
-    @Override
-    public void get(GetRequest request, ActionListener<GetResponse> listener) {
-        getAction.execute(request, listener);
-    }
-
-    @Override
-    public ActionFuture<MultiGetResponse> multiGet(MultiGetRequest request) {
-        return multiGetAction.execute(request);
-    }
-
-    @Override
-    public void multiGet(MultiGetRequest request, ActionListener<MultiGetResponse> listener) {
-        multiGetAction.execute(request, listener);
-    }
-
-    @Override
-    public ActionFuture<CountResponse> count(CountRequest request) {
-        return countAction.execute(request);
-    }
-
-    @Override
-    public void count(CountRequest request, ActionListener<CountResponse> listener) {
-        countAction.execute(request, listener);
-    }
-
-    @Override
-    public ActionFuture<SearchResponse> search(SearchRequest request) {
-        return searchAction.execute(request);
-    }
-
-    @Override
-    public void search(SearchRequest request, ActionListener<SearchResponse> listener) {
-        searchAction.execute(request, listener);
-    }
-
-    @Override
-    public ActionFuture<SearchResponse> searchScroll(SearchScrollRequest request) {
-        return searchScrollAction.execute(request);
-    }
-
-    @Override
-    public void searchScroll(SearchScrollRequest request, ActionListener<SearchResponse> listener) {
-        searchScrollAction.execute(request, listener);
-    }
-
-    @Override
-    public ActionFuture<SearchResponse> moreLikeThis(MoreLikeThisRequest request) {
-        return moreLikeThisAction.execute(request);
-    }
-
-    @Override
-    public void moreLikeThis(MoreLikeThisRequest request, ActionListener<SearchResponse> listener) {
-        moreLikeThisAction.execute(request, listener);
-    }
-
-    @Override
-    public ActionFuture<PercolateResponse> percolate(PercolateRequest request) {
-        return percolateAction.execute(request);
-    }
-
-    @Override
-    public void percolate(PercolateRequest request, ActionListener<PercolateResponse> listener) {
-        percolateAction.execute(request, listener);
+    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response>> void execute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
+        TransportAction<Request, Response> transportAction = actions.get(action);
+        transportAction.execute(request, listener);
     }
 }

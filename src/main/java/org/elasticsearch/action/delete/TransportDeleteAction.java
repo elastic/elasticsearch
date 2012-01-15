@@ -21,7 +21,6 @@ package org.elasticsearch.action.delete;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
@@ -160,7 +159,7 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
 
     @Override
     protected String transportAction() {
-        return TransportActions.DELETE;
+        return DeleteAction.NAME;
     }
 
     @Override

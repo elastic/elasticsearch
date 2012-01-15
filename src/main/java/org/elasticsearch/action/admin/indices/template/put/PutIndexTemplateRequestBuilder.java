@@ -33,6 +33,10 @@ import java.util.Map;
  */
 public class PutIndexTemplateRequestBuilder extends BaseIndicesRequestBuilder<PutIndexTemplateRequest, PutIndexTemplateResponse> {
 
+    public PutIndexTemplateRequestBuilder(IndicesAdminClient indicesClient) {
+        super(indicesClient, new PutIndexTemplateRequest());
+    }
+
     public PutIndexTemplateRequestBuilder(IndicesAdminClient indicesClient, String name) {
         super(indicesClient, new PutIndexTemplateRequest(name));
     }

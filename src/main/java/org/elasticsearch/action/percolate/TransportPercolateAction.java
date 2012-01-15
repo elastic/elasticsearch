@@ -20,7 +20,6 @@
 package org.elasticsearch.action.percolate;
 
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.single.custom.TransportSingleCustomOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -67,7 +66,7 @@ public class TransportPercolateAction extends TransportSingleCustomOperationActi
 
     @Override
     protected String transportAction() {
-        return TransportActions.PERCOLATE;
+        return PercolateAction.NAME;
     }
 
     @Override

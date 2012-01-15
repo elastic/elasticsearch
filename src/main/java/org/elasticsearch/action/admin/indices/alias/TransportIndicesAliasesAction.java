@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.indices.alias;
 
 import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -59,7 +58,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeOperationA
 
     @Override
     protected String transportAction() {
-        return TransportActions.Admin.Indices.ALIASES;
+        return IndicesAliasesAction.NAME;
     }
 
     @Override

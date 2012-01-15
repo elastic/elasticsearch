@@ -22,7 +22,6 @@ package org.elasticsearch.action.admin.indices.validate.query;
 import jsr166y.ThreadLocalRandom;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
@@ -67,7 +66,7 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
 
     @Override
     protected String transportAction() {
-        return TransportActions.Admin.Indices.Validate.QUERY;
+        return ValidateQueryAction.NAME;
     }
 
     @Override

@@ -19,8 +19,8 @@
 
 package org.elasticsearch.client;
 
-import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.*;
+import org.elasticsearch.action.admin.cluster.ClusterAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -36,15 +36,6 @@ import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownRespons
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.action.admin.cluster.ping.broadcast.BroadcastPingRequest;
-import org.elasticsearch.action.admin.cluster.ping.broadcast.BroadcastPingRequestBuilder;
-import org.elasticsearch.action.admin.cluster.ping.broadcast.BroadcastPingResponse;
-import org.elasticsearch.action.admin.cluster.ping.replication.ReplicationPingRequest;
-import org.elasticsearch.action.admin.cluster.ping.replication.ReplicationPingRequestBuilder;
-import org.elasticsearch.action.admin.cluster.ping.replication.ReplicationPingResponse;
-import org.elasticsearch.action.admin.cluster.ping.single.SinglePingRequest;
-import org.elasticsearch.action.admin.cluster.ping.single.SinglePingRequestBuilder;
-import org.elasticsearch.action.admin.cluster.ping.single.SinglePingResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequestBuilder;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
@@ -61,6 +52,12 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
  * @see AdminClient#cluster()
  */
 public interface ClusterAdminClient {
+
+    <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response>> ActionFuture<Response> execute(final ClusterAction<Request, Response, RequestBuilder> action, final Request request);
+
+    <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response>> void execute(final ClusterAction<Request, Response, RequestBuilder> action, final Request request, ActionListener<Response> listener);
+
+    <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response>> RequestBuilder prepareExecute(final ClusterAction<Request, Response, RequestBuilder> action);
 
     /**
      * The health of the cluster.
@@ -229,24 +226,4 @@ public interface ClusterAdminClient {
      * Restarts nodes in the cluster.
      */
     NodesRestartRequestBuilder prepareNodesRestart(String... nodesIds);
-
-    ActionFuture<SinglePingResponse> ping(SinglePingRequest request);
-
-    void ping(SinglePingRequest request, ActionListener<SinglePingResponse> listener);
-
-    SinglePingRequestBuilder preparePingSingle();
-
-    SinglePingRequestBuilder preparePingSingle(String index, String type, String id);
-
-    ActionFuture<BroadcastPingResponse> ping(BroadcastPingRequest request);
-
-    void ping(BroadcastPingRequest request, ActionListener<BroadcastPingResponse> listener);
-
-    BroadcastPingRequestBuilder preparePingBroadcast(String... indices);
-
-    ActionFuture<ReplicationPingResponse> ping(ReplicationPingRequest request);
-
-    void ping(ReplicationPingRequest request, ActionListener<ReplicationPingResponse> listener);
-
-    ReplicationPingRequestBuilder preparePingReplication(String... indices);
 }

@@ -21,7 +21,6 @@ package org.elasticsearch.action.get;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -50,7 +49,7 @@ public class TransportMultiGetAction extends TransportAction<MultiGetRequest, Mu
         this.clusterService = clusterService;
         this.shardAction = shardAction;
 
-        transportService.registerHandler(TransportActions.MULTI_GET, new TransportHandler());
+        transportService.registerHandler(MultiGetAction.NAME, new TransportHandler());
     }
 
     @Override
@@ -143,7 +142,7 @@ public class TransportMultiGetAction extends TransportAction<MultiGetRequest, Mu
                     try {
                         channel.sendResponse(e);
                     } catch (Exception e1) {
-                        logger.warn("Failed to send error response for action [" + TransportActions.MULTI_GET + "] and request [" + request + "]", e1);
+                        logger.warn("Failed to send error response for action [" + MultiGetAction.NAME + "] and request [" + request + "]", e1);
                     }
                 }
             });

@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.indices.segments;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
@@ -69,7 +68,7 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastOperationA
 
     @Override
     protected String transportAction() {
-        return TransportActions.Admin.Indices.SEGMENTS;
+        return IndicesSegmentsAction.NAME;
     }
 
     @Override

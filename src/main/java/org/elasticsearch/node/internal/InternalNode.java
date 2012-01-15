@@ -21,7 +21,7 @@ package org.elasticsearch.node.internal;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.TransportActionModule;
+import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.cache.NodeCache;
 import org.elasticsearch.cache.NodeCacheModule;
 import org.elasticsearch.client.Client;
@@ -141,7 +141,7 @@ public final class InternalNode implements Node {
         modules.add(new RiversModule(settings));
         modules.add(new IndicesModule(settings));
         modules.add(new SearchModule());
-        modules.add(new TransportActionModule());
+        modules.add(new ActionModule(false));
         modules.add(new MonitorModule(settings));
         modules.add(new GatewayModule(settings));
         modules.add(new NodeClientModule());

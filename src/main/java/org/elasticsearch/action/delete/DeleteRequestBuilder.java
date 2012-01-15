@@ -32,6 +32,10 @@ import org.elasticsearch.index.VersionType;
  */
 public class DeleteRequestBuilder extends BaseRequestBuilder<DeleteRequest, DeleteResponse> {
 
+    public DeleteRequestBuilder(Client client) {
+        super(client, new DeleteRequest());
+    }
+
     public DeleteRequestBuilder(Client client, @Nullable String index) {
         super(client, new DeleteRequest(index));
     }

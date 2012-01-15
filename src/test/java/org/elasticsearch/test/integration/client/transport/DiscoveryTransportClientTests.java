@@ -26,7 +26,6 @@ import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterMethod;
 
 import static org.elasticsearch.client.Requests.createIndexRequest;
-import static org.elasticsearch.client.Requests.pingSingleRequest;
 
 /**
  *
@@ -55,16 +54,6 @@ public class DiscoveryTransportClientTests extends AbstractNodesTests {
         Thread.sleep(1000);
         client.admin().indices().create(createIndexRequest("test")).actionGet();
         Thread.sleep(500);
-
-        client.admin().cluster().ping(pingSingleRequest("test").type("person").id("1")).actionGet();
-        startNode("server2");
-        Thread.sleep(1000);
-        client.admin().cluster().ping(pingSingleRequest("test").type("person").id("1")).actionGet();
-        closeNode("server1");
-        Thread.sleep(10000);
-        client.admin().cluster().ping(pingSingleRequest("test").type("person").id("1")).actionGet();
-        closeNode("server2");
-        client.admin().cluster().ping(pingSingleRequest("test").type("person").id("1")).actionGet();
     }
 
 }

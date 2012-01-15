@@ -98,6 +98,11 @@ public class SearchScrollRequest implements ActionRequest {
         return scrollId;
     }
 
+    public SearchScrollRequest scrollId(String scrollId) {
+        this.scrollId = scrollId;
+        return this;
+    }
+
     /**
      * If set, will enable scrolling of the search request.
      */

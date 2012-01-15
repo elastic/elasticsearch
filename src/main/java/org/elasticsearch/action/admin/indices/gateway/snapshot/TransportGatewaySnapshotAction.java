@@ -22,7 +22,6 @@ package org.elasticsearch.action.admin.indices.gateway.snapshot;
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
@@ -63,7 +62,7 @@ public class TransportGatewaySnapshotAction extends TransportBroadcastOperationA
 
     @Override
     protected String transportAction() {
-        return TransportActions.Admin.Indices.Gateway.SNAPSHOT;
+        return GatewaySnapshotAction.NAME;
     }
 
     @Override

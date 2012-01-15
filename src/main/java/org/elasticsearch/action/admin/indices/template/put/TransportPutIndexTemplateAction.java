@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.indices.template.put;
 
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -56,7 +55,7 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeOperatio
 
     @Override
     protected String transportAction() {
-        return TransportActions.Admin.Indices.Template.PUT;
+        return PutIndexTemplateAction.NAME;
     }
 
     @Override

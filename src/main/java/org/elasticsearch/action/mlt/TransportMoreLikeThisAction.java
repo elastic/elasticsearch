@@ -23,7 +23,6 @@ import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.Term;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.TransportGetAction;
@@ -78,7 +77,7 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
         this.indicesService = indicesService;
         this.clusterService = clusterService;
 
-        transportService.registerHandler(TransportActions.MORE_LIKE_THIS, new TransportHandler());
+        transportService.registerHandler(MoreLikeThisAction.NAME, new TransportHandler());
     }
 
     @Override

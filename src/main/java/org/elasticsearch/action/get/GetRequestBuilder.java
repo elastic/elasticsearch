@@ -29,6 +29,10 @@ import org.elasticsearch.common.Nullable;
  */
 public class GetRequestBuilder extends BaseRequestBuilder<GetRequest, GetResponse> {
 
+    public GetRequestBuilder(Client client) {
+        super(client, new GetRequest());
+    }
+
     public GetRequestBuilder(Client client, @Nullable String index) {
         super(client, new GetRequest(index));
     }

@@ -24,8 +24,8 @@ import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterName;
@@ -267,7 +267,7 @@ public class TransportClientNodesService extends AbstractComponent {
                     }
                 }
                 try {
-                    NodesInfoResponse nodeInfo = transportService.submitRequest(node, TransportActions.Admin.Cluster.Node.INFO, Requests.nodesInfoRequest("_local"), new FutureTransportResponseHandler<NodesInfoResponse>() {
+                    NodesInfoResponse nodeInfo = transportService.submitRequest(node, NodesInfoAction.NAME, Requests.nodesInfoRequest("_local"), new FutureTransportResponseHandler<NodesInfoResponse>() {
                         @Override
                         public NodesInfoResponse newInstance() {
                             return new NodesInfoResponse();
@@ -312,7 +312,7 @@ public class TransportClientNodesService extends AbstractComponent {
                     public void run() {
                         try {
                             transportService.connectToNode(listedNode); // make sure we are connected to it
-                            transportService.sendRequest(listedNode, TransportActions.Admin.Cluster.Node.INFO, Requests.nodesInfoRequest("_all"), new BaseTransportResponseHandler<NodesInfoResponse>() {
+                            transportService.sendRequest(listedNode, NodesInfoAction.NAME, Requests.nodesInfoRequest("_all"), new BaseTransportResponseHandler<NodesInfoResponse>() {
 
                                 @Override
                                 public NodesInfoResponse newInstance() {

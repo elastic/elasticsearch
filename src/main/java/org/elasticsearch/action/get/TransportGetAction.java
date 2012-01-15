@@ -20,7 +20,6 @@
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.single.shard.TransportShardSingleOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -62,7 +61,7 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
 
     @Override
     protected String transportAction() {
-        return TransportActions.GET;
+        return GetAction.NAME;
     }
 
     @Override

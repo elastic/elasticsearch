@@ -21,7 +21,6 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.search.type.ParsedScrollId;
 import org.elasticsearch.action.search.type.TransportSearchScrollQueryAndFetchAction;
 import org.elasticsearch.action.search.type.TransportSearchScrollQueryThenFetchAction;
@@ -58,7 +57,7 @@ public class TransportSearchScrollAction extends TransportAction<SearchScrollReq
         this.queryAndFetchAction = queryAndFetchAction;
         this.scanAction = scanAction;
 
-        transportService.registerHandler(TransportActions.SEARCH_SCROLL, new TransportHandler());
+        transportService.registerHandler(SearchScrollAction.NAME, new TransportHandler());
     }
 
     @Override

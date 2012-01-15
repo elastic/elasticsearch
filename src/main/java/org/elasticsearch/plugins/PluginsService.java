@@ -24,6 +24,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -51,6 +52,18 @@ public class PluginsService extends AbstractComponent {
 
     private final ImmutableMap<String, Plugin> plugins;
 
+    private final ImmutableMap<Plugin, List<OnModuleReference>> onModuleReferences;
+
+    static class OnModuleReference {
+        public final Class<? extends Module> moduleClass;
+        public final Method onModuleMethod;
+
+        OnModuleReference(Class<? extends Module> moduleClass, Method onModuleMethod) {
+            this.moduleClass = moduleClass;
+            this.onModuleMethod = onModuleMethod;
+        }
+    }
+
     @Inject
     public PluginsService(Settings settings, Environment environment) {
         super(settings);
@@ -65,6 +78,31 @@ public class PluginsService extends AbstractComponent {
         logger.info("loaded {}, sites {}", plugins.keySet(), sitePlugins());
 
         this.plugins = ImmutableMap.copyOf(plugins);
+
+        MapBuilder<Plugin, List<OnModuleReference>> onModuleReferences = MapBuilder.newMapBuilder();
+        for (Plugin plugin : plugins.values()) {
+            List<OnModuleReference> list = Lists.newArrayList();
+            for (Method method : plugin.getClass().getDeclaredMethods()) {
+                if (!method.getName().equals("onModule")) {
+                    continue;
+                }
+                if (method.getParameterTypes().length == 0 || method.getParameterTypes().length > 1) {
+                    logger.warn("Plugin: {} implementing onModule with no parameters or more than one parameter", plugin.name());
+                    continue;
+                }
+                Class moduleClass = method.getParameterTypes()[0];
+                if (!Module.class.isAssignableFrom(moduleClass)) {
+                    logger.warn("Plugin: {} implementing onModule by the type is not of Module type {}", plugin.name(), moduleClass);
+                    continue;
+                }
+                method.setAccessible(true);
+                list.add(new OnModuleReference(moduleClass, method));
+            }
+            if (!list.isEmpty()) {
+                onModuleReferences.put(plugin, list);
+            }
+        }
+        this.onModuleReferences = onModuleReferences.immutableMap();
     }
 
     public ImmutableMap<String, Plugin> plugins() {
@@ -80,6 +118,19 @@ public class PluginsService extends AbstractComponent {
     public void processModule(Module module) {
         for (Plugin plugin : plugins().values()) {
             plugin.processModule(module);
+            // see if there are onModule references
+            List<OnModuleReference> references = onModuleReferences.get(plugin);
+            if (references != null) {
+                for (OnModuleReference reference : references) {
+                    if (reference.moduleClass.isAssignableFrom(module.getClass())) {
+                        try {
+                            reference.onModuleMethod.invoke(plugin, module);
+                        } catch (Exception e) {
+                            logger.warn("plugin {}, failed to invoke custom onModule method", e, plugin.name());
+                        }
+                    }
+                }
+            }
         }
     }
 

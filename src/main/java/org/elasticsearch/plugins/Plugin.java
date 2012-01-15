@@ -28,8 +28,10 @@ import java.util.Collection;
 
 /**
  * An extension point allowing to plug in custom functionality.
- *
- *
+ * <p/>
+ * A plugin can be dynamically injected with {@link Module} by implementing <tt>onModule(AnyModule)</tt> method
+ * removing the need to override {@link #processModule(org.elasticsearch.common.inject.Module)} and check using
+ * instanceof.
  */
 public interface Plugin {
 
@@ -73,6 +75,10 @@ public interface Plugin {
      */
     Collection<Class<? extends CloseableIndexComponent>> shardServices();
 
+    /**
+     * Process a specific module. Note, its simpler to implement a custom <tt>onModule(AnyModule module)</tt>
+     * method, which will be automatically be called by the relevant type.
+     */
     void processModule(Module module);
 
     /**

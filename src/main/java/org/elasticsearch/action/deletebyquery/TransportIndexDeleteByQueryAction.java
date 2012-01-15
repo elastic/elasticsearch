@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.deletebyquery;
 
-import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.replication.TransportIndexReplicationOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -70,7 +69,7 @@ public class TransportIndexDeleteByQueryAction extends TransportIndexReplication
 
     @Override
     protected String transportAction() {
-        return TransportActions.DELETE_BY_QUERY + "/index";
+        return DeleteByQueryAction.NAME + "/index";
     }
 
     @Override

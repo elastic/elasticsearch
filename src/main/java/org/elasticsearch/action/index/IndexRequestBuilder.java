@@ -37,6 +37,10 @@ import java.util.Map;
  */
 public class IndexRequestBuilder extends BaseRequestBuilder<IndexRequest, IndexResponse> {
 
+    public IndexRequestBuilder(Client client) {
+        super(client, new IndexRequest());
+    }
+
     public IndexRequestBuilder(Client client, @Nullable String index) {
         super(client, new IndexRequest(index));
     }

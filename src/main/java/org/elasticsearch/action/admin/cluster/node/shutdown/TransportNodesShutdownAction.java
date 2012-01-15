@@ -22,7 +22,6 @@ package org.elasticsearch.action.admin.cluster.node.shutdown;
 import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
@@ -75,7 +74,7 @@ public class TransportNodesShutdownAction extends TransportMasterNodeOperationAc
 
     @Override
     protected String transportAction() {
-        return TransportActions.Admin.Cluster.Node.SHUTDOWN;
+        return NodesShutdownAction.NAME;
     }
 
     @Override

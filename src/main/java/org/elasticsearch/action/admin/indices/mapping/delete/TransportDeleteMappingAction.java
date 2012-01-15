@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.indices.mapping.delete;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.refresh.TransportRefreshAction;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
@@ -45,8 +44,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Delete mapping action.
- *
- *
  */
 public class TransportDeleteMappingAction extends TransportMasterNodeOperationAction<DeleteMappingRequest, DeleteMappingResponse> {
 
@@ -73,7 +70,7 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
 
     @Override
     protected String transportAction() {
-        return TransportActions.Admin.Indices.Mapping.DELETE;
+        return DeleteMappingAction.NAME;
     }
 
     @Override

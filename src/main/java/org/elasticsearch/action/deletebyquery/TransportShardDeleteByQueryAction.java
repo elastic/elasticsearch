@@ -20,7 +20,6 @@
 package org.elasticsearch.action.deletebyquery;
 
 import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.replication.TransportShardReplicationOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -76,7 +75,7 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
 
     @Override
     protected String transportAction() {
-        return TransportActions.DELETE_BY_QUERY + "/shard";
+        return DeleteByQueryAction.NAME + "/shard";
     }
 
     @Override

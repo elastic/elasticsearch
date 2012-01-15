@@ -20,7 +20,6 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.search.type.*;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -79,7 +78,7 @@ public class TransportSearchAction extends TransportAction<SearchRequest, Search
 
         this.optimizeSingleShard = componentSettings.getAsBoolean("optimize_single_shard", true);
 
-        transportService.registerHandler(TransportActions.SEARCH, new TransportHandler());
+        transportService.registerHandler(SearchAction.NAME, new TransportHandler());
     }
 
     @Override

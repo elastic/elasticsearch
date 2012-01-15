@@ -29,8 +29,17 @@ import org.elasticsearch.common.unit.TimeValue;
  */
 public class OpenIndexRequestBuilder extends BaseIndicesRequestBuilder<OpenIndexRequest, OpenIndexResponse> {
 
+    public OpenIndexRequestBuilder(IndicesAdminClient indicesClient) {
+        super(indicesClient, new OpenIndexRequest());
+    }
+
     public OpenIndexRequestBuilder(IndicesAdminClient indicesClient, String index) {
         super(indicesClient, new OpenIndexRequest(index));
+    }
+
+    public OpenIndexRequestBuilder setIndex(String index) {
+        request.index(index);
+        return this;
     }
 
     /**

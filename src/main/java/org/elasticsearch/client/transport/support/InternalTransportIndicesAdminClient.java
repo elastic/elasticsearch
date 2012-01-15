@@ -19,81 +19,19 @@
 
 package org.elasticsearch.client.transport.support;
 
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.TransportActions;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
-import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
-import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
-import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
-import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
-import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
-import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
-import org.elasticsearch.action.admin.indices.exists.IndicesExistsRequest;
-import org.elasticsearch.action.admin.indices.exists.IndicesExistsResponse;
-import org.elasticsearch.action.admin.indices.flush.FlushRequest;
-import org.elasticsearch.action.admin.indices.flush.FlushResponse;
-import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotRequest;
-import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotResponse;
-import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingRequest;
-import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingResponse;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
-import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
-import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
-import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
-import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
-import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
-import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
-import org.elasticsearch.action.admin.indices.settings.UpdateSettingsRequest;
-import org.elasticsearch.action.admin.indices.settings.UpdateSettingsResponse;
-import org.elasticsearch.action.admin.indices.stats.IndicesStats;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
-import org.elasticsearch.action.admin.indices.status.IndicesStatusRequest;
-import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateResponse;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
-import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
-import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
+import org.elasticsearch.action.*;
+import org.elasticsearch.action.admin.indices.IndicesAction;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.support.AbstractIndicesAdminClient;
 import org.elasticsearch.client.transport.TransportClientNodesService;
-import org.elasticsearch.client.transport.action.admin.indices.alias.ClientTransportIndicesAliasesAction;
-import org.elasticsearch.client.transport.action.admin.indices.analyze.ClientTransportAnalyzeAction;
-import org.elasticsearch.client.transport.action.admin.indices.cache.clear.ClientTransportClearIndicesCacheAction;
-import org.elasticsearch.client.transport.action.admin.indices.close.ClientTransportCloseIndexAction;
-import org.elasticsearch.client.transport.action.admin.indices.create.ClientTransportCreateIndexAction;
-import org.elasticsearch.client.transport.action.admin.indices.delete.ClientTransportDeleteIndexAction;
-import org.elasticsearch.client.transport.action.admin.indices.exists.ClientTransportIndicesExistsAction;
-import org.elasticsearch.client.transport.action.admin.indices.flush.ClientTransportFlushAction;
-import org.elasticsearch.client.transport.action.admin.indices.gateway.snapshot.ClientTransportGatewaySnapshotAction;
-import org.elasticsearch.client.transport.action.admin.indices.mapping.delete.ClientTransportDeleteMappingAction;
-import org.elasticsearch.client.transport.action.admin.indices.mapping.put.ClientTransportPutMappingAction;
-import org.elasticsearch.client.transport.action.admin.indices.open.ClientTransportOpenIndexAction;
-import org.elasticsearch.client.transport.action.admin.indices.optimize.ClientTransportOptimizeAction;
-import org.elasticsearch.client.transport.action.admin.indices.refresh.ClientTransportRefreshAction;
-import org.elasticsearch.client.transport.action.admin.indices.segments.ClientTransportIndicesSegmentsAction;
-import org.elasticsearch.client.transport.action.admin.indices.settings.ClientTransportUpdateSettingsAction;
-import org.elasticsearch.client.transport.action.admin.indices.stats.ClientTransportIndicesStatsAction;
-import org.elasticsearch.client.transport.action.admin.indices.status.ClientTransportIndicesStatusAction;
-import org.elasticsearch.client.transport.action.admin.indices.template.delete.ClientTransportDeleteIndexTemplateAction;
-import org.elasticsearch.client.transport.action.admin.indices.template.put.ClientTransportPutIndexTemplateAction;
-import org.elasticsearch.client.transport.action.admin.indices.validate.query.ClientTransportValidateQueryAction;
-import org.elasticsearch.client.transport.action.support.BaseClientTransportAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 
 import java.util.Map;
 
@@ -106,74 +44,20 @@ public class InternalTransportIndicesAdminClient extends AbstractIndicesAdminCli
 
     private final ThreadPool threadPool;
 
-    private final ClientTransportIndicesExistsAction indicesExistsAction;
-
-    private final ClientTransportIndicesStatsAction indicesStatsAction;
-
-    private final ClientTransportIndicesStatusAction indicesStatusAction;
-
-    private final ClientTransportIndicesSegmentsAction indicesSegmentsAction;
-
-    private final ClientTransportCreateIndexAction createIndexAction;
-
-    private final ClientTransportDeleteIndexAction deleteIndexAction;
-
-    private final ClientTransportCloseIndexAction closeIndexAction;
-
-    private final ClientTransportOpenIndexAction openIndexAction;
-
-    private final ClientTransportRefreshAction refreshAction;
-
-    private final ClientTransportFlushAction flushAction;
-
-    private final ClientTransportOptimizeAction optimizeAction;
-
-    private final ClientTransportPutMappingAction putMappingAction;
-
-    private final ClientTransportDeleteMappingAction deleteMappingAction;
-
-    private final ClientTransportGatewaySnapshotAction gatewaySnapshotAction;
-
-    private final ClientTransportIndicesAliasesAction indicesAliasesAction;
-
-    private final ClientTransportClearIndicesCacheAction clearIndicesCacheAction;
-
-    private final ClientTransportUpdateSettingsAction updateSettingsAction;
-
-    private final ClientTransportAnalyzeAction analyzeAction;
-
-    private final ClientTransportPutIndexTemplateAction putIndexTemplateAction;
-
-    private final ClientTransportDeleteIndexTemplateAction deleteIndexTemplateAction;
-
-    private final ClientTransportValidateQueryAction validateQueryAction;
+    private final ImmutableMap<IndicesAction, TransportActionNodeProxy> actions;
 
     @Inject
-    public InternalTransportIndicesAdminClient(Settings settings, TransportClientNodesService nodesService, ThreadPool threadPool,
-                                               Map<String, BaseClientTransportAction> actions) {
+    public InternalTransportIndicesAdminClient(Settings settings, TransportClientNodesService nodesService, TransportService transportService, ThreadPool threadPool,
+                                               Map<String, GenericAction> actions) {
         this.nodesService = nodesService;
         this.threadPool = threadPool;
-        this.indicesExistsAction = (ClientTransportIndicesExistsAction) actions.get(TransportActions.Admin.Indices.EXISTS);
-        this.indicesStatsAction = (ClientTransportIndicesStatsAction) actions.get(TransportActions.Admin.Indices.STATS);
-        this.indicesStatusAction = (ClientTransportIndicesStatusAction) actions.get(TransportActions.Admin.Indices.STATUS);
-        this.indicesSegmentsAction = (ClientTransportIndicesSegmentsAction) actions.get(TransportActions.Admin.Indices.SEGMENTS);
-        this.createIndexAction = (ClientTransportCreateIndexAction) actions.get(TransportActions.Admin.Indices.CREATE);
-        this.deleteIndexAction = (ClientTransportDeleteIndexAction) actions.get(TransportActions.Admin.Indices.DELETE);
-        this.closeIndexAction = (ClientTransportCloseIndexAction) actions.get(TransportActions.Admin.Indices.CLOSE);
-        this.openIndexAction = (ClientTransportOpenIndexAction) actions.get(TransportActions.Admin.Indices.OPEN);
-        this.refreshAction = (ClientTransportRefreshAction) actions.get(TransportActions.Admin.Indices.REFRESH);
-        this.flushAction = (ClientTransportFlushAction) actions.get(TransportActions.Admin.Indices.FLUSH);
-        this.optimizeAction = (ClientTransportOptimizeAction) actions.get(TransportActions.Admin.Indices.OPTIMIZE);
-        this.putMappingAction = (ClientTransportPutMappingAction) actions.get(TransportActions.Admin.Indices.Mapping.PUT);
-        this.deleteMappingAction = (ClientTransportDeleteMappingAction) actions.get(TransportActions.Admin.Indices.Mapping.DELETE);
-        this.gatewaySnapshotAction = (ClientTransportGatewaySnapshotAction) actions.get(TransportActions.Admin.Indices.Gateway.SNAPSHOT);
-        this.indicesAliasesAction = (ClientTransportIndicesAliasesAction) actions.get(TransportActions.Admin.Indices.ALIASES);
-        this.clearIndicesCacheAction = (ClientTransportClearIndicesCacheAction) actions.get(TransportActions.Admin.Indices.Cache.CLEAR);
-        this.updateSettingsAction = (ClientTransportUpdateSettingsAction) actions.get(TransportActions.Admin.Indices.UPDATE_SETTINGS);
-        this.analyzeAction = (ClientTransportAnalyzeAction) actions.get(TransportActions.Admin.Indices.ANALYZE);
-        this.putIndexTemplateAction = (ClientTransportPutIndexTemplateAction) actions.get(TransportActions.Admin.Indices.Template.PUT);
-        this.deleteIndexTemplateAction = (ClientTransportDeleteIndexTemplateAction) actions.get(TransportActions.Admin.Indices.Template.DELETE);
-        this.validateQueryAction = (ClientTransportValidateQueryAction) actions.get(TransportActions.Admin.Indices.Validate.QUERY);
+        MapBuilder<IndicesAction, TransportActionNodeProxy> actionsBuilder = new MapBuilder<IndicesAction, TransportActionNodeProxy>();
+        for (GenericAction action : actions.values()) {
+            if (action instanceof IndicesAction) {
+                actionsBuilder.put((IndicesAction) action, new TransportActionNodeProxy(action, transportService));
+            }
+        }
+        this.actions = actionsBuilder.immutableMap();
     }
 
     @Override
@@ -182,421 +66,23 @@ public class InternalTransportIndicesAdminClient extends AbstractIndicesAdminCli
     }
 
     @Override
-    public ActionFuture<IndicesExistsResponse> exists(final IndicesExistsRequest request) {
-        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<IndicesExistsResponse>>() {
+    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response>> ActionFuture<Response> execute(final IndicesAction<Request, Response, RequestBuilder> action, final Request request) {
+        final TransportActionNodeProxy<Request, Response> proxy = actions.get(action);
+        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<Response>>() {
             @Override
-            public ActionFuture<IndicesExistsResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
-                return indicesExistsAction.execute(node, request);
+            public ActionFuture<Response> doWithNode(DiscoveryNode node) throws ElasticSearchException {
+                return proxy.execute(node, request);
             }
         });
     }
 
     @Override
-    public void exists(final IndicesExistsRequest request, final ActionListener<IndicesExistsResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<IndicesExistsResponse>() {
+    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response>> void execute(final IndicesAction<Request, Response, RequestBuilder> action, final Request request, ActionListener<Response> listener) {
+        final TransportActionNodeProxy<Request, Response> proxy = actions.get(action);
+        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<Response>() {
             @Override
-            public void doWithNode(DiscoveryNode node, ActionListener<IndicesExistsResponse> listener) throws ElasticSearchException {
-                indicesExistsAction.execute(node, request, listener);
-            }
-        }, listener);
-    }
-
-    @Override
-    public ActionFuture<IndicesStats> stats(final IndicesStatsRequest request) {
-        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<IndicesStats>>() {
-            @Override
-            public ActionFuture<IndicesStats> doWithNode(DiscoveryNode node) throws ElasticSearchException {
-                return indicesStatsAction.execute(node, request);
-            }
-        });
-    }
-
-    @Override
-    public void stats(final IndicesStatsRequest request, final ActionListener<IndicesStats> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<IndicesStats>() {
-            @Override
-            public void doWithNode(DiscoveryNode node, ActionListener<IndicesStats> listener) throws ElasticSearchException {
-                indicesStatsAction.execute(node, request, listener);
-            }
-        }, listener);
-    }
-
-    @Override
-    public ActionFuture<IndicesStatusResponse> status(final IndicesStatusRequest request) {
-        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<IndicesStatusResponse>>() {
-            @Override
-            public ActionFuture<IndicesStatusResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
-                return indicesStatusAction.execute(node, request);
-            }
-        });
-    }
-
-    @Override
-    public void status(final IndicesStatusRequest request, final ActionListener<IndicesStatusResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<IndicesStatusResponse>() {
-            @Override
-            public void doWithNode(DiscoveryNode node, ActionListener<IndicesStatusResponse> listener) throws ElasticSearchException {
-                indicesStatusAction.execute(node, request, listener);
-            }
-        }, listener);
-    }
-
-    @Override
-    public ActionFuture<IndicesSegmentResponse> segments(final IndicesSegmentsRequest request) {
-        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<IndicesSegmentResponse>>() {
-            @Override
-            public ActionFuture<IndicesSegmentResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
-                return indicesSegmentsAction.execute(node, request);
-            }
-        });
-    }
-
-    @Override
-    public void segments(final IndicesSegmentsRequest request, final ActionListener<IndicesSegmentResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<IndicesSegmentResponse>() {
-            @Override
-            public void doWithNode(DiscoveryNode node, ActionListener<IndicesSegmentResponse> listener) throws ElasticSearchException {
-                indicesSegmentsAction.execute(node, request, listener);
-            }
-        }, listener);
-    }
-
-    @Override
-    public ActionFuture<CreateIndexResponse> create(final CreateIndexRequest request) {
-        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<CreateIndexResponse>>() {
-            @Override
-            public ActionFuture<CreateIndexResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
-                return createIndexAction.execute(node, request);
-            }
-        });
-    }
-
-    @Override
-    public void create(final CreateIndexRequest request, final ActionListener<CreateIndexResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<CreateIndexResponse>() {
-            @Override
-            public void doWithNode(DiscoveryNode node, ActionListener<CreateIndexResponse> listener) throws ElasticSearchException {
-                createIndexAction.execute(node, request, listener);
-            }
-        }, listener);
-    }
-
-    @Override
-    public ActionFuture<DeleteIndexResponse> delete(final DeleteIndexRequest request) {
-        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<DeleteIndexResponse>>() {
-            @Override
-            public ActionFuture<DeleteIndexResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
-                return deleteIndexAction.execute(node, request);
-            }
-        });
-    }
-
-    @Override
-    public void delete(final DeleteIndexRequest request, final ActionListener<DeleteIndexResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<DeleteIndexResponse>() {
-            @Override
-            public void doWithNode(DiscoveryNode node, ActionListener<DeleteIndexResponse> listener) throws ElasticSearchException {
-                deleteIndexAction.execute(node, request, listener);
-            }
-        }, listener);
-    }
-
-    @Override
-    public ActionFuture<CloseIndexResponse> close(final CloseIndexRequest request) {
-        return nodesService.execute(new TransportClientNodesService.NodeCallback<org.elasticsearch.action.ActionFuture<CloseIndexResponse>>() {
-            @Override
-            public ActionFuture<CloseIndexResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
-                return closeIndexAction.execute(node, request);
-            }
-        });
-    }
-
-    @Override
-    public void close(final CloseIndexRequest request, final ActionListener<CloseIndexResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<CloseIndexResponse>() {
-            @Override
-            public void doWithNode(DiscoveryNode node, ActionListener<CloseIndexResponse> listener) throws ElasticSearchException {
-                closeIndexAction.execute(node, request, listener);
-            }
-        }, listener);
-    }
-
-    @Override
-    public ActionFuture<OpenIndexResponse> open(final OpenIndexRequest request) {
-        return nodesService.execute(new TransportClientNodesService.NodeCallback<org.elasticsearch.action.ActionFuture<OpenIndexResponse>>() {
-            @Override
-            public ActionFuture<OpenIndexResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
-                return openIndexAction.execute(node, request);
-            }
-        });
-    }
-
-    @Override
-    public void open(final OpenIndexRequest request, final ActionListener<OpenIndexResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<OpenIndexResponse>() {
-            @Override
-            public void doWithNode(DiscoveryNode node, ActionListener<OpenIndexResponse> listener) throws ElasticSearchException {
-                openIndexAction.execute(node, request, listener);
-            }
-        }, listener);
-    }
-
-    @Override
-    public ActionFuture<RefreshResponse> refresh(final RefreshRequest request) {
-        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<RefreshResponse>>() {
-            @Override
-            public ActionFuture<RefreshResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
-                return refreshAction.execute(node, request);
-            }
-        });
-    }
-
-    @Override
-    public void refresh(final RefreshRequest request, final ActionListener<RefreshResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<RefreshResponse>() {
-            @Override
-            public void doWithNode(DiscoveryNode node, ActionListener<RefreshResponse> listener) throws ElasticSearchException {
-                refreshAction.execute(node, request, listener);
-            }
-        }, listener);
-    }
-
-    @Override
-    public ActionFuture<FlushResponse> flush(final FlushRequest request) {
-        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<FlushResponse>>() {
-            @Override
-            public ActionFuture<FlushResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
-                return flushAction.execute(node, request);
-            }
-        });
-    }
-
-    @Override
-    public void flush(final FlushRequest request, final ActionListener<FlushResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<FlushResponse>() {
-            @Override
-            public void doWithNode(DiscoveryNode node, ActionListener<FlushResponse> listener) throws ElasticSearchException {
-                flushAction.execute(node, request, listener);
-            }
-        }, listener);
-    }
-
-    @Override
-    public ActionFuture<OptimizeResponse> optimize(final OptimizeRequest request) {
-        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<OptimizeResponse>>() {
-            @Override
-            public ActionFuture<OptimizeResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
-                return optimizeAction.execute(node, request);
-            }
-        });
-    }
-
-    @Override
-    public void optimize(final OptimizeRequest request, final ActionListener<OptimizeResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<OptimizeResponse>() {
-            @Override
-            public void doWithNode(DiscoveryNode node, ActionListener<OptimizeResponse> listener) throws ElasticSearchException {
-                optimizeAction.execute(node, request, listener);
-            }
-        }, listener);
-    }
-
-    @Override
-    public ActionFuture<PutMappingResponse> putMapping(final PutMappingRequest request) {
-        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<PutMappingResponse>>() {
-            @Override
-            public ActionFuture<PutMappingResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
-                return putMappingAction.execute(node, request);
-            }
-        });
-    }
-
-    @Override
-    public void putMapping(final PutMappingRequest request, final ActionListener<PutMappingResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<PutMappingResponse>() {
-            @Override
-            public void doWithNode(DiscoveryNode node, ActionListener<PutMappingResponse> listener) throws ElasticSearchException {
-                putMappingAction.execute(node, request, listener);
-            }
-        }, listener);
-    }
-
-    @Override
-    public ActionFuture<DeleteMappingResponse> deleteMapping(final DeleteMappingRequest request) {
-        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<DeleteMappingResponse>>() {
-            @Override
-            public ActionFuture<DeleteMappingResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
-                return deleteMappingAction.execute(node, request);
-            }
-        });
-    }
-
-    @Override
-    public void deleteMapping(final DeleteMappingRequest request, final ActionListener<DeleteMappingResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<DeleteMappingResponse>() {
-            @Override
-            public void doWithNode(DiscoveryNode node, ActionListener<DeleteMappingResponse> listener) throws ElasticSearchException {
-                deleteMappingAction.execute(node, request, listener);
-            }
-        }, listener);
-    }
-
-    @Override
-    public ActionFuture<GatewaySnapshotResponse> gatewaySnapshot(final GatewaySnapshotRequest request) {
-        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<GatewaySnapshotResponse>>() {
-            @Override
-            public ActionFuture<GatewaySnapshotResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
-                return gatewaySnapshotAction.execute(node, request);
-            }
-        });
-    }
-
-    @Override
-    public void gatewaySnapshot(final GatewaySnapshotRequest request, final ActionListener<GatewaySnapshotResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<GatewaySnapshotResponse>() {
-            @Override
-            public void doWithNode(DiscoveryNode node, ActionListener<GatewaySnapshotResponse> listener) throws ElasticSearchException {
-                gatewaySnapshotAction.execute(node, request, listener);
-            }
-        }, listener);
-    }
-
-    @Override
-    public ActionFuture<IndicesAliasesResponse> aliases(final IndicesAliasesRequest request) {
-        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<IndicesAliasesResponse>>() {
-            @Override
-            public ActionFuture<IndicesAliasesResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
-                return indicesAliasesAction.execute(node, request);
-            }
-        });
-    }
-
-    @Override
-    public void aliases(final IndicesAliasesRequest request, final ActionListener<IndicesAliasesResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<IndicesAliasesResponse>() {
-            @Override
-            public void doWithNode(DiscoveryNode node, ActionListener<IndicesAliasesResponse> listener) throws ElasticSearchException {
-                indicesAliasesAction.execute(node, request, listener);
-            }
-        }, listener);
-    }
-
-    @Override
-    public ActionFuture<ClearIndicesCacheResponse> clearCache(final ClearIndicesCacheRequest request) {
-        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<ClearIndicesCacheResponse>>() {
-            @Override
-            public ActionFuture<ClearIndicesCacheResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
-                return clearIndicesCacheAction.execute(node, request);
-            }
-        });
-    }
-
-    @Override
-    public void clearCache(final ClearIndicesCacheRequest request, final ActionListener<ClearIndicesCacheResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<ClearIndicesCacheResponse>() {
-            @Override
-            public void doWithNode(DiscoveryNode node, ActionListener<ClearIndicesCacheResponse> listener) throws ElasticSearchException {
-                clearIndicesCacheAction.execute(node, request, listener);
-            }
-        }, listener);
-    }
-
-    @Override
-    public ActionFuture<UpdateSettingsResponse> updateSettings(final UpdateSettingsRequest request) {
-        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<UpdateSettingsResponse>>() {
-            @Override
-            public ActionFuture<UpdateSettingsResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
-                return updateSettingsAction.execute(node, request);
-            }
-        });
-    }
-
-    @Override
-    public void updateSettings(final UpdateSettingsRequest request, final ActionListener<UpdateSettingsResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<UpdateSettingsResponse>() {
-            @Override
-            public void doWithNode(DiscoveryNode node, ActionListener<UpdateSettingsResponse> listener) throws ElasticSearchException {
-                updateSettingsAction.execute(node, request, listener);
-            }
-        }, listener);
-    }
-
-    @Override
-    public ActionFuture<AnalyzeResponse> analyze(final AnalyzeRequest request) {
-        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<AnalyzeResponse>>() {
-            @Override
-            public ActionFuture<AnalyzeResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
-                return analyzeAction.execute(node, request);
-            }
-        });
-    }
-
-    @Override
-    public void analyze(final AnalyzeRequest request, final ActionListener<AnalyzeResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<AnalyzeResponse>() {
-            @Override
-            public void doWithNode(DiscoveryNode node, ActionListener<AnalyzeResponse> listener) throws ElasticSearchException {
-                analyzeAction.execute(node, request, listener);
-            }
-        }, listener);
-    }
-
-    @Override
-    public ActionFuture<PutIndexTemplateResponse> putTemplate(final PutIndexTemplateRequest request) {
-        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<PutIndexTemplateResponse>>() {
-            @Override
-            public ActionFuture<PutIndexTemplateResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
-                return putIndexTemplateAction.execute(node, request);
-            }
-        });
-    }
-
-    @Override
-    public void putTemplate(final PutIndexTemplateRequest request, final ActionListener<PutIndexTemplateResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<PutIndexTemplateResponse>() {
-            @Override
-            public void doWithNode(DiscoveryNode node, ActionListener<PutIndexTemplateResponse> listener) throws ElasticSearchException {
-                putIndexTemplateAction.execute(node, request, listener);
-            }
-        }, listener);
-    }
-
-    @Override
-    public ActionFuture<DeleteIndexTemplateResponse> deleteTemplate(final DeleteIndexTemplateRequest request) {
-        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<DeleteIndexTemplateResponse>>() {
-            @Override
-            public ActionFuture<DeleteIndexTemplateResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
-                return deleteIndexTemplateAction.execute(node, request);
-            }
-        });
-    }
-
-    @Override
-    public void deleteTemplate(final DeleteIndexTemplateRequest request, final ActionListener<DeleteIndexTemplateResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<DeleteIndexTemplateResponse>() {
-            @Override
-            public void doWithNode(DiscoveryNode node, ActionListener<DeleteIndexTemplateResponse> listener) throws ElasticSearchException {
-                deleteIndexTemplateAction.execute(node, request, listener);
-            }
-        }, listener);
-    }
-
-    @Override
-    public ActionFuture<ValidateQueryResponse> validateQuery(final ValidateQueryRequest request) {
-        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<ValidateQueryResponse>>() {
-            @Override
-            public ActionFuture<ValidateQueryResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
-                return validateQueryAction.execute(node, request);
-            }
-        });
-    }
-
-    @Override
-    public void validateQuery(final ValidateQueryRequest request, final ActionListener<ValidateQueryResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<ValidateQueryResponse>() {
-            @Override
-            public void doWithNode(DiscoveryNode node, ActionListener<ValidateQueryResponse> listener) throws ElasticSearchException {
-                validateQueryAction.execute(node, request, listener);
+            public void doWithNode(DiscoveryNode node, ActionListener<Response> listener) throws ElasticSearchException {
+                proxy.execute(node, request, listener);
             }
         }, listener);
     }

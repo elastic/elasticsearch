@@ -28,6 +28,10 @@ import org.elasticsearch.client.IndicesAdminClient;
  */
 public class AnalyzeRequestBuilder extends BaseIndicesRequestBuilder<AnalyzeRequest, AnalyzeResponse> {
 
+    public AnalyzeRequestBuilder(IndicesAdminClient indicesClient) {
+        super(indicesClient, new AnalyzeRequest());
+    }
+
     public AnalyzeRequestBuilder(IndicesAdminClient indicesClient, String index, String text) {
         super(indicesClient, new AnalyzeRequest(index, text));
     }

@@ -22,7 +22,6 @@ package org.elasticsearch.action.admin.indices.stats;
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
@@ -69,7 +68,7 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
 
     @Override
     protected String transportAction() {
-        return TransportActions.Admin.Indices.STATS;
+        return IndicesStatsAction.NAME;
     }
 
     @Override

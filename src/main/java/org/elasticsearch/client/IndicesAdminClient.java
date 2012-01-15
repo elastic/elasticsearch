@@ -19,8 +19,8 @@
 
 package org.elasticsearch.client;
 
-import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.*;
+import org.elasticsearch.action.admin.indices.IndicesAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
@@ -92,6 +92,13 @@ import org.elasticsearch.common.Nullable;
  * @see AdminClient#indices()
  */
 public interface IndicesAdminClient {
+
+    <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response>> ActionFuture<Response> execute(final IndicesAction<Request, Response, RequestBuilder> action, final Request request);
+
+    <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response>> void execute(final IndicesAction<Request, Response, RequestBuilder> action, final Request request, ActionListener<Response> listener);
+
+    <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response>> RequestBuilder prepareExecute(final IndicesAction<Request, Response, RequestBuilder> action);
+
 
     /**
      * Indices Exists.

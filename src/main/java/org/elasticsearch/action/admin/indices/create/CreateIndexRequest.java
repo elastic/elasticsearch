@@ -99,6 +99,11 @@ public class CreateIndexRequest extends MasterNodeOperationRequest {
         return index;
     }
 
+    public CreateIndexRequest index(String index) {
+        this.index = index;
+        return this;
+    }
+
     /**
      * The settings to created the index with.
      */

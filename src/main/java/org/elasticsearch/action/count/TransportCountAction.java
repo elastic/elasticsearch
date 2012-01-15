@@ -21,7 +21,6 @@ package org.elasticsearch.action.count;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
@@ -65,7 +64,7 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
 
     @Override
     protected String transportAction() {
-        return TransportActions.COUNT;
+        return CountAction.NAME;
     }
 
     @Override

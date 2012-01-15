@@ -29,8 +29,17 @@ import org.elasticsearch.common.unit.TimeValue;
  */
 public class CloseIndexRequestBuilder extends BaseIndicesRequestBuilder<CloseIndexRequest, CloseIndexResponse> {
 
+    public CloseIndexRequestBuilder(IndicesAdminClient indicesClient) {
+        super(indicesClient, new CloseIndexRequest());
+    }
+
     public CloseIndexRequestBuilder(IndicesAdminClient indicesClient, String index) {
         super(indicesClient, new CloseIndexRequest(index));
+    }
+
+    public CloseIndexRequestBuilder setIndex(String index) {
+        request.index(index);
+        return this;
     }
 
     /**

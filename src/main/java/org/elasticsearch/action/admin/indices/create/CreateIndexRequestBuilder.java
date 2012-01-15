@@ -33,8 +33,17 @@ import java.util.Map;
  */
 public class CreateIndexRequestBuilder extends BaseIndicesRequestBuilder<CreateIndexRequest, CreateIndexResponse> {
 
+    public CreateIndexRequestBuilder(IndicesAdminClient indicesClient) {
+        super(indicesClient, new CreateIndexRequest());
+    }
+
     public CreateIndexRequestBuilder(IndicesAdminClient indicesClient, String index) {
         super(indicesClient, new CreateIndexRequest(index));
+    }
+
+    public CreateIndexRequestBuilder setIndex(String index) {
+        request.index(index);
+        return this;
     }
 
     /**

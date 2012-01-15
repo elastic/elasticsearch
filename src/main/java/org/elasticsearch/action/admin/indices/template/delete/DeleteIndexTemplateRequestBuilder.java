@@ -29,6 +29,10 @@ import org.elasticsearch.common.unit.TimeValue;
  */
 public class DeleteIndexTemplateRequestBuilder extends BaseIndicesRequestBuilder<DeleteIndexTemplateRequest, DeleteIndexTemplateResponse> {
 
+    public DeleteIndexTemplateRequestBuilder(IndicesAdminClient indicesClient) {
+        super(indicesClient, new DeleteIndexTemplateRequest());
+    }
+
     public DeleteIndexTemplateRequestBuilder(IndicesAdminClient indicesClient, String name) {
         super(indicesClient, new DeleteIndexTemplateRequest(name));
     }

@@ -28,7 +28,6 @@ import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.single.custom.TransportSingleCustomOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -85,7 +84,7 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
 
     @Override
     protected String transportAction() {
-        return TransportActions.Admin.Indices.ANALYZE;
+        return AnalyzeAction.NAME;
     }
 
     @Override

@@ -21,8 +21,7 @@ package org.elasticsearch.client.transport;
 
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.*;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.count.CountRequest;
@@ -47,7 +46,6 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.support.AbstractClient;
-import org.elasticsearch.client.transport.action.ClientTransportActionModule;
 import org.elasticsearch.client.transport.support.InternalTransportClient;
 import org.elasticsearch.cluster.ClusterNameModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -159,7 +157,7 @@ public class TransportClient extends AbstractClient {
         modules.add(new ThreadPoolModule(settings));
         modules.add(new TransportSearchModule());
         modules.add(new TransportModule(settings));
-        modules.add(new ClientTransportActionModule());
+        modules.add(new ActionModule(true));
         modules.add(new ClientTransportModule());
 
         injector = modules.createInjector();
@@ -247,6 +245,16 @@ public class TransportClient extends AbstractClient {
     @Override
     public AdminClient admin() {
         return internalClient.admin();
+    }
+
+    @Override
+    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response>> ActionFuture<Response> execute(Action<Request, Response, RequestBuilder> action, Request request) {
+        return internalClient.execute(action, request);
+    }
+
+    @Override
+    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response>> void execute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
+        internalClient.execute(action, request, listener);
     }
 
     @Override

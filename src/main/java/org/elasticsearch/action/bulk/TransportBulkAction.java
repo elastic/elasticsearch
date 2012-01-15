@@ -25,7 +25,6 @@ import com.google.common.collect.Sets;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
@@ -80,7 +79,7 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
         this.autoCreateIndex = settings.getAsBoolean("action.auto_create_index", true);
         this.allowIdGeneration = componentSettings.getAsBoolean("action.allow_id_generation", true);
 
-        transportService.registerHandler(TransportActions.BULK, new TransportHandler());
+        transportService.registerHandler(BulkAction.NAME, new TransportHandler());
     }
 
     @Override
@@ -282,7 +281,7 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
                     try {
                         channel.sendResponse(e);
                     } catch (Exception e1) {
-                        logger.warn("Failed to send error response for action [" + TransportActions.BULK + "] and request [" + request + "]", e1);
+                        logger.warn("Failed to send error response for action [" + BulkAction.NAME + "] and request [" + request + "]", e1);
                     }
                 }
             });

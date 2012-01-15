@@ -32,6 +32,10 @@ import java.util.Map;
  */
 public class UpdateRequestBuilder extends BaseRequestBuilder<UpdateRequest, UpdateResponse> {
 
+    public UpdateRequestBuilder(Client client) {
+        super(client, new UpdateRequest());
+    }
+
     public UpdateRequestBuilder(Client client, String index, String type, String id) {
         super(client, new UpdateRequest(index, type, id));
     }

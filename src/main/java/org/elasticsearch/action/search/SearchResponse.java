@@ -39,8 +39,6 @@ import static org.elasticsearch.search.internal.InternalSearchResponse.readInter
 
 /**
  * A response of a search request.
- *
- *
  */
 public class SearchResponse implements ActionResponse, ToXContent {
 
@@ -56,7 +54,7 @@ public class SearchResponse implements ActionResponse, ToXContent {
 
     private long tookInMillis;
 
-    SearchResponse() {
+    public SearchResponse() {
     }
 
     public SearchResponse(InternalSearchResponse internalResponse, String scrollId, int totalShards, int successfulShards, long tookInMillis, ShardSearchFailure[] shardFailures) {

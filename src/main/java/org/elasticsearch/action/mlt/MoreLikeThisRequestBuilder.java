@@ -35,6 +35,10 @@ import java.util.Map;
  */
 public class MoreLikeThisRequestBuilder extends BaseRequestBuilder<MoreLikeThisRequest, SearchResponse> {
 
+    public MoreLikeThisRequestBuilder(Client client) {
+        super(client, new MoreLikeThisRequest());
+    }
+
     public MoreLikeThisRequestBuilder(Client client, String index, String type, String id) {
         super(client, new MoreLikeThisRequest(index).type(type).id(id));
     }

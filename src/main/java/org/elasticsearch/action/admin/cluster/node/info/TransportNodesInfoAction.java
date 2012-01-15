@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.cluster.node.info;
 
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.nodes.NodeOperationRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesOperationAction;
 import org.elasticsearch.cluster.ClusterName;
@@ -60,7 +59,7 @@ public class TransportNodesInfoAction extends TransportNodesOperationAction<Node
 
     @Override
     protected String transportAction() {
-        return TransportActions.Admin.Cluster.Node.INFO;
+        return NodesInfoAction.NAME;
     }
 
     @Override

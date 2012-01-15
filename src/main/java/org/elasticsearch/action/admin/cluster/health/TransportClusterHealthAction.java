@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.cluster.health;
 
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
@@ -58,7 +57,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
 
     @Override
     protected String transportAction() {
-        return TransportActions.Admin.Cluster.HEALTH;
+        return ClusterHealthAction.NAME;
     }
 
     @Override

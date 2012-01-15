@@ -30,6 +30,10 @@ import org.elasticsearch.search.Scroll;
  */
 public class SearchScrollRequestBuilder extends BaseRequestBuilder<SearchScrollRequest, SearchResponse> {
 
+    public SearchScrollRequestBuilder(Client client) {
+        super(client, new SearchScrollRequest());
+    }
+
     public SearchScrollRequestBuilder(Client client, String scrollId) {
         super(client, new SearchScrollRequest(scrollId));
     }
@@ -47,6 +51,14 @@ public class SearchScrollRequestBuilder extends BaseRequestBuilder<SearchScrollR
      */
     public SearchScrollRequestBuilder listenerThreaded(boolean threadedListener) {
         request.listenerThreaded(threadedListener);
+        return this;
+    }
+
+    /**
+     * The scroll id to use to continue scrolling.
+     */
+    public SearchScrollRequestBuilder setScrollId(String scrollId) {
+        request.scrollId(scrollId);
         return this;
     }
 

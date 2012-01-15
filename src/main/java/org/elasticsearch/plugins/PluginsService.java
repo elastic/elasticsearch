@@ -245,18 +245,20 @@ public class PluginsService extends AbstractComponent {
                     addURL.invoke(classLoader, pluginFile.toURI().toURL());
                     // gather files to add
                     List<File> libFiles = Lists.newArrayList();
-                    libFiles.addAll(Arrays.asList(pluginsFile.listFiles()));
+                    if (pluginFile.listFiles() != null) {
+                        libFiles.addAll(Arrays.asList(pluginFile.listFiles()));
+                    }
                     File libLocation = new File(pluginFile, "lib");
-                    if (libLocation.exists() && libLocation.isDirectory()) {
+                    if (libLocation.exists() && libLocation.isDirectory() && libLocation.listFiles() != null) {
                         libFiles.addAll(Arrays.asList(libLocation.listFiles()));
                     }
 
                     // if there are jars in it, add it as well
-                    for (File jarToAdd : libFiles) {
-                        if (!(jarToAdd.getName().endsWith(".jar") || jarToAdd.getName().endsWith(".zip"))) {
+                    for (File libFile : libFiles) {
+                        if (!(libFile.getName().endsWith(".jar") || libFile.getName().endsWith(".zip"))) {
                             continue;
                         }
-                        addURL.invoke(classLoader, jarToAdd.toURI().toURL());
+                        addURL.invoke(classLoader, libFile.toURI().toURL());
                     }
                 } catch (Exception e) {
                     logger.warn("failed to add plugin [" + pluginFile + "]", e);

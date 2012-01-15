@@ -25,13 +25,13 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.client.ClusterAdminClient;
-import org.elasticsearch.client.action.RequestBuilder;
+import org.elasticsearch.client.action.ActionRequestBuilder;
 import org.elasticsearch.client.internal.InternalClusterAdminClient;
 
 /**
  *
  */
-public abstract class BaseClusterRequestBuilder<Request extends ActionRequest, Response extends ActionResponse> implements RequestBuilder<Request, Response> {
+public abstract class BaseClusterRequestBuilder<Request extends ActionRequest, Response extends ActionResponse> implements ActionRequestBuilder<Request, Response> {
 
     protected final InternalClusterAdminClient client;
 
@@ -40,6 +40,11 @@ public abstract class BaseClusterRequestBuilder<Request extends ActionRequest, R
     protected BaseClusterRequestBuilder(ClusterAdminClient client, Request request) {
         this.client = (InternalClusterAdminClient) client;
         this.request = request;
+    }
+
+    @Override
+    public Request request() {
+        return request;
     }
 
     @Override

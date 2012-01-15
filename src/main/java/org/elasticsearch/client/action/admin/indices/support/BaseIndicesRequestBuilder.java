@@ -25,13 +25,13 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.client.action.RequestBuilder;
+import org.elasticsearch.client.action.ActionRequestBuilder;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 
 /**
  *
  */
-public abstract class BaseIndicesRequestBuilder<Request extends ActionRequest, Response extends ActionResponse> implements RequestBuilder<Request, Response> {
+public abstract class BaseIndicesRequestBuilder<Request extends ActionRequest, Response extends ActionResponse> implements ActionRequestBuilder<Request, Response> {
 
     protected final InternalIndicesAdminClient client;
 
@@ -40,6 +40,11 @@ public abstract class BaseIndicesRequestBuilder<Request extends ActionRequest, R
     protected BaseIndicesRequestBuilder(IndicesAdminClient client, Request request) {
         this.client = (InternalIndicesAdminClient) client;
         this.request = request;
+    }
+
+    @Override
+    public Request request() {
+        return request;
     }
 
     @Override

@@ -24,7 +24,7 @@ import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.Actions;
+import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Bytes;
@@ -51,7 +51,6 @@ import static org.elasticsearch.search.Scroll.readScroll;
  * to check against to fetched based on the index, type and id provided. Best created with {@link org.elasticsearch.client.Requests#moreLikeThisRequest(String)}.
  * <p/>
  * <p>Note, the {@link #index()}, {@link #type(String)} and {@link #id(String)} are required.
- *
  *
  * @see org.elasticsearch.client.Client#moreLikeThis(MoreLikeThisRequest)
  * @see org.elasticsearch.client.Requests#moreLikeThisRequest(String)
@@ -526,13 +525,13 @@ public class MoreLikeThisRequest implements ActionRequest {
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (index == null) {
-            validationException = Actions.addValidationError("index is missing", validationException);
+            validationException = ValidateActions.addValidationError("index is missing", validationException);
         }
         if (type == null) {
-            validationException = Actions.addValidationError("type is missing", validationException);
+            validationException = ValidateActions.addValidationError("type is missing", validationException);
         }
         if (id == null) {
-            validationException = Actions.addValidationError("id is missing", validationException);
+            validationException = ValidateActions.addValidationError("id is missing", validationException);
         }
         return validationException;
     }

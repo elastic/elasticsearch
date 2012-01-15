@@ -32,7 +32,7 @@ import org.elasticsearch.index.VersionType;
 
 import java.io.IOException;
 
-import static org.elasticsearch.action.Actions.addValidationError;
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * A request to delete a document from an index based on its type and id. Best created using
@@ -40,7 +40,6 @@ import static org.elasticsearch.action.Actions.addValidationError;
  * <p/>
  * <p>The operation requires the {@link #index()}, {@link #type(String)} and {@link #id(String)} to
  * be set.
- *
  *
  * @see DeleteResponse
  * @see org.elasticsearch.client.Client#delete(DeleteRequest)

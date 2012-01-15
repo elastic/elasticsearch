@@ -28,7 +28,7 @@ import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 
-import static org.elasticsearch.action.Actions.addValidationError;
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  *

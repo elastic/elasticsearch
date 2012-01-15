@@ -21,7 +21,7 @@ package org.elasticsearch.action.support.single.shard;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.Actions;
+import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -48,7 +48,7 @@ public abstract class SingleShardOperationRequest implements ActionRequest {
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (index == null) {
-            validationException = Actions.addValidationError("index is missing", validationException);
+            validationException = ValidateActions.addValidationError("index is missing", validationException);
         }
         return validationException;
     }

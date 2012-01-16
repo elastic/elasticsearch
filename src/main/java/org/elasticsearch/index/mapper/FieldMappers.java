@@ -19,10 +19,9 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterators;
-import com.google.common.collect.UnmodifiableIterator;
-
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -30,84 +29,61 @@ import java.util.List;
  */
 public class FieldMappers implements Iterable<FieldMapper> {
 
-    private final ImmutableList<FieldMapper> fieldMappers;
+    private final FieldMapper[] fieldMappers;
+    private final List<FieldMapper> fieldMappersAsList;
 
     public FieldMappers() {
-        this.fieldMappers = ImmutableList.of();
+        this.fieldMappers = new FieldMapper[0];
+        this.fieldMappersAsList = Arrays.asList(fieldMappers);
     }
 
     public FieldMappers(FieldMapper fieldMapper) {
-        this(new FieldMapper[]{fieldMapper});
+        this.fieldMappers = new FieldMapper[]{fieldMapper};
+        this.fieldMappersAsList = Arrays.asList(this.fieldMappers);
     }
 
-    public FieldMappers(FieldMapper[] fieldMappers) {
-        if (fieldMappers == null) {
-            fieldMappers = new FieldMapper[0];
-        }
-        this.fieldMappers = ImmutableList.copyOf(Iterators.forArray(fieldMappers));
-    }
-
-    public FieldMappers(ImmutableList<FieldMapper> fieldMappers) {
+    private FieldMappers(FieldMapper[] fieldMappers) {
         this.fieldMappers = fieldMappers;
+        this.fieldMappersAsList = Arrays.asList(this.fieldMappers);
     }
 
     public FieldMapper mapper() {
-        if (fieldMappers.isEmpty()) {
+        if (fieldMappers.length == 0) {
             return null;
         }
-        return fieldMappers.get(0);
+        return fieldMappers[0];
     }
 
     public boolean isEmpty() {
-        return fieldMappers.isEmpty();
+        return fieldMappers.length == 0;
     }
 
-    public ImmutableList<FieldMapper> mappers() {
-        return this.fieldMappers;
+    public List<FieldMapper> mappers() {
+        return this.fieldMappersAsList;
     }
 
     @Override
-    public UnmodifiableIterator<FieldMapper> iterator() {
-        return fieldMappers.iterator();
+    public Iterator<FieldMapper> iterator() {
+        return fieldMappersAsList.iterator();
     }
 
     /**
      * Concats and returns a new {@link FieldMappers}.
      */
     public FieldMappers concat(FieldMapper mapper) {
-        return new FieldMappers(new ImmutableList.Builder<FieldMapper>().addAll(fieldMappers).add(mapper).build());
-    }
-
-    /**
-     * Concats and returns a new {@link FieldMappers}.
-     */
-    public FieldMappers concat(FieldMappers mappers) {
-        return new FieldMappers(new ImmutableList.Builder<FieldMapper>().addAll(fieldMappers).addAll(mappers).build());
-    }
-
-    public FieldMappers remove(List<FieldMapper> mappers) {
-        ImmutableList.Builder<FieldMapper> builder = new ImmutableList.Builder<FieldMapper>();
-        for (FieldMapper fieldMapper : fieldMappers) {
-            boolean found = false;
-            for (FieldMapper mapper : mappers) {
-                if (fieldMapper.equals(mapper)) { // identify equality
-                    found = true;
-                }
-            }
-            if (!found) {
-                builder.add(fieldMapper);
-            }
-        }
-        return new FieldMappers(builder.build());
+        FieldMapper[] newMappers = new FieldMapper[fieldMappers.length + 1];
+        System.arraycopy(fieldMappers, 0, newMappers, 0, fieldMappers.length);
+        newMappers[fieldMappers.length] = mapper;
+        return new FieldMappers(newMappers);
     }
 
     public FieldMappers remove(FieldMapper mapper) {
-        ImmutableList.Builder<FieldMapper> builder = new ImmutableList.Builder<FieldMapper>();
+        ArrayList<FieldMapper> list = new ArrayList<FieldMapper>(fieldMappers.length);
         for (FieldMapper fieldMapper : fieldMappers) {
             if (!fieldMapper.equals(mapper)) { // identify equality
-                builder.add(fieldMapper);
+                list.add(fieldMapper);
             }
         }
-        return new FieldMappers(builder.build());
+        return new FieldMappers(list.toArray(new FieldMapper[list.size()]));
     }
 }

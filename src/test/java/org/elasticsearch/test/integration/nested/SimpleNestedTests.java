@@ -104,7 +104,7 @@ public class SimpleNestedTests extends AbstractNodesTests {
 
         // check the numDocs
         IndicesStatusResponse statusResponse = client.admin().indices().prepareStatus().execute().actionGet();
-        assertThat(statusResponse.index("test").docs().numDocs(), equalTo(3));
+        assertThat(statusResponse.index("test").docs().numDocs(), equalTo(3l));
 
         // check that _all is working on nested docs
         searchResponse = client.prepareSearch("test").setQuery(termQuery("_all", "n_value1_1")).execute().actionGet();
@@ -147,7 +147,7 @@ public class SimpleNestedTests extends AbstractNodesTests {
         client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
 
         statusResponse = client.admin().indices().prepareStatus().execute().actionGet();
-        assertThat(statusResponse.index("test").docs().numDocs(), equalTo(6));
+        assertThat(statusResponse.index("test").docs().numDocs(), equalTo(6l));
 
         searchResponse = client.prepareSearch("test").setQuery(nestedQuery("nested1",
                 boolQuery().must(termQuery("nested1.n_field1", "n_value1_1")).must(termQuery("nested1.n_field2", "n_value2_1")))).execute().actionGet();
@@ -174,7 +174,7 @@ public class SimpleNestedTests extends AbstractNodesTests {
         client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
 
         statusResponse = client.admin().indices().prepareStatus().execute().actionGet();
-        assertThat(statusResponse.index("test").docs().numDocs(), equalTo(3));
+        assertThat(statusResponse.index("test").docs().numDocs(), equalTo(3l));
 
         searchResponse = client.prepareSearch("test").setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1_1"))).execute().actionGet();
         assertThat(Arrays.toString(searchResponse.shardFailures()), searchResponse.failedShards(), equalTo(0));
@@ -230,12 +230,12 @@ public class SimpleNestedTests extends AbstractNodesTests {
 
         client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
         IndicesStatusResponse statusResponse = client.admin().indices().prepareStatus().execute().actionGet();
-        assertThat(statusResponse.index("test").docs().numDocs(), equalTo(total * 3));
+        assertThat(statusResponse.index("test").docs().numDocs(), equalTo(total * 3l));
 
         client.prepareDeleteByQuery("test").setQuery(QueryBuilders.idsQuery("type1").ids(Integer.toString(docToDelete))).execute().actionGet();
         client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
         statusResponse = client.admin().indices().prepareStatus().execute().actionGet();
-        assertThat(statusResponse.index("test").docs().numDocs(), equalTo((total * 3) - 3));
+        assertThat(statusResponse.index("test").docs().numDocs(), equalTo((total * 3l) - 3));
 
         for (int i = 0; i < total; i++) {
             assertThat(client.prepareGet("test", "type1", Integer.toString(i)).execute().actionGet().exists(), equalTo(i != docToDelete));
@@ -257,7 +257,7 @@ public class SimpleNestedTests extends AbstractNodesTests {
         noChildrenNestedDeleteByQuery(3, 2);
     }
 
-    private void noChildrenNestedDeleteByQuery(int total, int docToDelete) throws Exception {
+    private void noChildrenNestedDeleteByQuery(long total, int docToDelete) throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
 
         client.admin().indices().prepareCreate("test")
@@ -324,7 +324,7 @@ public class SimpleNestedTests extends AbstractNodesTests {
 
         // check the numDocs
         IndicesStatusResponse statusResponse = client.admin().indices().prepareStatus().execute().actionGet();
-        assertThat(statusResponse.index("test").docs().numDocs(), equalTo(7));
+        assertThat(statusResponse.index("test").docs().numDocs(), equalTo(7l));
 
         // do some multi nested queries
         SearchResponse searchResponse = client.prepareSearch("test").setQuery(nestedQuery("nested1",

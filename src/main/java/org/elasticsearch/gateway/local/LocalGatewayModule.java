@@ -24,6 +24,8 @@ import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.PreProcessModule;
 import org.elasticsearch.gateway.Gateway;
+import org.elasticsearch.gateway.local.state.shards.LocalGatewayShardsState;
+import org.elasticsearch.gateway.local.state.shards.TransportNodesListGatewayStartedShards;
 
 /**
  *
@@ -33,6 +35,7 @@ public class LocalGatewayModule extends AbstractModule implements PreProcessModu
     @Override
     protected void configure() {
         bind(Gateway.class).to(LocalGateway.class).asEagerSingleton();
+        bind(LocalGatewayShardsState.class).asEagerSingleton();
         bind(TransportNodesListGatewayMetaState.class).asEagerSingleton();
         bind(TransportNodesListGatewayStartedShards.class).asEagerSingleton();
     }

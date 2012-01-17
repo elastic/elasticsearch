@@ -118,8 +118,15 @@ public abstract class AbstractConcurrentMapFieldDataCache extends AbstractIndexC
             synchronized (fieldDataCache) {
                 fieldData = fieldDataCache.getIfPresent(fieldName);
                 if (fieldData == null) {
-                    fieldData = FieldData.load(type, reader, fieldName);
-                    fieldDataCache.put(fieldName, fieldData);
+                    try {
+                        fieldData = FieldData.load(type, reader, fieldName);
+                        fieldDataCache.put(fieldName, fieldData);
+                    } catch (OutOfMemoryError e) {
+                        logger.warn("loading field [" + fieldName + "] caused out of memory failure", e);
+                        final OutOfMemoryError outOfMemoryError = new OutOfMemoryError("loading field [" + fieldName + "] caused out of memory failure");
+                        outOfMemoryError.initCause(e);
+                        throw outOfMemoryError;
+                    }
                 }
             }
         }

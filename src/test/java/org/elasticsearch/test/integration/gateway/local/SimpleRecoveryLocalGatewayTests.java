@@ -254,8 +254,8 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         buildNode("node2", settingsBuilder().put("gateway.type", "local").build());
         cleanAndCloseNodes();
 
-        Node node1 = startNode("node1", settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 1).build());
-        Node node2 = startNode("node2", settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 1).build());
+        Node node1 = startNode("node1", settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 1).put("gateway.recover_after_nodes", 2).build());
+        Node node2 = startNode("node2", settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 1).put("gateway.recover_after_nodes", 2).build());
 
         node1.client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).execute().actionGet();
         node1.client().admin().indices().prepareFlush().execute().actionGet();

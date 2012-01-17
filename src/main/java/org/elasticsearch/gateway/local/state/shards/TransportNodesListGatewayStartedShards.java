@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.gateway.local;
+package org.elasticsearch.gateway.local.state.shards;
 
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticSearchException;
@@ -48,15 +48,15 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  */
 public class TransportNodesListGatewayStartedShards extends TransportNodesOperationAction<TransportNodesListGatewayStartedShards.Request, TransportNodesListGatewayStartedShards.NodesLocalGatewayStartedShards, TransportNodesListGatewayStartedShards.NodeRequest, TransportNodesListGatewayStartedShards.NodeLocalGatewayStartedShards> {
 
-    private LocalGateway gateway;
+    private LocalGatewayShardsState shardsState;
 
     @Inject
     public TransportNodesListGatewayStartedShards(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService) {
         super(settings, clusterName, threadPool, clusterService, transportService);
     }
 
-    TransportNodesListGatewayStartedShards initGateway(LocalGateway gateway) {
-        this.gateway = gateway;
+    TransportNodesListGatewayStartedShards initGateway(LocalGatewayShardsState shardsState) {
+        this.shardsState = shardsState;
         return this;
     }
 
@@ -117,12 +117,11 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
 
     @Override
     protected NodeLocalGatewayStartedShards nodeOperation(NodeRequest request) throws ElasticSearchException {
-        LocalGatewayStartedShards startedShards = gateway.currentStartedShards();
-        if (startedShards != null) {
-            for (Map.Entry<ShardId, Long> entry : startedShards.shards().entrySet()) {
+        Map<ShardId, ShardStateInfo> shardsStateInfo = shardsState.currentStartedShards();
+        if (shardsStateInfo != null) {
+            for (Map.Entry<ShardId, ShardStateInfo> entry : shardsStateInfo.entrySet()) {
                 if (entry.getKey().equals(request.shardId)) {
-                    assert entry.getValue() != null;
-                    return new NodeLocalGatewayStartedShards(clusterService.localNode(), entry.getValue());
+                    return new NodeLocalGatewayStartedShards(clusterService.localNode(), entry.getValue().version);
                 }
             }
         }

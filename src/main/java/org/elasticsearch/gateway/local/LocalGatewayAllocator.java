@@ -164,9 +164,11 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
                     if (indexMetaData.numberOfReplicas() > 2) {
                         requiredAllocation = ((1 + indexMetaData.numberOfReplicas()) / 2);
                     }
-                } else if ("full".equals(initialShards)) {
+                } else if ("one".equals(initialShards)) {
+                    requiredAllocation = 1;
+                } else if ("full".equals(initialShards) || "all".equals(initialShards)) {
                     requiredAllocation = indexMetaData.numberOfReplicas() + 1;
-                } else if ("full-1".equals(initialShards)) {
+                } else if ("full-1".equals(initialShards) || "all-1".equals(initialShards)) {
                     if (indexMetaData.numberOfReplicas() > 1) {
                         requiredAllocation = indexMetaData.numberOfReplicas();
                     }

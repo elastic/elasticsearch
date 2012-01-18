@@ -19,10 +19,14 @@
 
 package org.elasticsearch.plugin.analysis.icu;
 
+import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.analysis.IcuAnalysisBinderProcessor;
+import org.elasticsearch.indices.analysis.IcuIndicesAnalysisModule;
 import org.elasticsearch.plugins.AbstractPlugin;
+
+import java.util.Collection;
 
 /**
  *
@@ -37,6 +41,11 @@ public class AnalysisICUPlugin extends AbstractPlugin {
     @Override
     public String description() {
         return "UTF related ICU analysis support";
+    }
+
+    @Override
+    public Collection<Class<? extends Module>> modules() {
+        return ImmutableList.<Class<? extends Module>>of(IcuIndicesAnalysisModule.class);
     }
 
     @Override

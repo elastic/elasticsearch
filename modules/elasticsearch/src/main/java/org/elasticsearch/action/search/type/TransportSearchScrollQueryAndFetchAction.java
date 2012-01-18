@@ -20,7 +20,12 @@
 package org.elasticsearch.action.search.type;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.*;
+import org.elasticsearch.action.search.ReduceSearchPhaseException;
+import org.elasticsearch.action.search.SearchOperationThreading;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -28,6 +33,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.jsr166y.LinkedTransferQueue;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.action.SearchServiceListener;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
@@ -37,7 +43,6 @@ import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -83,7 +88,7 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
 
         private final DiscoveryNodes nodes;
 
-        protected final Collection<ShardSearchFailure> shardFailures = searchCache.obtainShardFailures();
+        private volatile LinkedTransferQueue<ShardSearchFailure> shardFailures;
 
         private final Map<SearchShardTarget, QueryFetchSearchResult> queryFetchResults = searchCache.obtainQueryFetchResults();
 
@@ -100,6 +105,23 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
             this.nodes = clusterService.state().nodes();
             this.successfulOps = new AtomicInteger(scrollId.context().length);
             this.counter = new AtomicInteger(scrollId.context().length);
+        }
+
+        protected final ShardSearchFailure[] buildShardFailures() {
+            LinkedTransferQueue<ShardSearchFailure> localFailures = shardFailures;
+            if (localFailures == null) {
+                return ShardSearchFailure.EMPTY_ARRAY;
+            }
+            return localFailures.toArray(ShardSearchFailure.EMPTY_ARRAY);
+        }
+
+        // we do our best to return the shard failures, but its ok if its not fully concurrently safe
+        // we simply try and return as much as possible
+        protected final void addShardFailure(ShardSearchFailure failure) {
+            if (shardFailures == null) {
+                shardFailures = new LinkedTransferQueue<ShardSearchFailure>();
+            }
+            shardFailures.add(failure);
         }
 
         public void start() {
@@ -187,7 +209,7 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
                     if (logger.isDebugEnabled()) {
                         logger.debug("[{}] Failed to execute query phase", t, searchId);
                     }
-                    shardFailures.add(new ShardSearchFailure(t));
+                    addShardFailure(new ShardSearchFailure(t));
                     successfulOps.decrementAndGet();
                     if (counter.decrementAndGet() == 0) {
                         finishHim();
@@ -200,7 +222,7 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
             try {
                 innerFinishHim();
             } catch (Exception e) {
-                listener.onFailure(new ReduceSearchPhaseException("fetch", "", e, buildShardFailures(shardFailures, searchCache)));
+                listener.onFailure(new ReduceSearchPhaseException("fetch", "", e, buildShardFailures()));
             }
         }
 
@@ -213,7 +235,7 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
             }
             searchCache.releaseQueryFetchResults(queryFetchResults);
             listener.onResponse(new SearchResponse(internalResponse, scrollId, this.scrollId.context().length, successfulOps.get(),
-                    System.currentTimeMillis() - startTime, buildShardFailures(shardFailures, searchCache)));
+                    System.currentTimeMillis() - startTime, buildShardFailures()));
         }
     }
 }

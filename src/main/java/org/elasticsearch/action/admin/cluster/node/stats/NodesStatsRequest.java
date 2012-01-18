@@ -36,6 +36,7 @@ public class NodesStatsRequest extends NodesOperationRequest {
     private boolean jvm;
     private boolean threadPool;
     private boolean network;
+    private boolean fs;
     private boolean transport;
     private boolean http;
 
@@ -60,6 +61,7 @@ public class NodesStatsRequest extends NodesOperationRequest {
         this.jvm = false;
         this.threadPool = false;
         this.network = false;
+        this.fs = false;
         this.transport = false;
         this.http = false;
         return this;
@@ -152,6 +154,21 @@ public class NodesStatsRequest extends NodesOperationRequest {
      */
     public NodesStatsRequest network(boolean network) {
         this.network = network;
+        return this;
+    }
+
+    /**
+     * Should the node file system stats be returned.
+     */
+    public boolean fs() {
+        return this.fs;
+    }
+
+    /**
+     * Should the node file system stats be returned.
+     */
+    public NodesStatsRequest fs(boolean fs) {
+        this.fs = fs;
         return this;
     }
 

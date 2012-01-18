@@ -140,12 +140,13 @@ public class NodeService extends AbstractComponent {
                 monitorService.jvmService().stats(),
                 threadPool.stats(),
                 monitorService.networkService().stats(),
+                monitorService.fsService().stats(),
                 transportService.stats(),
                 httpServer == null ? null : httpServer.stats()
         );
     }
 
-    public NodeStats stats(boolean indices, boolean os, boolean process, boolean jvm, boolean threadPool, boolean network, boolean transport, boolean http) {
+    public NodeStats stats(boolean indices, boolean os, boolean process, boolean jvm, boolean threadPool, boolean network, boolean fs, boolean transport, boolean http) {
         // for indices stats we want to include previous allocated shards stats as well (it will
         // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
         return new NodeStats(clusterService.state().nodes().localNode(), hostname,
@@ -155,6 +156,7 @@ public class NodeService extends AbstractComponent {
                 jvm ? monitorService.jvmService().stats() : null,
                 threadPool ? this.threadPool.stats() : null,
                 network ? monitorService.networkService().stats() : null,
+                fs ? monitorService.fsService().stats() : null,
                 transport ? transportService.stats() : null,
                 http ? (httpServer == null ? null : httpServer.stats()) : null
         );

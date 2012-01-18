@@ -108,6 +108,11 @@ public class AdapterStreamOutput extends StreamOutput {
     }
 
     @Override
+    public void writeOptionalUTF(@Nullable String str) throws IOException {
+        super.writeOptionalUTF(str);
+    }
+
+    @Override
     public void writeUTF(String str) throws IOException {
         out.writeUTF(str);
     }

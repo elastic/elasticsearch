@@ -64,6 +64,9 @@ public class RestNodesStatsAction extends BaseRestHandler {
         controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/network", new RestNetworkHandler());
         controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/network", new RestNetworkHandler());
 
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/fs", new RestFsHandler());
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/fs", new RestFsHandler());
+
         controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/transport", new RestTransportHandler());
         controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/transport", new RestTransportHandler());
 
@@ -85,6 +88,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
         nodesStatsRequest.jvm(request.paramAsBoolean("jvm", nodesStatsRequest.jvm()));
         nodesStatsRequest.threadPool(request.paramAsBoolean("thread_pool", nodesStatsRequest.threadPool()));
         nodesStatsRequest.network(request.paramAsBoolean("network", nodesStatsRequest.network()));
+        nodesStatsRequest.fs(request.paramAsBoolean("fs", nodesStatsRequest.fs()));
         nodesStatsRequest.transport(request.paramAsBoolean("transport", nodesStatsRequest.transport()));
         nodesStatsRequest.http(request.paramAsBoolean("http", nodesStatsRequest.http()));
         executeNodeStats(request, channel, nodesStatsRequest);
@@ -167,6 +171,15 @@ public class RestNodesStatsAction extends BaseRestHandler {
         public void handleRequest(final RestRequest request, final RestChannel channel) {
             NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(RestActions.splitNodes(request.param("nodeId")));
             nodesStatsRequest.clear().network(true);
+            executeNodeStats(request, channel, nodesStatsRequest);
+        }
+    }
+
+    class RestFsHandler implements RestHandler {
+        @Override
+        public void handleRequest(final RestRequest request, final RestChannel channel) {
+            NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(RestActions.splitNodes(request.param("nodeId")));
+            nodesStatsRequest.clear().fs(true);
             executeNodeStats(request, channel, nodesStatsRequest);
         }
     }

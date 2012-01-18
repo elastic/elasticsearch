@@ -31,6 +31,10 @@ import org.elasticsearch.monitor.dump.cluster.ClusterDumpContributor;
 import org.elasticsearch.monitor.dump.heap.HeapDumpContributor;
 import org.elasticsearch.monitor.dump.summary.SummaryDumpContributor;
 import org.elasticsearch.monitor.dump.thread.ThreadDumpContributor;
+import org.elasticsearch.monitor.fs.FsProbe;
+import org.elasticsearch.monitor.fs.FsService;
+import org.elasticsearch.monitor.fs.JmxFsProbe;
+import org.elasticsearch.monitor.fs.SigarFsProbe;
 import org.elasticsearch.monitor.jvm.JvmMonitorService;
 import org.elasticsearch.monitor.jvm.JvmService;
 import org.elasticsearch.monitor.network.JmxNetworkProbe;
@@ -80,6 +84,7 @@ public class MonitorModule extends AbstractModule {
                 bind(ProcessProbe.class).to(SigarProcessProbe.class).asEagerSingleton();
                 bind(OsProbe.class).to(SigarOsProbe.class).asEagerSingleton();
                 bind(NetworkProbe.class).to(SigarNetworkProbe.class).asEagerSingleton();
+                bind(FsProbe.class).to(SigarFsProbe.class).asEagerSingleton();
                 sigarLoaded = true;
             }
         } catch (Throwable e) {
@@ -91,12 +96,14 @@ public class MonitorModule extends AbstractModule {
             bind(ProcessProbe.class).to(JmxProcessProbe.class).asEagerSingleton();
             bind(OsProbe.class).to(JmxOsProbe.class).asEagerSingleton();
             bind(NetworkProbe.class).to(JmxNetworkProbe.class).asEagerSingleton();
+            bind(FsProbe.class).to(JmxFsProbe.class).asEagerSingleton();
         }
         // bind other services
         bind(ProcessService.class).asEagerSingleton();
         bind(OsService.class).asEagerSingleton();
         bind(NetworkService.class).asEagerSingleton();
         bind(JvmService.class).asEagerSingleton();
+        bind(FsService.class).asEagerSingleton();
 
         bind(JvmMonitorService.class).asEagerSingleton();
 

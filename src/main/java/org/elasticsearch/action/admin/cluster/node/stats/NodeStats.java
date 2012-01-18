@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.indices.NodeIndicesStats;
+import org.elasticsearch.monitor.fs.FsStats;
 import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.monitor.network.NetworkStats;
 import org.elasticsearch.monitor.os.OsStats;
@@ -62,6 +63,9 @@ public class NodeStats extends NodeOperationResponse {
     private NetworkStats network;
 
     @Nullable
+    private FsStats fs;
+
+    @Nullable
     private TransportStats transport;
 
     @Nullable
@@ -72,7 +76,7 @@ public class NodeStats extends NodeOperationResponse {
 
     public NodeStats(DiscoveryNode node, @Nullable String hostname, @Nullable NodeIndicesStats indices,
                      @Nullable OsStats os, @Nullable ProcessStats process, @Nullable JvmStats jvm, @Nullable ThreadPoolStats threadPool, @Nullable NetworkStats network,
-                     @Nullable TransportStats transport, @Nullable HttpStats http) {
+                     @Nullable FsStats fs, @Nullable TransportStats transport, @Nullable HttpStats http) {
         super(node);
         this.hostname = hostname;
         this.indices = indices;
@@ -81,6 +85,7 @@ public class NodeStats extends NodeOperationResponse {
         this.jvm = jvm;
         this.threadPool = threadPool;
         this.network = network;
+        this.fs = fs;
         this.transport = transport;
         this.http = http;
     }
@@ -191,6 +196,22 @@ public class NodeStats extends NodeOperationResponse {
         return network();
     }
 
+    /**
+     * File system level stats.
+     */
+    @Nullable
+    FsStats fs() {
+        return fs;
+    }
+
+    /**
+     * File system level stats.
+     */
+    @Nullable
+    FsStats getFs() {
+        return fs();
+    }
+
     @Nullable
     public TransportStats transport() {
         return this.transport;
@@ -240,6 +261,9 @@ public class NodeStats extends NodeOperationResponse {
         }
         if (in.readBoolean()) {
             network = NetworkStats.readNetworkStats(in);
+        }
+        if (in.readBoolean()) {
+            fs = FsStats.readFsStats(in);
         }
         if (in.readBoolean()) {
             transport = TransportStats.readTransportStats(in);
@@ -293,6 +317,12 @@ public class NodeStats extends NodeOperationResponse {
         } else {
             out.writeBoolean(true);
             network.writeTo(out);
+        }
+        if (fs == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            fs.writeTo(out);
         }
         if (transport == null) {
             out.writeBoolean(false);

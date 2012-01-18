@@ -94,6 +94,14 @@ public class NodesStatsRequestBuilder extends BaseClusterRequestBuilder<NodesSta
     }
 
     /**
+     * Should the node file system stats be returned.
+     */
+    public NodesStatsRequestBuilder setFs(boolean fs) {
+        request.fs(fs);
+        return this;
+    }
+
+    /**
      * Should the node Transport stats be returned.
      */
     public NodesStatsRequestBuilder setTransport(boolean transport) {

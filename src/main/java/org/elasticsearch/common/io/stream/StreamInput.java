@@ -147,6 +147,14 @@ public abstract class StreamInput extends InputStream {
         return i | ((b & 0x7FL) << 56);
     }
 
+    @Nullable
+    public String readOptionalUTF() throws IOException {
+        if (readBoolean()) {
+            return readUTF();
+        }
+        return null;
+    }
+
     public String readUTF() throws IOException {
         int charCount = readVInt();
         char[] chars = CachedStreamInput.getCharArray(charCount);

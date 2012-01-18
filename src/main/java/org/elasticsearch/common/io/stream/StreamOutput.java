@@ -129,6 +129,15 @@ public abstract class StreamOutput extends OutputStream {
         writeByte((byte) i);
     }
 
+    public void writeOptionalUTF(@Nullable String str) throws IOException {
+        if (str == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeUTF(str);
+        }
+    }
+
     /**
      * Writes a string.
      */

@@ -30,7 +30,7 @@ public class TermsFilterBuilder extends BaseFilterBuilder {
 
     private final String name;
 
-    private final Object[] values;
+    private final Object values;
 
     private Boolean cache;
     private String cacheKey;
@@ -57,10 +57,7 @@ public class TermsFilterBuilder extends BaseFilterBuilder {
      */
     public TermsFilterBuilder(String name, int... values) {
         this.name = name;
-        this.values = new Integer[values.length];
-        for (int i = 0; i < values.length; i++) {
-            this.values[i] = values[i];
-        }
+        this.values = values;
     }
 
     /**
@@ -71,10 +68,7 @@ public class TermsFilterBuilder extends BaseFilterBuilder {
      */
     public TermsFilterBuilder(String name, long... values) {
         this.name = name;
-        this.values = new Long[values.length];
-        for (int i = 0; i < values.length; i++) {
-            this.values[i] = values[i];
-        }
+        this.values = values;
     }
 
     /**
@@ -85,10 +79,7 @@ public class TermsFilterBuilder extends BaseFilterBuilder {
      */
     public TermsFilterBuilder(String name, float... values) {
         this.name = name;
-        this.values = new Float[values.length];
-        for (int i = 0; i < values.length; i++) {
-            this.values[i] = values[i];
-        }
+        this.values = values;
     }
 
     /**
@@ -99,10 +90,7 @@ public class TermsFilterBuilder extends BaseFilterBuilder {
      */
     public TermsFilterBuilder(String name, double... values) {
         this.name = name;
-        this.values = new Double[values.length];
-        for (int i = 0; i < values.length; i++) {
-            this.values[i] = values[i];
-        }
+        this.values = values;
     }
 
     /**
@@ -112,6 +100,17 @@ public class TermsFilterBuilder extends BaseFilterBuilder {
      * @param values The terms
      */
     public TermsFilterBuilder(String name, Object... values) {
+        this.name = name;
+        this.values = values;
+    }
+
+    /**
+     * A filer for a field based on several terms matching on any of them.
+     *
+     * @param name   The field name
+     * @param values The terms
+     */
+    public TermsFilterBuilder(String name, Iterable values) {
         this.name = name;
         this.values = values;
     }
@@ -149,11 +148,7 @@ public class TermsFilterBuilder extends BaseFilterBuilder {
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(TermsFilterParser.NAME);
-        builder.startArray(name);
-        for (Object value : values) {
-            builder.value(value);
-        }
-        builder.endArray();
+        builder.field(name, values);
 
         if (execution != null) {
             builder.field("execution", execution);

@@ -20,7 +20,6 @@
 package org.elasticsearch.action.search.type;
 
 import jsr166y.LinkedTransferQueue;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.dfs.DfsSearchResult;
@@ -37,8 +36,6 @@ import java.util.Queue;
  */
 public class TransportSearchCache {
 
-    private final Queue<Collection<ShardSearchFailure>> cacheShardFailures = new LinkedTransferQueue<Collection<ShardSearchFailure>>();
-
     private final Queue<Collection<DfsSearchResult>> cacheDfsResults = new LinkedTransferQueue<Collection<DfsSearchResult>>();
 
     private final Queue<Map<SearchShardTarget, QuerySearchResultProvider>> cacheQueryResults = new LinkedTransferQueue<Map<SearchShardTarget, QuerySearchResultProvider>>();
@@ -47,19 +44,6 @@ public class TransportSearchCache {
 
     private final Queue<Map<SearchShardTarget, QueryFetchSearchResult>> cacheQueryFetchResults = new LinkedTransferQueue<Map<SearchShardTarget, QueryFetchSearchResult>>();
 
-
-    public Collection<ShardSearchFailure> obtainShardFailures() {
-        Collection<ShardSearchFailure> shardFailures;
-        while ((shardFailures = cacheShardFailures.poll()) == null) {
-            cacheShardFailures.offer(new LinkedTransferQueue<ShardSearchFailure>());
-        }
-        return shardFailures;
-    }
-
-    public void releaseShardFailures(Collection<ShardSearchFailure> shardFailures) {
-        shardFailures.clear();
-        cacheShardFailures.offer(shardFailures);
-    }
 
     public Collection<DfsSearchResult> obtainDfsResults() {
         Collection<DfsSearchResult> dfsSearchResults;

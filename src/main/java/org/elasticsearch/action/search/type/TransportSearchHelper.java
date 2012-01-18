@@ -26,7 +26,6 @@ import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Nullable;
@@ -46,20 +45,6 @@ import java.util.Map;
  */
 public abstract class TransportSearchHelper {
 
-
-    /**
-     * Builds the shard failures, and releases the cache (meaning this should only be called once!).
-     */
-    public static ShardSearchFailure[] buildShardFailures(Collection<ShardSearchFailure> shardFailures, TransportSearchCache searchCache) {
-        ShardSearchFailure[] ret;
-        if (shardFailures.isEmpty()) {
-            ret = ShardSearchFailure.EMPTY_ARRAY;
-        } else {
-            ret = shardFailures.toArray(ShardSearchFailure.EMPTY_ARRAY);
-        }
-        searchCache.releaseShardFailures(shardFailures);
-        return ret;
-    }
 
     public static InternalSearchRequest internalSearchRequest(ShardRouting shardRouting, int numberOfShards, SearchRequest request, String[] filteringAliases, long nowInMillis) {
         InternalSearchRequest internalRequest = new InternalSearchRequest(shardRouting, numberOfShards, request.searchType());

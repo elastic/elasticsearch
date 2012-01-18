@@ -161,7 +161,7 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
                     if (logger.isDebugEnabled()) {
                         logger.debug("[{}] Failed to execute fetch phase", t, fetchSearchRequest.id());
                     }
-                    AsyncAction.this.shardFailures.add(new ShardSearchFailure(t));
+                    AsyncAction.this.addShardFailure(new ShardSearchFailure(t));
                     successulOps.decrementAndGet();
                     if (counter.decrementAndGet() == 0) {
                         finishHim();

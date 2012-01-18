@@ -151,6 +151,14 @@ public class PluginsService extends AbstractComponent {
         return modules;
     }
 
+    public Collection<Module> modules(Settings settings) {
+        List<Module> modules = Lists.newArrayList();
+        for (Plugin plugin : plugins.values()) {
+            modules.addAll(plugin.modules(settings));
+        }
+        return modules;
+    }
+
     public Collection<Class<? extends LifecycleComponent>> services() {
         List<Class<? extends LifecycleComponent>> services = Lists.newArrayList();
         for (Plugin plugin : plugins.values()) {
@@ -167,6 +175,14 @@ public class PluginsService extends AbstractComponent {
         return modules;
     }
 
+    public Collection<Module> indexModules(Settings settings) {
+        List<Module> modules = Lists.newArrayList();
+        for (Plugin plugin : plugins.values()) {
+            modules.addAll(plugin.indexModules(settings));
+        }
+        return modules;
+    }
+
     public Collection<Class<? extends CloseableIndexComponent>> indexServices() {
         List<Class<? extends CloseableIndexComponent>> services = Lists.newArrayList();
         for (Plugin plugin : plugins.values()) {
@@ -179,6 +195,14 @@ public class PluginsService extends AbstractComponent {
         List<Class<? extends Module>> modules = Lists.newArrayList();
         for (Plugin plugin : plugins.values()) {
             modules.addAll(plugin.shardModules());
+        }
+        return modules;
+    }
+
+    public Collection<Module> shardModules(Settings settings) {
+        List<Module> modules = Lists.newArrayList();
+        for (Plugin plugin : plugins.values()) {
+            modules.addAll(plugin.shardModules(settings));
         }
         return modules;
     }

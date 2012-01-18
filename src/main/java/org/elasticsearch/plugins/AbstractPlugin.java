@@ -49,6 +49,14 @@ public abstract class AbstractPlugin implements Plugin {
      * Defaults to return an empty list.
      */
     @Override
+    public Collection<Module> modules(Settings settings) {
+        return ImmutableList.of();
+    }
+
+    /**
+     * Defaults to return an empty list.
+     */
+    @Override
     public Collection<Class<? extends LifecycleComponent>> services() {
         return ImmutableList.of();
     }
@@ -65,6 +73,14 @@ public abstract class AbstractPlugin implements Plugin {
      * Defaults to return an empty list.
      */
     @Override
+    public Collection<Module> indexModules(Settings settings) {
+        return ImmutableList.of();
+    }
+
+    /**
+     * Defaults to return an empty list.
+     */
+    @Override
     public Collection<Class<? extends CloseableIndexComponent>> indexServices() {
         return ImmutableList.of();
     }
@@ -74,6 +90,14 @@ public abstract class AbstractPlugin implements Plugin {
      */
     @Override
     public Collection<Class<? extends Module>> shardModules() {
+        return ImmutableList.of();
+    }
+
+    /**
+     * Defaults to return an empty list.
+     */
+    @Override
+    public Collection<Module> shardModules(Settings settings) {
         return ImmutableList.of();
     }
 

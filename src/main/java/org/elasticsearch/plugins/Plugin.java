@@ -46,9 +46,16 @@ public interface Plugin {
     String description();
 
     /**
-     * Node level modules.
+     * Node level modules (classes, will automatically be created).
      */
     Collection<Class<? extends Module>> modules();
+
+    /**
+     * Node level modules (instances)
+     *
+     * @param settings The node level settings.
+     */
+    Collection<Module> modules(Settings settings);
 
     /**
      * Node level services that will be automatically started/stopped/closed.
@@ -61,6 +68,11 @@ public interface Plugin {
     Collection<Class<? extends Module>> indexModules();
 
     /**
+     * Per index modules.
+     */
+    Collection<Module> indexModules(Settings settings);
+
+    /**
      * Per index services that will be automatically closed.
      */
     Collection<Class<? extends CloseableIndexComponent>> indexServices();
@@ -69,6 +81,11 @@ public interface Plugin {
      * Per index shard module.
      */
     Collection<Class<? extends Module>> shardModules();
+
+    /**
+     * Per index shard module.
+     */
+    Collection<Module> shardModules(Settings settings);
 
     /**
      * Per index shard service that will be automatically closed.

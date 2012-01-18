@@ -63,7 +63,7 @@ public class TransportRefreshAction extends TransportBroadcastOperationAction<Re
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.MANAGEMENT;
+        return ThreadPool.Names.REFRESH;
     }
 
     @Override

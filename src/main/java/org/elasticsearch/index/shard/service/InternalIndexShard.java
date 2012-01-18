@@ -739,7 +739,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                 }
                 return;
             }
-            threadPool.cached().execute(new Runnable() {
+            threadPool.executor(ThreadPool.Names.REFRESH).execute(new Runnable() {
                 @Override
                 public void run() {
                     try {

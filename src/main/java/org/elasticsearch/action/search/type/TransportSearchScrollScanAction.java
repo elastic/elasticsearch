@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.search.type;
 
+import jsr166y.LinkedTransferQueue;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.*;
@@ -41,11 +42,9 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.action.search.type.TransportSearchHelper.buildShardFailures;
 import static org.elasticsearch.action.search.type.TransportSearchHelper.internalScrollSearchRequest;
 
 /**
@@ -89,7 +88,7 @@ public class TransportSearchScrollScanAction extends AbstractComponent {
 
         private final DiscoveryNodes nodes;
 
-        protected final Collection<ShardSearchFailure> shardFailures = searchCache.obtainShardFailures();
+        protected volatile LinkedTransferQueue<ShardSearchFailure> shardFailures;
 
         private final Map<SearchShardTarget, QueryFetchSearchResult> queryFetchResults = searchCache.obtainQueryFetchResults();
 
@@ -108,11 +107,28 @@ public class TransportSearchScrollScanAction extends AbstractComponent {
             this.counter = new AtomicInteger(scrollId.context().length);
         }
 
+        protected final ShardSearchFailure[] buildShardFailures() {
+            LinkedTransferQueue<ShardSearchFailure> localFailures = shardFailures;
+            if (localFailures == null) {
+                return ShardSearchFailure.EMPTY_ARRAY;
+            }
+            return localFailures.toArray(ShardSearchFailure.EMPTY_ARRAY);
+        }
+
+        // we do our best to return the shard failures, but its ok if its not fully concurrently safe
+        // we simply try and return as much as possible
+        protected final void addShardFailure(ShardSearchFailure failure) {
+            if (shardFailures == null) {
+                shardFailures = new LinkedTransferQueue<ShardSearchFailure>();
+            }
+            shardFailures.add(failure);
+        }
+
         public void start() {
             if (scrollId.context().length == 0) {
                 final InternalSearchResponse internalResponse = new InternalSearchResponse(new InternalSearchHits(InternalSearchHits.EMPTY, Long.parseLong(this.scrollId.attributes().get("total_hits")), 0.0f), null, false);
                 searchCache.releaseQueryFetchResults(queryFetchResults);
-                listener.onResponse(new SearchResponse(internalResponse, request.scrollId(), 0, 0, 0l, TransportSearchHelper.buildShardFailures(shardFailures, searchCache)));
+                listener.onResponse(new SearchResponse(internalResponse, request.scrollId(), 0, 0, 0l, buildShardFailures()));
                 return;
             }
 
@@ -199,7 +215,7 @@ public class TransportSearchScrollScanAction extends AbstractComponent {
                     if (logger.isDebugEnabled()) {
                         logger.debug("[{}] Failed to execute query phase", t, searchId);
                     }
-                    shardFailures.add(new ShardSearchFailure(t));
+                    addShardFailure(new ShardSearchFailure(t));
                     successfulOps.decrementAndGet();
                     if (counter.decrementAndGet() == 0) {
                         finishHim();
@@ -212,7 +228,7 @@ public class TransportSearchScrollScanAction extends AbstractComponent {
             try {
                 innerFinishHim();
             } catch (Exception e) {
-                ReduceSearchPhaseException failure = new ReduceSearchPhaseException("fetch", "", e, buildShardFailures(shardFailures, searchCache));
+                ReduceSearchPhaseException failure = new ReduceSearchPhaseException("fetch", "", e, buildShardFailures());
                 if (logger.isDebugEnabled()) {
                     logger.debug("failed to reduce search", failure);
                 }
@@ -252,7 +268,7 @@ public class TransportSearchScrollScanAction extends AbstractComponent {
                 scrollId = TransportSearchHelper.buildScrollId(this.scrollId.type(), queryFetchResults.values(), this.scrollId.attributes()); // continue moving the total_hits
             }
             listener.onResponse(new SearchResponse(internalResponse, scrollId, this.scrollId.context().length, successfulOps.get(),
-                    System.currentTimeMillis() - startTime, buildShardFailures(shardFailures, searchCache)));
+                    System.currentTimeMillis() - startTime, buildShardFailures()));
         }
     }
 }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.search.type;
 
+import jsr166y.LinkedTransferQueue;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.action.support.TransportAction;
@@ -44,7 +45,6 @@ import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -92,7 +92,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
 
         private final AtomicInteger totalOps = new AtomicInteger();
 
-        protected final Collection<ShardSearchFailure> shardFailures = searchCache.obtainShardFailures();
+        private volatile LinkedTransferQueue<ShardSearchFailure> shardFailures;
 
         protected volatile ShardDoc[] sortedShardList;
 
@@ -248,9 +248,9 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
                 // no more shards, add a failure
                 if (t == null) {
                     // no active shards
-                    shardFailures.add(new ShardSearchFailure("No active shards", new SearchShardTarget(null, shardIt.shardId().index().name(), shardIt.shardId().id())));
+                    addShardFailure(new ShardSearchFailure("No active shards", new SearchShardTarget(null, shardIt.shardId().index().name(), shardIt.shardId().id())));
                 } else {
-                    shardFailures.add(new ShardSearchFailure(t));
+                    addShardFailure(new ShardSearchFailure(t));
                 }
                 if (successulOps.get() == 0) {
                     // no successful ops, raise an exception
@@ -290,9 +290,9 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
                     }
                     if (t == null) {
                         // no active shards
-                        shardFailures.add(new ShardSearchFailure("No active shards", new SearchShardTarget(null, shardIt.shardId().index().name(), shardIt.shardId().id())));
+                        addShardFailure(new ShardSearchFailure("No active shards", new SearchShardTarget(null, shardIt.shardId().index().name(), shardIt.shardId().id())));
                     } else {
-                        shardFailures.add(new ShardSearchFailure(t));
+                        addShardFailure(new ShardSearchFailure(t));
                     }
                 }
             }
@@ -305,11 +305,21 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
             return System.currentTimeMillis() - startTime;
         }
 
-        /**
-         * Builds the shard failures, and releases the cache (meaning this should only be called once!).
-         */
         protected final ShardSearchFailure[] buildShardFailures() {
-            return TransportSearchHelper.buildShardFailures(shardFailures, searchCache);
+            LinkedTransferQueue<ShardSearchFailure> localFailures = shardFailures;
+            if (localFailures == null) {
+                return ShardSearchFailure.EMPTY_ARRAY;
+            }
+            return localFailures.toArray(ShardSearchFailure.EMPTY_ARRAY);
+        }
+
+        // we do our best to return the shard failures, but its ok if its not fully concurrently safe
+        // we simply try and return as much as possible
+        protected final void addShardFailure(ShardSearchFailure failure) {
+            if (shardFailures == null) {
+                shardFailures = new LinkedTransferQueue<ShardSearchFailure>();
+            }
+            shardFailures.add(failure);
         }
 
         /**

@@ -151,9 +151,9 @@
         </dependency>
 
         <dependency>
-            <groupId>org.jboss.netty</groupId>
+            <groupId>io.netty</groupId>
             <artifactId>netty</artifactId>
-            <version>3.2.7.Final</version>
+            <version>3.3.0.Final</version>
             <scope>compile</scope>
         </dependency>
         <!-- END: dependencies that are shaded -->
@@ -310,7 +310,7 @@
                             <include>org.codehaus.jackson:jackson-smile</include>
                             <include>org.yaml:snakeyaml</include>
                             <include>joda-time:joda-time</include>
-                            <include>org.jboss.netty:netty</include>
+                            <include>io.netty:netty</include>
                         </includes>
                     </artifactSet>
                     <relocations>

@@ -31,15 +31,18 @@ import static com.google.common.collect.Lists.newArrayList;
  */
 public class RoutingNode implements Iterable<MutableShardRouting> {
 
+    private final String nodeId;
+
     private final DiscoveryNode node;
 
     private final List<MutableShardRouting> shards;
 
-    public RoutingNode(DiscoveryNode node) {
-        this(node, new ArrayList<MutableShardRouting>());
+    public RoutingNode(String nodeId, DiscoveryNode node) {
+        this(nodeId, node, new ArrayList<MutableShardRouting>());
     }
 
-    public RoutingNode(DiscoveryNode node, List<MutableShardRouting> shards) {
+    public RoutingNode(String nodeId, DiscoveryNode node, List<MutableShardRouting> shards) {
+        this.nodeId = nodeId;
         this.node = node;
         this.shards = shards;
     }
@@ -54,7 +57,7 @@ public class RoutingNode implements Iterable<MutableShardRouting> {
     }
 
     public String nodeId() {
-        return this.node.id();
+        return this.nodeId;
     }
 
     public List<MutableShardRouting> shards() {
@@ -140,7 +143,7 @@ public class RoutingNode implements Iterable<MutableShardRouting> {
 
     public String prettyPrint() {
         StringBuilder sb = new StringBuilder();
-        sb.append("-----node_id[").append(node.id()).append("]\n");
+        sb.append("-----node_id[").append(nodeId).append("][" + (node == null ? "X" : "V") + "]\n");
         for (MutableShardRouting entry : shards) {
             sb.append("--------").append(entry.shortSummary()).append('\n');
         }

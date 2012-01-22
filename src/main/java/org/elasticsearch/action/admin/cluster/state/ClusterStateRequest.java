@@ -54,6 +54,16 @@ public class ClusterStateRequest extends MasterNodeOperationRequest {
         return null;
     }
 
+    public ClusterStateRequest filterAll() {
+        filterRoutingTable = true;
+        filterNodes = true;
+        filterMetaData = true;
+        filterBlocks = true;
+        filteredIndices = Strings.EMPTY_ARRAY;
+        filteredIndexTemplates = Strings.EMPTY_ARRAY;
+        return this;
+    }
+
     public boolean filterRoutingTable() {
         return filterRoutingTable;
     }

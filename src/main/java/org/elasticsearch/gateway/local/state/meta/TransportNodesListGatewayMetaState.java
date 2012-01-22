@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.gateway.local;
+package org.elasticsearch.gateway.local.state.meta;
 
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticSearchException;
@@ -26,6 +26,7 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.*;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
@@ -46,15 +47,15 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  */
 public class TransportNodesListGatewayMetaState extends TransportNodesOperationAction<TransportNodesListGatewayMetaState.Request, TransportNodesListGatewayMetaState.NodesLocalGatewayMetaState, TransportNodesListGatewayMetaState.NodeRequest, TransportNodesListGatewayMetaState.NodeLocalGatewayMetaState> {
 
-    private LocalGateway gateway;
+    private LocalGatewayMetaState metaState;
 
     @Inject
     public TransportNodesListGatewayMetaState(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService) {
         super(settings, clusterName, threadPool, clusterService, transportService);
     }
 
-    TransportNodesListGatewayMetaState initGateway(LocalGateway gateway) {
-        this.gateway = gateway;
+    TransportNodesListGatewayMetaState init(LocalGatewayMetaState metaState) {
+        this.metaState = metaState;
         return this;
     }
 
@@ -115,7 +116,7 @@ public class TransportNodesListGatewayMetaState extends TransportNodesOperationA
 
     @Override
     protected NodeLocalGatewayMetaState nodeOperation(NodeRequest request) throws ElasticSearchException {
-        return new NodeLocalGatewayMetaState(clusterService.localNode(), gateway.currentMetaState());
+        return new NodeLocalGatewayMetaState(clusterService.localNode(), metaState.currentMetaData());
     }
 
     @Override
@@ -208,36 +209,36 @@ public class TransportNodesListGatewayMetaState extends TransportNodesOperationA
 
     public static class NodeLocalGatewayMetaState extends NodeOperationResponse {
 
-        private LocalGatewayMetaState state;
+        private MetaData metaData;
 
         NodeLocalGatewayMetaState() {
         }
 
-        public NodeLocalGatewayMetaState(DiscoveryNode node, LocalGatewayMetaState state) {
+        public NodeLocalGatewayMetaState(DiscoveryNode node, MetaData metaData) {
             super(node);
-            this.state = state;
+            this.metaData = metaData;
         }
 
-        public LocalGatewayMetaState state() {
-            return state;
+        public MetaData metaData() {
+            return metaData;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             if (in.readBoolean()) {
-                state = LocalGatewayMetaState.Builder.readFrom(in);
+                metaData = MetaData.Builder.readFrom(in);
             }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (state == null) {
+            if (metaData == null) {
                 out.writeBoolean(false);
             } else {
                 out.writeBoolean(true);
-                LocalGatewayMetaState.Builder.writeTo(state, out);
+                MetaData.Builder.writeTo(metaData, out);
             }
         }
     }

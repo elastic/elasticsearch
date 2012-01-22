@@ -22,7 +22,6 @@ package org.elasticsearch.gateway.local.state.shards;
 import com.google.common.collect.Maps;
 import com.google.common.io.Closeables;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.Nullable;
@@ -37,10 +36,7 @@ import org.elasticsearch.common.io.stream.CachedStreamOutput;
 import org.elasticsearch.common.io.stream.LZFStreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -57,21 +53,27 @@ import java.util.Set;
 public class LocalGatewayShardsState extends AbstractComponent implements ClusterStateListener {
 
     private final NodeEnvironment nodeEnv;
-    private final ClusterService clusterService;
 
-    private volatile boolean initialized = false;
     private volatile Map<ShardId, ShardStateInfo> currentState = Maps.newHashMap();
 
     @Inject
-    public LocalGatewayShardsState(Settings settings, NodeEnvironment nodeEnv, ClusterService clusterService, TransportNodesListGatewayStartedShards listGatewayStartedShards) {
+    public LocalGatewayShardsState(Settings settings, NodeEnvironment nodeEnv, TransportNodesListGatewayStartedShards listGatewayStartedShards) throws Exception {
         super(settings);
         this.nodeEnv = nodeEnv;
-        this.clusterService = clusterService;
         listGatewayStartedShards.initGateway(this);
+
+        try {
+            pre019Upgrade();
+            long start = System.currentTimeMillis();
+            loadStartedShards();
+            logger.debug("took {} to load started shards state", TimeValue.timeValueMillis(System.currentTimeMillis() - start));
+        } catch (Exception e) {
+            logger.error("failed to read local state (started shards), exiting...", e);
+            throw e;
+        }
     }
 
     public Map<ShardId, ShardStateInfo> currentStartedShards() {
-        lazyInitialize();
         return this.currentState;
     }
 
@@ -160,30 +162,6 @@ public class LocalGatewayShardsState extends AbstractComponent implements Cluste
         this.currentState = newState;
     }
 
-    private synchronized void lazyInitialize() {
-        if (initialized) {
-            return;
-        }
-        initialized = true;
-
-        // we only persist shards state for data nodes
-        if (!clusterService.localNode().dataNode()) {
-            return;
-        }
-
-        try {
-            pre019Upgrade();
-            long start = System.currentTimeMillis();
-            loadStartedShards();
-            logger.debug("took {} to load started shards state", TimeValue.timeValueMillis(System.currentTimeMillis() - start));
-        } catch (Exception e) {
-            logger.error("failed to read local state (started shards), exiting...", e);
-            // ugly, but, if we fail to read it, bail completely so we don't have any node corrupting the cluster
-            System.exit(1);
-        }
-    }
-
-
     private void loadStartedShards() throws Exception {
         Set<ShardId> shardIds = nodeEnv.findAllShardIds();
         long highestVersion = -1;
@@ -244,13 +222,7 @@ public class LocalGatewayShardsState extends AbstractComponent implements Cluste
     private long readShardState(byte[] data) throws Exception {
         XContentParser parser = null;
         try {
-            if (LZF.isCompressed(data)) {
-                BytesStreamInput siBytes = new BytesStreamInput(data, false);
-                LZFStreamInput siLzf = CachedStreamInput.cachedLzf(siBytes);
-                parser = XContentFactory.xContent(XContentType.JSON).createParser(siLzf);
-            } else {
-                parser = XContentFactory.xContent(XContentType.JSON).createParser(data);
-            }
+            parser = XContentHelper.createParser(data, 0, data.length);
             XContentParser.Token token = parser.nextToken();
             if (token == null) {
                 return -1;
@@ -313,7 +285,7 @@ public class LocalGatewayShardsState extends AbstractComponent implements Cluste
             }
 
             // delete the old files
-            if (previousStateInfo != null) {
+            if (previousStateInfo != null && previousStateInfo.version != shardStateInfo.version) {
                 for (File shardLocation : nodeEnv.shardLocations(shardId)) {
                     File stateFile = new File(new File(shardLocation, "_state"), "state-" + previousStateInfo.version);
                     stateFile.delete();
@@ -361,13 +333,13 @@ public class LocalGatewayShardsState extends AbstractComponent implements Cluste
                     try {
                         byte[] data = Streams.copyToByteArray(new FileInputStream(stateFile));
                         if (data.length == 0) {
-                            logger.debug("[find_latest_state]: not data for [" + name + "], ignoring...");
+                            logger.debug("[upgrade]: not data for [" + name + "], ignoring...");
                         }
                         pre09ReadState(data);
                         index = fileIndex;
                         latest = stateFile;
                     } catch (IOException e) {
-                        logger.warn("[find_latest_state]: failed to read state from [" + name + "], ignoring...", e);
+                        logger.warn("[upgrade]: failed to read state from [" + name + "], ignoring...", e);
                     }
                 }
             }
@@ -400,9 +372,6 @@ public class LocalGatewayShardsState extends AbstractComponent implements Cluste
                 continue;
             }
             for (File stateFile : stateFiles) {
-                if (logger.isTraceEnabled()) {
-                    logger.trace("[find_latest_state]: processing [" + stateFile.getName() + "]");
-                }
                 String name = stateFile.getName();
                 if (!name.startsWith("shards-")) {
                     continue;

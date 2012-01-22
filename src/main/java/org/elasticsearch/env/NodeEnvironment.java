@@ -20,6 +20,7 @@
 package org.elasticsearch.env;
 
 import com.google.common.collect.Sets;
+import com.google.common.primitives.Ints;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.NativeFSLockFactory;
 import org.elasticsearch.ElasticSearchIllegalStateException;
@@ -177,6 +178,23 @@ public class NodeEnvironment extends AbstractComponent {
         return shardLocations;
     }
 
+    public Set<String> finalAllIndices() throws Exception {
+        if (nodeFiles == null || locks == null) {
+            throw new ElasticSearchIllegalStateException("node is not configured to store local location");
+        }
+        Set<String> indices = Sets.newHashSet();
+        for (File indicesLocation : nodeIndicesLocations) {
+            File[] indicesList = indicesLocation.listFiles();
+            if (indicesList == null) {
+                continue;
+            }
+            for (File indexLocation : indicesList) {
+                indices.add(indexLocation.getName());
+            }
+        }
+        return indices;
+    }
+
     public Set<ShardId> findAllShardIds() throws Exception {
         if (nodeFiles == null || locks == null) {
             throw new ElasticSearchIllegalStateException("node is not configured to store local location");
@@ -200,7 +218,10 @@ public class NodeEnvironment extends AbstractComponent {
                     if (!shardLocation.isDirectory()) {
                         continue;
                     }
-                    shardIds.add(new ShardId(indexName, Integer.parseInt(shardLocation.getName())));
+                    Integer shardId = Ints.tryParse(shardLocation.getName());
+                    if (shardId != null) {
+                        shardIds.add(new ShardId(indexName, shardId));
+                    }
                 }
             }
         }

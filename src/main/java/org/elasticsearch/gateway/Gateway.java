@@ -39,6 +39,6 @@ public interface Gateway extends LifecycleComponent<Gateway> {
     interface GatewayStateRecoveredListener {
         void onSuccess(ClusterState recoveredState);
 
-        void onFailure(Throwable t);
+        void onFailure(String message);
     }
 }

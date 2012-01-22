@@ -61,24 +61,24 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
         this.clusterService = clusterService;
         this.allocationService = allocationService;
         this.schedule = componentSettings.getAsTime("schedule", timeValueSeconds(10));
-    }
-
-    @Override
-    protected void doStart() throws ElasticSearchException {
         clusterService.addPriority(this);
     }
 
     @Override
+    protected void doStart() throws ElasticSearchException {
+    }
+
+    @Override
     protected void doStop() throws ElasticSearchException {
+    }
+
+    @Override
+    protected void doClose() throws ElasticSearchException {
         if (scheduledRoutingTableFuture != null) {
             scheduledRoutingTableFuture.cancel(true);
             scheduledRoutingTableFuture = null;
         }
         clusterService.remove(this);
-    }
-
-    @Override
-    protected void doClose() throws ElasticSearchException {
     }
 
     @Override

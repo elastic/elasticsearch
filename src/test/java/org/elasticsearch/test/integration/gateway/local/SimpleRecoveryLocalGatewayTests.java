@@ -24,7 +24,9 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.status.IndexShardStatus;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
 import org.elasticsearch.action.admin.indices.status.ShardStatus;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.node.Node;
@@ -39,8 +41,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -282,6 +283,20 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
             assertThat(node2.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(3l));
         }
 
+        logger.info("--> add some metadata, additional type and template");
+        node2.client().admin().indices().preparePutMapping("test").setType("type2")
+                .setSource(jsonBuilder().startObject().startObject("type1").startObject("_source").field("enabled", false).endObject().endObject().endObject())
+                .execute().actionGet();
+        node2.client().admin().indices().preparePutTemplate("template_1")
+                .setTemplate("te*")
+                .setOrder(0)
+                .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("field1").field("type", "string").field("store", "yes").endObject()
+                        .startObject("field2").field("type", "string").field("store", "yes").field("index", "not_analyzed").endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
+
+
         logger.info("--> closing the second node");
         closeNode("node2");
 
@@ -299,6 +314,10 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         for (int i = 0; i < 10; i++) {
             assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(3l));
         }
+
+        ClusterState state = node1.client().admin().cluster().prepareState().execute().actionGet().state();
+        assertThat(state.metaData().index("test").mapping("type2"), notNullValue());
+        assertThat(state.metaData().templates().get("template_1").template(), equalTo("te*"));
     }
 
     @Test

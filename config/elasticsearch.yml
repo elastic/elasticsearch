@@ -234,7 +234,8 @@
 # gateway.type: local
 
 # Settings below control how and when to start the initial recovery process on
-# a full cluster restart (to reuse as much local data as possible).
+# a full cluster restart (to reuse as much local data as possible when using shared
+# gateway).
 
 # Allow recovery process after N nodes in a cluster are up:
 #
@@ -246,7 +247,8 @@
 # gateway.recover_after_time: 5m
 
 # Set how many nodes are expected in this cluster. Once these N nodes
-# are up, begin recovery process immediately:
+# are up (and recover_after_nodes is met), begin recovery process immediately
+# (without waiting for recover_after_time to expire):
 #
 # gateway.expected_nodes: 2
 
@@ -284,7 +286,7 @@
 
 # Set to ensure a node sees N other master eligible nodes to be considered
 # operational within the cluster. Set this option to a higher value (2-4)
-# for large clusters:
+# for large clusters (>3 nodes):
 #
 # discovery.zen.minimum_master_nodes: 1
 

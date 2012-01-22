@@ -164,6 +164,8 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     public void remove(ClusterStateListener listener) {
         clusterStateListeners.remove(listener);
+        priorityClusterStateListeners.remove(listener);
+        lastClusterStateListeners.remove(listener);
         for (Iterator<NotifyTimeout> it = onGoingTimeouts.iterator(); it.hasNext(); ) {
             NotifyTimeout timeout = it.next();
             if (timeout.listener.equals(listener)) {
@@ -204,109 +206,126 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 }
                 logger.debug("processing [{}]: execute", source);
                 ClusterState previousClusterState = clusterState;
+                ClusterState newClusterState;
                 try {
-                    clusterState = updateTask.execute(previousClusterState);
+                    newClusterState = updateTask.execute(previousClusterState);
                 } catch (Exception e) {
-                    StringBuilder sb = new StringBuilder("failed to execute cluster state update, state:\nversion [").append(clusterState.version()).append("], source [").append(source).append("]\n");
-                    sb.append(clusterState.nodes().prettyPrint());
-                    sb.append(clusterState.routingTable().prettyPrint());
-                    sb.append(clusterState.readOnlyRoutingNodes().prettyPrint());
+                    StringBuilder sb = new StringBuilder("failed to execute cluster state update, state:\nversion [").append(previousClusterState.version()).append("], source [").append(source).append("]\n");
+                    sb.append(previousClusterState.nodes().prettyPrint());
+                    sb.append(previousClusterState.routingTable().prettyPrint());
+                    sb.append(previousClusterState.readOnlyRoutingNodes().prettyPrint());
                     logger.warn(sb.toString(), e);
                     return;
                 }
-                if (previousClusterState != clusterState) {
-                    try {
-                        if (clusterState.nodes().localNodeMaster()) {
-                            // only the master controls the version numbers
-                            Builder builder = ClusterState.builder().state(clusterState).version(clusterState.version() + 1);
-                            if (previousClusterState.routingTable() != clusterState.routingTable()) {
-                                builder.routingTable(RoutingTable.builder().routingTable(clusterState.routingTable()).version(clusterState.routingTable().version() + 1));
-                            }
-                            if (previousClusterState.metaData() != clusterState.metaData()) {
-                                builder.metaData(MetaData.builder().metaData(clusterState.metaData()).version(clusterState.metaData().version() + 1));
-                            }
-                            clusterState = builder.build();
-                        } else {
-                            // we got this cluster state from the master, filter out based on versions (don't call listeners)
-                            if (clusterState.version() < previousClusterState.version()) {
-                                logger.debug("got old cluster state [" + clusterState.version() + "<" + previousClusterState.version() + "] from source [" + source + "], ignoring");
-                                return;
-                            }
-                        }
 
-                        if (logger.isTraceEnabled()) {
-                            StringBuilder sb = new StringBuilder("cluster state updated:\nversion [").append(clusterState.version()).append("], source [").append(source).append("]\n");
-                            sb.append(clusterState.nodes().prettyPrint());
-                            sb.append(clusterState.routingTable().prettyPrint());
-                            sb.append(clusterState.readOnlyRoutingNodes().prettyPrint());
-                            logger.trace(sb.toString());
-                        } else if (logger.isDebugEnabled()) {
-                            logger.debug("cluster state updated, version [{}], source [{}]", clusterState.version(), source);
-                        }
-
-                        ClusterChangedEvent clusterChangedEvent = new ClusterChangedEvent(source, clusterState, previousClusterState);
-                        // new cluster state, notify all listeners
-                        final DiscoveryNodes.Delta nodesDelta = clusterChangedEvent.nodesDelta();
-                        if (nodesDelta.hasChanges() && logger.isInfoEnabled()) {
-                            String summary = nodesDelta.shortSummary();
-                            if (summary.length() > 0) {
-                                logger.info("{}, reason: {}", summary, source);
-                            }
-                        }
-
-                        // TODO, do this in parallel (and wait)
-                        for (DiscoveryNode node : nodesDelta.addedNodes()) {
-                            if (!nodeRequiresConnection(node)) {
-                                continue;
-                            }
-                            try {
-                                transportService.connectToNode(node);
-                            } catch (Exception e) {
-                                // the fault detection will detect it as failed as well
-                                logger.warn("failed to connect to node [" + node + "]", e);
-                            }
-                        }
-
-                        for (ClusterStateListener listener : priorityClusterStateListeners) {
-                            listener.clusterChanged(clusterChangedEvent);
-                        }
-                        for (ClusterStateListener listener : clusterStateListeners) {
-                            listener.clusterChanged(clusterChangedEvent);
-                        }
-                        for (ClusterStateListener listener : lastClusterStateListeners) {
-                            listener.clusterChanged(clusterChangedEvent);
-                        }
-
-                        if (!nodesDelta.removedNodes().isEmpty()) {
-                            threadPool.cached().execute(new Runnable() {
-                                @Override
-                                public void run() {
-                                    for (DiscoveryNode node : nodesDelta.removedNodes()) {
-                                        transportService.disconnectFromNode(node);
-                                    }
-                                }
-                            });
-                        }
-
-                        // if we are the master, publish the new state to all nodes
-                        if (clusterState.nodes().localNodeMaster()) {
-                            discoveryService.publish(clusterState);
-                        }
-
-                        if (updateTask instanceof ProcessedClusterStateUpdateTask) {
-                            ((ProcessedClusterStateUpdateTask) updateTask).clusterStateProcessed(clusterState);
-                        }
-
-                        logger.debug("processing [{}]: done applying updated cluster_state", source);
-                    } catch (Exception e) {
-                        StringBuilder sb = new StringBuilder("failed to apply updated cluster state:\nversion [").append(clusterState.version()).append("], source [").append(source).append("]\n");
-                        sb.append(clusterState.nodes().prettyPrint());
-                        sb.append(clusterState.routingTable().prettyPrint());
-                        sb.append(clusterState.readOnlyRoutingNodes().prettyPrint());
-                        logger.warn(sb.toString(), e);
-                    }
-                } else {
+                if (previousClusterState == newClusterState) {
                     logger.debug("processing [{}]: no change in cluster_state", source);
+                    return;
+                }
+
+                try {
+                    if (newClusterState.nodes().localNodeMaster()) {
+                        // only the master controls the version numbers
+                        Builder builder = ClusterState.builder().state(newClusterState).version(newClusterState.version() + 1);
+                        if (previousClusterState.routingTable() != newClusterState.routingTable()) {
+                            builder.routingTable(RoutingTable.builder().routingTable(newClusterState.routingTable()).version(newClusterState.routingTable().version() + 1));
+                        }
+                        if (previousClusterState.metaData() != newClusterState.metaData()) {
+                            builder.metaData(MetaData.builder().metaData(newClusterState.metaData()).version(newClusterState.metaData().version() + 1));
+                        }
+                        newClusterState = builder.build();
+                    } else {
+                        if (previousClusterState.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK) && !newClusterState.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK)) {
+                            // force an update, its a fresh update from the master as we transition from a start of not having a master to having one
+                            // have a fresh instances of routing and metadata to remove the chance that version might be the same
+                            Builder builder = ClusterState.builder().state(newClusterState);
+                            builder.routingTable(RoutingTable.builder().routingTable(newClusterState.routingTable()));
+                            builder.metaData(MetaData.builder().metaData(newClusterState.metaData()));
+                            newClusterState = builder.build();
+                            logger.debug("got first state from fresh master [{}]", newClusterState.nodes().masterNodeId());
+                        } else if (newClusterState.version() < previousClusterState.version()) {
+                            // we got this cluster state from the master, filter out based on versions (don't call listeners)
+                            logger.debug("got old cluster state [" + newClusterState.version() + "<" + previousClusterState.version() + "] from source [" + source + "], ignoring");
+                            return;
+                        }
+                    }
+
+                    if (logger.isTraceEnabled()) {
+                        StringBuilder sb = new StringBuilder("cluster state updated:\nversion [").append(newClusterState.version()).append("], source [").append(source).append("]\n");
+                        sb.append(newClusterState.nodes().prettyPrint());
+                        sb.append(newClusterState.routingTable().prettyPrint());
+                        sb.append(newClusterState.readOnlyRoutingNodes().prettyPrint());
+                        logger.trace(sb.toString());
+                    } else if (logger.isDebugEnabled()) {
+                        logger.debug("cluster state updated, version [{}], source [{}]", newClusterState.version(), source);
+                    }
+
+                    ClusterChangedEvent clusterChangedEvent = new ClusterChangedEvent(source, newClusterState, previousClusterState);
+                    // new cluster state, notify all listeners
+                    final DiscoveryNodes.Delta nodesDelta = clusterChangedEvent.nodesDelta();
+                    if (nodesDelta.hasChanges() && logger.isInfoEnabled()) {
+                        String summary = nodesDelta.shortSummary();
+                        if (summary.length() > 0) {
+                            logger.info("{}, reason: {}", summary, source);
+                        }
+                    }
+
+                    // TODO, do this in parallel (and wait)
+                    for (DiscoveryNode node : nodesDelta.addedNodes()) {
+                        if (!nodeRequiresConnection(node)) {
+                            continue;
+                        }
+                        try {
+                            transportService.connectToNode(node);
+                        } catch (Exception e) {
+                            // the fault detection will detect it as failed as well
+                            logger.warn("failed to connect to node [" + node + "]", e);
+                        }
+                    }
+
+                    // if we are the master, publish the new state to all nodes
+                    // we publish here before we send a notification to all the listeners, since if it fails
+                    // we don't want to notify
+                    if (newClusterState.nodes().localNodeMaster()) {
+                        discoveryService.publish(newClusterState);
+                    }
+
+                    // update the current cluster state
+                    clusterState = newClusterState;
+
+                    for (ClusterStateListener listener : priorityClusterStateListeners) {
+                        listener.clusterChanged(clusterChangedEvent);
+                    }
+                    for (ClusterStateListener listener : clusterStateListeners) {
+                        listener.clusterChanged(clusterChangedEvent);
+                    }
+                    for (ClusterStateListener listener : lastClusterStateListeners) {
+                        listener.clusterChanged(clusterChangedEvent);
+                    }
+
+                    if (!nodesDelta.removedNodes().isEmpty()) {
+                        threadPool.cached().execute(new Runnable() {
+                            @Override
+                            public void run() {
+                                for (DiscoveryNode node : nodesDelta.removedNodes()) {
+                                    transportService.disconnectFromNode(node);
+                                }
+                            }
+                        });
+                    }
+
+
+                    if (updateTask instanceof ProcessedClusterStateUpdateTask) {
+                        ((ProcessedClusterStateUpdateTask) updateTask).clusterStateProcessed(newClusterState);
+                    }
+
+                    logger.debug("processing [{}]: done applying updated cluster_state", source);
+                } catch (Exception e) {
+                    StringBuilder sb = new StringBuilder("failed to apply updated cluster state:\nversion [").append(newClusterState.version()).append("], source [").append(source).append("]\n");
+                    sb.append(newClusterState.nodes().prettyPrint());
+                    sb.append(newClusterState.routingTable().prettyPrint());
+                    sb.append(newClusterState.readOnlyRoutingNodes().prettyPrint());
+                    logger.warn(sb.toString(), e);
                 }
             }
         });

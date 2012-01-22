@@ -99,7 +99,7 @@ public class TransportClusterStateAction extends TransportMasterNodeOperationAct
                 for (String filteredIndex : indices) {
                     IndexMetaData indexMetaData = currentState.metaData().index(filteredIndex);
                     if (indexMetaData != null) {
-                        mdBuilder.put(indexMetaData);
+                        mdBuilder.put(indexMetaData, false);
                     }
                 }
             }

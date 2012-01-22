@@ -117,6 +117,7 @@ public class IndexMetaData {
     public static final String SETTING_READ_ONLY = "index.blocks.read_only";
 
     private final String index;
+    private final long version;
 
     private final State state;
 
@@ -131,10 +132,11 @@ public class IndexMetaData {
     private final DiscoveryNodeFilters includeFilters;
     private final DiscoveryNodeFilters excludeFilters;
 
-    private IndexMetaData(String index, State state, Settings settings, ImmutableMap<String, MappingMetaData> mappings, ImmutableMap<String, AliasMetaData> aliases) {
+    private IndexMetaData(String index, long version, State state, Settings settings, ImmutableMap<String, MappingMetaData> mappings, ImmutableMap<String, AliasMetaData> aliases) {
         Preconditions.checkArgument(settings.getAsInt(SETTING_NUMBER_OF_SHARDS, -1) != -1, "must specify numberOfShards for index [" + index + "]");
         Preconditions.checkArgument(settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, -1) != -1, "must specify numberOfReplicas for index [" + index + "]");
         this.index = index;
+        this.version = version;
         this.state = state;
         this.settings = settings;
         this.mappings = mappings;
@@ -162,6 +164,14 @@ public class IndexMetaData {
 
     public String getIndex() {
         return index();
+    }
+
+    public long version() {
+        return this.version;
+    }
+
+    public long getVersion() {
+        return this.version;
     }
 
     public State state() {
@@ -274,6 +284,8 @@ public class IndexMetaData {
 
         private State state = State.OPEN;
 
+        private long version = 1;
+
         private Settings settings = ImmutableSettings.Builder.EMPTY_SETTINGS;
 
         private MapBuilder<String, MappingMetaData> mappings = MapBuilder.newMapBuilder();
@@ -290,6 +302,7 @@ public class IndexMetaData {
             mappings.putAll(indexMetaData.mappings);
             aliases.putAll(indexMetaData.aliases);
             this.state = indexMetaData.state;
+            this.version = indexMetaData.version;
         }
 
         public String index() {
@@ -364,6 +377,15 @@ public class IndexMetaData {
             return this;
         }
 
+        public long version() {
+            return this.version;
+        }
+
+        public Builder version(long version) {
+            this.version = version;
+            return this;
+        }
+
         public IndexMetaData build() {
             MapBuilder<String, AliasMetaData> tmpAliases = aliases;
             Settings tmpSettings = settings;
@@ -381,12 +403,13 @@ public class IndexMetaData {
                 tmpSettings = ImmutableSettings.settingsBuilder().put(settings).putArray("index.aliases").build();
             }
 
-            return new IndexMetaData(index, state, tmpSettings, mappings.immutableMap(), tmpAliases.immutableMap());
+            return new IndexMetaData(index, version, state, tmpSettings, mappings.immutableMap(), tmpAliases.immutableMap());
         }
 
         public static void toXContent(IndexMetaData indexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject(indexMetaData.index(), XContentBuilder.FieldCaseConversion.NONE);
 
+            builder.field("version", indexMetaData.version());
             builder.field("state", indexMetaData.state().toString().toLowerCase());
 
             builder.startObject("settings");
@@ -416,6 +439,9 @@ public class IndexMetaData {
         }
 
         public static IndexMetaData fromXContent(XContentParser parser) throws IOException {
+            if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+                parser.nextToken();
+            }
             Builder builder = new Builder(parser.currentName());
 
             String currentFieldName = null;
@@ -449,6 +475,8 @@ public class IndexMetaData {
                 } else if (token.isValue()) {
                     if ("state".equals(currentFieldName)) {
                         builder.state(State.fromString(parser.text()));
+                    } else if ("version".equals(currentFieldName)) {
+                        builder.version(parser.longValue());
                     }
                 }
             }
@@ -457,6 +485,7 @@ public class IndexMetaData {
 
         public static IndexMetaData readFrom(StreamInput in) throws IOException {
             Builder builder = new Builder(in.readUTF());
+            builder.version(in.readLong());
             builder.state(State.fromId(in.readByte()));
             builder.settings(readSettingsFromStream(in));
             int mappingsSize = in.readVInt();
@@ -474,6 +503,7 @@ public class IndexMetaData {
 
         public static void writeTo(IndexMetaData indexMetaData, StreamOutput out) throws IOException {
             out.writeUTF(indexMetaData.index());
+            out.writeLong(indexMetaData.version());
             out.writeByte(indexMetaData.state().id());
             writeSettingsToStream(indexMetaData.settings(), out);
             out.writeVInt(indexMetaData.mappings().size());

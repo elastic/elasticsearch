@@ -256,7 +256,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                     MetaData newMetaData = newMetaDataBuilder()
                             .metaData(currentState.metaData())
-                            .put(indexMetaData)
+                            .put(indexMetaData, false)
                             .build();
 
                     logger.info("[{}] creating index, cause [{}], shards [{}]/[{}], mappings {}", request.index, request.cause, indexMetaData.numberOfShards(), indexMetaData.numberOfReplicas(), mappings.keySet());

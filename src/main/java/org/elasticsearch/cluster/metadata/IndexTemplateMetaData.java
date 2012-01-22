@@ -101,6 +101,32 @@ public class IndexTemplateMetaData {
         return new Builder(name);
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        IndexTemplateMetaData that = (IndexTemplateMetaData) o;
+
+        if (order != that.order) return false;
+        if (!mappings.equals(that.mappings)) return false;
+        if (!name.equals(that.name)) return false;
+        if (!settings.equals(that.settings)) return false;
+        if (!template.equals(that.template)) return false;
+
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = name.hashCode();
+        result = 31 * result + order;
+        result = 31 * result + template.hashCode();
+        result = 31 * result + settings.hashCode();
+        result = 31 * result + mappings.hashCode();
+        return result;
+    }
+
     public static class Builder {
 
         private String name;

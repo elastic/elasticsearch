@@ -264,6 +264,7 @@ public class MetaDataMappingService extends AbstractComponent {
     }
 
     public void putMapping(final PutRequest request, final Listener listener) {
+        final AtomicBoolean notifyOnPostProcess = new AtomicBoolean();
         clusterService.submitStateUpdateTask("put-mapping [" + request.mappingType + "]", new ProcessedClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -394,7 +395,7 @@ public class MetaDataMappingService extends AbstractComponent {
                     }
 
                     if (counter == 0) {
-                        listener.onResponse(new Response(true));
+                        notifyOnPostProcess.set(true);
                         return updatedState;
                     }
                     mappingCreatedAction.add(new CountDownListener(counter, listener), request.timeout);
@@ -411,6 +412,9 @@ public class MetaDataMappingService extends AbstractComponent {
 
             @Override
             public void clusterStateProcessed(ClusterState clusterState) {
+                if (notifyOnPostProcess.get()) {
+                    listener.onResponse(new Response(true));
+                }
             }
         });
     }

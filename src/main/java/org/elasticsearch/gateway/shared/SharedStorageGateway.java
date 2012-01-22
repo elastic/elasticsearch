@@ -20,6 +20,7 @@
 package org.elasticsearch.gateway.shared;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -53,16 +54,20 @@ public abstract class SharedStorageGateway extends AbstractLifecycleComponent<Ga
         super(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
+        this.writeStateExecutor = newSingleThreadExecutor(daemonThreadFactory(settings, "gateway#writeMetaData"));
+        clusterService.add(this);
     }
 
     @Override
     protected void doStart() throws ElasticSearchException {
-        clusterService.add(this);
-        this.writeStateExecutor = newSingleThreadExecutor(daemonThreadFactory(settings, "gateway#writeMetaData"));
     }
 
     @Override
     protected void doStop() throws ElasticSearchException {
+    }
+
+    @Override
+    protected void doClose() throws ElasticSearchException {
         clusterService.remove(this);
         writeStateExecutor.shutdown();
         try {
@@ -70,10 +75,6 @@ public abstract class SharedStorageGateway extends AbstractLifecycleComponent<Ga
         } catch (InterruptedException e) {
             // ignore
         }
-    }
-
-    @Override
-    protected void doClose() throws ElasticSearchException {
     }
 
     @Override
@@ -95,7 +96,7 @@ public abstract class SharedStorageGateway extends AbstractLifecycleComponent<Ga
                     }
                 } catch (Exception e) {
                     logger.error("failed to read from gateway", e);
-                    listener.onFailure(e);
+                    listener.onFailure(ExceptionsHelper.detailedMessage(e));
                 }
             }
         });

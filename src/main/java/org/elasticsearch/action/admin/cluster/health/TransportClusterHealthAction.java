@@ -31,8 +31,8 @@ import org.elasticsearch.cluster.routing.RoutingTableValidation;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.indices.IndexMissingException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -266,7 +266,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
         response.status = ClusterHealthStatus.GREEN;
         if (!response.validationFailures().isEmpty()) {
             response.status = ClusterHealthStatus.RED;
-        } else if (clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+        } else if (clusterState.blocks().hasGlobalBlock(RestStatus.SERVICE_UNAVAILABLE)) {
             response.status = ClusterHealthStatus.RED;
         } else {
             for (ClusterIndexHealth indexHealth : response) {

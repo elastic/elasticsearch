@@ -25,6 +25,7 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Map;
@@ -103,6 +104,18 @@ public class ClusterBlocks {
 
     public boolean hasGlobalBlock(ClusterBlock block) {
         return global.contains(block);
+    }
+
+    /**
+     * Is there a global block with the provided status?
+     */
+    public boolean hasGlobalBlock(RestStatus status) {
+        for (ClusterBlock clusterBlock : global) {
+            if (clusterBlock.status().equals(status)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public boolean hasIndexBlock(String index, ClusterBlock block) {

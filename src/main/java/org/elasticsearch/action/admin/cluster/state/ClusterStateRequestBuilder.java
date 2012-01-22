@@ -34,6 +34,19 @@ public class ClusterStateRequestBuilder extends BaseClusterRequestBuilder<Cluste
     }
 
     /**
+     * Filters all data responses.
+     */
+    public ClusterStateRequestBuilder setFilterAll() {
+        request.filterAll();
+        return this;
+    }
+
+    public ClusterStateRequestBuilder setFilterBlocks(boolean filter) {
+        request.filterBlocks(filter);
+        return this;
+    }
+
+    /**
      * Should the cluster state result include the {@link org.elasticsearch.cluster.metadata.MetaData}. Defaults
      * to <tt>false</tt>.
      */
@@ -66,6 +79,11 @@ public class ClusterStateRequestBuilder extends BaseClusterRequestBuilder<Cluste
      */
     public ClusterStateRequestBuilder setFilterIndices(String... indices) {
         request.filteredIndices(indices);
+        return this;
+    }
+
+    public ClusterStateRequestBuilder setFilterIndexTemplates(String... templates) {
+        request.filteredIndexTemplates(templates);
         return this;
     }
 

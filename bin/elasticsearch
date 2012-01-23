@@ -111,7 +111,7 @@ launch_service()
     pidpath=$1
     foreground=$2
     props=$3
-    es_parms="-Delasticsearch"
+    es_parms="-Delasticsearch -Djava.awt.headless=true"
 
     if [ "x$pidpath" != "x" ]; then
         es_parms="$es_parms -Des.pidfile=$pidpath"
@@ -140,7 +140,7 @@ eval set -- "$args"
 while true; do
     case $1 in
         -v)
-            "$JAVA" -Djava.awt.headless=true $JAVA_OPTS $ES_JAVA_OPTS $es_parms -Des.path.home="$ES_HOME" -cp "$ES_CLASSPATH" $props \
+            "$JAVA" $JAVA_OPTS $ES_JAVA_OPTS $es_parms -Des.path.home="$ES_HOME" -cp "$ES_CLASSPATH" $props \
                     org.elasticsearch.Version
             exit 0
         ;;

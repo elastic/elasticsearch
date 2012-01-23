@@ -19,13 +19,20 @@
 
 package org.elasticsearch.gateway.local.state.shards;
 
+import org.elasticsearch.common.Nullable;
+
 /**
  */
 public class ShardStateInfo {
 
     public final long version;
 
-    public ShardStateInfo(long version) {
+    // can be null if we don't know...
+    @Nullable
+    public final Boolean primary;
+
+    public ShardStateInfo(long version, Boolean primary) {
         this.version = version;
+        this.primary = primary;
     }
 }

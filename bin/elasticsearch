@@ -140,7 +140,7 @@ eval set -- "$args"
 while true; do
     case $1 in
         -v)
-            "$JAVA" $JAVA_OPTS $ES_JAVA_OPTS $es_parms -Des.path.home="$ES_HOME" -cp "$ES_CLASSPATH" $props \
+            "$JAVA" -Djava.awt.headless=true $JAVA_OPTS $ES_JAVA_OPTS $es_parms -Des.path.home="$ES_HOME" -cp "$ES_CLASSPATH" $props \
                     org.elasticsearch.Version
             exit 0
         ;;

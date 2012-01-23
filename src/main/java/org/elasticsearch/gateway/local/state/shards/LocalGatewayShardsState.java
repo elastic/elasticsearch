@@ -262,6 +262,9 @@ public class LocalGatewayShardsState extends AbstractComponent implements Cluste
             builder.prettyPrint();
             builder.startObject();
             builder.field("version", shardStateInfo.version);
+            if (shardStateInfo.primary != null) {
+                builder.field("primary", shardStateInfo.primary);
+            }
             builder.endObject();
             builder.flush();
 

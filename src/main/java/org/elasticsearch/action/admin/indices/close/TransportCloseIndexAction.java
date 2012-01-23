@@ -70,6 +70,7 @@ public class TransportCloseIndexAction extends TransportMasterNodeOperationActio
 
     @Override
     protected ClusterBlockException checkBlock(CloseIndexRequest request, ClusterState state) {
+        request.index(clusterService.state().metaData().concreteIndex(request.index()));
         return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA, request.index());
     }
 

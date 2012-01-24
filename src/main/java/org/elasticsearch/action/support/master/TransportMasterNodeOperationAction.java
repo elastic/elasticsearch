@@ -166,7 +166,7 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
                         @Override
                         public void onTimeout(TimeValue timeout) {
                             clusterService.remove(this);
-                            listener.onFailure(new MasterNotDiscoveredException());
+                            listener.onFailure(new MasterNotDiscoveredException("waited for [" + timeout + "]"));
                         }
 
                         @Override

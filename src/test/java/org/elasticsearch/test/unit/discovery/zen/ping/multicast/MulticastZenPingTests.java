@@ -121,9 +121,10 @@ public class MulticastZenPingTests {
         });
         zenPingA.start();
 
+        MulticastSocket multicastSocket = null;
         try {
             Loggers.getLogger(MulticastZenPing.class).setLevel("TRACE");
-            MulticastSocket multicastSocket = new MulticastSocket(54328);
+            multicastSocket = new MulticastSocket(54328);
             multicastSocket.setReceiveBufferSize(2048);
             multicastSocket.setSendBufferSize(2048);
             multicastSocket.setSoTimeout(60000);
@@ -135,6 +136,7 @@ public class MulticastZenPingTests {
             Thread.sleep(100);
         } finally {
             Loggers.getLogger(MulticastZenPing.class).setLevel("INFO");
+            if (multicastSocket != null) multicastSocket.close();
             zenPingA.close();
             threadPool.shutdown();
         }

@@ -24,6 +24,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
@@ -211,6 +212,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             }
                         }
                     }
+
+                    indexSettingsBuilder.put(SETTING_VERSION_CREATED, Version.CURRENT);
+
                     Settings actualIndexSettings = indexSettingsBuilder.build();
 
                     // Set up everything, now locally create the index to see that things are ok, and apply

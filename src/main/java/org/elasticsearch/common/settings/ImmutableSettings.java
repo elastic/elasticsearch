@@ -593,7 +593,7 @@ public class ImmutableSettings implements Settings {
                 Map<String, String> loadedSettings = settingsLoader.load(source);
                 put(loadedSettings);
             } catch (Exception e) {
-                throw new SettingsException("Failed to load settings from [" + source + "]");
+                throw new SettingsException("Failed to load settings from [" + source + "]", e);
             }
             return this;
         }

@@ -31,6 +31,10 @@ public class MasterNotDiscoveredException extends ElasticSearchException {
         super("");
     }
 
+    public MasterNotDiscoveredException(String message) {
+        super(message);
+    }
+
     @Override
     public RestStatus status() {
         return RestStatus.SERVICE_UNAVAILABLE;

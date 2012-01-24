@@ -21,6 +21,7 @@ package org.elasticsearch.common.settings;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Classes;
 import org.elasticsearch.common.Strings;
@@ -305,6 +306,19 @@ public class ImmutableSettings implements Settings {
     }
 
     @Override
+    public Version getAsVersion(String setting, Version defaultVersion) throws SettingsException {
+        String sValue = get(setting);
+        if (sValue == null) {
+            return defaultVersion;
+        }
+        try {
+            return Version.fromId(Integer.parseInt(sValue));
+        } catch (Exception e) {
+            throw new SettingsException("Failed to parse version setting [" + setting + "] with value [" + sValue + "]", e);
+        }
+    }
+
+    @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
@@ -437,6 +451,11 @@ public class ImmutableSettings implements Settings {
          */
         public Builder put(String setting, int value) {
             put(setting, String.valueOf(value));
+            return this;
+        }
+
+        public Builder put(String setting, Version version) {
+            put(setting, version.id);
             return this;
         }
 

@@ -20,6 +20,7 @@
 package org.elasticsearch.gateway.local.state.meta;
 
 import com.google.common.io.Closeables;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -30,6 +31,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.CachedStreamOutput;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.*;
@@ -421,7 +423,10 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
 
         writeGlobalState("upgrade", MetaData.builder().metaData(metaData).version(version).build(), null);
         for (IndexMetaData indexMetaData : metaData) {
-            writeIndex("upgrade", IndexMetaData.newIndexMetaDataBuilder(indexMetaData).version(version).build(), null);
+            IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.newIndexMetaDataBuilder(indexMetaData).version(version);
+            // set the created version to 0.18
+            indexMetaDataBuilder.settings(ImmutableSettings.settingsBuilder().put(indexMetaData.settings()).put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_18_0));
+            writeIndex("upgrade", indexMetaDataBuilder.build(), null);
         }
 
         // rename shards state to backup state

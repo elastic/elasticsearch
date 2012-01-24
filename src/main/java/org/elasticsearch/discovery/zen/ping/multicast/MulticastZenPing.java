@@ -183,7 +183,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                 multicastSocket.close();
                 multicastSocket = null;
             }
-            logger.warn("disabled, failed to setup multicast discovery on {}: {}", multicastInterface, e.getMessage());
+            logger.warn("disabled, failed to setup multicast discovery on port [{}], [{}]: {}", port, multicastInterface, e.getMessage());
             if (logger.isDebugEnabled()) {
                 logger.debug("disabled, failed to setup multicast discovery on {}", e, multicastInterface);
             }

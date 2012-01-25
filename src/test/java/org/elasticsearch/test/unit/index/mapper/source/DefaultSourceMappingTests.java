@@ -20,9 +20,14 @@
 package org.elasticsearch.test.unit.index.mapper.source;
 
 import org.apache.lucene.document.Fieldable;
+import org.elasticsearch.common.compress.lzf.LZF;
+import org.elasticsearch.common.compress.lzf.LZFDecoder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.testng.annotations.Test;
 
@@ -35,6 +40,73 @@ import static org.hamcrest.Matchers.equalTo;
  *
  */
 public class DefaultSourceMappingTests {
+
+    @Test
+    public void testNoFormat() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_source").endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper documentMapper = MapperTests.newParser().parse(mapping);
+        ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
+                .field("field", "value")
+                .endObject().copiedBytes());
+
+        assertThat(XContentFactory.xContentType(doc.source(), doc.sourceOffset(), doc.sourceLength()), equalTo(XContentType.JSON));
+
+        documentMapper = MapperTests.newParser().parse(mapping);
+        doc = documentMapper.parse("type", "1", XContentFactory.smileBuilder().startObject()
+                .field("field", "value")
+                .endObject().copiedBytes());
+
+        assertThat(XContentFactory.xContentType(doc.source(), doc.sourceOffset(), doc.sourceLength()), equalTo(XContentType.SMILE));
+    }
+
+    @Test
+    public void testJsonFormat() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_source").field("format", "json").endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper documentMapper = MapperTests.newParser().parse(mapping);
+        ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
+                .field("field", "value")
+                .endObject().copiedBytes());
+
+        assertThat(XContentFactory.xContentType(doc.source(), doc.sourceOffset(), doc.sourceLength()), equalTo(XContentType.JSON));
+
+        documentMapper = MapperTests.newParser().parse(mapping);
+        doc = documentMapper.parse("type", "1", XContentFactory.smileBuilder().startObject()
+                .field("field", "value")
+                .endObject().copiedBytes());
+
+        assertThat(XContentFactory.xContentType(doc.source(), doc.sourceOffset(), doc.sourceLength()), equalTo(XContentType.JSON));
+    }
+
+    @Test
+    public void testJsonFormatCompressed() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_source").field("format", "json").field("compress", true).endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper documentMapper = MapperTests.newParser().parse(mapping);
+        ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
+                .field("field", "value")
+                .endObject().copiedBytes());
+
+        assertThat(LZF.isCompressed(doc.source(), doc.sourceOffset(), doc.sourceLength()), equalTo(true));
+        byte[] uncompressed = LZFDecoder.decode(doc.source(), doc.sourceOffset(), doc.sourceLength());
+        assertThat(XContentFactory.xContentType(uncompressed), equalTo(XContentType.JSON));
+
+        documentMapper = MapperTests.newParser().parse(mapping);
+        doc = documentMapper.parse("type", "1", XContentFactory.smileBuilder().startObject()
+                .field("field", "value")
+                .endObject().copiedBytes());
+
+        assertThat(LZF.isCompressed(doc.source(), doc.sourceOffset(), doc.sourceLength()), equalTo(true));
+        uncompressed = LZFDecoder.decode(doc.source(), doc.sourceOffset(), doc.sourceLength());
+        assertThat(XContentFactory.xContentType(uncompressed), equalTo(XContentType.JSON));
+    }
 
     @Test
     public void testIncludeExclude() throws Exception {

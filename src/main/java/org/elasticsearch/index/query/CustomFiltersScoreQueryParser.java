@@ -141,15 +141,15 @@ public class CustomFiltersScoreQueryParser implements QueryParser {
             throw new QueryParsingException(parseContext.index(), "[custom_filters_score] requires 'filters' field");
         }
 
-        SearchContext context = SearchContext.current();
-        if (context == null) {
-            throw new ElasticSearchIllegalStateException("No search context on going...");
-        }
         FiltersFunctionScoreQuery.FilterFunction[] filterFunctions = new FiltersFunctionScoreQuery.FilterFunction[filters.size()];
         for (int i = 0; i < filterFunctions.length; i++) {
             ScoreFunction scoreFunction;
             String script = scripts.get(i);
             if (script != null) {
+                SearchContext context = SearchContext.current();
+                if (context == null) {
+                    throw new ElasticSearchIllegalStateException("No search context on going...");
+                }
                 SearchScript searchScript = context.scriptService().search(context.lookup(), scriptLang, script, vars);
                 scoreFunction = new CustomScoreQueryParser.ScriptScoreFunction(script, vars, searchScript);
             } else {

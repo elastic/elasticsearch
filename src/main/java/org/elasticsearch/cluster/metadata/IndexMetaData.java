@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
@@ -346,7 +347,7 @@ public class IndexMetaData {
         public Builder putMapping(String type, String source) throws IOException {
             XContentParser parser = XContentFactory.xContent(source).createParser(source);
             try {
-                putMapping(new MappingMetaData(type, parser.map()));
+                putMapping(new MappingMetaData(type, parser.mapOrdered()));
             } finally {
                 parser.close();
             }
@@ -413,6 +414,8 @@ public class IndexMetaData {
             builder.field("version", indexMetaData.version());
             builder.field("state", indexMetaData.state().toString().toLowerCase());
 
+            boolean binary = params.paramAsBoolean("binary", false);
+
             builder.startObject("settings");
             for (Map.Entry<String, String> entry : indexMetaData.settings().getAsMap().entrySet()) {
                 builder.field(entry.getKey(), entry.getValue());
@@ -421,11 +424,15 @@ public class IndexMetaData {
 
             builder.startArray("mappings");
             for (Map.Entry<String, MappingMetaData> entry : indexMetaData.mappings().entrySet()) {
-                byte[] data = entry.getValue().source().uncompressed();
-                XContentParser parser = XContentFactory.xContent(data).createParser(data);
-                Map<String, Object> mapping = parser.mapOrdered();
-                parser.close();
-                builder.map(mapping);
+                if (binary) {
+                    builder.value(entry.getValue().source().compressed());
+                } else {
+                    byte[] data = entry.getValue().source().uncompressed();
+                    XContentParser parser = XContentFactory.xContent(data).createParser(data);
+                    Map<String, Object> mapping = parser.mapOrdered();
+                    parser.close();
+                    builder.map(mapping);
+                }
             }
             builder.endArray();
 
@@ -462,15 +469,33 @@ public class IndexMetaData {
                         builder.settings(settingsBuilder.build());
                     } else if ("mappings".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                            Map<String, Object> mapping = parser.mapOrdered();
-                            if (mapping.size() == 1) {
-                                String mappingType = mapping.keySet().iterator().next();
-                                builder.putMapping(new MappingMetaData(mappingType, mapping));
+                            if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
+                                builder.putMapping(new MappingMetaData(new CompressedString(parser.binaryValue())));
+                            } else {
+                                Map<String, Object> mapping = parser.mapOrdered();
+                                if (mapping.size() == 1) {
+                                    String mappingType = mapping.keySet().iterator().next();
+                                    builder.putMapping(new MappingMetaData(mappingType, mapping));
+                                }
                             }
                         }
                     } else if ("aliases".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             builder.putAlias(AliasMetaData.Builder.fromXContent(parser));
+                        }
+                    }
+                } else if (token == XContentParser.Token.START_ARRAY) {
+                    if ("mappings".equals(currentFieldName)) {
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
+                                builder.putMapping(new MappingMetaData(new CompressedString(parser.binaryValue())));
+                            } else {
+                                Map<String, Object> mapping = parser.mapOrdered();
+                                if (mapping.size() == 1) {
+                                    String mappingType = mapping.keySet().iterator().next();
+                                    builder.putMapping(new MappingMetaData(mappingType, mapping));
+                                }
+                            }
                         }
                     }
                 } else if (token.isValue()) {

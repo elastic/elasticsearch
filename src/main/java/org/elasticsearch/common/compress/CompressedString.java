@@ -40,6 +40,10 @@ public class CompressedString implements Streamable {
     CompressedString() {
     }
 
+    public CompressedString(byte[] compressed) {
+        this.bytes = compressed;
+    }
+
     public CompressedString(String str) throws IOException {
         UnicodeUtil.UTF8Result result = Unicode.unsafeFromStringAsUtf8(str);
         this.bytes = LZFEncoder.encode(result.result, result.length);

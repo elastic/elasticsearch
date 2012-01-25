@@ -19,6 +19,7 @@
 
 package org.elasticsearch.gateway.local.state.meta;
 
+import com.google.common.collect.Maps;
 import com.google.common.io.Closeables;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -42,6 +43,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -53,12 +55,23 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
 
     private volatile MetaData currentMetaData;
 
+    private final XContentType format;
+    private final ToXContent.Params formatParams;
+
     @Inject
     public LocalGatewayMetaState(Settings settings, NodeEnvironment nodeEnv, TransportNodesListGatewayMetaState nodesListGatewayMetaState) throws Exception {
         super(settings);
         this.nodeEnv = nodeEnv;
-
+        this.format = XContentType.fromRestContentType(settings.get("format", "smile"));
         nodesListGatewayMetaState.init(this);
+
+        if (this.format == XContentType.SMILE) {
+            Map<String, String> params = Maps.newHashMap();
+            params.put("binary", "true");
+            formatParams = new ToXContent.MapParams(params);
+        } else {
+            formatParams = ToXContent.EMPTY_PARAMS;
+        }
 
         try {
             pre019Upgrade();
@@ -150,9 +163,9 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
         logger.trace("[{}] writing state, reason [{}]", indexMetaData.index(), reason);
         CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
         try {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, cachedEntry.cachedBytes());
+            XContentBuilder builder = XContentFactory.contentBuilder(format, cachedEntry.cachedBytes());
             builder.startObject();
-            IndexMetaData.Builder.toXContent(indexMetaData, builder, ToXContent.EMPTY_PARAMS);
+            IndexMetaData.Builder.toXContent(indexMetaData, builder, formatParams);
             builder.endObject();
             builder.flush();
 
@@ -201,9 +214,9 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
 
         CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
         try {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, cachedEntry.cachedBytes());
+            XContentBuilder builder = XContentFactory.contentBuilder(format, cachedEntry.cachedBytes());
             builder.startObject();
-            MetaData.Builder.toXContent(globalMetaData, builder, ToXContent.EMPTY_PARAMS);
+            MetaData.Builder.toXContent(globalMetaData, builder, formatParams);
             builder.endObject();
             builder.flush();
 

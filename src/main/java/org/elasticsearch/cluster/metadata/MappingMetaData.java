@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.action.TimestampParsingException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -250,9 +251,9 @@ public class MappingMetaData {
 
     private final CompressedString source;
 
-    private final Id id;
-    private final Routing routing;
-    private final Timestamp timestamp;
+    private Id id;
+    private Routing routing;
+    private Timestamp timestamp;
 
     public MappingMetaData(DocumentMapper docMapper) {
         this.type = docMapper.type();
@@ -262,6 +263,20 @@ public class MappingMetaData {
         this.timestamp = new Timestamp(docMapper.timestampFieldMapper().enabled(), docMapper.timestampFieldMapper().path(), docMapper.timestampFieldMapper().dateTimeFormatter().format());
     }
 
+    public MappingMetaData(CompressedString mapping) throws IOException {
+        this.source = mapping;
+        Map<String, Object> mappingMap = XContentHelper.createParser(mapping.compressed(), 0, mapping.compressed().length).mapOrderedAndClose();
+        if (mappingMap.size() != 1) {
+            throw new ElasticSearchIllegalStateException("Can't derive type from mapping, no root type: " + mapping.string());
+        }
+        this.type = mappingMap.keySet().iterator().next();
+        initMappers((Map<String, Object>) mappingMap.get(this.type));
+    }
+
+    public MappingMetaData(Map<String, Object> mapping) throws IOException {
+        this(mapping.keySet().iterator().next(), mapping);
+    }
+
     public MappingMetaData(String type, Map<String, Object> mapping) throws IOException {
         this.type = type;
         this.source = new CompressedString(XContentFactory.jsonBuilder().map(mapping).string());
@@ -269,6 +284,10 @@ public class MappingMetaData {
         if (mapping.size() == 1 && mapping.containsKey(type)) {
             withoutType = (Map<String, Object>) mapping.get(type);
         }
+        initMappers(withoutType);
+    }
+
+    private void initMappers(Map<String, Object> withoutType) {
         if (withoutType.containsKey("_id")) {
             String path = null;
             Map<String, Object> routingNode = (Map<String, Object>) withoutType.get("_id");

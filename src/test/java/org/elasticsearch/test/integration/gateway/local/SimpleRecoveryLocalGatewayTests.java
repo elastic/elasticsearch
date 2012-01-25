@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.gateway.Gateway;
+import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalNode;
@@ -295,6 +296,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
                         .startObject("field2").field("type", "string").field("store", "yes").field("index", "not_analyzed").endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
+        node2.client().admin().indices().prepareAliases().addAlias("test", "test_alias", FilterBuilders.termFilter("field", "value")).execute().actionGet();
 
 
         logger.info("--> closing the second node");
@@ -318,6 +320,8 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         ClusterState state = node1.client().admin().cluster().prepareState().execute().actionGet().state();
         assertThat(state.metaData().index("test").mapping("type2"), notNullValue());
         assertThat(state.metaData().templates().get("template_1").template(), equalTo("te*"));
+        assertThat(state.metaData().index("test").aliases().get("test_alias"), notNullValue());
+        assertThat(state.metaData().index("test").aliases().get("test_alias").filter(), notNullValue());
     }
 
     @Test

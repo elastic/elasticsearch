@@ -267,6 +267,10 @@ public class JsonXContentGenerator implements XContentGenerator {
 
     @Override
     public void copyCurrentStructure(XContentParser parser) throws IOException {
+        // the start of the parser
+        if (parser.currentToken() == null) {
+            parser.nextToken();
+        }
         if (parser instanceof JsonXContentParser) {
             generator.copyCurrentStructure(((JsonXContentParser) parser).parser);
         } else {

@@ -80,12 +80,16 @@ public class IdsQueryParser implements QueryParser {
                         }
                         types.add(value);
                     }
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[ids] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("type".equals(currentFieldName) || "_type".equals(currentFieldName)) {
                     types = ImmutableList.of(parser.text());
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[ids] query does not support [" + currentFieldName + "]");
                 }
             }
         }

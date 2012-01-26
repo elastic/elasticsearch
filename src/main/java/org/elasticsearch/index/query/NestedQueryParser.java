@@ -73,6 +73,8 @@ public class NestedQueryParser implements QueryParser {
                         query = parseContext.parseInnerQuery();
                     } else if ("filter".equals(currentFieldName)) {
                         filter = parseContext.parseInnerFilter();
+                    } else {
+                        throw new QueryParsingException(parseContext.index(), "[nested] query does not support [" + currentFieldName + "]");
                     }
                 } else if (token.isValue()) {
                     if ("path".equals(currentFieldName)) {
@@ -94,6 +96,8 @@ public class NestedQueryParser implements QueryParser {
                         } else {
                             throw new QueryParsingException(parseContext.index(), "illegal score_mode for nested query [" + sScoreMode + "]");
                         }
+                    } else {
+                        throw new QueryParsingException(parseContext.index(), "[nested] query does not support [" + currentFieldName + "]");
                     }
                 }
             }

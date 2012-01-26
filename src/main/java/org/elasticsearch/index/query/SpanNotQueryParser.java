@@ -71,10 +71,14 @@ public class SpanNotQueryParser implements QueryParser {
                         throw new QueryParsingException(parseContext.index(), "spanNot [exclude] must be of type span query");
                     }
                     exclude = (SpanQuery) query;
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[span_not] query does not support [" + currentFieldName + "]");
                 }
             } else {
                 if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[span_not] query does not support [" + currentFieldName + "]");
                 }
             }
         }

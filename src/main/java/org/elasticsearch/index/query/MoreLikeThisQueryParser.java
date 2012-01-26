@@ -84,6 +84,8 @@ public class MoreLikeThisQueryParser implements QueryParser {
                     mltQuery.setPercentTermsToMatch(parser.floatValue());
                 } else if ("analyzer".equals(currentFieldName)) {
                     analyzer = parseContext.analysisService().analyzer(parser.text());
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[mlt] query does not support [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("stop_words".equals(currentFieldName) || "stopWords".equals(currentFieldName)) {
@@ -98,6 +100,8 @@ public class MoreLikeThisQueryParser implements QueryParser {
                         fields.add(parseContext.indexName(parser.text()));
                     }
                     mltQuery.setMoreLikeFields(fields.toArray(new String[fields.size()]));
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[mlt] query does not support [" + currentFieldName + "]");
                 }
             }
         }

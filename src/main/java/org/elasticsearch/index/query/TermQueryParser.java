@@ -51,7 +51,9 @@ public class TermQueryParser implements QueryParser {
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token = parser.nextToken();
-        assert token == XContentParser.Token.FIELD_NAME;
+        if (token != XContentParser.Token.FIELD_NAME) {
+            throw new QueryParsingException(parseContext.index(), "[term] query malformed, no field");
+        }
         String fieldName = parser.currentName();
 
         String value = null;
@@ -69,6 +71,8 @@ public class TermQueryParser implements QueryParser {
                         value = parser.text();
                     } else if ("boost".equals(currentFieldName)) {
                         boost = parser.floatValue();
+                    } else {
+                        throw new QueryParsingException(parseContext.index(), "[term] query does not support [" + currentFieldName + "]");
                     }
                 }
             }

@@ -119,6 +119,8 @@ public class QueryStringQueryParser implements QueryParser {
                             }
                         }
                     }
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[query_string] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("query".equals(currentFieldName)) {
@@ -164,6 +166,8 @@ public class QueryStringQueryParser implements QueryParser {
                     qpSettings.rewriteMethod(QueryParsers.parseRewriteMethod(parser.textOrNull()));
                 } else if ("minimum_should_match".equals(currentFieldName) || "minimumShouldMatch".equals(currentFieldName)) {
                     qpSettings.minimumShouldMatch(parser.textOrNull());
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[query_string] query does not support [" + currentFieldName + "]");
                 }
             }
         }

@@ -61,7 +61,9 @@ public class FieldQueryParser implements QueryParser {
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token = parser.nextToken();
-        assert token == XContentParser.Token.FIELD_NAME;
+        if (token != XContentParser.Token.FIELD_NAME) {
+            throw new QueryParsingException(parseContext.index(), "[field] query malformed, no field");
+        }
         String fieldName = parser.currentName();
 
         QueryParserSettings qpSettings = new QueryParserSettings();
@@ -113,6 +115,8 @@ public class FieldQueryParser implements QueryParser {
                         qpSettings.rewriteMethod(QueryParsers.parseRewriteMethod(parser.textOrNull()));
                     } else if ("minimum_should_match".equals(currentFieldName) || "minimumShouldMatch".equals(currentFieldName)) {
                         qpSettings.minimumShouldMatch(parser.textOrNull());
+                    } else {
+                        throw new QueryParsingException(parseContext.index(), "[field] query does not support [" + currentFieldName + "]");
                     }
                 }
             }

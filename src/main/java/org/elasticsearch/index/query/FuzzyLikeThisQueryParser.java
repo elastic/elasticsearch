@@ -41,8 +41,6 @@ import java.util.List;
  *  }
  * }
  * </pre>
- *
- *
  */
 public class FuzzyLikeThisQueryParser implements QueryParser {
 
@@ -90,6 +88,8 @@ public class FuzzyLikeThisQueryParser implements QueryParser {
                     prefixLength = parser.intValue();
                 } else if ("analyzer".equals(currentFieldName)) {
                     analyzer = parseContext.analysisService().analyzer(parser.text());
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[flt] query does not support [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("fields".equals(currentFieldName)) {
@@ -97,6 +97,8 @@ public class FuzzyLikeThisQueryParser implements QueryParser {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         fields.add(parseContext.indexName(parser.text()));
                     }
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[flt] query does not support [" + currentFieldName + "]");
                 }
             }
         }

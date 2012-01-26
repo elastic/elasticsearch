@@ -62,6 +62,8 @@ public class ExistsFilterParser implements FilterParser {
                     fieldName = parser.text();
                 } else if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[exists] filter does not support [" + currentFieldName + "]");
                 }
             }
         }

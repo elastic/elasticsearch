@@ -76,12 +76,16 @@ public class IdsFilterParser implements FilterParser {
                         }
                         types.add(value);
                     }
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[ids] filter does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("type".equals(currentFieldName) || "_type".equals(currentFieldName)) {
                     types = ImmutableList.of(parser.text());
                 } else if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[ids] filter does not support [" + currentFieldName + "]");
                 }
             }
         }

@@ -44,8 +44,6 @@ import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameFi
  *     "name.lon" : 1.2,
  * }
  * </pre>
- *
- *
  */
 public class GeoDistanceFilterParser implements FilterParser {
 
@@ -108,6 +106,8 @@ public class GeoDistanceFilterParser implements FilterParser {
                             double[] values = GeoHashUtils.decode(parser.text());
                             lat = values[0];
                             lon = values[1];
+                        } else {
+                            throw new QueryParsingException(parseContext.index(), "[geo_distance] filter does not support [" + currentFieldName + "]");
                         }
                     }
                 }

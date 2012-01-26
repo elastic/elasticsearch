@@ -74,6 +74,8 @@ public class SpanTermQueryParser implements QueryParser {
                         value = parser.text();
                     } else if ("boost".equals(currentFieldName)) {
                         boost = parser.floatValue();
+                    } else {
+                        throw new QueryParsingException(parseContext.index(), "[span_term] query does not support [" + currentFieldName + "]");
                     }
                 }
             }

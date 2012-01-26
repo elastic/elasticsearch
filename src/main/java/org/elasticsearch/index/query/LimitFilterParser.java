@@ -52,6 +52,8 @@ public class LimitFilterParser implements FilterParser {
             } else if (token.isValue()) {
                 if ("value".equals(currentFieldName)) {
                     limit = parser.intValue();
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[limit] filter does not support [" + currentFieldName + "]");
                 }
             }
         }

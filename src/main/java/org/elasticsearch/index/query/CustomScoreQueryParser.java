@@ -70,6 +70,8 @@ public class CustomScoreQueryParser implements QueryParser {
                     query = parseContext.parseInnerQuery();
                 } else if ("params".equals(currentFieldName)) {
                     vars = parser.map();
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[custom_score] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("script".equals(currentFieldName)) {
@@ -78,6 +80,8 @@ public class CustomScoreQueryParser implements QueryParser {
                     scriptLang = parser.text();
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[custom_score] query does not support [" + currentFieldName + "]");
                 }
             }
         }

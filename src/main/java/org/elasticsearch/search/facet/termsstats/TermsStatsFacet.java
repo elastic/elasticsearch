@@ -62,20 +62,9 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
             @Override
             public int compare(Entry o1, Entry o2) {
                 // push nulls to the end
-                if (o1 == null) {
-                    return 1;
-                }
-                if (o2 == null) {
-                    return -1;
-                }
-                int i = (o2.count() < o1.count() ? -1 : (o1.count() == o2.count() ? 0 : 1));
-                if (i == 0) {
-                    i = o2.compareTo(o1);
-                    if (i == 0) {
-                        i = System.identityHashCode(o2) - System.identityHashCode(o1);
-                    }
-                }
-                return i;
+                long c1 = (o1 == null) ? Long.MIN_VALUE : o1.count();
+                long c2 = (o2 == null) ? Long.MIN_VALUE : o2.count();
+                return -Long.compare(c1, c2);
             }
         }),
         /**
@@ -85,13 +74,6 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
 
             @Override
             public int compare(Entry o1, Entry o2) {
-                // push nulls to the end
-                if (o1 == null) {
-                    return 1;
-                }
-                if (o2 == null) {
-                    return -1;
-                }
                 return -COUNT.comparator().compare(o1, o2);
             }
         }),
@@ -103,33 +85,25 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
             @Override
             public int compare(Entry o1, Entry o2) {
                 // push nulls to the end
+                if (o1 == null && o2 == null) {
+                    return 0;
+                }
                 if (o1 == null) {
                     return 1;
                 }
                 if (o2 == null) {
                     return -1;
                 }
-                int i = o1.compareTo(o2);
-                if (i == 0) {
-                    i = COUNT.comparator().compare(o1, o2);
-                }
-                return i;
+                int result = o1.compareTo(o2);
+                return (result == 0) ? COUNT.comparator().compare(o1, o2) : result;
             }
         }),
         /**
          * Order by the terms.
          */
         REVERSE_TERM((byte) 3, new Comparator<Entry>() {
-
             @Override
             public int compare(Entry o1, Entry o2) {
-                // push nulls to the end
-                if (o1 == null) {
-                    return 1;
-                }
-                if (o2 == null) {
-                    return -1;
-                }
                 return -TERM.comparator().compare(o1, o2);
             }
         }),
@@ -138,32 +112,16 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
             @Override
             public int compare(Entry o1, Entry o2) {
                 // push nulls to the end
-                if (o1 == null) {
-                    return 1;
-                }
-                if (o2 == null) {
-                    return -1;
-                }
-                if (o2.total() < o1.total()) {
-                    return -1;
-                } else if (o2.total() == o1.total()) {
-                    return COUNT.comparator().compare(o1, o2);
-                } else {
-                    return 1;
-                }
+                double m1 = (o1 == null) ? Double.MIN_VALUE : o1.total();
+                double m2 = (o2 == null) ? Double.MIN_VALUE : o2.total();
+                int result = -Double.compare(m1, m2);
+                return (result == 0) ? COUNT.comparator().compare(o1, o2) : result;
             }
         }),
 
         REVERSE_TOTAL((byte) 5, new Comparator<Entry>() {
             @Override
             public int compare(Entry o1, Entry o2) {
-                // push nulls to the end
-                if (o1 == null) {
-                    return 1;
-                }
-                if (o2 == null) {
-                    return -1;
-                }
                 return -TOTAL.comparator().compare(o1, o2);
             }
         }),
@@ -172,31 +130,15 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
             @Override
             public int compare(Entry o1, Entry o2) {
                 // push nulls to the end
-                if (o1 == null) {
-                    return 1;
-                }
-                if (o2 == null) {
-                    return -1;
-                }
-                if (o1.min() < o2.min()) {
-                    return -1;
-                } else if (o1.min() == o2.min()) {
-                    return COUNT.comparator().compare(o1, o2);
-                } else {
-                    return 1;
-                }
+                double m1 = (o1 == null) ? Double.MAX_VALUE : o1.min();
+                double m2 = (o2 == null) ? Double.MAX_VALUE : o2.min();
+                int result = Double.compare(m1, m2);
+                return (result == 0) ? COUNT.comparator().compare(o1, o2) : result;
             }
         }),
         REVERSE_MIN((byte) 7, new Comparator<Entry>() {
             @Override
             public int compare(Entry o1, Entry o2) {
-                // push nulls to the end
-                if (o1 == null) {
-                    return 1;
-                }
-                if (o2 == null) {
-                    return -1;
-                }
                 return -MIN.comparator().compare(o1, o2);
             }
         }),
@@ -204,31 +146,15 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
             @Override
             public int compare(Entry o1, Entry o2) {
                 // push nulls to the end
-                if (o1 == null) {
-                    return 1;
-                }
-                if (o2 == null) {
-                    return -1;
-                }
-                if (o2.max() < o1.max()) {
-                    return -1;
-                } else if (o1.max() == o2.max()) {
-                    return COUNT.comparator().compare(o1, o2);
-                } else {
-                    return 1;
-                }
+                double m1 = (o1 == null) ? Double.MIN_VALUE : o1.max();
+                double m2 = (o2 == null) ? Double.MIN_VALUE : o2.max();
+                int result = -Double.compare(m1, m2);
+                return (result == 0) ? COUNT.comparator().compare(o1, o2) : result;
             }
         }),
         REVERSE_MAX((byte) 9, new Comparator<Entry>() {
             @Override
             public int compare(Entry o1, Entry o2) {
-                // push nulls to the end
-                if (o1 == null) {
-                    return 1;
-                }
-                if (o2 == null) {
-                    return -1;
-                }
                 return -MAX.comparator().compare(o1, o2);
             }
         }),;

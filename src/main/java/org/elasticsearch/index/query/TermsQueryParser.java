@@ -44,8 +44,6 @@ import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameQu
  *  "minimum_match" : 1
  * }
  * </pre>
- *
- *
  */
 public class TermsQueryParser implements QueryParser {
 
@@ -92,6 +90,8 @@ public class TermsQueryParser implements QueryParser {
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 }
+            } else {
+                throw new QueryParsingException(parseContext.index(), "[terms] query does not support [" + currentFieldName + "]");
             }
         }
 

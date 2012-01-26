@@ -155,6 +155,8 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
                     normalizeLon = parser.booleanValue();
                 } else if ("type".equals(currentFieldName)) {
                     type = parser.text();
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[qeo_bbox] filter does not support [" + currentFieldName + "]");
                 }
             }
         }

@@ -55,7 +55,9 @@ public class TextQueryParser implements QueryParser {
         }
 
         XContentParser.Token token = parser.nextToken();
-        assert token == XContentParser.Token.FIELD_NAME;
+        if (token != XContentParser.Token.FIELD_NAME) {
+            throw new QueryParsingException(parseContext.index(), "[text] query malformed, no field");
+        }
         String fieldName = parser.currentName();
 
         String text = null;
@@ -106,6 +108,8 @@ public class TextQueryParser implements QueryParser {
                         } else {
                             throw new QueryParsingException(parseContext.index(), "text query requires operator to be either 'and' or 'or', not [" + op + "]");
                         }
+                    } else {
+                        throw new QueryParsingException(parseContext.index(), "[text] query does not support [" + currentFieldName + "]");
                     }
                 }
             }

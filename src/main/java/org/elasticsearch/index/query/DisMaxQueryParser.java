@@ -63,6 +63,8 @@ public class DisMaxQueryParser implements QueryParser {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("queries".equals(currentFieldName)) {
                     queries.add(parseContext.parseInnerQuery());
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[dis_max] query does not support [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("queries".equals(currentFieldName)) {
@@ -70,12 +72,16 @@ public class DisMaxQueryParser implements QueryParser {
                         queries.add(parseContext.parseInnerQuery());
                         token = parser.nextToken();
                     }
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[dis_max] query does not support [" + currentFieldName + "]");
                 }
             } else {
                 if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else if ("tie_breaker".equals(currentFieldName) || "tieBreaker".equals(currentFieldName)) {
                     tieBreaker = parser.floatValue();
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[dis_max] query does not support [" + currentFieldName + "]");
                 }
             }
         }

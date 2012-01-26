@@ -63,6 +63,8 @@ public class IndicesQueryParser implements QueryParser {
                     query = parseContext.parseInnerQuery();
                 } else if ("no_match_query".equals(currentFieldName)) {
                     noMatchQuery = parseContext.parseInnerQuery();
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[indices] query does not support [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("indices".equals(currentFieldName)) {
@@ -73,6 +75,8 @@ public class IndicesQueryParser implements QueryParser {
                         }
                         indices.add(value);
                     }
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[indices] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("index".equals(currentFieldName)) {
@@ -84,6 +88,8 @@ public class IndicesQueryParser implements QueryParser {
                     } else if ("none".equals(type)) {
                         noMatchQuery = MatchNoDocsQuery.INSTANCE;
                     }
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[indices] query does not support [" + currentFieldName + "]");
                 }
             }
         }

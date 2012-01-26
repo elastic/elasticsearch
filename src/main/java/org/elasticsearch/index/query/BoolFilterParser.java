@@ -67,6 +67,8 @@ public class BoolFilterParser implements FilterParser {
                     boolFilter.add(new FilterClause(parseContext.parseInnerFilter(), BooleanClause.Occur.MUST_NOT));
                 } else if ("should".equals(currentFieldName)) {
                     boolFilter.add(new FilterClause(parseContext.parseInnerFilter(), BooleanClause.Occur.SHOULD));
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[bool] filter does not support [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("must".equals(currentFieldName)) {
@@ -81,6 +83,8 @@ public class BoolFilterParser implements FilterParser {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         boolFilter.add(new FilterClause(parseContext.parseInnerFilter(), BooleanClause.Occur.SHOULD));
                     }
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[bool] filter does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("_cache".equals(currentFieldName)) {
@@ -89,6 +93,8 @@ public class BoolFilterParser implements FilterParser {
                     filterName = parser.text();
                 } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
                     cacheKey = new CacheKeyFilter.Key(parser.text());
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[bool] filter does not support [" + currentFieldName + "]");
                 }
             }
         }

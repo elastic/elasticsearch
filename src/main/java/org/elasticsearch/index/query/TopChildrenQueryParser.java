@@ -66,6 +66,8 @@ public class TopChildrenQueryParser implements QueryParser {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("query".equals(currentFieldName)) {
                     query = parseContext.parseInnerQuery();
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[top_children] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("type".equals(currentFieldName)) {
@@ -80,6 +82,8 @@ public class TopChildrenQueryParser implements QueryParser {
                     factor = parser.intValue();
                 } else if ("incremental_factor".equals(currentFieldName) || "incrementalFactor".equals(currentFieldName)) {
                     incrementalFactor = parser.intValue();
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[top_children] query does not support [" + currentFieldName + "]");
                 }
             }
         }

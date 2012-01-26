@@ -72,6 +72,8 @@ public class BoolQueryParser implements QueryParser {
                     clauses.add(new BooleanClause(parseContext.parseInnerQuery(), BooleanClause.Occur.MUST_NOT));
                 } else if ("should".equals(currentFieldName)) {
                     clauses.add(new BooleanClause(parseContext.parseInnerQuery(), BooleanClause.Occur.SHOULD));
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[bool] query does not support [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("must".equals(currentFieldName)) {
@@ -86,6 +88,8 @@ public class BoolQueryParser implements QueryParser {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         clauses.add(new BooleanClause(parseContext.parseInnerQuery(), BooleanClause.Occur.SHOULD));
                     }
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "bool query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("disable_coord".equals(currentFieldName) || "disableCoord".equals(currentFieldName)) {
@@ -96,6 +100,8 @@ public class BoolQueryParser implements QueryParser {
                     minimumNumberShouldMatch = parser.intValue();
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[bool] query does not support [" + currentFieldName + "]");
                 }
             }
         }

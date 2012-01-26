@@ -161,14 +161,20 @@ public class QueryParseContext {
         XContentParser.Token token;
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
             token = parser.nextToken();
-            assert token == XContentParser.Token.START_OBJECT;
+            if (token != XContentParser.Token.START_OBJECT) {
+                throw new QueryParsingException(index, "[_na] query malformed, must start with start_object");
+            }
         }
         token = parser.nextToken();
-        assert token == XContentParser.Token.FIELD_NAME;
+        if (token != XContentParser.Token.FIELD_NAME) {
+            throw new QueryParsingException(index, "[_na] query malformed, no field after start_object");
+        }
         String queryName = parser.currentName();
         // move to the next START_OBJECT
         token = parser.nextToken();
-        assert token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY;
+        if (token != XContentParser.Token.START_OBJECT && token != XContentParser.Token.START_ARRAY) {
+            throw new QueryParsingException(index, "[_na] query malformed, no field after start_object");
+        }
 
         QueryParser queryParser = indexQueryParser.queryParser(queryName);
         if (queryParser == null) {
@@ -187,14 +193,20 @@ public class QueryParseContext {
         XContentParser.Token token;
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
             token = parser.nextToken();
-            assert token == XContentParser.Token.START_OBJECT;
+            if (token != XContentParser.Token.START_OBJECT) {
+                throw new QueryParsingException(index, "[_na] filter malformed, must start with start_object");
+            }
         }
         token = parser.nextToken();
-        assert token == XContentParser.Token.FIELD_NAME;
+        if (token != XContentParser.Token.FIELD_NAME) {
+            throw new QueryParsingException(index, "[_na] filter malformed, no field after start_object");
+        }
         String filterName = parser.currentName();
         // move to the next START_OBJECT or START_ARRAY
         token = parser.nextToken();
-        assert token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY;
+        if (token != XContentParser.Token.START_OBJECT && token != XContentParser.Token.START_ARRAY) {
+            throw new QueryParsingException(index, "[_na] filter malformed, no field after start_object");
+        }
 
         FilterParser filterParser = indexQueryParser.filterParser(filterName);
         if (filterParser == null) {

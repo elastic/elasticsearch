@@ -33,6 +33,9 @@ set JAVA_OPTS=%JAVA_OPTS% -XX:MaxTenuringThreshold=1
 set JAVA_OPTS=%JAVA_OPTS% -XX:CMSInitiatingOccupancyFraction=75
 set JAVA_OPTS=%JAVA_OPTS% -XX:+UseCMSInitiatingOccupancyOnly
 
+REM When running under Java 7
+REM JAVA_OPTS=%JAVA_OPTS% -XX:+UseCondCardMark
+
 REM GC logging options -- uncomment to enable
 REM JAVA_OPTS=%JAVA_OPTS% -XX:+PrintGCDetails
 REM JAVA_OPTS=%JAVA_OPTS% -XX:+PrintGCTimeStamps

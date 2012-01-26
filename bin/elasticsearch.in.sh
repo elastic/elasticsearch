@@ -32,6 +32,9 @@ JAVA_OPTS="$JAVA_OPTS -XX:MaxTenuringThreshold=1"
 JAVA_OPTS="$JAVA_OPTS -XX:CMSInitiatingOccupancyFraction=75"
 JAVA_OPTS="$JAVA_OPTS -XX:+UseCMSInitiatingOccupancyOnly"
 
+# When running under Java 7
+#JAVA_OPTS="$JAVA_OPTS -XX:+UseCondCardMark"
+
 # GC logging options -- uncomment to enable
 # JAVA_OPTS="$JAVA_OPTS -XX:+PrintGCDetails"
 # JAVA_OPTS="$JAVA_OPTS -XX:+PrintGCTimeStamps"

@@ -91,7 +91,16 @@ public class TermQueryParser implements QueryParser {
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
         if (smartNameFieldMappers != null) {
             if (smartNameFieldMappers.hasMapper()) {
-                query = smartNameFieldMappers.mapper().fieldQuery(value, parseContext);
+                if (smartNameFieldMappers.hasDocMapper()) {
+                    String[] previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{smartNameFieldMappers.docMapper().type()});
+                    try {
+                        query = smartNameFieldMappers.mapper().fieldQuery(value, parseContext);
+                    } finally {
+                        QueryParseContext.setTypes(previousTypes);
+                    }
+                } else {
+                    query = smartNameFieldMappers.mapper().fieldQuery(value, parseContext);
+                }
             }
         }
         if (query == null) {

@@ -162,7 +162,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         if (indexed() || context == null) {
             return super.fieldQuery(value, context);
         }
-        UidFilter filter = new UidFilter(context.mapperService().types(), ImmutableList.of(value), context.indexCache().bloomCache());
+        UidFilter filter = new UidFilter(context.queryTypes(), ImmutableList.of(value), context.indexCache().bloomCache());
         // no need for constant score filter, since we don't cache the filter, and it always takes deletes into account
         return new ConstantScoreQuery(filter);
     }
@@ -172,7 +172,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         if (indexed() || context == null) {
             return super.fieldFilter(value, context);
         }
-        return new UidFilter(context.mapperService().types(), ImmutableList.of(value), context.indexCache().bloomCache());
+        return new UidFilter(context.queryTypes(), ImmutableList.of(value), context.indexCache().bloomCache());
     }
 
     @Override

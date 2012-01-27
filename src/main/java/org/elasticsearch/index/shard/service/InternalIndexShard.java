@@ -52,6 +52,7 @@ import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.query.IndexQueryParserService;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.nested.IncludeAllChildrenQuery;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
@@ -395,7 +396,12 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         if (querySourceLength == 0) {
             query = Queries.MATCH_ALL_QUERY;
         } else {
-            query = queryParserService.parse(querySource, querySourceOffset, querySourceLength).query();
+            try {
+                QueryParseContext.setTypes(types);
+                query = queryParserService.parse(querySource, querySourceOffset, querySourceLength).query();
+            } finally {
+                QueryParseContext.removeTypes();
+            }
         }
         // wrap it in filter, cache it, and constant score it
         // Don't cache it, since it might be very different queries each time...

@@ -116,7 +116,16 @@ public class TextQueryParser {
         }
 
         if (mapper != null && mapper.useFieldQueryWithQueryString()) {
-            return wrapSmartNameQuery(mapper.fieldQuery(text, parseContext), smartNameFieldMappers, parseContext);
+            if (smartNameFieldMappers.hasDocMapper()) {
+                String[] previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{smartNameFieldMappers.docMapper().type()});
+                try {
+                    return wrapSmartNameQuery(mapper.fieldQuery(text, parseContext), smartNameFieldMappers, parseContext);
+                } finally {
+                    QueryParseContext.setTypes(previousTypes);
+                }
+            } else {
+                return wrapSmartNameQuery(mapper.fieldQuery(text, parseContext), smartNameFieldMappers, parseContext);
+            }
         }
 
         Analyzer analyzer = null;

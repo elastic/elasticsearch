@@ -131,7 +131,16 @@ public class MapperQueryParser extends QueryParser {
                 if (currentMapper != null) {
                     Query query = null;
                     if (currentMapper.useFieldQueryWithQueryString()) {
-                        query = currentMapper.fieldQuery(queryText, parseContext);
+                        if (fieldMappers.hasDocMapper()) {
+                            String[] previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{fieldMappers.docMapper().type()});
+                            try {
+                                query = currentMapper.fieldQuery(queryText, parseContext);
+                            } finally {
+                                QueryParseContext.setTypes(previousTypes);
+                            }
+                        } else {
+                            query = currentMapper.fieldQuery(queryText, parseContext);
+                        }
                     }
                     if (query == null) {
                         query = super.getFieldQuery(currentMapper.names().indexName(), queryText, quoted);

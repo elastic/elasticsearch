@@ -25,11 +25,9 @@ import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.search.UidFilter;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
@@ -95,12 +93,7 @@ public class IdsFilterParser implements FilterParser {
         }
 
         if (types == null || types.isEmpty()) {
-            SearchContext searchContext = SearchContext.current();
-            if (searchContext.hasTypes()) {
-                types = Arrays.asList(searchContext.types());
-            } else {
-                types = parseContext.mapperService().types();
-            }
+            types = parseContext.queryTypes();
         } else if (types.size() == 1 && Iterables.getFirst(types, null).equals("_all")) {
             types = parseContext.mapperService().types();
         }

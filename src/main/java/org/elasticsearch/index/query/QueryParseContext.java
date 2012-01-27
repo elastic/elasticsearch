@@ -42,6 +42,8 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Map;
 
 /**
@@ -256,5 +258,16 @@ public class QueryParseContext {
 
     public MapperService.SmartNameObjectMapper smartObjectMapper(String name) {
         return indexQueryParser.mapperService.smartNameObjectMapper(name, getTypes());
+    }
+
+    /**
+     * Returns the narrowed down explicit types, or, if not set, all types.
+     */
+    public Collection<String> queryTypes() {
+        String[] types = getTypes();
+        if (types == null || types.length == 0) {
+            return mapperService().types();
+        }
+        return Arrays.asList(types);
     }
 }

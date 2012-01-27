@@ -49,51 +49,54 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
      * The terms and counts.
      */
     List<? extends TermsStatsFacet.Entry> getEntries();
+    
+    public abstract class NullToEndComparator implements Comparator<Entry> {
+        @Override
+        public int compare(Entry o1, Entry o2) {
+            if (o1 == null) {
+                if (o2 == null) {
+                    return 0;
+                }
+                return 1;
+            } else if (o2 == null) {
+                return -1;
+            }
 
+            return compareByValue(o1, o2);
+        }
+        
+        public abstract int compareByValue(Entry o1, Entry o2);
+    }
+    
     /**
      * Controls how the terms facets are ordered.
      */
     public static enum ComparatorType {
+
         /**
          * Order by the (higher) count of each term.
          */
-        COUNT((byte) 0, new Comparator<Entry>() {
-
+        COUNT((byte) 0, new NullToEndComparator() {
             @Override
-            public int compare(Entry o1, Entry o2) {
-                // push nulls to the end
-                long c1 = (o1 == null) ? Long.MIN_VALUE : o1.count();
-                long c2 = (o2 == null) ? Long.MIN_VALUE : o2.count();
-                return -Long.compare(c1, c2);
+            public int compareByValue(Entry o1, Entry o2) {
+                return -Long.compare(o1.count(), o2.count());
             }
         }),
         /**
          * Order by the (lower) count of each term.
          */
-        REVERSE_COUNT((byte) 1, new Comparator<Entry>() {
-
+        REVERSE_COUNT((byte) 1, new NullToEndComparator() {
             @Override
-            public int compare(Entry o1, Entry o2) {
+            public int compareByValue(Entry o1, Entry o2) {
                 return -COUNT.comparator().compare(o1, o2);
             }
         }),
         /**
          * Order by the terms.
          */
-        TERM((byte) 2, new Comparator<Entry>() {
-
+        TERM((byte) 2, new NullToEndComparator() {
             @Override
-            public int compare(Entry o1, Entry o2) {
-                // push nulls to the end
-                if (o1 == null && o2 == null) {
-                    return 0;
-                }
-                if (o1 == null) {
-                    return 1;
-                }
-                if (o2 == null) {
-                    return -1;
-                }
+            public int compareByValue(Entry o1, Entry o2) {
                 int result = o1.compareTo(o2);
                 return (result == 0) ? COUNT.comparator().compare(o1, o2) : result;
             }
@@ -101,60 +104,51 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
         /**
          * Order by the terms.
          */
-        REVERSE_TERM((byte) 3, new Comparator<Entry>() {
+        REVERSE_TERM((byte) 3, new NullToEndComparator() {
             @Override
-            public int compare(Entry o1, Entry o2) {
+            public int compareByValue(Entry o1, Entry o2) {
                 return -TERM.comparator().compare(o1, o2);
             }
         }),
 
-        TOTAL((byte) 4, new Comparator<Entry>() {
+        TOTAL((byte) 4, new NullToEndComparator() {
             @Override
-            public int compare(Entry o1, Entry o2) {
-                // push nulls to the end
-                double m1 = (o1 == null) ? Double.MIN_VALUE : o1.total();
-                double m2 = (o2 == null) ? Double.MIN_VALUE : o2.total();
-                int result = -Double.compare(m1, m2);
+            public int compareByValue(Entry o1, Entry o2) {
+                int result = -Double.compare(o1.total(), o2.total());
                 return (result == 0) ? COUNT.comparator().compare(o1, o2) : result;
             }
         }),
 
-        REVERSE_TOTAL((byte) 5, new Comparator<Entry>() {
+        REVERSE_TOTAL((byte) 5, new NullToEndComparator() {
             @Override
-            public int compare(Entry o1, Entry o2) {
+            public int compareByValue(Entry o1, Entry o2) {
                 return -TOTAL.comparator().compare(o1, o2);
             }
         }),
 
-        MIN((byte) 6, new Comparator<Entry>() {
+        MIN((byte) 6, new NullToEndComparator() {
             @Override
-            public int compare(Entry o1, Entry o2) {
-                // push nulls to the end
-                double m1 = (o1 == null) ? Double.MAX_VALUE : o1.min();
-                double m2 = (o2 == null) ? Double.MAX_VALUE : o2.min();
-                int result = Double.compare(m1, m2);
+            public int compareByValue(Entry o1, Entry o2) {
+                int result = Double.compare(o1.min(), o2.min());
                 return (result == 0) ? COUNT.comparator().compare(o1, o2) : result;
             }
         }),
-        REVERSE_MIN((byte) 7, new Comparator<Entry>() {
+        REVERSE_MIN((byte) 7, new NullToEndComparator() {
             @Override
-            public int compare(Entry o1, Entry o2) {
+            public int compareByValue(Entry o1, Entry o2) {
                 return -MIN.comparator().compare(o1, o2);
             }
         }),
-        MAX((byte) 8, new Comparator<Entry>() {
+        MAX((byte) 8, new NullToEndComparator() {
             @Override
-            public int compare(Entry o1, Entry o2) {
-                // push nulls to the end
-                double m1 = (o1 == null) ? Double.MIN_VALUE : o1.max();
-                double m2 = (o2 == null) ? Double.MIN_VALUE : o2.max();
-                int result = -Double.compare(m1, m2);
+            public int compareByValue(Entry o1, Entry o2) {
+                int result = -Double.compare(o1.max(), o2.max());
                 return (result == 0) ? COUNT.comparator().compare(o1, o2) : result;
             }
         }),
-        REVERSE_MAX((byte) 9, new Comparator<Entry>() {
+        REVERSE_MAX((byte) 9, new NullToEndComparator() {
             @Override
-            public int compare(Entry o1, Entry o2) {
+            public int compareByValue(Entry o1, Entry o2) {
                 return -MAX.comparator().compare(o1, o2);
             }
         }),;

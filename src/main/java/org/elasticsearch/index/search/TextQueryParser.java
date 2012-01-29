@@ -106,13 +106,9 @@ public class TextQueryParser {
         FieldMapper mapper = null;
         String field = fieldName;
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
-        if (smartNameFieldMappers != null) {
-            if (smartNameFieldMappers.hasMapper()) {
-                mapper = smartNameFieldMappers.mapper();
-                if (mapper != null) {
-                    field = mapper.names().indexName();
-                }
-            }
+        if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
+            mapper = smartNameFieldMappers.mapper();
+            field = mapper.names().indexName();
         }
 
         if (mapper != null && mapper.useFieldQueryWithQueryString()) {

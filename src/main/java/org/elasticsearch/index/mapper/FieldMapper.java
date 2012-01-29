@@ -24,6 +24,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.field.data.FieldDataType;
@@ -172,6 +173,10 @@ public interface FieldMapper<T> {
     Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions);
 
     Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions);
+
+    Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context);
+
+    Filter prefixFilter(String value, @Nullable QueryParseContext context);
 
     /**
      * A term query to use when parsing a query string. Can return <tt>null</tt>.

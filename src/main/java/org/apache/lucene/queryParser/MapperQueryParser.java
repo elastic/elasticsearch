@@ -214,12 +214,12 @@ public class MapperQueryParser extends QueryParser {
                         }
                     }
                     if (query == null) {
-                        query = super.getPrefixQuery(currentMapper.names().indexName(), termStr);
+                        query = getPossiblyAnalyzedPrefixQuery(currentMapper.names().indexName(), termStr);
                     }
                     return wrapSmartNameQuery(query, fieldMappers, parseContext);
                 }
             }
-            return super.getPrefixQuery(field, termStr);
+            return getPossiblyAnalyzedPrefixQuery(field, termStr);
         } finally {
             analyzer = oldAnalyzer;
         }

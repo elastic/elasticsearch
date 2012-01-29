@@ -126,9 +126,6 @@ public class NestedQueryParser implements QueryParser {
 
             Filter childFilter = parseContext.cacheFilter(objectMapper.nestedTypeFilter(), null);
             usAsParentFilter.filter = childFilter;
-            if (usAsParentFilter.filter == null) {
-                System.out.println("HELLO");
-            }
             // wrap the child query to only work on the nested path type
             query = new FilteredQuery(query, childFilter);
 

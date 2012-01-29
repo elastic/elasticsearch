@@ -75,10 +75,8 @@ public class MissingFilterParser implements FilterParser {
 
         Filter filter = null;
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
-        if (smartNameFieldMappers != null) {
-            if (smartNameFieldMappers.hasMapper()) {
-                filter = smartNameFieldMappers.mapper().rangeFilter(null, null, true, true);
-            }
+        if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
+            filter = smartNameFieldMappers.mapper().rangeFilter(null, null, true, true);
         }
         if (filter == null) {
             filter = new TermRangeFilter(fieldName, null, null, true, true);

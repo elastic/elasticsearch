@@ -97,25 +97,33 @@ public class TermsQueryParser implements QueryParser {
 
         FieldMapper mapper = null;
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
-        if (smartNameFieldMappers != null) {
-            if (smartNameFieldMappers.hasMapper()) {
-                mapper = smartNameFieldMappers.mapper();
+        String[] previousTypes = null;
+        if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
+            mapper = smartNameFieldMappers.mapper();
+            if (smartNameFieldMappers.hasDocMapper()) {
+                previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{smartNameFieldMappers.docMapper().type()});
             }
         }
 
-        BooleanQuery query = new BooleanQuery(disableCoord);
-        for (String value : values) {
-            if (mapper != null) {
-                query.add(new BooleanClause(mapper.fieldQuery(value, parseContext), BooleanClause.Occur.SHOULD));
-            } else {
-                query.add(new TermQuery(new Term(fieldName, value)), BooleanClause.Occur.SHOULD);
+        try {
+            BooleanQuery query = new BooleanQuery(disableCoord);
+            for (String value : values) {
+                if (mapper != null) {
+                    query.add(new BooleanClause(mapper.fieldQuery(value, parseContext), BooleanClause.Occur.SHOULD));
+                } else {
+                    query.add(new TermQuery(new Term(fieldName, value)), BooleanClause.Occur.SHOULD);
+                }
+            }
+            query.setBoost(boost);
+            if (minimumNumberShouldMatch != -1) {
+                query.setMinimumNumberShouldMatch(minimumNumberShouldMatch);
+            }
+            return wrapSmartNameQuery(optimizeQuery(fixNegativeQueryIfNeeded(query)), smartNameFieldMappers, parseContext);
+        } finally {
+            if (smartNameFieldMappers != null && smartNameFieldMappers.hasDocMapper()) {
+                QueryParseContext.setTypes(previousTypes);
             }
         }
-        query.setBoost(boost);
-        if (minimumNumberShouldMatch != -1) {
-            query.setMinimumNumberShouldMatch(minimumNumberShouldMatch);
-        }
-        return wrapSmartNameQuery(optimizeQuery(fixNegativeQueryIfNeeded(query)), smartNameFieldMappers, parseContext);
     }
 }
 

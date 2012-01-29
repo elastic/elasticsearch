@@ -190,7 +190,6 @@ public class MapperQueryParser extends QueryParser {
 
     @Override
     protected Query getPrefixQuery(String field, String termStr) throws ParseException {
-        String indexedNameField = field;
         currentMapper = null;
         Analyzer oldAnalyzer = analyzer;
         try {
@@ -201,11 +200,26 @@ public class MapperQueryParser extends QueryParser {
                 }
                 currentMapper = fieldMappers.fieldMappers().mapper();
                 if (currentMapper != null) {
-                    indexedNameField = currentMapper.names().indexName();
+                    Query query = null;
+                    if (currentMapper.useFieldQueryWithQueryString()) {
+                        if (fieldMappers.hasDocMapper()) {
+                            String[] previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{fieldMappers.docMapper().type()});
+                            try {
+                                query = currentMapper.prefixQuery(termStr, multiTermRewriteMethod, parseContext);
+                            } finally {
+                                QueryParseContext.setTypes(previousTypes);
+                            }
+                        } else {
+                            query = currentMapper.prefixQuery(termStr, multiTermRewriteMethod, parseContext);
+                        }
+                    }
+                    if (query == null) {
+                        query = super.getPrefixQuery(currentMapper.names().indexName(), termStr);
+                    }
+                    return wrapSmartNameQuery(query, fieldMappers, parseContext);
                 }
-                return wrapSmartNameQuery(getPossiblyAnalyzedPrefixQuery(indexedNameField, termStr), fieldMappers, parseContext);
             }
-            return getPossiblyAnalyzedPrefixQuery(indexedNameField, termStr);
+            return super.getPrefixQuery(field, termStr);
         } finally {
             analyzer = oldAnalyzer;
         }

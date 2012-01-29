@@ -381,6 +381,20 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
     }
 
     @Override
+    public Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
+        PrefixQuery query = new PrefixQuery(names().createIndexNameTerm(indexedValue(value)));
+        if (method != null) {
+            query.setRewriteMethod(method);
+        }
+        return query;
+    }
+
+    @Override
+    public Filter prefixFilter(String value, @Nullable QueryParseContext context) {
+        return new PrefixFilter(names().createIndexNameTerm(indexedValue(value)));
+    }
+
+    @Override
     public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
         return new TermRangeQuery(names.indexName(),
                 lowerTerm == null ? null : indexedValue(lowerTerm),

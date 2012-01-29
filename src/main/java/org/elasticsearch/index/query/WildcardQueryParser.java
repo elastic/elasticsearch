@@ -91,11 +91,9 @@ public class WildcardQueryParser implements QueryParser {
         }
 
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
-        if (smartNameFieldMappers != null) {
-            if (smartNameFieldMappers.hasMapper()) {
-                fieldName = smartNameFieldMappers.mapper().names().indexName();
-                value = smartNameFieldMappers.mapper().indexedValue(value);
-            }
+        if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
+            fieldName = smartNameFieldMappers.mapper().names().indexName();
+            value = smartNameFieldMappers.mapper().indexedValue(value);
         }
 
         WildcardQuery query = new WildcardQuery(new Term(fieldName, value));

@@ -86,18 +86,16 @@ public class TermFilterParser implements FilterParser {
 
         Filter filter = null;
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
-        if (smartNameFieldMappers != null) {
-            if (smartNameFieldMappers.hasMapper()) {
-                if (smartNameFieldMappers.hasDocMapper()) {
-                    String[] previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{smartNameFieldMappers.docMapper().type()});
-                    try {
-                        filter = smartNameFieldMappers.mapper().fieldFilter(value, parseContext);
-                    } finally {
-                        QueryParseContext.setTypes(previousTypes);
-                    }
-                } else {
+        if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
+            if (smartNameFieldMappers.hasDocMapper()) {
+                String[] previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{smartNameFieldMappers.docMapper().type()});
+                try {
                     filter = smartNameFieldMappers.mapper().fieldFilter(value, parseContext);
+                } finally {
+                    QueryParseContext.setTypes(previousTypes);
                 }
+            } else {
+                filter = smartNameFieldMappers.mapper().fieldFilter(value, parseContext);
             }
         }
         if (filter == null) {

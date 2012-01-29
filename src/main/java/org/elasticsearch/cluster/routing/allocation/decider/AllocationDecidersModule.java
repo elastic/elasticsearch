@@ -38,6 +38,11 @@ public class AllocationDecidersModule extends AbstractModule {
         this.settings = settings;
     }
 
+    public AllocationDecidersModule add(Class<? extends AllocationDecider> allocationDecider) {
+        this.allocations.add(allocationDecider);
+        return this;
+    }
+
     @Override
     protected void configure() {
         Multibinder<AllocationDecider> allocationMultibinder = Multibinder.newSetBinder(binder(), AllocationDecider.class);
@@ -50,6 +55,7 @@ public class AllocationDecidersModule extends AbstractModule {
         allocationMultibinder.addBinding().to(ConcurrentRebalanceAllocationDecider.class);
         allocationMultibinder.addBinding().to(DisableAllocationDecider.class);
         allocationMultibinder.addBinding().to(AwarenessAllocationDecider.class);
+        allocationMultibinder.addBinding().to(ShardsLimitAllocationDecider.class);
         for (Class<? extends AllocationDecider> allocation : allocations) {
             allocationMultibinder.addBinding().to(allocation);
         }

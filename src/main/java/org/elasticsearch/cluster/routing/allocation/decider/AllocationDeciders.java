@@ -47,6 +47,7 @@ public class AllocationDeciders extends AllocationDecider {
                 .add(new ConcurrentRebalanceAllocationDecider(settings, nodeSettingsService))
                 .add(new DisableAllocationDecider(settings, nodeSettingsService))
                 .add(new AwarenessAllocationDecider(settings, nodeSettingsService))
+                .add(new ShardsLimitAllocationDecider(settings))
                 .build()
         );
     }

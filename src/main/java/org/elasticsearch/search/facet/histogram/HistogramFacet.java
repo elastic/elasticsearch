@@ -27,8 +27,6 @@ import java.util.List;
 
 /**
  * Numeric histogram facet.
- *
- *
  */
 public interface HistogramFacet extends Facet, Iterable<HistogramFacet.Entry> {
 
@@ -54,6 +52,9 @@ public interface HistogramFacet extends Facet, Iterable<HistogramFacet.Entry> {
             public int compare(Entry o1, Entry o2) {
                 // push nulls to the end
                 if (o1 == null) {
+                    if (o2 == null) {
+                        return 0;
+                    }
                     return 1;
                 }
                 if (o2 == null) {
@@ -68,6 +69,9 @@ public interface HistogramFacet extends Facet, Iterable<HistogramFacet.Entry> {
             public int compare(Entry o1, Entry o2) {
                 // push nulls to the end
                 if (o1 == null) {
+                    if (o2 == null) {
+                        return 0;
+                    }
                     return 1;
                 }
                 if (o2 == null) {
@@ -82,6 +86,9 @@ public interface HistogramFacet extends Facet, Iterable<HistogramFacet.Entry> {
             public int compare(Entry o1, Entry o2) {
                 // push nulls to the end
                 if (o1 == null) {
+                    if (o2 == null) {
+                        return 0;
+                    }
                     return 1;
                 }
                 if (o2 == null) {

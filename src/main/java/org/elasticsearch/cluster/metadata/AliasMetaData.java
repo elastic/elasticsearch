@@ -168,7 +168,8 @@ public class AliasMetaData {
                 return this;
             }
             try {
-                this.filter = new CompressedString(XContentFactory.jsonBuilder().map(filter).string());
+                XContentBuilder builder = XContentFactory.jsonBuilder().map(filter);
+                this.filter = new CompressedString(builder.underlyingBytes(), 0, builder.underlyingBytesLength());
                 return this;
             } catch (IOException e) {
                 throw new ElasticSearchGenerationException("Failed to build json for alias request", e);

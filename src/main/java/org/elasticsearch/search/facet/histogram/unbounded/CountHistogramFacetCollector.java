@@ -38,8 +38,6 @@ import java.io.IOException;
 /**
  * A histogram facet collector that uses the same field as the key as well as the
  * value.
- *
- *
  */
 public class CountHistogramFacetCollector extends AbstractFacetCollector {
 
@@ -66,7 +64,7 @@ public class CountHistogramFacetCollector extends AbstractFacetCollector {
         }
 
         // add type filter if there is exact doc mapper associated with it
-        if (smartMappers.hasDocMapper() && smartMappers.explicitTypeInName()) {
+        if (smartMappers.explicitTypeInNameWithDocMapper()) {
             setFilter(context.filterCache().cache(smartMappers.docMapper().typeFilter()));
         }
 

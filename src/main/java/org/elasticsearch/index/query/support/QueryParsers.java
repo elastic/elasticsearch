@@ -83,7 +83,7 @@ public final class QueryParsers {
         if (smartFieldMappers == null) {
             return query;
         }
-        if (!smartFieldMappers.hasDocMapper() || !smartFieldMappers.explicitTypeInName()) {
+        if (!smartFieldMappers.explicitTypeInNameWithDocMapper()) {
             return query;
         }
         DocumentMapper docMapper = smartFieldMappers.docMapper();
@@ -95,7 +95,7 @@ public final class QueryParsers {
         if (smartFieldMappers == null) {
             return filter;
         }
-        if (!smartFieldMappers.hasDocMapper() || !smartFieldMappers.explicitTypeInName()) {
+        if (!smartFieldMappers.explicitTypeInNameWithDocMapper()) {
             return filter;
         }
         DocumentMapper docMapper = smartFieldMappers.docMapper();

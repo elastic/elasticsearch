@@ -107,7 +107,7 @@ public class TermsFilterParser implements FilterParser {
                 fieldName = fieldMapper.names().indexName();
             }
             // if we have a doc mapper, its explicit type, mark it
-            if (smartNameFieldMappers.hasDocMapper()) {
+            if (smartNameFieldMappers.explicitTypeInNameWithDocMapper()) {
                 previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{smartNameFieldMappers.docMapper().type()});
             }
         }
@@ -204,7 +204,7 @@ public class TermsFilterParser implements FilterParser {
             }
             return filter;
         } finally {
-            if (smartNameFieldMappers != null && smartNameFieldMappers.hasDocMapper()) {
+            if (smartNameFieldMappers != null && smartNameFieldMappers.explicitTypeInNameWithDocMapper()) {
                 QueryParseContext.setTypes(previousTypes);
             }
         }

@@ -100,7 +100,7 @@ public class TermsQueryParser implements QueryParser {
         String[] previousTypes = null;
         if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
             mapper = smartNameFieldMappers.mapper();
-            if (smartNameFieldMappers.hasDocMapper()) {
+            if (smartNameFieldMappers.explicitTypeInNameWithDocMapper()) {
                 previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{smartNameFieldMappers.docMapper().type()});
             }
         }
@@ -120,7 +120,7 @@ public class TermsQueryParser implements QueryParser {
             }
             return wrapSmartNameQuery(optimizeQuery(fixNegativeQueryIfNeeded(query)), smartNameFieldMappers, parseContext);
         } finally {
-            if (smartNameFieldMappers != null && smartNameFieldMappers.hasDocMapper()) {
+            if (smartNameFieldMappers != null && smartNameFieldMappers.explicitTypeInNameWithDocMapper()) {
                 QueryParseContext.setTypes(previousTypes);
             }
         }

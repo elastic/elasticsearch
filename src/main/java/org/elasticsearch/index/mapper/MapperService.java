@@ -742,6 +742,10 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             return this.explicitTypeInName;
         }
 
+        public boolean explicitTypeInNameWithDocMapper() {
+            return explicitTypeInName && docMapper != null;
+        }
+
         /**
          * The best effort search analyzer associated with this field.
          */

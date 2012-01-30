@@ -112,7 +112,7 @@ public class TextQueryParser {
         }
 
         if (mapper != null && mapper.useFieldQueryWithQueryString()) {
-            if (smartNameFieldMappers.hasDocMapper()) {
+            if (smartNameFieldMappers.explicitTypeInNameWithDocMapper()) {
                 String[] previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{smartNameFieldMappers.docMapper().type()});
                 try {
                     return wrapSmartNameQuery(mapper.fieldQuery(text, parseContext), smartNameFieldMappers, parseContext);

@@ -85,7 +85,7 @@ public class TermsDoubleOrdinalsFacetCollector extends AbstractFacetCollector {
             throw new ElasticSearchIllegalArgumentException("Field [" + fieldName + "] doesn't have a type, can't run terms double facet collector on it");
         }
         // add type filter if there is exact doc mapper associated with it
-        if (smartMappers.hasDocMapper() && smartMappers.explicitTypeInName()) {
+        if (smartMappers.explicitTypeInNameWithDocMapper()) {
             setFilter(context.filterCache().cache(smartMappers.docMapper().typeFilter()));
         }
 

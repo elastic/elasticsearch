@@ -84,7 +84,7 @@ public class PrefixFilterParser implements FilterParser {
 
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
         if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
-            if (smartNameFieldMappers.hasDocMapper()) {
+            if (smartNameFieldMappers.explicitTypeInNameWithDocMapper()) {
                 String[] previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{smartNameFieldMappers.docMapper().type()});
                 try {
                     filter = smartNameFieldMappers.mapper().prefixFilter(value, parseContext);

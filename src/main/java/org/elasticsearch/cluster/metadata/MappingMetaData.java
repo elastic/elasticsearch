@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -279,7 +280,8 @@ public class MappingMetaData {
 
     public MappingMetaData(String type, Map<String, Object> mapping) throws IOException {
         this.type = type;
-        this.source = new CompressedString(XContentFactory.jsonBuilder().map(mapping).string());
+        XContentBuilder mappingBuilder = XContentFactory.jsonBuilder().map(mapping);
+        this.source = new CompressedString(mappingBuilder.underlyingBytes(), 0, mappingBuilder.underlyingBytesLength());
         Map<String, Object> withoutType = mapping;
         if (mapping.size() == 1 && mapping.containsKey(type)) {
             withoutType = (Map<String, Object>) mapping.get(type);

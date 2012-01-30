@@ -573,7 +573,7 @@ public class DocumentMapper implements ToXContent {
             builder.startObject();
             toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
-            this.mappingSource = new CompressedString(builder.string());
+            this.mappingSource = new CompressedString(builder.underlyingBytes(), 0, builder.underlyingBytesLength());
         } catch (Exception e) {
             throw new FailedToGenerateSourceMapperException(e.getMessage(), e);
         }

@@ -70,6 +70,14 @@ public class XBooleanFilter extends Filter {
     public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
         FixedBitSet res = null;
 
+        if (mustFilters == null && notFilters == null && shouldFilters != null && shouldFilters.size() == 1) {
+            return shouldFilters.get(0).getDocIdSet(reader);
+        }
+
+        if (shouldFilters == null && notFilters == null && mustFilters != null && mustFilters.size() == 1) {
+            return mustFilters.get(0).getDocIdSet(reader);
+        }
+
         if (shouldFilters != null) {
             for (int i = 0; i < shouldFilters.size(); i++) {
                 final DocIdSet disi = getDISI(shouldFilters, i, reader);

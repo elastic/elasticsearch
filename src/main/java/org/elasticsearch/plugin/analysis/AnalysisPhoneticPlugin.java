@@ -19,7 +19,6 @@
 
 package org.elasticsearch.plugin.analysis;
 
-import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.analysis.PhoneticAnalysisBinderProcessor;
 import org.elasticsearch.plugins.AbstractPlugin;
@@ -38,12 +37,8 @@ public class AnalysisPhoneticPlugin extends AbstractPlugin {
         return "Phonetic analysis support";
     }
 
-    @Override
-    public void processModule(Module module) {
-        if (module instanceof AnalysisModule) {
-            AnalysisModule analysisModule = (AnalysisModule) module;
-            analysisModule.addProcessor(new PhoneticAnalysisBinderProcessor());
-        }
+    public void onModule(AnalysisModule module) {
+        module.addProcessor(new PhoneticAnalysisBinderProcessor());
     }
 }
 

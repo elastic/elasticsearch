@@ -103,14 +103,14 @@
         <dependency>
             <groupId>org.elasticsearch</groupId>
             <artifactId>es-jsr166y</artifactId>
-            <version>20110918</version>
+            <version>20120131</version>
             <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>org.elasticsearch</groupId>
             <artifactId>es-jsr166e</artifactId>
-            <version>20110918</version>
+            <version>20120131</version>
             <scope>compile</scope>
         </dependency>
 

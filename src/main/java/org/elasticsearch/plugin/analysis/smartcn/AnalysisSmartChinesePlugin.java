@@ -19,7 +19,6 @@
 
 package org.elasticsearch.plugin.analysis.smartcn;
 
-import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.analysis.SmartChineseAnalysisBinderProcessor;
 import org.elasticsearch.plugins.AbstractPlugin;
@@ -39,11 +38,7 @@ public class AnalysisSmartChinesePlugin extends AbstractPlugin {
         return "Smart Chinese analysis support";
     }
 
-    @Override
-    public void processModule(Module module) {
-        if (module instanceof AnalysisModule) {
-            AnalysisModule analysisModule = (AnalysisModule) module;
-            analysisModule.addProcessor(new SmartChineseAnalysisBinderProcessor());
-        }
+    public void onModule(AnalysisModule module) {
+        module.addProcessor(new SmartChineseAnalysisBinderProcessor());
     }
 }

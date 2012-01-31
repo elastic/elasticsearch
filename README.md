@@ -8,7 +8,7 @@ In order to install the plugin, simply run: `bin/plugin -install elasticsearch/e
     --------------------------------------------------
     | Smart Chinese Analysis Plugin | ElasticSearch  |
     --------------------------------------------------
-    | master                        | 0.18 -> master |
+    | master                        | master (0.19)  |
     --------------------------------------------------
     | 1.0.0                         | 0.18 -> master |
     --------------------------------------------------

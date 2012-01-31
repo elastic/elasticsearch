@@ -19,7 +19,6 @@
 
 package org.elasticsearch.plugin.python;
 
-import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.python.PythonScriptEngineService;
@@ -39,10 +38,7 @@ public class PythonPlugin extends AbstractPlugin {
         return "Python plugin allowing to add javascript scripting support";
     }
 
-    @Override
-    public void processModule(Module module) {
-        if (module instanceof ScriptModule) {
-            ((ScriptModule) module).addScriptEngine(PythonScriptEngineService.class);
-        }
+    public void onModule(ScriptModule module) {
+        module.addScriptEngine(PythonScriptEngineService.class);
     }
 }

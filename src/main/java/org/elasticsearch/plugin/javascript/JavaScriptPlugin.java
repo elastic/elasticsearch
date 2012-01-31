@@ -19,7 +19,6 @@
 
 package org.elasticsearch.plugin.javascript;
 
-import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.javascript.JavaScriptScriptEngineService;
@@ -39,10 +38,7 @@ public class JavaScriptPlugin extends AbstractPlugin {
         return "JavaScript plugin allowing to add javascript scripting support";
     }
 
-    @Override
-    public void processModule(Module module) {
-        if (module instanceof ScriptModule) {
-            ((ScriptModule) module).addScriptEngine(JavaScriptScriptEngineService.class);
-        }
+    public void onModule(ScriptModule module) {
+        module.addScriptEngine(JavaScriptScriptEngineService.class);
     }
 }

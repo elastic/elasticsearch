@@ -48,11 +48,10 @@ public class AnalysisICUPlugin extends AbstractPlugin {
         return ImmutableList.<Class<? extends Module>>of(IcuIndicesAnalysisModule.class);
     }
 
-    @Override
-    public void processModule(Module module) {
-        if (module instanceof AnalysisModule) {
-            AnalysisModule analysisModule = (AnalysisModule) module;
-            analysisModule.addProcessor(new IcuAnalysisBinderProcessor());
-        }
+    /**
+     * Automatically called with the analysis module.
+     */
+    public void onModule(AnalysisModule module) {
+        module.addProcessor(new IcuAnalysisBinderProcessor());
     }
 }

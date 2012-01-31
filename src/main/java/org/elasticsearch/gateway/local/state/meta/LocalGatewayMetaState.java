@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -73,14 +74,16 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
             formatParams = ToXContent.EMPTY_PARAMS;
         }
 
-        try {
-            pre019Upgrade();
-            long start = System.currentTimeMillis();
-            loadState();
-            logger.debug("took {} to load state", TimeValue.timeValueMillis(System.currentTimeMillis() - start));
-        } catch (Exception e) {
-            logger.error("failed to read local state, exiting...", e);
-            throw e;
+        if (DiscoveryNode.masterNode(settings)) {
+            try {
+                pre019Upgrade();
+                long start = System.currentTimeMillis();
+                loadState();
+                logger.debug("took {} to load state", TimeValue.timeValueMillis(System.currentTimeMillis() - start));
+            } catch (Exception e) {
+                logger.error("failed to read local state, exiting...", e);
+                throw e;
+            }
         }
     }
 

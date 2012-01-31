@@ -23,6 +23,7 @@ import com.google.common.collect.Maps;
 import com.google.common.io.Closeables;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -62,14 +63,16 @@ public class LocalGatewayShardsState extends AbstractComponent implements Cluste
         this.nodeEnv = nodeEnv;
         listGatewayStartedShards.initGateway(this);
 
-        try {
-            pre019Upgrade();
-            long start = System.currentTimeMillis();
-            loadStartedShards();
-            logger.debug("took {} to load started shards state", TimeValue.timeValueMillis(System.currentTimeMillis() - start));
-        } catch (Exception e) {
-            logger.error("failed to read local state (started shards), exiting...", e);
-            throw e;
+        if (DiscoveryNode.dataNode(settings)) {
+            try {
+                pre019Upgrade();
+                long start = System.currentTimeMillis();
+                loadStartedShards();
+                logger.debug("took {} to load started shards state", TimeValue.timeValueMillis(System.currentTimeMillis() - start));
+            } catch (Exception e) {
+                logger.error("failed to read local state (started shards), exiting...", e);
+                throw e;
+            }
         }
     }
 

@@ -37,13 +37,32 @@ import static org.elasticsearch.common.transport.TransportAddressSerializers.add
 
 /**
  * A discovery node represents a node that is part of the cluster.
- *
- *
  */
 public class DiscoveryNode implements Streamable, Serializable {
 
     public static boolean nodeRequiresLocalStorage(Settings settings) {
         return !(settings.getAsBoolean("node.client", false) || (!settings.getAsBoolean("node.data", true) && !settings.getAsBoolean("node.master", true)));
+    }
+
+    public static boolean clientNode(Settings settings) {
+        String client = settings.get("node.client");
+        return client != null && client.equals("true");
+    }
+
+    public static boolean masterNode(Settings settings) {
+        String master = settings.get("node.master");
+        if (master == null) {
+            return !clientNode(settings);
+        }
+        return master.equals("true");
+    }
+
+    public static boolean dataNode(Settings settings) {
+        String data = settings.get("data");
+        if (data == null) {
+            return !clientNode(settings);
+        }
+        return data.equals("true");
     }
 
     public static final ImmutableList<DiscoveryNode> EMPTY_LIST = ImmutableList.of();

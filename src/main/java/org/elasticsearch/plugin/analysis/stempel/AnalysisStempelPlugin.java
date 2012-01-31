@@ -48,11 +48,7 @@ public class AnalysisStempelPlugin extends AbstractPlugin {
         return ImmutableList.<Class<? extends Module>>of(PolishIndicesAnalysisModule.class);
     }
 
-    @Override
-    public void processModule(Module module) {
-        if (module instanceof AnalysisModule) {
-            AnalysisModule analysisModule = (AnalysisModule) module;
-            analysisModule.addProcessor(new PolishAnalysisBinderProcessor());
-        }
+    public void onModule(AnalysisModule module) {
+        module.addProcessor(new PolishAnalysisBinderProcessor());
     }
 }

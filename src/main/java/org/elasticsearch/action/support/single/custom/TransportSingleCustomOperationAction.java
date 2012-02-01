@@ -143,7 +143,6 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
                                 Response response = shardOperation(request, -1);
                                 listener.onResponse(response);
                             } catch (Exception e) {
-                                shardsIt.reset();
                                 onFailure(null, e);
                             }
                         }

@@ -115,6 +115,8 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     private final boolean checkIndexOnStartup;
 
+    private long checkIndexTook = 0;
+
     private volatile IndexShardState state;
 
     private TimeValue refreshInterval;
@@ -550,6 +552,10 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         }
     }
 
+    public long checkIndexTook() {
+        return this.checkIndexTook;
+    }
+
     /**
      * After the store has been recovered, we need to start the engine in order to apply operations
      */
@@ -830,6 +836,8 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     private void checkIndex(boolean throwException) throws IndexShardException {
         try {
+            checkIndexTook = 0;
+            long time = System.currentTimeMillis();
             if (!IndexReader.indexExists(store.directory())) {
                 return;
             }
@@ -853,6 +861,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                     logger.debug("check index [success]\n{}", new String(os.underlyingBytes(), 0, os.size()));
                 }
             }
+            checkIndexTook = System.currentTimeMillis() - time;
         } catch (Exception e) {
             logger.warn("failed to check index", e);
         }

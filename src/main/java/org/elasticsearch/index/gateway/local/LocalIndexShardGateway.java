@@ -91,6 +91,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
     @Override
     public void recover(boolean indexShouldExists, RecoveryStatus recoveryStatus) throws IndexShardGatewayRecoveryException {
         recoveryStatus.index().startTime(System.currentTimeMillis());
+        recoveryStatus.updateStage(RecoveryStatus.Stage.INDEX);
         long version = -1;
         long translogId = -1;
         try {
@@ -124,12 +125,14 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
             // ignore
         }
 
-        recoveryStatus.translog().startTime(System.currentTimeMillis());
+        recoveryStatus.start().startTime(System.currentTimeMillis());
+        recoveryStatus.updateStage(RecoveryStatus.Stage.START);
         if (translogId == -1) {
             // no translog files, bail
             indexShard.start("post recovery from gateway, no translog");
             // no index, just start the shard and bail
-            recoveryStatus.translog().time(System.currentTimeMillis() - recoveryStatus.index().startTime());
+            recoveryStatus.start().time(System.currentTimeMillis() - recoveryStatus.start().startTime());
+            recoveryStatus.start().checkIndexTime(indexShard.checkIndexTook());
             return;
         }
 
@@ -163,12 +166,18 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
             // no translog files, bail
             indexShard.start("post recovery from gateway, no translog");
             // no index, just start the shard and bail
-            recoveryStatus.translog().time(System.currentTimeMillis() - recoveryStatus.index().startTime());
+            recoveryStatus.start().time(System.currentTimeMillis() - recoveryStatus.start().startTime());
+            recoveryStatus.start().checkIndexTime(indexShard.checkIndexTook());
             return;
         }
 
         // recover from the translog file
         indexShard.performRecoveryPrepareForTranslog();
+        recoveryStatus.start().time(System.currentTimeMillis() - recoveryStatus.start().startTime());
+        recoveryStatus.start().checkIndexTime(indexShard.checkIndexTook());
+
+        recoveryStatus.translog().startTime(System.currentTimeMillis());
+        recoveryStatus.updateStage(RecoveryStatus.Stage.TRANSLOG);
         try {
             InputStreamStreamInput si = new InputStreamStreamInput(new FileInputStream(recoveringTranslogFile));
             while (true) {
@@ -195,7 +204,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
 
         recoveringTranslogFile.delete();
 
-        recoveryStatus.translog().time(System.currentTimeMillis() - recoveryStatus.index().startTime());
+        recoveryStatus.translog().time(System.currentTimeMillis() - recoveryStatus.translog().startTime());
     }
 
     @Override

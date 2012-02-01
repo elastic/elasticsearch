@@ -34,7 +34,6 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
@@ -68,7 +67,7 @@ public class QueryStringQueryParser implements QueryParser {
         XContentParser parser = parseContext.parser();
 
         MultiFieldQueryParserSettings qpSettings = new MultiFieldQueryParserSettings();
-        qpSettings.defaultField(AllFieldMapper.NAME);
+        qpSettings.defaultField(parseContext.defaultField());
         qpSettings.analyzeWildcard(defaultAnalyzeWildcard);
         qpSettings.allowLeadingWildcard(defaultAllowLeadingWildcard);
 

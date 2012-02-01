@@ -195,7 +195,8 @@ public class RecoveryTarget extends AbstractComponent {
                         .append(", took [").append(timeValueMillis(recoveryStatus.phase1Time)).append("], throttling_wait [").append(timeValueMillis(recoveryStatus.phase1ThrottlingWaitTime)).append(']')
                         .append("\n");
                 sb.append("         : reusing_files   [").append(recoveryStatus.phase1ExistingFileNames.size()).append("] with total_size of [").append(new ByteSizeValue(recoveryStatus.phase1ExistingTotalSize)).append("]\n");
-                sb.append("   phase2: recovered [").append(recoveryStatus.phase2Operations).append("]").append(" transaction log operations")
+                sb.append("   phase2: start took [").append(timeValueMillis(recoveryStatus.startTime)).append("]\n");
+                sb.append("         : recovered [").append(recoveryStatus.phase2Operations).append("]").append(" transaction log operations")
                         .append(", took [").append(timeValueMillis(recoveryStatus.phase2Time)).append("]")
                         .append("\n");
                 sb.append("   phase3: recovered [").append(recoveryStatus.phase3Operations).append("]").append(" transaction log operations")

@@ -194,13 +194,16 @@ public class RecoverySource extends AbstractComponent {
                 if (shard.state() == IndexShardState.CLOSED) {
                     throw new IndexShardClosedException(request.shardId());
                 }
-                logger.trace("[{}][{}] recovery [phase2] to {}: sending transaction log operations", request.shardId().index().name(), request.shardId().id(), request.targetNode());
+                logger.trace("[{}][{}] recovery [phase2] to {}: start", request.shardId().index().name(), request.shardId().id(), request.targetNode());
                 StopWatch stopWatch = new StopWatch().start();
-
                 transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.PREPARE_TRANSLOG, new RecoveryPrepareForTranslogOperationsRequest(request.shardId()), VoidTransportResponseHandler.INSTANCE_SAME).txGet();
+                stopWatch.stop();
+                response.startTime = stopWatch.totalTime().millis();
+                logger.trace("[{}][{}] recovery [phase2] to {}: start took [{}]", request.shardId().index().name(), request.shardId().id(), request.targetNode(), stopWatch.totalTime());
 
+                logger.trace("[{}][{}] recovery [phase2] to {}: sending transaction log operations", request.shardId().index().name(), request.shardId().id(), request.targetNode());
+                stopWatch = new StopWatch().start();
                 int totalOperations = sendSnapshot(snapshot);
-
                 stopWatch.stop();
                 logger.trace("[{}][{}] recovery [phase2] to {}: took [{}]", request.shardId().index().name(), request.shardId().id(), request.targetNode(), stopWatch.totalTime());
                 response.phase2Time = stopWatch.totalTime().millis();

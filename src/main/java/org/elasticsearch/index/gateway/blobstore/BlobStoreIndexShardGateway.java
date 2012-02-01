@@ -405,8 +405,6 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
             }
             recoveryStatus.index().startTime(System.currentTimeMillis());
             recoveryStatus.index().time(System.currentTimeMillis() - recoveryStatus.index().startTime());
-            recoveryStatus.translog().startTime(System.currentTimeMillis());
-            recoveryStatus.translog().time(System.currentTimeMillis() - recoveryStatus.index().startTime());
             return;
         }
 
@@ -417,14 +415,10 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
             }
             try {
                 recoveryStatus.index().startTime(System.currentTimeMillis());
-                recoveryStatus.updateStage(RecoveryStatus.Stage.INDEX);
                 recoverIndex(commitPoint, blobs);
                 recoveryStatus.index().time(System.currentTimeMillis() - recoveryStatus.index().startTime());
 
-                recoveryStatus.translog().startTime(System.currentTimeMillis());
-                recoveryStatus.updateStage(RecoveryStatus.Stage.TRANSLOG);
                 recoverTranslog(commitPoint, blobs);
-                recoveryStatus.translog().time(System.currentTimeMillis() - recoveryStatus.index().startTime());
                 return;
             } catch (Exception e) {
                 throw new IndexShardGatewayRecoveryException(shardId, "failed to recover commit_point [" + commitPoint.name() + "]/[" + commitPoint.version() + "]", e);
@@ -436,12 +430,23 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
     private void recoverTranslog(CommitPoint commitPoint, ImmutableMap<String, BlobMetaData> blobs) throws IndexShardGatewayRecoveryException {
         if (commitPoint.translogFiles().isEmpty()) {
             // no translog files, bail
+            recoveryStatus.start().startTime(System.currentTimeMillis());
+            recoveryStatus.updateStage(RecoveryStatus.Stage.START);
             indexShard.start("post recovery from gateway, no translog");
+            recoveryStatus.start().time(System.currentTimeMillis() - recoveryStatus.start().startTime());
+            recoveryStatus.start().checkIndexTime(indexShard.checkIndexTook());
             return;
         }
 
         try {
+            recoveryStatus.start().startTime(System.currentTimeMillis());
+            recoveryStatus.updateStage(RecoveryStatus.Stage.START);
             indexShard.performRecoveryPrepareForTranslog();
+            recoveryStatus.start().time(System.currentTimeMillis() - recoveryStatus.start().startTime());
+            recoveryStatus.start().checkIndexTime(indexShard.checkIndexTook());
+
+            recoveryStatus.updateStage(RecoveryStatus.Stage.TRANSLOG);
+            recoveryStatus.translog().startTime(System.currentTimeMillis());
 
             final AtomicReference<Throwable> failure = new AtomicReference<Throwable>();
             final CountDownLatch latch = new CountDownLatch(1);
@@ -529,12 +534,14 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
             }
 
             indexShard.performRecoveryFinalization(true);
+            recoveryStatus.translog().time(System.currentTimeMillis() - recoveryStatus.translog().startTime());
         } catch (Throwable e) {
             throw new IndexShardGatewayRecoveryException(shardId, "Failed to recover translog", e);
         }
     }
 
     private void recoverIndex(CommitPoint commitPoint, ImmutableMap<String, BlobMetaData> blobs) throws Exception {
+        recoveryStatus.updateStage(RecoveryStatus.Stage.INDEX);
         int numberOfFiles = 0;
         long totalSize = 0;
         int numberOfReusedFiles = 0;

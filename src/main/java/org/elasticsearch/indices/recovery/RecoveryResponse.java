@@ -41,6 +41,8 @@ class RecoveryResponse implements Streamable {
     long phase1Time;
     long phase1ThrottlingWaitTime;
 
+    long startTime;
+
     int phase2Operations;
     long phase2Time;
 
@@ -78,6 +80,7 @@ class RecoveryResponse implements Streamable {
         phase1ExistingTotalSize = in.readVLong();
         phase1Time = in.readVLong();
         phase1ThrottlingWaitTime = in.readVLong();
+        startTime = in.readVLong();
         phase2Operations = in.readVInt();
         phase2Time = in.readVLong();
         phase3Operations = in.readVInt();
@@ -108,6 +111,7 @@ class RecoveryResponse implements Streamable {
         out.writeVLong(phase1ExistingTotalSize);
         out.writeVLong(phase1Time);
         out.writeVLong(phase1ThrottlingWaitTime);
+        out.writeVLong(startTime);
         out.writeVInt(phase2Operations);
         out.writeVLong(phase2Time);
         out.writeVInt(phase3Operations);

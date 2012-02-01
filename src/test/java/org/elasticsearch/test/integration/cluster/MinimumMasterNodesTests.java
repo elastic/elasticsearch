@@ -160,7 +160,9 @@ public class MinimumMasterNodesTests extends AbstractZenNodesTests {
         logger.info("--> starting the previous master node again...");
         startNode(nonMasterNodeName, settings);
 
-        clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForNodes("2").execute().actionGet();
+        Thread.sleep(200);
+
+        clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForNodes("2").setWaitForGreenStatus().execute().actionGet();
         assertThat(clusterHealthResponse.timedOut(), equalTo(false));
 
         state = client("node1").admin().cluster().prepareState().setLocal(true).execute().actionGet().state();

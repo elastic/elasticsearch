@@ -83,6 +83,10 @@
 # node.rack: rack314
 
 
+# By default, multiple nodes are allowed to start from the same installation location
+# to disable it, set the following:
+# node.max_local_storage_nodes: 1
+
 #################################### Index ####################################
 
 # You can set a number of options (such as shard/replica options, mapping

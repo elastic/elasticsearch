@@ -24,6 +24,7 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeService;
@@ -492,6 +493,18 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         // same for metadata
                         if (newState.metaData().version() == currentState.metaData().version()) {
                             builder.metaData(currentState.metaData());
+                        } else {
+                            // if its not the same version, only copy over new indices or ones that changed the version
+                            MetaData.Builder metaDataBuilder = MetaData.builder().metaData(newState.metaData()).removeAllIndices();
+                            for (IndexMetaData indexMetaData : newState.metaData()) {
+                                IndexMetaData currentIndexMetaData = currentState.metaData().index(indexMetaData.index());
+                                if (currentIndexMetaData == null || currentIndexMetaData.version() != indexMetaData.version()) {
+                                    metaDataBuilder.put(indexMetaData, false);
+                                } else {
+                                    metaDataBuilder.put(currentIndexMetaData, false);
+                                }
+                            }
+                            builder.metaData(metaDataBuilder);
                         }
 
                         return builder.build();

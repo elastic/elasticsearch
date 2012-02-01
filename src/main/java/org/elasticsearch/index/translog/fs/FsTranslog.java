@@ -383,6 +383,12 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
     }
 
     @Override
+    public boolean syncNeeded() {
+        FsTranslogFile current1 = this.current;
+        return current1 != null && current1.syncNeeded();
+    }
+
+    @Override
     public void syncOnEachOperation(boolean syncOnEachOperation) {
         this.syncOnEachOperation = syncOnEachOperation;
         if (syncOnEachOperation) {

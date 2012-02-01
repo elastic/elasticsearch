@@ -117,6 +117,8 @@ public interface Translog extends IndexShardComponent {
      */
     void sync();
 
+    boolean syncNeeded();
+
     void syncOnEachOperation(boolean syncOnEachOperation);
 
     /**

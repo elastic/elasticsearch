@@ -26,7 +26,6 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 
 import java.io.IOException;
 import java.util.List;
@@ -53,7 +52,7 @@ public class MoreLikeThisQueryParser implements QueryParser {
         XContentParser parser = parseContext.parser();
 
         MoreLikeThisQuery mltQuery = new MoreLikeThisQuery();
-        mltQuery.setMoreLikeFields(new String[]{AllFieldMapper.NAME});
+        mltQuery.setMoreLikeFields(new String[]{parseContext.defaultField()});
         mltQuery.setSimilarity(parseContext.searchSimilarity());
         Analyzer analyzer = null;
 

@@ -41,6 +41,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.analysis.*;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
@@ -130,7 +131,11 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
             }
         }
         if (field == null) {
-            field = "_all";
+            if (indexService != null) {
+                field = indexService.queryParserService().defaultField();
+            } else {
+                field = AllFieldMapper.NAME;
+            }
         }
         if (analyzer == null && request.analyzer() != null) {
             if (indexService == null) {

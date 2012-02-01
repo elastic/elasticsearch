@@ -130,6 +130,10 @@ public class QueryParseContext {
         return indexQueryParser.indexCache;
     }
 
+    public String defaultField() {
+        return indexQueryParser.defaultField();
+    }
+
     public MapperQueryParser singleQueryParser(QueryParserSettings settings) {
         queryParser.reset(settings);
         return queryParser;

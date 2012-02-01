@@ -102,6 +102,16 @@ public interface FieldMapper<T> {
             return sourcePath;
         }
 
+        /**
+         * The index name term that can be used as a factory.
+         */
+        public Term indexNameTerm() {
+            return this.indexNameTermFactory;
+        }
+
+        /**
+         * Creates a new index term based on the provided value.
+         */
         public Term createIndexNameTerm(String value) {
             return indexNameTermFactory.createTerm(value);
         }

@@ -116,10 +116,15 @@ public class BufferingFsTranslogFile implements FsTranslogFile {
     }
 
     @Override
+    public boolean syncNeeded() {
+        return lastPosition != lastSyncPosition;
+    }
+
+    @Override
     public void sync() {
         try {
             // check if we really need to sync here...
-            long last = lastWrittenPosition;
+            long last = lastPosition;
             if (last == lastSyncPosition) {
                 return;
             }
@@ -142,6 +147,7 @@ public class BufferingFsTranslogFile implements FsTranslogFile {
             rwl.writeLock().lock();
             try {
                 flushBuffer();
+                sync();
             } catch (IOException e) {
                 throw new TranslogException(shardId, "failed to close", e);
             } finally {

@@ -51,23 +51,26 @@ import java.util.concurrent.ScheduledFuture;
  */
 public class LocalIndexShardGateway extends AbstractIndexShardComponent implements IndexShardGateway {
 
+    private final ThreadPool threadPool;
+
     private final InternalIndexShard indexShard;
 
     private final RecoveryStatus recoveryStatus = new RecoveryStatus();
 
-    private final ScheduledFuture flushScheduler;
+    private volatile ScheduledFuture flushScheduler;
+    private final TimeValue syncInterval;
 
     @Inject
     public LocalIndexShardGateway(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool, IndexShard indexShard) {
         super(shardId, indexSettings);
+        this.threadPool = threadPool;
         this.indexShard = (InternalIndexShard) indexShard;
 
-        TimeValue sync = componentSettings.getAsTime("sync", TimeValue.timeValueSeconds(10));
-        if (sync.millis() > 0) {
+        syncInterval = componentSettings.getAsTime("sync", TimeValue.timeValueSeconds(5));
+        if (syncInterval.millis() > 0) {
             this.indexShard.translog().syncOnEachOperation(false);
-            // we don't need to execute the sync on a different thread, just do it on the scheduler thread
-            flushScheduler = threadPool.scheduleWithFixedDelay(new Sync(), sync);
-        } else if (sync.millis() == 0) {
+            flushScheduler = threadPool.schedule(syncInterval, ThreadPool.Names.SAME, new Sync());
+        } else if (syncInterval.millis() == 0) {
             flushScheduler = null;
             this.indexShard.translog().syncOnEachOperation(true);
         } else {
@@ -237,11 +240,31 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
         return NO_SNAPSHOT_LOCK;
     }
 
-    private class Sync implements Runnable {
+    class Sync implements Runnable {
         @Override
         public void run() {
-            if (indexShard.state() == IndexShardState.STARTED) {
-                indexShard.translog().sync();
+            // don't re-schedule  if its closed..., we are done
+            if (indexShard.state() == IndexShardState.CLOSED) {
+                return;
+            }
+            if (indexShard.state() == IndexShardState.STARTED && indexShard.translog().syncNeeded()) {
+                threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            indexShard.translog().sync();
+                        } catch (Exception e) {
+                            if (indexShard.state() == IndexShardState.STARTED) {
+                                logger.warn("failed to sync translog", e);
+                            }
+                        }
+                        if (indexShard.state() != IndexShardState.CLOSED) {
+                            flushScheduler = threadPool.schedule(syncInterval, ThreadPool.Names.SAME, Sync.this);
+                        }
+                    }
+                });
+            } else {
+                flushScheduler = threadPool.schedule(syncInterval, ThreadPool.Names.SAME, Sync.this);
             }
         }
     }

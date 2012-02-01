@@ -72,4 +72,6 @@ public interface FsTranslogFile {
     void reuse(FsTranslogFile other) throws TranslogException;
 
     void sync();
+
+    boolean syncNeeded();
 }

@@ -75,6 +75,7 @@ public class SimpleFsTranslogFile implements FsTranslogFile {
     }
 
     public void close(boolean delete) {
+        sync();
         raf.decreaseRefCount(delete);
     }
 
@@ -90,6 +91,11 @@ public class SimpleFsTranslogFile implements FsTranslogFile {
         } catch (Exception e) {
             throw new TranslogException(shardId, "Failed to snapshot", e);
         }
+    }
+
+    @Override
+    public boolean syncNeeded() {
+        return lastWrittenPosition.get() != lastSyncPosition;
     }
 
     public void sync() {

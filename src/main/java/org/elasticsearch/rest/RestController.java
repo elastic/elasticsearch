@@ -28,6 +28,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.support.RestUtils;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Comparator;
 
 /**
  *
@@ -40,6 +42,9 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
     private final PathTrie<RestHandler> deleteHandlers = new PathTrie<RestHandler>(RestUtils.REST_DECODER);
     private final PathTrie<RestHandler> headHandlers = new PathTrie<RestHandler>(RestUtils.REST_DECODER);
     private final PathTrie<RestHandler> optionsHandlers = new PathTrie<RestHandler>(RestUtils.REST_DECODER);
+
+    // non volatile since the assumption is that pre processors are registered on startup
+    private RestPreProcessor[] preProcessors = new RestPreProcessor[0];
 
     @Inject
     public RestController(Settings settings) {
@@ -58,6 +63,25 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
     protected void doClose() throws ElasticSearchException {
     }
 
+    /**
+     * Registers a pre processor to be executed before the rest request is actually handled.
+     */
+    public synchronized void registerPreProcessor(RestPreProcessor preProcessor) {
+        RestPreProcessor[] copy = new RestPreProcessor[preProcessors.length + 1];
+        System.arraycopy(preProcessors, 0, copy, 0, preProcessors.length);
+        copy[preProcessors.length] = preProcessor;
+        Arrays.sort(copy, new Comparator<RestPreProcessor>() {
+            @Override
+            public int compare(RestPreProcessor o1, RestPreProcessor o2) {
+                return o2.order() - o1.order();
+            }
+        });
+        preProcessors = copy;
+    }
+
+    /**
+     * Registers a rest handler to be execute when the provided method and path match the request.
+     */
     public void registerHandler(RestRequest.Method method, String path, RestHandler handler) {
         switch (method) {
             case GET:
@@ -83,12 +107,21 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
         }
     }
 
+    public RestPreProcessor[] preProcessors() {
+        return preProcessors;
+    }
+
     public boolean dispatchRequest(final RestRequest request, final RestChannel channel) {
-        final RestHandler handler = getHandler(request);
-        if (handler == null) {
-            return false;
-        }
         try {
+            for (RestPreProcessor preProcessor : preProcessors) {
+                if (!preProcessor.process(request, channel)) {
+                    return true;
+                }
+            }
+            final RestHandler handler = getHandler(request);
+            if (handler == null) {
+                return false;
+            }
             handler.handleRequest(request, channel);
         } catch (Exception e) {
             try {

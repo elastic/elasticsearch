@@ -27,10 +27,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.service.NodeService;
-import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.StringRestResponse;
+import org.elasticsearch.rest.*;
 
 import java.io.File;
 import java.io.IOException;
@@ -114,6 +111,14 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
 
     public void internalDispatchRequest(final HttpRequest request, final HttpChannel channel) {
         if (request.rawPath().startsWith("/_plugin/")) {
+            for (RestPreProcessor preProcessor : restController.preProcessors()) {
+                if (!preProcessor.handleExternal()) {
+                    continue;
+                }
+                if (!preProcessor.process(request, channel)) {
+                    return;
+                }
+            }
             handlePluginSite(request, channel);
             return;
         }

@@ -21,6 +21,8 @@ package org.elasticsearch.rest;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.path.PathTrie;
@@ -30,6 +32,9 @@ import org.elasticsearch.rest.support.RestUtils;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
+
+import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
+import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  *
@@ -43,8 +48,10 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
     private final PathTrie<RestHandler> headHandlers = new PathTrie<RestHandler>(RestUtils.REST_DECODER);
     private final PathTrie<RestHandler> optionsHandlers = new PathTrie<RestHandler>(RestUtils.REST_DECODER);
 
+    private final RestHandlerFilter handlerFilter = new RestHandlerFilter();
+
     // non volatile since the assumption is that pre processors are registered on startup
-    private RestPreProcessor[] preProcessors = new RestPreProcessor[0];
+    private RestFilter[] filters = new RestFilter[0];
 
     @Inject
     public RestController(Settings settings) {
@@ -61,22 +68,25 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
 
     @Override
     protected void doClose() throws ElasticSearchException {
+        for (RestFilter filter : filters) {
+            filter.close();
+        }
     }
 
     /**
      * Registers a pre processor to be executed before the rest request is actually handled.
      */
-    public synchronized void registerPreProcessor(RestPreProcessor preProcessor) {
-        RestPreProcessor[] copy = new RestPreProcessor[preProcessors.length + 1];
-        System.arraycopy(preProcessors, 0, copy, 0, preProcessors.length);
-        copy[preProcessors.length] = preProcessor;
-        Arrays.sort(copy, new Comparator<RestPreProcessor>() {
+    public synchronized void registerFilter(RestFilter preProcessor) {
+        RestFilter[] copy = new RestFilter[filters.length + 1];
+        System.arraycopy(filters, 0, copy, 0, filters.length);
+        copy[filters.length] = preProcessor;
+        Arrays.sort(copy, new Comparator<RestFilter>() {
             @Override
-            public int compare(RestPreProcessor o1, RestPreProcessor o2) {
+            public int compare(RestFilter o1, RestFilter o2) {
                 return o2.order() - o1.order();
             }
         });
-        preProcessors = copy;
+        filters = copy;
     }
 
     /**
@@ -107,30 +117,55 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
         }
     }
 
-    public RestPreProcessor[] preProcessors() {
-        return preProcessors;
+    /**
+     * Returns a filter chain (if needed) to execute. If this method returns null, simply execute
+     * as usual.
+     */
+    @Nullable
+    public RestFilterChain filterChainOrNull(RestFilter executionFilter) {
+        if (filters.length == 0) {
+            return null;
+        }
+        return new ControllerFilterChain(executionFilter);
     }
 
-    public boolean dispatchRequest(final RestRequest request, final RestChannel channel) {
-        try {
-            for (RestPreProcessor preProcessor : preProcessors) {
-                if (!preProcessor.process(request, channel)) {
-                    return true;
+    /**
+     * Returns a filter chain with the final filter being the provided filter.
+     */
+    public RestFilterChain filterChain(RestFilter executionFilter) {
+        return new ControllerFilterChain(executionFilter);
+    }
+
+    public void dispatchRequest(final RestRequest request, final RestChannel channel) {
+        if (filters.length == 0) {
+            try {
+                executeHandler(request, channel);
+            } catch (Exception e) {
+                try {
+                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                } catch (IOException e1) {
+                    logger.error("Failed to send failure response for uri [" + request.uri() + "]", e1);
                 }
             }
-            final RestHandler handler = getHandler(request);
-            if (handler == null) {
-                return false;
-            }
+        } else {
+            ControllerFilterChain filterChain = new ControllerFilterChain(handlerFilter);
+            filterChain.continueProcessing(request, channel);
+        }
+    }
+
+    void executeHandler(RestRequest request, RestChannel channel) {
+        final RestHandler handler = getHandler(request);
+        if (handler != null) {
             handler.handleRequest(request, channel);
-        } catch (Exception e) {
-            try {
-                channel.sendResponse(new XContentThrowableRestResponse(request, e));
-            } catch (IOException e1) {
-                logger.error("Failed to send failure response for uri [" + request.uri() + "]", e1);
+        } else {
+            if (request.method() == RestRequest.Method.OPTIONS) {
+                // when we have OPTIONS request, simply send OK by default (with the Access Control Origin header which gets automatically added)
+                StringRestResponse response = new StringRestResponse(OK);
+                channel.sendResponse(response);
+            } else {
+                channel.sendResponse(new StringRestResponse(BAD_REQUEST, "No handler found for uri [" + request.uri() + "] and method [" + request.method() + "]"));
             }
         }
-        return true;
     }
 
     private RestHandler getHandler(RestRequest request) {
@@ -158,5 +193,46 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
         // so we can handle things like:
         // my_index/my_type/http%3A%2F%2Fwww.google.com
         return request.rawPath();
+    }
+
+    class ControllerFilterChain implements RestFilterChain {
+
+        private final RestFilter executionFilter;
+
+        private volatile int index;
+
+        ControllerFilterChain(RestFilter executionFilter) {
+            this.executionFilter = executionFilter;
+        }
+
+        @Override
+        public void continueProcessing(RestRequest request, RestChannel channel) {
+            try {
+                int loc = index;
+                if (loc > filters.length) {
+                    throw new ElasticSearchIllegalStateException("filter continueProcessing was called more than expected");
+                } else if (loc == filters.length) {
+                    executionFilter.process(request, channel, this);
+                } else {
+                    RestFilter preProcessor = filters[loc];
+                    preProcessor.process(request, channel, this);
+                }
+                index++;
+            } catch (Exception e) {
+                try {
+                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                } catch (IOException e1) {
+                    logger.error("Failed to send failure response for uri [" + request.uri() + "]", e1);
+                }
+            }
+        }
+    }
+
+    class RestHandlerFilter extends RestFilter {
+
+        @Override
+        public void process(RestRequest request, RestChannel channel, RestFilterChain filterChain) {
+            executeHandler(request, channel);
+        }
     }
 }

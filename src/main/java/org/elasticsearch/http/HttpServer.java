@@ -90,12 +90,12 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
         if (logger.isInfoEnabled()) {
             logger.info("{}", transport.boundAddress());
         }
-        nodeService.putNodeAttribute("http_address", transport.boundAddress().publishAddress().toString());
+        nodeService.putAttribute("http_address", transport.boundAddress().publishAddress().toString());
     }
 
     @Override
     protected void doStop() throws ElasticSearchException {
-        nodeService.removeNodeAttribute("http_address");
+        nodeService.removeAttribute("http_address");
         transport.stop();
     }
 

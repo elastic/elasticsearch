@@ -21,6 +21,8 @@ package org.elasticsearch.cluster;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 
 import java.util.List;
@@ -120,6 +122,20 @@ public class ClusterChangedEvent {
 
     public boolean metaDataChanged() {
         return state.metaData() != previousState.metaData();
+    }
+
+    public boolean indexMetaDataChanged(IndexMetaData current) {
+        MetaData previousMetaData = previousState.metaData();
+        if (previousMetaData == null) {
+            return true;
+        }
+        IndexMetaData previousIndexMetaData = previousMetaData.index(current.index());
+        // no need to check on version, since disco modules will make sure to use the
+        // same instance if its a version match
+        if (previousIndexMetaData == current) {
+            return false;
+        }
+        return false;
     }
 
     public boolean blocksChanged() {

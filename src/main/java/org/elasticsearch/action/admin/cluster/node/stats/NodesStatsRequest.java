@@ -211,6 +211,7 @@ public class NodesStatsRequest extends NodesOperationRequest {
         jvm = in.readBoolean();
         threadPool = in.readBoolean();
         network = in.readBoolean();
+        fs = in.readBoolean();
         transport = in.readBoolean();
         http = in.readBoolean();
     }
@@ -224,6 +225,7 @@ public class NodesStatsRequest extends NodesOperationRequest {
         out.writeBoolean(jvm);
         out.writeBoolean(threadPool);
         out.writeBoolean(network);
+        out.writeBoolean(fs);
         out.writeBoolean(transport);
         out.writeBoolean(http);
     }

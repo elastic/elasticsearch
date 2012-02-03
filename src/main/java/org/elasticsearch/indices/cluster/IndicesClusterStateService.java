@@ -332,9 +332,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 continue;
             }
             // if the index meta data didn't change, no need check for refreshed settings
-            if (!event.indexMetaDataChanged(indexMetaData)) {
-                continue;
-            }
+            //if (!event.indexMetaDataChanged(indexMetaData)) {
+            //    continue;
+            //}
             List<String> typesToRefresh = null;
             String index = indexMetaData.index();
             IndexService indexService = indicesService.indexServiceSafe(index);

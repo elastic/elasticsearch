@@ -17,30 +17,29 @@
  * under the License.
  */
 
-package org.elasticsearch.index;
+package org.elasticsearch.jmx;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.service.IndexService;
-import org.elasticsearch.index.service.InternalIndexService;
-import org.elasticsearch.jmx.JmxService;
 
 /**
- *
+ * Simple based class for JMX related services with {@link #doConfigure()} only being called if
+ * jmx is enabled.
  */
-public class IndexModule extends AbstractModule {
+public abstract class AbstractJmxModule extends AbstractModule {
 
     private final Settings settings;
 
-    public IndexModule(Settings settings) {
+    protected AbstractJmxModule(Settings settings) {
         this.settings = settings;
     }
 
     @Override
     protected void configure() {
-        bind(IndexService.class).to(InternalIndexService.class).asEagerSingleton();
         if (JmxService.shouldExport(settings)) {
-            bind(IndexServiceManagement.class).asEagerSingleton();
+            doConfigure();
         }
     }
+
+    protected abstract void doConfigure();
 }

@@ -72,7 +72,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.INDEX;
+        return ThreadPool.Names.BULK;
     }
 
     @Override

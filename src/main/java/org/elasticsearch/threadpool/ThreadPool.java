@@ -58,6 +58,7 @@ public class ThreadPool extends AbstractComponent {
         public static final String SAME = "same";
         public static final String CACHED = "cached";
         public static final String INDEX = "index";
+        public static final String BULK = "bulk";
         public static final String SEARCH = "search";
         public static final String PERCOLATE = "percolate";
         public static final String MANAGEMENT = "management";
@@ -85,6 +86,7 @@ public class ThreadPool extends AbstractComponent {
         Map<String, ExecutorHolder> executors = Maps.newHashMap();
         executors.put(Names.CACHED, build(Names.CACHED, "cached", groupSettings.get(Names.CACHED), settingsBuilder().put("keep_alive", "30s").build()));
         executors.put(Names.INDEX, build(Names.INDEX, "cached", groupSettings.get(Names.INDEX), ImmutableSettings.Builder.EMPTY_SETTINGS));
+        executors.put(Names.BULK, build(Names.BULK, "cached", groupSettings.get(Names.BULK), ImmutableSettings.Builder.EMPTY_SETTINGS));
         executors.put(Names.SEARCH, build(Names.SEARCH, "cached", groupSettings.get(Names.SEARCH), ImmutableSettings.Builder.EMPTY_SETTINGS));
         executors.put(Names.PERCOLATE, build(Names.PERCOLATE, "cached", groupSettings.get(Names.PERCOLATE), ImmutableSettings.Builder.EMPTY_SETTINGS));
         executors.put(Names.MANAGEMENT, build(Names.MANAGEMENT, "scaling", groupSettings.get(Names.MANAGEMENT), settingsBuilder().put("keep_alive", "5m").put("size", 20).build()));

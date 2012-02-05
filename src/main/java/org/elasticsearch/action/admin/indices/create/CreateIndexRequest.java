@@ -251,6 +251,15 @@ public class CreateIndexRequest extends MasterNodeOperationRequest {
         return timeout(TimeValue.parseTimeValue(timeout, null));
     }
 
+    /**
+     * A timeout value in case the master has not been discovered yet or disconnected.
+     */
+    @Override
+    public CreateIndexRequest masterNodeTimeout(TimeValue timeout) {
+        this.masterNodeTimeout = timeout;
+        return this;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);

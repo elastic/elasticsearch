@@ -34,6 +34,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
@@ -136,7 +137,11 @@ public class QueryStringQueryParser implements QueryParser {
                         throw new QueryParsingException(parseContext.index(), "Query default operator [" + op + "] is not allowed");
                     }
                 } else if ("analyzer".equals(currentFieldName)) {
-                    qpSettings.forcedAnalyzer(parseContext.analysisService().analyzer(parser.text()));
+                    NamedAnalyzer analyzer = parseContext.analysisService().analyzer(parser.text());
+                    if (analyzer == null) {
+                        throw new QueryParsingException(parseContext.index(), "[query_string] analyzer [" + parser.text() + "] not found");
+                    }
+                    qpSettings.forcedAnalyzer(analyzer);
                 } else if ("allow_leading_wildcard".equals(currentFieldName) || "allowLeadingWildcard".equals(currentFieldName)) {
                     qpSettings.allowLeadingWildcard(parser.booleanValue());
                 } else if ("auto_generate_phrase_queries".equals(currentFieldName) || "autoGeneratePhraseQueries".equals(currentFieldName)) {

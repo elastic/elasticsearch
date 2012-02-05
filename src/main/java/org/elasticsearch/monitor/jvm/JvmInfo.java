@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -196,27 +197,47 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("jvm");
-        builder.field("pid", pid);
-        builder.field("version", version);
-        builder.field("vm_name", vmName);
-        builder.field("vm_version", vmVersion);
-        builder.field("vm_vendor", vmVendor);
-        builder.field("start_time", startTime);
+        builder.startObject(Fields.JVM);
+        builder.field(Fields.PID, pid);
+        builder.field(Fields.VERSION, version);
+        builder.field(Fields.VM_NAME, vmName);
+        builder.field(Fields.VM_VERSION, vmVersion);
+        builder.field(Fields.VM_VENDOR, vmVendor);
+        builder.field(Fields.START_TIME, startTime);
 
-        builder.startObject("mem");
-        builder.field("heap_init", mem.heapInit().toString());
-        builder.field("heap_init_in_bytes", mem.heapInit);
-        builder.field("heap_max", mem.heapMax().toString());
-        builder.field("heap_max_in_bytes", mem.heapMax);
-        builder.field("non_heap_init", mem.nonHeapInit().toString());
-        builder.field("non_heap_init_in_bytes", mem.nonHeapInit);
-        builder.field("non_heap_max", mem.nonHeapMax().toString());
-        builder.field("non_heap_max_in_bytes", mem.nonHeapMax);
+        builder.startObject(Fields.MEM);
+        builder.field(Fields.HEAP_INIT, mem.heapInit().toString());
+        builder.field(Fields.HEAP_INIT_IN_BYTES, mem.heapInit);
+        builder.field(Fields.HEAP_MAX, mem.heapMax().toString());
+        builder.field(Fields.HEAP_MAX_IN_BYTES, mem.heapMax);
+        builder.field(Fields.NON_HEAP_INIT, mem.nonHeapInit().toString());
+        builder.field(Fields.NON_HEAP_INIT_IN_BYTES, mem.nonHeapInit);
+        builder.field(Fields.NON_HEAP_MAX, mem.nonHeapMax().toString());
+        builder.field(Fields.NON_HEAP_MAX_IN_BYTES, mem.nonHeapMax);
         builder.endObject();
 
         builder.endObject();
         return builder;
+    }
+
+    static final class Fields {
+        static final XContentBuilderString JVM = new XContentBuilderString("jvm");
+        static final XContentBuilderString PID = new XContentBuilderString("pid");
+        static final XContentBuilderString VERSION = new XContentBuilderString("version");
+        static final XContentBuilderString VM_NAME = new XContentBuilderString("vm_name");
+        static final XContentBuilderString VM_VERSION = new XContentBuilderString("vm_version");
+        static final XContentBuilderString VM_VENDOR = new XContentBuilderString("vm_vendor");
+        static final XContentBuilderString START_TIME = new XContentBuilderString("start_time");
+
+        static final XContentBuilderString MEM = new XContentBuilderString("mem");
+        static final XContentBuilderString HEAP_INIT = new XContentBuilderString("heap_init");
+        static final XContentBuilderString HEAP_INIT_IN_BYTES = new XContentBuilderString("heap_init_in_bytes");
+        static final XContentBuilderString HEAP_MAX = new XContentBuilderString("heap_max");
+        static final XContentBuilderString HEAP_MAX_IN_BYTES = new XContentBuilderString("heap_max_in_bytes");
+        static final XContentBuilderString NON_HEAP_INIT = new XContentBuilderString("non_heap_init");
+        static final XContentBuilderString NON_HEAP_INIT_IN_BYTES = new XContentBuilderString("non_heap_init_in_bytes");
+        static final XContentBuilderString NON_HEAP_MAX = new XContentBuilderString("non_heap_max");
+        static final XContentBuilderString NON_HEAP_MAX_IN_BYTES = new XContentBuilderString("non_heap_max_in_bytes");
     }
 
     public static JvmInfo readJvmInfo(StreamInput in) throws IOException {

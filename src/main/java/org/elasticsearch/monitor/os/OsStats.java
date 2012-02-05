@@ -26,6 +26,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -102,52 +103,80 @@ public class OsStats implements Streamable, Serializable, ToXContent {
         return swap();
     }
 
+    static final class Fields {
+        static final XContentBuilderString OS = new XContentBuilderString("os");
+        static final XContentBuilderString TIMESTAMP = new XContentBuilderString("timestamp");
+        static final XContentBuilderString UPTIME = new XContentBuilderString("uptime");
+        static final XContentBuilderString UPTIME_IN_MILLIS = new XContentBuilderString("uptime_in_millis");
+        static final XContentBuilderString LOAD_AVERAGE = new XContentBuilderString("load_average");
+
+        static final XContentBuilderString CPU = new XContentBuilderString("cpu");
+        static final XContentBuilderString SYS = new XContentBuilderString("sys");
+        static final XContentBuilderString USER = new XContentBuilderString("user");
+        static final XContentBuilderString IDLE = new XContentBuilderString("idle");
+
+        static final XContentBuilderString MEM = new XContentBuilderString("mem");
+        static final XContentBuilderString SWAP = new XContentBuilderString("swap");
+        static final XContentBuilderString FREE = new XContentBuilderString("free");
+        static final XContentBuilderString FREE_IN_BYTES = new XContentBuilderString("free_in_bytes");
+        static final XContentBuilderString USED = new XContentBuilderString("free");
+        static final XContentBuilderString USED_IN_BYTES = new XContentBuilderString("free_in_bytes");
+
+        static final XContentBuilderString FREE_PERCENT = new XContentBuilderString("free_percent");
+        static final XContentBuilderString USED_PERCENT = new XContentBuilderString("used_percent");
+
+        static final XContentBuilderString ACTUAL_FREE = new XContentBuilderString("actual_free");
+        static final XContentBuilderString ACTUAL_FREE_IN_BYTES = new XContentBuilderString("actual_free_in_bytes");
+        static final XContentBuilderString ACTUAL_USED = new XContentBuilderString("actual_used");
+        static final XContentBuilderString ACTUAL_USED_IN_BYTES = new XContentBuilderString("actual_used_in_bytes");
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("os");
-        builder.field("timestamp", timestamp);
+        builder.startObject(Fields.OS);
+        builder.field(Fields.TIMESTAMP, timestamp);
 
-        builder.field("uptime", uptime().format());
-        builder.field("uptime_in_millis", uptime().millis());
+        builder.field(Fields.UPTIME, uptime().format());
+        builder.field(Fields.UPTIME_IN_MILLIS, uptime().millis());
 
-        builder.startArray("load_average");
+        builder.startArray(Fields.LOAD_AVERAGE);
         for (double value : loadAverage) {
             builder.value(value);
         }
         builder.endArray();
 
         if (cpu != null) {
-            builder.startObject("cpu");
-            builder.field("sys", cpu.sys());
-            builder.field("user", cpu.user());
-            builder.field("idle", cpu.idle());
+            builder.startObject(Fields.CPU);
+            builder.field(Fields.SYS, cpu.sys());
+            builder.field(Fields.USER, cpu.user());
+            builder.field(Fields.IDLE, cpu.idle());
             builder.endObject();
         }
 
         if (mem != null) {
-            builder.startObject("mem");
-            builder.field("free", mem.free().toString());
-            builder.field("free_in_bytes", mem.free().bytes());
-            builder.field("used", mem.used().toString());
-            builder.field("used_in_bytes", mem.used().bytes());
+            builder.startObject(Fields.MEM);
+            builder.field(Fields.FREE, mem.free().toString());
+            builder.field(Fields.FREE_IN_BYTES, mem.free);
+            builder.field(Fields.USED, mem.used().toString());
+            builder.field(Fields.USED_IN_BYTES, mem.used);
 
-            builder.field("free_percent", mem.freePercent());
-            builder.field("used_percent", mem.usedPercent());
+            builder.field(Fields.FREE_PERCENT, mem.freePercent());
+            builder.field(Fields.USED_PERCENT, mem.usedPercent());
 
-            builder.field("actual_free", mem.actualFree().toString());
-            builder.field("actual_free_in_bytes", mem.actualFree().bytes());
-            builder.field("actual_used", mem.actualUsed().toString());
-            builder.field("actual_used_in_bytes", mem.actualUsed().bytes());
+            builder.field(Fields.ACTUAL_FREE, mem.actualFree().toString());
+            builder.field(Fields.ACTUAL_FREE_IN_BYTES, mem.actualFree);
+            builder.field(Fields.ACTUAL_USED, mem.actualUsed().toString());
+            builder.field(Fields.ACTUAL_USED_IN_BYTES, mem.actualUsed);
 
             builder.endObject();
         }
 
         if (swap != null) {
-            builder.startObject("swap");
-            builder.field("used", swap.used().toString());
-            builder.field("used_in_bytes", swap.used().bytes());
-            builder.field("free", swap.free().toString());
-            builder.field("free_in_bytes", swap.free().bytes());
+            builder.startObject(Fields.SWAP);
+            builder.field(Fields.USED, swap.used().toString());
+            builder.field(Fields.USED_IN_BYTES, swap.used);
+            builder.field(Fields.FREE, swap.free().toString());
+            builder.field(Fields.FREE_IN_BYTES, swap.free);
             builder.endObject();
         }
 

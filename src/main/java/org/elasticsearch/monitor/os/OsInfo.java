@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -77,32 +78,51 @@ public class OsInfo implements Streamable, Serializable, ToXContent {
         return swap();
     }
 
+    static final class Fields {
+        static final XContentBuilderString OS = new XContentBuilderString("os");
+        static final XContentBuilderString REFRESH_INTERVAL = new XContentBuilderString("refresh_interval");
+        static final XContentBuilderString CPU = new XContentBuilderString("cpu");
+        static final XContentBuilderString VENDOR = new XContentBuilderString("vendor");
+        static final XContentBuilderString MODEL = new XContentBuilderString("model");
+        static final XContentBuilderString MHZ = new XContentBuilderString("mhz");
+        static final XContentBuilderString TOTAL_CORES = new XContentBuilderString("total_cores");
+        static final XContentBuilderString TOTAL_SOCKETS = new XContentBuilderString("total_sockets");
+        static final XContentBuilderString CORES_PER_SOCKET = new XContentBuilderString("cores_per_socket");
+        static final XContentBuilderString CACHE_SIZE = new XContentBuilderString("cache_size");
+        static final XContentBuilderString CACHE_SIZE_IN_BYTES = new XContentBuilderString("cache_size_in_bytes");
+
+        static final XContentBuilderString MEM = new XContentBuilderString("mem");
+        static final XContentBuilderString SWAP = new XContentBuilderString("swap");
+        static final XContentBuilderString TOTAL = new XContentBuilderString("total");
+        static final XContentBuilderString TOTAL_IN_BYTES = new XContentBuilderString("total_in_bytes");
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("os");
-        builder.field("refresh_interval", refreshInterval);
+        builder.startObject(Fields.OS);
+        builder.field(Fields.REFRESH_INTERVAL, refreshInterval);
         if (cpu != null) {
-            builder.startObject("cpu");
-            builder.field("vendor", cpu.vendor());
-            builder.field("model", cpu.model());
-            builder.field("mhz", cpu.mhz());
-            builder.field("total_cores", cpu.totalCores());
-            builder.field("total_sockets", cpu.totalSockets());
-            builder.field("cores_per_socket", cpu.coresPerSocket());
-            builder.field("cache_size", cpu.cacheSize().toString());
-            builder.field("cache_size_in_bytes", cpu.cacheSize().bytes());
+            builder.startObject(Fields.CPU);
+            builder.field(Fields.VENDOR, cpu.vendor());
+            builder.field(Fields.MODEL, cpu.model());
+            builder.field(Fields.MHZ, cpu.mhz());
+            builder.field(Fields.TOTAL_CORES, cpu.totalCores());
+            builder.field(Fields.TOTAL_SOCKETS, cpu.totalSockets());
+            builder.field(Fields.CORES_PER_SOCKET, cpu.coresPerSocket());
+            builder.field(Fields.CACHE_SIZE, cpu.cacheSize().toString());
+            builder.field(Fields.CACHE_SIZE_IN_BYTES, cpu.cacheSize().bytes());
             builder.endObject();
         }
         if (mem != null) {
-            builder.startObject("mem");
-            builder.field("total", mem.total().toString());
-            builder.field("total_in_bytes", mem.total().bytes());
+            builder.startObject(Fields.MEM);
+            builder.field(Fields.TOTAL, mem.total().toString());
+            builder.field(Fields.TOTAL_IN_BYTES, mem.total);
             builder.endObject();
         }
         if (swap != null) {
-            builder.startObject("swap");
-            builder.field("total", swap.total().toString());
-            builder.field("total_in_bytes", swap.total().bytes());
+            builder.startObject(Fields.SWAP);
+            builder.field(Fields.TOTAL, swap.total().toString());
+            builder.field(Fields.TOTAL_IN_BYTES, swap.total);
             builder.endObject();
         }
         builder.endObject();

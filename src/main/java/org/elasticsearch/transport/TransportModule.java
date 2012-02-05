@@ -25,6 +25,7 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.Modules;
 import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.jmx.JmxService;
 import org.elasticsearch.transport.local.LocalTransportModule;
 import org.elasticsearch.transport.netty.NettyTransportModule;
 
@@ -53,6 +54,8 @@ public class TransportModule extends AbstractModule implements SpawnModules {
     @Override
     protected void configure() {
         bind(TransportService.class).asEagerSingleton();
-        bind(TransportServiceManagement.class).asEagerSingleton();
+        if (JmxService.shouldExport(settings)) {
+            bind(TransportServiceManagement.class).asEagerSingleton();
+        }
     }
 }

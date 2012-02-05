@@ -20,6 +20,8 @@
 package org.elasticsearch.transport.netty;
 
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.jmx.JmxService;
 import org.elasticsearch.transport.Transport;
 
 /**
@@ -27,10 +29,18 @@ import org.elasticsearch.transport.Transport;
  */
 public class NettyTransportModule extends AbstractModule {
 
+    private final Settings settings;
+
+    public NettyTransportModule(Settings settings) {
+        this.settings = settings;
+    }
+
     @Override
     protected void configure() {
         bind(NettyTransport.class).asEagerSingleton();
         bind(Transport.class).to(NettyTransport.class).asEagerSingleton();
-        bind(NettyTransportManagement.class).asEagerSingleton();
+        if (JmxService.shouldExport(settings)) {
+            bind(NettyTransportManagement.class).asEagerSingleton();
+        }
     }
 }

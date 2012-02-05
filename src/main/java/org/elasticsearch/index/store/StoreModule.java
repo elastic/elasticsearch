@@ -21,6 +21,7 @@ package org.elasticsearch.index.store;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.jmx.JmxService;
 
 /**
  *
@@ -39,7 +40,9 @@ public class StoreModule extends AbstractModule {
     @Override
     protected void configure() {
         bind(DirectoryService.class).to(indexStore.shardDirectory()).asEagerSingleton();
-        bind(StoreManagement.class).asEagerSingleton();
         bind(Store.class).asEagerSingleton();
+        if (JmxService.shouldExport(settings)) {
+            bind(StoreManagement.class).asEagerSingleton();
+        }
     }
 }

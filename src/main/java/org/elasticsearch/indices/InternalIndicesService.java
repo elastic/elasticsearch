@@ -279,7 +279,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         modules.add(new MapperServiceModule());
         modules.add(new IndexAliasesServiceModule());
         modules.add(new IndexGatewayModule(indexSettings, injector.getInstance(Gateway.class)));
-        modules.add(new IndexModule());
+        modules.add(new IndexModule(indexSettings));
         modules.add(new PercolatorModule());
 
         Injector indexInjector;

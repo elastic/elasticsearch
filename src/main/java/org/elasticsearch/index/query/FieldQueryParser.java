@@ -28,6 +28,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
@@ -93,7 +94,11 @@ public class FieldQueryParser implements QueryParser {
                     } else if ("phrase_slop".equals(currentFieldName) || "phraseSlop".equals(currentFieldName)) {
                         qpSettings.phraseSlop(parser.intValue());
                     } else if ("analyzer".equals(currentFieldName)) {
-                        qpSettings.forcedAnalyzer(parseContext.analysisService().analyzer(parser.text()));
+                        NamedAnalyzer analyzer = parseContext.analysisService().analyzer(parser.text());
+                        if (analyzer == null) {
+                            throw new QueryParsingException(parseContext.index(), "[query_string] analyzer [" + parser.text() + "] not found");
+                        }
+                        qpSettings.forcedAnalyzer(analyzer);
                     } else if ("default_operator".equals(currentFieldName) || "defaultOperator".equals(currentFieldName)) {
                         String op = parser.text();
                         if ("or".equalsIgnoreCase(op)) {

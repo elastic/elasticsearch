@@ -88,7 +88,10 @@ public class TextQueryParser implements QueryParser {
                             type = org.elasticsearch.index.search.TextQueryParser.Type.PHRASE_PREFIX;
                         }
                     } else if ("analyzer".equals(currentFieldName)) {
-                        analyzer = parser.textOrNull();
+                        analyzer = parser.text();
+                        if (parseContext.analysisService().analyzer(analyzer) == null) {
+                            throw new QueryParsingException(parseContext.index(), "[text] analyzer [" + parser.text() + "] not found");
+                        }
                     } else if ("boost".equals(currentFieldName)) {
                         boost = parser.floatValue();
                     } else if ("slop".equals(currentFieldName) || "phrase_slop".equals(currentFieldName) || "phraseSlop".equals(currentFieldName)) {

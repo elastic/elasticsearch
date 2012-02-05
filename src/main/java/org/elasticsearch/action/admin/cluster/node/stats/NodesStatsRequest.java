@@ -52,6 +52,22 @@ public class NodesStatsRequest extends NodesOperationRequest {
     }
 
     /**
+     * Sets all the request flags.
+     */
+    public NodesStatsRequest all() {
+        this.indices = true;
+        this.os = true;
+        this.process = true;
+        this.jvm = true;
+        this.threadPool = true;
+        this.network = true;
+        this.fs = true;
+        this.transport = true;
+        this.http = true;
+        return this;
+    }
+
+    /**
      * Clears all the request flags.
      */
     public NodesStatsRequest clear() {

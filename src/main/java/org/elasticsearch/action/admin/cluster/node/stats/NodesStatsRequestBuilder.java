@@ -38,6 +38,14 @@ public class NodesStatsRequestBuilder extends BaseClusterRequestBuilder<NodesSta
     }
 
     /**
+     * Sets all the request flags.
+     */
+    public NodesStatsRequestBuilder all() {
+        request.all();
+        return this;
+    }
+
+    /**
      * Clears all stats flags.
      */
     public NodesStatsRequestBuilder clear() {

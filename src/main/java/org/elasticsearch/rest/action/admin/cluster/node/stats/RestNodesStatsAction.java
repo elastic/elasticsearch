@@ -82,6 +82,10 @@ public class RestNodesStatsAction extends BaseRestHandler {
         if (clear) {
             nodesStatsRequest.clear();
         }
+        boolean all = request.paramAsBoolean("all", false);
+        if (all) {
+            nodesStatsRequest.all();
+        }
         nodesStatsRequest.indices(request.paramAsBoolean("indices", nodesStatsRequest.indices()));
         nodesStatsRequest.os(request.paramAsBoolean("os", nodesStatsRequest.os()));
         nodesStatsRequest.process(request.paramAsBoolean("process", nodesStatsRequest.process()));

@@ -38,6 +38,17 @@ public class IndicesStatsRequestBuilder extends BaseIndicesRequestBuilder<Indice
         super(indicesClient, new IndicesStatsRequest());
     }
 
+    /**
+     * Sets all flags to return all stats.
+     */
+    public IndicesStatsRequestBuilder all() {
+        request.all();
+        return this;
+    }
+
+    /**
+     * Clears all stats.
+     */
     public IndicesStatsRequestBuilder clear() {
         request.clear();
         return this;

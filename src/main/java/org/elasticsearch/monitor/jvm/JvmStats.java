@@ -28,6 +28,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -223,34 +224,34 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("jvm");
-        builder.field("timestamp", timestamp);
-        builder.field("uptime", uptime().format());
-        builder.field("uptime_in_millis", uptime().millis());
+        builder.startObject(Fields.JVM);
+        builder.field(Fields.TIMESTAMP, timestamp);
+        builder.field(Fields.UPTIME, uptime().format());
+        builder.field(Fields.UPTIME_IN_MILLIS, uptime().millis());
         if (mem != null) {
-            builder.startObject("mem");
-            builder.field("heap_used", mem.heapUsed().toString());
-            builder.field("heap_used_in_bytes", mem.heapUsed().bytes());
-            builder.field("heap_committed", mem.heapCommitted().toString());
-            builder.field("heap_committed_in_bytes", mem.heapCommitted().bytes());
+            builder.startObject(Fields.MEM);
+            builder.field(Fields.HEAP_USED, mem.heapUsed().toString());
+            builder.field(Fields.HEAP_USED_IN_BYTES, mem.heapUsed().bytes());
+            builder.field(Fields.HEAP_COMMITTED, mem.heapCommitted().toString());
+            builder.field(Fields.HEAP_COMMITTED_IN_BYTES, mem.heapCommitted().bytes());
 
-            builder.field("non_heap_used", mem.nonHeapUsed().toString());
-            builder.field("non_heap_used_in_bytes", mem.nonHeapUsed);
-            builder.field("non_heap_committed", mem.nonHeapCommitted().toString());
-            builder.field("non_heap_committed_in_bytes", mem.nonHeapCommitted);
+            builder.field(Fields.NON_HEAP_USED, mem.nonHeapUsed().toString());
+            builder.field(Fields.NON_HEAP_USED_IN_BYTES, mem.nonHeapUsed);
+            builder.field(Fields.NON_HEAP_COMMITTED, mem.nonHeapCommitted().toString());
+            builder.field(Fields.NON_HEAP_COMMITTED_IN_BYTES, mem.nonHeapCommitted);
 
-            builder.startObject("pools");
+            builder.startObject(Fields.POOLS);
             for (MemoryPool pool : mem) {
                 builder.startObject(pool.name());
-                builder.field("used", pool.used().toString());
-                builder.field("used_in_bytes", pool.used);
-                builder.field("max", pool.max().toString());
-                builder.field("max_in_bytes", pool.max);
+                builder.field(Fields.USED, pool.used().toString());
+                builder.field(Fields.USED_IN_BYTES, pool.used);
+                builder.field(Fields.MAX, pool.max().toString());
+                builder.field(Fields.MAX_IN_BYTES, pool.max);
 
-                builder.field("peak_used", pool.peakUsed().toString());
-                builder.field("peak_used_in_bytes", pool.peakUsed);
-                builder.field("peak_max", pool.peakMax().toString());
-                builder.field("peak_max_in_bytes", pool.peakMax);
+                builder.field(Fields.PEAK_USED, pool.peakUsed().toString());
+                builder.field(Fields.PEAK_USED_IN_BYTES, pool.peakUsed);
+                builder.field(Fields.PEAK_MAX, pool.peakMax().toString());
+                builder.field(Fields.PEAK_MAX_IN_BYTES, pool.peakMax);
 
                 builder.endObject();
             }
@@ -259,23 +260,23 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
             builder.endObject();
         }
         if (threads != null) {
-            builder.startObject("threads");
-            builder.field("count", threads.count());
-            builder.field("peak_count", threads.peakCount());
+            builder.startObject(Fields.THREADS);
+            builder.field(Fields.COUNT, threads.count());
+            builder.field(Fields.PEAK_COUNT, threads.peakCount());
             builder.endObject();
         }
         if (gc != null) {
-            builder.startObject("gc");
-            builder.field("collection_count", gc.collectionCount());
-            builder.field("collection_time", gc.collectionTime().format());
-            builder.field("collection_time_in_millis", gc.collectionTime().millis());
+            builder.startObject(Fields.GC);
+            builder.field(Fields.COLLECTION_COUNT, gc.collectionCount());
+            builder.field(Fields.COLLECTION_TIME, gc.collectionTime().format());
+            builder.field(Fields.COLLECTION_TIME_IN_MILLIS, gc.collectionTime().millis());
 
-            builder.startObject("collectors");
+            builder.startObject(Fields.COLLECTORS);
             for (GarbageCollector collector : gc) {
                 builder.startObject(collector.name());
-                builder.field("collection_count", collector.collectionCount());
-                builder.field("collection_time", collector.collectionTime().format());
-                builder.field("collection_time_in_millis", collector.collectionTime().millis());
+                builder.field(Fields.COLLECTION_COUNT, collector.collectionCount());
+                builder.field(Fields.COLLECTION_TIME, collector.collectionTime().format());
+                builder.field(Fields.COLLECTION_TIME_IN_MILLIS, collector.collectionTime().millis());
                 builder.endObject();
             }
             builder.endObject();
@@ -285,6 +286,45 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
         builder.endObject();
         return builder;
     }
+
+    static final class Fields {
+        static final XContentBuilderString JVM = new XContentBuilderString("jvm");
+        static final XContentBuilderString TIMESTAMP = new XContentBuilderString("timestamp");
+        static final XContentBuilderString UPTIME = new XContentBuilderString("uptime");
+        static final XContentBuilderString UPTIME_IN_MILLIS = new XContentBuilderString("uptime_in_millis");
+
+        static final XContentBuilderString MEM = new XContentBuilderString("mem");
+        static final XContentBuilderString HEAP_USED = new XContentBuilderString("heap_used");
+        static final XContentBuilderString HEAP_USED_IN_BYTES = new XContentBuilderString("heap_used_in_bytes");
+        static final XContentBuilderString HEAP_COMMITTED = new XContentBuilderString("heap_committed");
+        static final XContentBuilderString HEAP_COMMITTED_IN_BYTES = new XContentBuilderString("heap_committed_in_bytes");
+
+        static final XContentBuilderString NON_HEAP_USED = new XContentBuilderString("non_heap_used");
+        static final XContentBuilderString NON_HEAP_USED_IN_BYTES = new XContentBuilderString("non_heap_used_in_bytes");
+        static final XContentBuilderString NON_HEAP_COMMITTED = new XContentBuilderString("non_heap_committed");
+        static final XContentBuilderString NON_HEAP_COMMITTED_IN_BYTES = new XContentBuilderString("non_heap_committed_in_bytes");
+
+        static final XContentBuilderString POOLS = new XContentBuilderString("pools");
+        static final XContentBuilderString USED = new XContentBuilderString("used");
+        static final XContentBuilderString USED_IN_BYTES = new XContentBuilderString("used_in_bytes");
+        static final XContentBuilderString MAX = new XContentBuilderString("max");
+        static final XContentBuilderString MAX_IN_BYTES = new XContentBuilderString("max_in_bytes");
+        static final XContentBuilderString PEAK_USED = new XContentBuilderString("peak_used");
+        static final XContentBuilderString PEAK_USED_IN_BYTES = new XContentBuilderString("peak_used_in_bytes");
+        static final XContentBuilderString PEAK_MAX = new XContentBuilderString("peak_max");
+        static final XContentBuilderString PEAK_MAX_IN_BYTES = new XContentBuilderString("peak_max_in_bytes");
+
+        static final XContentBuilderString THREADS = new XContentBuilderString("threads");
+        static final XContentBuilderString COUNT = new XContentBuilderString("count");
+        static final XContentBuilderString PEAK_COUNT = new XContentBuilderString("peak_count");
+
+        static final XContentBuilderString GC = new XContentBuilderString("gc");
+        static final XContentBuilderString COLLECTORS = new XContentBuilderString("collectors");
+        static final XContentBuilderString COLLECTION_COUNT = new XContentBuilderString("collection_count");
+        static final XContentBuilderString COLLECTION_TIME = new XContentBuilderString("collection_time");
+        static final XContentBuilderString COLLECTION_TIME_IN_MILLIS = new XContentBuilderString("collection_time_in_millis");
+    }
+
 
     public static JvmStats readJvmStats(StreamInput in) throws IOException {
         JvmStats jvmStats = new JvmStats();

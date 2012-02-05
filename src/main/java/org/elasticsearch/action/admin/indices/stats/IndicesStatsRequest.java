@@ -53,6 +53,23 @@ public class IndicesStatsRequest extends BroadcastOperationRequest {
     }
 
     /**
+     * Sets all flags to return all stats.
+     */
+    public IndicesStatsRequest all() {
+        docs = true;
+        store = true;
+        get = true;
+        indexing = true;
+        search = true;
+        merge = true;
+        refresh = true;
+        flush = true;
+        types = null;
+        groups = null;
+        return this;
+    }
+
+    /**
      * Clears all stats.
      */
     public IndicesStatsRequest clear() {

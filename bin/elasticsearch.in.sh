@@ -35,9 +35,7 @@ JAVA_OPTS="$JAVA_OPTS -Xss128k"
 
 JAVA_OPTS="$JAVA_OPTS -XX:+UseParNewGC"
 JAVA_OPTS="$JAVA_OPTS -XX:+UseConcMarkSweepGC"
-JAVA_OPTS="$JAVA_OPTS -XX:+CMSParallelRemarkEnabled"
-JAVA_OPTS="$JAVA_OPTS -XX:SurvivorRatio=8"
-JAVA_OPTS="$JAVA_OPTS -XX:MaxTenuringThreshold=1"
+
 JAVA_OPTS="$JAVA_OPTS -XX:CMSInitiatingOccupancyFraction=75"
 JAVA_OPTS="$JAVA_OPTS -XX:+UseCMSInitiatingOccupancyOnly"
 

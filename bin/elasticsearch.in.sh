@@ -6,6 +6,10 @@ fi
 if [ "x$ES_MAX_MEM" = "x" ]; then
     ES_MAX_MEM=1g
 fi
+if [ "x$ES_HEAP_SIZE" != "x" ]; then
+    ES_MIN_MEM=$ES_HEAP_SIZE
+    ES_MAX_MEM=$ES_HEAP_SIZE
+fi
 
 # min and max heap sizes should be set to the same value to avoid
 # stop-the-world GC pauses during resize, and so that we can lock the
@@ -13,6 +17,11 @@ fi
 # out.
 JAVA_OPTS="$JAVA_OPTS -Xms${ES_MIN_MEM}"
 JAVA_OPTS="$JAVA_OPTS -Xmx${ES_MAX_MEM}"
+
+# new generation
+if [ "x$ES_HEAP_NEWSIZE" != "x" ]; then
+    JAVA_OPTS="$JAVA_OPTS -Xmn${ES_HEAP_NEWSIZE}"
+fi
 
 # reduce the per-thread stack size
 JAVA_OPTS="$JAVA_OPTS -Xss128k"

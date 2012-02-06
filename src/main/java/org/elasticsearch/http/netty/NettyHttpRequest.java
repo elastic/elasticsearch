@@ -110,6 +110,9 @@ public class NettyHttpRequest extends AbstractRestRequest implements HttpRequest
     public boolean contentUnsafe() {
         // the netty HTTP handling always copy over the buffer to its own buffer, either in NioWorker internally
         // when reading, or using a cumalation buffer
+
+        // also, HttpMessageDecoder#content variable gets freshly created for each request and not reused across
+        // requests
         return false;
         //return request.getContent().hasArray();
     }

@@ -38,6 +38,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -504,21 +505,30 @@ public class ThreadPool extends AbstractComponent {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(name, XContentBuilder.FieldCaseConversion.NONE);
-            builder.field("type", type);
+            builder.field(Fields.TYPE, type);
             if (min != -1) {
-                builder.field("min", min);
+                builder.field(Fields.MIN, min);
             }
             if (max != -1) {
-                builder.field("max", max);
+                builder.field(Fields.MAX, max);
             }
             if (keepAlive != null) {
-                builder.field("keep_alive", keepAlive.toString());
+                builder.field(Fields.KEEP_ALIVE, keepAlive.toString());
             }
             if (capacity != null) {
-                builder.field("capacity", capacity.toString());
+                builder.field(Fields.CAPACITY, capacity.toString());
             }
             builder.endObject();
             return builder;
         }
+
+        static final class Fields {
+            static final XContentBuilderString TYPE = new XContentBuilderString("type");
+            static final XContentBuilderString MIN = new XContentBuilderString("min");
+            static final XContentBuilderString MAX = new XContentBuilderString("max");
+            static final XContentBuilderString KEEP_ALIVE = new XContentBuilderString("keep_alive");
+            static final XContentBuilderString CAPACITY = new XContentBuilderString("capacity");
+        }
+
     }
 }

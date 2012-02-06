@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -224,55 +225,78 @@ public class FsStats implements Iterable<FsStats.Info>, Streamable, ToXContent {
         }
     }
 
+    static final class Fields {
+        static final XContentBuilderString FS = new XContentBuilderString("fs");
+        static final XContentBuilderString TIMESTAMP = new XContentBuilderString("timestamp");
+        static final XContentBuilderString DATA = new XContentBuilderString("data");
+        static final XContentBuilderString PATH = new XContentBuilderString("path");
+        static final XContentBuilderString MOUNT = new XContentBuilderString("mount");
+        static final XContentBuilderString DEV = new XContentBuilderString("dev");
+        static final XContentBuilderString TOTAL = new XContentBuilderString("total");
+        static final XContentBuilderString TOTAL_IN_BYTES = new XContentBuilderString("total_in_bytes");
+        static final XContentBuilderString FREE = new XContentBuilderString("free");
+        static final XContentBuilderString FREE_IN_BYTES = new XContentBuilderString("free_in_bytes");
+        static final XContentBuilderString AVAILABLE = new XContentBuilderString("available");
+        static final XContentBuilderString AVAILABLE_IN_BYTES = new XContentBuilderString("available_in_bytes");
+        static final XContentBuilderString DISK_READS = new XContentBuilderString("disk_reads");
+        static final XContentBuilderString DISK_WRITES = new XContentBuilderString("disk_writes");
+        static final XContentBuilderString DISK_READ_SIZE = new XContentBuilderString("disk_read_size");
+        static final XContentBuilderString DISK_READ_SIZE_IN_BYTES = new XContentBuilderString("disk_read_size_in_bytes");
+        static final XContentBuilderString DISK_WRITE_SIZE = new XContentBuilderString("disk_write_size");
+        static final XContentBuilderString DISK_WRITE_SIZE_IN_BYTES = new XContentBuilderString("disk_write_size_in_bytes");
+        static final XContentBuilderString DISK_QUEUE = new XContentBuilderString("disk_queue");
+        static final XContentBuilderString DISK_SERVICE_TIME = new XContentBuilderString("disk_service_time");
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("fs");
-        builder.field("timestamp", timestamp);
-        builder.startArray("data");
+        builder.startObject(Fields.FS);
+        builder.field(Fields.TIMESTAMP, timestamp);
+        builder.startArray(Fields.DATA);
         for (Info info : infos) {
             builder.startObject();
-            builder.field("path", info.path);
+            builder.field(Fields.PATH, info.path);
             if (info.mount != null) {
-                builder.field("mount", info.mount);
+                builder.field(Fields.MOUNT, info.mount);
             }
             if (info.dev != null) {
-                builder.field("dev", info.dev);
+                builder.field(Fields.DEV, info.dev);
             }
 
             if (info.total != -1) {
-                builder.field("total", info.total().toString());
-                builder.field("total_in_bytes", info.total);
+                builder.field(Fields.TOTAL, info.total().toString());
+                builder.field(Fields.TOTAL_IN_BYTES, info.total);
             }
             if (info.free != -1) {
-                builder.field("free", info.free().toString());
-                builder.field("free_in_bytes", info.free);
+                builder.field(Fields.FREE, info.free().toString());
+                builder.field(Fields.FREE_IN_BYTES, info.free);
             }
             if (info.available != -1) {
-                builder.field("available", info.available().toString());
-                builder.field("available_in_bytes", info.available);
+                builder.field(Fields.AVAILABLE, info.available().toString());
+                builder.field(Fields.AVAILABLE_IN_BYTES, info.available);
             }
 
             if (info.diskReads != -1) {
-                builder.field("disk_reads", info.diskReads);
+                builder.field(Fields.DISK_READS, info.diskReads);
             }
             if (info.diskWrites != -1) {
-                builder.field("disk_writes", info.diskWrites);
+                builder.field(Fields.DISK_WRITES, info.diskWrites);
             }
 
             if (info.diskReadBytes != -1) {
-                builder.field("disk_read_size", info.diskReadSizeSize().toString());
-                builder.field("disk_read_size_bytes", info.diskReadSizeInBytes());
+                builder.field(Fields.DISK_READ_SIZE, info.diskReadSizeSize().toString());
+                builder.field(Fields.DISK_READ_SIZE_IN_BYTES, info.diskReadSizeInBytes());
             }
             if (info.diskWriteBytes != -1) {
-                builder.field("disk_write_size", info.diskWriteSizeSize().toString());
-                builder.field("disk_write_size_bytes", info.diskWriteSizeInBytes());
+                builder.field(Fields.DISK_WRITE_SIZE, info.diskWriteSizeSize().toString());
+                builder.field(Fields.DISK_WRITE_SIZE_IN_BYTES, info.diskWriteSizeInBytes());
             }
 
             if (info.diskQueue != -1) {
-                builder.field("disk_queue", Strings.format1Decimals(info.diskQueue, ""));
+                builder.field(Fields.DISK_QUEUE, Strings.format1Decimals(info.diskQueue, ""));
             }
             if (info.diskServiceTime != -1) {
-                builder.field("disk_service_time", Strings.format1Decimals(info.diskServiceTime, ""));
+                builder.field(Fields.DISK_SERVICE_TIME, Strings.format1Decimals(info.diskServiceTime, ""));
             }
 
             builder.endObject();

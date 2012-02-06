@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -92,10 +93,10 @@ public class ThreadPoolStats implements Streamable, ToXContent, Iterable<ThreadP
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(name, XContentBuilder.FieldCaseConversion.NONE);
             if (threads != -1) {
-                builder.field("threads", threads);
+                builder.field(Fields.THREADS, threads);
             }
             if (queue != -1) {
-                builder.field("queue", queue);
+                builder.field(Fields.QUEUE, queue);
             }
             builder.endObject();
             return builder;
@@ -142,9 +143,15 @@ public class ThreadPoolStats implements Streamable, ToXContent, Iterable<ThreadP
         }
     }
 
+    static final class Fields {
+        static final XContentBuilderString THREAD_POOL = new XContentBuilderString("thread_pool");
+        static final XContentBuilderString THREADS = new XContentBuilderString("threads");
+        static final XContentBuilderString QUEUE = new XContentBuilderString("queue");
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.startObject("thread_pool");
+        builder.startObject(Fields.THREAD_POOL);
         for (Stats stat : stats) {
             stat.toXContent(builder, params);
         }

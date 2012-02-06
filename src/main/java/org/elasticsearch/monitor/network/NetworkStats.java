@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -41,21 +42,36 @@ public class NetworkStats implements Streamable, Serializable, ToXContent {
 
     }
 
+    static final class Fields {
+        static final XContentBuilderString NETWORK = new XContentBuilderString("network");
+        static final XContentBuilderString TCP = new XContentBuilderString("tcp");
+        static final XContentBuilderString ACTIVE_OPENS = new XContentBuilderString("active_opens");
+        static final XContentBuilderString PASSIVE_OPENS = new XContentBuilderString("passive_opens");
+        static final XContentBuilderString CURR_ESTAB = new XContentBuilderString("curr_estab");
+        static final XContentBuilderString IN_SEGS = new XContentBuilderString("in_segs");
+        static final XContentBuilderString OUT_SEGS = new XContentBuilderString("out_segs");
+        static final XContentBuilderString RETRANS_SEGS = new XContentBuilderString("retrans_segs");
+        static final XContentBuilderString ESTAB_RESETS = new XContentBuilderString("estab_resets");
+        static final XContentBuilderString ATTEMPT_FAILS = new XContentBuilderString("attempt_fails");
+        static final XContentBuilderString IN_ERRS = new XContentBuilderString("in_errs");
+        static final XContentBuilderString OUT_RSTS = new XContentBuilderString("out_rsts");
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("network");
+        builder.startObject(Fields.NETWORK);
         if (tcp != null) {
-            builder.startObject("tcp");
-            builder.field("active_opens", tcp.getActiveOpens());
-            builder.field("passive_opens", tcp.getPassiveOpens());
-            builder.field("curr_estab", tcp.getCurrEstab());
-            builder.field("in_segs", tcp.getInSegs());
-            builder.field("out_segs", tcp.getOutSegs());
-            builder.field("retrans_segs", tcp.getRetransSegs());
-            builder.field("estab_resets", tcp.getEstabResets());
-            builder.field("attempt_fails", tcp.getAttemptFails());
-            builder.field("in_errs", tcp.getInErrs());
-            builder.field("out_rsts", tcp.getOutRsts());
+            builder.startObject(Fields.TCP);
+            builder.field(Fields.ACTIVE_OPENS, tcp.getActiveOpens());
+            builder.field(Fields.PASSIVE_OPENS, tcp.getPassiveOpens());
+            builder.field(Fields.CURR_ESTAB, tcp.getCurrEstab());
+            builder.field(Fields.IN_SEGS, tcp.getInSegs());
+            builder.field(Fields.OUT_SEGS, tcp.getOutSegs());
+            builder.field(Fields.RETRANS_SEGS, tcp.getRetransSegs());
+            builder.field(Fields.ESTAB_RESETS, tcp.getEstabResets());
+            builder.field(Fields.ATTEMPT_FAILS, tcp.getAttemptFails());
+            builder.field(Fields.IN_ERRS, tcp.getInErrs());
+            builder.field(Fields.OUT_RSTS, tcp.getOutRsts());
             builder.endObject();
         }
         builder.endObject();

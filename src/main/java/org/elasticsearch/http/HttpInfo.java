@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -43,11 +44,17 @@ public class HttpInfo implements Streamable, Serializable, ToXContent {
         this.address = address;
     }
 
+    static final class Fields {
+        static final XContentBuilderString HTTP = new XContentBuilderString("http");
+        static final XContentBuilderString BOUND_ADDRESS = new XContentBuilderString("bound_address");
+        static final XContentBuilderString PUBLISH_ADDRESS = new XContentBuilderString("publish_address");
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("http");
-        builder.field("bound_address", address.boundAddress().toString());
-        builder.field("publish_address", address.publishAddress().toString());
+        builder.startObject(Fields.HTTP);
+        builder.field(Fields.BOUND_ADDRESS, address.boundAddress().toString());
+        builder.field(Fields.PUBLISH_ADDRESS, address.publishAddress().toString());
         builder.endObject();
         return builder;
     }

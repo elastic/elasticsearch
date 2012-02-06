@@ -46,32 +46,59 @@ public class RestNodesStatsAction extends BaseRestHandler {
         controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats", this);
         controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats", this);
 
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/indices", new RestIndicesHandler());
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/indices", new RestIndicesHandler());
+        RestIndicesHandler indicesHandler = new RestIndicesHandler();
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/indices", indicesHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/indices", indicesHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/indices/stats", indicesHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/indices/stats", indicesHandler);
 
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/os", new RestOsHandler());
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/os", new RestOsHandler());
+        RestOsHandler osHandler = new RestOsHandler();
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/os", osHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/os", osHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/os/stats", osHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/os/stats", osHandler);
 
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/process", new RestProcessHandler());
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/process", new RestProcessHandler());
+        RestProcessHandler processHandler = new RestProcessHandler();
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/process", processHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/process", processHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/process/stats", processHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/process/stats", processHandler);
 
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/jvm", new RestJvmHandler());
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/jvm", new RestJvmHandler());
+        RestJvmHandler jvmHandler = new RestJvmHandler();
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/jvm", jvmHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/jvm", jvmHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/jvm/stats", jvmHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/jvm/stats", jvmHandler);
 
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/thread_pool", new RestThreadPoolHandler());
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/thread_pool", new RestThreadPoolHandler());
+        RestThreadPoolHandler threadPoolHandler = new RestThreadPoolHandler();
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/thread_pool", threadPoolHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/thread_pool", threadPoolHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/thread_pool/stats", threadPoolHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/thread_pool/stats", threadPoolHandler);
 
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/network", new RestNetworkHandler());
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/network", new RestNetworkHandler());
+        RestNetworkHandler networkHandler = new RestNetworkHandler();
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/network", networkHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/network", networkHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/network/stats", networkHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/network/stats", networkHandler);
 
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/fs", new RestFsHandler());
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/fs", new RestFsHandler());
+        RestFsHandler fsHandler = new RestFsHandler();
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/fs", fsHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/fs", fsHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/fs/stats", fsHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/fs/stats", fsHandler);
 
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/transport", new RestTransportHandler());
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/transport", new RestTransportHandler());
+        RestTransportHandler transportHandler = new RestTransportHandler();
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/transport", transportHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/transport", transportHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/transport/stats", transportHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/transport/stats", transportHandler);
 
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/http", new RestHttpHandler());
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/http", new RestHttpHandler());
+        RestHttpHandler httpHandler = new RestHttpHandler();
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/http", httpHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/http", httpHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/http/stats", httpHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/http/stats", httpHandler);
     }
 
     @Override

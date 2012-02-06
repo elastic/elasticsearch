@@ -68,8 +68,9 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
 
     // similar logic to FrameDecoder, we don't use FrameDecoder because we can use the data len header value
     // to guess the size of the cumulation buffer to allocate
-    // Also strange, is that the FrameDecoder always allocated a cumulation, even if the input bufer is enough
-    // so we don't allocate a cumulation buffer unless we really need to here (need to post this to the mailing list)
+
+    // we don't reuse the cumalation buffer, so it won't grow out of control per channel, as well as
+    // being able to "readBytesReference" from it without worry
     @Override
     public void messageReceived(ChannelHandlerContext ctx, MessageEvent e) throws Exception {
 

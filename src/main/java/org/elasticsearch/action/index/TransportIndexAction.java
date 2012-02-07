@@ -85,7 +85,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         this.mappingUpdatedAction = mappingUpdatedAction;
         this.autoCreateIndex = settings.getAsBoolean("action.auto_create_index", true);
         this.allowIdGeneration = settings.getAsBoolean("action.allow_id_generation", true);
-        this.waitForMappingChange = settings.getAsBoolean("action.wait_on_mapping_change", true);
+        this.waitForMappingChange = settings.getAsBoolean("action.wait_on_mapping_change", false);
     }
 
     @Override

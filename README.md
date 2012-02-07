@@ -12,7 +12,7 @@ In order to install the plugin, simply run: `bin/plugin -install elasticsearch/e
     --------------------------------------------------
     | 1.1.0                         | 0.19 -> master |
     --------------------------------------------------
-    | 1.0.0                         | 0.18 -> master |
+    | 1.0.0                         | 0.18           |
     --------------------------------------------------
 
 The plugin includes the `polish` analyzer.

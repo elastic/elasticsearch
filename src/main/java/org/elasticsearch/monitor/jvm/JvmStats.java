@@ -91,7 +91,7 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
             }
         }
 
-        JvmStats.enableLastGc = false;
+        JvmStats.enableLastGc = enableLastGc;
     }
 
     public static JvmStats jvmStats() {

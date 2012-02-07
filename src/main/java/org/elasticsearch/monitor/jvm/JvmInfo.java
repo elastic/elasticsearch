@@ -123,6 +123,68 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
         return this.version;
     }
 
+    public int versionAsInteger() {
+        try {
+            int i = 0;
+            String sVersion = "";
+            for (; i < version.length(); i++) {
+                if (!Character.isDigit(version.charAt(i)) && version.charAt(i) != '.') {
+                    break;
+                }
+                if (version.charAt(i) != '.') {
+                    sVersion += version.charAt(i);
+                }
+            }
+            if (i == 0) {
+                return -1;
+            }
+            return Integer.parseInt(sVersion);
+        } catch (Exception e) {
+            return -1;
+        }
+    }
+
+    public int versionUpdatePack() {
+        try {
+            int i = 0;
+            String sVersion = "";
+            for (; i < version.length(); i++) {
+                if (!Character.isDigit(version.charAt(i)) && version.charAt(i) != '.') {
+                    break;
+                }
+                if (version.charAt(i) != '.') {
+                    sVersion += version.charAt(i);
+                }
+            }
+            if (i == 0) {
+                return -1;
+            }
+            Integer.parseInt(sVersion);
+            int from;
+            if (version.charAt(i) == '_') {
+                // 1.7.0_4
+                from = ++i;
+            } else if (version.charAt(i) == '-' && version.charAt(i + 1) == 'u') {
+                // 1.7.0-u2-b21
+                i = i + 2;
+                from = i;
+            } else {
+                return -1;
+            }
+            for (; i < version.length(); i++) {
+                if (!Character.isDigit(version.charAt(i)) && version.charAt(i) != '.') {
+                    break;
+                }
+            }
+            if (from == i) {
+                return -1;
+            }
+            return Integer.parseInt(version.substring(from, i));
+        } catch (Exception e) {
+            return -1;
+        }
+    }
+
     public String vmName() {
         return vmName;
     }

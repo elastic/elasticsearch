@@ -66,6 +66,21 @@ public class NodesInfoRequest extends NodesOperationRequest {
     }
 
     /**
+     * Sets to return all the data.
+     */
+    public NodesInfoRequest all() {
+        settings = true;
+        os = true;
+        process = true;
+        jvm = true;
+        threadPool = true;
+        network = true;
+        transport = true;
+        http = true;
+        return this;
+    }
+
+    /**
      * Should the node settings be returned.
      */
     public boolean settings() {

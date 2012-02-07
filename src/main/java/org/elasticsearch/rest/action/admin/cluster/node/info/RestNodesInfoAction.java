@@ -85,6 +85,10 @@ public class RestNodesInfoAction extends BaseRestHandler {
         if (clear) {
             nodesInfoRequest.clear();
         }
+        boolean all = request.paramAsBoolean("all", false);
+        if (all) {
+            nodesInfoRequest.all();
+        }
         nodesInfoRequest.settings(request.paramAsBoolean("settings", nodesInfoRequest.settings()));
         nodesInfoRequest.os(request.paramAsBoolean("os", nodesInfoRequest.os()));
         nodesInfoRequest.process(request.paramAsBoolean("process", nodesInfoRequest.process()));

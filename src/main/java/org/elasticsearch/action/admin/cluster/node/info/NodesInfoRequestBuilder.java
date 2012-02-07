@@ -46,6 +46,14 @@ public class NodesInfoRequestBuilder extends BaseClusterRequestBuilder<NodesInfo
     }
 
     /**
+     * Sets to reutrn all the data.
+     */
+    public NodesInfoRequestBuilder all() {
+        request.all();
+        return this;
+    }
+
+    /**
      * Should the node settings be returned.
      */
     public NodesInfoRequestBuilder setSettings(boolean settings) {

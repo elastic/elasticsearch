@@ -206,14 +206,14 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
                 long avgCollectionTime = collectionTime / collections;
 
                 if (avgCollectionTime > gcThreshold.warnThreshold) {
-                    logger.warn("[gc][{}][{}][{}] duration [{}], collections [{}], total [{}]/[{}], memory [{}]->[{}]/[{}]",
-                            gc.name(), seq, gc.collectionCount(), TimeValue.timeValueMillis(collectionTime), collections, TimeValue.timeValueMillis(collectionTime), gc.collectionTime(), lastJvmStats.mem().heapUsed(), currentJvmStats.mem().heapUsed(), JvmInfo.jvmInfo().mem().heapMax());
+                    logger.warn("[gc][{}][{}][{}] duration [{}], collections [{}]/[{}], total [{}]/[{}], memory [{}]->[{}]/[{}]",
+                            gc.name(), seq, gc.collectionCount(), TimeValue.timeValueMillis(collectionTime), collections, TimeValue.timeValueMillis(currentJvmStats.timestamp() - lastJvmStats.timestamp()), TimeValue.timeValueMillis(collectionTime), gc.collectionTime(), lastJvmStats.mem().heapUsed(), currentJvmStats.mem().heapUsed(), JvmInfo.jvmInfo().mem().heapMax());
                 } else if (avgCollectionTime > gcThreshold.infoThreshold) {
-                    logger.info("[gc][{}][{}][{}] duration [{}], collections [{}], total [{}]/[{}], memory [{}]->[{}]/[{}]",
-                            gc.name(), seq, gc.collectionCount(), TimeValue.timeValueMillis(collectionTime), collections, TimeValue.timeValueMillis(collectionTime), gc.collectionTime(), lastJvmStats.mem().heapUsed(), currentJvmStats.mem().heapUsed(), JvmInfo.jvmInfo().mem().heapMax());
+                    logger.info("[gc][{}][{}][{}] duration [{}], collections [{}]/[{}], total [{}]/[{}], memory [{}]->[{}]/[{}]",
+                            gc.name(), seq, gc.collectionCount(), TimeValue.timeValueMillis(collectionTime), collections, TimeValue.timeValueMillis(currentJvmStats.timestamp() - lastJvmStats.timestamp()), TimeValue.timeValueMillis(collectionTime), gc.collectionTime(), lastJvmStats.mem().heapUsed(), currentJvmStats.mem().heapUsed(), JvmInfo.jvmInfo().mem().heapMax());
                 } else if (avgCollectionTime > gcThreshold.debugThreshold && logger.isDebugEnabled()) {
-                    logger.debug("[gc][{}][{}][{}] duration [{}], collections [{}], total [{}]/[{}], memory [{}]->[{}]/[{}]",
-                            gc.name(), seq, gc.collectionCount(), TimeValue.timeValueMillis(collectionTime), collections, TimeValue.timeValueMillis(collectionTime), gc.collectionTime(), lastJvmStats.mem().heapUsed(), currentJvmStats.mem().heapUsed(), JvmInfo.jvmInfo().mem().heapMax());
+                    logger.debug("[gc][{}][{}][{}] duration [{}], collections [{}]/[{}], total [{}]/[{}], memory [{}]->[{}]/[{}]",
+                            gc.name(), seq, gc.collectionCount(), TimeValue.timeValueMillis(collectionTime), collections, TimeValue.timeValueMillis(currentJvmStats.timestamp() - lastJvmStats.timestamp()), TimeValue.timeValueMillis(collectionTime), gc.collectionTime(), lastJvmStats.mem().heapUsed(), currentJvmStats.mem().heapUsed(), JvmInfo.jvmInfo().mem().heapMax());
                 }
             }
             lastJvmStats = currentJvmStats;

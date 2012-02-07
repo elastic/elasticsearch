@@ -300,9 +300,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
                     (int) transport.maxHeaderSize.bytes(),
                     (int) transport.maxChunkSize.bytes()
             ));
-            if (transport.compression) {
-                pipeline.addLast("decoder_compress", new HttpContentDecompressor());
-            }
+            pipeline.addLast("decoder_compress", new ESHttpContentDecompressor(transport.compression));
             pipeline.addLast("aggregator", new HttpChunkAggregator((int) transport.maxContentLength.bytes()));
             pipeline.addLast("encoder", new HttpResponseEncoder());
             if (transport.compression) {

@@ -341,3 +341,13 @@
 #index.search.slowlog.threshold.fetch.info: 800ms
 #index.search.slowlog.threshold.fetch.debug: 500ms
 #index.search.slowlog.threshold.fetch.trace: 200ms
+
+################################## GC Logging ################################
+
+#monitor.jvm.gc.ParNew.warn: 1000ms
+#monitor.jvm.gc.ParNew.info: 700ms
+#monitor.jvm.gc.ParNew.debug: 400ms
+
+#monitor.jvm.gc.ConcurrentMarkSweep.warn: 10s
+#monitor.jvm.gc.ConcurrentMarkSweep.info: 5s
+#monitor.jvm.gc.ConcurrentMarkSweep.debug: 2s

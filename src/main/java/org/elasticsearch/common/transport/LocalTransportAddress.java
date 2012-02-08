@@ -53,6 +53,11 @@ public class LocalTransportAddress implements TransportAddress {
     }
 
     @Override
+    public boolean sameHost(TransportAddress other) {
+        return true;
+    }
+
+    @Override
     public void readFrom(StreamInput in) throws IOException {
         id = in.readUTF();
     }

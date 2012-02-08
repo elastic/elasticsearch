@@ -30,8 +30,6 @@ import java.net.InetSocketAddress;
 
 /**
  * A transport address used for IP socket address (wraps {@link java.net.InetSocketAddress}).
- *
- *
  */
 public class InetSocketTransportAddress implements TransportAddress {
 
@@ -78,6 +76,20 @@ public class InetSocketTransportAddress implements TransportAddress {
             }
         }
         return false;
+    }
+
+    @Override
+    public boolean sameHost(TransportAddress other) {
+        if (!(other instanceof InetSocketTransportAddress)) {
+            return false;
+        }
+        InetSocketTransportAddress otherAddr = (InetSocketTransportAddress) other;
+        if (address.isUnresolved() || otherAddr.address().isUnresolved()) {
+            String hostName = address.getHostName();
+            String otherHostName = otherAddr.address().getHostName();
+            return !(hostName == null || otherHostName == null) && hostName.equals(otherHostName);
+        }
+        return otherAddr.address().getAddress().equals(address.getAddress());
     }
 
     public InetSocketAddress address() {

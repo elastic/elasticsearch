@@ -398,7 +398,7 @@
                 </executions>
             </plugin>
             <plugin>
-                <!-- some infos https://github.com/tcurdt/jdeb/blob/master/docs/maven.md 
+                <!-- some infos https://github.com/tcurdt/jdeb/blob/master/docs/maven.md
                 -->
                 <artifactId>jdeb</artifactId>
                 <groupId>org.vafer</groupId>

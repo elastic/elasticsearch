@@ -3,8 +3,8 @@ set -e
 
 case "$1" in
     remove)
-        # Remove logs and data
-        rm -rf /var/log/elasticsearch /var/lib/elasticsearch
+        # Remove logs but not the data
+        rm -rf /var/log/elasticsearch
     ;;
 
     purge)

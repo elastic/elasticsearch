@@ -31,4 +31,6 @@ public interface TransportAddress extends Streamable, Serializable {
     short uniqueAddressTypeId();
 
     boolean match(String otherAddress);
+
+    boolean sameHost(TransportAddress other);
 }

@@ -33,9 +33,15 @@ import java.util.List;
  */
 public class SameShardAllocationDecider extends AllocationDecider {
 
+    public static final String SAME_HOST_SETTING = "cluster.routing.allocation.same_shard.host";
+
+    private final boolean sameHost;
+
     @Inject
     public SameShardAllocationDecider(Settings settings) {
         super(settings);
+
+        this.sameHost = settings.getAsBoolean(SAME_HOST_SETTING, false);
     }
 
     @Override
@@ -45,6 +51,25 @@ public class SameShardAllocationDecider extends AllocationDecider {
             // we do not allow for two shards of the same shard id to exists on the same node
             if (shards.get(i).shardId().equals(shardRouting.shardId())) {
                 return Decision.NO;
+            }
+        }
+        if (sameHost) {
+            if (node.node() != null) {
+                for (RoutingNode checkNode : allocation.routingNodes()) {
+                    if (checkNode.node() == null) {
+                        continue;
+                    }
+                    // check if its on the same host as the one we want to allocate to
+                    if (!checkNode.node().address().sameHost(node.node().address())) {
+                        continue;
+                    }
+                    shards = checkNode.shards();
+                    for (int i = 0; i < shards.size(); i++) {
+                        if (shards.get(i).shardId().equals(shardRouting.shardId())) {
+                            return Decision.NO;
+                        }
+                    }
+                }
             }
         }
         return Decision.YES;

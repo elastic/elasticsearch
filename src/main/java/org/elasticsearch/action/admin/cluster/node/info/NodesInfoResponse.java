@@ -23,13 +23,20 @@ import org.elasticsearch.action.support.nodes.NodesOperationResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  *
  */
-public class NodesInfoResponse extends NodesOperationResponse<NodeInfo> {
+public class NodesInfoResponse extends NodesOperationResponse<NodeInfo> implements ToXContent {
+
+    private SettingsFilter settingsFilter;
 
     public NodesInfoResponse() {
     }
@@ -54,5 +61,77 @@ public class NodesInfoResponse extends NodesOperationResponse<NodeInfo> {
         for (NodeInfo node : nodes) {
             node.writeTo(out);
         }
+    }
+
+    public NodesInfoResponse settingsFilter(SettingsFilter settingsFilter) {
+        this.settingsFilter = settingsFilter;
+        return this;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field("cluster_name", clusterName().value());
+
+        builder.startObject("nodes");
+        for (NodeInfo nodeInfo : this) {
+            builder.startObject(nodeInfo.node().id(), XContentBuilder.FieldCaseConversion.NONE);
+
+            builder.field("name", nodeInfo.node().name(), XContentBuilder.FieldCaseConversion.NONE);
+            builder.field("transport_address", nodeInfo.node().address().toString());
+
+            if (nodeInfo.hostname() != null) {
+                builder.field("hostname", nodeInfo.hostname(), XContentBuilder.FieldCaseConversion.NONE);
+            }
+
+            if (nodeInfo.serviceAttributes() != null) {
+                for (Map.Entry<String, String> nodeAttribute : nodeInfo.serviceAttributes().entrySet()) {
+                    builder.field(nodeAttribute.getKey(), nodeAttribute.getValue());
+                }
+            }
+
+            if (!nodeInfo.node().attributes().isEmpty()) {
+                builder.startObject("attributes");
+                for (Map.Entry<String, String> attr : nodeInfo.node().attributes().entrySet()) {
+                    builder.field(attr.getKey(), attr.getValue());
+                }
+                builder.endObject();
+            }
+
+
+            if (nodeInfo.settings() != null) {
+                builder.startObject("settings");
+                Settings settings = settingsFilter.filterSettings(nodeInfo.settings());
+                for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
+                    builder.field(entry.getKey(), entry.getValue());
+                }
+                builder.endObject();
+            }
+
+            if (nodeInfo.os() != null) {
+                nodeInfo.os().toXContent(builder, params);
+            }
+            if (nodeInfo.process() != null) {
+                nodeInfo.process().toXContent(builder, params);
+            }
+            if (nodeInfo.jvm() != null) {
+                nodeInfo.jvm().toXContent(builder, params);
+            }
+            if (nodeInfo.threadPool() != null) {
+                nodeInfo.threadPool().toXContent(builder, params);
+            }
+            if (nodeInfo.network() != null) {
+                nodeInfo.network().toXContent(builder, params);
+            }
+            if (nodeInfo.transport() != null) {
+                nodeInfo.transport().toXContent(builder, params);
+            }
+            if (nodeInfo.http() != null) {
+                nodeInfo.http().toXContent(builder, params);
+            }
+
+            builder.endObject();
+        }
+        builder.endObject();
+        return builder;
     }
 }

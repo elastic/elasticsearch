@@ -27,14 +27,12 @@ import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 
-import static org.elasticsearch.action.Actions.addValidationError;
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 
 /**
  * A request to delete an index template.
- *
- *
  */
 public class DeleteIndexTemplateRequest extends MasterNodeOperationRequest {
 

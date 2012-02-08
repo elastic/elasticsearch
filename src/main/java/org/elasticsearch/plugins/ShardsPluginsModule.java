@@ -52,6 +52,7 @@ public class ShardsPluginsModule extends AbstractModule implements SpawnModules,
         for (Class<? extends Module> moduleClass : modulesClasses) {
             modules.add(createModule(moduleClass, settings));
         }
+        modules.addAll(pluginsService.shardModules(settings));
         return modules;
     }
 

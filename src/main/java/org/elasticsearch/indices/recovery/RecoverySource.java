@@ -23,7 +23,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -53,15 +53,9 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class RecoverySource extends AbstractComponent {
 
-    static {
-        MetaData.addDynamicSettings("index.shard.recovery.concurrent_streams");
-    }
-
     public static class Actions {
         public static final String START_RECOVERY = "index/shard/recovery/startRecovery";
     }
-
-    private final ThreadPool threadPool;
 
     private final TransportService transportService;
 
@@ -71,10 +65,9 @@ public class RecoverySource extends AbstractComponent {
 
 
     @Inject
-    public RecoverySource(Settings settings, ThreadPool threadPool, TransportService transportService, IndicesService indicesService,
+    public RecoverySource(Settings settings, TransportService transportService, IndicesService indicesService,
                           RecoverySettings recoverySettings) {
         super(settings);
-        this.threadPool = threadPool;
         this.transportService = transportService;
         this.indicesService = indicesService;
 
@@ -156,7 +149,8 @@ public class RecoverySource extends AbstractComponent {
                                         }
 
                                         indexInput.readBytes(buf, 0, toRead, false);
-                                        transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.FILE_CHUNK, new RecoveryFileChunkRequest(request.shardId(), name, position, len, md.checksum(), buf, toRead),
+                                        BytesHolder content = new BytesHolder(buf, 0, toRead);
+                                        transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.FILE_CHUNK, new RecoveryFileChunkRequest(request.shardId(), name, position, len, md.checksum(), content),
                                                 TransportRequestOptions.options().withCompress(recoverySettings.compress()).withLowType(), VoidTransportResponseHandler.INSTANCE_SAME).txGet();
                                         readCount += toRead;
                                     }
@@ -200,13 +194,16 @@ public class RecoverySource extends AbstractComponent {
                 if (shard.state() == IndexShardState.CLOSED) {
                     throw new IndexShardClosedException(request.shardId());
                 }
-                logger.trace("[{}][{}] recovery [phase2] to {}: sending transaction log operations", request.shardId().index().name(), request.shardId().id(), request.targetNode());
+                logger.trace("[{}][{}] recovery [phase2] to {}: start", request.shardId().index().name(), request.shardId().id(), request.targetNode());
                 StopWatch stopWatch = new StopWatch().start();
-
                 transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.PREPARE_TRANSLOG, new RecoveryPrepareForTranslogOperationsRequest(request.shardId()), VoidTransportResponseHandler.INSTANCE_SAME).txGet();
+                stopWatch.stop();
+                response.startTime = stopWatch.totalTime().millis();
+                logger.trace("[{}][{}] recovery [phase2] to {}: start took [{}]", request.shardId().index().name(), request.shardId().id(), request.targetNode(), stopWatch.totalTime());
 
+                logger.trace("[{}][{}] recovery [phase2] to {}: sending transaction log operations", request.shardId().index().name(), request.shardId().id(), request.targetNode());
+                stopWatch = new StopWatch().start();
                 int totalOperations = sendSnapshot(snapshot);
-
                 stopWatch.stop();
                 logger.trace("[{}][{}] recovery [phase2] to {}: took [{}]", request.shardId().index().name(), request.shardId().id(), request.targetNode(), stopWatch.totalTime());
                 response.phase2Time = stopWatch.totalTime().millis();

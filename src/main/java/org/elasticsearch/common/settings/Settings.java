@@ -20,6 +20,7 @@
 package org.elasticsearch.common.settings;
 
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -230,6 +231,11 @@ public interface Settings {
      * @throws SettingsException
      */
     String[] getAsArray(String settingPrefix) throws SettingsException;
+
+    /**
+     * Retruns a parsed version.
+     */
+    Version getAsVersion(String setting, Version defaultVersion) throws SettingsException;
 
     /**
      * A settings builder interface.

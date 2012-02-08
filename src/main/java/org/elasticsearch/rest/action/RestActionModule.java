@@ -27,9 +27,6 @@ import org.elasticsearch.rest.action.admin.cluster.node.info.RestNodesInfoAction
 import org.elasticsearch.rest.action.admin.cluster.node.restart.RestNodesRestartAction;
 import org.elasticsearch.rest.action.admin.cluster.node.shutdown.RestNodesShutdownAction;
 import org.elasticsearch.rest.action.admin.cluster.node.stats.RestNodesStatsAction;
-import org.elasticsearch.rest.action.admin.cluster.ping.broadcast.RestBroadcastPingAction;
-import org.elasticsearch.rest.action.admin.cluster.ping.replication.RestReplicationPingAction;
-import org.elasticsearch.rest.action.admin.cluster.ping.single.RestSinglePingAction;
 import org.elasticsearch.rest.action.admin.cluster.reroute.RestClusterRerouteAction;
 import org.elasticsearch.rest.action.admin.cluster.settings.RestClusterGetSettingsAction;
 import org.elasticsearch.rest.action.admin.cluster.settings.RestClusterUpdateSettingsAction;
@@ -58,6 +55,7 @@ import org.elasticsearch.rest.action.admin.indices.status.RestIndicesStatusActio
 import org.elasticsearch.rest.action.admin.indices.template.delete.RestDeleteIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.template.get.RestGetIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.template.put.RestPutIndexTemplateAction;
+import org.elasticsearch.rest.action.admin.indices.validate.query.RestValidateQueryAction;
 import org.elasticsearch.rest.action.bulk.RestBulkAction;
 import org.elasticsearch.rest.action.count.RestCountAction;
 import org.elasticsearch.rest.action.delete.RestDeleteAction;
@@ -70,6 +68,7 @@ import org.elasticsearch.rest.action.mlt.RestMoreLikeThisAction;
 import org.elasticsearch.rest.action.percolate.RestPercolateAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchScrollAction;
+import org.elasticsearch.rest.action.update.RestUpdateAction;
 
 import java.util.List;
 
@@ -100,10 +99,6 @@ public class RestActionModule extends AbstractModule {
         bind(RestClusterUpdateSettingsAction.class).asEagerSingleton();
         bind(RestClusterGetSettingsAction.class).asEagerSingleton();
         bind(RestClusterRerouteAction.class).asEagerSingleton();
-
-        bind(RestSinglePingAction.class).asEagerSingleton();
-        bind(RestBroadcastPingAction.class).asEagerSingleton();
-        bind(RestReplicationPingAction.class).asEagerSingleton();
 
         bind(RestIndicesExistsAction.class).asEagerSingleton();
         bind(RestIndicesStatsAction.class).asEagerSingleton();
@@ -136,22 +131,20 @@ public class RestActionModule extends AbstractModule {
         bind(RestClearIndicesCacheAction.class).asEagerSingleton();
 
         bind(RestIndexAction.class).asEagerSingleton();
-
         bind(RestGetAction.class).asEagerSingleton();
         bind(RestMultiGetAction.class).asEagerSingleton();
-
         bind(RestDeleteAction.class).asEagerSingleton();
-
         bind(RestDeleteByQueryAction.class).asEagerSingleton();
-
         bind(RestCountAction.class).asEagerSingleton();
         bind(RestBulkAction.class).asEagerSingleton();
+        bind(RestUpdateAction.class).asEagerSingleton();
+        bind(RestPercolateAction.class).asEagerSingleton();
 
         bind(RestSearchAction.class).asEagerSingleton();
         bind(RestSearchScrollAction.class).asEagerSingleton();
 
-        bind(RestMoreLikeThisAction.class).asEagerSingleton();
+        bind(RestValidateQueryAction.class).asEagerSingleton();
 
-        bind(RestPercolateAction.class).asEagerSingleton();
+        bind(RestMoreLikeThisAction.class).asEagerSingleton();
     }
 }

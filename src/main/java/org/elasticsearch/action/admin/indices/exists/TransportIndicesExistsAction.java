@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.indices.exists;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -34,8 +33,6 @@ import org.elasticsearch.transport.TransportService;
 
 /**
  * Indices exists action.
- *
- *
  */
 public class TransportIndicesExistsAction extends TransportMasterNodeOperationAction<IndicesExistsRequest, IndicesExistsResponse> {
 
@@ -52,7 +49,7 @@ public class TransportIndicesExistsAction extends TransportMasterNodeOperationAc
 
     @Override
     protected String transportAction() {
-        return TransportActions.Admin.Indices.EXISTS;
+        return IndicesExistsAction.NAME;
     }
 
     @Override

@@ -197,6 +197,7 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
                         sb.append("    index    : files           [").append(recoveryStatus.index().numberOfFiles()).append("] with total_size [").append(new ByteSizeValue(recoveryStatus.index().totalSize())).append("], took[").append(TimeValue.timeValueMillis(recoveryStatus.index().time())).append("]\n");
                         sb.append("             : recovered_files [").append(recoveryStatus.index().numberOfRecoveredFiles()).append("] with total_size [").append(new ByteSizeValue(recoveryStatus.index().recoveredTotalSize())).append("]\n");
                         sb.append("             : reusing_files   [").append(recoveryStatus.index().numberOfReusedFiles()).append("] with total_size [").append(new ByteSizeValue(recoveryStatus.index().reusedTotalSize())).append("]\n");
+                        sb.append("    start    : took [").append(TimeValue.timeValueMillis(recoveryStatus.start().time())).append("], check_index [").append(timeValueMillis(recoveryStatus.start().checkIndexTime())).append("]\n");
                         sb.append("    translog : number_of_operations [").append(recoveryStatus.translog().currentTranslogOperations()).append("], took [").append(TimeValue.timeValueMillis(recoveryStatus.translog().time())).append("]");
                         logger.debug(sb.toString());
                     }

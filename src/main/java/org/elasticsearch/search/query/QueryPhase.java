@@ -20,10 +20,11 @@
 package org.elasticsearch.search.query;
 
 import com.google.common.collect.ImmutableMap;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.*;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.index.query.ParsedQuery;
@@ -36,8 +37,6 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortParseElement;
 import org.elasticsearch.search.sort.TrackScoresParseElement;
 
-import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Map;
 
 /**
@@ -69,6 +68,7 @@ public class QueryPhase implements SearchPhase {
                 .put("track_scores", new TrackScoresParseElement())
                 .put("min_score", new MinScoreParseElement())
                 .put("minScore", new MinScoreParseElement())
+                .put("timeout", new TimeoutParseElement())
                 .putAll(facetPhase.parseElements());
         return parseElements.build();
     }
@@ -81,10 +81,21 @@ public class QueryPhase implements SearchPhase {
         if (context.queryBoost() != 1.0f) {
             context.parsedQuery(new ParsedQuery(new FunctionScoreQuery(context.query(), new BoostScoreFunction(context.queryBoost())), context.parsedQuery()));
         }
+        Filter searchFilter = context.mapperService().searchFilter(context.types());
+        if (searchFilter != null) {
+            if (Queries.isMatchAllQuery(context.query())) {
+                Query q = new DeletionAwareConstantScoreQuery(context.filterCache().cache(searchFilter));
+                q.setBoost(context.query().getBoost());
+                context.parsedQuery(new ParsedQuery(q, context.parsedQuery()));
+            } else {
+                context.parsedQuery(new ParsedQuery(new FilteredQuery(context.query(), context.filterCache().cache(searchFilter)), context.parsedQuery()));
+            }
+        }
         facetPhase.preProcess(context);
     }
 
     public void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
+        searchContext.queryResult().searchTimedOut(false);
         // set the filter on the searcher
         if (searchContext.scopePhases() != null) {
             // we have scoped queries, refresh the id cache
@@ -165,10 +176,6 @@ public class QueryPhase implements SearchPhase {
             searchContext.queryResult().size(searchContext.size());
 
             Query query = searchContext.query();
-            Filter searchFilter = searchContext.mapperService().searchFilter(searchContext.types());
-            if (searchFilter != null) {
-                query = new FilteredQuery(query, searchContext.filterCache().cache(searchFilter));
-            }
 
             TopDocs topDocs;
             int numDocs = searchContext.from() + searchContext.size();
@@ -176,38 +183,14 @@ public class QueryPhase implements SearchPhase {
                 // if 0 was asked, change it to 1 since 0 is not allowed
                 numDocs = 1;
             }
-            boolean sort = false;
-            // try and optimize for a case where the sorting is based on score, this is how we work by default!
-            if (searchContext.sort() != null) {
-                if (searchContext.sort().getSort().length > 1) {
-                    sort = true;
-                } else {
-                    SortField sortField = searchContext.sort().getSort()[0];
-                    if (sortField.getType() == SortField.SCORE && !sortField.getReverse()) {
-                        sort = false;
-                    } else {
-                        sort = true;
-                    }
-                }
-            }
 
             if (searchContext.searchType() == SearchType.COUNT) {
-                CountCollector countCollector = new CountCollector();
-                try {
-                    searchContext.searcher().search(query, countCollector);
-                } catch (ScanCollector.StopCollectingException e) {
-                    // all is well
-                }
-                topDocs = countCollector.topDocs();
+                TotalHitCountCollector collector = new TotalHitCountCollector();
+                searchContext.searcher().search(query, collector);
+                topDocs = new TopDocs(collector.getTotalHits(), Lucene.EMPTY_SCORE_DOCS, 0);
             } else if (searchContext.searchType() == SearchType.SCAN) {
-                ScanCollector scanCollector = new ScanCollector(searchContext.from(), searchContext.size(), searchContext.trackScores());
-                try {
-                    searchContext.searcher().search(query, scanCollector);
-                } catch (ScanCollector.StopCollectingException e) {
-                    // all is well
-                }
-                topDocs = scanCollector.topDocs();
-            } else if (sort) {
+                topDocs = searchContext.scanContext().execute(searchContext);
+            } else if (searchContext.sort() != null) {
                 topDocs = searchContext.searcher().search(query, null, numDocs, searchContext.sort());
             } else {
                 topDocs = searchContext.searcher().search(query, numDocs);
@@ -220,97 +203,5 @@ public class QueryPhase implements SearchPhase {
         }
 
         facetPhase.execute(searchContext);
-    }
-
-    static class CountCollector extends Collector {
-
-        private int totalHits = 0;
-
-        @Override
-        public void setScorer(Scorer scorer) throws IOException {
-        }
-
-        @Override
-        public void collect(int doc) throws IOException {
-            totalHits++;
-        }
-
-        @Override
-        public void setNextReader(IndexReader reader, int docBase) throws IOException {
-        }
-
-        @Override
-        public boolean acceptsDocsOutOfOrder() {
-            return true;
-        }
-
-        public TopDocs topDocs() {
-            return new TopDocs(totalHits, EMPTY, 0);
-        }
-
-        private static ScoreDoc[] EMPTY = new ScoreDoc[0];
-    }
-
-    static class ScanCollector extends Collector {
-
-        private final int from;
-
-        private final int to;
-
-        private final ArrayList<ScoreDoc> docs;
-
-        private final boolean trackScores;
-
-        private Scorer scorer;
-
-        private int docBase;
-
-        private int counter;
-
-        ScanCollector(int from, int size, boolean trackScores) {
-            this.from = from;
-            this.to = from + size;
-            this.trackScores = trackScores;
-            this.docs = new ArrayList<ScoreDoc>(size);
-        }
-
-        public TopDocs topDocs() {
-            return new TopDocs(docs.size(), docs.toArray(new ScoreDoc[docs.size()]), 0f);
-        }
-
-        @Override
-        public void setScorer(Scorer scorer) throws IOException {
-            this.scorer = scorer;
-        }
-
-        @Override
-        public void collect(int doc) throws IOException {
-            if (counter >= from) {
-                docs.add(new ScoreDoc(docBase + doc, trackScores ? scorer.score() : 0f));
-            }
-            counter++;
-            if (counter >= to) {
-                throw StopCollectingException;
-            }
-        }
-
-        @Override
-        public void setNextReader(IndexReader reader, int docBase) throws IOException {
-            this.docBase = docBase;
-        }
-
-        @Override
-        public boolean acceptsDocsOutOfOrder() {
-            return true;
-        }
-
-        public static final RuntimeException StopCollectingException = new StopCollectingException();
-
-        static class StopCollectingException extends RuntimeException {
-            @Override
-            public Throwable fillInStackTrace() {
-                return null;
-            }
-        }
     }
 }

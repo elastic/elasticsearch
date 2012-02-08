@@ -42,6 +42,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.gateway.local.state.shards.TransportNodesListGatewayStartedShards;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
@@ -155,7 +156,7 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
             int requiredAllocation = 1;
             try {
                 IndexMetaData indexMetaData = routingNodes.metaData().index(shard.index());
-                String initialShards = indexMetaData.settings().get("recovery.initial_shards", this.initialShards);
+                String initialShards = indexMetaData.settings().get("index.recovery.initial_shards", this.initialShards);
                 if ("quorum".equals(initialShards)) {
                     if (indexMetaData.numberOfReplicas() > 1) {
                         requiredAllocation = ((1 + indexMetaData.numberOfReplicas()) / 2) + 1;
@@ -164,9 +165,11 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
                     if (indexMetaData.numberOfReplicas() > 2) {
                         requiredAllocation = ((1 + indexMetaData.numberOfReplicas()) / 2);
                     }
-                } else if ("full".equals(initialShards)) {
+                } else if ("one".equals(initialShards)) {
+                    requiredAllocation = 1;
+                } else if ("full".equals(initialShards) || "all".equals(initialShards)) {
                     requiredAllocation = indexMetaData.numberOfReplicas() + 1;
-                } else if ("full-1".equals(initialShards)) {
+                } else if ("full-1".equals(initialShards) || "all-1".equals(initialShards)) {
                     if (indexMetaData.numberOfReplicas() > 1) {
                         requiredAllocation = indexMetaData.numberOfReplicas();
                     }

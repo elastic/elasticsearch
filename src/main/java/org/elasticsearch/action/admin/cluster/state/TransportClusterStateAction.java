@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.cluster.state;
 
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
@@ -57,7 +56,7 @@ public class TransportClusterStateAction extends TransportMasterNodeOperationAct
 
     @Override
     protected String transportAction() {
-        return TransportActions.Admin.Cluster.STATE;
+        return ClusterStateAction.NAME;
     }
 
     @Override
@@ -100,7 +99,7 @@ public class TransportClusterStateAction extends TransportMasterNodeOperationAct
                 for (String filteredIndex : indices) {
                     IndexMetaData indexMetaData = currentState.metaData().index(filteredIndex);
                     if (indexMetaData != null) {
-                        mdBuilder.put(indexMetaData);
+                        mdBuilder.put(indexMetaData, false);
                     }
                 }
             }

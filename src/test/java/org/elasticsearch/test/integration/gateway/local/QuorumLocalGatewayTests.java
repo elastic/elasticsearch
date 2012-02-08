@@ -144,7 +144,7 @@ public class QuorumLocalGatewayTests extends AbstractNodesTests {
         closeNode("node1");
 
         logger.info("--> running cluster_health (wait for the shards to startup)");
-        clusterHealth = client("node2").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(4)).actionGet();
+        clusterHealth = client("node2").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForNodes("2").waitForActiveShards(4)).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.status());
         assertThat(clusterHealth.timedOut(), equalTo(false));
         assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.YELLOW));

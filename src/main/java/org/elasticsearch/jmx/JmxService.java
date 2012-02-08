@@ -43,7 +43,12 @@ public class JmxService {
 
     public static class SettingsConstants {
 
+        public static final String EXPORT = "jmx.export";
         public static final String CREATE_CONNECTOR = "jmx.create_connector";
+    }
+
+    public static boolean shouldExport(Settings settings) {
+        return settings.getAsBoolean(SettingsConstants.CREATE_CONNECTOR, false) || settings.getAsBoolean(SettingsConstants.EXPORT, false);
     }
 
     // we use {jmx.port} without prefix of $ since we don't want it to be resolved as a setting property

@@ -93,8 +93,10 @@ public class TrackingSerialMergeScheduler extends MergeScheduler {
             currentMergesNumDocs.inc(totalNumDocs);
             currentMergesSizeInBytes.inc(totalSizeInBytes);
             try {
+                TrackingMergeScheduler.setCurrentMerge(merge);
                 writer.merge(merge);
             } finally {
+                TrackingMergeScheduler.removeCurrentMerge();
                 long took = System.currentTimeMillis() - time;
 
                 currentMerges.dec();

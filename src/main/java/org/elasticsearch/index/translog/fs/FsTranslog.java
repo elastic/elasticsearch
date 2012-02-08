@@ -20,13 +20,16 @@
 package org.elasticsearch.index.translog.fs;
 
 import jsr166y.ThreadLocalRandom;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.CachedStreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
@@ -44,29 +47,99 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  */
 public class FsTranslog extends AbstractIndexShardComponent implements Translog {
 
+    static {
+        IndexMetaData.addDynamicSettings(
+                "index.translog.fs.type",
+                "index.translog.fs.buffer_size",
+                "index.translog.fs.transient_buffer_size"
+        );
+    }
+
+    class ApplySettings implements IndexSettingsService.Listener {
+        @Override
+        public void onRefreshSettings(Settings settings) {
+            int bufferSize = (int) settings.getAsBytesSize("index.translog.fs.buffer_size", new ByteSizeValue(FsTranslog.this.bufferSize)).bytes();
+            if (bufferSize != FsTranslog.this.bufferSize) {
+                logger.info("updating buffer_size from [{}] to [{}]", new ByteSizeValue(FsTranslog.this.bufferSize), new ByteSizeValue(bufferSize));
+                FsTranslog.this.bufferSize = bufferSize;
+            }
+
+            int transientBufferSize = (int) settings.getAsBytesSize("index.translog.fs.transient_buffer_size", new ByteSizeValue(FsTranslog.this.transientBufferSize)).bytes();
+            if (transientBufferSize != FsTranslog.this.transientBufferSize) {
+                logger.info("updating transient_buffer_size from [{}] to [{}]", new ByteSizeValue(FsTranslog.this.transientBufferSize), new ByteSizeValue(transientBufferSize));
+                FsTranslog.this.transientBufferSize = transientBufferSize;
+            }
+
+            FsTranslogFile.Type type = FsTranslogFile.Type.fromString(settings.get("index.translog.fs.type", FsTranslog.this.type.name()));
+            if (type != FsTranslog.this.type) {
+                logger.info("updating type from [{}] to [{}]", FsTranslog.this.type, type);
+                FsTranslog.this.type = type;
+            }
+        }
+    }
+
+    private final IndexSettingsService indexSettingsService;
+
     private final ReadWriteLock rwl = new ReentrantReadWriteLock();
     private final File[] locations;
 
     private volatile FsTranslogFile current;
     private volatile FsTranslogFile trans;
 
+    private FsTranslogFile.Type type;
+
     private boolean syncOnEachOperation = false;
 
+    private int bufferSize;
+    private int transientBufferSize;
+
+    private final ApplySettings applySettings = new ApplySettings();
+
     @Inject
-    public FsTranslog(ShardId shardId, @IndexSettings Settings indexSettings, NodeEnvironment nodeEnv) {
+    public FsTranslog(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService, NodeEnvironment nodeEnv) {
         super(shardId, indexSettings);
+        this.indexSettingsService = indexSettingsService;
         File[] shardLocations = nodeEnv.shardLocations(shardId);
         this.locations = new File[shardLocations.length];
         for (int i = 0; i < shardLocations.length; i++) {
             locations[i] = new File(shardLocations[i], "translog");
             FileSystemUtils.mkdirs(locations[i]);
         }
+
+        this.type = FsTranslogFile.Type.fromString(componentSettings.get("type", FsTranslogFile.Type.BUFFERED.name()));
+        this.bufferSize = (int) componentSettings.getAsBytesSize("buffer_size", ByteSizeValue.parseBytesSizeValue("64k")).bytes();
+        this.transientBufferSize = (int) componentSettings.getAsBytesSize("transient_buffer_size", ByteSizeValue.parseBytesSizeValue("8k")).bytes();
+
+        indexSettingsService.addListener(applySettings);
     }
 
     public FsTranslog(ShardId shardId, @IndexSettings Settings indexSettings, File location) {
         super(shardId, indexSettings);
+        this.indexSettingsService = null;
         this.locations = new File[]{location};
         FileSystemUtils.mkdirs(location);
+
+        this.type = FsTranslogFile.Type.fromString(componentSettings.get("type", FsTranslogFile.Type.BUFFERED.name()));
+    }
+
+    @Override
+    public void close(boolean delete) {
+        if (indexSettingsService != null) {
+            indexSettingsService.removeListener(applySettings);
+        }
+        rwl.writeLock().lock();
+        try {
+            FsTranslogFile current1 = this.current;
+            if (current1 != null) {
+                current1.close(delete);
+            }
+            current1 = this.trans;
+            if (current1 != null) {
+                current1.close(delete);
+            }
+        } finally {
+            rwl.writeLock().unlock();
+        }
     }
 
     public File[] locations() {
@@ -149,7 +222,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
                 }
             }
             try {
-                newFile = new FsTranslogFile(shardId, id, new RafReference(new File(location, "translog-" + id)));
+                newFile = type.create(shardId, id, new RafReference(new File(location, "translog-" + id)), bufferSize);
             } catch (IOException e) {
                 throw new TranslogException(shardId, "failed to create new translog file", e);
             }
@@ -184,7 +257,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
                     location = file;
                 }
             }
-            this.trans = new FsTranslogFile(shardId, id, new RafReference(new File(location, "translog-" + id)));
+            this.trans = type.create(shardId, id, new RafReference(new File(location, "translog-" + id)), transientBufferSize);
         } catch (IOException e) {
             throw new TranslogException(shardId, "failed to create new translog file", e);
         } finally {
@@ -205,6 +278,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
             rwl.writeLock().unlock();
         }
         old.close(true);
+        current.reuse(old);
     }
 
     @Override
@@ -309,24 +383,18 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
     }
 
     @Override
-    public void syncOnEachOperation(boolean syncOnEachOperation) {
-        this.syncOnEachOperation = syncOnEachOperation;
+    public boolean syncNeeded() {
+        FsTranslogFile current1 = this.current;
+        return current1 != null && current1.syncNeeded();
     }
 
     @Override
-    public void close(boolean delete) {
-        rwl.writeLock().lock();
-        try {
-            FsTranslogFile current1 = this.current;
-            if (current1 != null) {
-                current1.close(delete);
-            }
-            current1 = this.trans;
-            if (current1 != null) {
-                current1.close(delete);
-            }
-        } finally {
-            rwl.writeLock().unlock();
+    public void syncOnEachOperation(boolean syncOnEachOperation) {
+        this.syncOnEachOperation = syncOnEachOperation;
+        if (syncOnEachOperation) {
+            type = FsTranslogFile.Type.SIMPLE;
+        } else {
+            type = FsTranslogFile.Type.BUFFERED;
         }
     }
 }

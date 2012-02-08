@@ -22,7 +22,7 @@ package org.elasticsearch.action.support.master;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.support.BaseAction;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -38,10 +38,8 @@ import org.elasticsearch.transport.*;
 
 /**
  * A base class for operations that needs to be performed on the master node.
- *
- *
  */
-public abstract class TransportMasterNodeOperationAction<Request extends MasterNodeOperationRequest, Response extends ActionResponse> extends BaseAction<Request, Response> {
+public abstract class TransportMasterNodeOperationAction<Request extends MasterNodeOperationRequest, Response extends ActionResponse> extends TransportAction<Request, Response> {
 
     protected final TransportService transportService;
 
@@ -168,7 +166,7 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
                         @Override
                         public void onTimeout(TimeValue timeout) {
                             clusterService.remove(this);
-                            listener.onFailure(new MasterNotDiscoveredException());
+                            listener.onFailure(new MasterNotDiscoveredException("waited for [" + timeout + "]"));
                         }
 
                         @Override

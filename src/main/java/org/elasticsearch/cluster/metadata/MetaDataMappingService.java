@@ -235,13 +235,23 @@ public class MetaDataMappingService extends AbstractComponent {
                     throw new IndexMissingException(new Index("_all"));
                 }
 
-                logger.info("[{}] remove_mapping [{}]", request.indices, request.mappingType);
                 MetaData.Builder builder = newMetaDataBuilder().metaData(currentState.metaData());
+                boolean changed = false;
                 for (String indexName : request.indices) {
-                    if (currentState.metaData().hasIndex(indexName)) {
-                        builder.put(newIndexMetaDataBuilder(currentState.metaData().index(indexName)).removeMapping(request.mappingType));
+                    IndexMetaData indexMetaData = currentState.metaData().index(indexName);
+                    if (indexMetaData != null) {
+                        if (indexMetaData.mappings().containsKey(request.mappingType)) {
+                            builder.put(newIndexMetaDataBuilder(indexMetaData).removeMapping(request.mappingType));
+                            changed = true;
+                        }
                     }
                 }
+
+                if (!changed) {
+                    return currentState;
+                }
+
+                logger.info("[{}] remove_mapping [{}]", request.indices, request.mappingType);
 
                 return ClusterState.builder().state(currentState).metaData(builder).build();
             }
@@ -254,6 +264,7 @@ public class MetaDataMappingService extends AbstractComponent {
     }
 
     public void putMapping(final PutRequest request, final Listener listener) {
+        final AtomicBoolean notifyOnPostProcess = new AtomicBoolean();
         clusterService.submitStateUpdateTask("put-mapping [" + request.mappingType + "]", new ProcessedClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -384,7 +395,7 @@ public class MetaDataMappingService extends AbstractComponent {
                     }
 
                     if (counter == 0) {
-                        listener.onResponse(new Response(true));
+                        notifyOnPostProcess.set(true);
                         return updatedState;
                     }
                     mappingCreatedAction.add(new CountDownListener(counter, listener), request.timeout);
@@ -401,6 +412,9 @@ public class MetaDataMappingService extends AbstractComponent {
 
             @Override
             public void clusterStateProcessed(ClusterState clusterState) {
+                if (notifyOnPostProcess.get()) {
+                    listener.onResponse(new Response(true));
+                }
             }
         });
     }

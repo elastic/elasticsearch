@@ -1,23 +1,21 @@
-/*
- * Licensed to Elastic Search and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
 package org.apache.lucene.store.bytebuffer;
+
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IndexInput;
@@ -30,6 +28,7 @@ import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * A memory based directory that uses {@link java.nio.ByteBuffer} in order to store the directory content.
@@ -41,8 +40,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p/>
  * <p>If constructed with {@link ByteBufferAllocator}, it allows to control the allocation and release of
  * byte buffer. For example, custom implementations can include caching of byte buffers.
- *
- *
  */
 public class ByteBufferDirectory extends Directory {
 
@@ -51,6 +48,8 @@ public class ByteBufferDirectory extends Directory {
     private final ByteBufferAllocator allocator;
 
     private final boolean internalAllocator;
+
+    final AtomicLong sizeInBytes = new AtomicLong();
 
     /**
      * Constructs a new directory using {@link PlainByteBufferAllocator}.
@@ -76,6 +75,13 @@ public class ByteBufferDirectory extends Directory {
         } catch (IOException e) {
             // will not happen
         }
+    }
+
+    /**
+     * Returns the size in bytes of the directory, chunk by buffer size.
+     */
+    public long sizeInBytes() {
+        return sizeInBytes.get();
     }
 
     public void sync(Collection<String> names) throws IOException {
@@ -110,7 +116,7 @@ public class ByteBufferDirectory extends Directory {
         do {
             try {
                 Thread.sleep(0, 1);
-            } catch (InterruptedException ie) {
+            } catch (java.lang.InterruptedException ie) {
                 // In 3.0 we will change this to throw
                 // InterruptedException instead
                 Thread.currentThread().interrupt();
@@ -127,7 +133,8 @@ public class ByteBufferDirectory extends Directory {
         ByteBufferFile file = files.remove(name);
         if (file == null)
             throw new FileNotFoundException(name);
-        file.clean();
+        sizeInBytes.addAndGet(-file.sizeInBytes.get());
+        file.delete();
     }
 
     @Override
@@ -147,9 +154,10 @@ public class ByteBufferDirectory extends Directory {
         ByteBufferFile file = new ByteBufferFile(this, allocator.sizeInBytes(allocatorType));
         ByteBufferFile existing = files.put(name, file);
         if (existing != null) {
-            existing.clean();
+            sizeInBytes.addAndGet(-existing.sizeInBytes.get());
+            existing.delete();
         }
-        return new ByteBufferIndexOutput(allocator, allocatorType, file);
+        return new ByteBufferIndexOutput(name, allocator, allocatorType, file);
     }
 
     @Override
@@ -157,7 +165,7 @@ public class ByteBufferDirectory extends Directory {
         ByteBufferFile file = files.get(name);
         if (file == null)
             throw new FileNotFoundException(name);
-        return new ByteBufferIndexInput(file);
+        return new ByteBufferIndexInput(name, file);
     }
 
     @Override

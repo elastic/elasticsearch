@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.indices.template.delete;
 
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -37,8 +36,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Delete index action.
- *
- *
  */
 public class TransportDeleteIndexTemplateAction extends TransportMasterNodeOperationAction<DeleteIndexTemplateRequest, DeleteIndexTemplateResponse> {
 
@@ -58,7 +55,7 @@ public class TransportDeleteIndexTemplateAction extends TransportMasterNodeOpera
 
     @Override
     protected String transportAction() {
-        return TransportActions.Admin.Indices.DELETE_INDEX_TEMPLATE;
+        return DeleteIndexTemplateAction.NAME;
     }
 
     @Override

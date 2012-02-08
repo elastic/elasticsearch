@@ -21,8 +21,6 @@ package org.elasticsearch.common.xcontent;
 
 /**
  * The content type of {@link org.elasticsearch.common.xcontent.XContent}.
- *
- *
  */
 public enum XContentType {
 
@@ -34,6 +32,11 @@ public enum XContentType {
         public String restContentType() {
             return "application/json; charset=UTF-8";
         }
+
+        @Override
+        public String shortName() {
+            return "json";
+        }
     },
     /**
      * The jackson based smile binary format. Fast and compact binary format.
@@ -42,6 +45,11 @@ public enum XContentType {
         @Override
         public String restContentType() {
             return "application/smile";
+        }
+
+        @Override
+        public String shortName() {
+            return "smile";
         }
     };
 
@@ -71,4 +79,6 @@ public enum XContentType {
     }
 
     public abstract String restContentType();
+
+    public abstract String shortName();
 }

@@ -304,9 +304,16 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     }
 
     private void applySettings(ClusterChangedEvent event) {
+        if (!event.metaDataChanged()) {
+            return;
+        }
         for (IndexMetaData indexMetaData : event.state().metaData()) {
             if (!indicesService.hasIndex(indexMetaData.index())) {
                 // we only create / update here
+                continue;
+            }
+            // if the index meta data didn't change, no need check for refreshed settings
+            if (!event.indexMetaDataChanged(indexMetaData)) {
                 continue;
             }
             String index = indexMetaData.index();

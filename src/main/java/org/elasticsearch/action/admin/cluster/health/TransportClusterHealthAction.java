@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.cluster.health;
 
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
@@ -32,8 +31,8 @@ import org.elasticsearch.cluster.routing.RoutingTableValidation;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.indices.IndexMissingException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -58,7 +57,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
 
     @Override
     protected String transportAction() {
-        return TransportActions.Admin.Cluster.HEALTH;
+        return ClusterHealthAction.NAME;
     }
 
     @Override
@@ -267,7 +266,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
         response.status = ClusterHealthStatus.GREEN;
         if (!response.validationFailures().isEmpty()) {
             response.status = ClusterHealthStatus.RED;
-        } else if (clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+        } else if (clusterState.blocks().hasGlobalBlock(RestStatus.SERVICE_UNAVAILABLE)) {
             response.status = ClusterHealthStatus.RED;
         } else {
             for (ClusterIndexHealth indexHealth : response) {

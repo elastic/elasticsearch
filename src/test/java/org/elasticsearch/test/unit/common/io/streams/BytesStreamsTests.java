@@ -49,7 +49,7 @@ public class BytesStreamsTests {
         out.writeUTF("hello");
         out.writeUTF("goodbye");
 
-        BytesStreamInput in = new BytesStreamInput(out.copiedByteArray());
+        BytesStreamInput in = new BytesStreamInput(out.copiedByteArray(), false);
         assertThat(in.readBoolean(), equalTo(false));
         assertThat(in.readByte(), equalTo((byte) 1));
         assertThat(in.readShort(), equalTo((short) -1));

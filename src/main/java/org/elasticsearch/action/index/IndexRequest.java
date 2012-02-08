@@ -32,10 +32,7 @@ import org.elasticsearch.action.support.replication.ShardReplicationOperationReq
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Required;
-import org.elasticsearch.common.UUID;
-import org.elasticsearch.common.Unicode;
+import org.elasticsearch.common.*;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -50,7 +47,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
-import static org.elasticsearch.action.Actions.addValidationError;
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * Index request to index a typed JSON document into a specific index and make it searchable. Best
@@ -64,7 +61,6 @@ import static org.elasticsearch.action.Actions.addValidationError;
  * ({@link #source(org.elasticsearch.common.xcontent.XContentBuilder)}).
  * <p/>
  * <p>If the {@link #id(String)} is not set, it will be automatically generated.
- *
  *
  * @see IndexResponse
  * @see org.elasticsearch.client.Requests#indexRequest(String)
@@ -334,14 +330,23 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     }
 
     public byte[] underlyingSource() {
+        if (sourceUnsafe) {
+            source();
+        }
         return this.source;
     }
 
     public int underlyingSourceOffset() {
+        if (sourceUnsafe) {
+            source();
+        }
         return this.sourceOffset;
     }
 
     public int underlyingSourceLength() {
+        if (sourceUnsafe) {
+            source();
+        }
         return this.sourceLength;
     }
 
@@ -692,11 +697,11 @@ public class IndexRequest extends ShardReplicationOperationRequest {
             timestamp = in.readUTF();
         }
         ttl = in.readLong();
+        BytesHolder bytes = in.readBytesReference();
         sourceUnsafe = false;
-        sourceOffset = 0;
-        sourceLength = in.readVInt();
-        source = new byte[sourceLength];
-        in.readFully(source);
+        source = bytes.bytes();
+        sourceOffset = bytes.offset();
+        sourceLength = bytes.length();
 
         opType = OpType.fromId(in.readByte());
         refresh = in.readBoolean();
@@ -736,8 +741,7 @@ public class IndexRequest extends ShardReplicationOperationRequest {
             out.writeUTF(timestamp);
         }
         out.writeLong(ttl);
-        out.writeVInt(sourceLength);
-        out.writeBytes(source, sourceOffset, sourceLength);
+        out.writeBytesHolder(source, sourceOffset, sourceLength);
         out.writeByte(opType.id());
         out.writeBoolean(refresh);
         out.writeLong(version);

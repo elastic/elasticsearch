@@ -106,7 +106,6 @@ public class RiversRouter extends AbstractLifecycleComponent<RiversRouter> imple
                     if (!currentState.routing().hasRiverByName(mappingType)) {
                         // no river, we need to add it to the routing with no node allocation
                         try {
-                            client.admin().indices().prepareRefresh(riverIndexName).execute().actionGet();
                             GetResponse getResponse = client.prepareGet(riverIndexName, mappingType, "_meta").execute().actionGet();
                             if (getResponse.exists()) {
                                 String riverType = XContentMapValues.nodeStringValue(getResponse.sourceAsMap().get("type"), null);

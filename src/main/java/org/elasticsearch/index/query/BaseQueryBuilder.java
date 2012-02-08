@@ -44,32 +44,16 @@ public abstract class BaseQueryBuilder implements QueryBuilder {
     }
 
     @Override
-    public BytesStream buildAsUnsafeBytes() throws QueryBuilderException {
-        return buildAsUnsafeBytes(XContentType.JSON);
-    }
-
-    @Override
-    public BytesStream buildAsUnsafeBytes(XContentType contentType) throws QueryBuilderException {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
-            toXContent(builder, EMPTY_PARAMS);
-            return builder.underlyingStream();
-        } catch (Exception e) {
-            throw new QueryBuilderException("Failed to build query", e);
-        }
-    }
-
-    @Override
-    public byte[] buildAsBytes() throws QueryBuilderException {
+    public BytesStream buildAsBytes() throws QueryBuilderException {
         return buildAsBytes(XContentType.JSON);
     }
 
     @Override
-    public byte[] buildAsBytes(XContentType contentType) throws QueryBuilderException {
+    public BytesStream buildAsBytes(XContentType contentType) throws QueryBuilderException {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             toXContent(builder, EMPTY_PARAMS);
-            return builder.copiedBytes();
+            return builder.underlyingStream();
         } catch (Exception e) {
             throw new QueryBuilderException("Failed to build query", e);
         }

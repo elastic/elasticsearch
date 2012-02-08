@@ -44,8 +44,6 @@ import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameQu
  *  "minimum_match" : 1
  * }
  * </pre>
- *
- *
  */
 public class TermsQueryParser implements QueryParser {
 
@@ -92,30 +90,40 @@ public class TermsQueryParser implements QueryParser {
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 }
+            } else {
+                throw new QueryParsingException(parseContext.index(), "[terms] query does not support [" + currentFieldName + "]");
             }
         }
 
         FieldMapper mapper = null;
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
-        if (smartNameFieldMappers != null) {
-            if (smartNameFieldMappers.hasMapper()) {
-                mapper = smartNameFieldMappers.mapper();
+        String[] previousTypes = null;
+        if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
+            mapper = smartNameFieldMappers.mapper();
+            if (smartNameFieldMappers.explicitTypeInNameWithDocMapper()) {
+                previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{smartNameFieldMappers.docMapper().type()});
             }
         }
 
-        BooleanQuery query = new BooleanQuery(disableCoord);
-        for (String value : values) {
-            if (mapper != null) {
-                query.add(new BooleanClause(mapper.fieldQuery(value, parseContext), BooleanClause.Occur.SHOULD));
-            } else {
-                query.add(new TermQuery(new Term(fieldName, value)), BooleanClause.Occur.SHOULD);
+        try {
+            BooleanQuery query = new BooleanQuery(disableCoord);
+            for (String value : values) {
+                if (mapper != null) {
+                    query.add(new BooleanClause(mapper.fieldQuery(value, parseContext), BooleanClause.Occur.SHOULD));
+                } else {
+                    query.add(new TermQuery(new Term(fieldName, value)), BooleanClause.Occur.SHOULD);
+                }
+            }
+            query.setBoost(boost);
+            if (minimumNumberShouldMatch != -1) {
+                query.setMinimumNumberShouldMatch(minimumNumberShouldMatch);
+            }
+            return wrapSmartNameQuery(optimizeQuery(fixNegativeQueryIfNeeded(query)), smartNameFieldMappers, parseContext);
+        } finally {
+            if (smartNameFieldMappers != null && smartNameFieldMappers.explicitTypeInNameWithDocMapper()) {
+                QueryParseContext.setTypes(previousTypes);
             }
         }
-        query.setBoost(boost);
-        if (minimumNumberShouldMatch != -1) {
-            query.setMinimumNumberShouldMatch(minimumNumberShouldMatch);
-        }
-        return wrapSmartNameQuery(optimizeQuery(fixNegativeQueryIfNeeded(query)), smartNameFieldMappers, parseContext);
     }
 }
 

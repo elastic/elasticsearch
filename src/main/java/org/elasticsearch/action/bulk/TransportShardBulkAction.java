@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.ShardIterator;
@@ -47,6 +48,7 @@ import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -55,8 +57,6 @@ import java.io.IOException;
 
 /**
  * Performs the index operation.
- *
- *
  */
 public class TransportShardBulkAction extends TransportShardReplicationOperationAction<BulkShardRequest, BulkShardRequest, BulkShardResponse> {
 
@@ -72,7 +72,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.INDEX;
+        return ThreadPool.Names.BULK;
     }
 
     @Override
@@ -103,12 +103,17 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
 
     @Override
     protected String transportAction() {
-        return "indices/index/shard/bulk";
+        return BulkAction.NAME + "/shard";
     }
 
     @Override
-    protected void checkBlock(BulkShardRequest request, ClusterState state) {
-        state.blocks().indexBlockedRaiseException(ClusterBlockLevel.WRITE, request.index());
+    protected ClusterBlockException checkGlobalBlock(ClusterState state, BulkShardRequest request) {
+        return state.blocks().globalBlockedException(ClusterBlockLevel.WRITE);
+    }
+
+    @Override
+    protected ClusterBlockException checkRequestBlock(ClusterState state, BulkShardRequest request) {
+        return state.blocks().indexBlockedException(ClusterBlockLevel.WRITE, request.index());
     }
 
     @Override
@@ -178,7 +183,11 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                     if (retryPrimaryException(e)) {
                         throw (ElasticSearchException) e;
                     }
-                    logger.debug("[{}][{}] failed to bulk item (index) {}", e, shardRequest.request.index(), shardRequest.shardId, indexRequest);
+                    if (e instanceof ElasticSearchException && ((ElasticSearchException) e).status() == RestStatus.CONFLICT) {
+                        logger.trace("[{}][{}] failed to bulk item (index) {}", e, shardRequest.request.index(), shardRequest.shardId, indexRequest);
+                    } else {
+                        logger.debug("[{}][{}] failed to bulk item (index) {}", e, shardRequest.request.index(), shardRequest.shardId, indexRequest);
+                    }
                     responses[i] = new BulkItemResponse(item.id(), indexRequest.opType().toString().toLowerCase(),
                             new BulkItemResponse.Failure(indexRequest.index(), indexRequest.type(), indexRequest.id(), ExceptionsHelper.detailedMessage(e)));
                     // nullify the request so it won't execute on the replicas
@@ -200,7 +209,11 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                     if (retryPrimaryException(e)) {
                         throw (ElasticSearchException) e;
                     }
-                    logger.debug("[{}][{}] failed to bulk item (delete) {}", e, shardRequest.request.index(), shardRequest.shardId, deleteRequest);
+                    if (e instanceof ElasticSearchException && ((ElasticSearchException) e).status() == RestStatus.CONFLICT) {
+                        logger.trace("[{}][{}] failed to bulk item (delete) {}", e, shardRequest.request.index(), shardRequest.shardId, deleteRequest);
+                    } else {
+                        logger.debug("[{}][{}] failed to bulk item (delete) {}", e, shardRequest.request.index(), shardRequest.shardId, deleteRequest);
+                    }
                     responses[i] = new BulkItemResponse(item.id(), "delete",
                             new BulkItemResponse.Failure(deleteRequest.index(), deleteRequest.type(), deleteRequest.id(), ExceptionsHelper.detailedMessage(e)));
                     // nullify the request so it won't execute on the replicas

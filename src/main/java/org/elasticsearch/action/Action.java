@@ -19,14 +19,17 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.client.Client;
 
 /**
- *
+ * Main action (used with {@link Client} API.
  */
-public interface Action<Request extends ActionRequest, Response extends ActionResponse> {
+public abstract class Action<Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response>>
+        extends GenericAction<Request, Response> {
 
-    ActionFuture<Response> execute(Request request) throws ElasticSearchException;
+    protected Action(String name) {
+        super(name);
+    }
 
-    void execute(Request request, ActionListener<Response> listener);
+    public abstract RequestBuilder newRequestBuilder(Client client);
 }

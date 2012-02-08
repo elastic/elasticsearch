@@ -19,9 +19,10 @@
 
 package org.elasticsearch.search.facet.datehistogram;
 
-import gnu.trove.ExtTLongObjectHashMap;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.common.joda.TimeZoneRounding;
+import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.NumericFieldData;
@@ -32,22 +33,16 @@ import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.internal.SearchContext;
-import org.joda.time.MutableDateTime;
 
 import java.io.IOException;
 
 /**
  * A histogram facet collector that uses different fields for the key and the value.
- *
- *
  */
 public class ValueDateHistogramFacetCollector extends AbstractFacetCollector {
 
     private final String keyIndexFieldName;
     private final String valueIndexFieldName;
-
-    private MutableDateTime dateTime;
-    private final long interval;
 
     private final DateHistogramFacet.ComparatorType comparatorType;
 
@@ -60,10 +55,8 @@ public class ValueDateHistogramFacetCollector extends AbstractFacetCollector {
 
     private final DateHistogramProc histoProc;
 
-    public ValueDateHistogramFacetCollector(String facetName, String keyFieldName, String valueFieldName, MutableDateTime dateTime, long interval, DateHistogramFacet.ComparatorType comparatorType, SearchContext context) {
+    public ValueDateHistogramFacetCollector(String facetName, String keyFieldName, String valueFieldName, TimeZoneRounding tzRounding, DateHistogramFacet.ComparatorType comparatorType, SearchContext context) {
         super(facetName);
-        this.dateTime = dateTime;
-        this.interval = interval;
         this.comparatorType = comparatorType;
         this.fieldDataCache = context.fieldDataCache();
 
@@ -73,7 +66,7 @@ public class ValueDateHistogramFacetCollector extends AbstractFacetCollector {
         }
 
         // add type filter if there is exact doc mapper associated with it
-        if (smartMappers.hasDocMapper() && smartMappers.explicitTypeInName()) {
+        if (smartMappers.explicitTypeInNameWithDocMapper()) {
             setFilter(context.filterCache().cache(smartMappers.docMapper().typeFilter()));
         }
 
@@ -87,12 +80,12 @@ public class ValueDateHistogramFacetCollector extends AbstractFacetCollector {
         valueIndexFieldName = mapper.names().indexName();
         valueFieldDataType = mapper.fieldDataType();
 
-        this.histoProc = new DateHistogramProc(interval);
+        this.histoProc = new DateHistogramProc(tzRounding);
     }
 
     @Override
     protected void doCollect(int doc) throws IOException {
-        keyFieldData.forEachValueInDoc(doc, dateTime, histoProc);
+        keyFieldData.forEachValueInDoc(doc, histoProc);
     }
 
     @Override
@@ -106,26 +99,23 @@ public class ValueDateHistogramFacetCollector extends AbstractFacetCollector {
         return new InternalFullDateHistogramFacet(facetName, comparatorType, histoProc.entries, true);
     }
 
-    public static class DateHistogramProc implements LongFieldData.DateValueInDocProc {
+    public static class DateHistogramProc implements LongFieldData.LongValueInDocProc {
 
         final ExtTLongObjectHashMap<InternalFullDateHistogramFacet.FullEntry> entries = CacheRecycler.popLongObjectMap();
 
-        private final long interval;
+        private final TimeZoneRounding tzRounding;
 
         NumericFieldData valueFieldData;
 
         final ValueAggregator valueAggregator = new ValueAggregator();
 
-        public DateHistogramProc(long interval) {
-            this.interval = interval;
+        public DateHistogramProc(TimeZoneRounding tzRounding) {
+            this.tzRounding = tzRounding;
         }
 
         @Override
-        public void onValue(int docId, MutableDateTime dateTime) {
-            long time = dateTime.getMillis();
-            if (interval != 1) {
-                time = CountDateHistogramFacetCollector.bucket(time, interval);
-            }
+        public void onValue(int docId, long value) {
+            long time = tzRounding.calc(value);
 
             InternalFullDateHistogramFacet.FullEntry entry = entries.get(time);
             if (entry == null) {

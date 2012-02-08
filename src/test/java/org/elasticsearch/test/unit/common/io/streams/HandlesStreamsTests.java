@@ -47,7 +47,7 @@ public class HandlesStreamsTests {
         out.writeUTF(higherThresholdValue);
         out.writeUTF(lowerThresholdValue);
 
-        HandlesStreamInput in = new HandlesStreamInput(new BytesStreamInput(bytesOut.copiedByteArray()));
+        HandlesStreamInput in = new HandlesStreamInput(new BytesStreamInput(bytesOut.copiedByteArray(), false));
         assertThat(in.readUTF(), equalTo(lowerThresholdValue));
         assertThat(in.readUTF(), equalTo(higherThresholdValue));
         assertThat(in.readInt(), equalTo(1));

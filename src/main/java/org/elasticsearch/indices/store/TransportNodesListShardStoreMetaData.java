@@ -87,11 +87,6 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
     }
 
     @Override
-    protected String transportNodeAction() {
-        return "/cluster/nodes/indices/shard/store/node";
-    }
-
-    @Override
     protected Request newRequest() {
         return new Request();
     }

@@ -29,6 +29,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.StopWatch;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -45,6 +47,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static com.google.common.collect.Sets.newHashSet;
 import static org.elasticsearch.client.Requests.*;
@@ -64,11 +67,14 @@ public class IndexAliasesTests extends AbstractNodesTests {
     protected Client[] clients;
     protected Random random = new Random();
 
-
     @BeforeClass
     public void startNodes() {
-        startNode("server1");
-        startNode("server2");
+        Settings nodeSettings = ImmutableSettings.settingsBuilder()
+                .put("action.auto_create_index", false)
+                .build();
+
+        startNode("server1", nodeSettings);
+        startNode("server2", nodeSettings);
         client1 = getClient1();
         client2 = getClient2();
         clients = new Client[]{client1, client2};
@@ -516,6 +522,11 @@ public class IndexAliasesTests extends AbstractNodesTests {
             });
         }
         executor.shutdown();
+        boolean done = executor.awaitTermination(10, TimeUnit.SECONDS);
+        assertThat(done, equalTo(true));
+        if (!done) {
+            executor.shutdownNow();
+        }
     }
 
 

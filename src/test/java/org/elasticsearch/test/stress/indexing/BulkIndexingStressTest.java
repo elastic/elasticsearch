@@ -20,9 +20,9 @@
 package org.elasticsearch.test.stress.indexing;
 
 import jsr166y.ThreadLocalRandom;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.client.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;

@@ -26,54 +26,84 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.indices.NodeIndicesStats;
+import org.elasticsearch.monitor.fs.FsStats;
 import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.monitor.network.NetworkStats;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.monitor.process.ProcessStats;
+import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.transport.TransportStats;
 
 import java.io.IOException;
 
 /**
  * Node statistics (static, does not change over time).
- *
- *
  */
 public class NodeStats extends NodeOperationResponse {
 
+    @Nullable
+    private String hostname;
+
+    @Nullable
     private NodeIndicesStats indices;
 
+    @Nullable
     private OsStats os;
 
+    @Nullable
     private ProcessStats process;
 
+    @Nullable
     private JvmStats jvm;
 
+    @Nullable
+    private ThreadPoolStats threadPool;
+
+    @Nullable
     private NetworkStats network;
 
+    @Nullable
+    private FsStats fs;
+
+    @Nullable
     private TransportStats transport;
 
+    @Nullable
     private HttpStats http;
 
     NodeStats() {
     }
 
-    public NodeStats(DiscoveryNode node, NodeIndicesStats indices,
-                     OsStats os, ProcessStats process, JvmStats jvm, NetworkStats network,
-                     TransportStats transport, @Nullable HttpStats http) {
+    public NodeStats(DiscoveryNode node, @Nullable String hostname, @Nullable NodeIndicesStats indices,
+                     @Nullable OsStats os, @Nullable ProcessStats process, @Nullable JvmStats jvm, @Nullable ThreadPoolStats threadPool, @Nullable NetworkStats network,
+                     @Nullable FsStats fs, @Nullable TransportStats transport, @Nullable HttpStats http) {
         super(node);
+        this.hostname = hostname;
         this.indices = indices;
         this.os = os;
         this.process = process;
         this.jvm = jvm;
+        this.threadPool = threadPool;
         this.network = network;
+        this.fs = fs;
         this.transport = transport;
         this.http = http;
+    }
+
+    @Nullable
+    public String hostname() {
+        return this.hostname;
+    }
+
+    @Nullable
+    public String getHostname() {
+        return this.hostname;
     }
 
     /**
      * Indices level stats.
      */
+    @Nullable
     public NodeIndicesStats indices() {
         return this.indices;
     }
@@ -81,6 +111,7 @@ public class NodeStats extends NodeOperationResponse {
     /**
      * Indices level stats.
      */
+    @Nullable
     public NodeIndicesStats getIndices() {
         return indices();
     }
@@ -88,6 +119,7 @@ public class NodeStats extends NodeOperationResponse {
     /**
      * Operating System level statistics.
      */
+    @Nullable
     public OsStats os() {
         return this.os;
     }
@@ -95,6 +127,7 @@ public class NodeStats extends NodeOperationResponse {
     /**
      * Operating System level statistics.
      */
+    @Nullable
     public OsStats getOs() {
         return os();
     }
@@ -102,6 +135,7 @@ public class NodeStats extends NodeOperationResponse {
     /**
      * Process level statistics.
      */
+    @Nullable
     public ProcessStats process() {
         return process;
     }
@@ -109,6 +143,7 @@ public class NodeStats extends NodeOperationResponse {
     /**
      * Process level statistics.
      */
+    @Nullable
     public ProcessStats getProcess() {
         return process();
     }
@@ -116,6 +151,7 @@ public class NodeStats extends NodeOperationResponse {
     /**
      * JVM level statistics.
      */
+    @Nullable
     public JvmStats jvm() {
         return jvm;
     }
@@ -123,13 +159,31 @@ public class NodeStats extends NodeOperationResponse {
     /**
      * JVM level statistics.
      */
+    @Nullable
     public JvmStats getJvm() {
         return jvm();
     }
 
     /**
+     * Thread Pool level statistics.
+     */
+    @Nullable
+    public ThreadPoolStats threadPool() {
+        return this.threadPool;
+    }
+
+    /**
+     * Thread Pool level statistics.
+     */
+    @Nullable
+    public ThreadPoolStats getThreadPool() {
+        return threadPool();
+    }
+
+    /**
      * Network level statistics.
      */
+    @Nullable
     public NetworkStats network() {
         return network;
     }
@@ -137,22 +191,43 @@ public class NodeStats extends NodeOperationResponse {
     /**
      * Network level statistics.
      */
+    @Nullable
     public NetworkStats getNetwork() {
         return network();
     }
 
+    /**
+     * File system level stats.
+     */
+    @Nullable
+    FsStats fs() {
+        return fs;
+    }
+
+    /**
+     * File system level stats.
+     */
+    @Nullable
+    FsStats getFs() {
+        return fs();
+    }
+
+    @Nullable
     public TransportStats transport() {
         return this.transport;
     }
 
+    @Nullable
     public TransportStats getTransport() {
         return transport();
     }
 
+    @Nullable
     public HttpStats http() {
         return this.http;
     }
 
+    @Nullable
     public HttpStats getHttp() {
         return http();
     }
@@ -167,6 +242,9 @@ public class NodeStats extends NodeOperationResponse {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         if (in.readBoolean()) {
+            hostname = in.readUTF();
+        }
+        if (in.readBoolean()) {
             indices = NodeIndicesStats.readIndicesStats(in);
         }
         if (in.readBoolean()) {
@@ -179,7 +257,13 @@ public class NodeStats extends NodeOperationResponse {
             jvm = JvmStats.readJvmStats(in);
         }
         if (in.readBoolean()) {
+            threadPool = ThreadPoolStats.readThreadPoolStats(in);
+        }
+        if (in.readBoolean()) {
             network = NetworkStats.readNetworkStats(in);
+        }
+        if (in.readBoolean()) {
+            fs = FsStats.readFsStats(in);
         }
         if (in.readBoolean()) {
             transport = TransportStats.readTransportStats(in);
@@ -192,6 +276,12 @@ public class NodeStats extends NodeOperationResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        if (hostname == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeUTF(hostname);
+        }
         if (indices == null) {
             out.writeBoolean(false);
         } else {
@@ -216,11 +306,23 @@ public class NodeStats extends NodeOperationResponse {
             out.writeBoolean(true);
             jvm.writeTo(out);
         }
+        if (threadPool == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            threadPool.writeTo(out);
+        }
         if (network == null) {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
             network.writeTo(out);
+        }
+        if (fs == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            fs.writeTo(out);
         }
         if (transport == null) {
             out.writeBoolean(false);

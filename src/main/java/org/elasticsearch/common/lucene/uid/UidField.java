@@ -48,6 +48,8 @@ public class UidField extends AbstractField {
         }
     }
 
+    // this works fine for nested docs since they don't have the payload which has the version
+    // so we iterate till we find the one with the payload
     public static DocIdAndVersion loadDocIdAndVersion(IndexReader reader, Term term) {
         int docId = Lucene.NO_DOC;
         TermPositions uid = null;

@@ -67,6 +67,7 @@ public class MinimumMasterNodesTests extends AbstractZenNodesTests {
 
 
         Settings settings = settingsBuilder()
+                .put("discovery.type", "zen")
                 .put("discovery.zen.minimum_master_nodes", 2)
                 .put("discovery.zen.ping_timeout", "200ms")
                 .put("discovery.initial_state_timeout", "500ms")
@@ -123,7 +124,7 @@ public class MinimumMasterNodesTests extends AbstractZenNodesTests {
         logger.info("--> starting the previous master node again...");
         startNode(masterNodeName, settings);
 
-        clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForNodes("2").execute().actionGet();
+        clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForYellowStatus().setWaitForNodes("2").execute().actionGet();
         assertThat(clusterHealthResponse.timedOut(), equalTo(false));
 
         state = client("node1").admin().cluster().prepareState().setLocal(true).execute().actionGet().state();
@@ -159,7 +160,9 @@ public class MinimumMasterNodesTests extends AbstractZenNodesTests {
         logger.info("--> starting the previous master node again...");
         startNode(nonMasterNodeName, settings);
 
-        clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForNodes("2").execute().actionGet();
+        Thread.sleep(200);
+
+        clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForNodes("2").setWaitForGreenStatus().execute().actionGet();
         assertThat(clusterHealthResponse.timedOut(), equalTo(false));
 
         state = client("node1").admin().cluster().prepareState().setLocal(true).execute().actionGet().state();
@@ -194,6 +197,7 @@ public class MinimumMasterNodesTests extends AbstractZenNodesTests {
 
 
         Settings settings = settingsBuilder()
+                .put("discovery.type", "zen")
                 .put("discovery.zen.minimum_master_nodes", 3)
                 .put("discovery.zen.ping_timeout", "200ms")
                 .put("discovery.initial_state_timeout", "500ms")

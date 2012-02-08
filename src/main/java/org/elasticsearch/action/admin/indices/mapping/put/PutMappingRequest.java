@@ -35,7 +35,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.action.Actions.addValidationError;
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
 
 /**
@@ -45,7 +45,6 @@ import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
  * <p>If the mappings already exists, the new mappings will be merged with the new one. If there are elements
  * that can't be merged are detected, the request will be rejected unless the {@link #ignoreConflicts(boolean)}
  * is set. In such a case, the duplicate mappings will be rejected.
- *
  *
  * @see org.elasticsearch.client.Requests#putMappingRequest(String...)
  * @see org.elasticsearch.client.IndicesAdminClient#putMapping(PutMappingRequest)

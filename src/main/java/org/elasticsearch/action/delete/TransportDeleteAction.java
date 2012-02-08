@@ -21,7 +21,6 @@ package org.elasticsearch.action.delete;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
@@ -33,6 +32,7 @@ import org.elasticsearch.action.support.replication.TransportShardReplicationOpe
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.ShardIterator;
@@ -47,8 +47,6 @@ import org.elasticsearch.transport.TransportService;
 
 /**
  * Performs the delete operation.
- *
- *
  */
 public class TransportDeleteAction extends TransportShardReplicationOperationAction<DeleteRequest, DeleteRequest, DeleteResponse> {
 
@@ -77,7 +75,7 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
     protected void doExecute(final DeleteRequest request, final ActionListener<DeleteResponse> listener) {
         if (autoCreateIndex && !clusterService.state().metaData().hasConcreteIndex(request.index())) {
             request.beforeLocalFork();
-            createIndexAction.execute(new CreateIndexRequest(request.index()), new ActionListener<CreateIndexResponse>() {
+            createIndexAction.execute(new CreateIndexRequest(request.index()).cause("auto(delete api)").masterNodeTimeout(request.timeout()), new ActionListener<CreateIndexResponse>() {
                 @Override
                 public void onResponse(CreateIndexResponse result) {
                     innerExecute(request, listener);
@@ -98,13 +96,13 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
         }
     }
 
-    private void innerExecute(final DeleteRequest request, final ActionListener<DeleteResponse> listener) {
-        ClusterState clusterState = clusterService.state();
-        request.routing(clusterState.metaData().resolveIndexRouting(request.routing(), request.index()));
-        request.index(clusterState.metaData().concreteIndex(request.index())); // we need to get the concrete index here...
-        if (clusterState.metaData().hasIndex(request.index())) {
+    @Override
+    protected boolean resolveRequest(final ClusterState state, final DeleteRequest request, final ActionListener<DeleteResponse> listener) {
+        request.routing(state.metaData().resolveIndexRouting(request.routing(), request.index()));
+        request.index(state.metaData().concreteIndex(request.index()));
+        if (state.metaData().hasIndex(request.index())) {
             // check if routing is required, if so, do a broadcast delete
-            MappingMetaData mappingMd = clusterState.metaData().index(request.index()).mapping(request.type());
+            MappingMetaData mappingMd = state.metaData().index(request.index()).mapping(request.type());
             if (mappingMd != null && mappingMd.routing().required()) {
                 if (request.routing() == null) {
                     indexDeleteAction.execute(new IndexDeleteRequest(request), new ActionListener<IndexDeleteResponse>() {
@@ -128,10 +126,14 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
                             listener.onFailure(e);
                         }
                     });
-                    return;
+                    return false;
                 }
             }
         }
+        return true;
+    }
+
+    private void innerExecute(final DeleteRequest request, final ActionListener<DeleteResponse> listener) {
         super.doExecute(request, listener);
     }
 
@@ -157,12 +159,17 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
 
     @Override
     protected String transportAction() {
-        return TransportActions.DELETE;
+        return DeleteAction.NAME;
     }
 
     @Override
-    protected void checkBlock(DeleteRequest request, ClusterState state) {
-        state.blocks().indexBlockedRaiseException(ClusterBlockLevel.WRITE, request.index());
+    protected ClusterBlockException checkGlobalBlock(ClusterState state, DeleteRequest request) {
+        return state.blocks().globalBlockedException(ClusterBlockLevel.WRITE);
+    }
+
+    @Override
+    protected ClusterBlockException checkRequestBlock(ClusterState state, DeleteRequest request) {
+        return state.blocks().indexBlockedException(ClusterBlockLevel.WRITE, request.index());
     }
 
     @Override

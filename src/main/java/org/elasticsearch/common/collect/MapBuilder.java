@@ -59,6 +59,11 @@ public class MapBuilder<K, V> {
         return this;
     }
 
+    public MapBuilder<K, V> clear() {
+        this.map.clear();
+        return this;
+    }
+
     public V get(K key) {
         return map.get(key);
     }

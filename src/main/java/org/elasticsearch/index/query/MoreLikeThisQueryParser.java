@@ -26,7 +26,6 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 
 import java.io.IOException;
 import java.util.List;
@@ -53,7 +52,7 @@ public class MoreLikeThisQueryParser implements QueryParser {
         XContentParser parser = parseContext.parser();
 
         MoreLikeThisQuery mltQuery = new MoreLikeThisQuery();
-        mltQuery.setMoreLikeFields(new String[]{AllFieldMapper.NAME});
+        mltQuery.setMoreLikeFields(new String[]{parseContext.defaultField()});
         mltQuery.setSimilarity(parseContext.searchSimilarity());
         Analyzer analyzer = null;
 
@@ -84,6 +83,8 @@ public class MoreLikeThisQueryParser implements QueryParser {
                     mltQuery.setPercentTermsToMatch(parser.floatValue());
                 } else if ("analyzer".equals(currentFieldName)) {
                     analyzer = parseContext.analysisService().analyzer(parser.text());
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[mlt] query does not support [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("stop_words".equals(currentFieldName) || "stopWords".equals(currentFieldName)) {
@@ -98,6 +99,8 @@ public class MoreLikeThisQueryParser implements QueryParser {
                         fields.add(parseContext.indexName(parser.text()));
                     }
                     mltQuery.setMoreLikeFields(fields.toArray(new String[fields.size()]));
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[mlt] query does not support [" + currentFieldName + "]");
                 }
             }
         }

@@ -44,7 +44,9 @@ public class RestAnalyzeAction extends BaseRestHandler {
     @Inject
     public RestAnalyzeAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
+        controller.registerHandler(GET, "/_analyze", this);
         controller.registerHandler(GET, "/{index}/_analyze", this);
+        controller.registerHandler(POST, "/_analyze", this);
         controller.registerHandler(POST, "/{index}/_analyze", this);
     }
 
@@ -67,6 +69,8 @@ public class RestAnalyzeAction extends BaseRestHandler {
         analyzeRequest.preferLocal(request.paramAsBoolean("prefer_local", analyzeRequest.preferLocalShard()));
         analyzeRequest.analyzer(request.param("analyzer"));
         analyzeRequest.field(request.param("field"));
+        analyzeRequest.tokenizer(request.param("tokenizer"));
+        analyzeRequest.tokenFilters(request.paramAsStringArray("token_filters", request.paramAsStringArray("filters", null)));
         client.admin().indices().analyze(analyzeRequest, new ActionListener<AnalyzeResponse>() {
             @Override
             public void onResponse(AnalyzeResponse response) {

@@ -21,6 +21,7 @@ package org.elasticsearch.index.shard.service;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
@@ -83,7 +84,7 @@ public interface IndexShard extends IndexShardComponent {
 
     void delete(Engine.Delete delete) throws ElasticSearchException;
 
-    Engine.DeleteByQuery prepareDeleteByQuery(byte[] querySource, @Nullable String[] filteringAliases, String... types) throws ElasticSearchException;
+    Engine.DeleteByQuery prepareDeleteByQuery(BytesHolder querySource, @Nullable String[] filteringAliases, String... types) throws ElasticSearchException;
 
     void deleteByQuery(Engine.DeleteByQuery deleteByQuery) throws ElasticSearchException;
 

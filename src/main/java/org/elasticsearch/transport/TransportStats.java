@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 
@@ -114,15 +115,26 @@ public class TransportStats implements Streamable, ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("transport");
-        builder.field("server_open", serverOpen);
-        builder.field("rx_count", rxCount);
-        builder.field("rx_size", rxSize().toString());
-        builder.field("rx_size_in_bytes", rxSize);
-        builder.field("tx_count", txCount);
-        builder.field("tx_size", txSize().toString());
-        builder.field("tx_size_in_bytes", txSize);
+        builder.startObject(Fields.TRANSPORT);
+        builder.field(Fields.SERVER_OPEN, serverOpen);
+        builder.field(Fields.RX_COUNT, rxCount);
+        builder.field(Fields.RX_SIZE, rxSize().toString());
+        builder.field(Fields.RX_SIZE_IN_BYTES, rxSize);
+        builder.field(Fields.TX_COUNT, txCount);
+        builder.field(Fields.TX_SIZE, txSize().toString());
+        builder.field(Fields.TX_SIZE_IN_BYTES, txSize);
         builder.endObject();
         return builder;
+    }
+
+    static final class Fields {
+        static final XContentBuilderString TRANSPORT = new XContentBuilderString("transport");
+        static final XContentBuilderString SERVER_OPEN = new XContentBuilderString("server_open");
+        static final XContentBuilderString RX_COUNT = new XContentBuilderString("rx_count");
+        static final XContentBuilderString RX_SIZE = new XContentBuilderString("rx_size");
+        static final XContentBuilderString RX_SIZE_IN_BYTES = new XContentBuilderString("rx_size_in_bytes");
+        static final XContentBuilderString TX_COUNT = new XContentBuilderString("tx_count");
+        static final XContentBuilderString TX_SIZE = new XContentBuilderString("tx_size");
+        static final XContentBuilderString TX_SIZE_IN_BYTES = new XContentBuilderString("tx_size_in_bytes");
     }
 }

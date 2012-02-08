@@ -22,13 +22,14 @@ package org.elasticsearch.action.admin.indices.stats;
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
@@ -67,12 +68,7 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
 
     @Override
     protected String transportAction() {
-        return TransportActions.Admin.Indices.STATS;
-    }
-
-    @Override
-    protected String transportShardAction() {
-        return "indices/stats/shard";
+        return IndicesStatsAction.NAME;
     }
 
     @Override
@@ -89,9 +85,20 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
      * Status goes across *all* shards.
      */
     @Override
-    protected GroupShardsIterator shards(IndicesStatsRequest request, String[] concreteIndices, ClusterState clusterState) {
+    protected GroupShardsIterator shards(ClusterState clusterState, IndicesStatsRequest request, String[] concreteIndices) {
         return clusterState.routingTable().allAssignedShardsGrouped(concreteIndices, true);
     }
+
+    @Override
+    protected ClusterBlockException checkGlobalBlock(ClusterState state, IndicesStatsRequest request) {
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA);
+    }
+
+    @Override
+    protected ClusterBlockException checkRequestBlock(ClusterState state, IndicesStatsRequest request, String[] concreteIndices) {
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, concreteIndices);
+    }
+
 
     @Override
     protected IndicesStats newResponse(IndicesStatsRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {

@@ -61,6 +61,8 @@ public class MatchAllQueryParser implements QueryParser {
                     boost = parser.floatValue();
                 } else if ("norms_field".equals(currentFieldName) || "normsField".equals(currentFieldName)) {
                     normsField = parseContext.indexName(parser.text());
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[match_all] query does not support [" + currentFieldName + "]");
                 }
             }
         }

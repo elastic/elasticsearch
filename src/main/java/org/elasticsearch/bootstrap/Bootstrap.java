@@ -26,12 +26,10 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.inject.spi.Message;
 import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.jline.ANSI;
 import org.elasticsearch.common.jna.Natives;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.log4j.LogConfigurator;
-import org.elasticsearch.common.os.OsUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -40,17 +38,15 @@ import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.node.internal.InternalSettingsPerparer;
 
 import java.io.File;
+import java.io.RandomAccessFile;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 
 import static com.google.common.collect.Sets.newHashSet;
-import static jline.ANSIBuffer.ANSICodes.attrib;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 
 /**
  * A main entry point when starting from the command line.
- *
- *
  */
 public class Bootstrap {
 
@@ -147,14 +143,28 @@ public class Bootstrap {
     public static void main(String[] args) {
         System.setProperty("es.logger.prefix", "");
         bootstrap = new Bootstrap();
-        String pidFile = System.getProperty("es-pidfile");
+        final String pidFile = System.getProperty("es.pidfile", System.getProperty("es-pidfile"));
 
-        // enable jline by default when running form "main" (and not on windows)
-        if (System.getProperty("jline.enabled") == null && !OsUtils.WINDOWS) {
-            System.setProperty("jline.enabled", "true");
+        if (pidFile != null) {
+            try {
+                File fPidFile = new File(pidFile);
+                if (fPidFile.getParentFile() != null) {
+                    FileSystemUtils.mkdirs(fPidFile.getParentFile());
+                }
+                RandomAccessFile rafPidFile = new RandomAccessFile(fPidFile, "rw");
+                rafPidFile.writeBytes(Long.toString(JvmInfo.jvmInfo().pid()) + "\n");
+                rafPidFile.close();
+
+                fPidFile.deleteOnExit();
+            } catch (Exception e) {
+                String errorMessage = buildErrorMessage("pid", e);
+                System.err.println(errorMessage);
+                System.err.flush();
+                System.exit(3);
+            }
         }
 
-        boolean foreground = System.getProperty("es-foreground") != null;
+        boolean foreground = System.getProperty("es.foreground", System.getProperty("es-foreground")) != null;
         // handle the wrapper system property, if its a service, don't run as a service
         if (System.getProperty("wrapper.service", "XXX").equalsIgnoreCase("true")) {
             foreground = false;
@@ -189,10 +199,6 @@ public class Bootstrap {
                 System.out.close();
             }
             bootstrap.setup(true, tuple);
-
-            if (pidFile != null) {
-                new File(pidFile).deleteOnExit();
-            }
 
             stage = "Startup";
             bootstrap.start();
@@ -244,15 +250,7 @@ public class Bootstrap {
 
     private static String buildErrorMessage(String stage, Throwable e) {
         StringBuilder errorMessage = new StringBuilder("{").append(Version.CURRENT).append("}: ");
-        try {
-            if (ANSI.isEnabled()) {
-                errorMessage.append(attrib(ANSI.Code.FG_RED)).append(stage).append(" Failed ...").append(attrib(ANSI.Code.OFF)).append("\n");
-            } else {
-                errorMessage.append(stage).append(" Failed ...\n");
-            }
-        } catch (Throwable t) {
-            errorMessage.append(stage).append(" Failed ...\n");
-        }
+        errorMessage.append(stage).append(" Failed ...\n");
         if (e instanceof CreationException) {
             CreationException createException = (CreationException) e;
             Set<String> seenMessages = newHashSet();

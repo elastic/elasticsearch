@@ -120,7 +120,7 @@ public class FsChannelSnapshot implements Translog.Snapshot {
             channel.read(cacheBuffer, position);
             cacheBuffer.flip();
             position += opSize;
-            lastOperationRead = TranslogStreams.readTranslogOperation(new BytesStreamInput(cacheBuffer.array(), 0, opSize));
+            lastOperationRead = TranslogStreams.readTranslogOperation(new BytesStreamInput(cacheBuffer.array(), 0, opSize, true));
             return true;
         } catch (Exception e) {
             return false;

@@ -19,10 +19,10 @@
 
 package org.elasticsearch.benchmark.stress;
 
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.client.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
@@ -32,7 +32,6 @@ import org.elasticsearch.node.Node;
 
 import java.io.IOException;
 import java.util.Random;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -50,11 +49,10 @@ public class SingleThreadBulkStress {
         Random random = new Random();
 
         Settings settings = settingsBuilder()
-                .put("cluster.routing.schedule", 200, TimeUnit.MILLISECONDS)
-                .put("index.refresh_interval", "-1")
+                .put("index.refresh_interval", "1s")
                 .put("index.merge.async", true)
                 .put("index.translog.flush_threshold_ops", 5000)
-                .put("gateway.type", "local")
+                .put("gateway.type", "none")
                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                 .put(SETTING_NUMBER_OF_REPLICAS, 1)
                 .build();

@@ -18,7 +18,17 @@ if "%ES_MAX_MEM%" == "" (
 set ES_MAX_MEM=1g
 )
 
+if NOT "%ES_HEAP_SIZE%" == "" (
+set ES_MIN_MEM=%ES_HEAP_SIZE%
+set ES_MAX_MEM=%ES_HEAP_SIZE%
+)
+
 set JAVA_OPTS=%JAVA_OPTS% -Xms%ES_MIN_MEM% -Xmx%ES_MAX_MEM%
+
+if NOT "%ES_HEAP_NEWSIZE%" == "" (
+set JAVA_OPTS=%JAVA_OPTS% -Xmn%ES_HEAP_NEWSIZE%
+)
+
 set JAVA_OPTS=%JAVA_OPTS% -Xss128k
 
 REM Enable aggressive optimizations in the JVM
@@ -27,11 +37,12 @@ REM set JAVA_OPTS=%JAVA_OPTS% -XX:+AggressiveOpts
 
 set JAVA_OPTS=%JAVA_OPTS% -XX:+UseParNewGC
 set JAVA_OPTS=%JAVA_OPTS% -XX:+UseConcMarkSweepGC
-set JAVA_OPTS=%JAVA_OPTS% -XX:+CMSParallelRemarkEnabled
-set JAVA_OPTS=%JAVA_OPTS% -XX:SurvivorRatio=8
-set JAVA_OPTS=%JAVA_OPTS% -XX:MaxTenuringThreshold=1
+
 set JAVA_OPTS=%JAVA_OPTS% -XX:CMSInitiatingOccupancyFraction=75
 set JAVA_OPTS=%JAVA_OPTS% -XX:+UseCMSInitiatingOccupancyOnly
+
+REM When running under Java 7
+REM JAVA_OPTS=%JAVA_OPTS% -XX:+UseCondCardMark
 
 REM GC logging options -- uncomment to enable
 REM JAVA_OPTS=%JAVA_OPTS% -XX:+PrintGCDetails

@@ -21,6 +21,7 @@ package org.elasticsearch.common.compress;
 
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.Unicode;
+import org.elasticsearch.common.compress.lzf.LZF;
 import org.elasticsearch.common.compress.lzf.LZFDecoder;
 import org.elasticsearch.common.compress.lzf.LZFEncoder;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -38,6 +39,30 @@ public class CompressedString implements Streamable {
     private byte[] bytes;
 
     CompressedString() {
+    }
+
+    /**
+     * Constructor assuming the data provided is compressed (UTF8). It uses the provided
+     * array without copying it.
+     */
+    public CompressedString(byte[] compressed) {
+        this.bytes = compressed;
+    }
+
+    /**
+     * Constructs a new compressed string, assuming the bytes are UTF8, by copying it over.
+     *
+     * @param data   The byte array
+     * @param offset Offset into the byte array
+     * @param length The length of the data
+     * @throws IOException
+     */
+    public CompressedString(byte[] data, int offset, int length) throws IOException {
+        if (LZF.isCompressed(data, offset, length)) {
+            this.bytes = Arrays.copyOfRange(data, offset, offset + length);
+        } else {
+            this.bytes = LZFEncoder.encode(data, offset, length);
+        }
     }
 
     public CompressedString(String str) throws IOException {

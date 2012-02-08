@@ -45,7 +45,9 @@ public class JmxModule extends AbstractModule {
         JmxService jmxService = new JmxService(Loggers.getLogger(JmxService.class, settings.get("name")), settings);
         bind(JmxService.class).toInstance(jmxService);
         bind(GetJmxServiceUrlAction.class).asEagerSingleton();
-        bindListener(Matchers.any(), new JmxExporterTypeListener(jmxService));
+        if (JmxService.shouldExport(settings)) {
+            bindListener(Matchers.any(), new JmxExporterTypeListener(jmxService));
+        }
     }
 
     private static class JmxExporterTypeListener implements TypeListener {

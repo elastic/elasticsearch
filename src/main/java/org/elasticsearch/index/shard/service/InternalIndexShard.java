@@ -30,6 +30,7 @@ import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -51,7 +52,10 @@ import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.query.IndexQueryParserService;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.refresh.RefreshStats;
+import org.elasticsearch.index.search.nested.IncludeAllChildrenQuery;
+import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchService;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -110,6 +114,8 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
 
     private final boolean checkIndexOnStartup;
+
+    private long checkIndexTook = 0;
 
     private volatile IndexShardState state;
 
@@ -343,12 +349,12 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     }
 
     @Override
-    public Engine.DeleteByQuery prepareDeleteByQuery(byte[] querySource, @Nullable String[] filteringAliases, String... types) throws ElasticSearchException {
+    public Engine.DeleteByQuery prepareDeleteByQuery(BytesHolder querySource, @Nullable String[] filteringAliases, String... types) throws ElasticSearchException {
         long startTime = System.nanoTime();
         if (types == null) {
             types = Strings.EMPTY_ARRAY;
         }
-        Query query = queryParserService.parse(querySource).query();
+        Query query = queryParserService.parse(querySource.bytes(), querySource.offset(), querySource.length()).query();
         query = filterQueryIfNeeded(query, types);
 
         Filter aliasFilter = indexAliasesService.aliasFilter(filteringAliases);
@@ -359,6 +365,11 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     @Override
     public void deleteByQuery(Engine.DeleteByQuery deleteByQuery) throws ElasticSearchException {
         writeAllowed();
+        if (mapperService.hasNested()) {
+            // we need to wrap it to delete nested docs as well...
+            IncludeAllChildrenQuery nestedQuery = new IncludeAllChildrenQuery(deleteByQuery.query(), indexCache.filter().cache(NonNestedDocsFilter.INSTANCE));
+            deleteByQuery = new Engine.DeleteByQuery(nestedQuery, deleteByQuery.source(), deleteByQuery.filteringAliases(), deleteByQuery.aliasFilter(), deleteByQuery.types());
+        }
         if (logger.isTraceEnabled()) {
             logger.trace("delete_by_query [{}]", deleteByQuery.query());
         }
@@ -387,7 +398,12 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         if (querySourceLength == 0) {
             query = Queries.MATCH_ALL_QUERY;
         } else {
-            query = queryParserService.parse(querySource, querySourceOffset, querySourceLength).query();
+            try {
+                QueryParseContext.setTypes(types);
+                query = queryParserService.parse(querySource, querySourceOffset, querySourceLength).query();
+            } finally {
+                QueryParseContext.removeTypes();
+            }
         }
         // wrap it in filter, cache it, and constant score it
         // Don't cache it, since it might be very different queries each time...
@@ -410,7 +426,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     @Override
     public void refresh(Engine.Refresh refresh) throws ElasticSearchException {
-        writeAllowed();
+        verifyStarted();
         if (logger.isTraceEnabled()) {
             logger.trace("refresh with {}", refresh);
         }
@@ -475,7 +491,10 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     @Override
     public void flush(Engine.Flush flush) throws ElasticSearchException {
-        writeAllowed();
+        // we allows flush while recovering, since we allow for operations to happen
+        // while recovering, and we want to keep the translog at bay (up to deletes, which
+        // we don't gc).
+        verifyStartedOrRecovering();
         if (logger.isTraceEnabled()) {
             logger.trace("flush with {}", flush);
         }
@@ -486,7 +505,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     @Override
     public void optimize(Engine.Optimize optimize) throws ElasticSearchException {
-        writeAllowed();
+        verifyStarted();
         if (logger.isTraceEnabled()) {
             logger.trace("optimize with {}", optimize);
         }
@@ -505,7 +524,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     @Override
     public void recover(Engine.RecoveryHandler recoveryHandler) throws EngineException {
-        writeAllowed();
+        verifyStarted();
         engine.recover(recoveryHandler);
     }
 
@@ -533,6 +552,10 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         }
     }
 
+    public long checkIndexTook() {
+        return this.checkIndexTook;
+    }
+
     /**
      * After the store has been recovered, we need to start the engine in order to apply operations
      */
@@ -544,6 +567,9 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         if (checkIndexOnStartup) {
             checkIndex(true);
         }
+        // we disable deletes since we allow for operations to be executed against the shard while recovering
+        // but we need to make sure we don't loose deletes until we are done recovering
+        engine.enableGcDeletes(false);
         engine.start();
     }
 
@@ -572,6 +598,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         }
         startScheduledTasksIfNeeded();
         indicesLifecycle.afterIndexShardStarted(this);
+        engine.enableGcDeletes(true);
     }
 
     public void performRecoveryOperation(Translog.Operation operation) throws ElasticSearchException {
@@ -582,13 +609,13 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             switch (operation.opType()) {
                 case CREATE:
                     Translog.Create create = (Translog.Create) operation;
-                    engine.create(prepareCreate(source(create.source(), create.sourceOffset(), create.sourceLength()).type(create.type()).id(create.id())
+                    engine.create(prepareCreate(source(create.source().bytes(), create.source().offset(), create.source().length()).type(create.type()).id(create.id())
                             .routing(create.routing()).parent(create.parent()).timestamp(create.timestamp()).ttl(create.ttl())).version(create.version())
                             .origin(Engine.Operation.Origin.RECOVERY));
                     break;
                 case SAVE:
                     Translog.Index index = (Translog.Index) operation;
-                    engine.index(prepareIndex(source(index.source(), index.sourceOffset(), index.sourceLength()).type(index.type()).id(index.id())
+                    engine.index(prepareIndex(source(index.source().bytes(), index.source().offset(), index.source().length()).type(index.type()).id(index.id())
                             .routing(index.routing()).parent(index.parent()).timestamp(index.timestamp()).ttl(index.ttl())).version(index.version())
                             .origin(Engine.Operation.Origin.RECOVERY));
                     break;
@@ -641,7 +668,18 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         }
     }
 
-    public void writeAllowed() throws IllegalIndexShardStateException {
+    private void writeAllowed() throws IllegalIndexShardStateException {
+        verifyStartedOrRecovering();
+    }
+
+    private void verifyStartedOrRecovering() throws IllegalIndexShardStateException {
+        IndexShardState state = this.state; // one time volatile read
+        if (state != IndexShardState.STARTED && state != IndexShardState.RECOVERING) {
+            throw new IllegalIndexShardStateException(shardId, state, "write operation only allowed when started/recovering");
+        }
+    }
+
+    private void verifyStarted() throws IllegalIndexShardStateException {
         IndexShardState state = this.state; // one time volatile read
         if (state != IndexShardState.STARTED) {
             throw new IndexShardNotStartedException(shardId, state);
@@ -713,7 +751,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                 }
                 return;
             }
-            threadPool.cached().execute(new Runnable() {
+            threadPool.executor(ThreadPool.Names.REFRESH).execute(new Runnable() {
                 @Override
                 public void run() {
                     try {
@@ -798,6 +836,8 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     private void checkIndex(boolean throwException) throws IndexShardException {
         try {
+            checkIndexTook = 0;
+            long time = System.currentTimeMillis();
             if (!IndexReader.indexExists(store.directory())) {
                 return;
             }
@@ -821,6 +861,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                     logger.debug("check index [success]\n{}", new String(os.underlyingBytes(), 0, os.size()));
                 }
             }
+            checkIndexTook = System.currentTimeMillis() - time;
         } catch (Exception e) {
             logger.warn("failed to check index", e);
         }

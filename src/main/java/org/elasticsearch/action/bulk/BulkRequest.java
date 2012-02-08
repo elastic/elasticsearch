@@ -38,12 +38,11 @@ import org.elasticsearch.index.VersionType;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.action.Actions.addValidationError;
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * A bulk request holds an ordered {@link IndexRequest}s and {@link DeleteRequest}s and allows to executes
  * it in a single batch.
- *
  *
  * @see org.elasticsearch.client.Client#bulk(BulkRequest)
  */

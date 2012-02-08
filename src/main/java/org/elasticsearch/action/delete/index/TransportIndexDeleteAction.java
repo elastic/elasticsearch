@@ -22,6 +22,7 @@ package org.elasticsearch.action.delete.index;
 import org.elasticsearch.action.support.replication.TransportIndexReplicationOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.inject.Inject;
@@ -75,8 +76,13 @@ public class TransportIndexDeleteAction extends TransportIndexReplicationOperati
     }
 
     @Override
-    protected void checkBlock(IndexDeleteRequest request, ClusterState state) {
-        state.blocks().indexBlockedRaiseException(ClusterBlockLevel.WRITE, request.index());
+    protected ClusterBlockException checkGlobalBlock(ClusterState state, IndexDeleteRequest request) {
+        return state.blocks().globalBlockedException(ClusterBlockLevel.WRITE);
+    }
+
+    @Override
+    protected ClusterBlockException checkRequestBlock(ClusterState state, IndexDeleteRequest request) {
+        return state.blocks().indexBlockedException(ClusterBlockLevel.WRITE, request.index());
     }
 
     @Override

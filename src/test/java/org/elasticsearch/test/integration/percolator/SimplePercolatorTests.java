@@ -20,11 +20,11 @@
 package org.elasticsearch.test.integration.percolator;
 
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;

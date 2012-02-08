@@ -65,12 +65,16 @@ public class SpanFirstQueryParser implements QueryParser {
                         throw new QueryParsingException(parseContext.index(), "spanFirst [match] must be of type span query");
                     }
                     match = (SpanQuery) query;
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[span_first] query does not support [" + currentFieldName + "]");
                 }
             } else {
                 if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else if ("end".equals(currentFieldName)) {
                     end = parser.intValue();
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[span_first] query does not support [" + currentFieldName + "]");
                 }
             }
         }

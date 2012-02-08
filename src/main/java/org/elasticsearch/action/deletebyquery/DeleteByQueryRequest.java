@@ -26,10 +26,7 @@ import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.support.replication.IndicesReplicationOperationRequest;
 import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Required;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.Unicode;
+import org.elasticsearch.common.*;
 import org.elasticsearch.common.io.BytesStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -43,7 +40,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
-import static org.elasticsearch.action.Actions.addValidationError;
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * A request to delete all documents that matching a specific query. Best created with
@@ -51,7 +48,6 @@ import static org.elasticsearch.action.Actions.addValidationError;
  * <p/>
  * <p>The request requires the query source to be set either using {@link #query(org.elasticsearch.index.query.QueryBuilder)},
  * or {@link #query(byte[])}.
- *
  *
  * @see DeleteByQueryResponse
  * @see org.elasticsearch.client.Requests#deleteByQueryRequest(String...)
@@ -110,13 +106,13 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
     /**
      * The query source to execute.
      */
-    byte[] querySource() {
-        if (querySourceUnsafe || querySourceOffset > 0) {
+    BytesHolder querySource() {
+        if (querySourceUnsafe) {
             querySource = Arrays.copyOfRange(querySource, querySourceOffset, querySourceOffset + querySourceLength);
             querySourceOffset = 0;
             querySourceUnsafe = false;
         }
-        return querySource;
+        return new BytesHolder(querySource, querySourceOffset, querySourceLength);
     }
 
     /**
@@ -126,11 +122,11 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
      */
     @Required
     public DeleteByQueryRequest query(QueryBuilder queryBuilder) {
-        BytesStream bos = queryBuilder.buildAsUnsafeBytes();
+        BytesStream bos = queryBuilder.buildAsBytes();
         this.querySource = bos.underlyingBytes();
         this.querySourceOffset = 0;
         this.querySourceLength = bos.size();
-        this.querySourceUnsafe = true;
+        this.querySourceUnsafe = false;
         return this;
     }
 
@@ -274,11 +270,11 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
 
+        BytesHolder bytes = in.readBytesReference();
         querySourceUnsafe = false;
-        querySourceOffset = 0;
-        querySourceLength = in.readVInt();
-        querySource = new byte[querySourceLength];
-        in.readFully(querySource);
+        querySource = bytes.bytes();
+        querySourceOffset = bytes.offset();
+        querySourceLength = bytes.length();
 
         if (in.readBoolean()) {
             routing = in.readUTF();
@@ -298,8 +294,7 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
 
-        out.writeVInt(querySourceLength);
-        out.writeBytes(querySource, querySourceOffset, querySourceLength);
+        out.writeBytesHolder(querySource, querySourceOffset, querySourceLength);
 
         if (routing == null) {
             out.writeBoolean(false);

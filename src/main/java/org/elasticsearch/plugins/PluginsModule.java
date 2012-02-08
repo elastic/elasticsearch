@@ -52,6 +52,7 @@ public class PluginsModule extends AbstractModule implements SpawnModules, PrePr
         for (Class<? extends Module> moduleClass : modulesClasses) {
             modules.add(createModule(moduleClass, settings));
         }
+        modules.addAll(pluginsService.modules(settings));
         return modules;
     }
 

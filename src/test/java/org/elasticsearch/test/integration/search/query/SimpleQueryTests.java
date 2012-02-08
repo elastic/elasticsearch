@@ -323,6 +323,9 @@ public class SimpleQueryTests extends AbstractNodesTests {
         client.admin().indices().prepareDelete().execute().actionGet();
 
         client.prepareIndex("test", "type1", "1").setSource("field1", "value1").execute().actionGet();
+
+        client.admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
+
         client.admin().indices().prepareRefresh().execute().actionGet();
 
         SearchResponse searchResponse = client.prepareSearch("test").setQuery(constantScoreQuery(termsFilter("field1", "value1").cacheKey("test1"))).execute().actionGet();

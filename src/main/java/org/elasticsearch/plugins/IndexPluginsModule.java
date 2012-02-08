@@ -52,6 +52,7 @@ public class IndexPluginsModule extends AbstractModule implements SpawnModules, 
         for (Class<? extends Module> moduleClass : modulesClasses) {
             modules.add(createModule(moduleClass, settings));
         }
+        modules.addAll(pluginsService.indexModules(settings));
         return modules;
     }
 

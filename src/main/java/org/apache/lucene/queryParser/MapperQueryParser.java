@@ -50,8 +50,6 @@ import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameQu
  * <p/>
  * <p>Also breaks fields with [type].[name] into a boolean query that must include the type
  * as well as the query on the name.
- *
- *
  */
 public class MapperQueryParser extends QueryParser {
 
@@ -66,6 +64,8 @@ public class MapperQueryParser extends QueryParser {
 
     private final QueryParseContext parseContext;
 
+    private boolean forcedAnalyzer;
+
     private FieldMapper currentMapper;
 
     private boolean analyzeWildcard;
@@ -76,14 +76,15 @@ public class MapperQueryParser extends QueryParser {
     }
 
     public MapperQueryParser(QueryParserSettings settings, QueryParseContext parseContext) {
-        super(Lucene.QUERYPARSER_VERSION, settings.defaultField(), settings.analyzer());
+        super(Lucene.QUERYPARSER_VERSION, settings.defaultField(), settings.defaultAnalyzer());
         this.parseContext = parseContext;
         reset(settings);
     }
 
     public void reset(QueryParserSettings settings) {
         this.field = settings.defaultField();
-        this.analyzer = settings.analyzer();
+        this.forcedAnalyzer = settings.forcedAnalyzer() != null;
+        this.analyzer = forcedAnalyzer ? settings.forcedAnalyzer() : settings.defaultAnalyzer();
         setMultiTermRewriteMethod(settings.rewriteMethod());
         setEnablePositionIncrements(settings.enablePositionIncrements());
         setAutoGeneratePhraseQueries(settings.autoGeneratePhraseQueries());
@@ -123,12 +124,23 @@ public class MapperQueryParser extends QueryParser {
         try {
             MapperService.SmartNameFieldMappers fieldMappers = parseContext.smartFieldMappers(field);
             if (fieldMappers != null) {
-                analyzer = fieldMappers.searchAnalyzer();
+                if (!forcedAnalyzer) {
+                    analyzer = fieldMappers.searchAnalyzer();
+                }
                 currentMapper = fieldMappers.fieldMappers().mapper();
                 if (currentMapper != null) {
                     Query query = null;
                     if (currentMapper.useFieldQueryWithQueryString()) {
-                        query = currentMapper.fieldQuery(queryText, parseContext);
+                        if (fieldMappers.explicitTypeInNameWithDocMapper()) {
+                            String[] previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{fieldMappers.docMapper().type()});
+                            try {
+                                query = currentMapper.fieldQuery(queryText, parseContext);
+                            } finally {
+                                QueryParseContext.setTypes(previousTypes);
+                            }
+                        } else {
+                            query = currentMapper.fieldQuery(queryText, parseContext);
+                        }
                     }
                     if (query == null) {
                         query = super.getFieldQuery(currentMapper.names().indexName(), queryText, quoted);
@@ -178,20 +190,36 @@ public class MapperQueryParser extends QueryParser {
 
     @Override
     protected Query getPrefixQuery(String field, String termStr) throws ParseException {
-        String indexedNameField = field;
         currentMapper = null;
         Analyzer oldAnalyzer = analyzer;
         try {
             MapperService.SmartNameFieldMappers fieldMappers = parseContext.smartFieldMappers(field);
             if (fieldMappers != null) {
-                analyzer = fieldMappers.searchAnalyzer();
+                if (!forcedAnalyzer) {
+                    analyzer = fieldMappers.searchAnalyzer();
+                }
                 currentMapper = fieldMappers.fieldMappers().mapper();
                 if (currentMapper != null) {
-                    indexedNameField = currentMapper.names().indexName();
+                    Query query = null;
+                    if (currentMapper.useFieldQueryWithQueryString()) {
+                        if (fieldMappers.explicitTypeInNameWithDocMapper()) {
+                            String[] previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{fieldMappers.docMapper().type()});
+                            try {
+                                query = currentMapper.prefixQuery(termStr, multiTermRewriteMethod, parseContext);
+                            } finally {
+                                QueryParseContext.setTypes(previousTypes);
+                            }
+                        } else {
+                            query = currentMapper.prefixQuery(termStr, multiTermRewriteMethod, parseContext);
+                        }
+                    }
+                    if (query == null) {
+                        query = getPossiblyAnalyzedPrefixQuery(currentMapper.names().indexName(), termStr);
+                    }
+                    return wrapSmartNameQuery(query, fieldMappers, parseContext);
                 }
-                return wrapSmartNameQuery(getPossiblyAnalyzedPrefixQuery(indexedNameField, termStr), fieldMappers, parseContext);
             }
-            return getPossiblyAnalyzedPrefixQuery(indexedNameField, termStr);
+            return getPossiblyAnalyzedPrefixQuery(field, termStr);
         } finally {
             analyzer = oldAnalyzer;
         }
@@ -229,7 +257,15 @@ public class MapperQueryParser extends QueryParser {
         if (tlist.size() == 1) {
             return super.getPrefixQuery(field, tlist.get(0));
         } else {
-            return super.getPrefixQuery(field, termStr);
+            // build a boolean query with prefix on each one...
+            List<BooleanClause> clauses = new ArrayList<BooleanClause>();
+            for (String token : tlist) {
+                clauses.add(new BooleanClause(super.getPrefixQuery(field, token), BooleanClause.Occur.SHOULD));
+            }
+            return getBooleanQuery(clauses, true);
+
+            //return super.getPrefixQuery(field, termStr);
+
             /* this means that the analyzer used either added or consumed
 * (common for a stemmer) tokens, and we can't build a PrefixQuery */
 //            throw new ParseException("Cannot build PrefixQuery with analyzer "
@@ -250,7 +286,9 @@ public class MapperQueryParser extends QueryParser {
         try {
             MapperService.SmartNameFieldMappers fieldMappers = parseContext.smartFieldMappers(field);
             if (fieldMappers != null) {
-                analyzer = fieldMappers.searchAnalyzer();
+                if (!forcedAnalyzer) {
+                    analyzer = fieldMappers.searchAnalyzer();
+                }
                 currentMapper = fieldMappers.fieldMappers().mapper();
                 if (currentMapper != null) {
                     indexedNameField = currentMapper.names().indexName();

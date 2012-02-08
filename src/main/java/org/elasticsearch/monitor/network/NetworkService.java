@@ -57,11 +57,11 @@ public class NetworkService extends AbstractComponent {
         if (logger.isDebugEnabled()) {
             StringBuilder netDebug = new StringBuilder("net_info");
             try {
-                Enumeration<NetworkInterface> enum_ = NetworkInterface.getNetworkInterfaces();
+                Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
                 String hostName = InetAddress.getLocalHost().getHostName();
                 netDebug.append("\nhost [").append(hostName).append("]\n");
-                while (enum_.hasMoreElements()) {
-                    NetworkInterface net = enum_.nextElement();
+                while (interfaces.hasMoreElements()) {
+                    NetworkInterface net = interfaces.nextElement();
 
                     netDebug.append(net.getName()).append('\t').append("display_name [").append(net.getDisplayName()).append("]\n");
                     Enumeration<InetAddress> addresses = net.getInetAddresses();
@@ -73,9 +73,30 @@ public class NetworkService extends AbstractComponent {
                     netDebug.append("\t\tmtu [").append(net.getMTU()).append("] multicast [").append(net.supportsMulticast()).append("] ptp [").append(net.isPointToPoint())
                             .append("] loopback [").append(net.isLoopback()).append("] up [").append(net.isUp()).append("] virtual [").append(net.isVirtual()).append("]")
                             .append('\n');
+
+                    Enumeration<NetworkInterface> subInterfaces = net.getSubInterfaces();
+                    if (subInterfaces != null && subInterfaces.hasMoreElements()) {
+                        netDebug.append("\t\t\tsub interfaces:\n");
+
+                        while (subInterfaces.hasMoreElements()) {
+
+                            net = subInterfaces.nextElement();
+
+                            netDebug.append("\t\t\t").append(net.getName()).append("\t").append("display_name [").append(net.getDisplayName()).append("]\n");
+                            addresses = net.getInetAddresses();
+                            netDebug.append("\t\t\t\t\taddress ");
+                            while (addresses.hasMoreElements()) {
+                                netDebug.append("[").append(addresses.nextElement()).append("] ");
+                            }
+                            netDebug.append('\n');
+                            netDebug.append("\t\t\t\t\tmtu [").append(net.getMTU()).append("] multicast [").append(net.supportsMulticast()).append("] ptp [").append(net.isPointToPoint())
+                                    .append("] loopback [").append(net.isLoopback()).append("] up [").append(net.isUp()).append("] virtual [").append(net.isVirtual()).append("]")
+                                    .append('\n');
+                        }
+                    }
                 }
             } catch (Exception ex) {
-                netDebug.append("Failed to get Network Interface Info [" + ex.getMessage() + "]");
+                netDebug.append("failed to get Network Interface Info [" + ex.getMessage() + "]");
             }
             logger.debug(netDebug.toString());
         }

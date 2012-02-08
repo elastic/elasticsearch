@@ -19,22 +19,19 @@
 
 package org.elasticsearch.rest.action.main;
 
-import jsr166y.ThreadLocalRandom;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Classes;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
-import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
@@ -44,73 +41,57 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
  */
 public class RestMainAction extends BaseRestHandler {
 
-    private final Map<String, Object> rootNode;
-
-    private final int quotesSize;
-
     @Inject
     public RestMainAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
-        Map<String, Object> rootNode;
-        int quotesSize;
-        try {
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(Classes.getDefaultClassLoader().getResourceAsStream("org/elasticsearch/rest/action/main/quotes.json"));
-            rootNode = parser.map();
-            List arrayNode = (List) rootNode.get("quotes");
-            quotesSize = arrayNode.size();
-        } catch (Exception e) {
-            rootNode = null;
-            quotesSize = -1;
-        }
-        this.rootNode = rootNode;
-        this.quotesSize = quotesSize;
 
         controller.registerHandler(GET, "/", this);
         controller.registerHandler(HEAD, "/", this);
     }
 
     @Override
-    public void handleRequest(RestRequest request, RestChannel channel) {
-        try {
-            if (request.method() == RestRequest.Method.HEAD) {
-                channel.sendResponse(new StringRestResponse(RestStatus.OK));
-                return;
-            }
-            XContentBuilder builder = RestXContentBuilder.restContentBuilder(request).prettyPrint();
-            builder.startObject();
-            builder.field("ok", true);
-            if (settings.get("name") != null) {
-                builder.field("name", settings.get("name"));
-            }
-            builder.startObject("version").field("number", Version.CURRENT.number()).field("snapshot_build", Version.CURRENT.snapshot).endObject();
-            builder.field("tagline", "You Know, for Search");
-            builder.field("cover", "DON'T PANIC");
-            if (rootNode != null) {
-                builder.startObject("quote");
-                List arrayNode = (List) rootNode.get("quotes");
-                Map<String, Object> quoteNode = (Map<String, Object>) arrayNode.get(ThreadLocalRandom.current().nextInt(quotesSize));
-                builder.field("book", quoteNode.get("book").toString());
-                builder.field("chapter", quoteNode.get("chapter").toString());
-                List textNodes = (List) quoteNode.get("text");
-//                builder.startArray("text");
-//                for (JsonNode textNode : textNodes) {
-//                    builder.value(textNode.getValueAsText());
-//                }
-//                builder.endArray();
-                int index = 0;
-                for (Object textNode : textNodes) {
-                    builder.field("text" + (++index), textNode.toString());
+    public void handleRequest(final RestRequest request, final RestChannel channel) {
+        ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
+        clusterStateRequest.masterNodeTimeout(TimeValue.timeValueMillis(0));
+        clusterStateRequest.local(true);
+        clusterStateRequest.filterAll().filterBlocks(false);
+        client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
+            @Override
+            public void onResponse(ClusterStateResponse response) {
+                RestStatus status = RestStatus.OK;
+                if (response.state().blocks().hasGlobalBlock(RestStatus.SERVICE_UNAVAILABLE)) {
+                    status = RestStatus.SERVICE_UNAVAILABLE;
                 }
-                builder.endObject();
+                if (request.method() == RestRequest.Method.HEAD) {
+                    channel.sendResponse(new StringRestResponse(status));
+                    return;
+                }
+
+                try {
+                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request).prettyPrint();
+                    builder.startObject();
+                    builder.field("ok", true);
+                    builder.field("status", status.getStatus());
+                    if (settings.get("name") != null) {
+                        builder.field("name", settings.get("name"));
+                    }
+                    builder.startObject("version").field("number", Version.CURRENT.number()).field("snapshot_build", Version.CURRENT.snapshot).endObject();
+                    builder.field("tagline", "You Know, for Search");
+                    builder.endObject();
+                    channel.sendResponse(new XContentRestResponse(request, status, builder));
+                } catch (Exception e) {
+                    onFailure(e);
+                }
             }
-            builder.endObject();
-            channel.sendResponse(new XContentRestResponse(request, RestStatus.OK, builder));
-        } catch (Exception e) {
-            try {
-                channel.sendResponse(new XContentThrowableRestResponse(request, e));
-            } catch (IOException e1) {
-                logger.warn("Failed to send response", e);
+
+            @Override
+            public void onFailure(Throwable e) {
+                try {
+                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                } catch (IOException e1) {
+                    logger.warn("Failed to send response", e);
+                }
             }
-        }
+        });
     }
 }

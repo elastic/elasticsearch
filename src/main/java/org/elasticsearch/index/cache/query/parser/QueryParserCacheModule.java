@@ -22,7 +22,7 @@ package org.elasticsearch.index.cache.query.parser;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Scopes;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.cache.query.parser.weak.WeakQueryParserCache;
+import org.elasticsearch.index.cache.query.parser.resident.ResidentQueryParserCache;
 
 /**
  *
@@ -38,7 +38,7 @@ public class QueryParserCacheModule extends AbstractModule {
     @Override
     protected void configure() {
         bind(QueryParserCache.class)
-                .to(settings.getAsClass("index.cache.query.parser.type", WeakQueryParserCache.class, "org.elasticsearch.index.cache.query.parser.", "QueryParserCache"))
+                .to(settings.getAsClass("index.cache.query.parser.type", ResidentQueryParserCache.class, "org.elasticsearch.index.cache.query.parser.", "QueryParserCache"))
                 .in(Scopes.SINGLETON);
     }
 }

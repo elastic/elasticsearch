@@ -22,7 +22,6 @@ package org.elasticsearch.action.index;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RoutingMissingException;
-import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
@@ -31,6 +30,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -63,8 +63,6 @@ import java.util.concurrent.TimeUnit;
  * Defaults to <tt>true</tt>.
  * <li><b>allowIdGeneration</b>: If the id is set not, should it be generated. Defaults to <tt>true</tt>.
  * </ul>
- *
- *
  */
 public class TransportIndexAction extends TransportShardReplicationOperationAction<IndexRequest, IndexRequest, IndexResponse> {
 
@@ -87,14 +85,15 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         this.mappingUpdatedAction = mappingUpdatedAction;
         this.autoCreateIndex = settings.getAsBoolean("action.auto_create_index", true);
         this.allowIdGeneration = settings.getAsBoolean("action.allow_id_generation", true);
-        this.waitForMappingChange = settings.getAsBoolean("action.wait_on_mapping_change", true);
+        this.waitForMappingChange = settings.getAsBoolean("action.wait_on_mapping_change", false);
     }
 
     @Override
     protected void doExecute(final IndexRequest request, final ActionListener<IndexResponse> listener) {
+        // if we don't have a master, we don't have metadata, that's fine, let it find a master using create index API
         if (autoCreateIndex && !clusterService.state().metaData().hasConcreteIndex(request.index())) {
             request.beforeLocalFork(); // we fork on another thread...
-            createIndexAction.execute(new CreateIndexRequest(request.index()).cause("auto(index api)"), new ActionListener<CreateIndexResponse>() {
+            createIndexAction.execute(new CreateIndexRequest(request.index()).cause("auto(index api)").masterNodeTimeout(request.timeout()), new ActionListener<CreateIndexResponse>() {
                 @Override
                 public void onResponse(CreateIndexResponse result) {
                     innerExecute(request, listener);
@@ -119,7 +118,8 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         }
     }
 
-    private void innerExecute(final IndexRequest request, final ActionListener<IndexResponse> listener) {
+    @Override
+    protected boolean resolveRequest(ClusterState state, IndexRequest request, ActionListener<IndexResponse> indexResponseActionListener) {
         MetaData metaData = clusterService.state().metaData();
         String aliasOrIndex = request.index();
         request.index(metaData.concreteIndex(request.index()));
@@ -128,7 +128,10 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
             mappingMd = metaData.index(request.index()).mapping(request.type());
         }
         request.process(metaData, aliasOrIndex, mappingMd, allowIdGeneration);
+        return true;
+    }
 
+    private void innerExecute(final IndexRequest request, final ActionListener<IndexResponse> listener) {
         super.doExecute(request, listener);
     }
 
@@ -154,7 +157,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
 
     @Override
     protected String transportAction() {
-        return TransportActions.INDEX;
+        return IndexAction.NAME;
     }
 
     @Override
@@ -163,8 +166,13 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
     }
 
     @Override
-    protected void checkBlock(IndexRequest request, ClusterState state) {
-        state.blocks().indexBlockedRaiseException(ClusterBlockLevel.WRITE, request.index());
+    protected ClusterBlockException checkGlobalBlock(ClusterState state, IndexRequest request) {
+        return state.blocks().globalBlockedException(ClusterBlockLevel.WRITE);
+    }
+
+    @Override
+    protected ClusterBlockException checkRequestBlock(ClusterState state, IndexRequest request) {
+        return state.blocks().indexBlockedException(ClusterBlockLevel.WRITE, request.index());
     }
 
     @Override

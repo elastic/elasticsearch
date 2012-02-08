@@ -182,6 +182,7 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
             long ttl = context.sourceToParse().ttl();
             if (ttl <= 0 && defaultTTL > 0) { // no ttl provided so we use the default value
                 ttl = defaultTTL;
+                context.sourceToParse().ttl(ttl);
             }
             if (ttl > 0) { // a ttl has been provided either externally or in the _source
                 long timestamp = context.sourceToParse().timestamp();
@@ -217,6 +218,11 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
 
     @Override
     public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
-        // do nothing here, no merging, but also no exception
+        TTLFieldMapper ttlMergeWith = (TTLFieldMapper) mergeWith;
+        if (!mergeContext.mergeFlags().simulate()) {
+            if (ttlMergeWith.defaultTTL != -1) {
+                this.defaultTTL = ttlMergeWith.defaultTTL;
+            }
+        }
     }
 }

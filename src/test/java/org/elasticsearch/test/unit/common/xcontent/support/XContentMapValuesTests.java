@@ -80,6 +80,10 @@ public class XContentMapValuesTests {
         filter = XContentMapValues.filter(source, new String[]{"test1*"}, Strings.EMPTY_ARRAY);
         assertThat(filter.get("test1"), equalTo(source.get("test1")));
         assertThat(filter.containsKey("path1"), equalTo(false));
+
+        filter = XContentMapValues.filter(source, new String[]{"path1.path2.*"}, Strings.EMPTY_ARRAY);
+        assertThat(filter.get("path1"), equalTo(source.get("path1")));
+        assertThat(filter.containsKey("test1"), equalTo(false));
     }
 
     @SuppressWarnings({"unchecked"})

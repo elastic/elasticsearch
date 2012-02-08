@@ -24,49 +24,49 @@ package org.elasticsearch.action.admin.indices.status;
  */
 public class DocsStatus {
 
-    int numDocs = 0;
-    int maxDoc = 0;
-    int deletedDocs = 0;
+    long numDocs = 0;
+    long maxDoc = 0;
+    long deletedDocs = 0;
 
     /**
      * The number of docs.
      */
-    public int numDocs() {
+    public long numDocs() {
         return numDocs;
     }
 
     /**
      * The number of docs.
      */
-    public int getNumDocs() {
+    public long getNumDocs() {
         return numDocs();
     }
 
     /**
      * The max doc.
      */
-    public int maxDoc() {
+    public long maxDoc() {
         return maxDoc;
     }
 
     /**
      * The max doc.
      */
-    public int getMaxDoc() {
+    public long getMaxDoc() {
         return maxDoc();
     }
 
     /**
      * The number of deleted docs in the index.
      */
-    public int deletedDocs() {
+    public long deletedDocs() {
         return deletedDocs;
     }
 
     /**
      * The number of deleted docs in the index.
      */
-    public int getDeletedDocs() {
+    public long getDeletedDocs() {
         return deletedDocs();
     }
 }

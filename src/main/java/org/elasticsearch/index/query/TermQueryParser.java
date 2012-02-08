@@ -51,7 +51,9 @@ public class TermQueryParser implements QueryParser {
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token = parser.nextToken();
-        assert token == XContentParser.Token.FIELD_NAME;
+        if (token != XContentParser.Token.FIELD_NAME) {
+            throw new QueryParsingException(parseContext.index(), "[term] query malformed, no field");
+        }
         String fieldName = parser.currentName();
 
         String value = null;
@@ -69,6 +71,8 @@ public class TermQueryParser implements QueryParser {
                         value = parser.text();
                     } else if ("boost".equals(currentFieldName)) {
                         boost = parser.floatValue();
+                    } else {
+                        throw new QueryParsingException(parseContext.index(), "[term] query does not support [" + currentFieldName + "]");
                     }
                 }
             }
@@ -85,8 +89,15 @@ public class TermQueryParser implements QueryParser {
 
         Query query = null;
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
-        if (smartNameFieldMappers != null) {
-            if (smartNameFieldMappers.hasMapper()) {
+        if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
+            if (smartNameFieldMappers.explicitTypeInNameWithDocMapper()) {
+                String[] previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{smartNameFieldMappers.docMapper().type()});
+                try {
+                    query = smartNameFieldMappers.mapper().fieldQuery(value, parseContext);
+                } finally {
+                    QueryParseContext.setTypes(previousTypes);
+                }
+            } else {
                 query = smartNameFieldMappers.mapper().fieldQuery(value, parseContext);
             }
         }

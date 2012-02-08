@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -78,12 +79,19 @@ public class ProcessInfo implements Streamable, Serializable, ToXContent {
         return maxFileDescriptors;
     }
 
+    static final class Fields {
+        static final XContentBuilderString PROCESS = new XContentBuilderString("process");
+        static final XContentBuilderString REFRESH_INTERVAL = new XContentBuilderString("refresh_interval");
+        static final XContentBuilderString ID = new XContentBuilderString("id");
+        static final XContentBuilderString MAX_FILE_DESCRIPTORS = new XContentBuilderString("max_file_descriptors");
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("process");
-        builder.field("refresh_interval", refreshInterval);
-        builder.field("id", id);
-        builder.field("max_file_descriptors", maxFileDescriptors);
+        builder.startObject(Fields.PROCESS);
+        builder.field(Fields.REFRESH_INTERVAL, refreshInterval);
+        builder.field(Fields.ID, id);
+        builder.field(Fields.MAX_FILE_DESCRIPTORS, maxFileDescriptors);
         builder.endObject();
         return builder;
     }

@@ -82,6 +82,10 @@ public class RestIndicesStatsAction extends BaseRestHandler {
         if (clear) {
             indicesStatsRequest.clear();
         }
+        boolean all = request.paramAsBoolean("all", false);
+        if (all) {
+            indicesStatsRequest.all();
+        }
         indicesStatsRequest.indices(splitIndices(request.param("index")));
         indicesStatsRequest.types(splitTypes(request.param("types")));
         if (request.hasParam("groups")) {

@@ -27,8 +27,6 @@ import java.util.Map;
 
 /**
  * Script sort builder allows to sort based on a custom script expression.
- *
- *
  */
 public class ScriptSortBuilder extends SortBuilder {
 
@@ -99,6 +97,9 @@ public class ScriptSortBuilder extends SortBuilder {
         builder.field("type", type);
         if (order == SortOrder.DESC) {
             builder.field("reverse", true);
+        }
+        if (lang != null) {
+            builder.field("lang", lang);
         }
         if (this.params != null) {
             builder.field("params", this.params);

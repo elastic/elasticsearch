@@ -25,14 +25,16 @@ import gnu.trove.map.hash.TObjectFloatHashMap;
 import org.apache.lucene.queryParser.MapperQueryParser;
 import org.apache.lucene.queryParser.MultiFieldQueryParserSettings;
 import org.apache.lucene.queryParser.ParseException;
+import org.apache.lucene.queryParser.QueryParserSettings;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.internal.AllFieldMapper;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
@@ -47,8 +49,13 @@ public class QueryStringQueryParser implements QueryParser {
 
     public static final String NAME = "query_string";
 
+    private final boolean defaultAnalyzeWildcard;
+    private final boolean defaultAllowLeadingWildcard;
+
     @Inject
-    public QueryStringQueryParser() {
+    public QueryStringQueryParser(Settings settings) {
+        this.defaultAnalyzeWildcard = settings.getAsBoolean("indices.query.query_string.analyze_wildcard", QueryParserSettings.DEFAULT_ANALYZE_WILDCARD);
+        this.defaultAllowLeadingWildcard = settings.getAsBoolean("indices.query.query_string.allowLeadingWildcard", QueryParserSettings.DEFAULT_ALLOW_LEADING_WILDCARD);
     }
 
     @Override
@@ -61,7 +68,9 @@ public class QueryStringQueryParser implements QueryParser {
         XContentParser parser = parseContext.parser();
 
         MultiFieldQueryParserSettings qpSettings = new MultiFieldQueryParserSettings();
-        qpSettings.defaultField(AllFieldMapper.NAME);
+        qpSettings.defaultField(parseContext.defaultField());
+        qpSettings.analyzeWildcard(defaultAnalyzeWildcard);
+        qpSettings.allowLeadingWildcard(defaultAllowLeadingWildcard);
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -110,6 +119,8 @@ public class QueryStringQueryParser implements QueryParser {
                             }
                         }
                     }
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[query_string] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("query".equals(currentFieldName)) {
@@ -126,7 +137,11 @@ public class QueryStringQueryParser implements QueryParser {
                         throw new QueryParsingException(parseContext.index(), "Query default operator [" + op + "] is not allowed");
                     }
                 } else if ("analyzer".equals(currentFieldName)) {
-                    qpSettings.analyzer(parseContext.analysisService().analyzer(parser.text()));
+                    NamedAnalyzer analyzer = parseContext.analysisService().analyzer(parser.text());
+                    if (analyzer == null) {
+                        throw new QueryParsingException(parseContext.index(), "[query_string] analyzer [" + parser.text() + "] not found");
+                    }
+                    qpSettings.forcedAnalyzer(analyzer);
                 } else if ("allow_leading_wildcard".equals(currentFieldName) || "allowLeadingWildcard".equals(currentFieldName)) {
                     qpSettings.allowLeadingWildcard(parser.booleanValue());
                 } else if ("auto_generate_phrase_queries".equals(currentFieldName) || "autoGeneratePhraseQueries".equals(currentFieldName)) {
@@ -155,15 +170,15 @@ public class QueryStringQueryParser implements QueryParser {
                     qpSettings.rewriteMethod(QueryParsers.parseRewriteMethod(parser.textOrNull()));
                 } else if ("minimum_should_match".equals(currentFieldName) || "minimumShouldMatch".equals(currentFieldName)) {
                     qpSettings.minimumShouldMatch(parser.textOrNull());
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[query_string] query does not support [" + currentFieldName + "]");
                 }
             }
         }
         if (qpSettings.queryString() == null) {
             throw new QueryParsingException(parseContext.index(), "query_string must be provided with a [query]");
         }
-        if (qpSettings.analyzer() == null) {
-            qpSettings.analyzer(parseContext.mapperService().searchAnalyzer());
-        }
+        qpSettings.defaultAnalyzer(parseContext.mapperService().searchAnalyzer());
 
         if (qpSettings.escape()) {
             qpSettings.queryString(org.apache.lucene.queryParser.QueryParser.escape(qpSettings.queryString()));

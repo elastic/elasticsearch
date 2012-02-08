@@ -31,8 +31,6 @@ import java.io.IOException;
 /**
  * The "fquery" filter is the same as the {@link QueryFilterParser} except that it allows also to
  * associate a name with the query filter.
- *
- *
  */
 public class FQueryFilterParser implements FilterParser {
 
@@ -64,6 +62,8 @@ public class FQueryFilterParser implements FilterParser {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("query".equals(currentFieldName)) {
                     query = parseContext.parseInnerQuery();
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[fquery] filter does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("_name".equals(currentFieldName)) {
@@ -72,6 +72,8 @@ public class FQueryFilterParser implements FilterParser {
                     cache = parser.booleanValue();
                 } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
                     cacheKey = new CacheKeyFilter.Key(parser.text());
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[fquery] filter does not support [" + currentFieldName + "]");
                 }
             }
         }

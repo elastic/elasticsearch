@@ -72,6 +72,8 @@ public class SpanNearQueryParser implements QueryParser {
                         }
                         clauses.add((SpanQuery) query);
                     }
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[span_near] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("in_order".equals(currentFieldName) || "inOrder".equals(currentFieldName)) {
@@ -82,7 +84,11 @@ public class SpanNearQueryParser implements QueryParser {
                     slop = parser.intValue();
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[span_near] query does not support [" + currentFieldName + "]");
                 }
+            } else {
+                throw new QueryParsingException(parseContext.index(), "[span_near] query does not support [" + currentFieldName + "]");
             }
         }
         if (clauses.isEmpty()) {

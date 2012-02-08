@@ -24,32 +24,20 @@ package org.elasticsearch.index.search.geo;
 public class GeoUtils {
 
     public static double normalizeLon(double lon) {
-        double delta = 0;
-        if (lon < 0) {
-            delta = 360;
-        } else if (lon >= 0) {
-            delta = -360;
-        }
-
-        double newLng = lon;
-        while (newLng < -180 || newLng > 180) {
-            newLng += delta;
-        }
-        return newLng;
+        return centeredModulus(lon, 360);
     }
 
     public static double normalizeLat(double lat) {
-        double delta = 0;
-        if (lat < 0) {
-            delta = 180;
-        } else if (lat >= 0) {
-            delta = -180;
-        }
-
-        double newLat = lat;
-        while (newLat < -90 || newLat > 90) {
-            newLat += delta;
-        }
-        return newLat;
+        return centeredModulus(lat, 180);
     }
+
+    private static double centeredModulus(double dividend, double divisor) {
+        double rtn = dividend % divisor;
+        if (rtn <= 0)
+            rtn += divisor;
+        if (rtn > divisor/2)
+            rtn -= divisor;
+        return rtn;
+    }
+
 }

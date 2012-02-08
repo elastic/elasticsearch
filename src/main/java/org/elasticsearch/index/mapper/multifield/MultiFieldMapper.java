@@ -82,6 +82,7 @@ public class MultiFieldMapper implements Mapper, AllFieldMapper.IncludeInAll {
                 defaultMapper = defaultMapperBuilder.build(context);
             }
 
+            String origSourcePath = context.path().sourcePath(context.path().fullPathAsText(name));
             context.path().add(name);
             Map<String, Mapper> mappers = new HashMap<String, Mapper>();
             for (Mapper.Builder builder : mappersBuilders) {
@@ -89,6 +90,7 @@ public class MultiFieldMapper implements Mapper, AllFieldMapper.IncludeInAll {
                 mappers.put(mapper.name(), mapper);
             }
             context.path().remove();
+            context.path().sourcePath(origSourcePath);
 
             context.path().pathType(origPathType);
 

@@ -21,9 +21,10 @@ package org.elasticsearch.action.support.broadcast;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.BaseAction;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
@@ -41,7 +42,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  *
  */
 public abstract class TransportBroadcastOperationAction<Request extends BroadcastOperationRequest, Response extends BroadcastOperationResponse, ShardRequest extends BroadcastShardOperationRequest, ShardResponse extends BroadcastShardOperationResponse>
-        extends BaseAction<Request, Response> {
+        extends TransportAction<Request, Response> {
 
     protected final ClusterService clusterService;
 
@@ -60,7 +61,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
         this.threadPool = threadPool;
 
         this.transportAction = transportAction();
-        this.transportShardAction = transportShardAction();
+        this.transportShardAction = transportAction() + "/s";
         this.executor = executor();
 
         transportService.registerHandler(transportAction, new TransportHandler());
@@ -73,8 +74,6 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
     }
 
     protected abstract String transportAction();
-
-    protected abstract String transportShardAction();
 
     protected abstract String executor();
 
@@ -90,7 +89,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
 
     protected abstract ShardResponse shardOperation(ShardRequest request) throws ElasticSearchException;
 
-    protected abstract GroupShardsIterator shards(Request request, String[] concreteIndices, ClusterState clusterState);
+    protected abstract GroupShardsIterator shards(ClusterState clusterState, Request request, String[] concreteIndices);
 
     protected boolean accumulateExceptions() {
         return true;
@@ -104,9 +103,9 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
         return false;
     }
 
-    protected void checkBlock(Request request, String[] indices, ClusterState state) {
+    protected abstract ClusterBlockException checkGlobalBlock(ClusterState state, Request request);
 
-    }
+    protected abstract ClusterBlockException checkRequestBlock(ClusterState state, Request request, String[] concreteIndices);
 
     class AsyncBroadcastAction {
 
@@ -128,22 +127,26 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
 
         private final AtomicReferenceArray shardsResponses;
 
-        private final String[] concreteIndices;
-
         AsyncBroadcastAction(Request request, ActionListener<Response> listener) {
             this.request = request;
             this.listener = listener;
 
             clusterState = clusterService.state();
 
+            ClusterBlockException blockException = checkGlobalBlock(clusterState, request);
+            if (blockException != null) {
+                throw blockException;
+            }
             // update to concrete indices
-            concreteIndices = clusterState.metaData().concreteIndices(request.indices(), false, true);
-            checkBlock(request, concreteIndices, clusterState);
+            String[] concreteIndices = clusterState.metaData().concreteIndices(request.indices(), false, true);
+            blockException = checkRequestBlock(clusterState, request, concreteIndices);
+            if (blockException != null) {
+                throw blockException;
+            }
 
             nodes = clusterState.nodes();
-            shardsIts = shards(request, concreteIndices, clusterState);
+            shardsIts = shards(clusterState, request, concreteIndices);
             expectedOps = shardsIts.size();
-
 
             shardsResponses = new AtomicReferenceArray<Object>(expectedOps);
         }

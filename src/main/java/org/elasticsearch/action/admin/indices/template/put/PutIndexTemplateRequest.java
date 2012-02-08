@@ -38,14 +38,14 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static com.google.common.collect.Maps.newHashMap;
-import static org.elasticsearch.action.Actions.addValidationError;
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.ImmutableSettings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.ImmutableSettings.writeSettingsToStream;
 import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
 
 /**
- *
+ * A request to create an index template.
  */
 public class PutIndexTemplateRequest extends MasterNodeOperationRequest {
 
@@ -134,7 +134,7 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest {
     }
 
     /**
-     * The settings to created the index template with.
+     * The settings to create the index template with.
      */
     public PutIndexTemplateRequest settings(Settings settings) {
         this.settings = settings;
@@ -142,7 +142,7 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest {
     }
 
     /**
-     * The settings to created the index template with.
+     * The settings to create the index template with.
      */
     public PutIndexTemplateRequest settings(Settings.Builder settings) {
         this.settings = settings.build();
@@ -150,7 +150,7 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest {
     }
 
     /**
-     * The settings to crete the index template with (either json/yaml/properties format)
+     * The settings to crete the index template with (either json/yaml/properties format).
      */
     public PutIndexTemplateRequest settings(String source) {
         this.settings = ImmutableSettings.settingsBuilder().loadFromSource(source).build();
@@ -158,7 +158,7 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest {
     }
 
     /**
-     * The settings to crete the index template with (either json/yaml/properties format)
+     * The settings to crete the index template with (either json/yaml/properties format).
      */
     public PutIndexTemplateRequest settings(Map<String, Object> source) {
         try {

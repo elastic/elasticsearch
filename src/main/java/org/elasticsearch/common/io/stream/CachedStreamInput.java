@@ -28,6 +28,7 @@ import java.lang.ref.SoftReference;
 public class CachedStreamInput {
 
     static class Entry {
+        char[] chars = new char[80];
         final HandlesStreamInput handles;
         final LZFStreamInput lzf;
 
@@ -72,5 +73,13 @@ public class CachedStreamInput {
         entry.lzf.reset(in);
         entry.handles.reset(entry.lzf);
         return entry.handles;
+    }
+
+    public static char[] getCharArray(int size) {
+        Entry entry = instance();
+        if (entry.chars.length < size) {
+            entry.chars = new char[size];
+        }
+        return entry.chars;
     }
 }

@@ -19,10 +19,10 @@
 
 package org.elasticsearch.search.facet.histogram.unbounded;
 
-import gnu.trove.ExtTLongObjectHashMap;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;

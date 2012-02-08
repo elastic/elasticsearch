@@ -182,7 +182,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         }
 
         protected Names buildNames(BuilderContext context) {
-            return new Names(name, buildIndexName(context), indexName == null ? name : indexName, buildFullName(context));
+            return new Names(name, buildIndexName(context), indexName == null ? name : indexName, buildFullName(context), context.path().sourcePath());
         }
 
         protected String buildIndexName(BuilderContext context) {
@@ -378,6 +378,20 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
     @Override
     public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions) {
         return new FuzzyQuery(names().createIndexNameTerm(value), (float) minSim, prefixLength, maxExpansions);
+    }
+
+    @Override
+    public Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
+        PrefixQuery query = new PrefixQuery(names().createIndexNameTerm(indexedValue(value)));
+        if (method != null) {
+            query.setRewriteMethod(method);
+        }
+        return query;
+    }
+
+    @Override
+    public Filter prefixFilter(String value, @Nullable QueryParseContext context) {
+        return new PrefixFilter(names().createIndexNameTerm(indexedValue(value)));
     }
 
     @Override

@@ -19,90 +19,59 @@
 
 package org.elasticsearch.index.translog.fs;
 
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogException;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 
-public class FsTranslogFile {
+public interface FsTranslogFile {
 
-    private final long id;
-    private final ShardId shardId;
-    private final RafReference raf;
+    public static enum Type {
 
-    private final AtomicInteger operationCounter = new AtomicInteger();
-
-    private final AtomicLong lastPosition = new AtomicLong(0);
-    private final AtomicLong lastWrittenPosition = new AtomicLong(0);
-
-    private volatile long lastSyncPosition = 0;
-
-    public FsTranslogFile(ShardId shardId, long id, RafReference raf) throws IOException {
-        this.shardId = shardId;
-        this.id = id;
-        this.raf = raf;
-        raf.raf().setLength(0);
-    }
-
-    public long id() {
-        return this.id;
-    }
-
-    public int estimatedNumberOfOperations() {
-        return operationCounter.get();
-    }
-
-    public long translogSizeInBytes() {
-        return lastWrittenPosition.get();
-    }
-
-    public Translog.Location add(byte[] data, int from, int size) throws IOException {
-        long position = lastPosition.getAndAdd(size);
-        raf.channel().write(ByteBuffer.wrap(data, from, size), position);
-        lastWrittenPosition.getAndAdd(size);
-        operationCounter.incrementAndGet();
-        return new Translog.Location(id, position, size);
-    }
-
-    public byte[] read(Translog.Location location) throws IOException {
-        ByteBuffer buffer = ByteBuffer.allocate(location.size);
-        raf.channel().read(buffer, location.translogLocation);
-        return buffer.array();
-    }
-
-    public void close(boolean delete) {
-        raf.decreaseRefCount(delete);
-    }
-
-    /**
-     * Returns a snapshot on this file, <tt>null</tt> if it failed to snapshot.
-     */
-    public FsChannelSnapshot snapshot() throws TranslogException {
-        try {
-            if (!raf.increaseRefCount()) {
-                return null;
+        SIMPLE() {
+            @Override
+            public FsTranslogFile create(ShardId shardId, long id, RafReference raf, int bufferSize) throws IOException {
+                return new SimpleFsTranslogFile(shardId, id, raf);
             }
-            return new FsChannelSnapshot(this.id, raf, lastWrittenPosition.get(), operationCounter.get());
-        } catch (Exception e) {
-            throw new TranslogException(shardId, "Failed to snapshot", e);
+        },
+        BUFFERED() {
+            @Override
+            public FsTranslogFile create(ShardId shardId, long id, RafReference raf, int bufferSize) throws IOException {
+                return new BufferingFsTranslogFile(shardId, id, raf, bufferSize);
+            }
+        };
+
+        public abstract FsTranslogFile create(ShardId shardId, long id, RafReference raf, int bufferSize) throws IOException;
+
+        public static Type fromString(String type) throws ElasticSearchIllegalArgumentException {
+            if (SIMPLE.name().equalsIgnoreCase(type)) {
+                return SIMPLE;
+            } else if (BUFFERED.name().equalsIgnoreCase(type)) {
+                return BUFFERED;
+            }
+            throw new ElasticSearchIllegalArgumentException("No translog fs type [" + type + "]");
         }
     }
 
-    public void sync() {
-        try {
-            // check if we really need to sync here...
-            long last = lastWrittenPosition.get();
-            if (last == lastSyncPosition) {
-                return;
-            }
-            lastSyncPosition = last;
-            raf.channel().force(false);
-        } catch (Exception e) {
-            // ignore
-        }
-    }
+    long id();
+
+    int estimatedNumberOfOperations();
+
+    long translogSizeInBytes();
+
+    Translog.Location add(byte[] data, int from, int size) throws IOException;
+
+    byte[] read(Translog.Location location) throws IOException;
+
+    void close(boolean delete) throws TranslogException;
+
+    FsChannelSnapshot snapshot() throws TranslogException;
+
+    void reuse(FsTranslogFile other) throws TranslogException;
+
+    void sync();
+
+    boolean syncNeeded();
 }

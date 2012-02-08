@@ -19,14 +19,11 @@
 
 package org.elasticsearch.common;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
-
-import java.io.IOException;
 import java.util.Arrays;
 
-public class BytesHolder implements Streamable {
+public class BytesHolder {
+
+    public static final BytesHolder EMPTY = new BytesHolder(Bytes.EMPTY_ARRAY, 0, 0);
 
     private byte[] bytes;
     private int offset;
@@ -62,26 +59,6 @@ public class BytesHolder implements Streamable {
 
     public int length() {
         return length;
-    }
-
-    public static BytesHolder readBytesHolder(StreamInput in) throws IOException {
-        BytesHolder holder = new BytesHolder();
-        holder.readFrom(in);
-        return holder;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        offset = 0;
-        length = in.readVInt();
-        bytes = new byte[length];
-        in.readFully(bytes);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(length);
-        out.writeBytes(bytes, offset, length);
     }
 
     @Override

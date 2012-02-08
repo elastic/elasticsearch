@@ -26,12 +26,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-import static org.elasticsearch.action.Actions.addValidationError;
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * Delete by query request to execute on a specific shard.
- *
- *
  */
 public class ShardDeleteRequest extends ShardReplicationOperationRequest {
 

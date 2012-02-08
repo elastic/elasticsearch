@@ -22,6 +22,9 @@ package org.elasticsearch.test.integration.search.indicesboost;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
@@ -44,7 +47,11 @@ public class SimpleIndicesBoostSearchTests extends AbstractNodesTests {
 
     @BeforeMethod
     public void createNodes() throws Exception {
-        startNode("server1");
+        Settings nodeSettings = ImmutableSettings.settingsBuilder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .build();
+        startNode("server1", nodeSettings);
         client = getClient();
     }
 

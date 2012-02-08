@@ -69,10 +69,14 @@ public class SpanOrQueryParser implements QueryParser {
                         }
                         clauses.add((SpanQuery) query);
                     }
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[span_or] query does not support [" + currentFieldName + "]");
                 }
             } else {
                 if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[span_or] query does not support [" + currentFieldName + "]");
                 }
             }
         }

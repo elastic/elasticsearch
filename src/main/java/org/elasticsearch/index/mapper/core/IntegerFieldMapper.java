@@ -27,6 +27,7 @@ import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -36,6 +37,7 @@ import org.elasticsearch.index.analysis.NumericIntegerAnalyzer;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
 
 import java.io.IOException;
@@ -159,11 +161,25 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
     }
 
     @Override
+    public Query fieldQuery(String value, @Nullable QueryParseContext context) {
+        int iValue = Integer.parseInt(value);
+        return NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
+                iValue, iValue, true, true);
+    }
+
+    @Override
     public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
         return NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : Integer.parseInt(lowerTerm),
                 upperTerm == null ? null : Integer.parseInt(upperTerm),
                 includeLower, includeUpper);
+    }
+
+    @Override
+    public Filter fieldFilter(String value, @Nullable QueryParseContext context) {
+        int iValue = Integer.parseInt(value);
+        return NumericRangeFilter.newIntRange(names.indexName(), precisionStep,
+                iValue, iValue, true, true);
     }
 
     @Override

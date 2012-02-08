@@ -41,6 +41,8 @@ public class ContentPath {
 
     private String[] path = new String[10];
 
+    private String sourcePath;
+
     public ContentPath() {
         this(0);
     }
@@ -58,6 +60,7 @@ public class ContentPath {
 
     public void reset() {
         this.index = 0;
+        this.sourcePath = null;
     }
 
     public void add(String name) {
@@ -95,5 +98,15 @@ public class ContentPath {
 
     public void pathType(Type type) {
         this.pathType = type;
+    }
+
+    public String sourcePath(String sourcePath) {
+        String orig = this.sourcePath;
+        this.sourcePath = sourcePath;
+        return orig;
+    }
+
+    public String sourcePath() {
+        return this.sourcePath;
     }
 }

@@ -21,12 +21,12 @@ package org.elasticsearch.action.count;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -64,12 +64,7 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
 
     @Override
     protected String transportAction() {
-        return TransportActions.COUNT;
-    }
-
-    @Override
-    protected String transportShardAction() {
-        return "indices/count/shard";
+        return CountAction.NAME;
     }
 
     @Override
@@ -94,16 +89,19 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
     }
 
     @Override
-    protected GroupShardsIterator shards(CountRequest request, String[] concreteIndices, ClusterState clusterState) {
+    protected GroupShardsIterator shards(ClusterState clusterState, CountRequest request, String[] concreteIndices) {
         Map<String, Set<String>> routingMap = clusterState.metaData().resolveSearchRouting(request.routing(), request.indices());
         return clusterService.operationRouting().searchShards(clusterState, request.indices(), concreteIndices, request.queryHint(), routingMap, null);
     }
 
     @Override
-    protected void checkBlock(CountRequest request, String[] concreteIndices, ClusterState state) {
-        for (String index : concreteIndices) {
-            state.blocks().indexBlocked(ClusterBlockLevel.READ, index);
-        }
+    protected ClusterBlockException checkGlobalBlock(ClusterState state, CountRequest request) {
+        return state.blocks().globalBlockedException(ClusterBlockLevel.READ);
+    }
+
+    @Override
+    protected ClusterBlockException checkRequestBlock(ClusterState state, CountRequest countRequest, String[] concreteIndices) {
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.READ, concreteIndices);
     }
 
     @Override

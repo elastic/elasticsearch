@@ -20,6 +20,7 @@
 package org.elasticsearch.search.highlight;
 
 import com.google.common.collect.Lists;
+import org.elasticsearch.common.lucene.search.vectorhighlight.SimpleBoundaryScanner2;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
@@ -45,8 +46,6 @@ import static com.google.common.collect.Lists.newArrayList;
  *  }
  * }
  * </pre>
- *
- *
  */
 public class HighlighterParseElement implements SearchParseElement {
 
@@ -71,9 +70,12 @@ public class HighlighterParseElement implements SearchParseElement {
         String[] globalPostTags = DEFAULT_POST_TAGS;
         boolean globalScoreOrdered = false;
         boolean globalHighlightFilter = false;
+        boolean globalRequireFieldMatch = false;
         int globalFragmentSize = 100;
         int globalNumOfFragments = 5;
         String globalEncoder = "default";
+        int globalBoundaryMaxScan = SimpleBoundaryScanner2.DEFAULT_MAX_SCAN;
+        char[] globalBoundaryChars = SimpleBoundaryScanner2.DEFAULT_BOUNDARY_CHARS;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -109,6 +111,12 @@ public class HighlighterParseElement implements SearchParseElement {
                     globalNumOfFragments = parser.intValue();
                 } else if ("encoder".equals(topLevelFieldName)) {
                     globalEncoder = parser.text();
+                } else if ("require_field_match".equals(topLevelFieldName) || "requireFieldMatch".equals(topLevelFieldName)) {
+                    globalRequireFieldMatch = parser.booleanValue();
+                } else if ("boundary_max_scan".equals(topLevelFieldName) || "boundaryMaxScan".equals(topLevelFieldName)) {
+                    globalBoundaryMaxScan = parser.intValue();
+                } else if ("boundary_chars".equals(topLevelFieldName) || "boundaryChars".equals(topLevelFieldName)) {
+                    globalBoundaryChars = parser.text().toCharArray();
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("fields".equals(topLevelFieldName)) {
@@ -147,6 +155,12 @@ public class HighlighterParseElement implements SearchParseElement {
                                         field.highlightFilter(parser.booleanValue());
                                     } else if ("order".equals(fieldName)) {
                                         field.scoreOrdered("score".equals(parser.text()));
+                                    } else if ("require_field_match".equals(fieldName) || "requireFieldMatch".equals(fieldName)) {
+                                        field.requireFieldMatch(parser.booleanValue());
+                                    } else if ("boundary_max_scan".equals(topLevelFieldName) || "boundaryMaxScan".equals(topLevelFieldName)) {
+                                        field.boundaryMaxScan(parser.intValue());
+                                    } else if ("boundary_chars".equals(topLevelFieldName) || "boundaryChars".equals(topLevelFieldName)) {
+                                        field.boundaryChars(parser.text().toCharArray());
                                     }
                                 }
                             }
@@ -183,7 +197,15 @@ public class HighlighterParseElement implements SearchParseElement {
             if (field.encoder() == null) {
                 field.encoder(globalEncoder);
             }
-
+            if (field.requireFieldMatch() == null) {
+                field.requireFieldMatch(globalRequireFieldMatch);
+            }
+            if (field.boundaryMaxScan() == -1) {
+                field.boundaryMaxScan(globalBoundaryMaxScan);
+            }
+            if (field.boundaryChars() == null) {
+                field.boundaryChars(globalBoundaryChars);
+            }
         }
 
         context.highlight(new SearchContextHighlight(fields));

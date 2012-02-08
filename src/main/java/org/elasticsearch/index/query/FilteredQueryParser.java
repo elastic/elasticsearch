@@ -66,6 +66,8 @@ public class FilteredQueryParser implements QueryParser {
                     query = parseContext.parseInnerQuery();
                 } else if ("filter".equals(currentFieldName)) {
                     filter = parseContext.parseInnerFilter();
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[filtered] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("boost".equals(currentFieldName)) {
@@ -74,6 +76,8 @@ public class FilteredQueryParser implements QueryParser {
                     cache = parser.booleanValue();
                 } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
                     cacheKey = new CacheKeyFilter.Key(parser.text());
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[filtered] query does not support [" + currentFieldName + "]");
                 }
             }
         }

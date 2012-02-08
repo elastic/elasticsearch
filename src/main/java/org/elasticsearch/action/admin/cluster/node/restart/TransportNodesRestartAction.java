@@ -22,7 +22,6 @@ package org.elasticsearch.action.admin.cluster.node.restart;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.nodes.NodeOperationRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesOperationAction;
 import org.elasticsearch.cluster.ClusterName;
@@ -76,12 +75,7 @@ public class TransportNodesRestartAction extends TransportNodesOperationAction<N
 
     @Override
     protected String transportAction() {
-        return TransportActions.Admin.Cluster.Node.RESTART;
-    }
-
-    @Override
-    protected String transportNodeAction() {
-        return "/cluster/nodes/restart/node";
+        return NodesRestartAction.NAME;
     }
 
     @Override

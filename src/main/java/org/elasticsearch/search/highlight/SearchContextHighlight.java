@@ -56,6 +56,11 @@ public class SearchContextHighlight {
 
         private Boolean highlightFilter;
 
+        private Boolean requireFieldMatch;
+
+        private int boundaryMaxScan = -1;
+        private char[] boundaryChars = null;
+
         public Field(String field) {
             this.field = field;
         }
@@ -128,5 +133,28 @@ public class SearchContextHighlight {
             this.highlightFilter = highlightFilter;
         }
 
+        public Boolean requireFieldMatch() {
+            return requireFieldMatch;
+        }
+
+        public void requireFieldMatch(boolean requireFieldMatch) {
+            this.requireFieldMatch = requireFieldMatch;
+        }
+
+        public int boundaryMaxScan() {
+            return boundaryMaxScan;
+        }
+
+        public void boundaryMaxScan(int boundaryMaxScan) {
+            this.boundaryMaxScan = boundaryMaxScan;
+        }
+
+        public char[] boundaryChars() {
+            return boundaryChars;
+        }
+
+        public void boundaryChars(char[] boundaryChars) {
+            this.boundaryChars = boundaryChars;
+        }
     }
 }

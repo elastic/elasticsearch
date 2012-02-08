@@ -36,7 +36,7 @@ First of all, DON'T PANIC. It will take 5 minutes to get the gist of what Elasti
 
 h3. Installation
 
-* Download and unzip the ElasticSearch installation.
+* "Download":http://www.elasticsearch.org/download and unzip the ElasticSearch official distribution.
 * Run @bin/elasticsearch -f@ on unix, or @bin/elasticsearch.bat@ on windows.
 * Run @curl -X GET http://localhost:9200/@.
 * Start more servers ...
@@ -198,7 +198,7 @@ h3. Building from Source
 
 ElasticSearch uses "Maven":http://maven.apache.org for its build system.
 
-In order to create a distribution, simply run the @mvn assembly:assembly -DskipTests@ command in the cloned directory.
+In order to create a distribution, simply run the @mvn package -DskipTests@ command in the cloned directory.
 
 The distribution will be created under @target/releases@.
 

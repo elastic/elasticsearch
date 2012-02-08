@@ -69,14 +69,28 @@ public class SortParseElement implements SearchParseElement {
                 if (token == XContentParser.Token.START_OBJECT) {
                     addCompoundSortField(parser, context, sortFields);
                 } else if (token == XContentParser.Token.VALUE_STRING) {
-                    addSortField(context, sortFields, parser.text(), false, null);
+                    addSortField(context, sortFields, parser.text(), false, false, null);
                 }
             }
         } else {
             addCompoundSortField(parser, context, sortFields);
         }
         if (!sortFields.isEmpty()) {
-            context.sort(new Sort(sortFields.toArray(new SortField[sortFields.size()])));
+            // optimize if we just sort on score non reversed, we don't really need sorting
+            boolean sort;
+            if (sortFields.size() > 1) {
+                sort = true;
+            } else {
+                SortField sortField = sortFields.get(0);
+                if (sortField.getType() == SortField.SCORE && !sortField.getReverse()) {
+                    sort = false;
+                } else {
+                    sort = true;
+                }
+            }
+            if (sort) {
+                context.sort(new Sort(sortFields.toArray(new SortField[sortFields.size()])));
+            }
         }
     }
 
@@ -88,6 +102,7 @@ public class SortParseElement implements SearchParseElement {
                 boolean reverse = false;
                 String missing = null;
                 String innerJsonName = null;
+                boolean ignoreUnmapped = false;
                 token = parser.nextToken();
                 if (token == XContentParser.Token.VALUE_STRING) {
                     String direction = parser.text();
@@ -96,7 +111,7 @@ public class SortParseElement implements SearchParseElement {
                     } else if (direction.equals("desc")) {
                         reverse = !SCORE_FIELD_NAME.equals(fieldName);
                     }
-                    addSortField(context, sortFields, fieldName, reverse, missing);
+                    addSortField(context, sortFields, fieldName, reverse, ignoreUnmapped, missing);
                 } else {
                     if (parsers.containsKey(fieldName)) {
                         sortFields.add(parsers.get(fieldName).parse(parser, context));
@@ -115,17 +130,19 @@ public class SortParseElement implements SearchParseElement {
                                     }
                                 } else if ("missing".equals(innerJsonName)) {
                                     missing = parser.textOrNull();
+                                } else if ("ignore_unmapped".equals(innerJsonName) || "ignoreUnmapped".equals(innerJsonName)) {
+                                    ignoreUnmapped = parser.booleanValue();
                                 }
                             }
                         }
-                        addSortField(context, sortFields, fieldName, reverse, missing);
+                        addSortField(context, sortFields, fieldName, reverse, ignoreUnmapped, missing);
                     }
                 }
             }
         }
     }
 
-    private void addSortField(SearchContext context, List<SortField> sortFields, String fieldName, boolean reverse, @Nullable final String missing) {
+    private void addSortField(SearchContext context, List<SortField> sortFields, String fieldName, boolean reverse, boolean ignoreUnmapped, @Nullable final String missing) {
         if (SCORE_FIELD_NAME.equals(fieldName)) {
             if (reverse) {
                 sortFields.add(SORT_SCORE_REVERSE);
@@ -141,6 +158,9 @@ public class SortParseElement implements SearchParseElement {
         } else {
             FieldMapper fieldMapper = context.smartNameFieldMapper(fieldName);
             if (fieldMapper == null) {
+                if (ignoreUnmapped) {
+                    return;
+                }
                 throw new SearchParseException(context, "No mapping found for [" + fieldName + "] in order to sort on");
             }
             sortFields.add(new SortField(fieldMapper.names().indexName(), fieldMapper.fieldDataType().newFieldComparatorSource(context.fieldDataCache(), missing), reverse));

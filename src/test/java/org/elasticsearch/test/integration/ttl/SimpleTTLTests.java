@@ -39,7 +39,12 @@ public class SimpleTTLTests extends AbstractNodesTests {
 
     @BeforeClass
     public void createNodes() throws Exception {
-        Settings settings = settingsBuilder().put("indices.ttl.interval", purgeInterval).build();
+        Settings settings = settingsBuilder()
+                .put("indices.ttl.interval", purgeInterval)
+                .put("index.number_of_shards", 2) // 2 shards to test TTL purge with routing properly
+                .put("cluster.routing.operation.use_type", false) // make sure we control the shard computation
+                .put("cluster.routing.operation.hash.type", "djb")
+                .build();
         startNode("node1", settings);
         startNode("node2", settings);
         client = getClient();
@@ -67,11 +72,22 @@ public class SimpleTTLTests extends AbstractNodesTests {
                         .startObject("_ttl").field("enabled", true).field("store", "yes").endObject()
                         .endObject()
                         .endObject())
+                .addMapping("type2", XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("type2")
+                        .startObject("_timestamp").field("enabled", true).field("store", "yes").endObject()
+                        .startObject("_ttl").field("enabled", true).field("store", "yes").field("default", "1d").endObject()
+                        .endObject()
+                        .endObject())
                 .execute().actionGet();
         client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
         long providedTTLValue = 3000;
         logger.info("--> checking ttl");
+        // Index one doc without routing, one doc with routing, one doc with not TTL and no default and one doc with default TTL
         client.prepareIndex("test", "type1", "1").setSource("field1", "value1").setTTL(providedTTLValue).setRefresh(true).execute().actionGet();
+        client.prepareIndex("test", "type1", "with_routing").setSource("field1", "value1").setTTL(providedTTLValue).setRouting("routing").setRefresh(true).execute().actionGet();
+        client.prepareIndex("test", "type1", "no_ttl").setSource("field1", "value1").execute().actionGet();
+        client.prepareIndex("test", "type2", "default_ttl").setSource("field1", "value1").execute().actionGet();
         long now = System.currentTimeMillis();
 
         // realtime get check
@@ -99,8 +115,16 @@ public class SimpleTTLTests extends AbstractNodesTests {
         assertThat(ttl0, greaterThan(0L));
         assertThat(ttl0, lessThan(providedTTLValue - (now1 - now)));
 
+        // no TTL provided so no TTL fetched
+        getResponse = client.prepareGet("test", "type1", "no_ttl").setFields("_ttl").setRealtime(true).execute().actionGet();
+        assertThat(getResponse.field("_ttl"), nullValue());
+        // no TTL provided make sure it has default TTL
+        getResponse = client.prepareGet("test", "type2", "default_ttl").setFields("_ttl").setRealtime(true).execute().actionGet();
+        ttl0 = ((Number) getResponse.field("_ttl").value()).longValue();
+        assertThat(ttl0, greaterThan(0L));
+
         logger.info("--> checking purger");
-        // make sure the purger has done its job
+        // make sure the purger has done its job for all indexed docs that are expired
         long shouldBeExpiredDate = now + providedTTLValue + purgeInterval + 2000;
         now1 = System.currentTimeMillis();
         if (shouldBeExpiredDate - now1 > 0) {
@@ -109,14 +133,22 @@ public class SimpleTTLTests extends AbstractNodesTests {
         // realtime get check
         getResponse = client.prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(true).execute().actionGet();
         assertThat(getResponse.exists(), equalTo(false));
+        getResponse = client.prepareGet("test", "type1", "with_routing").setRouting("routing").setFields("_ttl").setRealtime(true).execute().actionGet();
+        assertThat(getResponse.exists(), equalTo(false));
         // replica realtime get check
         getResponse = client.prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(true).execute().actionGet();
+        assertThat(getResponse.exists(), equalTo(false));
+        getResponse = client.prepareGet("test", "type1", "with_routing").setRouting("routing").setFields("_ttl").setRealtime(true).execute().actionGet();
         assertThat(getResponse.exists(), equalTo(false));
         // non realtime get (stored) check
         getResponse = client.prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(false).execute().actionGet();
         assertThat(getResponse.exists(), equalTo(false));
+        getResponse = client.prepareGet("test", "type1", "with_routing").setRouting("routing").setFields("_ttl").setRealtime(false).execute().actionGet();
+        assertThat(getResponse.exists(), equalTo(false));
         // non realtime get going the replica check
         getResponse = client.prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(false).execute().actionGet();
+        assertThat(getResponse.exists(), equalTo(false));
+        getResponse = client.prepareGet("test", "type1", "with_routing").setRouting("routing").setFields("_ttl").setRealtime(false).execute().actionGet();
         assertThat(getResponse.exists(), equalTo(false));
     }
 }

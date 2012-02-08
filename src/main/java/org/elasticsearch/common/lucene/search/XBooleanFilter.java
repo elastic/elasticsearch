@@ -70,6 +70,14 @@ public class XBooleanFilter extends Filter {
     public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
         FixedBitSet res = null;
 
+        if (mustFilters == null && notFilters == null && shouldFilters != null && shouldFilters.size() == 1) {
+            return shouldFilters.get(0).getDocIdSet(reader);
+        }
+
+        if (shouldFilters == null && notFilters == null && mustFilters != null && mustFilters.size() == 1) {
+            return mustFilters.get(0).getDocIdSet(reader);
+        }
+
         if (shouldFilters != null) {
             for (int i = 0; i < shouldFilters.size(); i++) {
                 final DocIdSet disi = getDISI(shouldFilters, i, reader);
@@ -144,6 +152,28 @@ public class XBooleanFilter extends Filter {
             notFilters.add(filterClause.getFilter());
         }
     }
+
+    public void addMust(Filter filter) {
+        if (mustFilters == null) {
+            mustFilters = new ArrayList<Filter>();
+        }
+        mustFilters.add(filter);
+    }
+
+    public void addShould(Filter filter) {
+        if (shouldFilters == null) {
+            shouldFilters = new ArrayList<Filter>();
+        }
+        shouldFilters.add(filter);
+    }
+
+    public void addNot(Filter filter) {
+        if (notFilters == null) {
+            notFilters = new ArrayList<Filter>();
+        }
+        notFilters.add(filter);
+    }
+
 
     private boolean equalFilters(ArrayList<Filter> filters1, ArrayList<Filter> filters2) {
         return (filters1 == filters2) ||

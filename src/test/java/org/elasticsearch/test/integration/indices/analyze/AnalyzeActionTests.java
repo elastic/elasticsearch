@@ -19,9 +19,9 @@
 
 package org.elasticsearch.test.integration.indices.analyze;
 
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequestBuilder;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.action.admin.indices.analyze.AnalyzeRequestBuilder;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -76,12 +76,20 @@ public class AnalyzeActionTests extends AbstractNodesTests {
     }
 
     @Test
+    public void analyzeWithNoIndex() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+
+        AnalyzeResponse analyzeResponse = client.admin().indices().prepareAnalyze("THIS IS A TEST").setAnalyzer("simple").execute().actionGet();
+        assertThat(analyzeResponse.tokens().size(), equalTo(4));
+
+        analyzeResponse = client.admin().indices().prepareAnalyze("THIS IS A TEST").setTokenizer("keyword").setTokenFilters("lowercase").execute().actionGet();
+        assertThat(analyzeResponse.tokens().size(), equalTo(1));
+        assertThat(analyzeResponse.tokens().get(0).term(), equalTo("this is a test"));
+    }
+
+    @Test
     public void analyzerWithFieldOrTypeTests() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
+        client.admin().indices().prepareDelete().execute().actionGet();
 
         client.admin().indices().prepareCreate("test").execute().actionGet();
         client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();

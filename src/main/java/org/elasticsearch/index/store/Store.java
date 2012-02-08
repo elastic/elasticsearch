@@ -274,7 +274,7 @@ public class Store extends AbstractIndexShardComponent {
     /**
      * The idea of the store directory is to cache file level meta data, as well as md5 of it
      */
-    protected class StoreDirectory extends Directory implements ForceSyncDirectory {
+    class StoreDirectory extends Directory implements ForceSyncDirectory {
 
         private final Directory[] delegates;
 
@@ -524,7 +524,7 @@ public class Store extends AbstractIndexShardComponent {
         }
     }
 
-    class StoreIndexOutput extends IndexOutput {
+    class StoreIndexOutput extends OpenBufferedIndexOutput {
 
         private final StoreFileMetaData metaData;
 
@@ -535,6 +535,9 @@ public class Store extends AbstractIndexShardComponent {
         private final Checksum digest;
 
         StoreIndexOutput(StoreFileMetaData metaData, IndexOutput delegate, String name, boolean computeChecksum) {
+            // we add 8 to be bigger than the default BufferIndexOutput buffer size so any flush will go directly
+            // to the output without being copied over to the delegate buffer
+            super(OpenBufferedIndexOutput.DEFAULT_BUFFER_SIZE + 64);
             this.metaData = metaData;
             this.delegate = delegate;
             this.name = name;
@@ -559,6 +562,7 @@ public class Store extends AbstractIndexShardComponent {
 
         @Override
         public void close() throws IOException {
+            super.close();
             delegate.close();
             String checksum = null;
             if (digest != null) {
@@ -572,18 +576,10 @@ public class Store extends AbstractIndexShardComponent {
         }
 
         @Override
-        public void writeByte(byte b) throws IOException {
-            delegate.writeByte(b);
+        protected void flushBuffer(byte[] b, int offset, int len) throws IOException {
+            delegate.writeBytes(b, offset, len);
             if (digest != null) {
-                digest.update(b);
-            }
-        }
-
-        @Override
-        public void writeBytes(byte[] b, int offset, int length) throws IOException {
-            delegate.writeBytes(b, offset, length);
-            if (digest != null) {
-                digest.update(b, offset, length);
+                digest.update(b, offset, len);
             }
         }
 
@@ -594,12 +590,8 @@ public class Store extends AbstractIndexShardComponent {
 
         @Override
         public void flush() throws IOException {
+            super.flush();
             delegate.flush();
-        }
-
-        @Override
-        public long getFilePointer() {
-            return delegate.getFilePointer();
         }
 
         @Override
@@ -607,6 +599,7 @@ public class Store extends AbstractIndexShardComponent {
             // seek might be called on files, which means that the checksum is not file checksum
             // but a checksum of the bytes written to this stream, which is the same for each
             // type of file in lucene
+            super.seek(pos);
             delegate.seek(pos);
         }
 
@@ -618,11 +611,6 @@ public class Store extends AbstractIndexShardComponent {
         @Override
         public void setLength(long length) throws IOException {
             delegate.setLength(length);
-        }
-
-        @Override
-        public void writeStringStringMap(Map<String, String> map) throws IOException {
-            delegate.writeStringStringMap(map);
         }
     }
 }

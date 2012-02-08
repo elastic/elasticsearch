@@ -35,6 +35,7 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.IndexEngine;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
@@ -81,6 +82,8 @@ public class IndexQueryParserService extends AbstractIndexComponent {
 
     private final Map<String, FilterParser> filterParsers;
 
+    private String defaultField;
+
     @Inject
     public IndexQueryParserService(Index index, @IndexSettings Settings indexSettings,
                                    IndicesQueriesRegistry indicesQueriesRegistry,
@@ -96,6 +99,8 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         this.similarityService = similarityService;
         this.indexCache = indexCache;
         this.indexEngine = indexEngine;
+
+        this.defaultField = indexSettings.get("index.query.default_field", AllFieldMapper.NAME);
 
         List<QueryParser> queryParsers = newArrayList();
         if (namedQueryParsers != null) {
@@ -148,6 +153,10 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         cache.remove();
     }
 
+    public String defaultField() {
+        return this.defaultField;
+    }
+
     public QueryParser queryParser(String name) {
         return queryParsers.get(name);
     }
@@ -159,8 +168,8 @@ public class IndexQueryParserService extends AbstractIndexComponent {
     public ParsedQuery parse(QueryBuilder queryBuilder) throws ElasticSearchException {
         XContentParser parser = null;
         try {
-            BytesStream unsafeBytes = queryBuilder.buildAsUnsafeBytes();
-            parser = XContentFactory.xContent(unsafeBytes.underlyingBytes(), 0, unsafeBytes.size()).createParser(unsafeBytes.underlyingBytes(), 0, unsafeBytes.size());
+            BytesStream bytes = queryBuilder.buildAsBytes();
+            parser = XContentFactory.xContent(bytes.underlyingBytes(), 0, bytes.size()).createParser(bytes.underlyingBytes(), 0, bytes.size());
             return parse(cache.get(), parser);
         } catch (QueryParsingException e) {
             throw e;

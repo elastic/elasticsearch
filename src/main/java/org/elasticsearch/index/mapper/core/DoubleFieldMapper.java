@@ -27,6 +27,7 @@ import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -35,6 +36,7 @@ import org.elasticsearch.index.analysis.NumericDoubleAnalyzer;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
 
 import java.io.IOException;
@@ -155,11 +157,25 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
     }
 
     @Override
+    public Query fieldQuery(String value, @Nullable QueryParseContext context) {
+        double dValue = Double.parseDouble(value);
+        return NumericRangeQuery.newDoubleRange(names.indexName(), precisionStep,
+                dValue, dValue, true, true);
+    }
+
+    @Override
     public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
         return NumericRangeQuery.newDoubleRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : Double.parseDouble(lowerTerm),
                 upperTerm == null ? null : Double.parseDouble(upperTerm),
                 includeLower, includeUpper);
+    }
+
+    @Override
+    public Filter fieldFilter(String value, @Nullable QueryParseContext context) {
+        double dValue = Double.parseDouble(value);
+        return NumericRangeFilter.newDoubleRange(names.indexName(), precisionStep,
+                dValue, dValue, true, true);
     }
 
     @Override

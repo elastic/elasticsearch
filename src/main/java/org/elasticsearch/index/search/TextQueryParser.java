@@ -104,19 +104,26 @@ public class TextQueryParser {
 
     public Query parse(Type type) {
         FieldMapper mapper = null;
-        String field = fieldName;
+        Term fieldTerm;
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
-        if (smartNameFieldMappers != null) {
-            if (smartNameFieldMappers.hasMapper()) {
-                mapper = smartNameFieldMappers.mapper();
-                if (mapper != null) {
-                    field = mapper.names().indexName();
-                }
-            }
+        if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
+            mapper = smartNameFieldMappers.mapper();
+            fieldTerm = mapper.names().indexNameTerm();
+        } else {
+            fieldTerm = new Term(fieldName);
         }
 
         if (mapper != null && mapper.useFieldQueryWithQueryString()) {
-            return wrapSmartNameQuery(mapper.fieldQuery(text, parseContext), smartNameFieldMappers, parseContext);
+            if (smartNameFieldMappers.explicitTypeInNameWithDocMapper()) {
+                String[] previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{smartNameFieldMappers.docMapper().type()});
+                try {
+                    return wrapSmartNameQuery(mapper.fieldQuery(text, parseContext), smartNameFieldMappers, parseContext);
+                } finally {
+                    QueryParseContext.setTypes(previousTypes);
+                }
+            } else {
+                return wrapSmartNameQuery(mapper.fieldQuery(text, parseContext), smartNameFieldMappers, parseContext);
+            }
         }
 
         Analyzer analyzer = null;
@@ -141,10 +148,10 @@ public class TextQueryParser {
 
         TokenStream source;
         try {
-            source = analyzer.reusableTokenStream(field, new FastStringReader(text));
+            source = analyzer.reusableTokenStream(fieldTerm.field(), new FastStringReader(text));
             source.reset();
         } catch (IOException e) {
-            source = analyzer.tokenStream(field, new FastStringReader(text));
+            source = analyzer.tokenStream(fieldTerm.field(), new FastStringReader(text));
         }
         CachingTokenFilter buffer = new CachingTokenFilter(source);
         CharTermAttribute termAtt = null;
@@ -198,7 +205,6 @@ public class TextQueryParser {
             // ignore
         }
 
-        Term termFactory = new Term(field);
         if (numTokens == 0) {
             return MatchNoDocsQuery.INSTANCE;
         } else if (type == Type.BOOLEAN) {
@@ -211,7 +217,7 @@ public class TextQueryParser {
                 } catch (IOException e) {
                     // safe to ignore, because we know the number of tokens
                 }
-                Query q = newTermQuery(mapper, termFactory.createTerm(term));
+                Query q = newTermQuery(mapper, fieldTerm.createTerm(term));
                 return wrapSmartNameQuery(q, smartNameFieldMappers, parseContext);
             }
             BooleanQuery q = new BooleanQuery(positionCount == 1);
@@ -225,7 +231,7 @@ public class TextQueryParser {
                     // safe to ignore, because we know the number of tokens
                 }
 
-                Query currentQuery = newTermQuery(mapper, termFactory.createTerm(term));
+                Query currentQuery = newTermQuery(mapper, fieldTerm.createTerm(term));
                 q.add(currentQuery, occur);
             }
             return wrapSmartNameQuery(q, smartNameFieldMappers, parseContext);
@@ -258,7 +264,7 @@ public class TextQueryParser {
                         multiTerms.clear();
                     }
                     position += positionIncrement;
-                    multiTerms.add(termFactory.createTerm(term));
+                    multiTerms.add(fieldTerm.createTerm(term));
                 }
                 if (enablePositionIncrements) {
                     mpq.add(multiTerms.toArray(new Term[multiTerms.size()]), position);
@@ -289,9 +295,9 @@ public class TextQueryParser {
 
                     if (enablePositionIncrements) {
                         position += positionIncrement;
-                        pq.add(termFactory.createTerm(term), position);
+                        pq.add(fieldTerm.createTerm(term), position);
                     } else {
-                        pq.add(termFactory.createTerm(term));
+                        pq.add(fieldTerm.createTerm(term));
                     }
                 }
                 return wrapSmartNameQuery(pq, smartNameFieldMappers, parseContext);
@@ -325,7 +331,7 @@ public class TextQueryParser {
                     multiTerms.clear();
                 }
                 position += positionIncrement;
-                multiTerms.add(termFactory.createTerm(term));
+                multiTerms.add(fieldTerm.createTerm(term));
             }
             if (enablePositionIncrements) {
                 mpq.add(multiTerms.toArray(new Term[multiTerms.size()]), position);

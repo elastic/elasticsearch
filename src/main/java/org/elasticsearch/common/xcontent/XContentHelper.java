@@ -40,7 +40,7 @@ public class XContentHelper {
 
     public static XContentParser createParser(byte[] data, int offset, int length) throws IOException {
         if (LZF.isCompressed(data, offset, length)) {
-            BytesStreamInput siBytes = new BytesStreamInput(data, offset, length);
+            BytesStreamInput siBytes = new BytesStreamInput(data, offset, length, false);
             LZFStreamInput siLzf = CachedStreamInput.cachedLzf(siBytes);
             XContentType contentType = XContentFactory.xContentType(siLzf);
             siLzf.resetToBufferStart();
@@ -50,17 +50,24 @@ public class XContentHelper {
         }
     }
 
-    public static Tuple<XContentType, Map<String, Object>> convertToMap(byte[] data, int offset, int length) throws ElasticSearchParseException {
+    public static Tuple<XContentType, Map<String, Object>> convertToMap(byte[] data, int offset, int length, boolean ordered) throws ElasticSearchParseException {
         try {
+            XContentParser parser;
+            XContentType contentType;
             if (LZF.isCompressed(data, offset, length)) {
-                BytesStreamInput siBytes = new BytesStreamInput(data, offset, length);
+                BytesStreamInput siBytes = new BytesStreamInput(data, offset, length, false);
                 LZFStreamInput siLzf = CachedStreamInput.cachedLzf(siBytes);
-                XContentType contentType = XContentFactory.xContentType(siLzf);
+                contentType = XContentFactory.xContentType(siLzf);
                 siLzf.resetToBufferStart();
-                return Tuple.create(contentType, XContentFactory.xContent(contentType).createParser(siLzf).mapAndClose());
+                parser = XContentFactory.xContent(contentType).createParser(siLzf);
             } else {
-                XContentType contentType = XContentFactory.xContentType(data, offset, length);
-                return Tuple.create(contentType, XContentFactory.xContent(contentType).createParser(data, offset, length).mapAndClose());
+                contentType = XContentFactory.xContentType(data, offset, length);
+                parser = XContentFactory.xContent(contentType).createParser(data, offset, length);
+            }
+            if (ordered) {
+                return Tuple.create(contentType, parser.mapOrderedAndClose());
+            } else {
+                return Tuple.create(contentType, parser.mapAndClose());
             }
         } catch (IOException e) {
             throw new ElasticSearchParseException("Failed to parse content to map", e);
@@ -187,6 +194,8 @@ public class XContentHelper {
             case VALUE_NULL:
                 generator.writeNull();
                 break;
+            case VALUE_EMBEDDED_OBJECT:
+                generator.writeBinary(parser.binaryValue());
         }
     }
 

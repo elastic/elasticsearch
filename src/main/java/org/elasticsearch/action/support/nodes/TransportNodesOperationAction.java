@@ -23,7 +23,7 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.NoSuchNodeException;
-import org.elasticsearch.action.support.BaseAction;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -40,7 +40,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 /**
  *
  */
-public abstract class TransportNodesOperationAction<Request extends NodesOperationRequest, Response extends NodesOperationResponse, NodeRequest extends NodeOperationRequest, NodeResponse extends NodeOperationResponse> extends BaseAction<Request, Response> {
+public abstract class TransportNodesOperationAction<Request extends NodesOperationRequest, Response extends NodesOperationResponse, NodeRequest extends NodeOperationRequest, NodeResponse extends NodeOperationResponse> extends TransportAction<Request, Response> {
 
     protected final ClusterName clusterName;
 
@@ -61,7 +61,7 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
         this.transportService = transportService;
 
         this.transportAction = transportAction();
-        this.transportNodeAction = transportNodeAction();
+        this.transportNodeAction = transportAction() + "/n";
         this.executor = executor();
 
         transportService.registerHandler(transportAction, new TransportHandler());
@@ -74,8 +74,6 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
     }
 
     protected abstract String transportAction();
-
-    protected abstract String transportNodeAction();
 
     protected boolean transportCompress() {
         return false;

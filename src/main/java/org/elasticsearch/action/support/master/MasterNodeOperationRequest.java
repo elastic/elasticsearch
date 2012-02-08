@@ -28,12 +28,12 @@ import java.io.IOException;
 
 /**
  * A based request for master based operation.
- *
- *
  */
 public abstract class MasterNodeOperationRequest implements ActionRequest {
 
-    private TimeValue masterNodeTimeout = TimeValue.timeValueSeconds(30);
+    public static TimeValue DEFAULT_MASTER_NODE_TIMEOUT = TimeValue.timeValueSeconds(30);
+
+    protected TimeValue masterNodeTimeout = DEFAULT_MASTER_NODE_TIMEOUT;
 
     @Override
     public boolean listenerThreaded() {

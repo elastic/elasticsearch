@@ -368,11 +368,11 @@
             <plugin>
                 <artifactId>maven-assembly-plugin</artifactId>
                 <configuration>
-                    <outputDirectory>${project.build.directory}/releases/</outputDirectory>                                        
+                    <outputDirectory>${project.build.directory}/releases/</outputDirectory>
                     <descriptors>
                         <descriptor>${basedir}/src/main/assemblies/targz-bin.xml</descriptor>
                         <descriptor>${basedir}/src/main/assemblies/zip-bin.xml</descriptor>
-                    </descriptors>                    
+                    </descriptors>
                 </configuration>
                 <executions>
                     <execution>
@@ -397,9 +397,9 @@
                     </execution>
                 </executions>
             </plugin>
-               <plugin>
+            <plugin>
                 <!-- some infos https://github.com/tcurdt/jdeb/blob/master/docs/maven.md
--->
+                -->
                 <artifactId>jdeb</artifactId>
                 <groupId>org.vafer</groupId>
                 <version>0.8</version>
@@ -506,7 +506,7 @@
                         </configuration>
                     </execution>
                 </executions>
-            </plugin>          
+            </plugin>
         </plugins>
     </build>
 </project>

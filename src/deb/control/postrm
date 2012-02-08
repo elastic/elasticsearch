@@ -3,8 +3,11 @@ set -e
 
 case "$1" in
     remove)
-        # Remove logs but not the data
+        # Remove logs
         rm -rf /var/log/elasticsearch
+        
+        # remove **only** empty data dir
+        rmdir -p --ignore-fail-on-non-empty /var/lib/elasticsearch
     ;;
 
     purge)

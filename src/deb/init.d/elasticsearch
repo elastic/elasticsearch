@@ -46,7 +46,7 @@ ES_USER=elasticsearch
 ES_GROUP=elasticsearch
 
 # The first existing directory is used for JAVA_HOME (if JAVA_HOME is not defined in $DEFAULT)
-JDK_DIRS="/usr/lib/jvm/java-6-sun /usr/lib/jvm/java-7-oracle /usr/lib/jvm/java-6-openjdk /usr/lib/jvm/java-7-openjdk"
+JDK_DIRS="/usr/lib/jvm/java-7-oracle /usr/lib/jvm/java-6-sun /usr/lib/jvm/java-7-openjdk /usr/lib/jvm/java-6-openjdk"
 
 # Look for the right JVM to use
 for jdir in $JDK_DIRS; do
@@ -59,11 +59,11 @@ export JAVA_HOME
 # Directory where the ElasticSearch binary distribution resides
 ES_HOME=/usr/share/$NAME
 
-# Minimum Heap memory to run ElasticSearch
-ES_MIN_MEM=256m
+# Heap Size (defaults to 256m min, 1g max)
+#ES_HEAP_SIZE=2g
 
-# Maximum Heap memory to run ElasticSearch
-ES_MAX_MEM=1g
+# Additional Java OPTS
+#ES_JAVA_OPTS=
 
 # ElasticSearch log directory
 LOG_DIR=/var/log/$NAME

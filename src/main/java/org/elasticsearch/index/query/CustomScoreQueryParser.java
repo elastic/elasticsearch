@@ -70,6 +70,8 @@ public class CustomScoreQueryParser implements QueryParser {
                     query = parseContext.parseInnerQuery();
                 } else if ("params".equals(currentFieldName)) {
                     vars = parser.map();
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[custom_score] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("script".equals(currentFieldName)) {
@@ -78,6 +80,8 @@ public class CustomScoreQueryParser implements QueryParser {
                     scriptLang = parser.text();
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[custom_score] query does not support [" + currentFieldName + "]");
                 }
             }
         }
@@ -125,11 +129,23 @@ public class CustomScoreQueryParser implements QueryParser {
         }
 
         @Override
-        public Explanation explain(int docId, Explanation subQueryExpl) {
+        public float factor(int docId) {
+            // just the factor, so don't provide _score
+            script.setNextDocId(docId);
+            return script.runAsFloat();
+        }
+
+        @Override
+        public Explanation explainScore(int docId, Explanation subQueryExpl) {
             float score = score(docId, subQueryExpl.getValue());
             Explanation exp = new Explanation(score, "script score function: product of:");
             exp.addDetail(subQueryExpl);
             return exp;
+        }
+
+        @Override
+        public Explanation explainFactor(int docId) {
+            return new Explanation(factor(docId), "scriptFactor");
         }
 
         @Override

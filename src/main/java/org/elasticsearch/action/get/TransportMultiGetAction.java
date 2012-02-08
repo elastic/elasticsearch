@@ -21,10 +21,10 @@ package org.elasticsearch.action.get;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.TransportActions;
-import org.elasticsearch.action.support.BaseAction;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
@@ -37,7 +37,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class TransportMultiGetAction extends BaseAction<MultiGetRequest, MultiGetResponse> {
+public class TransportMultiGetAction extends TransportAction<MultiGetRequest, MultiGetResponse> {
 
     private final ClusterService clusterService;
 
@@ -49,15 +49,19 @@ public class TransportMultiGetAction extends BaseAction<MultiGetRequest, MultiGe
         this.clusterService = clusterService;
         this.shardAction = shardAction;
 
-        transportService.registerHandler(TransportActions.MULTI_GET, new TransportHandler());
+        transportService.registerHandler(MultiGetAction.NAME, new TransportHandler());
     }
 
     @Override
     protected void doExecute(final MultiGetRequest request, final ActionListener<MultiGetResponse> listener) {
         ClusterState clusterState = clusterService.state();
+
+        clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.READ);
+
         Map<ShardId, MultiGetShardRequest> shardRequests = new HashMap<ShardId, MultiGetShardRequest>();
         for (int i = 0; i < request.items.size(); i++) {
             MultiGetRequest.Item item = request.items.get(i);
+            item.routing(clusterState.metaData().resolveIndexRouting(item.routing(), item.index()));
             item.index(clusterState.metaData().concreteIndex(item.index()));
             ShardId shardId = clusterService.operationRouting()
                     .getShards(clusterState, item.index(), item.type(), item.id(), item.routing(), null).shardId();
@@ -138,7 +142,7 @@ public class TransportMultiGetAction extends BaseAction<MultiGetRequest, MultiGe
                     try {
                         channel.sendResponse(e);
                     } catch (Exception e1) {
-                        logger.warn("Failed to send error response for action [" + TransportActions.MULTI_GET + "] and request [" + request + "]", e1);
+                        logger.warn("Failed to send error response for action [" + MultiGetAction.NAME + "] and request [" + request + "]", e1);
                     }
                 }
             });

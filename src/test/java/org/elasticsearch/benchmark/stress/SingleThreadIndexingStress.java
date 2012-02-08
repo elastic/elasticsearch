@@ -26,7 +26,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.node.Node;
 
 import java.io.IOException;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.client.Requests.createIndexRequest;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -43,8 +42,9 @@ public class SingleThreadIndexingStress {
 
     public static void main(String[] args) throws Exception {
         Settings settings = settingsBuilder()
-                .put("cluster.routing.schedule", 200, TimeUnit.MILLISECONDS)
-                .put("index.engine.robin.refreshInterval", "-1")
+                .put("index.refresh_interval", "1s")
+                .put("index.merge.async", true)
+                .put("index.translog.flush_threshold_ops", 5000)
                 .put("gateway.type", "none")
                 .put(SETTING_NUMBER_OF_SHARDS, 2)
                 .put(SETTING_NUMBER_OF_REPLICAS, 1)

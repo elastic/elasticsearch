@@ -21,6 +21,8 @@ package org.elasticsearch.discovery.zen.ping.multicast;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -29,17 +31,16 @@ import org.elasticsearch.common.io.stream.*;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
-import org.elasticsearch.discovery.zen.ping.ZenPingException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
 import java.io.IOException;
-import java.net.DatagramPacket;
-import java.net.InetAddress;
-import java.net.MulticastSocket;
-import java.net.SocketTimeoutException;
+import java.net.*;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -56,6 +57,8 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
  *
  */
 public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implements ZenPing {
+
+    private static final byte[] INTERNAL_HEADER = new byte[]{1, 9, 8, 4};
 
     private final String address;
 
@@ -74,6 +77,8 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
     private final ClusterName clusterName;
 
     private final NetworkService networkService;
+
+    private final boolean pingEnabled;
 
 
     private volatile DiscoveryNodesProvider nodesProvider;
@@ -112,6 +117,8 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
         this.group = componentSettings.get("group", "224.2.2.4");
         this.bufferSize = componentSettings.getAsInt("buffer_size", 2048);
         this.ttl = componentSettings.getAsInt("ttl", 3);
+
+        this.pingEnabled = componentSettings.getAsBoolean("ping.enabled", true);
 
         logger.debug("using group [{}], with port [{}], ttl [{}], and address [{}]", group, port, ttl, address);
 
@@ -176,7 +183,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                 multicastSocket.close();
                 multicastSocket = null;
             }
-            logger.warn("disabled, failed to setup multicast discovery on {}: {}", multicastInterface, e.getMessage());
+            logger.warn("disabled, failed to setup multicast discovery on port [{}], [{}]: {}", port, multicastInterface, e.getMessage());
             if (logger.isDebugEnabled()) {
                 logger.debug("disabled, failed to setup multicast discovery on {}", e, multicastInterface);
             }
@@ -221,16 +228,25 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
 
     @Override
     public void ping(final PingListener listener, final TimeValue timeout) {
+        if (!pingEnabled) {
+            threadPool.cached().execute(new Runnable() {
+                @Override
+                public void run() {
+                    listener.onPing(new PingResponse[0]);
+                }
+            });
+            return;
+        }
         final int id = pingIdGenerator.incrementAndGet();
         receivedResponses.put(id, new ConcurrentHashMap<DiscoveryNode, PingResponse>());
-        sendPingRequest(id, true);
+        sendPingRequest(id);
         // try and send another ping request halfway through (just in case someone woke up during it...)
         // this can be a good trade-off to nailing the initial lookup or un-delivered messages
         threadPool.schedule(TimeValue.timeValueMillis(timeout.millis() / 2), ThreadPool.Names.CACHED, new Runnable() {
             @Override
             public void run() {
                 try {
-                    sendPingRequest(id, false);
+                    sendPingRequest(id);
                 } catch (Exception e) {
                     logger.warn("[{}] failed to send second ping request", e, id);
                 }
@@ -245,7 +261,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
         });
     }
 
-    private void sendPingRequest(int id, boolean remove) {
+    private void sendPingRequest(int id) {
         if (multicastSocket == null) {
             return;
         }
@@ -253,31 +269,27 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
             CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
             try {
                 HandlesStreamOutput out = cachedEntry.cachedHandlesBytes();
+                out.writeBytes(INTERNAL_HEADER);
+                Version.writeVersion(Version.CURRENT, out);
                 out.writeInt(id);
                 clusterName.writeTo(out);
                 nodesProvider.nodes().localNode().writeTo(out);
                 datagramPacketSend.setData(cachedEntry.bytes().copiedByteArray());
-            } catch (IOException e) {
-                if (remove) {
-                    receivedResponses.remove(id);
-                }
-                throw new ZenPingException("Failed to serialize ping request", e);
-            } finally {
-                CachedStreamOutput.pushEntry(cachedEntry);
-            }
-            try {
                 multicastSocket.send(datagramPacketSend);
                 if (logger.isTraceEnabled()) {
                     logger.trace("[{}] sending ping request", id);
                 }
-            } catch (IOException e) {
-                if (remove) {
-                    receivedResponses.remove(id);
-                }
+            } catch (Exception e) {
                 if (lifecycle.stoppedOrClosed()) {
                     return;
                 }
-                throw new ZenPingException("Failed to send ping request over multicast on " + multicastSocket, e);
+                if (logger.isDebugEnabled()) {
+                    logger.debug("failed to send multicast ping request", e);
+                } else {
+                    logger.warn("failed to send multicast ping request: {}", ExceptionsHelper.detailedMessage(e));
+                }
+            } finally {
+                CachedStreamOutput.pushEntry(cachedEntry);
             }
         }
     }
@@ -346,9 +358,13 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
         public void run() {
             while (running) {
                 try {
-                    int id;
-                    DiscoveryNode requestingNodeX;
-                    ClusterName clusterName;
+                    int id = -1;
+                    DiscoveryNode requestingNodeX = null;
+                    ClusterName clusterName = null;
+
+                    Map<String, Object> externalPingData = null;
+                    XContentType xContentType = null;
+
                     synchronized (receiveMutex) {
                         try {
                             multicastSocket.receive(datagramPacketReceive);
@@ -361,72 +377,175 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                             continue;
                         }
                         try {
-                            StreamInput input = CachedStreamInput.cachedHandles(new BytesStreamInput(datagramPacketReceive.getData(), datagramPacketReceive.getOffset(), datagramPacketReceive.getLength()));
-                            id = input.readInt();
-                            clusterName = ClusterName.readClusterName(input);
-                            requestingNodeX = readNode(input);
+                            boolean internal = false;
+                            if (datagramPacketReceive.getLength() > 4) {
+                                int counter = 0;
+                                for (; counter < INTERNAL_HEADER.length; counter++) {
+                                    if (datagramPacketReceive.getData()[datagramPacketReceive.getOffset() + counter] != INTERNAL_HEADER[counter]) {
+                                        break;
+                                    }
+                                }
+                                if (counter == INTERNAL_HEADER.length) {
+                                    internal = true;
+                                }
+                            }
+                            if (internal) {
+                                StreamInput input = CachedStreamInput.cachedHandles(new BytesStreamInput(datagramPacketReceive.getData(), datagramPacketReceive.getOffset() + INTERNAL_HEADER.length, datagramPacketReceive.getLength(), true));
+                                Version version = Version.readVersion(input);
+                                id = input.readInt();
+                                clusterName = ClusterName.readClusterName(input);
+                                requestingNodeX = readNode(input);
+                            } else {
+                                xContentType = XContentFactory.xContentType(datagramPacketReceive.getData(), datagramPacketReceive.getOffset(), datagramPacketReceive.getLength());
+                                if (xContentType != null) {
+                                    // an external ping
+                                    externalPingData = XContentFactory.xContent(xContentType)
+                                            .createParser(datagramPacketReceive.getData(), datagramPacketReceive.getOffset(), datagramPacketReceive.getLength())
+                                            .mapAndClose();
+                                } else {
+                                    throw new ElasticSearchIllegalStateException("failed multicast message, probably message from previous version");
+                                }
+                            }
                         } catch (Exception e) {
-                            logger.warn("failed to read requesting node from {}", e, datagramPacketReceive.getSocketAddress());
+                            logger.warn("failed to read requesting data from {}", e, datagramPacketReceive.getSocketAddress());
                             continue;
                         }
                     }
-                    DiscoveryNodes discoveryNodes = nodesProvider.nodes();
-                    final DiscoveryNode requestingNode = requestingNodeX;
-                    if (requestingNode.id().equals(discoveryNodes.localNodeId())) {
-                        // that's me, ignore
-                        continue;
-                    }
-                    if (!clusterName.equals(MulticastZenPing.this.clusterName)) {
-                        if (logger.isTraceEnabled()) {
-                            logger.trace("[{}] received ping_request from [{}], but wrong cluster_name [{}], expected [{}], ignoring", id, requestingNode, clusterName, MulticastZenPing.this.clusterName);
-                        }
-                        continue;
-                    }
-                    // don't connect between two client nodes, no need for that...
-                    if (!discoveryNodes.localNode().shouldConnectTo(requestingNode)) {
-                        if (logger.isTraceEnabled()) {
-                            logger.trace("[{}] received ping_request from [{}], both are client nodes, ignoring", id, requestingNode, clusterName);
-                        }
-                        continue;
-                    }
-                    final MulticastPingResponse multicastPingResponse = new MulticastPingResponse();
-                    multicastPingResponse.id = id;
-                    multicastPingResponse.pingResponse = new PingResponse(discoveryNodes.localNode(), discoveryNodes.masterNode(), clusterName);
-
-                    if (logger.isTraceEnabled()) {
-                        logger.trace("[{}] received ping_request from [{}], sending {}", id, requestingNode, multicastPingResponse.pingResponse);
-                    }
-
-                    if (!transportService.nodeConnected(requestingNode)) {
-                        // do the connect and send on a thread pool
-                        threadPool.cached().execute(new Runnable() {
-                            @Override
-                            public void run() {
-                                // connect to the node if possible
-                                try {
-                                    transportService.connectToNode(requestingNode);
-                                    transportService.sendRequest(requestingNode, MulticastPingResponseRequestHandler.ACTION, multicastPingResponse, new VoidTransportResponseHandler(ThreadPool.Names.SAME) {
-                                        @Override
-                                        public void handleException(TransportException exp) {
-                                            logger.warn("failed to receive confirmation on sent ping response to [{}]", exp, requestingNode);
-                                        }
-                                    });
-                                } catch (Exception e) {
-                                    logger.warn("failed to connect to requesting node {}", e, requestingNode);
-                                }
-                            }
-                        });
+                    if (externalPingData != null) {
+                        handleExternalPingRequest(externalPingData, xContentType, datagramPacketReceive.getSocketAddress());
                     } else {
-                        transportService.sendRequest(requestingNode, MulticastPingResponseRequestHandler.ACTION, multicastPingResponse, new VoidTransportResponseHandler(ThreadPool.Names.SAME) {
-                            @Override
-                            public void handleException(TransportException exp) {
-                                logger.warn("failed to receive confirmation on sent ping response to [{}]", exp, requestingNode);
-                            }
-                        });
+                        handleNodePingRequest(id, requestingNodeX, clusterName);
                     }
                 } catch (Exception e) {
                     logger.warn("unexpected exception in multicast receiver", e);
                 }
+            }
+        }
+
+        @SuppressWarnings("unchecked")
+        private void handleExternalPingRequest(Map<String, Object> externalPingData, XContentType contentType, SocketAddress remoteAddress) {
+            if (externalPingData.containsKey("response")) {
+                // ignoring responses sent over the multicast channel
+                logger.trace("got an external ping response (ignoring) from {}, content {}", remoteAddress, externalPingData);
+                return;
+            }
+
+            if (multicastSocket == null) {
+                logger.debug("can't send ping response, no socket, from {}, content {}", remoteAddress, externalPingData);
+                return;
+            }
+
+            Map<String, Object> request = (Map<String, Object>) externalPingData.get("request");
+            if (request == null) {
+                logger.warn("malformed external ping request, no 'request' element from {}, content {}", remoteAddress, externalPingData);
+                return;
+            }
+
+            String clusterName = request.containsKey("cluster_name") ? request.get("cluster_name").toString() : request.containsKey("clusterName") ? request.get("clusterName").toString() : null;
+            if (clusterName == null) {
+                logger.warn("malformed external ping request, missing 'cluster_name' element within request, from {}, content {}", remoteAddress, externalPingData);
+                return;
+            }
+
+            if (!clusterName.equals(MulticastZenPing.this.clusterName.value())) {
+                logger.trace("got request for cluster_name {}, but our cluster_name is {}, from {}, content {}", clusterName, MulticastZenPing.this.clusterName.value(), remoteAddress, externalPingData);
+                return;
+            }
+            if (logger.isTraceEnabled()) {
+                logger.trace("got external ping request from {}, content {}", remoteAddress, externalPingData);
+            }
+
+            try {
+                DiscoveryNode localNode = nodesProvider.nodes().localNode();
+
+                XContentBuilder builder = XContentFactory.contentBuilder(contentType);
+                builder.startObject().startObject("response");
+                builder.field("cluster_name", MulticastZenPing.this.clusterName.value());
+                builder.startObject("version").field("number", Version.CURRENT.number()).field("snapshot_build", Version.CURRENT.snapshot).endObject();
+                builder.field("transport_address", localNode.address().toString());
+
+                if (nodesProvider.nodeService() != null) {
+                    for (Map.Entry<String, String> attr : nodesProvider.nodeService().attributes().entrySet()) {
+                        builder.field(attr.getKey(), attr.getValue());
+                    }
+                }
+
+                builder.startObject("attributes");
+                for (Map.Entry<String, String> attr : localNode.attributes().entrySet()) {
+                    builder.field(attr.getKey(), attr.getValue());
+                }
+                builder.endObject();
+
+                builder.endObject().endObject();
+                synchronized (sendMutex) {
+                    datagramPacketSend.setData(builder.underlyingBytes(), 0, builder.underlyingBytesLength());
+                    multicastSocket.send(datagramPacketSend);
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("sending external ping response {}", builder.string());
+                    }
+                }
+            } catch (Exception e) {
+                logger.warn("failed to send external multicast response", e);
+            }
+        }
+
+        private void handleNodePingRequest(int id, DiscoveryNode requestingNodeX, ClusterName clusterName) {
+            if (!pingEnabled) {
+                return;
+            }
+            DiscoveryNodes discoveryNodes = nodesProvider.nodes();
+            final DiscoveryNode requestingNode = requestingNodeX;
+            if (requestingNode.id().equals(discoveryNodes.localNodeId())) {
+                // that's me, ignore
+                return;
+            }
+            if (!clusterName.equals(MulticastZenPing.this.clusterName)) {
+                if (logger.isTraceEnabled()) {
+                    logger.trace("[{}] received ping_request from [{}], but wrong cluster_name [{}], expected [{}], ignoring", id, requestingNode, clusterName, MulticastZenPing.this.clusterName);
+                }
+                return;
+            }
+            // don't connect between two client nodes, no need for that...
+            if (!discoveryNodes.localNode().shouldConnectTo(requestingNode)) {
+                if (logger.isTraceEnabled()) {
+                    logger.trace("[{}] received ping_request from [{}], both are client nodes, ignoring", id, requestingNode, clusterName);
+                }
+                return;
+            }
+            final MulticastPingResponse multicastPingResponse = new MulticastPingResponse();
+            multicastPingResponse.id = id;
+            multicastPingResponse.pingResponse = new PingResponse(discoveryNodes.localNode(), discoveryNodes.masterNode(), clusterName);
+
+            if (logger.isTraceEnabled()) {
+                logger.trace("[{}] received ping_request from [{}], sending {}", id, requestingNode, multicastPingResponse.pingResponse);
+            }
+
+            if (!transportService.nodeConnected(requestingNode)) {
+                // do the connect and send on a thread pool
+                threadPool.cached().execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        // connect to the node if possible
+                        try {
+                            transportService.connectToNode(requestingNode);
+                            transportService.sendRequest(requestingNode, MulticastPingResponseRequestHandler.ACTION, multicastPingResponse, new VoidTransportResponseHandler(ThreadPool.Names.SAME) {
+                                @Override
+                                public void handleException(TransportException exp) {
+                                    logger.warn("failed to receive confirmation on sent ping response to [{}]", exp, requestingNode);
+                                }
+                            });
+                        } catch (Exception e) {
+                            logger.warn("failed to connect to requesting node {}", e, requestingNode);
+                        }
+                    }
+                });
+            } else {
+                transportService.sendRequest(requestingNode, MulticastPingResponseRequestHandler.ACTION, multicastPingResponse, new VoidTransportResponseHandler(ThreadPool.Names.SAME) {
+                    @Override
+                    public void handleException(TransportException exp) {
+                        logger.warn("failed to receive confirmation on sent ping response to [{}]", exp, requestingNode);
+                    }
+                });
             }
         }
     }

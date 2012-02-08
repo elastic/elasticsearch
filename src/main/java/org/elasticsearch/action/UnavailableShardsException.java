@@ -20,14 +20,16 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.RestStatus;
 
 /**
  *
  */
 public class UnavailableShardsException extends ElasticSearchException {
 
-    public UnavailableShardsException(ShardId shardId, String message) {
+    public UnavailableShardsException(@Nullable ShardId shardId, String message) {
         super(buildMessage(shardId, message));
     }
 
@@ -36,5 +38,10 @@ public class UnavailableShardsException extends ElasticSearchException {
             return message;
         }
         return "[" + shardId.index().name() + "][" + shardId.id() + "] " + message;
+    }
+
+    @Override
+    public RestStatus status() {
+        return RestStatus.SERVICE_UNAVAILABLE;
     }
 }

@@ -20,12 +20,12 @@
 package org.elasticsearch.action.admin.cluster.settings;
 
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -62,7 +62,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
 
     @Override
     protected String transportAction() {
-        return TransportActions.Admin.Cluster.UPDATE_SETTINGS;
+        return ClusterUpdateSettingsAction.NAME;
     }
 
     @Override
@@ -108,6 +108,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
                     }
 
                     if (!changed) {
+                        latch.countDown();
                         return currentState;
                     }
 
@@ -115,8 +116,15 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
                             .persistentSettings(persistentSettings.build())
                             .transientSettings(transientSettings.build());
 
+                    ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
+                    boolean updatedReadOnly = metaData.persistentSettings().getAsBoolean(MetaData.SETTING_READ_ONLY, false) || metaData.transientSettings().getAsBoolean(MetaData.SETTING_READ_ONLY, false);
+                    if (updatedReadOnly) {
+                        blocks.addGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK);
+                    } else {
+                        blocks.removeGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK);
+                    }
 
-                    return ClusterState.builder().state(currentState).metaData(metaData).build();
+                    return ClusterState.builder().state(currentState).metaData(metaData).blocks(blocks).build();
                 } catch (Exception e) {
                     latch.countDown();
                     logger.warn("failed to update cluster settings", e);

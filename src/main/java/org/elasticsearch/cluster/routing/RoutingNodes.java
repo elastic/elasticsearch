@@ -86,7 +86,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         }
         for (Map.Entry<String, List<MutableShardRouting>> entry : nodesToShards.entrySet()) {
             String nodeId = entry.getKey();
-            this.nodesToShards.put(nodeId, new RoutingNode(clusterState.nodes().get(nodeId), entry.getValue()));
+            this.nodesToShards.put(nodeId, new RoutingNode(nodeId, clusterState.nodes().get(nodeId), entry.getValue()));
         }
     }
 

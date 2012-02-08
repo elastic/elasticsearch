@@ -24,7 +24,9 @@ import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.*;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.MetaDataStateIndexService;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -36,9 +38,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryService;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -50,7 +52,7 @@ import static org.elasticsearch.cluster.metadata.MetaData.newMetaDataBuilder;
  */
 public class GatewayService extends AbstractLifecycleComponent<GatewayService> implements ClusterStateListener {
 
-    public static final ClusterBlock STATE_NOT_RECOVERED_BLOCK = new ClusterBlock(1, "state not recovered / initialized", true, true, ClusterBlockLevel.ALL);
+    public static final ClusterBlock STATE_NOT_RECOVERED_BLOCK = new ClusterBlock(1, "state not recovered / initialized", true, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL);
 
     private final Gateway gateway;
 
@@ -61,8 +63,6 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
     private final ClusterService clusterService;
 
     private final DiscoveryService discoveryService;
-
-    private final MetaDataCreateIndexService createIndexService;
 
     private final TimeValue recoverAfterTime;
     private final int recoverAfterNodes;
@@ -77,13 +77,12 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
     private final AtomicBoolean scheduledRecovery = new AtomicBoolean();
 
     @Inject
-    public GatewayService(Settings settings, Gateway gateway, AllocationService allocationService, ClusterService clusterService, DiscoveryService discoveryService, MetaDataCreateIndexService createIndexService, ThreadPool threadPool) {
+    public GatewayService(Settings settings, Gateway gateway, AllocationService allocationService, ClusterService clusterService, DiscoveryService discoveryService, ThreadPool threadPool) {
         super(settings);
         this.gateway = gateway;
         this.allocationService = allocationService;
         this.clusterService = clusterService;
         this.discoveryService = discoveryService;
-        this.createIndexService = createIndexService;
         this.threadPool = threadPool;
         // allow to control a delay of when indices will get created
         this.recoverAfterTime = componentSettings.getAsTime("recover_after_time", null);
@@ -91,7 +90,8 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
         this.expectedNodes = componentSettings.getAsInt("expected_nodes", -1);
         this.recoverAfterDataNodes = componentSettings.getAsInt("recover_after_data_nodes", -1);
         this.expectedDataNodes = componentSettings.getAsInt("expected_data_nodes", -1);
-        this.recoverAfterMasterNodes = componentSettings.getAsInt("recover_after_master_nodes", -1);
+        // default the recover after master nodes to the minimum master nodes in the discovery
+        this.recoverAfterMasterNodes = componentSettings.getAsInt("recover_after_master_nodes", settings.getAsInt("discovery.zen.minimum_master_nodes", -1));
         this.expectedMasterNodes = componentSettings.getAsInt("expected_master_nodes", -1);
 
         // Add the not recovered as initial state block, we don't allow anything until
@@ -139,7 +139,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
         } else {
             logger.debug("can't wait on start for (possibly) reading state from gateway, will do it asynchronously");
         }
-        clusterService.add(this);
+        clusterService.addLast(this);
     }
 
     @Override
@@ -248,26 +248,24 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                             .removeGlobalBlock(STATE_NOT_RECOVERED_BLOCK);
 
                     MetaData.Builder metaDataBuilder = newMetaDataBuilder()
-                            .metaData(currentState.metaData());
-                    metaDataBuilder.version(recoveredState.version());
+                            .metaData(recoveredState.metaData());
 
-                    metaDataBuilder.persistentSettings(recoveredState.metaData().persistentSettings());
-
-                    // add the index templates
-                    for (Map.Entry<String, IndexTemplateMetaData> entry : recoveredState.metaData().templates().entrySet()) {
-                        metaDataBuilder.put(entry.getValue());
+                    if (recoveredState.metaData().settings().getAsBoolean(MetaData.SETTING_READ_ONLY, false) || currentState.metaData().settings().getAsBoolean(MetaData.SETTING_READ_ONLY, false)) {
+                        blocks.addGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK);
                     }
 
                     for (IndexMetaData indexMetaData : recoveredState.metaData()) {
-                        metaDataBuilder.put(indexMetaData);
+                        metaDataBuilder.put(indexMetaData, false);
                         if (indexMetaData.state() == IndexMetaData.State.CLOSE) {
                             blocks.addIndexBlock(indexMetaData.index(), MetaDataStateIndexService.INDEX_CLOSED_BLOCK);
+                        }
+                        if (indexMetaData.settings().getAsBoolean(IndexMetaData.SETTING_READ_ONLY, false)) {
+                            blocks.addIndexBlock(indexMetaData.index(), IndexMetaData.INDEX_READ_ONLY_BLOCK);
                         }
                     }
 
                     // update the state to reflect the new metadata and routing
                     ClusterState updatedState = newClusterStateBuilder().state(currentState)
-                            .version(recoveredState.version())
                             .blocks(blocks)
                             .metaData(metaDataBuilder)
                             .build();
@@ -281,7 +279,8 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                             routingTableBuilder.add(indexRoutingBuilder);
                         }
                     }
-                    routingTableBuilder.version(recoveredState.version());
+                    // start with 0 based versions for routing table
+                    routingTableBuilder.version(0);
 
                     // now, reroute
                     RoutingAllocation.Result routingResult = allocationService.reroute(newClusterStateBuilder().state(updatedState).routingTable(routingTableBuilder).build());
@@ -298,9 +297,11 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
         }
 
         @Override
-        public void onFailure(Throwable t) {
+        public void onFailure(String message) {
+            recovered.set(false);
+            scheduledRecovery.set(false);
             // don't remove the block here, we don't want to allow anything in such a case
-            logger.error("failed recover state, blocking...", t);
+            logger.info("metadata state not restored, reason: {}", message);
         }
     }
 }

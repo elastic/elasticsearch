@@ -19,7 +19,6 @@
 
 package org.elasticsearch.benchmark.trove;
 
-import gnu.trove.StringIdentityHashingStrategy;
 import gnu.trove.map.custom_hash.TObjectIntCustomHashMap;
 import gnu.trove.map.hash.THashMap;
 import gnu.trove.map.hash.TIntIntHashMap;
@@ -29,6 +28,7 @@ import gnu.trove.strategy.IdentityHashingStrategy;
 import jsr166y.ThreadLocalRandom;
 import org.elasticsearch.common.RandomStringGenerator;
 import org.elasticsearch.common.StopWatch;
+import org.elasticsearch.common.trove.StringIdentityHashingStrategy;
 import org.elasticsearch.common.unit.SizeValue;
 
 import java.util.HashMap;

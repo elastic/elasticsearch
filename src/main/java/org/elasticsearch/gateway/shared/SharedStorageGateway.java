@@ -20,6 +20,7 @@
 package org.elasticsearch.gateway.shared;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -32,6 +33,12 @@ import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.gateway.GatewayException;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
+
+import static java.util.concurrent.Executors.newSingleThreadExecutor;
+import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
+
 /**
  *
  */
@@ -41,24 +48,33 @@ public abstract class SharedStorageGateway extends AbstractLifecycleComponent<Ga
 
     private final ThreadPool threadPool;
 
+    private ExecutorService writeStateExecutor;
+
     public SharedStorageGateway(Settings settings, ThreadPool threadPool, ClusterService clusterService) {
         super(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
-    }
-
-    @Override
-    protected void doStart() throws ElasticSearchException {
+        this.writeStateExecutor = newSingleThreadExecutor(daemonThreadFactory(settings, "gateway#writeMetaData"));
         clusterService.add(this);
     }
 
     @Override
+    protected void doStart() throws ElasticSearchException {
+    }
+
+    @Override
     protected void doStop() throws ElasticSearchException {
-        clusterService.remove(this);
     }
 
     @Override
     protected void doClose() throws ElasticSearchException {
+        clusterService.remove(this);
+        writeStateExecutor.shutdown();
+        try {
+            writeStateExecutor.awaitTermination(10, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            // ignore
+        }
     }
 
     @Override
@@ -80,7 +96,7 @@ public abstract class SharedStorageGateway extends AbstractLifecycleComponent<Ga
                     }
                 } catch (Exception e) {
                     logger.error("failed to read from gateway", e);
-                    listener.onFailure(e);
+                    listener.onFailure(ExceptionsHelper.detailedMessage(e));
                 }
             }
         });
@@ -101,7 +117,7 @@ public abstract class SharedStorageGateway extends AbstractLifecycleComponent<Ga
             if (!event.metaDataChanged()) {
                 return;
             }
-            threadPool.cached().execute(new Runnable() {
+            writeStateExecutor.execute(new Runnable() {
                 @Override
                 public void run() {
                     logger.debug("writing to gateway {} ...", this);

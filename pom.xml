@@ -6,7 +6,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.elasticsearch</groupId>
     <artifactId>elasticsearch</artifactId>
-    <version>0.19.0-SNAPSHOT</version>
+    <version>0.19.0.RC2-SNAPSHOT</version>
     <packaging>jar</packaging>
     <description>ElasticSearch - Open Source, Distributed, RESTful Search Engine</description>
     <inceptionYear>2009</inceptionYear>
@@ -82,16 +82,9 @@
 
         <!-- START: dependencies that are shaded -->
         <dependency>
-            <groupId>com.googlecode.concurrentlinkedhashmap</groupId>
-            <artifactId>concurrentlinkedhashmap-lru</artifactId>
-            <version>1.2</version>
-            <scope>compile</scope>
-        </dependency>
-
-        <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
-            <version>10.0.1</version>
+            <version>11.0.1</version>
             <scope>compile</scope>
             <exclusions>
                 <exclusion>
@@ -110,21 +103,14 @@
         <dependency>
             <groupId>org.elasticsearch</groupId>
             <artifactId>es-jsr166y</artifactId>
-            <version>20110918</version>
+            <version>20120131</version>
             <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>org.elasticsearch</groupId>
             <artifactId>es-jsr166e</artifactId>
-            <version>20110918</version>
-            <scope>compile</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>commons-codec</groupId>
-            <artifactId>commons-codec</artifactId>
-            <version>1.5</version>
+            <version>20120131</version>
             <scope>compile</scope>
         </dependency>
 
@@ -139,21 +125,21 @@
         <dependency>
             <groupId>org.mvel</groupId>
             <artifactId>mvel2</artifactId>
-            <version>2.1.Beta7</version>
+            <version>2.1.Beta8</version>
             <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>org.codehaus.jackson</groupId>
             <artifactId>jackson-core-asl</artifactId>
-            <version>1.9.2</version>
+            <version>1.9.3</version>
             <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>org.codehaus.jackson</groupId>
             <artifactId>jackson-smile</artifactId>
-            <version>1.9.2</version>
+            <version>1.9.3</version>
             <scope>compile</scope>
         </dependency>
 
@@ -165,9 +151,9 @@
         </dependency>
 
         <dependency>
-            <groupId>org.jboss.netty</groupId>
+            <groupId>io.netty</groupId>
             <artifactId>netty</artifactId>
-            <version>3.2.7.Final</version>
+            <version>3.3.1.Final</version>
             <scope>compile</scope>
         </dependency>
         <!-- END: dependencies that are shaded -->
@@ -197,19 +183,12 @@
         </dependency>
 
         <dependency>
-            <groupId>jline</groupId>
-            <artifactId>jline</artifactId>
-            <version>1.0</version>
-            <scope>compile</scope>
-            <optional>true</optional>
-        </dependency>
-
-        <dependency>
             <groupId>sigar</groupId>
             <artifactId>sigar</artifactId>
             <version>1.6.4</version>
             <scope>system</scope>
             <systemPath>${basedir}/lib/sigar/sigar-1.6.4.jar</systemPath>
+            <optional>true</optional>
         </dependency>
 
         <dependency>
@@ -322,25 +301,19 @@
                     <minimizeJar>true</minimizeJar>
                     <artifactSet>
                         <includes>
-                            <include>com.googlecode.concurrentlinkedhashmap:concurrentlinkedhashmap-lru</include>
                             <include>com.google.guava:guava</include>
                             <include>net.sf.trove4j:trove4j</include>
                             <include>org.elasticsearch:es-jsr166y</include>
                             <include>org.elasticsearch:es-jsr166e</include>
-                            <include>commons-codec:commons-codec</include>
                             <include>org.mvel:mvel2</include>
                             <include>org.codehaus.jackson:jackson-core-asl</include>
                             <include>org.codehaus.jackson:jackson-smile</include>
                             <include>org.yaml:snakeyaml</include>
                             <include>joda-time:joda-time</include>
-                            <include>org.jboss.netty:netty</include>
+                            <include>io.netty:netty</include>
                         </includes>
                     </artifactSet>
                     <relocations>
-                        <relocation>
-                            <pattern>com.googlecode.concurrentlinkedhashmap</pattern>
-                            <shadedPattern>org.elasticsearch.common.concurrentlinkedhashmap</shadedPattern>
-                        </relocation>
                         <relocation>
                             <pattern>com.google.common</pattern>
                             <shadedPattern>org.elasticsearch.common</shadedPattern>
@@ -356,10 +329,6 @@
                         <relocation>
                             <pattern>jsr166e</pattern>
                             <shadedPattern>org.elasticsearch.common.util.concurrent.jsr166e</shadedPattern>
-                        </relocation>
-                        <relocation>
-                            <pattern>org.apache.commons.codec</pattern>
-                            <shadedPattern>org.elasticsearch.common.codec</shadedPattern>
                         </relocation>
                         <relocation>
                             <pattern>org.mvel2</pattern>
@@ -406,14 +375,14 @@
                     </descriptors>                    
                 </configuration>
                 <executions>
-                    <execution>                            
+                    <execution>
                         <phase>package</phase>
                         <goals>
                             <goal>single</goal>
                         </goals>
                     </execution>
-                </executions>   
-            </plugin>                        
+                </executions>
+            </plugin>
             <plugin>
                 <artifactId>maven-dependency-plugin</artifactId>
                 <executions>
@@ -424,19 +393,19 @@
                         </goals>
                         <configuration>
                             <outputDirectory>${project.build.directory}/lib</outputDirectory>
-                        </configuration>                        
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>
-            <plugin>                
-                <!-- some infos https://github.com/tcurdt/jdeb/blob/master/docs/maven.md 
-                -->
+               <plugin>
+                <!-- some infos https://github.com/tcurdt/jdeb/blob/master/docs/maven.md
+-->
                 <artifactId>jdeb</artifactId>
                 <groupId>org.vafer</groupId>
                 <version>0.8</version>
                 <configuration>
-                    <deb>${project.build.directory}/releases/${artifactId}-${version}.deb</deb>
-                </configuration>                    
+                    <deb>${project.build.directory}/releases/${project.artifactId}-${project.version}.deb</deb>
+                </configuration>
                 <executions>
                     <execution>
                         <phase>package</phase>
@@ -444,44 +413,33 @@
                             <goal>jdeb</goal>
                         </goals>
                         <configuration>
-                            <dataSet>                                
-                                <data>                                    
+                            <dataSet>
+                                <data>
                                     <src>${project.basedir}/</src>
                                     <includes>*.txt, *.textile</includes>
                                     <type>directory</type>
                                     <mapper>
                                         <type>perm</type>
-                                        <prefix>/usr/share/elasticsearch</prefix>                                        
+                                        <prefix>/usr/share/elasticsearch</prefix>
                                         <user>root</user>
                                         <group>root</group>
                                     </mapper>
-                                </data>                                            
-                                <data>                                    
+                                </data>
+                                <data>
                                     <src>${project.basedir}/bin</src>
                                     <type>directory</type>
                                     <excludes>*.bat</excludes>
                                     <mapper>
                                         <type>perm</type>
-                                        <prefix>/usr/share/elasticsearch/bin</prefix>                                                                                
+                                        <prefix>/usr/share/elasticsearch/bin</prefix>
                                         <filemode>755</filemode>
                                         <user>root</user>
                                         <group>root</group>
-                                    </mapper>                                    
-                                </data>                                
-                                <data>                                    
-                                    <src>${project.build.directory}/</src>
-                                    <includes>${project.build.finalName}.jar, ${project.basedir}/lib/sigar/*</includes>
-                                    <type>directory</type>
-                                    <mapper>
-                                        <type>perm</type>
-                                        <prefix>/usr/share/elasticsearch/lib</prefix>
-                                        <user>root</user>
-                                        <group>root</group>
                                     </mapper>
-                                </data>     
+                                </data>
                                 <data>
-                                    <src>${project.build.directory}/lib</src>                                    
-                                    <includes>lucene*, log4j*, jline*, jna*</includes>
+                                    <src>${project.build.directory}/</src>
+                                    <includes>${project.build.finalName}.jar</includes>
                                     <type>directory</type>
                                     <mapper>
                                         <type>perm</type>
@@ -490,17 +448,39 @@
                                         <group>root</group>
                                     </mapper>
                                 </data>
-                                <data>                                    
+                                <data>
+                                    <src>${project.basedir}/lib/sigar/</src>
+                                    <includes>sigar-*.jar, libsigar-*-linux.*</includes>
+                                    <type>directory</type>
+                                    <mapper>
+                                        <type>perm</type>
+                                        <prefix>/usr/share/elasticsearch/lib/sigar</prefix>
+                                        <user>root</user>
+                                        <group>root</group>
+                                    </mapper>
+                                </data>
+                                <data>
+                                    <src>${project.build.directory}/lib</src>
+                                    <includes>lucene*, log4j*, jna*</includes>
+                                    <type>directory</type>
+                                    <mapper>
+                                        <type>perm</type>
+                                        <prefix>/usr/share/elasticsearch/lib</prefix>
+                                        <user>root</user>
+                                        <group>root</group>
+                                    </mapper>
+                                </data>
+                                <data>
                                     <src>${project.basedir}/src/deb/default/</src>
                                     <type>directory</type>
                                     <mapper>
                                         <type>perm</type>
-                                        <prefix>/etc/default</prefix>                                        
+                                        <prefix>/etc/default</prefix>
                                         <user>root</user>
                                         <group>root</group>
                                     </mapper>
                                 </data>
-                                <data>                                    
+                                <data>
                                     <src>${project.basedir}/src/deb/init.d/</src>
                                     <type>directory</type>
                                     <mapper>
@@ -511,22 +491,22 @@
                                         <group>root</group>
                                     </mapper>
                                 </data>
-                                <data>                                    
+                                <data>
                                     <src>${project.basedir}/config</src>
                                     <type>directory</type>
                                     <mapper>
                                         <type>perm</type>
-                                        <prefix>/etc/elasticsearch</prefix>                                        
+                                        <prefix>/etc/elasticsearch</prefix>
                                         <user>root</user>
                                         <group>root</group>
                                     </mapper>
-                                </data>   
-                            </dataSet>                
+                                </data>
+                            </dataSet>
 
                         </configuration>
                     </execution>
                 </executions>
-            </plugin>            
+            </plugin>          
         </plugins>
     </build>
 </project>

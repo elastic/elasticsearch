@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -55,15 +56,24 @@ public class NetworkInfo implements Streamable, Serializable, ToXContent {
         return primaryInterface();
     }
 
+    static final class Fields {
+        static final XContentBuilderString NETWORK = new XContentBuilderString("network");
+        static final XContentBuilderString REFRESH_INTERVAL = new XContentBuilderString("refresh_interval");
+        static final XContentBuilderString PRIMARY_INTERFACE = new XContentBuilderString("primary_interface");
+        static final XContentBuilderString ADDRESS = new XContentBuilderString("address");
+        static final XContentBuilderString NAME = new XContentBuilderString("name");
+        static final XContentBuilderString MAC_ADDRESS = new XContentBuilderString("mac_address");
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("network");
-        builder.field("refresh_interval", refreshInterval);
+        builder.startObject(Fields.NETWORK);
+        builder.field(Fields.REFRESH_INTERVAL, refreshInterval);
         if (primary != NA_INTERFACE) {
-            builder.startObject("primary_interface");
-            builder.field("address", primary.address());
-            builder.field("name", primary.name());
-            builder.field("mac_address", primary.macAddress());
+            builder.startObject(Fields.PRIMARY_INTERFACE);
+            builder.field(Fields.ADDRESS, primary.address());
+            builder.field(Fields.NAME, primary.name());
+            builder.field(Fields.MAC_ADDRESS, primary.macAddress());
             builder.endObject();
         }
         builder.endObject();

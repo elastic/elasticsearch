@@ -23,13 +23,14 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.AfterClass;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 import java.util.Arrays;
 
 import static org.elasticsearch.client.Requests.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.termFilter;
 import static org.elasticsearch.index.query.QueryBuilders.*;
@@ -46,27 +47,27 @@ public class CustomScoreSearchTests extends AbstractNodesTests {
 
     private Client client;
 
-    @BeforeMethod
+    @BeforeClass
     public void createNodes() throws Exception {
-        startNode("server1");
+        startNode("node1");
         client = getClient();
     }
 
-    @AfterMethod
+    @AfterClass
     public void closeNodes() {
         client.close();
         closeAllNodes();
     }
 
     protected Client getClient() {
-        return client("server1");
+        return client("node1");
     }
 
     @Test
     public void testCustomScriptBoost() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
+        client.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
 
-        client.admin().indices().create(createIndexRequest("test")).actionGet();
         client.index(indexRequest("test").type("type1").id("1")
                 .source(jsonBuilder().startObject().field("test", "value beck").field("num1", 1.0f).endObject())).actionGet();
         client.index(indexRequest("test").type("type1").id("2")
@@ -152,6 +153,7 @@ public class CustomScoreSearchTests extends AbstractNodesTests {
     @Test
     public void testCustomFiltersScore() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
+        client.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
 
         client.prepareIndex("test", "type", "1").setSource("field", "value1", "color", "red").execute().actionGet();
         client.prepareIndex("test", "type", "2").setSource("field", "value2", "color", "blue").execute().actionGet();
@@ -162,8 +164,8 @@ public class CustomScoreSearchTests extends AbstractNodesTests {
 
         SearchResponse searchResponse = client.prepareSearch("test")
                 .setQuery(customFiltersScoreQuery(matchAllQuery())
-                        .add(termFilter("field", "value4"), "_score * 2")
-                        .add(termFilter("field", "value2"), "_score * 3"))
+                        .add(termFilter("field", "value4"), "2")
+                        .add(termFilter("field", "value2"), "3"))
                 .setExplain(true)
                 .execute().actionGet();
 
@@ -244,5 +246,45 @@ public class CustomScoreSearchTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().getAt(1).id(), equalTo("1"));
         assertThat(searchResponse.hits().getAt(1).score(), equalTo(4.0f));
         logger.info("--> Hit[1] {} Explanation {}", searchResponse.hits().getAt(1).id(), searchResponse.hits().getAt(1).explanation());
+
+        searchResponse = client.prepareSearch("test")
+                .setQuery(customFiltersScoreQuery(matchAllQuery()).scoreMode("min")
+                        .add(termFilter("field", "value4"), 2)
+                        .add(termFilter("field", "value1"), 3)
+                        .add(termFilter("color", "red"), 5))
+                .setExplain(true)
+                .execute().actionGet();
+
+        assertThat(Arrays.toString(searchResponse.shardFailures()), searchResponse.failedShards(), equalTo(0));
+        assertThat(searchResponse.hits().totalHits(), equalTo(4l));
+        assertThat(searchResponse.hits().getAt(0).id(), equalTo("3"));
+        assertThat(searchResponse.hits().getAt(0).score(), equalTo(5.0f));
+        logger.info("--> Hit[0] {} Explanation {}", searchResponse.hits().getAt(0).id(), searchResponse.hits().getAt(0).explanation());
+        assertThat(searchResponse.hits().getAt(1).id(), equalTo("1"));
+        assertThat(searchResponse.hits().getAt(1).score(), equalTo(3.0f));
+        assertThat(searchResponse.hits().getAt(2).id(), equalTo("4"));
+        assertThat(searchResponse.hits().getAt(2).score(), equalTo(2.0f));
+        assertThat(searchResponse.hits().getAt(3).id(), equalTo("2"));
+        assertThat(searchResponse.hits().getAt(3).score(), equalTo(1.0f));
+
+        searchResponse = client.prepareSearch("test")
+                .setQuery(customFiltersScoreQuery(matchAllQuery()).scoreMode("multiply")
+                        .add(termFilter("field", "value4"), 2)
+                        .add(termFilter("field", "value1"), 3)
+                        .add(termFilter("color", "red"), 5))
+                .setExplain(true)
+                .execute().actionGet();
+
+        assertThat(Arrays.toString(searchResponse.shardFailures()), searchResponse.failedShards(), equalTo(0));
+        assertThat(searchResponse.hits().totalHits(), equalTo(4l));
+        assertThat(searchResponse.hits().getAt(0).id(), equalTo("1"));
+        assertThat(searchResponse.hits().getAt(0).score(), equalTo(15.0f));
+        logger.info("--> Hit[0] {} Explanation {}", searchResponse.hits().getAt(0).id(), searchResponse.hits().getAt(0).explanation());
+        assertThat(searchResponse.hits().getAt(1).id(), equalTo("3"));
+        assertThat(searchResponse.hits().getAt(1).score(), equalTo(5.0f));
+        assertThat(searchResponse.hits().getAt(2).id(), equalTo("4"));
+        assertThat(searchResponse.hits().getAt(2).score(), equalTo(2.0f));
+        assertThat(searchResponse.hits().getAt(3).id(), equalTo("2"));
+        assertThat(searchResponse.hits().getAt(3).score(), equalTo(1.0f));
     }
 }

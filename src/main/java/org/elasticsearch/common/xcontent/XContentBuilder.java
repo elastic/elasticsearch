@@ -34,7 +34,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Date;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -486,7 +485,7 @@ public final class XContentBuilder {
         return this;
     }
 
-    public XContentBuilder field(String name, List value) throws IOException {
+    public XContentBuilder field(String name, Iterable value) throws IOException {
         startArray(name);
         for (Object o : value) {
             value(o);
@@ -495,7 +494,7 @@ public final class XContentBuilder {
         return this;
     }
 
-    public XContentBuilder field(XContentBuilderString name, List value) throws IOException {
+    public XContentBuilder field(XContentBuilderString name, Iterable value) throws IOException {
         startArray(name);
         for (Object o : value) {
             value(o);
@@ -644,8 +643,8 @@ public final class XContentBuilder {
         } else if (value instanceof Map) {
             //noinspection unchecked
             field(name, (Map<String, Object>) value);
-        } else if (value instanceof List) {
-            field(name, (List) value);
+        } else if (value instanceof Iterable) {
+            field(name, (Iterable) value);
         } else if (value instanceof Object[]) {
             field(name, (Object[]) value);
         } else if (value instanceof int[]) {
@@ -695,8 +694,8 @@ public final class XContentBuilder {
         } else if (value instanceof Map) {
             //noinspection unchecked
             field(name, (Map<String, Object>) value);
-        } else if (value instanceof List) {
-            field(name, (List) value);
+        } else if (value instanceof Iterable) {
+            field(name, (Iterable) value);
         } else if (value instanceof Object[]) {
             field(name, (Object[]) value);
         } else if (value instanceof int[]) {

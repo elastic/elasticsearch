@@ -23,14 +23,13 @@ import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.Term;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
-import org.elasticsearch.action.support.BaseAction;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.inject.Inject;
@@ -58,10 +57,8 @@ import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 
 /**
  * The more like this action.
- *
- *
  */
-public class TransportMoreLikeThisAction extends BaseAction<MoreLikeThisRequest, SearchResponse> {
+public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisRequest, SearchResponse> {
 
     private final TransportSearchAction searchAction;
 
@@ -80,7 +77,7 @@ public class TransportMoreLikeThisAction extends BaseAction<MoreLikeThisRequest,
         this.indicesService = indicesService;
         this.clusterService = clusterService;
 
-        transportService.registerHandler(TransportActions.MORE_LIKE_THIS, new TransportHandler());
+        transportService.registerHandler(MoreLikeThisAction.NAME, new TransportHandler());
     }
 
     @Override

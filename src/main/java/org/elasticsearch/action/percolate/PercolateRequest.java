@@ -23,6 +23,7 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.single.custom.SingleCustomOperationRequest;
+import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Required;
 import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -35,7 +36,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
-import static org.elasticsearch.action.Actions.addValidationError;
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  *
@@ -103,14 +104,23 @@ public class PercolateRequest extends SingleCustomOperationRequest {
     }
 
     public byte[] underlyingSource() {
+        if (sourceUnsafe) {
+            source();
+        }
         return this.source;
     }
 
     public int underlyingSourceOffset() {
+        if (sourceUnsafe) {
+            source();
+        }
         return this.sourceOffset;
     }
 
     public int underlyingSourceLength() {
+        if (sourceUnsafe) {
+            source();
+        }
         return this.sourceLength;
     }
 
@@ -202,11 +212,11 @@ public class PercolateRequest extends SingleCustomOperationRequest {
         index = in.readUTF();
         type = in.readUTF();
 
+        BytesHolder bytes = in.readBytesReference();
         sourceUnsafe = false;
-        sourceOffset = 0;
-        sourceLength = in.readVInt();
-        source = new byte[sourceLength];
-        in.readFully(source);
+        source = bytes.bytes();
+        sourceOffset = bytes.offset();
+        sourceLength = bytes.length();
     }
 
     @Override
@@ -214,8 +224,6 @@ public class PercolateRequest extends SingleCustomOperationRequest {
         super.writeTo(out);
         out.writeUTF(index);
         out.writeUTF(type);
-
-        out.writeVInt(sourceLength);
-        out.writeBytes(source, sourceOffset, sourceLength);
+        out.writeBytesHolder(source, sourceOffset, sourceLength);
     }
 }

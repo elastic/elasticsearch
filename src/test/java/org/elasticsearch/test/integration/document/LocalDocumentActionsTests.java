@@ -19,8 +19,16 @@
 
 package org.elasticsearch.test.integration.document;
 
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
+
 /**
  *
  */
 public class LocalDocumentActionsTests extends DocumentActionsTests {
+
+    @Override
+    protected Settings nodeSettings() {
+        return ImmutableSettings.settingsBuilder().put("node.local", true).build();
+    }
 }

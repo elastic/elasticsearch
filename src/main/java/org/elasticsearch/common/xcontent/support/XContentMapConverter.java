@@ -107,6 +107,8 @@ public class XContentMapConverter {
             return readMap(parser, mapFactory);
         } else if (t == XContentParser.Token.START_ARRAY) {
             return readList(parser, mapFactory, t);
+        } else if (t == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
+            return parser.binaryValue();
         }
         return null;
     }

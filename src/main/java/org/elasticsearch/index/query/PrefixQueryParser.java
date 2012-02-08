@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
@@ -52,7 +53,9 @@ public class PrefixQueryParser implements QueryParser {
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token = parser.nextToken();
-        assert token == XContentParser.Token.FIELD_NAME;
+        if (token != XContentParser.Token.FIELD_NAME) {
+            throw new QueryParsingException(parseContext.index(), "[prefix] query malformed, no field");
+        }
         String fieldName = parser.currentName();
         String rewriteMethod = null;
 
@@ -74,6 +77,8 @@ public class PrefixQueryParser implements QueryParser {
                     } else if ("rewrite".equals(currentFieldName)) {
                         rewriteMethod = parser.textOrNull();
                     }
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[prefix] query does not support [" + currentFieldName + "]");
                 }
             }
             parser.nextToken();
@@ -86,18 +91,27 @@ public class PrefixQueryParser implements QueryParser {
             throw new QueryParsingException(parseContext.index(), "No value specified for prefix query");
         }
 
-        PrefixQuery query = null;
+        MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(rewriteMethod);
+
+        Query query = null;
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
-        if (smartNameFieldMappers != null) {
-            if (smartNameFieldMappers.hasMapper()) {
-                value = smartNameFieldMappers.mapper().indexedValue(value);
-                query = new PrefixQuery(smartNameFieldMappers.mapper().names().createIndexNameTerm(value));
+        if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
+            if (smartNameFieldMappers.explicitTypeInNameWithDocMapper()) {
+                String[] previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{smartNameFieldMappers.docMapper().type()});
+                try {
+                    query = smartNameFieldMappers.mapper().prefixQuery(value, method, parseContext);
+                } finally {
+                    QueryParseContext.setTypes(previousTypes);
+                }
+            } else {
+                query = smartNameFieldMappers.mapper().prefixQuery(value, method, parseContext);
             }
         }
         if (query == null) {
-            query = new PrefixQuery(new Term(fieldName, value));
+            PrefixQuery prefixQuery = new PrefixQuery(new Term(fieldName, value));
+            prefixQuery.setRewriteMethod(method);
+            query = prefixQuery;
         }
-        query.setRewriteMethod(QueryParsers.parseRewriteMethod(rewriteMethod));
         query.setBoost(boost);
         return wrapSmartNameQuery(query, smartNameFieldMappers, parseContext);
     }

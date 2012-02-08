@@ -26,6 +26,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -78,30 +79,53 @@ public class ProcessStats implements Streamable, Serializable, ToXContent {
         return mem();
     }
 
+    static final class Fields {
+        static final XContentBuilderString PROCESS = new XContentBuilderString("process");
+        static final XContentBuilderString TIMESTAMP = new XContentBuilderString("timestamp");
+        static final XContentBuilderString OPEN_FILE_DESCRIPTORS = new XContentBuilderString("open_file_descriptors");
+
+        static final XContentBuilderString CPU = new XContentBuilderString("cpu");
+        static final XContentBuilderString PERCENT = new XContentBuilderString("percent");
+        static final XContentBuilderString SYS = new XContentBuilderString("sys");
+        static final XContentBuilderString SYS_IN_MILLIS = new XContentBuilderString("sys_in_millis");
+        static final XContentBuilderString USER = new XContentBuilderString("user");
+        static final XContentBuilderString USER_IN_MILLIS = new XContentBuilderString("user_in_millis");
+        static final XContentBuilderString TOTAL = new XContentBuilderString("total");
+        static final XContentBuilderString TOTAL_IN_MILLIS = new XContentBuilderString("total_in_millis");
+
+        static final XContentBuilderString MEM = new XContentBuilderString("mem");
+        static final XContentBuilderString RESIDENT = new XContentBuilderString("resident");
+        static final XContentBuilderString RESIDENT_IN_BYTES = new XContentBuilderString("resident_in_bytes");
+        static final XContentBuilderString SHARE = new XContentBuilderString("share");
+        static final XContentBuilderString SHARE_IN_BYTES = new XContentBuilderString("share_in_bytes");
+        static final XContentBuilderString TOTAL_VIRTUAL = new XContentBuilderString("total_virtual");
+        static final XContentBuilderString TOTAL_VIRTUAL_IN_BYTES = new XContentBuilderString("total_virtual_in_bytes");
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("process");
-        builder.field("timestamp", timestamp);
-        builder.field("open_file_descriptors", openFileDescriptors);
+        builder.startObject(Fields.PROCESS);
+        builder.field(Fields.TIMESTAMP, timestamp);
+        builder.field(Fields.OPEN_FILE_DESCRIPTORS, openFileDescriptors);
         if (cpu != null) {
-            builder.startObject("cpu");
-            builder.field("percent", cpu.percent());
-            builder.field("sys", cpu.sys().format());
-            builder.field("sys_in_millis", cpu.sys().millis());
-            builder.field("user", cpu.user().format());
-            builder.field("user_in_millis", cpu.user().millis());
-            builder.field("total", cpu.total().format());
-            builder.field("total_in_millis", cpu.total().millis());
+            builder.startObject(Fields.CPU);
+            builder.field(Fields.PERCENT, cpu.percent());
+            builder.field(Fields.SYS, cpu.sys().format());
+            builder.field(Fields.SYS_IN_MILLIS, cpu.sys().millis());
+            builder.field(Fields.USER, cpu.user().format());
+            builder.field(Fields.USER_IN_MILLIS, cpu.user().millis());
+            builder.field(Fields.TOTAL, cpu.total().format());
+            builder.field(Fields.TOTAL_IN_MILLIS, cpu.total().millis());
             builder.endObject();
         }
         if (mem != null) {
-            builder.startObject("mem");
-            builder.field("resident", mem.resident().toString());
-            builder.field("resident_in_bytes", mem.resident().bytes());
-            builder.field("share", mem.share().toString());
-            builder.field("share_in_bytes", mem.share().bytes());
-            builder.field("total_virtual", mem.totalVirtual().toString());
-            builder.field("total_virtual_in_bytes", mem.totalVirtual().bytes());
+            builder.startObject(Fields.MEM);
+            builder.field(Fields.RESIDENT, mem.resident().toString());
+            builder.field(Fields.RESIDENT_IN_BYTES, mem.resident().bytes());
+            builder.field(Fields.SHARE, mem.share().toString());
+            builder.field(Fields.SHARE_IN_BYTES, mem.share().bytes());
+            builder.field(Fields.TOTAL_VIRTUAL, mem.totalVirtual().toString());
+            builder.field(Fields.TOTAL_VIRTUAL_IN_BYTES, mem.totalVirtual().bytes());
             builder.endObject();
         }
         builder.endObject();

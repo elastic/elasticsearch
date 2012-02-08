@@ -20,17 +20,27 @@
 package org.elasticsearch.index;
 
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.service.InternalIndexService;
+import org.elasticsearch.jmx.JmxService;
 
 /**
  *
  */
 public class IndexModule extends AbstractModule {
 
+    private final Settings settings;
+
+    public IndexModule(Settings settings) {
+        this.settings = settings;
+    }
+
     @Override
     protected void configure() {
         bind(IndexService.class).to(InternalIndexService.class).asEagerSingleton();
-        bind(IndexServiceManagement.class).asEagerSingleton();
+        if (JmxService.shouldExport(settings)) {
+            bind(IndexServiceManagement.class).asEagerSingleton();
+        }
     }
 }

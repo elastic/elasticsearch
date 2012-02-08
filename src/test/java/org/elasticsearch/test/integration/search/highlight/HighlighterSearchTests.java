@@ -473,7 +473,8 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         }
 
         SearchResponse search = client.prepareSearch()
-                .setQuery(fieldQuery("title", "test")).setEncoder("html")
+                .setQuery(fieldQuery("title", "test"))
+                .setHighlighterEncoder("html")
                 .addHighlightedField("title", 50, 1, 10)
                 .execute().actionGet();
 
@@ -510,7 +511,8 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         }
 
         SearchResponse search = client.prepareSearch()
-                .setQuery(fieldQuery("title", "test")).setEncoder("html")
+                .setQuery(fieldQuery("title", "test"))
+                .setHighlighterEncoder("html")
                 .addHighlightedField("title", 50, 1, 10)
                 .execute().actionGet();
 
@@ -524,5 +526,169 @@ public class HighlighterSearchTests extends AbstractNodesTests {
             // LUCENE 3.1 UPGRADE: Caused adding the space at the end...
             assertThat(hit.highlightFields().get("title").fragments()[0], equalTo("highlighting <em>test</em> for *&amp;? elasticsearch "));
         }
+    }
+
+    @Test
+    public void testMultiMapperVectorWithStore() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 2))
+                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("title").field("type", "multi_field").startObject("fields")
+                        .startObject("title").field("type", "string").field("store", "yes").field("term_vector", "with_positions_offsets").endObject()
+                        .startObject("key").field("type", "string").field("store", "yes").field("term_vector", "with_positions_offsets").field("analyzer", "whitespace").endObject()
+                        .endObject().endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
+
+        client.admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
+
+        client.prepareIndex("test", "type1", "1").setSource("title", "this is a test").execute().actionGet();
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        // simple search on body with standard analyzer with a simple field query
+        SearchResponse search = client.prepareSearch()
+                .setQuery(fieldQuery("title", "this is a test"))
+                .setHighlighterEncoder("html")
+                .addHighlightedField("title", 50, 1)
+                .execute().actionGet();
+        assertThat(Arrays.toString(search.shardFailures()), search.failedShards(), equalTo(0));
+
+        SearchHit hit = search.hits().getAt(0);
+        assertThat(hit.highlightFields().get("title").fragments()[0], equalTo("this is a <em>test</em> "));
+
+        // search on title.key and highlight on title
+        search = client.prepareSearch()
+                .setQuery(fieldQuery("title.key", "this is a test"))
+                .setHighlighterEncoder("html")
+                .addHighlightedField("title.key", 50, 1)
+                .execute().actionGet();
+        assertThat(Arrays.toString(search.shardFailures()), search.failedShards(), equalTo(0));
+
+        hit = search.hits().getAt(0);
+        assertThat(hit.highlightFields().get("title.key").fragments()[0], equalTo("<em>this</em> <em>is</em> <em>a</em> <em>test</em> "));
+    }
+
+    @Test
+    public void testMultiMapperVectorFromSource() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 2))
+                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("title").field("type", "multi_field").startObject("fields")
+                        .startObject("title").field("type", "string").field("store", "no").field("term_vector", "with_positions_offsets").endObject()
+                        .startObject("key").field("type", "string").field("store", "no").field("term_vector", "with_positions_offsets").field("analyzer", "whitespace").endObject()
+                        .endObject().endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
+
+        client.admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
+
+        client.prepareIndex("test", "type1", "1").setSource("title", "this is a test").execute().actionGet();
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        // simple search on body with standard analyzer with a simple field query
+        SearchResponse search = client.prepareSearch()
+                .setQuery(fieldQuery("title", "this is a test"))
+                .setHighlighterEncoder("html")
+                .addHighlightedField("title", 50, 1)
+                .execute().actionGet();
+        assertThat(Arrays.toString(search.shardFailures()), search.failedShards(), equalTo(0));
+
+        SearchHit hit = search.hits().getAt(0);
+        assertThat(hit.highlightFields().get("title").fragments()[0], equalTo("this is a <em>test</em> "));
+
+        // search on title.key and highlight on title.key
+        search = client.prepareSearch()
+                .setQuery(fieldQuery("title.key", "this is a test"))
+                .setHighlighterEncoder("html")
+                .addHighlightedField("title.key", 50, 1)
+                .execute().actionGet();
+        assertThat(Arrays.toString(search.shardFailures()), search.failedShards(), equalTo(0));
+
+        hit = search.hits().getAt(0);
+        assertThat(hit.highlightFields().get("title.key").fragments()[0], equalTo("<em>this</em> <em>is</em> <em>a</em> <em>test</em> "));
+    }
+
+    @Test
+    public void testMultiMapperNoVectorWithStore() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 2))
+                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("title").field("type", "multi_field").startObject("fields")
+                        .startObject("title").field("type", "string").field("store", "yes").field("term_vector", "no").endObject()
+                        .startObject("key").field("type", "string").field("store", "yes").field("term_vector", "no").field("analyzer", "whitespace").endObject()
+                        .endObject().endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
+
+        client.admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
+
+        client.prepareIndex("test", "type1", "1").setSource("title", "this is a test").execute().actionGet();
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        // simple search on body with standard analyzer with a simple field query
+        SearchResponse search = client.prepareSearch()
+                .setQuery(fieldQuery("title", "this is a test"))
+                .setHighlighterEncoder("html")
+                .addHighlightedField("title", 50, 1)
+                .execute().actionGet();
+        assertThat(Arrays.toString(search.shardFailures()), search.failedShards(), equalTo(0));
+
+        SearchHit hit = search.hits().getAt(0);
+        assertThat(hit.highlightFields().get("title").fragments()[0], equalTo("this is a <em>test</em>"));
+
+        // search on title.key and highlight on title
+        search = client.prepareSearch()
+                .setQuery(fieldQuery("title.key", "this is a test"))
+                .setHighlighterEncoder("html")
+                .addHighlightedField("title.key", 50, 1)
+                .execute().actionGet();
+        assertThat(Arrays.toString(search.shardFailures()), search.failedShards(), equalTo(0));
+
+        hit = search.hits().getAt(0);
+        assertThat(hit.highlightFields().get("title.key").fragments()[0], equalTo("<em>this</em> <em>is</em> <em>a</em> <em>test</em>"));
+    }
+
+    @Test
+    public void testMultiMapperNoVectorFromSource() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 2))
+                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("title").field("type", "multi_field").startObject("fields")
+                        .startObject("title").field("type", "string").field("store", "no").field("term_vector", "no").endObject()
+                        .startObject("key").field("type", "string").field("store", "no").field("term_vector", "no").field("analyzer", "whitespace").endObject()
+                        .endObject().endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
+
+        client.admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
+
+        client.prepareIndex("test", "type1", "1").setSource("title", "this is a test").execute().actionGet();
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        // simple search on body with standard analyzer with a simple field query
+        SearchResponse search = client.prepareSearch()
+                .setQuery(fieldQuery("title", "this is a test"))
+                .setHighlighterEncoder("html")
+                .addHighlightedField("title", 50, 1)
+                .execute().actionGet();
+        assertThat(Arrays.toString(search.shardFailures()), search.failedShards(), equalTo(0));
+
+        SearchHit hit = search.hits().getAt(0);
+        assertThat(hit.highlightFields().get("title").fragments()[0], equalTo("this is a <em>test</em>"));
+
+        // search on title.key and highlight on title.key
+        search = client.prepareSearch()
+                .setQuery(fieldQuery("title.key", "this is a test"))
+                .setHighlighterEncoder("html")
+                .addHighlightedField("title.key", 50, 1)
+                .execute().actionGet();
+        assertThat(Arrays.toString(search.shardFailures()), search.failedShards(), equalTo(0));
+
+        hit = search.hits().getAt(0);
+        assertThat(hit.highlightFields().get("title.key").fragments()[0], equalTo("<em>this</em> <em>is</em> <em>a</em> <em>test</em>"));
     }
 }

@@ -21,17 +21,15 @@ package org.elasticsearch.search.internal;
 
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.Bytes;
+import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.Scroll;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
 import static org.elasticsearch.search.Scroll.readScroll;
 
 /**
@@ -50,8 +48,6 @@ import static org.elasticsearch.search.Scroll.readScroll;
  *  }
  * }
  * </pre>
- *
- *
  */
 public class InternalSearchRequest implements Streamable {
 
@@ -64,8 +60,6 @@ public class InternalSearchRequest implements Streamable {
     private SearchType searchType;
 
     private Scroll scroll;
-
-    private TimeValue timeout;
 
     private String[] types = Strings.EMPTY_ARRAY;
 
@@ -171,15 +165,6 @@ public class InternalSearchRequest implements Streamable {
         return this;
     }
 
-    public TimeValue timeout() {
-        return timeout;
-    }
-
-    public InternalSearchRequest timeout(TimeValue timeout) {
-        this.timeout = timeout;
-        return this;
-    }
-
     public String[] filteringAliases() {
         return filteringAliases;
     }
@@ -205,25 +190,17 @@ public class InternalSearchRequest implements Streamable {
         if (in.readBoolean()) {
             scroll = readScroll(in);
         }
-        if (in.readBoolean()) {
-            timeout = readTimeValue(in);
-        }
-        sourceOffset = 0;
-        sourceLength = in.readVInt();
-        if (sourceLength == 0) {
-            source = Bytes.EMPTY_ARRAY;
-        } else {
-            source = new byte[sourceLength];
-            in.readFully(source);
-        }
-        extraSourceOffset = 0;
-        extraSourceLength = in.readVInt();
-        if (extraSourceLength == 0) {
-            extraSource = Bytes.EMPTY_ARRAY;
-        } else {
-            extraSource = new byte[extraSourceLength];
-            in.readFully(extraSource);
-        }
+
+        BytesHolder bytes = in.readBytesReference();
+        source = bytes.bytes();
+        sourceOffset = bytes.offset();
+        sourceLength = bytes.length();
+
+        bytes = in.readBytesReference();
+        extraSource = bytes.bytes();
+        extraSourceOffset = bytes.offset();
+        extraSourceLength = bytes.length();
+
         int typesSize = in.readVInt();
         if (typesSize > 0) {
             types = new String[typesSize];
@@ -255,24 +232,8 @@ public class InternalSearchRequest implements Streamable {
             out.writeBoolean(true);
             scroll.writeTo(out);
         }
-        if (timeout == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            timeout.writeTo(out);
-        }
-        if (source == null) {
-            out.writeVInt(0);
-        } else {
-            out.writeVInt(sourceLength);
-            out.writeBytes(source, sourceOffset, sourceLength);
-        }
-        if (extraSource == null) {
-            out.writeVInt(0);
-        } else {
-            out.writeVInt(extraSourceLength);
-            out.writeBytes(extraSource, extraSourceOffset, extraSourceLength);
-        }
+        out.writeBytesHolder(source, sourceOffset, sourceLength);
+        out.writeBytesHolder(extraSource, extraSourceOffset, extraSourceLength);
         out.writeVInt(types.length);
         for (String type : types) {
             out.writeUTF(type);

@@ -25,8 +25,10 @@ import gnu.trove.iterator.TObjectFloatIterator;
 import gnu.trove.map.hash.TObjectFloatHashMap;
 import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.io.BytesStream;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -47,7 +49,6 @@ import java.util.Map;
 /**
  * A search source builder allowing to easily build search source. Simple construction
  * using {@link org.elasticsearch.search.builder.SearchSourceBuilder#searchSource()}.
- *
  *
  * @see org.elasticsearch.action.search.SearchRequest#source(SearchSourceBuilder)
  */
@@ -93,9 +94,11 @@ public class SearchSourceBuilder implements ToXContent {
 
     private Float minScore;
 
-    private List<String> fieldNames;
+    private long timeoutInMillis = -1;
 
+    private List<String> fieldNames;
     private List<ScriptField> scriptFields;
+    private List<PartialField> partialFields;
 
     private List<AbstractFacetBuilder> facets;
 
@@ -273,6 +276,22 @@ public class SearchSourceBuilder implements ToXContent {
      */
     public SearchSourceBuilder version(Boolean version) {
         this.version = version;
+        return this;
+    }
+
+    /**
+     * An optional timeout to control how long search is allowed to take.
+     */
+    public SearchSourceBuilder timeout(TimeValue timeout) {
+        this.timeoutInMillis = timeout.millis();
+        return this;
+    }
+
+    /**
+     * An optional timeout to control how long search is allowed to take.
+     */
+    public SearchSourceBuilder timeout(String timeout) {
+        this.timeoutInMillis = TimeValue.parseTimeValue(timeout, null).millis();
         return this;
     }
 
@@ -464,6 +483,38 @@ public class SearchSourceBuilder implements ToXContent {
     }
 
     /**
+     * Adds a partial field based on _source, with an "include" and/or "exclude" set which can include simple wildcard
+     * elements.
+     *
+     * @param name    The name of the field
+     * @param include An optional include (optionally wildcarded) pattern from _source
+     * @param exclude An optional exclude (optionally wildcarded) pattern from _source
+     */
+    public SearchSourceBuilder partialField(String name, @Nullable String include, @Nullable String exclude) {
+        if (partialFields == null) {
+            partialFields = Lists.newArrayList();
+        }
+        partialFields.add(new PartialField(name, include, exclude));
+        return this;
+    }
+
+    /**
+     * Adds a partial field based on _source, with an "includes" and/or "excludes set which can include simple wildcard
+     * elements.
+     *
+     * @param name     The name of the field
+     * @param includes An optional list of includes (optionally wildcarded) patterns from _source
+     * @param excludes An optional list of excludes (optionally wildcarded) patterns from _source
+     */
+    public SearchSourceBuilder partialField(String name, @Nullable String[] includes, @Nullable String[] excludes) {
+        if (partialFields == null) {
+            partialFields = Lists.newArrayList();
+        }
+        partialFields.add(new PartialField(name, includes, excludes));
+        return this;
+    }
+
+    /**
      * Sets the boost a specific index will receive when the query is executeed against it.
      *
      * @param index      The index to apply the boost against
@@ -532,6 +583,10 @@ public class SearchSourceBuilder implements ToXContent {
             builder.field("size", size);
         }
 
+        if (timeoutInMillis != -1) {
+            builder.field("timeout", timeoutInMillis);
+        }
+
         if (queryBuilder != null) {
             builder.field("query");
             queryBuilder.toXContent(builder, params);
@@ -580,6 +635,29 @@ public class SearchSourceBuilder implements ToXContent {
                 }
                 builder.endArray();
             }
+        }
+
+        if (partialFields != null) {
+            builder.startObject("partial_fields");
+            for (PartialField partialField : partialFields) {
+                builder.startObject(partialField.name());
+                if (partialField.includes() != null) {
+                    if (partialField.includes().length == 1) {
+                        builder.field("include", partialField.includes()[0]);
+                    } else {
+                        builder.field("include", partialField.includes());
+                    }
+                }
+                if (partialField.excludes() != null) {
+                    if (partialField.excludes().length == 1) {
+                        builder.field("exclude", partialField.excludes()[0]);
+                    } else {
+                        builder.field("exclude", partialField.excludes());
+                    }
+                }
+                builder.endObject();
+            }
+            builder.endObject();
         }
 
         if (scriptFields != null) {
@@ -681,6 +759,36 @@ public class SearchSourceBuilder implements ToXContent {
 
         public Map<String, Object> params() {
             return params;
+        }
+    }
+
+    private static class PartialField {
+        private final String name;
+        private final String[] includes;
+        private final String[] excludes;
+
+        private PartialField(String name, String[] includes, String[] excludes) {
+            this.name = name;
+            this.includes = includes;
+            this.excludes = excludes;
+        }
+
+        private PartialField(String name, String include, String exclude) {
+            this.name = name;
+            this.includes = include == null ? null : new String[]{include};
+            this.excludes = exclude == null ? null : new String[]{exclude};
+        }
+
+        public String name() {
+            return name;
+        }
+
+        public String[] includes() {
+            return includes;
+        }
+
+        public String[] excludes() {
+            return excludes;
         }
     }
 }

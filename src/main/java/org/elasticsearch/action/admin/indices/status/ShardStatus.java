@@ -36,8 +36,6 @@ import static org.elasticsearch.common.unit.ByteSizeValue.readBytesSizeValue;
 
 /**
  * Shard instance (actual allocated shard) status.
- *
- *
  */
 public class ShardStatus extends BroadcastShardOperationResponse {
 
@@ -262,9 +260,9 @@ public class ShardStatus extends BroadcastShardOperationResponse {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeInt(docs.numDocs());
-            out.writeInt(docs.maxDoc());
-            out.writeInt(docs.deletedDocs());
+            out.writeLong(docs.numDocs());
+            out.writeLong(docs.maxDoc());
+            out.writeLong(docs.deletedDocs());
         }
         if (peerRecoveryStatus == null) {
             out.writeBoolean(false);
@@ -335,9 +333,9 @@ public class ShardStatus extends BroadcastShardOperationResponse {
         translogOperations = in.readLong();
         if (in.readBoolean()) {
             docs = new DocsStatus();
-            docs.numDocs = in.readInt();
-            docs.maxDoc = in.readInt();
-            docs.deletedDocs = in.readInt();
+            docs.numDocs = in.readLong();
+            docs.maxDoc = in.readLong();
+            docs.deletedDocs = in.readLong();
         }
         if (in.readBoolean()) {
             peerRecoveryStatus = new PeerRecoveryStatus(PeerRecoveryStatus.Stage.fromValue(in.readByte()),

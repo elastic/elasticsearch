@@ -26,6 +26,7 @@ import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
@@ -38,6 +39,7 @@ import org.elasticsearch.index.analysis.NumericDateAnalyzer;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
 import org.joda.time.DateTimeZone;
 import org.joda.time.MutableDateTime;
@@ -228,11 +230,25 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
+    public Query fieldQuery(String value, @Nullable QueryParseContext context) {
+        long lValue = parseStringValue(value);
+        return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
+                lValue, lValue, true, true);
+    }
+
+    @Override
     public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
         return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : parseStringValue(lowerTerm),
                 upperTerm == null ? null : includeUpper ? parseUpperInclusiveStringValue(upperTerm) : parseStringValue(upperTerm),
                 includeLower, includeUpper);
+    }
+
+    @Override
+    public Filter fieldFilter(String value, @Nullable QueryParseContext context) {
+        long lValue = parseStringValue(value);
+        return NumericRangeFilter.newLongRange(names.indexName(), precisionStep,
+                lValue, lValue, true, true);
     }
 
     @Override
@@ -386,7 +402,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
                 long time = Long.parseLong(value);
                 return timeUnit.toMillis(time);
             } catch (NumberFormatException e1) {
-                throw new MapperParsingException("failed to parse date field, tried both date format [" + dateTimeFormatter.format() + "], and timestamp number", e);
+                throw new MapperParsingException("failed to parse date field [" + value + "], tried both date format [" + dateTimeFormatter.format() + "], and timestamp number", e);
             }
         }
     }
@@ -397,14 +413,28 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         }
         try {
             MutableDateTime dateTime = new MutableDateTime(3000, 12, 31, 23, 59, 59, 999, DateTimeZone.UTC);
-            dateTimeFormatter.parser().parseInto(dateTime, value, 0);
+            int location = dateTimeFormatter.parser().parseInto(dateTime, value, 0);
+            // if we parsed all the string value, we are good
+            if (location == value.length()) {
+                return dateTime.getMillis();
+            }
+            // if we did not manage to parse, or the year is really high year which is unreasonable
+            // see if its a number
+            if (location <= 0 || dateTime.getYear() > 5000) {
+                try {
+                    long time = Long.parseLong(value);
+                    return timeUnit.toMillis(time);
+                } catch (NumberFormatException e1) {
+                    throw new MapperParsingException("failed to parse date field [" + value + "], tried both date format [" + dateTimeFormatter.format() + "], and timestamp number");
+                }
+            }
             return dateTime.getMillis();
         } catch (RuntimeException e) {
             try {
                 long time = Long.parseLong(value);
                 return timeUnit.toMillis(time);
             } catch (NumberFormatException e1) {
-                throw new MapperParsingException("failed to parse date field, tried both date format [" + dateTimeFormatter.format() + "], and timestamp number", e);
+                throw new MapperParsingException("failed to parse date field [" + value + "], tried both date format [" + dateTimeFormatter.format() + "], and timestamp number", e);
             }
         }
     }

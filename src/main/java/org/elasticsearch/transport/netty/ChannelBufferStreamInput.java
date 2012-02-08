@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport.netty;
 
+import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.jboss.netty.buffer.ChannelBuffer;
 
@@ -27,8 +28,6 @@ import java.io.IOException;
 
 /**
  * A Netty {@link org.jboss.netty.buffer.ChannelBuffer} based {@link org.elasticsearch.common.io.stream.StreamInput}.
- *
- *
  */
 public class ChannelBufferStreamInput extends StreamInput {
 
@@ -46,11 +45,18 @@ public class ChannelBufferStreamInput extends StreamInput {
         buffer.markReaderIndex();
     }
 
-    /**
-     * Returns the number of read bytes by this stream so far.
-     */
-    public int readBytes() {
-        return buffer.readerIndex() - startIndex;
+    @Override
+    public BytesHolder readBytesReference() throws IOException {
+        // netty always copies a buffer, either in NioWorker in its read handler, where it copies to a fresh
+        // buffer, or in the cumlation buffer, which is cleaned each time
+        // so: we can actually return a reference if this is an array backed buffer
+        if (!buffer.hasArray()) {
+            return super.readBytesReference();
+        }
+        int size = readVInt();
+        BytesHolder bytes = new BytesHolder(buffer.array(), buffer.arrayOffset() + buffer.readerIndex(), size);
+        buffer.skipBytes(size);
+        return bytes;
     }
 
     @Override
@@ -114,9 +120,6 @@ public class ChannelBufferStreamInput extends StreamInput {
 
     @Override
     public byte readByte() throws IOException {
-        if (available() == 0) {
-            throw new EOFException();
-        }
         return buffer.readByte();
     }
 

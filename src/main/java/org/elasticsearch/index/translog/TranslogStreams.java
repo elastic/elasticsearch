@@ -54,7 +54,7 @@ public class TranslogStreams {
     }
 
     public static Translog.Source readSource(byte[] data) throws IOException {
-        BytesStreamInput in = new BytesStreamInput(data);
+        BytesStreamInput in = new BytesStreamInput(data, false);
         in.readInt(); // the size header
         Translog.Operation.Type type = Translog.Operation.Type.fromId(in.readByte());
         Translog.Operation operation;

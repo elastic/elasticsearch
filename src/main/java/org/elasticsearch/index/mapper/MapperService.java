@@ -19,7 +19,9 @@
 
 package org.elasticsearch.index.mapper;
 
+import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterators;
 import com.google.common.collect.Sets;
 import com.google.common.collect.UnmodifiableIterator;
 import org.apache.lucene.analysis.Analyzer;
@@ -77,14 +79,14 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
 
     private volatile String defaultMappingSource;
 
-    private volatile ImmutableMap<String, DocumentMapper> mappers = ImmutableMap.of();
+    private volatile Map<String, DocumentMapper> mappers = ImmutableMap.of();
 
     private final Object mutex = new Object();
 
-    private volatile ImmutableMap<String, FieldMappers> nameFieldMappers = ImmutableMap.of();
-    private volatile ImmutableMap<String, FieldMappers> indexNameFieldMappers = ImmutableMap.of();
-    private volatile ImmutableMap<String, FieldMappers> fullNameFieldMappers = ImmutableMap.of();
-    private volatile ImmutableMap<String, ObjectMappers> objectMappers = ImmutableMap.of();
+    private volatile Map<String, FieldMappers> nameFieldMappers = ImmutableMap.of();
+    private volatile Map<String, FieldMappers> indexNameFieldMappers = ImmutableMap.of();
+    private volatile Map<String, FieldMappers> fullNameFieldMappers = ImmutableMap.of();
+    private volatile Map<String, ObjectMappers> objectMappers = ImmutableMap.of();
     private boolean hasNested = false; // updated dynamically to true when a nested object is added
 
     private final DocumentMapperParser documentParser;
@@ -125,12 +127,12 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         }
 
         try {
-            defaultMappingSource = Streams.copyToString(new InputStreamReader(defaultMappingUrl.openStream(), "UTF-8"));
+            defaultMappingSource = Streams.copyToString(new InputStreamReader(defaultMappingUrl.openStream(), Charsets.UTF_8));
         } catch (IOException e) {
             throw new MapperException("Failed to load default mapping source from [" + defaultMappingLocation + "]", e);
         }
 
-        logger.debug("using dynamic[{}], default mapping: location[{}] and source[{}]", dynamic, defaultMappingLocation, defaultMappingSource);
+        logger.debug("using dynamic[{}], default mapping: default_mapping_location[{}], loaded_from[{}] and source[{}]", dynamic, defaultMappingLocation, defaultMappingUrl, defaultMappingSource);
     }
 
     public void close() {
@@ -139,9 +141,13 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         }
     }
 
+    public boolean hasNested() {
+        return this.hasNested;
+    }
+
     @Override
     public UnmodifiableIterator<DocumentMapper> iterator() {
-        return mappers.values().iterator();
+        return Iterators.unmodifiableIterator(mappers.values().iterator());
     }
 
     public AnalysisService analysisService() {
@@ -159,7 +165,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             // still add it as a document mapper so we have it registered and, for example, persisted back into
             // the cluster meta data if needed, or checked for existence
             synchronized (mutex) {
-                mappers = newMapBuilder(mappers).put(type, mapper).immutableMap();
+                mappers = newMapBuilder(mappers).put(type, mapper).map();
             }
             defaultMappingSource = mappingSource;
         } else {
@@ -189,7 +195,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             DocumentMapper oldMapper = mappers.get(mapper.type());
             mapper.addFieldMapperListener(fieldMapperListener, true);
             mapper.addObjectMapperListener(objectMapperListener, true);
-            mappers = newMapBuilder(mappers).put(mapper.type(), mapper).immutableMap();
+            mappers = newMapBuilder(mappers).put(mapper.type(), mapper).map();
             if (oldMapper != null) {
                 removeObjectFieldMappers(oldMapper);
                 oldMapper.close();
@@ -204,7 +210,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
                 return;
             }
             docMapper.close();
-            mappers = newMapBuilder(mappers).remove(type).immutableMap();
+            mappers = newMapBuilder(mappers).remove(type).map();
             removeObjectFieldMappers(docMapper);
         }
     }
@@ -216,9 +222,9 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             if (mappers != null) {
                 mappers = mappers.remove(mapper);
                 if (mappers.isEmpty()) {
-                    nameFieldMappers = newMapBuilder(nameFieldMappers).remove(mapper.names().name()).immutableMap();
+                    nameFieldMappers = newMapBuilder(nameFieldMappers).remove(mapper.names().name()).map();
                 } else {
-                    nameFieldMappers = newMapBuilder(nameFieldMappers).put(mapper.names().name(), mappers).immutableMap();
+                    nameFieldMappers = newMapBuilder(nameFieldMappers).put(mapper.names().name(), mappers).map();
                 }
             }
 
@@ -226,9 +232,9 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             if (mappers != null) {
                 mappers = mappers.remove(mapper);
                 if (mappers.isEmpty()) {
-                    indexNameFieldMappers = newMapBuilder(indexNameFieldMappers).remove(mapper.names().indexName()).immutableMap();
+                    indexNameFieldMappers = newMapBuilder(indexNameFieldMappers).remove(mapper.names().indexName()).map();
                 } else {
-                    indexNameFieldMappers = newMapBuilder(indexNameFieldMappers).put(mapper.names().indexName(), mappers).immutableMap();
+                    indexNameFieldMappers = newMapBuilder(indexNameFieldMappers).put(mapper.names().indexName(), mappers).map();
                 }
             }
 
@@ -236,9 +242,9 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             if (mappers != null) {
                 mappers = mappers.remove(mapper);
                 if (mappers.isEmpty()) {
-                    fullNameFieldMappers = newMapBuilder(fullNameFieldMappers).remove(mapper.names().fullName()).immutableMap();
+                    fullNameFieldMappers = newMapBuilder(fullNameFieldMappers).remove(mapper.names().fullName()).map();
                 } else {
-                    fullNameFieldMappers = newMapBuilder(fullNameFieldMappers).put(mapper.names().fullName(), mappers).immutableMap();
+                    fullNameFieldMappers = newMapBuilder(fullNameFieldMappers).put(mapper.names().fullName(), mappers).map();
                 }
             }
         }
@@ -248,9 +254,9 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             if (mappers != null) {
                 mappers = mappers.remove(mapper);
                 if (mappers.isEmpty()) {
-                    objectMappers = newMapBuilder(objectMappers).remove(mapper.fullPath()).immutableMap();
+                    objectMappers = newMapBuilder(objectMappers).remove(mapper.fullPath()).map();
                 } else {
-                    objectMappers = newMapBuilder(objectMappers).put(mapper.fullPath(), mappers).immutableMap();
+                    objectMappers = newMapBuilder(objectMappers).put(mapper.fullPath(), mappers).map();
                 }
             }
         }
@@ -736,6 +742,10 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             return this.explicitTypeInName;
         }
 
+        public boolean explicitTypeInNameWithDocMapper() {
+            return explicitTypeInName && docMapper != null;
+        }
+
         /**
          * The best effort search analyzer associated with this field.
          */
@@ -862,7 +872,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
                     mappers = mappers.concat(fieldMapper);
                 }
 
-                nameFieldMappers = newMapBuilder(nameFieldMappers).put(fieldMapper.names().name(), mappers).immutableMap();
+                nameFieldMappers = newMapBuilder(nameFieldMappers).put(fieldMapper.names().name(), mappers).map();
 
                 mappers = indexNameFieldMappers.get(fieldMapper.names().indexName());
                 if (mappers == null) {
@@ -870,7 +880,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
                 } else {
                     mappers = mappers.concat(fieldMapper);
                 }
-                indexNameFieldMappers = newMapBuilder(indexNameFieldMappers).put(fieldMapper.names().indexName(), mappers).immutableMap();
+                indexNameFieldMappers = newMapBuilder(indexNameFieldMappers).put(fieldMapper.names().indexName(), mappers).map();
 
                 mappers = fullNameFieldMappers.get(fieldMapper.names().fullName());
                 if (mappers == null) {
@@ -878,7 +888,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
                 } else {
                     mappers = mappers.concat(fieldMapper);
                 }
-                fullNameFieldMappers = newMapBuilder(fullNameFieldMappers).put(fieldMapper.names().fullName(), mappers).immutableMap();
+                fullNameFieldMappers = newMapBuilder(fullNameFieldMappers).put(fieldMapper.names().fullName(), mappers).map();
             }
         }
     }
@@ -892,7 +902,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             } else {
                 mappers = mappers.concat(objectMapper);
             }
-            objectMappers = newMapBuilder(objectMappers).put(objectMapper.fullPath(), mappers).immutableMap();
+            objectMappers = newMapBuilder(objectMappers).put(objectMapper.fullPath(), mappers).map();
             // update the hasNested flag
             if (objectMapper.nested().isNested()) {
                 hasNested = true;

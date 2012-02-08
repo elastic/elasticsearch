@@ -61,12 +61,16 @@ public class BoostingQueryParser implements QueryParser {
                     positiveQuery = parseContext.parseInnerQuery();
                 } else if ("negative".equals(currentFieldName)) {
                     negativeQuery = parseContext.parseInnerQuery();
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[boosting] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("negative_boost".equals(currentFieldName) || "negativeBoost".equals(currentFieldName)) {
                     negativeBoost = parser.floatValue();
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[boosting] query does not support [" + currentFieldName + "]");
                 }
             }
         }

@@ -139,6 +139,11 @@ public class AliasMetaData {
             return alias;
         }
 
+        public Builder filter(CompressedString filter) {
+            this.filter = filter;
+            return this;
+        }
+
         public Builder filter(String filter) {
             if (!Strings.hasLength(filter)) {
                 this.filter = null;
@@ -163,7 +168,8 @@ public class AliasMetaData {
                 return this;
             }
             try {
-                this.filter = new CompressedString(XContentFactory.jsonBuilder().map(filter).string());
+                XContentBuilder builder = XContentFactory.jsonBuilder().map(filter);
+                this.filter = new CompressedString(builder.underlyingBytes(), 0, builder.underlyingBytesLength());
                 return this;
             } catch (IOException e) {
                 throw new ElasticSearchGenerationException("Failed to build json for alias request", e);
@@ -201,12 +207,18 @@ public class AliasMetaData {
         public static void toXContent(AliasMetaData aliasMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject(aliasMetaData.alias(), XContentBuilder.FieldCaseConversion.NONE);
 
+            boolean binary = params.paramAsBoolean("binary", false);
+
             if (aliasMetaData.filter() != null) {
-                byte[] data = aliasMetaData.filter().uncompressed();
-                XContentParser parser = XContentFactory.xContent(data).createParser(data);
-                Map<String, Object> filter = parser.mapOrdered();
-                parser.close();
-                builder.field("filter", filter);
+                if (binary) {
+                    builder.field("filter", aliasMetaData.filter.compressed());
+                } else {
+                    byte[] data = aliasMetaData.filter().uncompressed();
+                    XContentParser parser = XContentFactory.xContent(data).createParser(data);
+                    Map<String, Object> filter = parser.mapOrdered();
+                    parser.close();
+                    builder.field("filter", filter);
+                }
             }
             if (aliasMetaData.indexRouting() != null) {
                 builder.field("index_routing", aliasMetaData.indexRouting());
@@ -234,6 +246,10 @@ public class AliasMetaData {
                     if ("filter".equals(currentFieldName)) {
                         Map<String, Object> filter = parser.mapOrdered();
                         builder.filter(filter);
+                    }
+                } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
+                    if ("filter".equals(currentFieldName)) {
+                        builder.filter(new CompressedString(parser.binaryValue()));
                     }
                 } else if (token == XContentParser.Token.VALUE_STRING) {
                     if ("routing".equals(currentFieldName)) {

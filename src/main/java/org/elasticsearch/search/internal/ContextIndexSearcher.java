@@ -158,9 +158,9 @@ public class ContextIndexSearcher extends ExtendedIndexSearcher {
             // since that is where the filter should only work
             collector = new FilteredCollector(collector, searchContext.parsedFilter());
         }
-        if (searchContext.timeout() != null) {
+        if (searchContext.timeoutInMillis() != -1) {
             // TODO: change to use our own counter that uses the scheduler in ThreadPool
-            collector = new TimeLimitingCollector(collector, TimeLimitingCollector.getGlobalCounter(), searchContext.timeout().millis());
+            collector = new TimeLimitingCollector(collector, TimeLimitingCollector.getGlobalCounter(), searchContext.timeoutInMillis());
         }
         if (scopeCollectors != null) {
             List<Collector> collectors = scopeCollectors.get(processingScope);
@@ -185,8 +185,7 @@ public class ContextIndexSearcher extends ExtendedIndexSearcher {
         }
 
         // we only compute the doc id set once since within a context, we execute the same query always...
-        if (searchContext.timeout() != null) {
-            searchContext.queryResult().searchTimedOut(false);
+        if (searchContext.timeoutInMillis() != -1) {
             try {
                 super.search(weight, combinedFilter, collector);
             } catch (TimeLimitingCollector.TimeExceededException e) {

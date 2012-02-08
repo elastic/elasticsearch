@@ -27,6 +27,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.WriteConsistencyLevel;
+import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
@@ -208,11 +209,42 @@ public class RiversService extends AbstractLifecycleComponent<RiversService> {
             RiverClusterState state = event.state();
 
             // first, go over and delete ones that either don't exists or are not allocated
-            for (RiverName riverName : rivers.keySet()) {
+            for (final RiverName riverName : rivers.keySet()) {
                 RiverRouting routing = state.routing().routing(riverName);
                 if (routing == null || !localNode.equals(routing.node())) {
                     // not routed at all, and not allocated here, clean it (we delete the relevant ones before)
                     closeRiver(riverName);
+                    // also, double check and delete the river content if it was deleted (_meta does not exists)
+                    try {
+                        client.prepareGet(riverIndexName, riverName.name(), "_meta").setListenerThreaded(true).execute(new ActionListener<GetResponse>() {
+                            @Override
+                            public void onResponse(GetResponse getResponse) {
+                                if (!getResponse.exists()) {
+                                    // verify the river is deleted
+                                    client.admin().indices().prepareDeleteMapping(riverIndexName).setType(riverName.name()).execute(new ActionListener<DeleteMappingResponse>() {
+                                        @Override
+                                        public void onResponse(DeleteMappingResponse deleteMappingResponse) {
+                                            // all is well...
+                                        }
+
+                                        @Override
+                                        public void onFailure(Throwable e) {
+                                            logger.debug("failed to (double) delete river [{}] content", e, riverName.name());
+                                        }
+                                    });
+                                }
+                            }
+
+                            @Override
+                            public void onFailure(Throwable e) {
+                                logger.debug("failed to (double) delete river [{}] content", e, riverName.name());
+                            }
+                        });
+                    } catch (IndexMissingException e) {
+                        // all is well, the _river index was deleted
+                    } catch (Exception e) {
+                        logger.warn("unexpected failure when trying to verify river [{}] deleted", e, riverName.name());
+                    }
                 }
             }
 

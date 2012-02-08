@@ -59,8 +59,6 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
  * <p/>
  * <p>Note, it can be safely assumed that there will only be a single recovery per shard (index+id) and
  * not several of them (since we don't allocate several shard replicas to the same node).
- *
- *
  */
 public class RecoveryTarget extends AbstractComponent {
 
@@ -197,7 +195,8 @@ public class RecoveryTarget extends AbstractComponent {
                         .append(", took [").append(timeValueMillis(recoveryStatus.phase1Time)).append("], throttling_wait [").append(timeValueMillis(recoveryStatus.phase1ThrottlingWaitTime)).append(']')
                         .append("\n");
                 sb.append("         : reusing_files   [").append(recoveryStatus.phase1ExistingFileNames.size()).append("] with total_size of [").append(new ByteSizeValue(recoveryStatus.phase1ExistingTotalSize)).append("]\n");
-                sb.append("   phase2: recovered [").append(recoveryStatus.phase2Operations).append("]").append(" transaction log operations")
+                sb.append("   phase2: start took [").append(timeValueMillis(recoveryStatus.startTime)).append("]\n");
+                sb.append("         : recovered [").append(recoveryStatus.phase2Operations).append("]").append(" transaction log operations")
                         .append(", took [").append(timeValueMillis(recoveryStatus.phase2Time)).append("]")
                         .append("\n");
                 sb.append("   phase3: recovered [").append(recoveryStatus.phase3Operations).append("]").append(" transaction log operations")
@@ -534,10 +533,10 @@ public class RecoveryTarget extends AbstractComponent {
             synchronized (indexOutput) {
                 try {
                     if (recoverySettings.rateLimiter() != null) {
-                        recoverySettings.rateLimiter().pause(request.contentLength());
+                        recoverySettings.rateLimiter().pause(request.content().length());
                     }
-                    indexOutput.writeBytes(request.content(), request.contentLength());
-                    onGoingRecovery.currentFilesSize.addAndGet(request.contentLength());
+                    indexOutput.writeBytes(request.content().bytes(), request.content().offset(), request.content().length());
+                    onGoingRecovery.currentFilesSize.addAndGet(request.length());
                     if (indexOutput.getFilePointer() == request.length()) {
                         // we are done
                         indexOutput.close();

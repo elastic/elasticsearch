@@ -28,11 +28,7 @@ import org.elasticsearch.common.xcontent.XContentType;
  */
 public interface QueryBuilder extends ToXContent {
 
-    BytesStream buildAsUnsafeBytes() throws QueryBuilderException;
+    BytesStream buildAsBytes() throws QueryBuilderException;
 
-    BytesStream buildAsUnsafeBytes(XContentType contentType) throws QueryBuilderException;
-
-    byte[] buildAsBytes() throws QueryBuilderException;
-
-    byte[] buildAsBytes(XContentType contentType) throws QueryBuilderException;
+    BytesStream buildAsBytes(XContentType contentType) throws QueryBuilderException;
 }

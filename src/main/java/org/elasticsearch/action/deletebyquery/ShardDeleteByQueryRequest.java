@@ -22,6 +22,7 @@ package org.elasticsearch.action.deletebyquery;
 import gnu.trove.set.hash.THashSet;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.replication.ShardReplicationOperationRequest;
+import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Unicode;
@@ -32,17 +33,15 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Set;
 
-import static org.elasticsearch.action.Actions.addValidationError;
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * Delete by query request to execute on a specific shard.
- *
- *
  */
 public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest {
 
     private int shardId;
-    private byte[] querySource;
+    private BytesHolder querySource;
     private String[] types = Strings.EMPTY_ARRAY;
     @Nullable
     private Set<String> routing;
@@ -77,7 +76,7 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest 
         return this.shardId;
     }
 
-    public byte[] querySource() {
+    BytesHolder querySource() {
         return querySource;
     }
 
@@ -96,8 +95,7 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        querySource = new byte[in.readVInt()];
-        in.readFully(querySource);
+        querySource = in.readBytesReference();
         shardId = in.readVInt();
         int typesSize = in.readVInt();
         if (typesSize > 0) {
@@ -125,8 +123,7 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeVInt(querySource.length);
-        out.writeBytes(querySource);
+        out.writeBytesHolder(querySource);
         out.writeVInt(shardId);
         out.writeVInt(types.length);
         for (String type : types) {
@@ -154,7 +151,7 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest 
     public String toString() {
         String sSource = "_na_";
         try {
-            sSource = Unicode.fromBytes(querySource);
+            sSource = Unicode.fromBytes(querySource.bytes(), querySource.offset(), querySource.length());
         } catch (Exception e) {
             // ignore
         }

@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.indices.close;
 
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -37,8 +36,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Delete index action.
- *
- *
  */
 public class TransportCloseIndexAction extends TransportMasterNodeOperationAction<CloseIndexRequest, CloseIndexResponse> {
 
@@ -58,7 +55,7 @@ public class TransportCloseIndexAction extends TransportMasterNodeOperationActio
 
     @Override
     protected String transportAction() {
-        return TransportActions.Admin.Indices.CLOSE;
+        return CloseIndexAction.NAME;
     }
 
     @Override
@@ -73,6 +70,7 @@ public class TransportCloseIndexAction extends TransportMasterNodeOperationActio
 
     @Override
     protected ClusterBlockException checkBlock(CloseIndexRequest request, ClusterState state) {
+        request.index(clusterService.state().metaData().concreteIndex(request.index()));
         return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA, request.index());
     }
 

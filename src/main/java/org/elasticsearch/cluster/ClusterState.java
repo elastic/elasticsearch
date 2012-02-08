@@ -233,7 +233,7 @@ public class ClusterState {
         }
 
         public static ClusterState fromBytes(byte[] data, DiscoveryNode localNode) throws IOException {
-            return readFrom(new BytesStreamInput(data), localNode);
+            return readFrom(new BytesStreamInput(data, false), localNode);
         }
 
         public static void writeTo(ClusterState state, StreamOutput out) throws IOException {

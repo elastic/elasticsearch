@@ -29,6 +29,8 @@ public class ShardsAllocatorModule extends AbstractModule {
 
     private Settings settings;
 
+    private Class<? extends ShardsAllocator> shardsAllocator;
+
     private Class<? extends GatewayAllocator> gatewayAllocator = NoneGatewayAllocator.class;
 
     public ShardsAllocatorModule(Settings settings) {
@@ -39,9 +41,13 @@ public class ShardsAllocatorModule extends AbstractModule {
         this.gatewayAllocator = gatewayAllocator;
     }
 
+    public void setShardsAllocator(Class<? extends ShardsAllocator> shardsAllocator) {
+        this.shardsAllocator = shardsAllocator;
+    }
+
     @Override
     protected void configure() {
         bind(GatewayAllocator.class).to(gatewayAllocator).asEagerSingleton();
-        bind(ShardsAllocator.class).to(EvenShardsCountAllocator.class).asEagerSingleton();
+        bind(ShardsAllocator.class).to(shardsAllocator == null ? EvenShardsCountAllocator.class : shardsAllocator).asEagerSingleton();
     }
 }

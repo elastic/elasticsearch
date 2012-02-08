@@ -20,16 +20,12 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocatorModule;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecidersModule;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.common.settings.Settings;
-
-import java.util.List;
 
 /**
  *
@@ -37,8 +33,6 @@ import java.util.List;
 public class AllocationModule extends AbstractModule implements SpawnModules {
 
     private final Settings settings;
-
-    private List<Class<? extends AllocationDecider>> allocations = Lists.newArrayList();
 
     public AllocationModule(Settings settings) {
         this.settings = settings;

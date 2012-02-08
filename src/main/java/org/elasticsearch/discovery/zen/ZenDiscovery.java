@@ -24,6 +24,7 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeService;
@@ -33,6 +34,7 @@ import org.elasticsearch.common.UUID;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.Discovery;
@@ -45,6 +47,7 @@ import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.discovery.zen.ping.ZenPingService;
 import org.elasticsearch.discovery.zen.publish.PublishClusterStateAction;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -106,6 +109,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     private final AtomicBoolean initialStateSent = new AtomicBoolean();
 
+    @Nullable
+    private NodeService nodeService;
+
     @Inject
     public ZenDiscovery(Settings settings, ClusterName clusterName, ThreadPool threadPool,
                         TransportService transportService, ClusterService clusterService, NodeSettingsService nodeSettingsService,
@@ -135,6 +141,11 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         this.publishClusterState = new PublishClusterStateAction(settings, transportService, this, new NewClusterStateListener());
         this.pingService.setNodesProvider(this);
         this.membership = new MembershipAction(settings, transportService, this, new MembershipListener());
+    }
+
+    @Override
+    public void setNodeService(@Nullable NodeService nodeService) {
+        this.nodeService = nodeService;
     }
 
     @Override
@@ -228,6 +239,11 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     }
 
     @Override
+    public NodeService nodeService() {
+        return this.nodeService;
+    }
+
+    @Override
     public void publish(ClusterState clusterState) {
         if (!master) {
             throw new ElasticSearchIllegalStateException("Shouldn't publish state when not master");
@@ -300,9 +316,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     continue;
                 }
                 // send join request
-                ClusterState clusterState;
+                ClusterState joinClusterStateX;
                 try {
-                    clusterState = membership.sendJoinRequestBlocking(masterNode, localNode, pingTimeout);
+                    joinClusterStateX = membership.sendJoinRequestBlocking(masterNode, localNode, pingTimeout);
                 } catch (Exception e) {
                     if (e instanceof ElasticSearchException) {
                         logger.info("failed to send join request to master [{}], reason [{}]", masterNode, ((ElasticSearchException) e).getDetailedMessage());
@@ -317,26 +333,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     continue;
                 }
                 masterFD.start(masterNode, "initial_join");
-
-                // we update the metadata once we managed to join, so we pre-create indices and so on (no shards allocation)
-                final MetaData metaData = clusterState.metaData();
-                // sync also the version with the version the master currently has, so the next update will be applied
-                final long version = clusterState.version();
-                clusterService.submitStateUpdateTask("zen-disco-join (detected master)", new ProcessedClusterStateUpdateTask() {
-                    @Override
-                    public ClusterState execute(ClusterState currentState) {
-                        ClusterBlocks clusterBlocks = ClusterBlocks.builder().blocks(currentState.blocks()).removeGlobalBlock(NO_MASTER_BLOCK).build();
-                        // make sure we have the local node id set, we might need it as a result of the new metadata
-                        DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.newNodesBuilder().putAll(currentState.nodes()).put(localNode).localNodeId(localNode.id());
-                        return newClusterStateBuilder().state(currentState).nodes(nodesBuilder).blocks(clusterBlocks).metaData(metaData).version(version).build();
-                    }
-
-                    @Override
-                    public void clusterStateProcessed(ClusterState clusterState) {
-                        // don't send initial state event, since we want to get the cluster state from the master that includes us first
-//                        sendInitialStateEventIfNeeded();
-                    }
-                });
+                // no need to submit the received cluster state, we will get it from the master when it publishes
+                // the fact that we joined
             }
         }
     }
@@ -495,6 +493,18 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         // same for metadata
                         if (newState.metaData().version() == currentState.metaData().version()) {
                             builder.metaData(currentState.metaData());
+                        } else {
+                            // if its not the same version, only copy over new indices or ones that changed the version
+                            MetaData.Builder metaDataBuilder = MetaData.builder().metaData(newState.metaData()).removeAllIndices();
+                            for (IndexMetaData indexMetaData : newState.metaData()) {
+                                IndexMetaData currentIndexMetaData = currentState.metaData().index(indexMetaData.index());
+                                if (currentIndexMetaData == null || currentIndexMetaData.version() != indexMetaData.version()) {
+                                    metaDataBuilder.put(indexMetaData, false);
+                                } else {
+                                    metaDataBuilder.put(currentIndexMetaData, false);
+                                }
+                            }
+                            builder.metaData(metaDataBuilder);
                         }
 
                         return builder.build();

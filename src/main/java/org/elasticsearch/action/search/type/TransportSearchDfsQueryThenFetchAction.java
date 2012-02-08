@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.search.type;
 
-import gnu.trove.ExtTIntArrayList;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.cluster.ClusterService;
@@ -27,6 +26,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.trove.ExtTIntArrayList;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.action.SearchServiceListener;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
@@ -160,7 +160,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
                     if (logger.isDebugEnabled()) {
                         logger.debug("[{}] Failed to execute query phase", t, querySearchRequest.id());
                     }
-                    AsyncAction.this.shardFailures.add(new ShardSearchFailure(t));
+                    AsyncAction.this.addShardFailure(new ShardSearchFailure(t));
                     successulOps.decrementAndGet();
                     if (counter.decrementAndGet() == 0) {
                         executeFetchPhase();
@@ -251,7 +251,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
                     if (logger.isDebugEnabled()) {
                         logger.debug("[{}] Failed to execute fetch phase", t, fetchSearchRequest.id());
                     }
-                    AsyncAction.this.shardFailures.add(new ShardSearchFailure(t));
+                    AsyncAction.this.addShardFailure(new ShardSearchFailure(t));
                     successulOps.decrementAndGet();
                     if (counter.decrementAndGet() == 0) {
                         finishHim();

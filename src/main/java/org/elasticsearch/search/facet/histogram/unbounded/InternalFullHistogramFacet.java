@@ -19,10 +19,10 @@
 
 package org.elasticsearch.search.facet.histogram.unbounded;
 
-import gnu.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.facet.Facet;
@@ -151,7 +151,7 @@ public class InternalFullHistogramFacet extends InternalHistogramFacet {
 
     private ComparatorType comparatorType;
 
-    ExtTLongObjectHashMap<InternalFullHistogramFacet.FullEntry> tEntries;
+    ExtTLongObjectHashMap<FullEntry> tEntries;
     boolean cachedEntries;
     Collection<FullEntry> entries;
 

@@ -26,19 +26,18 @@ import java.io.IOException;
 /**
  *
  */
-public class HandlesStreamInput extends StreamInput {
-
-    private StreamInput in;
+public class HandlesStreamInput extends AdapterStreamInput {
 
     private final TIntObjectHashMap<String> handles = new TIntObjectHashMap<String>();
 
     private final TIntObjectHashMap<String> identityHandles = new TIntObjectHashMap<String>();
 
     HandlesStreamInput() {
+        super();
     }
 
     public HandlesStreamInput(StreamInput in) {
-        this.in = in;
+        super(in);
     }
 
     @Override
@@ -66,48 +65,20 @@ public class HandlesStreamInput extends StreamInput {
     }
 
     @Override
-    public int read() throws IOException {
-        return in.read();
-    }
-
-    @Override
-    public int read(byte[] b) throws IOException {
-        return in.read(b);
-    }
-
-    @Override
-    public int read(byte[] b, int off, int len) throws IOException {
-        return in.read(b, off, len);
-    }
-
-    @Override
-    public byte readByte() throws IOException {
-        return in.readByte();
-    }
-
-    @Override
-    public void readBytes(byte[] b, int offset, int len) throws IOException {
-        in.readBytes(b, offset, len);
-    }
-
-    public void cleanHandles() {
-        handles.clear();
-    }
-
-    @Override
     public void reset() throws IOException {
-        in.reset();
-        handles.clear();
-    }
-
-    public void reset(StreamInput in) {
-        this.in = in;
+        super.reset();
         handles.clear();
         identityHandles.clear();
     }
 
-    @Override
-    public void close() throws IOException {
-        in.close();
+    public void reset(StreamInput in) {
+        super.reset(in);
+        handles.clear();
+        identityHandles.clear();
+    }
+
+    public void cleanHandles() {
+        handles.clear();
+        identityHandles.clear();
     }
 }

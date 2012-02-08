@@ -24,9 +24,6 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.restart.NodesRestartRequest;
 import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
-import org.elasticsearch.action.admin.cluster.ping.broadcast.BroadcastPingRequest;
-import org.elasticsearch.action.admin.cluster.ping.replication.ReplicationPingRequest;
-import org.elasticsearch.action.admin.cluster.ping.single.SinglePingRequest;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
@@ -59,8 +56,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 
 /**
  * A handy one stop shop for creating requests (make sure to import static this class).
- *
- *
  */
 public class Requests {
 
@@ -440,17 +435,5 @@ public class Requests {
      */
     public static NodesRestartRequest nodesRestartRequest(String... nodesIds) {
         return new NodesRestartRequest(nodesIds);
-    }
-
-    public static SinglePingRequest pingSingleRequest(String index) {
-        return new SinglePingRequest(index);
-    }
-
-    public static BroadcastPingRequest pingBroadcastRequest(String... indices) {
-        return new BroadcastPingRequest(indices);
-    }
-
-    public static ReplicationPingRequest pingReplicationRequest(String... indices) {
-        return new ReplicationPingRequest(indices);
     }
 }

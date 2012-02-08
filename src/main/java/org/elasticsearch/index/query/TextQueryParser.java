@@ -55,7 +55,9 @@ public class TextQueryParser implements QueryParser {
         }
 
         XContentParser.Token token = parser.nextToken();
-        assert token == XContentParser.Token.FIELD_NAME;
+        if (token != XContentParser.Token.FIELD_NAME) {
+            throw new QueryParsingException(parseContext.index(), "[text] query malformed, no field");
+        }
         String fieldName = parser.currentName();
 
         String text = null;
@@ -86,7 +88,10 @@ public class TextQueryParser implements QueryParser {
                             type = org.elasticsearch.index.search.TextQueryParser.Type.PHRASE_PREFIX;
                         }
                     } else if ("analyzer".equals(currentFieldName)) {
-                        analyzer = parser.textOrNull();
+                        analyzer = parser.text();
+                        if (parseContext.analysisService().analyzer(analyzer) == null) {
+                            throw new QueryParsingException(parseContext.index(), "[text] analyzer [" + parser.text() + "] not found");
+                        }
                     } else if ("boost".equals(currentFieldName)) {
                         boost = parser.floatValue();
                     } else if ("slop".equals(currentFieldName) || "phrase_slop".equals(currentFieldName) || "phraseSlop".equals(currentFieldName)) {
@@ -106,6 +111,8 @@ public class TextQueryParser implements QueryParser {
                         } else {
                             throw new QueryParsingException(parseContext.index(), "text query requires operator to be either 'and' or 'or', not [" + op + "]");
                         }
+                    } else {
+                        throw new QueryParsingException(parseContext.index(), "[text] query does not support [" + currentFieldName + "]");
                     }
                 }
             }

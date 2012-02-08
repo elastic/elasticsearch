@@ -51,23 +51,26 @@ import java.util.concurrent.ScheduledFuture;
  */
 public class LocalIndexShardGateway extends AbstractIndexShardComponent implements IndexShardGateway {
 
+    private final ThreadPool threadPool;
+
     private final InternalIndexShard indexShard;
 
     private final RecoveryStatus recoveryStatus = new RecoveryStatus();
 
-    private final ScheduledFuture flushScheduler;
+    private volatile ScheduledFuture flushScheduler;
+    private final TimeValue syncInterval;
 
     @Inject
     public LocalIndexShardGateway(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool, IndexShard indexShard) {
         super(shardId, indexSettings);
+        this.threadPool = threadPool;
         this.indexShard = (InternalIndexShard) indexShard;
 
-        TimeValue sync = componentSettings.getAsTime("sync", TimeValue.timeValueSeconds(10));
-        if (sync.millis() > 0) {
+        syncInterval = componentSettings.getAsTime("sync", TimeValue.timeValueSeconds(5));
+        if (syncInterval.millis() > 0) {
             this.indexShard.translog().syncOnEachOperation(false);
-            // we don't need to execute the sync on a different thread, just do it on the scheduler thread
-            flushScheduler = threadPool.scheduleWithFixedDelay(new Sync(), sync);
-        } else if (sync.millis() == 0) {
+            flushScheduler = threadPool.schedule(syncInterval, ThreadPool.Names.SAME, new Sync());
+        } else if (syncInterval.millis() == 0) {
             flushScheduler = null;
             this.indexShard.translog().syncOnEachOperation(true);
         } else {
@@ -88,6 +91,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
     @Override
     public void recover(boolean indexShouldExists, RecoveryStatus recoveryStatus) throws IndexShardGatewayRecoveryException {
         recoveryStatus.index().startTime(System.currentTimeMillis());
+        recoveryStatus.updateStage(RecoveryStatus.Stage.INDEX);
         long version = -1;
         long translogId = -1;
         try {
@@ -121,12 +125,14 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
             // ignore
         }
 
-        recoveryStatus.translog().startTime(System.currentTimeMillis());
+        recoveryStatus.start().startTime(System.currentTimeMillis());
+        recoveryStatus.updateStage(RecoveryStatus.Stage.START);
         if (translogId == -1) {
             // no translog files, bail
             indexShard.start("post recovery from gateway, no translog");
             // no index, just start the shard and bail
-            recoveryStatus.translog().time(System.currentTimeMillis() - recoveryStatus.index().startTime());
+            recoveryStatus.start().time(System.currentTimeMillis() - recoveryStatus.start().startTime());
+            recoveryStatus.start().checkIndexTime(indexShard.checkIndexTook());
             return;
         }
 
@@ -160,12 +166,18 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
             // no translog files, bail
             indexShard.start("post recovery from gateway, no translog");
             // no index, just start the shard and bail
-            recoveryStatus.translog().time(System.currentTimeMillis() - recoveryStatus.index().startTime());
+            recoveryStatus.start().time(System.currentTimeMillis() - recoveryStatus.start().startTime());
+            recoveryStatus.start().checkIndexTime(indexShard.checkIndexTook());
             return;
         }
 
         // recover from the translog file
         indexShard.performRecoveryPrepareForTranslog();
+        recoveryStatus.start().time(System.currentTimeMillis() - recoveryStatus.start().startTime());
+        recoveryStatus.start().checkIndexTime(indexShard.checkIndexTook());
+
+        recoveryStatus.translog().startTime(System.currentTimeMillis());
+        recoveryStatus.updateStage(RecoveryStatus.Stage.TRANSLOG);
         try {
             InputStreamStreamInput si = new InputStreamStreamInput(new FileInputStream(recoveringTranslogFile));
             while (true) {
@@ -192,7 +204,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
 
         recoveringTranslogFile.delete();
 
-        recoveryStatus.translog().time(System.currentTimeMillis() - recoveryStatus.index().startTime());
+        recoveryStatus.translog().time(System.currentTimeMillis() - recoveryStatus.translog().startTime());
     }
 
     @Override
@@ -237,11 +249,31 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
         return NO_SNAPSHOT_LOCK;
     }
 
-    private class Sync implements Runnable {
+    class Sync implements Runnable {
         @Override
         public void run() {
-            if (indexShard.state() == IndexShardState.STARTED) {
-                indexShard.translog().sync();
+            // don't re-schedule  if its closed..., we are done
+            if (indexShard.state() == IndexShardState.CLOSED) {
+                return;
+            }
+            if (indexShard.state() == IndexShardState.STARTED && indexShard.translog().syncNeeded()) {
+                threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            indexShard.translog().sync();
+                        } catch (Exception e) {
+                            if (indexShard.state() == IndexShardState.STARTED) {
+                                logger.warn("failed to sync translog", e);
+                            }
+                        }
+                        if (indexShard.state() != IndexShardState.CLOSED) {
+                            flushScheduler = threadPool.schedule(syncInterval, ThreadPool.Names.SAME, Sync.this);
+                        }
+                    }
+                });
+            } else {
+                flushScheduler = threadPool.schedule(syncInterval, ThreadPool.Names.SAME, Sync.this);
             }
         }
     }

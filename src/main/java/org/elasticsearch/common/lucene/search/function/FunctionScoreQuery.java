@@ -29,8 +29,6 @@ import java.util.Set;
 
 /**
  * A query that allows for a pluggable boost function to be applied to it.
- *
- *
  */
 public class FunctionScoreQuery extends Query {
 
@@ -117,7 +115,7 @@ public class FunctionScoreQuery extends Query {
             }
 
             function.setNextReader(reader);
-            Explanation functionExplanation = function.explain(doc, subQueryExpl);
+            Explanation functionExplanation = function.explainScore(doc, subQueryExpl);
             float sc = getValue() * functionExplanation.getValue();
             Explanation res = new ComplexExplanation(true, sc, "custom score, product of:");
             res.addDetail(functionExplanation);

@@ -232,12 +232,21 @@ public abstract class NetworkUtils {
     }
 
 
+    /**
+     * Returns all the available interfaces, including first level sub interfaces.
+     */
     public static List<NetworkInterface> getAllAvailableInterfaces() throws SocketException {
-        List<NetworkInterface> allInterfaces = new ArrayList<NetworkInterface>(10);
-        NetworkInterface intf;
-        for (Enumeration en = NetworkInterface.getNetworkInterfaces(); en.hasMoreElements(); ) {
-            intf = (NetworkInterface) en.nextElement();
-            allInterfaces.add(intf);
+        List<NetworkInterface> allInterfaces = new ArrayList<NetworkInterface>();
+        for (Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces(); interfaces.hasMoreElements(); ) {
+            NetworkInterface intf = interfaces.nextElement();
+            allInterfaces.add(interfaces.nextElement());
+
+            Enumeration<NetworkInterface> subInterfaces = intf.getSubInterfaces();
+            if (subInterfaces != null && subInterfaces.hasMoreElements()) {
+                while (subInterfaces.hasMoreElements()) {
+                    allInterfaces.add(subInterfaces.nextElement());
+                }
+            }
         }
         return allInterfaces;
     }

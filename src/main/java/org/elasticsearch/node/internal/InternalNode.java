@@ -21,7 +21,7 @@ package org.elasticsearch.node.internal;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.TransportActionModule;
+import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.cache.NodeCache;
 import org.elasticsearch.cache.NodeCacheModule;
 import org.elasticsearch.client.Client;
@@ -59,9 +59,9 @@ import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.http.HttpServerModule;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.cache.filter.IndicesNodeFilterCache;
+import org.elasticsearch.indices.cache.filter.IndicesFilterCache;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
-import org.elasticsearch.indices.memory.IndexingMemoryBufferController;
+import org.elasticsearch.indices.memory.IndexingMemoryController;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
 import org.elasticsearch.jmx.JmxModule;
 import org.elasticsearch.jmx.JmxService;
@@ -117,6 +117,8 @@ public final class InternalNode implements Node {
         this.settings = pluginsService.updatedSettings();
         this.environment = tuple.v2();
 
+        NodeEnvironment nodeEnvironment = new NodeEnvironment(this.settings, this.environment);
+
         ModulesBuilder modules = new ModulesBuilder();
         modules.add(new PluginsModule(settings, pluginsService));
         modules.add(new SettingsModule(settings));
@@ -126,7 +128,7 @@ public final class InternalNode implements Node {
         modules.add(new ScriptModule(settings));
         modules.add(new JmxModule(settings));
         modules.add(new EnvironmentModule(environment));
-        modules.add(new NodeEnvironmentModule());
+        modules.add(new NodeEnvironmentModule(nodeEnvironment));
         modules.add(new ClusterNameModule(settings));
         modules.add(new ThreadPoolModule(settings));
         modules.add(new DiscoveryModule(settings));
@@ -139,7 +141,7 @@ public final class InternalNode implements Node {
         modules.add(new RiversModule(settings));
         modules.add(new IndicesModule(settings));
         modules.add(new SearchModule());
-        modules.add(new TransportActionModule());
+        modules.add(new ActionModule(false));
         modules.add(new MonitorModule(settings));
         modules.add(new GatewayModule(settings));
         modules.add(new NodeClientModule());
@@ -174,7 +176,7 @@ public final class InternalNode implements Node {
         }
 
         injector.getInstance(IndicesService.class).start();
-        injector.getInstance(IndexingMemoryBufferController.class).start();
+        injector.getInstance(IndexingMemoryController.class).start();
         injector.getInstance(IndicesClusterStateService.class).start();
         injector.getInstance(IndicesTTLService.class).start();
         injector.getInstance(RiversManager.class).start();
@@ -216,7 +218,7 @@ public final class InternalNode implements Node {
         // stop any changes happening as a result of cluster state changes
         injector.getInstance(IndicesClusterStateService.class).stop();
         // we close indices first, so operations won't be allowed on it
-        injector.getInstance(IndexingMemoryBufferController.class).stop();
+        injector.getInstance(IndexingMemoryController.class).stop();
         injector.getInstance(IndicesTTLService.class).stop();
         injector.getInstance(IndicesService.class).stop();
         // sleep a bit to let operations finish with indices service
@@ -269,8 +271,8 @@ public final class InternalNode implements Node {
         stopWatch.stop().start("indices_cluster");
         injector.getInstance(IndicesClusterStateService.class).close();
         stopWatch.stop().start("indices");
-        injector.getInstance(IndicesNodeFilterCache.class).close();
-        injector.getInstance(IndexingMemoryBufferController.class).close();
+        injector.getInstance(IndicesFilterCache.class).close();
+        injector.getInstance(IndexingMemoryController.class).close();
         injector.getInstance(IndicesTTLService.class).close();
         injector.getInstance(IndicesService.class).close();
         stopWatch.stop().start("routing");

@@ -19,9 +19,9 @@
 
 package org.elasticsearch.search.facet.histogram.unbounded;
 
-import gnu.trove.ExtTLongObjectHashMap;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.NumericFieldData;
@@ -36,8 +36,6 @@ import java.io.IOException;
 
 /**
  * A histogram facet collector that uses different fields for the key and the value.
- *
- *
  */
 public class ValueHistogramFacetCollector extends AbstractFacetCollector {
 
@@ -70,7 +68,7 @@ public class ValueHistogramFacetCollector extends AbstractFacetCollector {
         }
 
         // add type filter if there is exact doc mapper associated with it
-        if (smartMappers.hasDocMapper() && smartMappers.explicitTypeInName()) {
+        if (smartMappers.explicitTypeInNameWithDocMapper()) {
             setFilter(context.filterCache().cache(smartMappers.docMapper().typeFilter()));
         }
 

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.action.TimestampParsingException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -27,6 +28,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -250,9 +252,9 @@ public class MappingMetaData {
 
     private final CompressedString source;
 
-    private final Id id;
-    private final Routing routing;
-    private final Timestamp timestamp;
+    private Id id;
+    private Routing routing;
+    private Timestamp timestamp;
 
     public MappingMetaData(DocumentMapper docMapper) {
         this.type = docMapper.type();
@@ -262,13 +264,32 @@ public class MappingMetaData {
         this.timestamp = new Timestamp(docMapper.timestampFieldMapper().enabled(), docMapper.timestampFieldMapper().path(), docMapper.timestampFieldMapper().dateTimeFormatter().format());
     }
 
+    public MappingMetaData(CompressedString mapping) throws IOException {
+        this.source = mapping;
+        Map<String, Object> mappingMap = XContentHelper.createParser(mapping.compressed(), 0, mapping.compressed().length).mapOrderedAndClose();
+        if (mappingMap.size() != 1) {
+            throw new ElasticSearchIllegalStateException("Can't derive type from mapping, no root type: " + mapping.string());
+        }
+        this.type = mappingMap.keySet().iterator().next();
+        initMappers((Map<String, Object>) mappingMap.get(this.type));
+    }
+
+    public MappingMetaData(Map<String, Object> mapping) throws IOException {
+        this(mapping.keySet().iterator().next(), mapping);
+    }
+
     public MappingMetaData(String type, Map<String, Object> mapping) throws IOException {
         this.type = type;
-        this.source = new CompressedString(XContentFactory.jsonBuilder().map(mapping).string());
+        XContentBuilder mappingBuilder = XContentFactory.jsonBuilder().map(mapping);
+        this.source = new CompressedString(mappingBuilder.underlyingBytes(), 0, mappingBuilder.underlyingBytesLength());
         Map<String, Object> withoutType = mapping;
         if (mapping.size() == 1 && mapping.containsKey(type)) {
             withoutType = (Map<String, Object>) mapping.get(type);
         }
+        initMappers(withoutType);
+    }
+
+    private void initMappers(Map<String, Object> withoutType) {
         if (withoutType.containsKey("_id")) {
             String path = null;
             Map<String, Object> routingNode = (Map<String, Object>) withoutType.get("_id");
@@ -342,7 +363,7 @@ public class MappingMetaData {
      * Converts the serialized compressed form of the mappings into a parsed map.
      */
     public Map<String, Object> sourceAsMap() throws IOException {
-        Map<String, Object> mapping = XContentHelper.convertToMap(source.compressed(), 0, source.compressed().length).v2();
+        Map<String, Object> mapping = XContentHelper.convertToMap(source.compressed(), 0, source.compressed().length, true).v2();
         if (mapping.size() == 1 && mapping.containsKey(type())) {
             // the type name is the root value, reduce it
             mapping = (Map<String, Object>) mapping.get(type());

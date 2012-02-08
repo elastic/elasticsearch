@@ -25,15 +25,15 @@ import com.google.common.collect.Sets;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.BaseAction;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
@@ -56,7 +56,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  *
  */
-public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
+public class TransportBulkAction extends TransportAction<BulkRequest, BulkResponse> {
 
     private final boolean autoCreateIndex;
 
@@ -79,7 +79,7 @@ public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
         this.autoCreateIndex = settings.getAsBoolean("action.auto_create_index", true);
         this.allowIdGeneration = componentSettings.getAsBoolean("action.allow_id_generation", true);
 
-        transportService.registerHandler(TransportActions.BULK, new TransportHandler());
+        transportService.registerHandler(BulkAction.NAME, new TransportHandler());
     }
 
     @Override
@@ -138,6 +138,9 @@ public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
 
     private void executeBulk(final BulkRequest bulkRequest, final long startTime, final ActionListener<BulkResponse> listener) {
         ClusterState clusterState = clusterService.state();
+        // TODO use timeout to wait here if its blocked...
+        clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.WRITE);
+
         MetaData metaData = clusterState.metaData();
         for (ActionRequest request : bulkRequest.requests) {
             if (request instanceof IndexRequest) {
@@ -152,6 +155,7 @@ public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
                 indexRequest.process(metaData, aliasOrIndex, mappingMd, allowIdGeneration);
             } else if (request instanceof DeleteRequest) {
                 DeleteRequest deleteRequest = (DeleteRequest) request;
+                deleteRequest.routing(clusterState.metaData().resolveIndexRouting(deleteRequest.routing(), deleteRequest.index()));
                 deleteRequest.index(clusterState.metaData().concreteIndex(deleteRequest.index()));
             }
         }
@@ -277,7 +281,7 @@ public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
                     try {
                         channel.sendResponse(e);
                     } catch (Exception e1) {
-                        logger.warn("Failed to send error response for action [" + TransportActions.BULK + "] and request [" + request + "]", e1);
+                        logger.warn("Failed to send error response for action [" + BulkAction.NAME + "] and request [" + request + "]", e1);
                     }
                 }
             });

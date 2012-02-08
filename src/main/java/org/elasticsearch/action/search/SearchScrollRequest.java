@@ -28,7 +28,7 @@ import org.elasticsearch.search.Scroll;
 
 import java.io.IOException;
 
-import static org.elasticsearch.action.Actions.addValidationError;
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.search.Scroll.readScroll;
 
 /**
@@ -96,6 +96,11 @@ public class SearchScrollRequest implements ActionRequest {
      */
     public String scrollId() {
         return scrollId;
+    }
+
+    public SearchScrollRequest scrollId(String scrollId) {
+        this.scrollId = scrollId;
+        return this;
     }
 
     /**

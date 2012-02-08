@@ -22,6 +22,8 @@ package org.elasticsearch.cluster.metadata;
 import com.google.common.collect.*;
 import gnu.trove.set.hash.THashSet;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.cluster.block.ClusterBlock;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -33,6 +35,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.*;
@@ -47,8 +50,12 @@ import static org.elasticsearch.common.settings.ImmutableSettings.*;
  *
  */
 public class MetaData implements Iterable<IndexMetaData> {
+    public static final String SETTING_READ_ONLY = "cluster.blocks.read_only";
+
+    public static final ClusterBlock CLUSTER_READ_ONLY_BLOCK = new ClusterBlock(6, "cluster read-only (api)", false, false, RestStatus.FORBIDDEN, ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA);
 
     private static ImmutableSet<String> dynamicSettings = ImmutableSet.<String>builder()
+            .add(SETTING_READ_ONLY)
             .build();
 
     public static ImmutableSet<String> dynamicSettings() {
@@ -621,6 +628,12 @@ public class MetaData implements Iterable<IndexMetaData> {
         return indices.values().iterator();
     }
 
+    public static boolean isGlobalStateEquals(MetaData metaData1, MetaData metaData2) {
+        if (!metaData1.persistentSettings.equals(metaData2.persistentSettings)) return false;
+        if (!metaData1.templates.equals(metaData2.templates())) return false;
+        return true;
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -651,10 +664,21 @@ public class MetaData implements Iterable<IndexMetaData> {
         }
 
         public Builder put(IndexMetaData.Builder indexMetaDataBuilder) {
-            return put(indexMetaDataBuilder.build());
+            // we know its a new one, increment the version and store
+            indexMetaDataBuilder.version(indexMetaDataBuilder.version() + 1);
+            IndexMetaData indexMetaData = indexMetaDataBuilder.build();
+            indices.put(indexMetaData.index(), indexMetaData);
+            return this;
         }
 
-        public Builder put(IndexMetaData indexMetaData) {
+        public Builder put(IndexMetaData indexMetaData, boolean incrementVersion) {
+            if (indices.get(indexMetaData.index()) == indexMetaData) {
+                return this;
+            }
+            // if we put a new index metadata, increment its version
+            if (incrementVersion) {
+                indexMetaData = IndexMetaData.newIndexMetaDataBuilder(indexMetaData).version(indexMetaData.version() + 1).build();
+            }
             indices.put(indexMetaData.index(), indexMetaData);
             return this;
         }
@@ -665,6 +689,11 @@ public class MetaData implements Iterable<IndexMetaData> {
 
         public Builder remove(String index) {
             indices.remove(index);
+            return this;
+        }
+
+        public Builder removeAllIndices() {
+            indices.clear();
             return this;
         }
 
@@ -692,8 +721,7 @@ public class MetaData implements Iterable<IndexMetaData> {
                     throw new IndexMissingException(new Index(index));
                 }
                 put(IndexMetaData.newIndexMetaDataBuilder(indexMetaData)
-                        .settings(settingsBuilder().put(indexMetaData.settings()).put(settings))
-                        .build());
+                        .settings(settingsBuilder().put(indexMetaData.settings()).put(settings)));
             }
             return this;
         }
@@ -707,14 +735,22 @@ public class MetaData implements Iterable<IndexMetaData> {
                 if (indexMetaData == null) {
                     throw new IndexMissingException(new Index(index));
                 }
-                put(IndexMetaData.newIndexMetaDataBuilder(indexMetaData).numberOfReplicas(numberOfReplicas).build());
+                put(IndexMetaData.newIndexMetaDataBuilder(indexMetaData).numberOfReplicas(numberOfReplicas));
             }
             return this;
+        }
+
+        public Settings transientSettings() {
+            return this.transientSettings;
         }
 
         public Builder transientSettings(Settings settings) {
             this.transientSettings = settings;
             return this;
+        }
+
+        public Settings persistentSettings() {
+            return this.persistentSettings;
         }
 
         public Builder persistentSettings(Settings settings) {
@@ -742,6 +778,8 @@ public class MetaData implements Iterable<IndexMetaData> {
         public static void toXContent(MetaData metaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject("meta-data");
 
+            builder.field("version", metaData.version());
+
             if (!metaData.persistentSettings().getAsMap().isEmpty()) {
                 builder.startObject("settings");
                 for (Map.Entry<String, String> entry : metaData.persistentSettings().getAsMap().entrySet()) {
@@ -756,11 +794,13 @@ public class MetaData implements Iterable<IndexMetaData> {
             }
             builder.endObject();
 
-            builder.startObject("indices");
-            for (IndexMetaData indexMetaData : metaData) {
-                IndexMetaData.Builder.toXContent(indexMetaData, builder, params);
+            if (!metaData.indices().isEmpty()) {
+                builder.startObject("indices");
+                for (IndexMetaData indexMetaData : metaData) {
+                    IndexMetaData.Builder.toXContent(indexMetaData, builder, params);
+                }
+                builder.endObject();
             }
-            builder.endObject();
 
             builder.endObject();
         }
@@ -794,12 +834,16 @@ public class MetaData implements Iterable<IndexMetaData> {
                         builder.persistentSettings(settingsBuilder.build());
                     } else if ("indices".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            builder.put(IndexMetaData.Builder.fromXContent(parser));
+                            builder.put(IndexMetaData.Builder.fromXContent(parser), false);
                         }
                     } else if ("templates".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             builder.put(IndexTemplateMetaData.Builder.fromXContent(parser));
                         }
+                    }
+                } else if (token.isValue()) {
+                    if ("version".equals(currentFieldName)) {
+                        builder.version = parser.longValue();
                     }
                 }
             }
@@ -813,7 +857,7 @@ public class MetaData implements Iterable<IndexMetaData> {
             builder.persistentSettings(readSettingsFromStream(in));
             int size = in.readVInt();
             for (int i = 0; i < size; i++) {
-                builder.put(IndexMetaData.Builder.readFrom(in));
+                builder.put(IndexMetaData.Builder.readFrom(in), false);
             }
             size = in.readVInt();
             for (int i = 0; i < size; i++) {

@@ -21,12 +21,13 @@ package org.elasticsearch.action.admin.indices.flush;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
@@ -44,8 +45,6 @@ import static com.google.common.collect.Lists.newArrayList;
 
 /**
  * Flush Action.
- *
- *
  */
 public class TransportFlushAction extends TransportBroadcastOperationAction<FlushRequest, FlushResponse, ShardFlushRequest, ShardFlushResponse> {
 
@@ -64,12 +63,7 @@ public class TransportFlushAction extends TransportBroadcastOperationAction<Flus
 
     @Override
     protected String transportAction() {
-        return TransportActions.Admin.Indices.FLUSH;
-    }
-
-    @Override
-    protected String transportShardAction() {
-        return "indices/flush/shard";
+        return FlushAction.NAME;
     }
 
     @Override
@@ -130,7 +124,17 @@ public class TransportFlushAction extends TransportBroadcastOperationAction<Flus
      * The refresh request works against *all* shards.
      */
     @Override
-    protected GroupShardsIterator shards(FlushRequest request, String[] concreteIndices, ClusterState clusterState) {
+    protected GroupShardsIterator shards(ClusterState clusterState, FlushRequest request, String[] concreteIndices) {
         return clusterState.routingTable().allActiveShardsGrouped(concreteIndices, true);
+    }
+
+    @Override
+    protected ClusterBlockException checkGlobalBlock(ClusterState state, FlushRequest request) {
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA);
+    }
+
+    @Override
+    protected ClusterBlockException checkRequestBlock(ClusterState state, FlushRequest countRequest, String[] concreteIndices) {
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, concreteIndices);
     }
 }

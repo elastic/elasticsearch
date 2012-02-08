@@ -77,11 +77,19 @@ public class SearchScanTests extends AbstractNodesTests {
             expectedIds.add(Integer.toString(i));
             client.prepareIndex("test", "tweet", Integer.toString(i)).setSource(
                     jsonBuilder().startObject().field("user", "kimchy1").field("postDate", System.currentTimeMillis()).field("message", "test").endObject()).execute().actionGet();
+            // make some segments
+            if (i % 10 == 0) {
+                client.admin().indices().prepareFlush().execute().actionGet();
+            }
         }
 
         for (int i = 100; i < 200; i++) {
             client.prepareIndex("test", "tweet", Integer.toString(i)).setSource(
                     jsonBuilder().startObject().field("user", "kimchy2").field("postDate", System.currentTimeMillis()).field("message", "test").endObject()).execute().actionGet();
+            // make some segments
+            if (i % 10 == 0) {
+                client.admin().indices().prepareFlush().execute().actionGet();
+            }
         }
 
         client.admin().indices().prepareRefresh().execute().actionGet();

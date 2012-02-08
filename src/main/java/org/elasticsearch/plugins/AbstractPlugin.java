@@ -30,8 +30,10 @@ import java.util.Collection;
 
 /**
  * A base class for a plugin.
- *
- *
+ * <p/>
+ * A plugin can be dynamically injected with {@link Module} by implementing <tt>onModule(AnyModule)</tt> method
+ * removing the need to override {@link #processModule(org.elasticsearch.common.inject.Module)} and check using
+ * instanceof.
  */
 public abstract class AbstractPlugin implements Plugin {
 
@@ -40,6 +42,14 @@ public abstract class AbstractPlugin implements Plugin {
      */
     @Override
     public Collection<Class<? extends Module>> modules() {
+        return ImmutableList.of();
+    }
+
+    /**
+     * Defaults to return an empty list.
+     */
+    @Override
+    public Collection<Module> modules(Settings settings) {
         return ImmutableList.of();
     }
 
@@ -63,6 +73,14 @@ public abstract class AbstractPlugin implements Plugin {
      * Defaults to return an empty list.
      */
     @Override
+    public Collection<Module> indexModules(Settings settings) {
+        return ImmutableList.of();
+    }
+
+    /**
+     * Defaults to return an empty list.
+     */
+    @Override
     public Collection<Class<? extends CloseableIndexComponent>> indexServices() {
         return ImmutableList.of();
     }
@@ -72,6 +90,14 @@ public abstract class AbstractPlugin implements Plugin {
      */
     @Override
     public Collection<Class<? extends Module>> shardModules() {
+        return ImmutableList.of();
+    }
+
+    /**
+     * Defaults to return an empty list.
+     */
+    @Override
+    public Collection<Module> shardModules(Settings settings) {
         return ImmutableList.of();
     }
 

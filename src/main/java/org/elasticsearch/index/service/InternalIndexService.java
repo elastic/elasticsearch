@@ -295,7 +295,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
         ModulesBuilder modules = new ModulesBuilder();
         modules.add(new ShardsPluginsModule(indexSettings, pluginsService));
-        modules.add(new IndexShardModule(shardId));
+        modules.add(new IndexShardModule(indexSettings, shardId));
         modules.add(new ShardIndexingModule());
         modules.add(new ShardSearchModule());
         modules.add(new ShardGetModule());

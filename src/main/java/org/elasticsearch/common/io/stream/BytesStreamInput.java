@@ -19,9 +19,10 @@
 
 package org.elasticsearch.common.io.stream;
 
+import org.elasticsearch.common.BytesHolder;
+
 import java.io.EOFException;
 import java.io.IOException;
-import java.io.UTFDataFormatException;
 
 /**
  *
@@ -34,14 +35,28 @@ public class BytesStreamInput extends StreamInput {
 
     protected int count;
 
-    public BytesStreamInput(byte buf[]) {
-        this(buf, 0, buf.length);
+    private final boolean unsafe;
+
+    public BytesStreamInput(byte buf[], boolean unsafe) {
+        this(buf, 0, buf.length, unsafe);
     }
 
-    public BytesStreamInput(byte buf[], int offset, int length) {
+    public BytesStreamInput(byte buf[], int offset, int length, boolean unsafe) {
         this.buf = buf;
         this.pos = offset;
         this.count = Math.min(offset + length, buf.length);
+        this.unsafe = unsafe;
+    }
+
+    @Override
+    public BytesHolder readBytesReference() throws IOException {
+        if (unsafe) {
+            return readBytesHolder();
+        }
+        int size = readVInt();
+        BytesHolder bytes = new BytesHolder(buf, pos, size);
+        pos += size;
+        return bytes;
     }
 
     @Override
@@ -124,83 +139,5 @@ public class BytesStreamInput extends StreamInput {
     @Override
     public void close() throws IOException {
         // nothing to do here...
-    }
-
-    public String readUTF() throws IOException {
-        int utflen = readInt();
-        if (utflen == 0) {
-            return "";
-        }
-        if (chararr.length < utflen) {
-            chararr = new char[utflen * 2];
-        }
-        char[] chararr = this.chararr;
-        byte[] bytearr = buf;
-        int endPos = pos + utflen;
-
-        int c, char2, char3;
-        int count = pos;
-        int chararr_count = 0;
-
-        while (count < endPos) {
-            c = (int) bytearr[count] & 0xff;
-            if (c > 127) break;
-            count++;
-            chararr[chararr_count++] = (char) c;
-        }
-
-        while (count < endPos) {
-            c = (int) bytearr[count] & 0xff;
-            switch (c >> 4) {
-                case 0:
-                case 1:
-                case 2:
-                case 3:
-                case 4:
-                case 5:
-                case 6:
-                case 7:
-                    /* 0xxxxxxx*/
-                    count++;
-                    chararr[chararr_count++] = (char) c;
-                    break;
-                case 12:
-                case 13:
-                    /* 110x xxxx   10xx xxxx*/
-                    count += 2;
-                    if (count > endPos)
-                        throw new UTFDataFormatException(
-                                "malformed input: partial character at end");
-                    char2 = (int) bytearr[count - 1];
-                    if ((char2 & 0xC0) != 0x80)
-                        throw new UTFDataFormatException(
-                                "malformed input around byte " + count);
-                    chararr[chararr_count++] = (char) (((c & 0x1F) << 6) |
-                            (char2 & 0x3F));
-                    break;
-                case 14:
-                    /* 1110 xxxx  10xx xxxx  10xx xxxx */
-                    count += 3;
-                    if (count > endPos)
-                        throw new UTFDataFormatException(
-                                "malformed input: partial character at end");
-                    char2 = (int) bytearr[count - 2];
-                    char3 = (int) bytearr[count - 1];
-                    if (((char2 & 0xC0) != 0x80) || ((char3 & 0xC0) != 0x80))
-                        throw new UTFDataFormatException(
-                                "malformed input around byte " + (count - 1));
-                    chararr[chararr_count++] = (char) (((c & 0x0F) << 12) |
-                            ((char2 & 0x3F) << 6) |
-                            ((char3 & 0x3F) << 0));
-                    break;
-                default:
-                    /* 10xx xxxx,  1111 xxxx */
-                    throw new UTFDataFormatException(
-                            "malformed input around byte " + count);
-            }
-        }
-        pos += utflen;
-        // The number of chars produced may be less than utflen
-        return new String(chararr, 0, chararr_count);
     }
 }

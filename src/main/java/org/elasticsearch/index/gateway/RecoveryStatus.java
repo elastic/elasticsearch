@@ -29,6 +29,7 @@ public class RecoveryStatus {
     public static enum Stage {
         INIT,
         INDEX,
+        START,
         TRANSLOG,
         DONE
     }
@@ -42,6 +43,8 @@ public class RecoveryStatus {
     private Index index = new Index();
 
     private Translog translog = new Translog();
+
+    private Start start = new Start();
 
     public Stage stage() {
         return this.stage;
@@ -72,8 +75,42 @@ public class RecoveryStatus {
         return index;
     }
 
+    public Start start() {
+        return this.start;
+    }
+
     public Translog translog() {
         return translog;
+    }
+
+    public static class Start {
+        private long startTime;
+        private long time;
+        private long checkIndexTime;
+
+        public long startTime() {
+            return this.startTime;
+        }
+
+        public void startTime(long startTime) {
+            this.startTime = startTime;
+        }
+
+        public long time() {
+            return this.time;
+        }
+
+        public void time(long time) {
+            this.time = time;
+        }
+
+        public long checkIndexTime() {
+            return checkIndexTime;
+        }
+
+        public void checkIndexTime(long checkIndexTime) {
+            this.checkIndexTime = checkIndexTime;
+        }
     }
 
     public static class Translog {

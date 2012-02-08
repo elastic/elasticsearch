@@ -19,10 +19,10 @@
 
 package org.elasticsearch.action.deletebyquery;
 
-import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.replication.TransportIndicesReplicationOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -66,14 +66,17 @@ public class TransportDeleteByQueryAction extends TransportIndicesReplicationOpe
 
     @Override
     protected String transportAction() {
-        return TransportActions.DELETE_BY_QUERY;
+        return DeleteByQueryAction.NAME;
     }
 
     @Override
-    protected void checkBlock(DeleteByQueryRequest request, String[] concreteIndices, ClusterState state) {
-        for (String index : concreteIndices) {
-            state.blocks().indexBlockedRaiseException(ClusterBlockLevel.WRITE, index);
-        }
+    protected ClusterBlockException checkGlobalBlock(ClusterState state, DeleteByQueryRequest replicationPingRequest) {
+        return state.blocks().globalBlockedException(ClusterBlockLevel.READ);
+    }
+
+    @Override
+    protected ClusterBlockException checkRequestBlock(ClusterState state, DeleteByQueryRequest replicationPingRequest, String[] concreteIndices) {
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.WRITE, concreteIndices);
     }
 
     @Override

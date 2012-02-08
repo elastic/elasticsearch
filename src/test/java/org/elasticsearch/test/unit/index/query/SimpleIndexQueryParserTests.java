@@ -288,7 +288,7 @@ public class SimpleIndexQueryParserTests {
     @Test
     public void testTermQueryBuilder() throws IOException {
         IndexQueryParserService queryParser = queryParser();
-        Query parsedQuery = queryParser.parse(termQuery("age", 34).buildAsBytes()).query();
+        Query parsedQuery = queryParser.parse(termQuery("age", 34).buildAsBytes().copiedByteArray()).query();
         assertThat(parsedQuery, instanceOf(NumericRangeQuery.class));
         NumericRangeQuery fieldQuery = (NumericRangeQuery) parsedQuery;
         assertThat(fieldQuery.getMin().intValue(), equalTo(34));
@@ -313,7 +313,7 @@ public class SimpleIndexQueryParserTests {
     @Test
     public void testFuzzyQueryBuilder() throws IOException {
         IndexQueryParserService queryParser = queryParser();
-        Query parsedQuery = queryParser.parse(fuzzyQuery("name.first", "sh").buildAsBytes()).query();
+        Query parsedQuery = queryParser.parse(fuzzyQuery("name.first", "sh").buildAsBytes().copiedByteArray()).query();
         assertThat(parsedQuery, instanceOf(FuzzyQuery.class));
         FuzzyQuery fuzzyQuery = (FuzzyQuery) parsedQuery;
         assertThat(fuzzyQuery.getTerm(), equalTo(new Term("name.first", "sh")));
@@ -332,7 +332,7 @@ public class SimpleIndexQueryParserTests {
     @Test
     public void testFuzzyQueryWithFieldsBuilder() throws IOException {
         IndexQueryParserService queryParser = queryParser();
-        Query parsedQuery = queryParser.parse(fuzzyQuery("name.first", "sh").minSimilarity(0.1f).prefixLength(1).boost(2.0f).buildAsBytes()).query();
+        Query parsedQuery = queryParser.parse(fuzzyQuery("name.first", "sh").minSimilarity(0.1f).prefixLength(1).boost(2.0f).buildAsBytes().copiedByteArray()).query();
         assertThat(parsedQuery, instanceOf(FuzzyQuery.class));
         FuzzyQuery fuzzyQuery = (FuzzyQuery) parsedQuery;
         assertThat(fuzzyQuery.getTerm(), equalTo(new Term("name.first", "sh")));
@@ -368,7 +368,7 @@ public class SimpleIndexQueryParserTests {
     @Test
     public void testFieldQueryBuilder1() throws IOException {
         IndexQueryParserService queryParser = queryParser();
-        Query parsedQuery = queryParser.parse(fieldQuery("age", 34).buildAsBytes()).query();
+        Query parsedQuery = queryParser.parse(fieldQuery("age", 34).buildAsBytes().copiedByteArray()).query();
         assertThat(parsedQuery, instanceOf(NumericRangeQuery.class));
         NumericRangeQuery fieldQuery = (NumericRangeQuery) parsedQuery;
         assertThat(fieldQuery.getMin().intValue(), equalTo(34));

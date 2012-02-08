@@ -20,11 +20,13 @@
 package org.elasticsearch.index.cache.field.data.resident;
 
 import com.google.common.base.Objects;
-import com.google.common.collect.MapEvictionListener;
-import com.google.common.collect.MapMaker;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.RemovalListener;
+import com.google.common.cache.RemovalNotification;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.cache.CacheBuilderHelper;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
@@ -35,13 +37,12 @@ import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
 
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 
 /**
  *
  */
-public class ResidentFieldDataCache extends AbstractConcurrentMapFieldDataCache implements MapEvictionListener<String, FieldData> {
+public class ResidentFieldDataCache extends AbstractConcurrentMapFieldDataCache implements RemovalListener<String, FieldData> {
 
     private final IndexSettingsService indexSettingsService;
 
@@ -71,16 +72,16 @@ public class ResidentFieldDataCache extends AbstractConcurrentMapFieldDataCache 
     }
 
     @Override
-    protected ConcurrentMap<String, FieldData> buildFieldDataMap() {
-        MapMaker mapMaker = new MapMaker();
+    protected Cache<String, FieldData> buildFieldDataMap() {
+        CacheBuilder<String, FieldData> cacheBuilder = CacheBuilder.newBuilder().removalListener(this);
         if (maxSize != -1) {
-            mapMaker.maximumSize(maxSize);
+            cacheBuilder.maximumSize(maxSize);
         }
         if (expire != null) {
-            mapMaker.expireAfterAccess(expire.nanos(), TimeUnit.NANOSECONDS);
+            cacheBuilder.expireAfterAccess(expire.nanos(), TimeUnit.NANOSECONDS);
         }
-        mapMaker.evictionListener(this);
-        return mapMaker.makeMap();
+        CacheBuilderHelper.disableStats(cacheBuilder);
+        return cacheBuilder.build();
     }
 
     @Override
@@ -94,8 +95,10 @@ public class ResidentFieldDataCache extends AbstractConcurrentMapFieldDataCache 
     }
 
     @Override
-    public void onEviction(@Nullable String s, @Nullable FieldData fieldData) {
-        evictions.inc();
+    public void onRemoval(RemovalNotification<String, FieldData> removalNotification) {
+        if (removalNotification.wasEvicted()) {
+            evictions.inc();
+        }
     }
 
     static {

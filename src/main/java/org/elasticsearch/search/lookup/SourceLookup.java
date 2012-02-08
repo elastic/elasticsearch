@@ -25,7 +25,6 @@ import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.SourceFieldSelector;
@@ -45,6 +44,9 @@ public class SourceLookup implements Map {
 
     private int docId = -1;
 
+    private byte[] sourceAsBytes;
+    private int sourceAsBytesOffset;
+    private int sourceAsBytesLength;
     private Map<String, Object> source;
 
     public Map<String, Object> source() {
@@ -55,7 +57,10 @@ public class SourceLookup implements Map {
         if (source != null) {
             return source;
         }
-        XContentParser parser = null;
+        if (sourceAsBytes != null) {
+            source = sourceAsMap(sourceAsBytes, sourceAsBytesOffset, sourceAsBytesLength);
+            return source;
+        }
         try {
             Document doc = reader.document(docId, SourceFieldSelector.INSTANCE);
             Fieldable sourceField = doc.getFieldable(SourceFieldMapper.NAME);
@@ -66,16 +71,12 @@ public class SourceLookup implements Map {
             }
         } catch (Exception e) {
             throw new ElasticSearchParseException("failed to parse / load source", e);
-        } finally {
-            if (parser != null) {
-                parser.close();
-            }
         }
         return this.source;
     }
 
     public static Map<String, Object> sourceAsMap(byte[] bytes, int offset, int length) throws ElasticSearchParseException {
-        return XContentHelper.convertToMap(bytes, offset, length).v2();
+        return XContentHelper.convertToMap(bytes, offset, length, false).v2();
     }
 
     public void setNextReader(IndexReader reader) {
@@ -84,6 +85,7 @@ public class SourceLookup implements Map {
         }
         this.reader = reader;
         this.source = null;
+        this.sourceAsBytes = null;
         this.docId = -1;
     }
 
@@ -92,7 +94,14 @@ public class SourceLookup implements Map {
             return;
         }
         this.docId = docId;
+        this.sourceAsBytes = null;
         this.source = null;
+    }
+
+    public void setNextSource(byte[] source, int offset, int length) {
+        this.sourceAsBytes = source;
+        this.sourceAsBytesOffset = offset;
+        this.sourceAsBytesLength = length;
     }
 
     public void setNextSource(Map<String, Object> source) {
@@ -105,6 +114,10 @@ public class SourceLookup implements Map {
      */
     public List<Object> extractRawValues(String path) {
         return XContentMapValues.extractRawValues(path, loadSourceIfNeeded());
+    }
+
+    public Object filter(String[] includes, String[] excludes) {
+        return XContentMapValues.filter(loadSourceIfNeeded(), includes, excludes);
     }
 
     public Object extractValue(String path) {

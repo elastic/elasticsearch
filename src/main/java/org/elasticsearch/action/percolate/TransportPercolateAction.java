@@ -20,10 +20,11 @@
 package org.elasticsearch.action.percolate;
 
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.single.custom.TransportSingleCustomOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -65,17 +66,22 @@ public class TransportPercolateAction extends TransportSingleCustomOperationActi
 
     @Override
     protected String transportAction() {
-        return TransportActions.PERCOLATE;
+        return PercolateAction.NAME;
     }
 
     @Override
-    protected String transportShardAction() {
-        return "indices/percolate/shard";
+    protected ClusterBlockException checkGlobalBlock(ClusterState state, PercolateRequest request) {
+        return state.blocks().globalBlockedException(ClusterBlockLevel.READ);
+    }
+
+    @Override
+    protected ClusterBlockException checkRequestBlock(ClusterState state, PercolateRequest request) {
+        request.index(state.metaData().concreteIndex(request.index()));
+        return state.blocks().indexBlockedException(ClusterBlockLevel.READ, request.index());
     }
 
     @Override
     protected ShardsIterator shards(ClusterState clusterState, PercolateRequest request) {
-        request.index(clusterState.metaData().concreteIndex(request.index()));
         return clusterState.routingTable().index(request.index()).randomAllActiveShardsIt();
     }
 

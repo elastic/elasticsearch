@@ -27,10 +27,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.service.NodeService;
-import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.StringRestResponse;
+import org.elasticsearch.rest.*;
 
 import java.io.File;
 import java.io.IOException;
@@ -53,6 +50,8 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
     private final NodeService nodeService;
 
     private final boolean disableSites;
+
+    private final PluginSiteFilter pluginSiteFilter = new PluginSiteFilter();
 
     @Inject
     public HttpServer(Settings settings, Environment environment, HttpServerTransport transport,
@@ -90,12 +89,12 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
         if (logger.isInfoEnabled()) {
             logger.info("{}", transport.boundAddress());
         }
-        nodeService.putNodeAttribute("http_address", transport.boundAddress().publishAddress().toString());
+        nodeService.putAttribute("http_address", transport.boundAddress().publishAddress().toString());
     }
 
     @Override
     protected void doStop() throws ElasticSearchException {
-        nodeService.removeNodeAttribute("http_address");
+        nodeService.removeAttribute("http_address");
         transport.stop();
     }
 
@@ -114,23 +113,31 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
 
     public void internalDispatchRequest(final HttpRequest request, final HttpChannel channel) {
         if (request.rawPath().startsWith("/_plugin/")) {
-            handlePluginSite(request, channel);
+            RestFilterChain filterChain = restController.filterChain(pluginSiteFilter);
+            filterChain.continueProcessing(request, channel);
             return;
         }
-        if (!restController.dispatchRequest(request, channel)) {
-            if (request.method() == RestRequest.Method.OPTIONS) {
-                // when we have OPTIONS request, simply send OK by default (with the Access Control Origin header which gets automatically added)
-                StringRestResponse response = new StringRestResponse(OK);
-                channel.sendResponse(response);
-            } else {
-                channel.sendResponse(new StringRestResponse(BAD_REQUEST, "No handler found for uri [" + request.uri() + "] and method [" + request.method() + "]"));
-            }
+        restController.dispatchRequest(request, channel);
+    }
+
+
+    class PluginSiteFilter extends RestFilter {
+
+        @Override
+        public void process(RestRequest request, RestChannel channel, RestFilterChain filterChain) {
+            handlePluginSite((HttpRequest) request, (HttpChannel) channel);
         }
     }
 
-    private void handlePluginSite(HttpRequest request, HttpChannel channel) {
+    void handlePluginSite(HttpRequest request, HttpChannel channel) {
         if (disableSites) {
             channel.sendResponse(new StringRestResponse(FORBIDDEN));
+            return;
+        }
+        if (request.method() == RestRequest.Method.OPTIONS) {
+            // when we have OPTIONS request, simply send OK by default (with the Access Control Origin header which gets automatically added)
+            StringRestResponse response = new StringRestResponse(OK);
+            channel.sendResponse(response);
             return;
         }
         if (request.method() != RestRequest.Method.GET) {

@@ -76,6 +76,8 @@ public class CustomFiltersScoreQueryParser implements QueryParser {
                     query = parseContext.parseInnerQuery();
                 } else if ("params".equals(currentFieldName)) {
                     vars = parser.map();
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[custom_filters_score] query does not support [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("filters".equals(currentFieldName)) {
@@ -108,6 +110,8 @@ public class CustomFiltersScoreQueryParser implements QueryParser {
                         scripts.add(script);
                         boosts.add(fboost);
                     }
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[custom_filters_score] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("lang".equals(currentFieldName)) {
@@ -120,13 +124,19 @@ public class CustomFiltersScoreQueryParser implements QueryParser {
                         scoreMode = FiltersFunctionScoreQuery.ScoreMode.Avg;
                     } else if ("max".equals(sScoreMode)) {
                         scoreMode = FiltersFunctionScoreQuery.ScoreMode.Max;
+                    } else if ("min".equals(sScoreMode)) {
+                        scoreMode = FiltersFunctionScoreQuery.ScoreMode.Min;
                     } else if ("total".equals(sScoreMode)) {
                         scoreMode = FiltersFunctionScoreQuery.ScoreMode.Total;
+                    } else if ("multiply".equals(sScoreMode)) {
+                        scoreMode = FiltersFunctionScoreQuery.ScoreMode.Multiply;
                     } else if ("first".equals(sScoreMode)) {
                         scoreMode = FiltersFunctionScoreQuery.ScoreMode.First;
                     } else {
-                        throw new QueryParsingException(parseContext.index(), "illegal score_mode for nested query [" + sScoreMode + "]");
+                        throw new QueryParsingException(parseContext.index(), "[custom_filters_score] illegal score_mode [" + sScoreMode + "]");
                     }
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[custom_filters_score] query does not support [" + currentFieldName + "]");
                 }
             }
         }
@@ -137,15 +147,15 @@ public class CustomFiltersScoreQueryParser implements QueryParser {
             throw new QueryParsingException(parseContext.index(), "[custom_filters_score] requires 'filters' field");
         }
 
-        SearchContext context = SearchContext.current();
-        if (context == null) {
-            throw new ElasticSearchIllegalStateException("No search context on going...");
-        }
         FiltersFunctionScoreQuery.FilterFunction[] filterFunctions = new FiltersFunctionScoreQuery.FilterFunction[filters.size()];
         for (int i = 0; i < filterFunctions.length; i++) {
             ScoreFunction scoreFunction;
             String script = scripts.get(i);
             if (script != null) {
+                SearchContext context = SearchContext.current();
+                if (context == null) {
+                    throw new ElasticSearchIllegalStateException("No search context on going...");
+                }
                 SearchScript searchScript = context.scriptService().search(context.lookup(), scriptLang, script, vars);
                 scoreFunction = new CustomScoreQueryParser.ScriptScoreFunction(script, vars, searchScript);
             } else {

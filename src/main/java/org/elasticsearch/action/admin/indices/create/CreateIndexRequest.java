@@ -38,7 +38,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static com.google.common.collect.Maps.newHashMap;
-import static org.elasticsearch.action.Actions.addValidationError;
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.ImmutableSettings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.ImmutableSettings.writeSettingsToStream;
@@ -48,7 +48,6 @@ import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
  * A request to create an index. Best created with {@link org.elasticsearch.client.Requests#createIndexRequest(String)}.
  * <p/>
  * <p>The index created can optionally be created with {@link #settings(org.elasticsearch.common.settings.Settings)}.
- *
  *
  * @see org.elasticsearch.client.IndicesAdminClient#create(CreateIndexRequest)
  * @see org.elasticsearch.client.Requests#createIndexRequest(String)
@@ -98,6 +97,11 @@ public class CreateIndexRequest extends MasterNodeOperationRequest {
      */
     String index() {
         return index;
+    }
+
+    public CreateIndexRequest index(String index) {
+        this.index = index;
+        return this;
     }
 
     /**
@@ -245,6 +249,15 @@ public class CreateIndexRequest extends MasterNodeOperationRequest {
      */
     public CreateIndexRequest timeout(String timeout) {
         return timeout(TimeValue.parseTimeValue(timeout, null));
+    }
+
+    /**
+     * A timeout value in case the master has not been discovered yet or disconnected.
+     */
+    @Override
+    public CreateIndexRequest masterNodeTimeout(TimeValue timeout) {
+        this.masterNodeTimeout = timeout;
+        return this;
     }
 
     @Override

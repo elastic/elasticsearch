@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -37,20 +38,18 @@ class RecoveryFileChunkRequest implements Streamable {
     private long position;
     private long length;
     private String checksum;
-    private byte[] content;
-    private int contentLength;
+    private BytesHolder content;
 
     RecoveryFileChunkRequest() {
     }
 
-    RecoveryFileChunkRequest(ShardId shardId, String name, long position, long length, String checksum, byte[] content, int contentLength) {
+    RecoveryFileChunkRequest(ShardId shardId, String name, long position, long length, String checksum, BytesHolder content) {
         this.shardId = shardId;
         this.name = name;
         this.position = position;
         this.length = length;
         this.checksum = checksum;
         this.content = content;
-        this.contentLength = contentLength;
     }
 
     public ShardId shardId() {
@@ -74,12 +73,8 @@ class RecoveryFileChunkRequest implements Streamable {
         return length;
     }
 
-    public byte[] content() {
+    public BytesHolder content() {
         return content;
-    }
-
-    public int contentLength() {
-        return contentLength;
     }
 
     public RecoveryFileChunkRequest readFileChunk(StreamInput in) throws IOException {
@@ -97,9 +92,7 @@ class RecoveryFileChunkRequest implements Streamable {
         if (in.readBoolean()) {
             checksum = in.readUTF();
         }
-        contentLength = in.readVInt();
-        content = new byte[contentLength];
-        in.readFully(content);
+        content = in.readBytesReference();
     }
 
     @Override
@@ -114,8 +107,7 @@ class RecoveryFileChunkRequest implements Streamable {
             out.writeBoolean(true);
             out.writeUTF(checksum);
         }
-        out.writeVInt(contentLength);
-        out.writeBytes(content, 0, contentLength);
+        out.writeBytesHolder(content);
     }
 
     @Override

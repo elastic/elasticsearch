@@ -29,9 +29,11 @@ import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.InitialStateDiscoveryListener;
+import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Queue;
@@ -80,6 +82,11 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.discoveryNodeService = discoveryNodeService;
+    }
+
+    @Override
+    public void setNodeService(@Nullable NodeService nodeService) {
+        // nothing to do here
     }
 
     @Override

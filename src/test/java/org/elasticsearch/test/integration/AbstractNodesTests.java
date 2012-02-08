@@ -88,6 +88,10 @@ public abstract class AbstractNodesTests {
             // default to non gateway
             finalSettings = settingsBuilder().put(finalSettings).put("gateway.type", "none").build();
         }
+        if (finalSettings.get("cluster.routing.schedule") != null) {
+            // decrease the routing schedule so new nodes will be added quickly
+            finalSettings = settingsBuilder().put(finalSettings).put("cluster.routing.schedule", "50ms").build();
+        }
 
         Node node = nodeBuilder()
                 .settings(finalSettings)

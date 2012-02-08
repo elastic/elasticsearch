@@ -21,10 +21,10 @@ package org.elasticsearch.action.get;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.single.shard.TransportShardSingleOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.inject.Inject;
@@ -34,7 +34,6 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -42,16 +41,13 @@ public class TransportShardMultiGetAction extends TransportShardSingleOperationA
 
     private final IndicesService indicesService;
 
-    private final ScriptService scriptService;
-
     private final boolean realtime;
 
     @Inject
     public TransportShardMultiGetAction(Settings settings, ClusterService clusterService, TransportService transportService,
-                                        IndicesService indicesService, ScriptService scriptService, ThreadPool threadPool) {
+                                        IndicesService indicesService, ThreadPool threadPool) {
         super(settings, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
-        this.scriptService = scriptService;
 
         this.realtime = settings.getAsBoolean("action.get.realtime", true);
     }
@@ -63,12 +59,7 @@ public class TransportShardMultiGetAction extends TransportShardSingleOperationA
 
     @Override
     protected String transportAction() {
-        return "indices/mget/shard";
-    }
-
-    @Override
-    protected String transportShardAction() {
-        return "indices/mget/shard/s";
+        return MultiGetAction.NAME + "/shard";
     }
 
     @Override
@@ -82,22 +73,28 @@ public class TransportShardMultiGetAction extends TransportShardSingleOperationA
     }
 
     @Override
-    protected void checkBlock(MultiGetShardRequest request, ClusterState state) {
-        state.blocks().indexBlockedRaiseException(ClusterBlockLevel.READ, request.index());
+    protected ClusterBlockException checkGlobalBlock(ClusterState state, MultiGetShardRequest request) {
+        return state.blocks().globalBlockedException(ClusterBlockLevel.READ);
     }
 
     @Override
-    protected ShardIterator shards(ClusterState clusterState, MultiGetShardRequest request) {
+    protected ClusterBlockException checkRequestBlock(ClusterState state, MultiGetShardRequest request) {
+        return state.blocks().indexBlockedException(ClusterBlockLevel.READ, request.index());
+    }
+
+    @Override
+    protected ShardIterator shards(ClusterState state, MultiGetShardRequest request) {
         return clusterService.operationRouting()
                 .getShards(clusterService.state(), request.index(), request.shardId(), request.preference());
     }
 
     @Override
-    protected void doExecute(MultiGetShardRequest request, ActionListener<MultiGetShardResponse> listener) {
+    protected void resolveRequest(ClusterState state, MultiGetShardRequest request) {
         if (request.realtime == null) {
             request.realtime = this.realtime;
         }
-        super.doExecute(request, listener);
+        // no need to set concrete index and routing here, it has already been set by the multi get action on the item
+        //request.index(state.metaData().concreteIndex(request.index()));
     }
 
     @Override

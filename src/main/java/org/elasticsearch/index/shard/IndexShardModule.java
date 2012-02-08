@@ -20,17 +20,22 @@
 package org.elasticsearch.index.shard;
 
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
+import org.elasticsearch.jmx.JmxService;
 
 /**
  *
  */
 public class IndexShardModule extends AbstractModule {
 
+    private final Settings settings;
+
     private final ShardId shardId;
 
-    public IndexShardModule(ShardId shardId) {
+    public IndexShardModule(Settings settings, ShardId shardId) {
+        this.settings = settings;
         this.shardId = shardId;
     }
 
@@ -38,6 +43,8 @@ public class IndexShardModule extends AbstractModule {
     protected void configure() {
         bind(ShardId.class).toInstance(shardId);
         bind(IndexShard.class).to(InternalIndexShard.class).asEagerSingleton();
-        bind(IndexShardManagement.class).asEagerSingleton();
+        if (JmxService.shouldExport(settings)) {
+            bind(IndexShardManagement.class).asEagerSingleton();
+        }
     }
 }

@@ -53,6 +53,7 @@ public class RestClusterHealthAction extends BaseRestHandler {
         ClusterHealthRequest clusterHealthRequest = clusterHealthRequest(RestActions.splitIndices(request.param("index")));
         int level = 0;
         try {
+            clusterHealthRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterHealthRequest.masterNodeTimeout()));
             clusterHealthRequest.timeout(request.paramAsTime("timeout", clusterHealthRequest.timeout()));
             String waitForStatus = request.param("wait_for_status");
             if (waitForStatus != null) {
@@ -85,6 +86,10 @@ public class RestClusterHealthAction extends BaseRestHandler {
             @Override
             public void onResponse(ClusterHealthResponse response) {
                 try {
+                    RestStatus status = RestStatus.OK;
+                    if (response.status() == ClusterHealthStatus.RED) {
+                        status = RestStatus.SERVICE_UNAVAILABLE;
+                    }
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
 
@@ -172,7 +177,7 @@ public class RestClusterHealthAction extends BaseRestHandler {
 
                     builder.endObject();
 
-                    channel.sendResponse(new XContentRestResponse(request, RestStatus.OK, builder));
+                    channel.sendResponse(new XContentRestResponse(request, status, builder));
                 } catch (Exception e) {
                     onFailure(e);
                 }

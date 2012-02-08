@@ -20,13 +20,11 @@
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.single.shard.TransportShardSingleOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -40,8 +38,6 @@ import org.elasticsearch.transport.TransportService;
 
 /**
  * Performs the get operation.
- *
- *
  */
 public class TransportGetAction extends TransportShardSingleOperationAction<GetRequest, GetResponse> {
 
@@ -65,35 +61,33 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
 
     @Override
     protected String transportAction() {
-        return TransportActions.GET;
+        return GetAction.NAME;
     }
 
     @Override
-    protected String transportShardAction() {
-        return "indices/get/shard";
+    protected ClusterBlockException checkGlobalBlock(ClusterState state, GetRequest request) {
+        return state.blocks().globalBlockedException(ClusterBlockLevel.READ);
     }
 
     @Override
-    protected void checkBlock(GetRequest request, ClusterState state) {
-        state.blocks().indexBlockedRaiseException(ClusterBlockLevel.READ, request.index());
+    protected ClusterBlockException checkRequestBlock(ClusterState state, GetRequest request) {
+        return state.blocks().indexBlockedException(ClusterBlockLevel.READ, request.index());
     }
 
     @Override
-    protected ShardIterator shards(ClusterState clusterState, GetRequest request) {
+    protected ShardIterator shards(ClusterState state, GetRequest request) {
         return clusterService.operationRouting()
                 .getShards(clusterService.state(), request.index(), request.type(), request.id(), request.routing(), request.preference());
     }
 
     @Override
-    protected void doExecute(GetRequest request, ActionListener<GetResponse> listener) {
+    protected void resolveRequest(ClusterState state, GetRequest request) {
         if (request.realtime == null) {
             request.realtime = this.realtime;
         }
         // update the routing (request#index here is possibly an alias)
-        MetaData metaData = clusterService.state().metaData();
-        request.routing(metaData.resolveIndexRouting(request.routing(), request.index()));
-
-        super.doExecute(request, listener);
+        request.routing(state.metaData().resolveIndexRouting(request.routing(), request.index()));
+        request.index(state.metaData().concreteIndex(request.index()));
     }
 
     @Override

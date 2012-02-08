@@ -32,11 +32,10 @@ import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.analysis.*;
-import org.elasticsearch.test.unit.index.analysis.filter1.MyFilterTokenFilterFactory;
-import org.elasticsearch.index.analysis.phonetic.PhoneticTokenFilterFactory;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
+import org.elasticsearch.test.unit.index.analysis.filter1.MyFilterTokenFilterFactory;
 import org.hamcrest.MatcherAssert;
 import org.testng.annotations.Test;
 
@@ -108,12 +107,6 @@ public class AnalysisModuleTests {
         // verify aliases
         analyzer = analysisService.analyzer("alias1").analyzer();
         assertThat(analyzer, instanceOf(StandardAnalyzer.class));
-
-        // check phonetic
-        analyzer = analysisService.analyzer("custom3").analyzer();
-        assertThat(analyzer, instanceOf(CustomAnalyzer.class));
-        CustomAnalyzer custom3 = (CustomAnalyzer) analyzer;
-        assertThat(custom3.tokenFilters()[0], instanceOf(PhoneticTokenFilterFactory.class));
 
         // check custom class name (my)
         analyzer = analysisService.analyzer("custom4").analyzer();

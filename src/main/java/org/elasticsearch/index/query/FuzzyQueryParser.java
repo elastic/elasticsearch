@@ -51,7 +51,9 @@ public class FuzzyQueryParser implements QueryParser {
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token = parser.nextToken();
-        assert token == XContentParser.Token.FIELD_NAME;
+        if (token != XContentParser.Token.FIELD_NAME) {
+            throw new QueryParsingException(parseContext.index(), "[fuzzy] query malformed, no field");
+        }
         String fieldName = parser.currentName();
 
         String value = null;
@@ -78,6 +80,8 @@ public class FuzzyQueryParser implements QueryParser {
                         prefixLength = parser.intValue();
                     } else if ("max_expansions".equals(currentFieldName) || "maxExpansions".equals(currentFieldName)) {
                         maxExpansions = parser.intValue();
+                    } else {
+                        throw new QueryParsingException(parseContext.index(), "[fuzzy] query does not support [" + currentFieldName + "]");
                     }
                 }
             }

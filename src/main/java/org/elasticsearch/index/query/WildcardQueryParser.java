@@ -52,7 +52,9 @@ public class WildcardQueryParser implements QueryParser {
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token = parser.nextToken();
-        assert token == XContentParser.Token.FIELD_NAME;
+        if (token != XContentParser.Token.FIELD_NAME) {
+            throw new QueryParsingException(parseContext.index(), "[wildcard] query malformed, no field");
+        }
         String fieldName = parser.currentName();
         String rewriteMethod = null;
 
@@ -73,6 +75,8 @@ public class WildcardQueryParser implements QueryParser {
                         boost = parser.floatValue();
                     } else if ("rewrite".equals(currentFieldName)) {
                         rewriteMethod = parser.textOrNull();
+                    } else {
+                        throw new QueryParsingException(parseContext.index(), "[wildcard] query does not support [" + currentFieldName + "]");
                     }
                 }
             }
@@ -87,11 +91,9 @@ public class WildcardQueryParser implements QueryParser {
         }
 
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
-        if (smartNameFieldMappers != null) {
-            if (smartNameFieldMappers.hasMapper()) {
-                fieldName = smartNameFieldMappers.mapper().names().indexName();
-                value = smartNameFieldMappers.mapper().indexedValue(value);
-            }
+        if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
+            fieldName = smartNameFieldMappers.mapper().names().indexName();
+            value = smartNameFieldMappers.mapper().indexedValue(value);
         }
 
         WildcardQuery query = new WildcardQuery(new Term(fieldName, value));

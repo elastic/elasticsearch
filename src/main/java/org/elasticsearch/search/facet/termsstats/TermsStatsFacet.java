@@ -63,6 +63,9 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
             public int compare(Entry o1, Entry o2) {
                 // push nulls to the end
                 if (o1 == null) {
+                    if (o2 == null) {
+                        return 0;
+                    }
                     return 1;
                 }
                 if (o2 == null) {
@@ -71,9 +74,6 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
                 int i = (o2.count() < o1.count() ? -1 : (o1.count() == o2.count() ? 0 : 1));
                 if (i == 0) {
                     i = o2.compareTo(o1);
-                    if (i == 0) {
-                        i = System.identityHashCode(o2) - System.identityHashCode(o1);
-                    }
                 }
                 return i;
             }
@@ -87,6 +87,9 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
             public int compare(Entry o1, Entry o2) {
                 // push nulls to the end
                 if (o1 == null) {
+                    if (o2 == null) {
+                        return 0;
+                    }
                     return 1;
                 }
                 if (o2 == null) {
@@ -104,6 +107,9 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
             public int compare(Entry o1, Entry o2) {
                 // push nulls to the end
                 if (o1 == null) {
+                    if (o2 == null) {
+                        return 0;
+                    }
                     return 1;
                 }
                 if (o2 == null) {
@@ -125,6 +131,9 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
             public int compare(Entry o1, Entry o2) {
                 // push nulls to the end
                 if (o1 == null) {
+                    if (o2 == null) {
+                        return 0;
+                    }
                     return 1;
                 }
                 if (o2 == null) {
@@ -139,6 +148,9 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
             public int compare(Entry o1, Entry o2) {
                 // push nulls to the end
                 if (o1 == null) {
+                    if (o2 == null) {
+                        return 0;
+                    }
                     return 1;
                 }
                 if (o2 == null) {
@@ -159,6 +171,9 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
             public int compare(Entry o1, Entry o2) {
                 // push nulls to the end
                 if (o1 == null) {
+                    if (o2 == null) {
+                        return 0;
+                    }
                     return 1;
                 }
                 if (o2 == null) {
@@ -173,6 +188,9 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
             public int compare(Entry o1, Entry o2) {
                 // push nulls to the end
                 if (o1 == null) {
+                    if (o2 == null) {
+                        return 0;
+                    }
                     return 1;
                 }
                 if (o2 == null) {
@@ -192,6 +210,9 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
             public int compare(Entry o1, Entry o2) {
                 // push nulls to the end
                 if (o1 == null) {
+                    if (o2 == null) {
+                        return 0;
+                    }
                     return 1;
                 }
                 if (o2 == null) {
@@ -205,6 +226,9 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
             public int compare(Entry o1, Entry o2) {
                 // push nulls to the end
                 if (o1 == null) {
+                    if (o2 == null) {
+                        return 0;
+                    }
                     return 1;
                 }
                 if (o2 == null) {
@@ -224,6 +248,9 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
             public int compare(Entry o1, Entry o2) {
                 // push nulls to the end
                 if (o1 == null) {
+                    if (o2 == null) {
+                        return 0;
+                    }
                     return 1;
                 }
                 if (o2 == null) {

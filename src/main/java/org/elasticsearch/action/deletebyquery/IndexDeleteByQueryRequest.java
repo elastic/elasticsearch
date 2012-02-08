@@ -22,27 +22,24 @@ package org.elasticsearch.action.deletebyquery;
 import gnu.trove.set.hash.THashSet;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.replication.IndexReplicationOperationRequest;
+import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Required;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
 import java.util.Set;
 
-import static org.elasticsearch.action.Actions.addValidationError;
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * Delete by query request to execute on a specific index.
- *
- *
  */
 public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest {
 
-    private byte[] querySource;
+    private BytesHolder querySource;
     private String[] types = Strings.EMPTY_ARRAY;
     @Nullable
     private Set<String> routing;
@@ -63,7 +60,7 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest 
     IndexDeleteByQueryRequest() {
     }
 
-    byte[] querySource() {
+    BytesHolder querySource() {
         return querySource;
     }
 
@@ -74,17 +71,6 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest 
             validationException = addValidationError("querySource is missing", validationException);
         }
         return validationException;
-    }
-
-    @Required
-    public IndexDeleteByQueryRequest querySource(QueryBuilder queryBuilder) {
-        return querySource(queryBuilder.buildAsBytes());
-    }
-
-    @Required
-    public IndexDeleteByQueryRequest querySource(byte[] querySource) {
-        this.querySource = querySource;
-        return this;
     }
 
     Set<String> routing() {
@@ -106,8 +92,7 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest 
 
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        querySource = new byte[in.readVInt()];
-        in.readFully(querySource);
+        querySource = in.readBytesReference();
         int typesSize = in.readVInt();
         if (typesSize > 0) {
             types = new String[typesSize];
@@ -133,8 +118,7 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest 
 
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeVInt(querySource.length);
-        out.writeBytes(querySource);
+        out.writeBytesHolder(querySource);
         out.writeVInt(types.length);
         for (String type : types) {
             out.writeUTF(type);

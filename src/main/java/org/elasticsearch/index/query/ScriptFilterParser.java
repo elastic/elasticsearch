@@ -73,6 +73,8 @@ public class ScriptFilterParser implements FilterParser {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("params".equals(currentFieldName)) {
                     params = parser.map();
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[script] filter does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("script".equals(currentFieldName)) {
@@ -85,6 +87,8 @@ public class ScriptFilterParser implements FilterParser {
                     cache = parser.booleanValue();
                 } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
                     cacheKey = new CacheKeyFilter.Key(parser.text());
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[script] filter does not support [" + currentFieldName + "]");
                 }
             }
         }

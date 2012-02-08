@@ -24,6 +24,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.field.data.FieldDataType;
@@ -44,6 +45,8 @@ public interface FieldMapper<T> {
 
         private final String fullName;
 
+        private final String sourcePath;
+
         private final Term indexNameTermFactory;
 
         public Names(String name) {
@@ -51,10 +54,15 @@ public interface FieldMapper<T> {
         }
 
         public Names(String name, String indexName, String indexNameClean, String fullName) {
+            this(name, indexName, indexNameClean, fullName, fullName);
+        }
+
+        public Names(String name, String indexName, String indexNameClean, String fullName, @Nullable String sourcePath) {
             this.name = name.intern();
             this.indexName = indexName.intern();
             this.indexNameClean = indexNameClean.intern();
             this.fullName = fullName.intern();
+            this.sourcePath = sourcePath == null ? this.fullName : sourcePath.intern();
             this.indexNameTermFactory = new Term(indexName, "");
         }
 
@@ -87,6 +95,23 @@ public interface FieldMapper<T> {
             return fullName;
         }
 
+        /**
+         * The dot path notation to extract the value from source.
+         */
+        public String sourcePath() {
+            return sourcePath;
+        }
+
+        /**
+         * The index name term that can be used as a factory.
+         */
+        public Term indexNameTerm() {
+            return this.indexNameTermFactory;
+        }
+
+        /**
+         * Creates a new index term based on the provided value.
+         */
         public Term createIndexNameTerm(String value) {
             return indexNameTermFactory.createTerm(value);
         }
@@ -158,6 +183,10 @@ public interface FieldMapper<T> {
     Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions);
 
     Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions);
+
+    Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context);
+
+    Filter prefixFilter(String value, @Nullable QueryParseContext context);
 
     /**
      * A term query to use when parsing a query string. Can return <tt>null</tt>.

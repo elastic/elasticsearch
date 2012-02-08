@@ -25,10 +25,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.io.IOException;
+import java.io.Serializable;
 
 /**
  */
-public class Version {
+public class Version implements Serializable {
 
     // The logic for ID is: XXYYZZAA, where XX is major version, YY is minor version, ZZ is revision, and AA is Beta/RC indicator
     // AA values below 50 are beta builds, and below 99 are RC builds, with 99 indicating a release
@@ -48,17 +49,24 @@ public class Version {
     public static final Version V_0_18_5 = new Version(V_0_18_5_ID, false);
     public static final int V_0_18_6_ID = /*00*/180699;
     public static final Version V_0_18_6 = new Version(V_0_18_6_ID, false);
+    public static final int V_0_18_7_ID = /*00*/180799;
+    public static final Version V_0_18_7 = new Version(V_0_18_7_ID, false);
+    public static final int V_0_18_8_ID = /*00*/180899;
+    public static final Version V_0_18_8 = new Version(V_0_18_8_ID, false);
 
-    public static final int V_0_19_0_ID = /*00*/190099;
-    public static final Version V_0_19_0 = new Version(V_0_19_0_ID, true);
+    public static final int V_0_19_0_RC1_ID = /*00*/190051;
+    public static final Version V_0_19_0_RC1 = new Version(V_0_19_0_RC1_ID, false);
 
-    public static final Version CURRENT = V_0_19_0;
+    public static final int V_0_19_0_RC2_ID = /*00*/190052;
+    public static final Version V_0_19_0_RC2 = new Version(V_0_19_0_RC2_ID, true);
+
+    public static final Version CURRENT = V_0_19_0_RC2;
 
     public static Version readVersion(StreamInput in) throws IOException {
         return fromId(in.readVInt());
     }
 
-    private static Version fromId(int id) {
+    public static Version fromId(int id) {
         switch (id) {
             case V_0_18_0_ID:
                 return V_0_18_0;
@@ -74,8 +82,15 @@ public class Version {
                 return V_0_18_5;
             case V_0_18_6_ID:
                 return V_0_18_6;
-            case V_0_19_0_ID:
-                return V_0_19_0;
+            case V_0_18_7_ID:
+                return V_0_18_7;
+            case V_0_18_8_ID:
+                return V_0_18_8;
+
+            case V_0_19_0_RC1_ID:
+                return V_0_19_0_RC1;
+            case V_0_19_0_RC2_ID:
+                return V_0_19_0_RC2;
             default:
                 return new Version(id, null);
         }

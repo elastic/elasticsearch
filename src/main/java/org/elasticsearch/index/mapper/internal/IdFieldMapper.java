@@ -20,15 +20,15 @@
 package org.elasticsearch.index.mapper.internal;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterables;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
-import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.Query;
+import org.apache.lucene.search.*;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.*;
@@ -37,6 +37,7 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.search.UidFilter;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Map;
 
 import static org.elasticsearch.index.mapper.MapperBuilders.id;
@@ -162,7 +163,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         if (indexed() || context == null) {
             return super.fieldQuery(value, context);
         }
-        UidFilter filter = new UidFilter(context.mapperService().types(), ImmutableList.of(value), context.indexCache().bloomCache());
+        UidFilter filter = new UidFilter(context.queryTypes(), ImmutableList.of(value), context.indexCache().bloomCache());
         // no need for constant score filter, since we don't cache the filter, and it always takes deletes into account
         return new ConstantScoreQuery(filter);
     }
@@ -172,7 +173,46 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         if (indexed() || context == null) {
             return super.fieldFilter(value, context);
         }
-        return new UidFilter(context.mapperService().types(), ImmutableList.of(value), context.indexCache().bloomCache());
+        return new UidFilter(context.queryTypes(), ImmutableList.of(value), context.indexCache().bloomCache());
+    }
+
+    @Override
+    public Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
+        if (indexed() || context == null) {
+            return super.prefixQuery(value, method, context);
+        }
+        Collection<String> queryTypes = context.queryTypes();
+        if (queryTypes.size() == 1) {
+            PrefixQuery prefixQuery = new PrefixQuery(UidFieldMapper.TERM_FACTORY.createTerm(Uid.createUid(Iterables.getFirst(queryTypes, null), value)));
+            if (method != null) {
+                prefixQuery.setRewriteMethod(method);
+            }
+        }
+        BooleanQuery query = new BooleanQuery();
+        for (String queryType : queryTypes) {
+            PrefixQuery prefixQuery = new PrefixQuery(UidFieldMapper.TERM_FACTORY.createTerm(Uid.createUid(queryType, value)));
+            if (method != null) {
+                prefixQuery.setRewriteMethod(method);
+            }
+            query.add(prefixQuery, BooleanClause.Occur.SHOULD);
+        }
+        return query;
+    }
+
+    @Override
+    public Filter prefixFilter(String value, @Nullable QueryParseContext context) {
+        if (indexed() || context == null) {
+            return super.prefixFilter(value, context);
+        }
+        Collection<String> queryTypes = context.queryTypes();
+        if (queryTypes.size() == 1) {
+            return new PrefixFilter(UidFieldMapper.TERM_FACTORY.createTerm(Uid.createUid(Iterables.getFirst(queryTypes, null), value)));
+        }
+        XBooleanFilter filter = new XBooleanFilter();
+        for (String queryType : queryTypes) {
+            filter.addShould(new PrefixFilter(UidFieldMapper.TERM_FACTORY.createTerm(Uid.createUid(queryType, value))));
+        }
+        return filter;
     }
 
     @Override

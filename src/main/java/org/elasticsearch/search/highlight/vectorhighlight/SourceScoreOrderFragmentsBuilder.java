@@ -21,6 +21,7 @@ package org.elasticsearch.search.highlight.vectorhighlight;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.vectorhighlight.BoundaryScanner;
 import org.apache.lucene.search.vectorhighlight.ScoreOrderFragmentsBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
@@ -39,8 +40,8 @@ public class SourceScoreOrderFragmentsBuilder extends ScoreOrderFragmentsBuilder
     private final SearchContext searchContext;
 
     public SourceScoreOrderFragmentsBuilder(FieldMapper mapper, SearchContext searchContext,
-                                            String[] preTags, String[] postTags) {
-        super(preTags, postTags);
+                                            String[] preTags, String[] postTags, BoundaryScanner boundaryScanner) {
+        super(preTags, postTags, boundaryScanner);
         this.mapper = mapper;
         this.searchContext = searchContext;
     }
@@ -52,7 +53,7 @@ public class SourceScoreOrderFragmentsBuilder extends ScoreOrderFragmentsBuilder
         lookup.setNextReader(reader);
         lookup.setNextDocId(docId);
 
-        List<Object> values = lookup.source().extractRawValues(mapper.names().fullName());
+        List<Object> values = lookup.source().extractRawValues(mapper.names().sourcePath());
         Field[] fields = new Field[values.size()];
         for (int i = 0; i < values.size(); i++) {
             fields[i] = new Field(mapper.names().indexName(), values.get(i).toString(), Field.Store.NO, Field.Index.ANALYZED);

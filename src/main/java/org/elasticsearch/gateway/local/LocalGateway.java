@@ -20,79 +20,62 @@
 package org.elasticsearch.gateway.local;
 
 import com.google.common.collect.Sets;
-import com.google.common.io.Closeables;
+import gnu.trove.map.hash.TObjectIntHashMap;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.compress.lzf.LZF;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.io.stream.*;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.thread.LoggingRunnable;
-import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.gateway.GatewayException;
+import org.elasticsearch.gateway.local.state.meta.LocalGatewayMetaState;
+import org.elasticsearch.gateway.local.state.meta.TransportNodesListGatewayMetaState;
+import org.elasticsearch.gateway.local.state.shards.LocalGatewayShardsState;
 import org.elasticsearch.index.gateway.local.LocalIndexGatewayModule;
-import org.elasticsearch.index.shard.ShardId;
 
-import java.io.*;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.TimeUnit;
-
-import static java.util.concurrent.Executors.newSingleThreadExecutor;
-import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 
 /**
  *
  */
 public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements Gateway, ClusterStateListener {
 
-    private boolean requiresStatePersistence;
-
     private final ClusterService clusterService;
 
     private final NodeEnvironment nodeEnv;
 
+    private final LocalGatewayShardsState shardsState;
+    private final LocalGatewayMetaState metaState;
+
     private final TransportNodesListGatewayMetaState listGatewayMetaState;
 
-    private final TransportNodesListGatewayStartedShards listGatewayStartedShards;
-
-
-    private final boolean compress;
-    private final boolean prettyPrint;
-
-    private volatile LocalGatewayMetaState currentMetaState;
-
-    private volatile LocalGatewayStartedShards currentStartedShards;
-
-    private volatile ExecutorService executor;
-
-    private volatile boolean initialized = false;
-
-    private volatile boolean metaDataPersistedAtLeastOnce = false;
+    private final String initialMeta;
 
     @Inject
     public LocalGateway(Settings settings, ClusterService clusterService, NodeEnvironment nodeEnv,
-                        TransportNodesListGatewayMetaState listGatewayMetaState, TransportNodesListGatewayStartedShards listGatewayStartedShards) {
+                        LocalGatewayShardsState shardsState, LocalGatewayMetaState metaState,
+                        TransportNodesListGatewayMetaState listGatewayMetaState) {
         super(settings);
         this.clusterService = clusterService;
         this.nodeEnv = nodeEnv;
-        this.listGatewayMetaState = listGatewayMetaState.initGateway(this);
-        this.listGatewayStartedShards = listGatewayStartedShards.initGateway(this);
+        this.metaState = metaState;
+        this.listGatewayMetaState = listGatewayMetaState;
 
-        this.compress = componentSettings.getAsBoolean("compress", true);
-        this.prettyPrint = componentSettings.getAsBoolean("pretty", false);
+        this.shardsState = shardsState;
+
+        clusterService.addLast(this);
+
+        // we define what is our minimum "master" nodes, use that to allow for recovery
+        this.initialMeta = componentSettings.get("initial_meta", settings.get("discovery.zen.minimum_master_nodes", "1"));
     }
 
     @Override
@@ -100,36 +83,17 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
         return "local";
     }
 
-    public LocalGatewayMetaState currentMetaState() {
-        lazyInitialize();
-        return this.currentMetaState;
-    }
-
-    public LocalGatewayStartedShards currentStartedShards() {
-        lazyInitialize();
-        return this.currentStartedShards;
-    }
-
     @Override
     protected void doStart() throws ElasticSearchException {
-        this.executor = newSingleThreadExecutor(daemonThreadFactory(settings, "gateway"));
-        lazyInitialize();
-        clusterService.add(this);
     }
 
     @Override
     protected void doStop() throws ElasticSearchException {
-        clusterService.remove(this);
-        executor.shutdown();
-        try {
-            executor.awaitTermination(10, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            // ignore
-        }
     }
 
     @Override
     protected void doClose() throws ElasticSearchException {
+        clusterService.remove(this);
     }
 
     @Override
@@ -138,32 +102,90 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
         nodesIds.addAll(clusterService.state().nodes().masterNodes().keySet());
         TransportNodesListGatewayMetaState.NodesLocalGatewayMetaState nodesState = listGatewayMetaState.list(nodesIds, null).actionGet();
 
+
+        int requiredAllocation = 1;
+        try {
+            if ("quorum".equals(initialMeta)) {
+                if (nodesIds.size() > 2) {
+                    requiredAllocation = (nodesIds.size() / 2) + 1;
+                }
+            } else if ("quorum-1".equals(initialMeta) || "half".equals(initialMeta)) {
+                if (nodesIds.size() > 2) {
+                    requiredAllocation = ((1 + nodesIds.size()) / 2);
+                }
+            } else if ("one".equals(initialMeta)) {
+                requiredAllocation = 1;
+            } else if ("full".equals(initialMeta) || "all".equals(initialMeta)) {
+                requiredAllocation = nodesIds.size();
+            } else if ("full-1".equals(initialMeta) || "all-1".equals(initialMeta)) {
+                if (nodesIds.size() > 1) {
+                    requiredAllocation = nodesIds.size() - 1;
+                }
+            } else {
+                requiredAllocation = Integer.parseInt(initialMeta);
+            }
+        } catch (Exception e) {
+            logger.warn("failed to derived initial_meta from value {}", initialMeta);
+        }
+
         if (nodesState.failures().length > 0) {
             for (FailedNodeException failedNodeException : nodesState.failures()) {
                 logger.warn("failed to fetch state from node", failedNodeException);
             }
         }
 
-        TransportNodesListGatewayMetaState.NodeLocalGatewayMetaState electedState = null;
+        MetaData.Builder metaDataBuilder = MetaData.builder();
+        TObjectIntHashMap<String> indices = new TObjectIntHashMap<String>();
+        MetaData electedGlobalState = null;
+        int found = 0;
         for (TransportNodesListGatewayMetaState.NodeLocalGatewayMetaState nodeState : nodesState) {
-            if (nodeState.state() == null) {
+            if (nodeState.metaData() == null) {
                 continue;
             }
-            if (electedState == null) {
-                electedState = nodeState;
-            } else if (nodeState.state().version() > electedState.state().version()) {
-                electedState = nodeState;
+            found++;
+            if (electedGlobalState == null) {
+                electedGlobalState = nodeState.metaData();
+            } else if (nodeState.metaData().version() > electedGlobalState.version()) {
+                electedGlobalState = nodeState.metaData();
+            }
+            for (IndexMetaData indexMetaData : nodeState.metaData().indices().values()) {
+                indices.adjustOrPutValue(indexMetaData.index(), 1, 1);
             }
         }
-        if (electedState == null) {
-            logger.debug("no state elected");
-            listener.onSuccess(ClusterState.builder().build());
-        } else {
-            logger.debug("elected state from [{}]", electedState.node());
-            ClusterState.Builder builder = ClusterState.builder().version(electedState.state().version());
-            builder.metaData(MetaData.builder().metaData(electedState.state().metaData()).version(electedState.state().version()));
-            listener.onSuccess(builder.build());
+        if (found < requiredAllocation) {
+            listener.onFailure("found [" + found + "] metadata states, required [" + requiredAllocation + "]");
+            return;
         }
+        // update the global state, and clean the indices, we elect them in the next phase
+        metaDataBuilder.metaData(electedGlobalState).removeAllIndices();
+        for (String index : indices.keySet()) {
+            IndexMetaData electedIndexMetaData = null;
+            int indexMetaDataCount = 0;
+            for (TransportNodesListGatewayMetaState.NodeLocalGatewayMetaState nodeState : nodesState) {
+                if (nodeState.metaData() == null) {
+                    continue;
+                }
+                IndexMetaData indexMetaData = nodeState.metaData().index(index);
+                if (indexMetaData == null) {
+                    continue;
+                }
+                if (electedIndexMetaData == null) {
+                    electedIndexMetaData = indexMetaData;
+                } else if (indexMetaData.version() > electedIndexMetaData.version()) {
+                    electedIndexMetaData = indexMetaData;
+                }
+                indexMetaDataCount++;
+            }
+            if (electedIndexMetaData != null) {
+                if (indexMetaDataCount < requiredAllocation) {
+                    logger.debug("[{}] found [{}], required [{}], not adding", index, indexMetaDataCount, requiredAllocation);
+                }
+                metaDataBuilder.put(electedIndexMetaData, false);
+            }
+        }
+        ClusterState.Builder builder = ClusterState.builder();
+        builder.metaData(metaDataBuilder);
+        listener.onSuccess(builder.build());
     }
 
     @Override
@@ -178,401 +200,11 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
 
     @Override
     public void clusterChanged(final ClusterChangedEvent event) {
-        if (!requiresStatePersistence) {
-            return;
-        }
-
         // nothing to do until we actually recover from the gateway or any other block indicates we need to disable persistency
         if (event.state().blocks().disableStatePersistence()) {
             return;
         }
-
-        // we only write the local metadata if this is a possible master node
-        if (event.state().nodes().localNode().masterNode() && (event.metaDataChanged() || !metaDataPersistedAtLeastOnce)) {
-            executor.execute(new LoggingRunnable(logger, new PersistMetaData(event)));
-        }
-
-        if (event.state().nodes().localNode().dataNode() && event.routingTableChanged()) {
-            LocalGatewayStartedShards.Builder builder = LocalGatewayStartedShards.builder();
-            if (currentStartedShards != null) {
-                builder.state(currentStartedShards);
-            }
-            builder.version(event.state().version());
-
-            boolean changed = false;
-
-            // remove from the current state all the shards that are primary and started somewhere, we won't need them anymore
-            // and if they are still here, we will add them in the next phase
-
-            // Also note, this works well when closing an index, since a closed index will have no routing shards entries
-            // so they won't get removed (we want to keep the fact that those shards are allocated on this node if needed)
-            for (IndexRoutingTable indexRoutingTable : event.state().routingTable()) {
-                for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                    if (indexShardRoutingTable.countWithState(ShardRoutingState.STARTED) == indexShardRoutingTable.size()) {
-                        changed |= builder.remove(indexShardRoutingTable.shardId());
-                    }
-                }
-            }
-            // remove deleted indices from the started shards
-            for (ShardId shardId : builder.build().shards().keySet()) {
-                if (!event.state().metaData().hasIndex(shardId.index().name())) {
-                    changed |= builder.remove(shardId);
-                }
-            }
-            // now, add all the ones that are active and on this node
-            RoutingNode routingNode = event.state().readOnlyRoutingNodes().node(event.state().nodes().localNodeId());
-            if (routingNode != null) {
-                // out node is not in play yet...
-                for (MutableShardRouting shardRouting : routingNode) {
-                    if (shardRouting.active()) {
-                        changed |= builder.put(shardRouting.shardId(), shardRouting.version());
-                    }
-                }
-            }
-
-            // only write if something changed...
-            if (changed) {
-                final LocalGatewayStartedShards stateToWrite = builder.build();
-                executor.execute(new LoggingRunnable(logger, new PersistShards(event, stateToWrite)));
-            }
-        }
-    }
-
-    /**
-     * We do here lazy initialization on not only on start(), since we might be called before start by another node (really will
-     * happen in term of timing in testing, but still), and we want to return the cluster state when we can.
-     * <p/>
-     * It is synchronized since we want to wait for it to be loaded if called concurrently. There should really be a nicer
-     * solution here, but for now, its good enough.
-     */
-    private synchronized void lazyInitialize() {
-        if (initialized) {
-            return;
-        }
-        initialized = true;
-
-        // if this is not a possible master node or data node, bail, we won't save anything here...
-        if (!clusterService.localNode().masterNode() && !clusterService.localNode().dataNode()) {
-            requiresStatePersistence = false;
-        } else {
-            // create the location where the state will be stored
-            // TODO: we might want to persist states on all data locations
-            requiresStatePersistence = true;
-
-            if (clusterService.localNode().masterNode()) {
-                try {
-                    File latest = findLatestMetaStateVersion();
-                    if (latest != null) {
-                        logger.debug("[find_latest_state]: loading metadata from [{}]", latest.getAbsolutePath());
-                        this.currentMetaState = readMetaState(Streams.copyToByteArray(new FileInputStream(latest)));
-                    } else {
-                        logger.debug("[find_latest_state]: no metadata state loaded");
-                    }
-                } catch (Exception e) {
-                    logger.warn("failed to read local state (metadata)", e);
-                }
-            }
-
-            if (clusterService.localNode().dataNode()) {
-                try {
-                    File latest = findLatestStartedShardsVersion();
-                    if (latest != null) {
-                        logger.debug("[find_latest_state]: loading started shards from [{}]", latest.getAbsolutePath());
-                        this.currentStartedShards = readStartedShards(Streams.copyToByteArray(new FileInputStream(latest)));
-                    } else {
-                        logger.debug("[find_latest_state]: no started shards loaded");
-                    }
-                } catch (Exception e) {
-                    logger.warn("failed to read local state (started shards)", e);
-                }
-            }
-        }
-    }
-
-    private File findLatestStartedShardsVersion() throws IOException {
-        long index = -1;
-        File latest = null;
-        for (File dataLocation : nodeEnv.nodeDataLocations()) {
-            File stateLocation = new File(dataLocation, "_state");
-            if (!stateLocation.exists()) {
-                continue;
-            }
-            File[] stateFiles = stateLocation.listFiles();
-            if (stateFiles == null) {
-                continue;
-            }
-            for (File stateFile : stateFiles) {
-                if (logger.isTraceEnabled()) {
-                    logger.trace("[find_latest_state]: processing [" + stateFile.getName() + "]");
-                }
-                String name = stateFile.getName();
-                if (!name.startsWith("shards-")) {
-                    continue;
-                }
-                long fileIndex = Long.parseLong(name.substring(name.indexOf('-') + 1));
-                if (fileIndex >= index) {
-                    // try and read the meta data
-                    try {
-                        byte[] data = Streams.copyToByteArray(new FileInputStream(stateFile));
-                        if (data.length == 0) {
-                            logger.debug("[find_latest_state]: not data for [" + name + "], ignoring...");
-                        }
-                        readStartedShards(data);
-                        index = fileIndex;
-                        latest = stateFile;
-                    } catch (IOException e) {
-                        logger.warn("[find_latest_state]: failed to read state from [" + name + "], ignoring...", e);
-                    }
-                }
-            }
-        }
-        return latest;
-    }
-
-    private File findLatestMetaStateVersion() throws IOException {
-        long index = -1;
-        File latest = null;
-        for (File dataLocation : nodeEnv.nodeDataLocations()) {
-            File stateLocation = new File(dataLocation, "_state");
-            if (!stateLocation.exists()) {
-                continue;
-            }
-            File[] stateFiles = stateLocation.listFiles();
-            if (stateFiles == null) {
-                continue;
-            }
-            for (File stateFile : stateFiles) {
-                if (logger.isTraceEnabled()) {
-                    logger.trace("[find_latest_state]: processing [" + stateFile.getName() + "]");
-                }
-                String name = stateFile.getName();
-                if (!name.startsWith("metadata-")) {
-                    continue;
-                }
-                long fileIndex = Long.parseLong(name.substring(name.indexOf('-') + 1));
-                if (fileIndex >= index) {
-                    // try and read the meta data
-                    try {
-                        byte[] data = Streams.copyToByteArray(new FileInputStream(stateFile));
-                        if (data.length == 0) {
-                            logger.debug("[find_latest_state]: not data for [" + name + "], ignoring...");
-                            continue;
-                        }
-                        readMetaState(data);
-                        index = fileIndex;
-                        latest = stateFile;
-                    } catch (IOException e) {
-                        logger.warn("[find_latest_state]: failed to read state from [" + name + "], ignoring...", e);
-                    }
-                }
-            }
-        }
-        return latest;
-    }
-
-    private LocalGatewayMetaState readMetaState(byte[] data) throws IOException {
-        XContentParser parser = null;
-        try {
-            if (LZF.isCompressed(data)) {
-                BytesStreamInput siBytes = new BytesStreamInput(data);
-                LZFStreamInput siLzf = CachedStreamInput.cachedLzf(siBytes);
-                parser = XContentFactory.xContent(XContentType.JSON).createParser(siLzf);
-            } else {
-                parser = XContentFactory.xContent(XContentType.JSON).createParser(data);
-            }
-            return LocalGatewayMetaState.Builder.fromXContent(parser);
-        } finally {
-            if (parser != null) {
-                parser.close();
-            }
-        }
-    }
-
-    private LocalGatewayStartedShards readStartedShards(byte[] data) throws IOException {
-        XContentParser parser = null;
-        try {
-            if (LZF.isCompressed(data)) {
-                BytesStreamInput siBytes = new BytesStreamInput(data);
-                LZFStreamInput siLzf = CachedStreamInput.cachedLzf(siBytes);
-                parser = XContentFactory.xContent(XContentType.JSON).createParser(siLzf);
-            } else {
-                parser = XContentFactory.xContent(XContentType.JSON).createParser(data);
-            }
-            return LocalGatewayStartedShards.Builder.fromXContent(parser);
-        } finally {
-            if (parser != null) {
-                parser.close();
-            }
-        }
-    }
-
-    class PersistMetaData implements Runnable {
-        private final ClusterChangedEvent event;
-
-        public PersistMetaData(ClusterChangedEvent event) {
-            this.event = event;
-        }
-
-        @Override
-        public void run() {
-            LocalGatewayMetaState.Builder builder = LocalGatewayMetaState.builder();
-            if (currentMetaState != null) {
-                builder.state(currentMetaState);
-            }
-            final long version = event.state().metaData().version();
-            builder.version(version);
-            builder.metaData(event.state().metaData());
-            LocalGatewayMetaState stateToWrite = builder.build();
-
-            CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
-            StreamOutput streamOutput;
-            try {
-                try {
-                    if (compress) {
-                        streamOutput = cachedEntry.cachedLZFBytes();
-                    } else {
-                        streamOutput = cachedEntry.cachedBytes();
-                    }
-                    XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON, streamOutput);
-                    if (prettyPrint) {
-                        xContentBuilder.prettyPrint();
-                    }
-                    xContentBuilder.startObject();
-                    LocalGatewayMetaState.Builder.toXContent(stateToWrite, xContentBuilder, ToXContent.EMPTY_PARAMS);
-                    xContentBuilder.endObject();
-                    xContentBuilder.close();
-                } catch (Exception e) {
-                    logger.warn("failed to serialize local gateway state", e);
-                    return;
-                }
-
-                boolean serializedAtLeastOnce = false;
-                for (File dataLocation : nodeEnv.nodeDataLocations()) {
-                    File stateLocation = new File(dataLocation, "_state");
-                    if (!stateLocation.exists()) {
-                        FileSystemUtils.mkdirs(stateLocation);
-                    }
-                    File stateFile = new File(stateLocation, "metadata-" + version);
-                    FileOutputStream fos = null;
-                    try {
-                        fos = new FileOutputStream(stateFile);
-                        fos.write(cachedEntry.bytes().underlyingBytes(), 0, cachedEntry.bytes().size());
-                        fos.getChannel().force(true);
-                        serializedAtLeastOnce = true;
-                    } catch (Exception e) {
-                        logger.warn("failed to write local gateway state to {}", e, stateFile);
-                    } finally {
-                        Closeables.closeQuietly(fos);
-                    }
-                }
-                if (serializedAtLeastOnce) {
-                    currentMetaState = stateToWrite;
-                    metaDataPersistedAtLeastOnce = true;
-
-                    // delete all the other files
-                    for (File dataLocation : nodeEnv.nodeDataLocations()) {
-                        File stateLocation = new File(dataLocation, "_state");
-                        if (!stateLocation.exists()) {
-                            continue;
-                        }
-                        File[] files = stateLocation.listFiles(new FilenameFilter() {
-                            @Override
-                            public boolean accept(File dir, String name) {
-                                return name.startsWith("metadata-") && !name.equals("metadata-" + version);
-                            }
-                        });
-                        if (files != null) {
-                            for (File file : files) {
-                                file.delete();
-                            }
-                        }
-                    }
-                }
-            } finally {
-                CachedStreamOutput.pushEntry(cachedEntry);
-            }
-        }
-    }
-
-    class PersistShards implements Runnable {
-        private final ClusterChangedEvent event;
-        private final LocalGatewayStartedShards stateToWrite;
-
-        public PersistShards(ClusterChangedEvent event, LocalGatewayStartedShards stateToWrite) {
-            this.event = event;
-            this.stateToWrite = stateToWrite;
-        }
-
-        @Override
-        public void run() {
-
-            CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
-            try {
-                StreamOutput streamOutput;
-                try {
-                    if (compress) {
-                        streamOutput = cachedEntry.cachedLZFBytes();
-                    } else {
-                        streamOutput = cachedEntry.cachedBytes();
-                    }
-                    XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON, streamOutput);
-                    if (prettyPrint) {
-                        xContentBuilder.prettyPrint();
-                    }
-                    xContentBuilder.startObject();
-                    LocalGatewayStartedShards.Builder.toXContent(stateToWrite, xContentBuilder, ToXContent.EMPTY_PARAMS);
-                    xContentBuilder.endObject();
-                    xContentBuilder.close();
-                } catch (Exception e) {
-                    logger.warn("failed to serialize local gateway shard states", e);
-                    return;
-                }
-
-                boolean serializedAtLeastOnce = false;
-                for (File dataLocation : nodeEnv.nodeDataLocations()) {
-                    File stateLocation = new File(dataLocation, "_state");
-                    if (!stateLocation.exists()) {
-                        FileSystemUtils.mkdirs(stateLocation);
-                    }
-                    File stateFile = new File(stateLocation, "shards-" + event.state().version());
-                    FileOutputStream fos = null;
-                    try {
-                        fos = new FileOutputStream(stateFile);
-                        fos.write(cachedEntry.bytes().underlyingBytes(), 0, cachedEntry.bytes().size());
-                        fos.getChannel().force(true);
-                        serializedAtLeastOnce = true;
-                    } catch (Exception e) {
-                        logger.warn("failed to write local gateway shards state to {}", e, stateFile);
-                    } finally {
-                        Closeables.closeQuietly(fos);
-                    }
-                }
-
-                if (serializedAtLeastOnce) {
-                    currentStartedShards = stateToWrite;
-
-                    // delete all the other files
-                    for (File dataLocation : nodeEnv.nodeDataLocations()) {
-                        File stateLocation = new File(dataLocation, "_state");
-                        if (!stateLocation.exists()) {
-                            continue;
-                        }
-                        File[] files = stateLocation.listFiles(new FilenameFilter() {
-                            @Override
-                            public boolean accept(File dir, String name) {
-                                return name.startsWith("shards-") && !name.equals("shards-" + event.state().version());
-                            }
-                        });
-                        if (files != null) {
-                            for (File file : files) {
-                                file.delete();
-                            }
-                        }
-                    }
-                }
-            } finally {
-                CachedStreamOutput.pushEntry(cachedEntry);
-            }
-        }
+        metaState.clusterChanged(event);
+        shardsState.clusterChanged(event);
     }
 }

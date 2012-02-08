@@ -28,7 +28,6 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.cache.filter.FilterCache;
@@ -50,10 +49,12 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.facet.SearchContextFacets;
 import org.elasticsearch.search.fetch.FetchSearchResult;
+import org.elasticsearch.search.fetch.partial.PartialFieldsContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.scan.ScanContext;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -105,7 +106,13 @@ public class SearchContext implements Releasable {
 
     private final FetchSearchResult fetchResult;
 
+    // lazy initialized only if needed
+    private ScanContext scanContext;
+
     private float queryBoost = 1.0f;
+
+    // timeout in millis
+    private long timeoutInMillis = -1;
 
 
     private List<String> groupStats;
@@ -117,6 +124,8 @@ public class SearchContext implements Releasable {
     private boolean version = false; // by default, we don't return versions
 
     private List<String> fieldNames;
+    private ScriptFieldsContext scriptFields;
+    private PartialFieldsContext partialFields;
 
     private int from = -1;
 
@@ -145,8 +154,6 @@ public class SearchContext implements Releasable {
     private SearchContextFacets facets;
 
     private SearchContextHighlight highlight;
-
-    private ScriptFieldsContext scriptFields;
 
     private SearchLookup searchLookup;
 
@@ -179,6 +186,9 @@ public class SearchContext implements Releasable {
 
     @Override
     public boolean release() throws ElasticSearchException {
+        if (scanContext != null) {
+            scanContext.clear();
+        }
         // clear and scope phase we  have
         if (scopePhases != null) {
             for (ScopePhase scopePhase : scopePhases) {
@@ -278,6 +288,17 @@ public class SearchContext implements Releasable {
         return this.scriptFields;
     }
 
+    public boolean hasPartialFields() {
+        return partialFields != null;
+    }
+
+    public PartialFieldsContext partialFields() {
+        if (partialFields == null) {
+            partialFields = new PartialFieldsContext();
+        }
+        return this.partialFields;
+    }
+
     public ContextIndexSearcher searcher() {
         return this.searcher;
     }
@@ -318,8 +339,12 @@ public class SearchContext implements Releasable {
         return indexService.cache().idCache();
     }
 
-    public TimeValue timeout() {
-        return request.timeout();
+    public long timeoutInMillis() {
+        return timeoutInMillis;
+    }
+
+    public void timeoutInMillis(long timeoutInMillis) {
+        this.timeoutInMillis = timeoutInMillis;
     }
 
     public SearchContext minimumScore(float minimumScore) {
@@ -533,6 +558,13 @@ public class SearchContext implements Releasable {
             nestedQueries = new HashMap<String, BlockJoinQuery>();
         }
         nestedQueries.put(scope, query);
+    }
+
+    public ScanContext scanContext() {
+        if (scanContext == null) {
+            scanContext = new ScanContext();
+        }
+        return scanContext;
     }
 
     public MapperService.SmartNameFieldMappers smartFieldMappers(String name) {

@@ -287,6 +287,9 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
         @Override
         public void raiseNodeDisconnected(final DiscoveryNode node) {
+            if (lifecycle.stoppedOrClosed()) {
+                return;
+            }
             threadPool.cached().execute(new Runnable() {
                 @Override
                 public void run() {

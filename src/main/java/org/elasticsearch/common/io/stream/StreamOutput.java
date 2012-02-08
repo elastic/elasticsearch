@@ -19,18 +19,19 @@
 
 package org.elasticsearch.common.io.stream;
 
+import org.elasticsearch.common.BytesHolder;
+import org.elasticsearch.common.Nullable;
+
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  *
  */
 public abstract class StreamOutput extends OutputStream {
-
-    /**
-     * bytearr is initialized on demand by writeUTF
-     */
-    private byte[] bytearr = null;
 
     /**
      * Writes a single byte.
@@ -64,6 +65,20 @@ public abstract class StreamOutput extends OutputStream {
      * @param length the number of bytes to write
      */
     public abstract void writeBytes(byte[] b, int offset, int length) throws IOException;
+
+    public void writeBytesHolder(byte[] bytes, int offset, int length) throws IOException {
+        writeVInt(length);
+        writeBytes(bytes, offset, length);
+    }
+
+    public void writeBytesHolder(@Nullable BytesHolder bytes) throws IOException {
+        if (bytes == null) {
+            writeVInt(0);
+        } else {
+            writeVInt(bytes.length());
+            writeBytes(bytes.bytes(), bytes.offset(), bytes.length());
+        }
+    }
 
     public final void writeShort(short v) throws IOException {
         writeByte((byte) (v >> 8));
@@ -114,59 +129,35 @@ public abstract class StreamOutput extends OutputStream {
         writeByte((byte) i);
     }
 
+    public void writeOptionalUTF(@Nullable String str) throws IOException {
+        if (str == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeUTF(str);
+        }
+    }
+
     /**
      * Writes a string.
      */
     public void writeUTF(String str) throws IOException {
-        int strlen = str.length();
-        int utflen = 0;
-        int c, count = 0;
-
-        /* use charAt instead of copying String to char array */
-        for (int i = 0; i < strlen; i++) {
+        int charCount = str.length();
+        writeVInt(charCount);
+        int c;
+        for (int i = 0; i < charCount; i++) {
             c = str.charAt(i);
-            if ((c >= 0x0001) && (c <= 0x007F)) {
-                utflen++;
+            if (c <= 0x007F) {
+                writeByte((byte) c);
             } else if (c > 0x07FF) {
-                utflen += 3;
+                writeByte((byte) (0xE0 | c >> 12 & 0x0F));
+                writeByte((byte) (0x80 | c >> 6 & 0x3F));
+                writeByte((byte) (0x80 | c >> 0 & 0x3F));
             } else {
-                utflen += 2;
+                writeByte((byte) (0xC0 | c >> 6 & 0x1F));
+                writeByte((byte) (0x80 | c >> 0 & 0x3F));
             }
         }
-
-        if (this.bytearr == null || (this.bytearr.length < (utflen + 4)))
-            this.bytearr = new byte[(utflen * 2) + 4];
-        byte[] bytearr = this.bytearr;
-
-        // same as writeInt
-        bytearr[count++] = (byte) (utflen >> 24);
-        bytearr[count++] = (byte) (utflen >> 16);
-        bytearr[count++] = (byte) (utflen >> 8);
-        bytearr[count++] = (byte) (utflen);
-
-        int i = 0;
-        for (i = 0; i < strlen; i++) {
-            c = str.charAt(i);
-            if (!((c >= 0x0001) && (c <= 0x007F))) break;
-            bytearr[count++] = (byte) c;
-        }
-
-        for (; i < strlen; i++) {
-            c = str.charAt(i);
-            if ((c >= 0x0001) && (c <= 0x007F)) {
-                bytearr[count++] = (byte) c;
-
-            } else if (c > 0x07FF) {
-                bytearr[count++] = (byte) (0xE0 | ((c >> 12) & 0x0F));
-                bytearr[count++] = (byte) (0x80 | ((c >> 6) & 0x3F));
-                bytearr[count++] = (byte) (0x80 | ((c >> 0) & 0x3F));
-            } else {
-                bytearr[count++] = (byte) (0xC0 | ((c >> 6) & 0x1F));
-                bytearr[count++] = (byte) (0x80 | ((c >> 0) & 0x3F));
-            }
-        }
-        writeBytes(bytearr, 0, utflen + 4);
-//        return utflen + 2;
     }
 
     public void writeFloat(float v) throws IOException {
@@ -208,5 +199,68 @@ public abstract class StreamOutput extends OutputStream {
     @Override
     public void write(byte[] b, int off, int len) throws IOException {
         writeBytes(b, off, len);
+    }
+
+    public void writeMap(@Nullable Map<String, Object> map) throws IOException {
+        writeValue(map);
+    }
+
+    private void writeValue(@Nullable Object value) throws IOException {
+        if (value == null) {
+            writeByte((byte) -1);
+            return;
+        }
+        Class type = value.getClass();
+        if (type == String.class) {
+            writeByte((byte) 0);
+            writeUTF((String) value);
+        } else if (type == Integer.class) {
+            writeByte((byte) 1);
+            writeInt((Integer) value);
+        } else if (type == Long.class) {
+            writeByte((byte) 2);
+            writeLong((Long) value);
+        } else if (type == Float.class) {
+            writeByte((byte) 3);
+            writeFloat((Float) value);
+        } else if (type == Double.class) {
+            writeByte((byte) 4);
+            writeDouble((Double) value);
+        } else if (type == Boolean.class) {
+            writeByte((byte) 5);
+            writeBoolean((Boolean) value);
+        } else if (type == byte[].class) {
+            writeByte((byte) 6);
+            writeVInt(((byte[]) value).length);
+            writeBytes(((byte[]) value));
+        } else if (value instanceof List) {
+            writeByte((byte) 7);
+            List list = (List) value;
+            writeVInt(list.size());
+            for (Object o : list) {
+                writeValue(o);
+            }
+        } else if (value instanceof Object[]) {
+            writeByte((byte) 8);
+            Object[] list = (Object[]) value;
+            writeVInt(list.length);
+            for (Object o : list) {
+                writeValue(o);
+            }
+        } else if (value instanceof Map) {
+            if (value instanceof LinkedHashMap) {
+                writeByte((byte) 9);
+            } else {
+                writeByte((byte) 10);
+            }
+            Map<String, Object> map = (Map<String, Object>) value;
+            writeVInt(map.size());
+            for (Map.Entry<String, Object> entry : map.entrySet()) {
+                writeUTF(entry.getKey());
+                writeValue(entry.getValue());
+            }
+        } else {
+            throw new IOException("Can't write type [" + type + "]");
+        }
     }
 }

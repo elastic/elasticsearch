@@ -27,15 +27,22 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.monitor.MonitorService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.net.InetAddress;
 
 /**
  */
 public class NodeService extends AbstractComponent {
+
+    private final ThreadPool threadPool;
 
     private final MonitorService monitorService;
 
@@ -48,42 +55,110 @@ public class NodeService extends AbstractComponent {
     @Nullable
     private HttpServer httpServer;
 
-    private volatile ImmutableMap<String, String> nodeAttributes = ImmutableMap.of();
+    private volatile ImmutableMap<String, String> serviceAttributes = ImmutableMap.of();
+
+    @Nullable
+    private String hostname;
 
     @Inject
-    public NodeService(Settings settings, MonitorService monitorService, ClusterService clusterService, TransportService transportService, IndicesService indicesService) {
+    public NodeService(Settings settings, ThreadPool threadPool, MonitorService monitorService, Discovery discovery, ClusterService clusterService, TransportService transportService, IndicesService indicesService) {
         super(settings);
+        this.threadPool = threadPool;
         this.monitorService = monitorService;
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.indicesService = indicesService;
+        discovery.setNodeService(this);
+        InetAddress address = NetworkUtils.getLocalAddress();
+        if (address != null) {
+            this.hostname = address.getHostName();
+        }
     }
 
     public void setHttpServer(@Nullable HttpServer httpServer) {
         this.httpServer = httpServer;
     }
 
-    public synchronized void putNodeAttribute(String key, String value) {
-        nodeAttributes = new MapBuilder<String, String>().putAll(nodeAttributes).put(key, value).immutableMap();
+    @Deprecated
+    public void putNodeAttribute(String key, String value) {
+        putAttribute(key, value);
     }
 
-    public synchronized void removeNodeAttribute(String key) {
-        nodeAttributes = new MapBuilder<String, String>().putAll(nodeAttributes).remove(key).immutableMap();
+    @Deprecated
+    public void removeNodeAttribute(String key) {
+        removeAttribute(key);
+    }
+
+    public synchronized void putAttribute(String key, String value) {
+        serviceAttributes = new MapBuilder<String, String>().putAll(serviceAttributes).put(key, value).immutableMap();
+    }
+
+    public synchronized void removeAttribute(String key) {
+        serviceAttributes = new MapBuilder<String, String>().putAll(serviceAttributes).remove(key).immutableMap();
+    }
+
+    /**
+     * Attributes different services in the node can add to be reported as part of the node info (for example).
+     */
+    public ImmutableMap<String, String> attributes() {
+        return this.serviceAttributes;
     }
 
     public NodeInfo info() {
-        return new NodeInfo(clusterService.state().nodes().localNode(), nodeAttributes, settings,
-                monitorService.osService().info(), monitorService.processService().info(),
-                monitorService.jvmService().info(), monitorService.networkService().info(),
-                transportService.info(), httpServer == null ? null : httpServer.info());
+        return new NodeInfo(hostname, clusterService.state().nodes().localNode(), serviceAttributes,
+                settings,
+                monitorService.osService().info(),
+                monitorService.processService().info(),
+                monitorService.jvmService().info(),
+                threadPool.info(),
+                monitorService.networkService().info(),
+                transportService.info(),
+                httpServer == null ? null : httpServer.info()
+        );
+    }
+
+    public NodeInfo info(boolean settings, boolean os, boolean process, boolean jvm, boolean threadPool, boolean network, boolean transport, boolean http) {
+        return new NodeInfo(hostname, clusterService.state().nodes().localNode(), serviceAttributes,
+                settings ? this.settings : null,
+                os ? monitorService.osService().info() : null,
+                process ? monitorService.processService().info() : null,
+                jvm ? monitorService.jvmService().info() : null,
+                threadPool ? this.threadPool.info() : null,
+                network ? monitorService.networkService().info() : null,
+                transport ? transportService.info() : null,
+                http ? (httpServer == null ? null : httpServer.info()) : null
+        );
     }
 
     public NodeStats stats() {
         // for indices stats we want to include previous allocated shards stats as well (it will
         // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
-        return new NodeStats(clusterService.state().nodes().localNode(), indicesService.stats(true),
-                monitorService.osService().stats(), monitorService.processService().stats(),
-                monitorService.jvmService().stats(), monitorService.networkService().stats(),
-                transportService.stats(), httpServer == null ? null : httpServer.stats());
+        return new NodeStats(clusterService.state().nodes().localNode(), hostname,
+                indicesService.stats(true),
+                monitorService.osService().stats(),
+                monitorService.processService().stats(),
+                monitorService.jvmService().stats(),
+                threadPool.stats(),
+                monitorService.networkService().stats(),
+                monitorService.fsService().stats(),
+                transportService.stats(),
+                httpServer == null ? null : httpServer.stats()
+        );
+    }
+
+    public NodeStats stats(boolean indices, boolean os, boolean process, boolean jvm, boolean threadPool, boolean network, boolean fs, boolean transport, boolean http) {
+        // for indices stats we want to include previous allocated shards stats as well (it will
+        // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
+        return new NodeStats(clusterService.state().nodes().localNode(), hostname,
+                indices ? indicesService.stats(true) : null,
+                os ? monitorService.osService().stats() : null,
+                process ? monitorService.processService().stats() : null,
+                jvm ? monitorService.jvmService().stats() : null,
+                threadPool ? this.threadPool.stats() : null,
+                network ? monitorService.networkService().stats() : null,
+                fs ? monitorService.fsService().stats() : null,
+                transport ? transportService.stats() : null,
+                http ? (httpServer == null ? null : httpServer.stats()) : null
+        );
     }
 }

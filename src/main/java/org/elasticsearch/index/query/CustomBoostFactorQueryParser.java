@@ -60,12 +60,16 @@ public class CustomBoostFactorQueryParser implements QueryParser {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("query".equals(currentFieldName)) {
                     query = parseContext.parseInnerQuery();
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[custom_boost_factor] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("boost_factor".equals(currentFieldName) || "boostFactor".equals(currentFieldName)) {
                     boostFactor = parser.floatValue();
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[custom_boost_factor] query does not support [" + currentFieldName + "]");
                 }
             }
         }

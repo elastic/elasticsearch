@@ -68,8 +68,9 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
 
     // similar logic to FrameDecoder, we don't use FrameDecoder because we can use the data len header value
     // to guess the size of the cumulation buffer to allocate
-    // Also strange, is that the FrameDecoder always allocated a cumulation, even if the input bufer is enough
-    // so we don't allocate a cumulation buffer unless we really need to here (need to post this to the mailing list)
+
+    // we don't reuse the cumalation buffer, so it won't grow out of control per channel, as well as
+    // being able to "readBytesReference" from it without worry
     @Override
     public void messageReceived(ChannelHandlerContext ctx, MessageEvent e) throws Exception {
 
@@ -137,7 +138,6 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
             process(context, channel, cumulation, dataLen);
         }
 
-        // TODO: we can potentially create a cumulation buffer cache, pop/push style
         if (!cumulation.readable()) {
             this.cumulation = null;
         }
@@ -180,21 +180,23 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         int markedReaderIndex = buffer.readerIndex();
         int expectedIndexReader = markedReaderIndex + size;
 
+        // netty always copies a buffer, either in NioWorker in its read handler, where it copies to a fresh
+        // buffer, or in the cumlation buffer, which is cleaned each time
         StreamInput streamIn = new ChannelBufferStreamInput(buffer, size);
 
         long requestId = buffer.readLong();
         byte status = buffer.readByte();
         boolean isRequest = TransportStreams.statusIsRequest(status);
 
-        HandlesStreamInput handlesStream;
+        HandlesStreamInput wrappedStream;
         if (TransportStreams.statusIsCompress(status)) {
-            handlesStream = CachedStreamInput.cachedHandlesLzf(streamIn);
+            wrappedStream = CachedStreamInput.cachedHandlesLzf(streamIn);
         } else {
-            handlesStream = CachedStreamInput.cachedHandles(streamIn);
+            wrappedStream = CachedStreamInput.cachedHandles(streamIn);
         }
 
         if (isRequest) {
-            String action = handleRequest(channel, handlesStream, requestId);
+            String action = handleRequest(channel, wrappedStream, requestId);
             if (buffer.readerIndex() != expectedIndexReader) {
                 if (buffer.readerIndex() < expectedIndexReader) {
                     logger.warn("Message not fully read (request) for [{}] and action [{}], resetting", requestId, action);
@@ -208,9 +210,9 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
             // ignore if its null, the adapter logs it
             if (handler != null) {
                 if (TransportStreams.statusIsError(status)) {
-                    handlerResponseError(handlesStream, handler);
+                    handlerResponseError(wrappedStream, handler);
                 } else {
-                    handleResponse(handlesStream, handler);
+                    handleResponse(wrappedStream, handler);
                 }
             } else {
                 // if its null, skip those bytes
@@ -225,7 +227,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
                 buffer.readerIndex(expectedIndexReader);
             }
         }
-        handlesStream.cleanHandles();
+        wrappedStream.cleanHandles();
     }
 
     private void handleResponse(StreamInput buffer, final TransportResponseHandler handler) {

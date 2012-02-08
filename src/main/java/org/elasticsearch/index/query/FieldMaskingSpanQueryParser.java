@@ -63,15 +63,19 @@ public class FieldMaskingSpanQueryParser implements QueryParser {
                 if ("query".equals(currentFieldName)) {
                     Query query = parseContext.parseInnerQuery();
                     if (!(query instanceof SpanQuery)) {
-                        throw new QueryParsingException(parseContext.index(), "field_masking_span [query] must be of type span query");
+                        throw new QueryParsingException(parseContext.index(), "[field_masking_span] query] must be of type span query");
                     }
                     inner = (SpanQuery) query;
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[field_masking_span] query does not support [" + currentFieldName + "]");
                 }
             } else {
                 if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else if ("field".equals(currentFieldName)) {
                     field = parser.text();
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[field_masking_span] query does not support [" + currentFieldName + "]");
                 }
             }
         }

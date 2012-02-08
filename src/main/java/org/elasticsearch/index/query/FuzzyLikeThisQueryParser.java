@@ -25,7 +25,6 @@ import org.apache.lucene.search.FuzzyLikeThisQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 
 import java.io.IOException;
 import java.util.List;
@@ -41,8 +40,6 @@ import java.util.List;
  *  }
  * }
  * </pre>
- *
- *
  */
 public class FuzzyLikeThisQueryParser implements QueryParser {
 
@@ -90,6 +87,8 @@ public class FuzzyLikeThisQueryParser implements QueryParser {
                     prefixLength = parser.intValue();
                 } else if ("analyzer".equals(currentFieldName)) {
                     analyzer = parseContext.analysisService().analyzer(parser.text());
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[flt] query does not support [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("fields".equals(currentFieldName)) {
@@ -97,6 +96,8 @@ public class FuzzyLikeThisQueryParser implements QueryParser {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         fields.add(parseContext.indexName(parser.text()));
                     }
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[flt] query does not support [" + currentFieldName + "]");
                 }
             }
         }
@@ -112,7 +113,7 @@ public class FuzzyLikeThisQueryParser implements QueryParser {
         FuzzyLikeThisQuery query = new FuzzyLikeThisQuery(maxNumTerms, analyzer);
         if (fields == null) {
             // add the default _all field
-            query.addTerms(likeText, AllFieldMapper.NAME, minSimilarity, prefixLength);
+            query.addTerms(likeText, parseContext.defaultField(), minSimilarity, prefixLength);
         } else {
             for (String field : fields) {
                 query.addTerms(likeText, field, minSimilarity, prefixLength);

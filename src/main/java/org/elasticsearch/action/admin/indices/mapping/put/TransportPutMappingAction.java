@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.indices.mapping.put;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -38,8 +37,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Put mapping action.
- *
- *
  */
 public class TransportPutMappingAction extends TransportMasterNodeOperationAction<PutMappingRequest, PutMappingResponse> {
 
@@ -59,7 +56,7 @@ public class TransportPutMappingAction extends TransportMasterNodeOperationActio
 
     @Override
     protected String transportAction() {
-        return TransportActions.Admin.Indices.Mapping.PUT;
+        return PutMappingAction.NAME;
     }
 
     @Override

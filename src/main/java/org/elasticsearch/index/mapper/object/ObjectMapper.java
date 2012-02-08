@@ -736,6 +736,12 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                         builder = booleanField(currentFieldName);
                     }
                     mapper = builder.build(builderContext);
+                } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
+                    Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "binary");
+                    if (builder == null) {
+                        builder = binaryField(currentFieldName);
+                    }
+                    mapper = builder.build(builderContext);
                 } else {
                     Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, null);
                     if (builder != null) {

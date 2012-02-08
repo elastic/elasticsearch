@@ -27,14 +27,12 @@ import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 
-import static org.elasticsearch.action.Actions.addValidationError;
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 
 /**
  * A request to close an index.
- *
- *
  */
 public class CloseIndexRequest extends MasterNodeOperationRequest {
 
@@ -66,6 +64,11 @@ public class CloseIndexRequest extends MasterNodeOperationRequest {
      */
     String index() {
         return index;
+    }
+
+    public CloseIndexRequest index(String index) {
+        this.index = index;
+        return this;
     }
 
     /**

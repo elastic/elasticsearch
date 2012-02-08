@@ -137,7 +137,6 @@ public class RestSearchAction extends BaseRestHandler {
             searchRequest.scroll(new Scroll(parseTimeValue(scroll, null)));
         }
 
-        searchRequest.timeout(request.paramAsTime("timeout", null));
         searchRequest.types(RestActions.splitTypes(request.param("type")));
         searchRequest.queryHint(request.param("query_hint"));
         searchRequest.routing(request.param("routing"));
@@ -197,6 +196,12 @@ public class RestSearchAction extends BaseRestHandler {
                 searchSourceBuilder = new SearchSourceBuilder();
             }
             searchSourceBuilder.version(request.paramAsBooleanOptional("version", null));
+        }
+        if (request.hasParam("timeout")) {
+            if (searchSourceBuilder == null) {
+                searchSourceBuilder = new SearchSourceBuilder();
+            }
+            searchSourceBuilder.timeout(request.paramAsTime("timeout", null));
         }
 
         String sField = request.param("fields");

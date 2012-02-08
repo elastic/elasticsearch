@@ -67,7 +67,7 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
                 List<MutableShardRouting> shards = node.shards();
                 for (int i = 0; i < shards.size(); i++) {
                     MutableShardRouting shard = shards.get(i);
-                    if (shard.primary() && !shard.active()) {
+                    if (shard.primary() && !shard.active() && shard.relocatingNodeId() == null) {
                         return false;
                     }
                 }
@@ -82,7 +82,7 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
                 List<MutableShardRouting> shards = node.shards();
                 for (int i = 0; i < shards.size(); i++) {
                     MutableShardRouting shard = shards.get(i);
-                    if (!shard.active()) {
+                    if (!shard.active() && shard.relocatingNodeId() == null) {
                         return false;
                     }
                 }

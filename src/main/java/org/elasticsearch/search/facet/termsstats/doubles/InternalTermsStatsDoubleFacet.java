@@ -20,10 +20,10 @@
 package org.elasticsearch.search.facet.termsstats.doubles;
 
 import com.google.common.collect.ImmutableList;
-import gnu.trove.ExtTDoubleObjectHashMap;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.trove.ExtTDoubleObjectHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.facet.Facet;
@@ -252,7 +252,6 @@ public class InternalTermsStatsDoubleFacet extends InternalTermsStatsFacet {
         }
         int missing = 0;
         ExtTDoubleObjectHashMap<DoubleEntry> map = CacheRecycler.popDoubleObjectMap();
-        map.clear();
         for (Facet facet : facets) {
             InternalTermsStatsDoubleFacet tsFacet = (InternalTermsStatsDoubleFacet) facet;
             missing += tsFacet.missing;

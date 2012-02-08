@@ -42,8 +42,6 @@ import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameQu
  *      }
  * }
  * </pre>
- *
- *
  */
 public class FuzzyLikeThisFieldQueryParser implements QueryParser {
 
@@ -71,12 +69,16 @@ public class FuzzyLikeThisFieldQueryParser implements QueryParser {
         Analyzer analyzer = null;
 
         XContentParser.Token token = parser.nextToken();
-        assert token == XContentParser.Token.FIELD_NAME;
+        if (token != XContentParser.Token.FIELD_NAME) {
+            throw new QueryParsingException(parseContext.index(), "[flt_field] query malformed, no field");
+        }
         String fieldName = parser.currentName();
 
         // now, we move after the field name, which starts the object
         token = parser.nextToken();
-        assert token == XContentParser.Token.START_OBJECT;
+        if (token != XContentParser.Token.START_OBJECT) {
+            throw new QueryParsingException(parseContext.index(), "[flt_field] query malformed, no start_object");
+        }
 
 
         String currentFieldName = null;
@@ -98,6 +100,8 @@ public class FuzzyLikeThisFieldQueryParser implements QueryParser {
                     prefixLength = parser.intValue();
                 } else if ("analyzer".equals(currentFieldName)) {
                     analyzer = parseContext.analysisService().analyzer(parser.text());
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[flt_field] query does not support [" + currentFieldName + "]");
                 }
             }
         }
@@ -126,6 +130,9 @@ public class FuzzyLikeThisFieldQueryParser implements QueryParser {
 
         // move to the next end object, to close the field name
         token = parser.nextToken();
+        if (token != XContentParser.Token.END_OBJECT) {
+            throw new QueryParsingException(parseContext.index(), "[flt_field] query malformed, no end_object");
+        }
         assert token == XContentParser.Token.END_OBJECT;
 
         return wrapSmartNameQuery(query, smartNameFieldMappers, parseContext);

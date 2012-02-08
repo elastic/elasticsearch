@@ -50,8 +50,14 @@ public class RangeQueryParser implements QueryParser {
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token = parser.nextToken();
-        assert token == XContentParser.Token.FIELD_NAME;
+        if (token != XContentParser.Token.FIELD_NAME) {
+            throw new QueryParsingException(parseContext.index(), "[range] query malformed, no field to indicate field name");
+        }
         String fieldName = parser.currentName();
+        token = parser.nextToken();
+        if (token != XContentParser.Token.START_OBJECT) {
+            throw new QueryParsingException(parseContext.index(), "[range] query malformed, after field missing start object");
+        }
 
         String from = null;
         String to = null;
@@ -86,13 +92,17 @@ public class RangeQueryParser implements QueryParser {
                 } else if ("lte".equals(currentFieldName) || "le".equals(currentFieldName)) {
                     to = parser.textOrNull();
                     includeUpper = true;
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[range] query does not support [" + currentFieldName + "]");
                 }
             }
         }
 
         // move to the next end object, to close the field name
         token = parser.nextToken();
-        assert token == XContentParser.Token.END_OBJECT;
+        if (token != XContentParser.Token.END_OBJECT) {
+            throw new QueryParsingException(parseContext.index(), "[range] query malformed, does not end with an object");
+        }
 
         Query query = null;
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);

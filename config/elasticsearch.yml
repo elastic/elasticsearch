@@ -83,6 +83,10 @@
 # node.rack: rack314
 
 
+# By default, multiple nodes are allowed to start from the same installation location
+# to disable it, set the following:
+# node.max_local_storage_nodes: 1
+
 #################################### Index ####################################
 
 # You can set a number of options (such as shard/replica options, mapping
@@ -234,7 +238,8 @@
 # gateway.type: local
 
 # Settings below control how and when to start the initial recovery process on
-# a full cluster restart (to reuse as much local data as possible).
+# a full cluster restart (to reuse as much local data as possible when using shared
+# gateway).
 
 # Allow recovery process after N nodes in a cluster are up:
 #
@@ -246,7 +251,8 @@
 # gateway.recover_after_time: 5m
 
 # Set how many nodes are expected in this cluster. Once these N nodes
-# are up, begin recovery process immediately:
+# are up (and recover_after_nodes is met), begin recovery process immediately
+# (without waiting for recover_after_time to expire):
 #
 # gateway.expected_nodes: 2
 
@@ -284,7 +290,7 @@
 
 # Set to ensure a node sees N other master eligible nodes to be considered
 # operational within the cluster. Set this option to a higher value (2-4)
-# for large clusters:
+# for large clusters (>3 nodes):
 #
 # discovery.zen.minimum_master_nodes: 1
 
@@ -335,3 +341,13 @@
 #index.search.slowlog.threshold.fetch.info: 800ms
 #index.search.slowlog.threshold.fetch.debug: 500ms
 #index.search.slowlog.threshold.fetch.trace: 200ms
+
+################################## GC Logging ################################
+
+#monitor.jvm.gc.ParNew.warn: 1000ms
+#monitor.jvm.gc.ParNew.info: 700ms
+#monitor.jvm.gc.ParNew.debug: 400ms
+
+#monitor.jvm.gc.ConcurrentMarkSweep.warn: 10s
+#monitor.jvm.gc.ConcurrentMarkSweep.info: 5s
+#monitor.jvm.gc.ConcurrentMarkSweep.debug: 2s

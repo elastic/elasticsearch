@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.monitor.fs.FsService;
 import org.elasticsearch.monitor.jvm.JvmMonitorService;
 import org.elasticsearch.monitor.jvm.JvmService;
 import org.elasticsearch.monitor.network.NetworkService;
@@ -44,15 +45,19 @@ public class MonitorService extends AbstractLifecycleComponent<MonitorService> {
 
     private final NetworkService networkService;
 
+    private final FsService fsService;
+
     @Inject
     public MonitorService(Settings settings, JvmMonitorService jvmMonitorService,
-                          OsService osService, ProcessService processService, JvmService jvmService, NetworkService networkService) {
+                          OsService osService, ProcessService processService, JvmService jvmService, NetworkService networkService,
+                          FsService fsService) {
         super(settings);
         this.jvmMonitorService = jvmMonitorService;
         this.osService = osService;
         this.processService = processService;
         this.jvmService = jvmService;
         this.networkService = networkService;
+        this.fsService = fsService;
     }
 
     public OsService osService() {
@@ -69,6 +74,10 @@ public class MonitorService extends AbstractLifecycleComponent<MonitorService> {
 
     public NetworkService networkService() {
         return this.networkService;
+    }
+
+    public FsService fsService() {
+        return this.fsService;
     }
 
     @Override

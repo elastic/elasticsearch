@@ -34,7 +34,6 @@ import org.jboss.netty.channel.*;
 
 import java.io.IOException;
 import java.io.StreamCorruptedException;
-import java.net.SocketAddress;
 
 /**
  * A handler (must be the last one!) that does size based frame decoding and forwards the actual message
@@ -67,10 +66,12 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
     }
 
     // similar logic to FrameDecoder, we don't use FrameDecoder because we can use the data len header value
-    // to guess the size of the cumulation buffer to allocate
+    // to guess the size of the cumulation buffer to allocate, and because we make a fresh copy of the cumulation
+    // buffer so we can readBytesReference from it without other request writing into the same one in case
+    // two one message and a partial next message exists within the same input
 
-    // we don't reuse the cumalation buffer, so it won't grow out of control per channel, as well as
-    // being able to "readBytesReference" from it without worry
+    // we can readBytesReference because NioWorker always copies the input buffer into a fresh buffer, and we
+    // don't reuse cumumlation buffer
     @Override
     public void messageReceived(ChannelHandlerContext ctx, MessageEvent e) throws Exception {
 
@@ -89,9 +90,9 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         if (cumulation != null && cumulation.readable()) {
             cumulation.discardReadBytes();
             cumulation.writeBytes(input);
-            callDecode(ctx, e.getChannel(), cumulation, e.getRemoteAddress());
+            callDecode(ctx, e.getChannel(), cumulation, true);
         } else {
-            int actualSize = callDecode(ctx, e.getChannel(), input, e.getRemoteAddress());
+            int actualSize = callDecode(ctx, e.getChannel(), input, false);
             if (input.readable()) {
                 if (actualSize > 0) {
                     cumulation = ChannelBuffers.dynamicBuffer(actualSize, ctx.getChannel().getConfig().getBufferFactory());
@@ -116,33 +117,50 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         cleanup(ctx, e);
     }
 
-    private int callDecode(ChannelHandlerContext context, Channel channel, ChannelBuffer cumulation, SocketAddress remoteAddress) throws Exception {
-        while (cumulation.readable()) {
+    private int callDecode(ChannelHandlerContext ctx, Channel channel, ChannelBuffer buffer, boolean cumulationBuffer) throws Exception {
+        int actualSize = 0;
+        while (buffer.readable()) {
+            actualSize = 0;
             // Changes from Frame Decoder, to combine SizeHeader and this decoder into one...
-            if (cumulation.readableBytes() < 4) {
+            if (buffer.readableBytes() < 4) {
                 break; // we need more data
             }
 
-            int dataLen = cumulation.getInt(cumulation.readerIndex());
+            int dataLen = buffer.getInt(buffer.readerIndex());
             if (dataLen <= 0) {
                 throw new StreamCorruptedException("invalid data length: " + dataLen);
             }
 
-            int actualSize = dataLen + 4;
-            if (cumulation.readableBytes() < actualSize) {
-                return actualSize;
+            actualSize = dataLen + 4;
+            if (buffer.readableBytes() < actualSize) {
+                break;
             }
 
-            cumulation.skipBytes(4);
+            buffer.skipBytes(4);
 
-            process(context, channel, cumulation, dataLen);
+            process(ctx, channel, buffer, dataLen);
         }
 
-        if (!cumulation.readable()) {
-            this.cumulation = null;
+        if (cumulationBuffer) {
+            assert buffer == this.cumulation;
+            if (!buffer.readable()) {
+                this.cumulation = null;
+            } else if (buffer.readerIndex() > 0) {
+                // make a fresh copy of the cumalation buffer, so we
+                // can readBytesReference from it, and also, don't keep it around
+
+                // its not that big of an overhead since discardReadBytes in the next round messageReceived will
+                // copy over the bytes to the start again
+                if (actualSize > 0) {
+                    this.cumulation = ChannelBuffers.dynamicBuffer(actualSize, ctx.getChannel().getConfig().getBufferFactory());
+                } else {
+                    this.cumulation = ChannelBuffers.dynamicBuffer(ctx.getChannel().getConfig().getBufferFactory());
+                }
+                this.cumulation.writeBytes(buffer);
+            }
         }
 
-        return 0;
+        return actualSize;
     }
 
 
@@ -157,7 +175,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
 
             if (cumulation.readable()) {
                 // Make sure all frames are read before notifying a closed channel.
-                callDecode(ctx, ctx.getChannel(), cumulation, null);
+                callDecode(ctx, ctx.getChannel(), cumulation, true);
             }
 
             // Call decodeLast() finally.  Please note that decodeLast() is

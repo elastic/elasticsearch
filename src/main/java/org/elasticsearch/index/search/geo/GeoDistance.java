@@ -24,8 +24,6 @@ import org.elasticsearch.common.unit.DistanceUnit;
 
 /**
  * Geo distance calculation.
- *
- *
  */
 public enum GeoDistance {
     /**
@@ -55,7 +53,6 @@ public enum GeoDistance {
     FACTOR() {
         @Override
         public double calculate(double sourceLatitude, double sourceLongitude, double targetLatitude, double targetLongitude, DistanceUnit unit) {
-            // TODO: we might want to normalize longitude as we did in LatLng...
             double longitudeDifference = targetLongitude - sourceLongitude;
             double a = Math.toRadians(90D - sourceLatitude);
             double c = Math.toRadians(90D - targetLatitude);
@@ -78,7 +75,6 @@ public enum GeoDistance {
     ARC() {
         @Override
         public double calculate(double sourceLatitude, double sourceLongitude, double targetLatitude, double targetLongitude, DistanceUnit unit) {
-            // TODO: we might want to normalize longitude as we did in LatLng...
             double longitudeDifference = targetLongitude - sourceLongitude;
             double a = Math.toRadians(90D - sourceLatitude);
             double c = Math.toRadians(90D - targetLatitude);
@@ -286,7 +282,6 @@ public enum GeoDistance {
 
         @Override
         public double calculate(double targetLatitude, double targetLongitude) {
-            // TODO: we might want to normalize longitude as we did in LatLng...
             double longitudeDifference = targetLongitude - sourceLongitude;
             double c = Math.toRadians(90D - targetLatitude);
             return (cosA * Math.cos(c)) + (sinA * Math.sin(c) * Math.cos(Math.toRadians(longitudeDifference)));
@@ -315,7 +310,6 @@ public enum GeoDistance {
 
         @Override
         public double calculate(double targetLatitude, double targetLongitude) {
-            // TODO: we might want to normalize longitude as we did in LatLng...
             double longitudeDifference = targetLongitude - sourceLongitude;
             double c = Math.toRadians(90D - targetLatitude);
             double factor = (cosA * Math.cos(c)) + (sinA * Math.sin(c) * Math.cos(Math.toRadians(longitudeDifference)));

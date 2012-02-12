@@ -21,6 +21,7 @@ package org.elasticsearch.common.settings;
 
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -56,9 +57,16 @@ public interface Settings {
     Settings getByPrefix(String prefix);
 
     /**
-     * The class loader associated with this settings.
+     * The class loader associated with this settings, or {@link org.elasticsearch.common.Classes#getDefaultClassLoader()}
+     * if not set.
      */
     ClassLoader getClassLoader();
+
+    /**
+     * The class loader associated with this settings, but only if explicitly set, otherwise <tt>null</tt>.
+     */
+    @Nullable
+    ClassLoader getClassLoaderIfSet();
 
     /**
      * The settings as a {@link java.util.Map}.

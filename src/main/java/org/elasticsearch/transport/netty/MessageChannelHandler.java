@@ -271,7 +271,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
     private void handlerResponseError(StreamInput buffer, final TransportResponseHandler handler) {
         Throwable error;
         try {
-            ThrowableObjectInputStream ois = new ThrowableObjectInputStream(buffer);
+            ThrowableObjectInputStream ois = new ThrowableObjectInputStream(buffer, transport.settings().getClassLoader());
             error = (Throwable) ois.readObject();
         } catch (Exception e) {
             error = new TransportSerializationException("Failed to deserialize exception response from stream", e);

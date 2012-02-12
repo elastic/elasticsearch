@@ -20,7 +20,6 @@
 package org.elasticsearch.env;
 
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.common.Classes;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 
@@ -35,10 +34,10 @@ import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_
 
 /**
  * The environment of where things exists.
- *
- *
  */
 public class Environment {
+
+    private final Settings settings;
 
     private final File homeFile;
 
@@ -61,6 +60,7 @@ public class Environment {
     }
 
     public Environment(Settings settings) {
+        this.settings = settings;
         if (settings.get("path.home") != null) {
             homeFile = new File(cleanPath(settings.get("path.home")));
         } else {
@@ -104,6 +104,13 @@ public class Environment {
         } else {
             logsFile = new File(homeFile, "logs");
         }
+    }
+
+    /**
+     * The settings used to build this environment.
+     */
+    public Settings settings() {
+        return this.settings;
     }
 
     /**
@@ -183,13 +190,13 @@ public class Environment {
             }
         }
         // try and load it from the classpath directly
-        URL resource = Classes.getDefaultClassLoader().getResource(path);
+        URL resource = settings.getClassLoader().getResource(path);
         if (resource != null) {
             return resource;
         }
         // try and load it from the classpath with config/ prefix
         if (!path.startsWith("config/")) {
-            resource = Classes.getDefaultClassLoader().getResource("config/" + path);
+            resource = settings.getClassLoader().getResource("config/" + path);
             if (resource != null) {
                 return resource;
             }

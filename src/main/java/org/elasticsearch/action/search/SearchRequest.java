@@ -43,7 +43,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.search.Scroll.readScroll;
 
 /**
@@ -113,9 +112,10 @@ public class SearchRequest implements ActionRequest {
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (source == null && extraSource == null) {
-            validationException = addValidationError("search source is missing", validationException);
-        }
+        // no need to check, we resolve to match all query
+//        if (source == null && extraSource == null) {
+//            validationException = addValidationError("search source is missing", validationException);
+//        }
         return validationException;
     }
 

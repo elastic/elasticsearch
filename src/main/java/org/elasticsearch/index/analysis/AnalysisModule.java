@@ -406,6 +406,7 @@ public class AnalysisModule extends AbstractModule {
             tokenFiltersBindings.processTokenFilter("shingle", ShingleTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("unique", UniqueTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("truncate", TruncateTokenFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("trim", TrimTokenFilterFactory.class);
         }
 
         @Override

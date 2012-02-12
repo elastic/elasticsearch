@@ -259,7 +259,6 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         logger.debug("creating Index [{}], shards [{}]/[{}]", sIndexName, settings.get(SETTING_NUMBER_OF_SHARDS), settings.get(SETTING_NUMBER_OF_REPLICAS));
 
         Settings indexSettings = settingsBuilder()
-                .put("settingsType", "index")
                 .put(this.settings)
                 .put(settings)
                 .classLoader(settings.getClassLoader())

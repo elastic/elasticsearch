@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.io;
 
+import org.elasticsearch.common.Classes;
+
 import java.io.*;
 
 /**
@@ -84,7 +86,7 @@ public class ThrowableObjectInputStream extends ObjectInputStream {
         Class<?> clazz;
         ClassLoader classLoader = this.classLoader;
         if (classLoader == null) {
-            classLoader = Thread.currentThread().getContextClassLoader();
+            classLoader = Classes.getDefaultClassLoader();
         }
 
         if (classLoader != null) {

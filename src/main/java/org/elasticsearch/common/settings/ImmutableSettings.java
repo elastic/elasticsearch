@@ -59,11 +59,16 @@ public class ImmutableSettings implements Settings {
 
     private ImmutableSettings(Map<String, String> settings, ClassLoader classLoader) {
         this.settings = ImmutableMap.copyOf(settings);
-        this.classLoader = classLoader == null ? buildClassLoader() : classLoader;
+        this.classLoader = classLoader;
     }
 
     @Override
     public ClassLoader getClassLoader() {
+        return this.classLoader == null ? Classes.getDefaultClassLoader() : classLoader;
+    }
+
+    @Override
+    public ClassLoader getClassLoaderIfSet() {
         return this.classLoader;
     }
 
@@ -338,10 +343,6 @@ public class ImmutableSettings implements Settings {
         return result;
     }
 
-    private static ClassLoader buildClassLoader() {
-        return Classes.getDefaultClassLoader();
-    }
-
     public static Settings readSettingsFromStream(StreamInput in) throws IOException {
         Builder builder = new Builder();
         int numberOfSettings = in.readVInt();
@@ -562,6 +563,7 @@ public class ImmutableSettings implements Settings {
          */
         public Builder put(Settings settings) {
             map.putAll(settings.getAsMap());
+            classLoader = settings.getClassLoaderIfSet();
             return this;
         }
 
@@ -632,7 +634,7 @@ public class ImmutableSettings implements Settings {
         public Builder loadFromClasspath(String resourceName) throws SettingsException {
             ClassLoader classLoader = this.classLoader;
             if (classLoader == null) {
-                classLoader = buildClassLoader();
+                classLoader = Classes.getDefaultClassLoader();
             }
             InputStream is = classLoader.getResourceAsStream(resourceName);
             if (is == null) {

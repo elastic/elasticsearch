@@ -21,7 +21,6 @@ package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Classes;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.inject.spi.Message;
@@ -88,7 +87,7 @@ public class Bootstrap {
 
     private static void setupLogging(Tuple<Settings, Environment> tuple) {
         try {
-            Classes.getDefaultClassLoader().loadClass("org.apache.log4j.Logger");
+            tuple.v1().getClassLoader().loadClass("org.apache.log4j.Logger");
             LogConfigurator.configure(tuple.v1());
         } catch (ClassNotFoundException e) {
             // no log4j

@@ -200,7 +200,7 @@ public class NodeStats extends NodeOperationResponse {
      * File system level stats.
      */
     @Nullable
-    FsStats fs() {
+    public FsStats fs() {
         return fs;
     }
 
@@ -208,7 +208,7 @@ public class NodeStats extends NodeOperationResponse {
      * File system level stats.
      */
     @Nullable
-    FsStats getFs() {
+    public FsStats getFs() {
         return fs();
     }
 

@@ -183,6 +183,15 @@
         </dependency>
 
         <dependency>
+            <groupId>org.fusesource</groupId>
+            <artifactId>sigar</artifactId>
+            <version>1.6.4</version>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- We don't use this since the publish pom is then messed up -->
+        <!--
+        <dependency>
             <groupId>sigar</groupId>
             <artifactId>sigar</artifactId>
             <version>1.6.4</version>
@@ -190,6 +199,7 @@
             <systemPath>${basedir}/lib/sigar/sigar-1.6.4.jar</systemPath>
             <optional>true</optional>
         </dependency>
+        -->
 
         <dependency>
             <groupId>org.testng</groupId>

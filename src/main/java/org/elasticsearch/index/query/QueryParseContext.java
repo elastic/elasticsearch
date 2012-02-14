@@ -40,6 +40,8 @@ import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -89,6 +91,7 @@ public class QueryParseContext {
     }
 
     public void reset(XContentParser jp) {
+        this.lookup = null;
         this.parser = jp;
         this.namedFilters.clear();
     }
@@ -273,5 +276,18 @@ public class QueryParseContext {
             return mapperService().types();
         }
         return Arrays.asList(types);
+    }
+
+    private SearchLookup lookup = null;
+
+    public SearchLookup lookup() {
+        SearchContext current = SearchContext.current();
+        if (current != null) {
+            return current.lookup();
+        }
+        if (lookup == null) {
+            lookup = new SearchLookup(mapperService(), indexCache().fieldData());
+        }
+        return lookup;
     }
 }

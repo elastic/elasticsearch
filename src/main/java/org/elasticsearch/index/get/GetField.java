@@ -22,7 +22,6 @@ package org.elasticsearch.index.get;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.lucene.Lucene;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -91,7 +90,7 @@ public class GetField implements Streamable, Iterable<Object> {
         int size = in.readVInt();
         values = new ArrayList<Object>(size);
         for (int i = 0; i < size; i++) {
-            values.add(Lucene.readFieldValue(in));
+            values.add(in.readGenericValue());
         }
     }
 
@@ -100,7 +99,7 @@ public class GetField implements Streamable, Iterable<Object> {
         out.writeUTF(name);
         out.writeVInt(values.size());
         for (Object obj : values) {
-            Lucene.writeFieldValue(out, obj);
+            out.writeGenericValue(obj);
         }
     }
 }

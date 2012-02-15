@@ -58,6 +58,14 @@ public class DocLookup implements Map {
         this.fieldDataCache = fieldDataCache;
     }
 
+    public MapperService mapperService() {
+        return this.mapperService;
+    }
+
+    public FieldDataCache fieldDataCache() {
+        return this.fieldDataCache;
+    }
+
     public void setNextReader(IndexReader reader) {
         if (this.reader == reader) { // if we are called with the same reader, don't invalidate source
             return;

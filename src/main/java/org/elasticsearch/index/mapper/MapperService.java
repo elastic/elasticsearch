@@ -456,6 +456,9 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         if (types == null || types.length == 0) {
             return smartNameObjectMapper(smartName);
         }
+        if (types.length == 1 && types[0].equals("_all")) {
+            return smartNameObjectMapper(smartName);
+        }
         for (String type : types) {
             DocumentMapper possibleDocMapper = mappers.get(type);
             if (possibleDocMapper != null) {
@@ -584,6 +587,9 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
 
     public SmartNameFieldMappers smartName(String smartName, @Nullable String[] types) {
         if (types == null || types.length == 0) {
+            return smartName(smartName);
+        }
+        if (types.length == 1 && types[0].equals("_all")) {
             return smartName(smartName);
         }
         for (String type : types) {

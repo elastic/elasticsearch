@@ -71,7 +71,7 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
 
             // parse the parameters
             Map<String, Object> source = XContentFactory.xContent(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength())
-                    .createParser(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength()).mapAndClose();
+                    .createParser(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength()).mapOrderedAndClose();
 
             if (source.containsKey("template")) {
                 putRequest.template(source.get("template").toString());

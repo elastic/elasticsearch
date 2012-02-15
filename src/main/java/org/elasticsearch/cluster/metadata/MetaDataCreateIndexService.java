@@ -19,10 +19,10 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import com.google.common.io.Closeables;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterService;
@@ -46,6 +46,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -141,10 +142,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         return currentState;
                     }
 
-                    List<IndexTemplateMetaData> templates = ImmutableList.of();
                     // we only find a template when its an API call (a new index)
                     // find templates, highest order are better matching
-                    templates = findTemplates(request, currentState);
+                    List<IndexTemplateMetaData> templates = findTemplates(request, currentState);
 
                     // add the request mapping
                     Map<String, Map<String, Object>> mappings = Maps.newHashMap();
@@ -398,6 +398,30 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 templates.add(template);
             }
         }
+
+        // see if we have templates defined under config
+        File templatesDir = new File(environment.configFile(), "templates");
+        if (templatesDir.exists() && templatesDir.isDirectory()) {
+            File[] templatesFiles = templatesDir.listFiles();
+            if (templatesFiles != null) {
+                for (File templatesFile : templatesFiles) {
+                    XContentParser parser = null;
+                    try {
+                        byte[] templatesData = Streams.copyToByteArray(templatesFile);
+                        parser = XContentHelper.createParser(templatesData, 0, templatesData.length);
+                        IndexTemplateMetaData template = IndexTemplateMetaData.Builder.fromXContentStandalone(parser);
+                        if (Regex.simpleMatch(template.template(), request.index)) {
+                            templates.add(template);
+                        }
+                    } catch (Exception e) {
+                        logger.warn("[{}] failed to read template [{}] from config", request.index, templatesFile.getAbsolutePath());
+                    } finally {
+                        Closeables.closeQuietly(parser);
+                    }
+                }
+            }
+        }
+
         Collections.sort(templates, new Comparator<IndexTemplateMetaData>() {
             @Override
             public int compare(IndexTemplateMetaData o1, IndexTemplateMetaData o2) {

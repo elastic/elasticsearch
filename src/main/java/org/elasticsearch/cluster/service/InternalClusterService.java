@@ -150,7 +150,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         return this.clusterState;
     }
 
-    public void addPriority(ClusterStateListener listener) {
+    public void addFirst(ClusterStateListener listener) {
         priorityClusterStateListeners.add(listener);
     }
 

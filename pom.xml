@@ -48,7 +48,7 @@
         <dependency>
             <groupId>org.apache.tika</groupId>
             <artifactId>tika-app</artifactId>
-            <version>0.10</version>
+            <version>1.0</version>
             <scope>compile</scope>
         </dependency>
 

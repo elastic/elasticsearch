@@ -19,13 +19,14 @@
 
 package org.elasticsearch.common.xcontent;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.Map;
 
 /**
  *
  */
-public interface XContentParser {
+public interface XContentParser extends Closeable {
 
     enum Token {
         START_OBJECT {

@@ -47,6 +47,7 @@ public class IndexTemplateMetaData {
 
     private final Settings settings;
 
+    // the mapping source should always include the type as top level
     private final ImmutableMap<String, CompressedString> mappings;
 
     public IndexTemplateMetaData(String name, int order, String template, Settings settings, ImmutableMap<String, CompressedString> mappings) {
@@ -210,13 +211,27 @@ public class IndexTemplateMetaData {
             for (Map.Entry<String, CompressedString> entry : indexTemplateMetaData.mappings().entrySet()) {
                 byte[] data = entry.getValue().uncompressed();
                 XContentParser parser = XContentFactory.xContent(data).createParser(data);
-                Map<String, Object> mapping = parser.map();
-                parser.close();
+                Map<String, Object> mapping = parser.mapOrderedAndClose();
                 builder.map(mapping);
             }
             builder.endArray();
 
             builder.endObject();
+        }
+
+        public static IndexTemplateMetaData fromXContentStandalone(XContentParser parser) throws IOException {
+            XContentParser.Token token = parser.nextToken();
+            if (token == null) {
+                throw new IOException("no data");
+            }
+            if (token != XContentParser.Token.START_OBJECT) {
+                throw new IOException("should start object");
+            }
+            token = parser.nextToken();
+            if (token != XContentParser.Token.FIELD_NAME) {
+                throw new IOException("the first field should be the template name");
+            }
+            return fromXContent(parser);
         }
 
         public static IndexTemplateMetaData fromXContent(XContentParser parser) throws IOException {
@@ -238,8 +253,20 @@ public class IndexTemplateMetaData {
                         }
                         builder.settings(settingsBuilder.build());
                     } else if ("mappings".equals(currentFieldName)) {
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                            if (token == XContentParser.Token.FIELD_NAME) {
+                                currentFieldName = parser.currentName();
+                            } else if (token == XContentParser.Token.START_OBJECT) {
+                                String mappingType = currentFieldName;
+                                Map<String, Object> mappingSource = MapBuilder.<String, Object>newMapBuilder().put(mappingType, parser.mapOrdered()).map();
+                                builder.putMapping(mappingType, XContentFactory.jsonBuilder().map(mappingSource).string());
+                            }
+                        }
+                    }
+                } else if (token == XContentParser.Token.START_ARRAY) {
+                    if ("mappings".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                            Map<String, Object> mapping = parser.map();
+                            Map<String, Object> mapping = parser.mapOrdered();
                             if (mapping.size() == 1) {
                                 String mappingType = mapping.keySet().iterator().next();
                                 String mappingSource = XContentFactory.jsonBuilder().map(mapping).string();

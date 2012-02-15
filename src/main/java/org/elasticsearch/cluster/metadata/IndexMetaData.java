@@ -468,15 +468,13 @@ public class IndexMetaData {
                         }
                         builder.settings(settingsBuilder.build());
                     } else if ("mappings".equals(currentFieldName)) {
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                            if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
-                                builder.putMapping(new MappingMetaData(new CompressedString(parser.binaryValue())));
-                            } else {
-                                Map<String, Object> mapping = parser.mapOrdered();
-                                if (mapping.size() == 1) {
-                                    String mappingType = mapping.keySet().iterator().next();
-                                    builder.putMapping(new MappingMetaData(mappingType, mapping));
-                                }
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                            if (token == XContentParser.Token.FIELD_NAME) {
+                                currentFieldName = parser.currentName();
+                            } else if (token == XContentParser.Token.START_OBJECT) {
+                                String mappingType = currentFieldName;
+                                Map<String, Object> mappingSource = MapBuilder.<String, Object>newMapBuilder().put(mappingType, parser.mapOrdered()).map();
+                                builder.putMapping(new MappingMetaData(mappingType, mappingSource));
                             }
                         }
                     } else if ("aliases".equals(currentFieldName)) {

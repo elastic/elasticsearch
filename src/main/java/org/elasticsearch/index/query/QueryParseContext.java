@@ -275,6 +275,9 @@ public class QueryParseContext {
         if (types == null || types.length == 0) {
             return mapperService().types();
         }
+        if (types.length == 1 && types[0].equals("_all")) {
+            return mapperService().types();
+        }
         return Arrays.asList(types);
     }
 

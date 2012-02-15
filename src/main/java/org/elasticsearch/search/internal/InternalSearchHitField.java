@@ -21,7 +21,6 @@ package org.elasticsearch.search.internal;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.search.SearchHitField;
 
 import java.io.IOException;
@@ -96,7 +95,7 @@ public class InternalSearchHitField implements SearchHitField {
         int size = in.readVInt();
         values = new ArrayList<Object>(size);
         for (int i = 0; i < size; i++) {
-            values.add(Lucene.readFieldValue(in));
+            values.add(in.readGenericValue());
         }
     }
 
@@ -105,7 +104,7 @@ public class InternalSearchHitField implements SearchHitField {
         out.writeUTF(name);
         out.writeVInt(values.size());
         for (Object value : values) {
-            Lucene.writeFieldValue(out, value);
+            out.writeGenericValue(value);
         }
     }
 }

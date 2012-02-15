@@ -202,10 +202,10 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     public void writeMap(@Nullable Map<String, Object> map) throws IOException {
-        writeValue(map);
+        writeGenericValue(map);
     }
 
-    private void writeValue(@Nullable Object value) throws IOException {
+    public void writeGenericValue(@Nullable Object value) throws IOException {
         if (value == null) {
             writeByte((byte) -1);
             return;
@@ -238,14 +238,14 @@ public abstract class StreamOutput extends OutputStream {
             List list = (List) value;
             writeVInt(list.size());
             for (Object o : list) {
-                writeValue(o);
+                writeGenericValue(o);
             }
         } else if (value instanceof Object[]) {
             writeByte((byte) 8);
             Object[] list = (Object[]) value;
             writeVInt(list.length);
             for (Object o : list) {
-                writeValue(o);
+                writeGenericValue(o);
             }
         } else if (value instanceof Map) {
             if (value instanceof LinkedHashMap) {
@@ -257,8 +257,11 @@ public abstract class StreamOutput extends OutputStream {
             writeVInt(map.size());
             for (Map.Entry<String, Object> entry : map.entrySet()) {
                 writeUTF(entry.getKey());
-                writeValue(entry.getValue());
+                writeGenericValue(entry.getValue());
             }
+        } else if (type == Byte.class) {
+            writeByte((byte) 11);
+            writeByte((Byte) value);
         } else {
             throw new IOException("Can't write type [" + type + "]");
         }

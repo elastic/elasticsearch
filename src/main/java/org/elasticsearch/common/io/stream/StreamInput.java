@@ -224,16 +224,14 @@ public abstract class StreamInput extends InputStream {
 //        return len;
 //    }
 
-    public
     @Nullable
-    Map<String, Object> readMap() throws IOException {
-        return (Map<String, Object>) readFieldValue();
+    public Map<String, Object> readMap() throws IOException {
+        return (Map<String, Object>) readGenericValue();
     }
 
     @SuppressWarnings({"unchecked"})
-    private
     @Nullable
-    Object readFieldValue() throws IOException {
+    public Object readGenericValue() throws IOException {
         byte type = readByte();
         if (type == -1) {
             return null;
@@ -258,14 +256,14 @@ public abstract class StreamInput extends InputStream {
             int size = readVInt();
             List list = new ArrayList(size);
             for (int i = 0; i < size; i++) {
-                list.add(readFieldValue());
+                list.add(readGenericValue());
             }
             return list;
         } else if (type == 8) {
             int size = readVInt();
             Object[] list = new Object[size];
             for (int i = 0; i < size; i++) {
-                list[i] = readFieldValue();
+                list[i] = readGenericValue();
             }
             return list;
         } else if (type == 9 || type == 10) {
@@ -277,9 +275,11 @@ public abstract class StreamInput extends InputStream {
                 map = new HashMap(size);
             }
             for (int i = 0; i < size; i++) {
-                map.put(readUTF(), readFieldValue());
+                map.put(readUTF(), readGenericValue());
             }
             return map;
+        } else if (type == 11) {
+            return readByte();
         } else {
             throw new IOException("Can't read unknown type [" + type + "]");
         }

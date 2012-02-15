@@ -61,7 +61,7 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
         this.clusterService = clusterService;
         this.allocationService = allocationService;
         this.schedule = componentSettings.getAsTime("schedule", timeValueSeconds(10));
-        clusterService.addPriority(this);
+        clusterService.addFirst(this);
     }
 
     @Override

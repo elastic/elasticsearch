@@ -29,8 +29,6 @@ import org.elasticsearch.common.unit.TimeValue;
 /**
  * The cluster service allowing to both register for cluster state events ({@link ClusterStateListener})
  * and submit state update tasks ({@link ClusterStateUpdateTask}.
- *
- *
  */
 public interface ClusterService extends LifecycleComponent<ClusterService> {
 
@@ -57,7 +55,7 @@ public interface ClusterService extends LifecycleComponent<ClusterService> {
     /**
      * Adds a priority listener for updated cluster states.
      */
-    void addPriority(ClusterStateListener listener);
+    void addFirst(ClusterStateListener listener);
 
     /**
      * Adds last listener.

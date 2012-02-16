@@ -44,7 +44,7 @@ public class MissingFieldQueryExtension implements FieldQueryExtension {
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
         if (smartNameFieldMappers != null) {
             if (smartNameFieldMappers.hasMapper()) {
-                filter = smartNameFieldMappers.mapper().rangeFilter(null, null, true, true);
+                filter = smartNameFieldMappers.mapper().rangeFilter(null, null, true, true, parseContext);
             }
         }
         if (filter == null) {

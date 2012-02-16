@@ -75,7 +75,7 @@ public class ExistsFilterParser implements FilterParser {
         Filter filter = null;
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
         if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
-            filter = smartNameFieldMappers.mapper().rangeFilter(null, null, true, true);
+            filter = smartNameFieldMappers.mapper().rangeFilter(null, null, true, true, parseContext);
         }
         if (filter == null) {
             filter = new TermRangeFilter(fieldName, null, null, true, true);

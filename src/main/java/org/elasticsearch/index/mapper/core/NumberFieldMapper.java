@@ -166,7 +166,7 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
      */
     @Override
     public Query fieldQuery(String value, @Nullable QueryParseContext context) {
-        return rangeQuery(value, value, true, true);
+        return rangeQuery(value, value, true, true, context);
     }
 
     @Override
@@ -181,19 +181,19 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
      */
     @Override
     public Filter fieldFilter(String value, @Nullable QueryParseContext context) {
-        return rangeFilter(value, value, true, true);
+        return rangeFilter(value, value, true, true, context);
     }
 
     @Override
-    public abstract Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper);
+    public abstract Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context);
 
     @Override
-    public abstract Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper);
+    public abstract Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context);
 
     /**
      * A range filter based on the field data cache.
      */
-    public abstract Filter rangeFilter(FieldDataCache fieldDataCache, String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper);
+    public abstract Filter rangeFilter(FieldDataCache fieldDataCache, String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context);
 
     /**
      * Override the default behavior (to return the string, and return the actual Number instance).

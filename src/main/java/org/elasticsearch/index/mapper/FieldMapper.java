@@ -198,12 +198,12 @@ public interface FieldMapper<T> {
     /**
      * Constructs a range query based on the mapper.
      */
-    Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper);
+    Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context);
 
     /**
      * Constructs a range query filter based on the mapper.
      */
-    Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper);
+    Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context);
 
     FieldDataType fieldDataType();
 }

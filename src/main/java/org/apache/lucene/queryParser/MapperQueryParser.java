@@ -167,7 +167,7 @@ public class MapperQueryParser extends QueryParser {
         if (fieldMappers != null) {
             currentMapper = fieldMappers.fieldMappers().mapper();
             if (currentMapper != null) {
-                Query rangeQuery = currentMapper.rangeQuery(part1, part2, inclusive, inclusive);
+                Query rangeQuery = currentMapper.rangeQuery(part1, part2, inclusive, inclusive, parseContext);
                 return wrapSmartNameQuery(rangeQuery, fieldMappers, parseContext);
             }
         }

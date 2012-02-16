@@ -293,4 +293,12 @@ public class QueryParseContext {
         }
         return lookup;
     }
+
+    public long nowInMillis() {
+        SearchContext current = SearchContext.current();
+        if (current != null) {
+            return current.nowInMillis();
+        }
+        return System.currentTimeMillis();
+    }
 }

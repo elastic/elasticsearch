@@ -138,7 +138,7 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
     }
 
     public RefreshStats refresh() {
-        return this.refresh();
+        return this.refreshStats;
     }
 
     public RefreshStats getRefresh() {

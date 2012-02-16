@@ -168,7 +168,7 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
-    public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
+    public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : Long.parseLong(lowerTerm),
                 upperTerm == null ? null : Long.parseLong(upperTerm),
@@ -183,7 +183,7 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
-    public Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
+    public Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         return NumericRangeFilter.newLongRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : Long.parseLong(lowerTerm),
                 upperTerm == null ? null : Long.parseLong(upperTerm),
@@ -191,7 +191,7 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
-    public Filter rangeFilter(FieldDataCache fieldDataCache, String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
+    public Filter rangeFilter(FieldDataCache fieldDataCache, String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         return NumericRangeFieldDataFilter.newLongRange(fieldDataCache, names.indexName(),
                 lowerTerm == null ? null : Long.parseLong(lowerTerm),
                 upperTerm == null ? null : Long.parseLong(upperTerm),

@@ -119,7 +119,7 @@ public class NumericRangeFilterParser implements FilterParser {
         if (!(mapper instanceof NumberFieldMapper)) {
             throw new QueryParsingException(parseContext.index(), "Field [" + fieldName + "] is not a numeric type");
         }
-        Filter filter = ((NumberFieldMapper) mapper).rangeFilter(parseContext.indexCache().fieldData(), from, to, includeLower, includeUpper);
+        Filter filter = ((NumberFieldMapper) mapper).rangeFilter(parseContext.indexCache().fieldData(), from, to, includeLower, includeUpper, parseContext);
 
         if (cache) {
             filter = parseContext.cacheFilter(filter, cacheKey);

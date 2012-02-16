@@ -167,7 +167,7 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
     }
 
     @Override
-    public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
+    public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         return NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : Integer.parseInt(lowerTerm),
                 upperTerm == null ? null : Integer.parseInt(upperTerm),
@@ -182,7 +182,7 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
     }
 
     @Override
-    public Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
+    public Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         return NumericRangeFilter.newIntRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : Integer.parseInt(lowerTerm),
                 upperTerm == null ? null : Integer.parseInt(upperTerm),
@@ -190,7 +190,7 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
     }
 
     @Override
-    public Filter rangeFilter(FieldDataCache fieldDataCache, String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
+    public Filter rangeFilter(FieldDataCache fieldDataCache, String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         return NumericRangeFieldDataFilter.newByteRange(fieldDataCache, names.indexName(),
                 lowerTerm == null ? null : Byte.parseByte(lowerTerm),
                 upperTerm == null ? null : Byte.parseByte(upperTerm),

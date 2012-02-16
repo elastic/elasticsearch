@@ -116,7 +116,7 @@ public class RangeFilterParser implements FilterParser {
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
         if (smartNameFieldMappers != null) {
             if (smartNameFieldMappers.hasMapper()) {
-                filter = smartNameFieldMappers.mapper().rangeFilter(from, to, includeLower, includeUpper);
+                filter = smartNameFieldMappers.mapper().rangeFilter(from, to, includeLower, includeUpper, parseContext);
             }
         }
         if (filter == null) {

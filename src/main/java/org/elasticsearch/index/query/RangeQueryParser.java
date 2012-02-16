@@ -108,7 +108,7 @@ public class RangeQueryParser implements QueryParser {
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
         if (smartNameFieldMappers != null) {
             if (smartNameFieldMappers.hasMapper()) {
-                query = smartNameFieldMappers.mapper().rangeQuery(from, to, includeLower, includeUpper);
+                query = smartNameFieldMappers.mapper().rangeQuery(from, to, includeLower, includeUpper, parseContext);
             }
         }
         if (query == null) {

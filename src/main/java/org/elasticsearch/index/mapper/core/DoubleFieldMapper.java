@@ -164,7 +164,7 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
     }
 
     @Override
-    public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
+    public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         return NumericRangeQuery.newDoubleRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : Double.parseDouble(lowerTerm),
                 upperTerm == null ? null : Double.parseDouble(upperTerm),
@@ -179,7 +179,7 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
     }
 
     @Override
-    public Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
+    public Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         return NumericRangeFilter.newDoubleRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : Double.parseDouble(lowerTerm),
                 upperTerm == null ? null : Double.parseDouble(upperTerm),
@@ -191,7 +191,7 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
     }
 
     @Override
-    public Filter rangeFilter(FieldDataCache fieldDataCache, String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
+    public Filter rangeFilter(FieldDataCache fieldDataCache, String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         return NumericRangeFieldDataFilter.newDoubleRange(fieldDataCache, names.indexName(),
                 lowerTerm == null ? null : Double.parseDouble(lowerTerm),
                 upperTerm == null ? null : Double.parseDouble(upperTerm),

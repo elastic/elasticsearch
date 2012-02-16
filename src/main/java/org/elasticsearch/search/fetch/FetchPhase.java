@@ -145,7 +145,7 @@ public class FetchPhase implements SearchPhase {
                     fieldSelectorMapper.add(SourceFieldMapper.NAME);
                 }
                 fieldSelector = fieldSelectorMapper;
-            } else if (extractFieldNames != null) {
+            } else if (extractFieldNames != null || sourceRequested) {
                 fieldSelector = new UidAndSourceFieldSelector();
             } else {
                 fieldSelector = UidFieldSelector.INSTANCE;

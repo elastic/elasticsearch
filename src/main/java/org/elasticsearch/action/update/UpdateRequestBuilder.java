@@ -152,6 +152,16 @@ public class UpdateRequestBuilder extends BaseRequestBuilder<UpdateRequest, Upda
         return this;
     }
 
+    /**
+     * Causes the updated document to be percolated. The parameter is the percolate query
+     * to use to reduce the percolated queries that are going to run against this doc. Can be
+     * set to <tt>*</tt> to indicate that all percolate queries should be run.
+     */
+    public UpdateRequestBuilder setPercolate(String percolate) {
+        request.percolate(percolate);
+        return this;
+    }
+
     @Override
     protected void doExecute(ActionListener<UpdateResponse> listener) {
         client.update(request, listener);

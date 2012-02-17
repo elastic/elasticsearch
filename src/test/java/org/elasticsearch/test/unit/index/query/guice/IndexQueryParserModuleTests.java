@@ -19,8 +19,11 @@
 
 package org.elasticsearch.test.unit.index.query.guice;
 
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
+import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.index.Index;
@@ -68,7 +71,13 @@ public class IndexQueryParserModuleTests {
                 new IndexEngineModule(settings),
                 new SimilarityModule(settings),
                 new IndexQueryParserModule(settings),
-                new IndexNameModule(index)
+                new IndexNameModule(index),
+                new AbstractModule() {
+                    @Override
+                    protected void configure() {
+                        bind(ClusterService.class).toProvider(Providers.of((ClusterService) null));
+                    }
+                }
         ).createInjector();
 
         IndexQueryParserService indexQueryParserService = injector.getInstance(IndexQueryParserService.class);

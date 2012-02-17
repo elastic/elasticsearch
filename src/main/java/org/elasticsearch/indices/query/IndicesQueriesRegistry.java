@@ -21,6 +21,8 @@ package org.elasticsearch.indices.query;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.*;
@@ -36,7 +38,7 @@ public class IndicesQueriesRegistry {
     private ImmutableMap<String, FilterParser> filterParsers;
 
     @Inject
-    public IndicesQueriesRegistry(Settings settings) {
+    public IndicesQueriesRegistry(Settings settings, @Nullable ClusterService clusterService) {
         Map<String, QueryParser> queryParsers = Maps.newHashMap();
         addQueryParser(queryParsers, new TextQueryParser());
         addQueryParser(queryParsers, new NestedQueryParser());
@@ -70,7 +72,7 @@ public class IndicesQueriesRegistry {
         addQueryParser(queryParsers, new FuzzyLikeThisQueryParser());
         addQueryParser(queryParsers, new FuzzyLikeThisFieldQueryParser());
         addQueryParser(queryParsers, new WrapperQueryParser());
-        addQueryParser(queryParsers, new IndicesQueryParser());
+        addQueryParser(queryParsers, new IndicesQueryParser(clusterService));
         this.queryParsers = ImmutableMap.copyOf(queryParsers);
 
         Map<String, FilterParser> filterParsers = Maps.newHashMap();

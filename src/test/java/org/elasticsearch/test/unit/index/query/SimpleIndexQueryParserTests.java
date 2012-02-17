@@ -23,8 +23,11 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.spans.*;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
+import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.lucene.search.*;
 import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
@@ -90,7 +93,13 @@ public class SimpleIndexQueryParserTests {
                 new IndexEngineModule(settings),
                 new SimilarityModule(settings),
                 new IndexQueryParserModule(settings),
-                new IndexNameModule(index)
+                new IndexNameModule(index),
+                new AbstractModule() {
+                    @Override
+                    protected void configure() {
+                        bind(ClusterService.class).toProvider(Providers.of((ClusterService) null));
+                    }
+                }
         ).createInjector();
 
         String mapping = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/query/mapping.json");

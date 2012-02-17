@@ -19,9 +19,12 @@
 
 package org.elasticsearch.test.unit.index.aliases;
 
+import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.compress.CompressedString;
+import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
+import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -67,7 +70,13 @@ public class IndexAliasesServiceTests {
                 new ScriptModule(ImmutableSettings.Builder.EMPTY_SETTINGS),
                 new SettingsModule(ImmutableSettings.Builder.EMPTY_SETTINGS),
                 new IndexEngineModule(ImmutableSettings.Builder.EMPTY_SETTINGS),
-                new IndexCacheModule(ImmutableSettings.Builder.EMPTY_SETTINGS)
+                new IndexCacheModule(ImmutableSettings.Builder.EMPTY_SETTINGS),
+                new AbstractModule() {
+                    @Override
+                    protected void configure() {
+                        bind(ClusterService.class).toProvider(Providers.of((ClusterService) null));
+                    }
+                }
         ).createInjector();
         return injector.getInstance(IndexQueryParserService.class);
     }

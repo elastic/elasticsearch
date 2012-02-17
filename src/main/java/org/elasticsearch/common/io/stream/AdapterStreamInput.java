@@ -85,11 +85,6 @@ public abstract class AdapterStreamInput extends StreamInput {
     }
 
     @Override
-    public String readOptionalUTF() throws IOException {
-        return in.readOptionalUTF();
-    }
-
-    @Override
     public String readUTF() throws IOException {
         return in.readUTF();
     }

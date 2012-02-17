@@ -268,7 +268,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
             metaDataBuilder.metaData(globalMetaData);
         }
 
-        Set<String> indices = nodeEnv.finalAllIndices();
+        Set<String> indices = nodeEnv.findAllIndices();
         for (String index : indices) {
             IndexMetaData indexMetaData = loadIndex(index);
             if (indexMetaData == null) {

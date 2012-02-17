@@ -178,7 +178,7 @@ public class NodeEnvironment extends AbstractComponent {
         return shardLocations;
     }
 
-    public Set<String> finalAllIndices() throws Exception {
+    public Set<String> findAllIndices() throws Exception {
         if (nodeFiles == null || locks == null) {
             throw new ElasticSearchIllegalStateException("node is not configured to store local location");
         }
@@ -189,7 +189,9 @@ public class NodeEnvironment extends AbstractComponent {
                 continue;
             }
             for (File indexLocation : indicesList) {
-                indices.add(indexLocation.getName());
+                if (indexLocation.isDirectory()) {
+                    indices.add(indexLocation.getName());
+                }
             }
         }
         return indices;

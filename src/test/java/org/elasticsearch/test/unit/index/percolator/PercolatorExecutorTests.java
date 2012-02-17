@@ -19,9 +19,11 @@
 
 package org.elasticsearch.test.unit.index.percolator;
 
+import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
+import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -78,6 +80,7 @@ public class PercolatorExecutorTests {
                     @Override
                     protected void configure() {
                         bind(PercolatorExecutor.class).asEagerSingleton();
+                        bind(ClusterService.class).toProvider(Providers.of((ClusterService) null));
                     }
                 }
         ).createInjector();

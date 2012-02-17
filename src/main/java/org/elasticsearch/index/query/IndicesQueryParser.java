@@ -21,6 +21,9 @@ package org.elasticsearch.index.query;
 
 import com.google.common.collect.Sets;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -36,8 +39,12 @@ public class IndicesQueryParser implements QueryParser {
 
     public static final String NAME = "indices";
 
+    @Nullable
+    private final ClusterService clusterService;
+
     @Inject
-    public IndicesQueryParser() {
+    public IndicesQueryParser(@Nullable ClusterService clusterService) {
+        this.clusterService = clusterService;
     }
 
     @Override
@@ -99,7 +106,14 @@ public class IndicesQueryParser implements QueryParser {
         if (indices.isEmpty()) {
             throw new QueryParsingException(parseContext.index(), "[indices] requires 'indices' element");
         }
-        for (String index : indices) {
+
+        String[] concreteIndices = indices.toArray(new String[indices.size()]);
+        if (clusterService != null) {
+            MetaData metaData = clusterService.state().metaData();
+            concreteIndices = metaData.concreteIndices(indices.toArray(new String[indices.size()]), true, true);
+        }
+
+        for (String index : concreteIndices) {
             if (Regex.simpleMatch(index, parseContext.index().name())) {
                 return query;
             }

@@ -137,6 +137,16 @@ public class UpdateRequestBuilder extends BaseRequestBuilder<UpdateRequest, Upda
     }
 
     /**
+     * Should a refresh be executed post this update operation causing the operation to
+     * be searchable. Note, heavy indexing should not set this to <tt>true</tt>. Defaults
+     * to <tt>false</tt>.
+     */
+    public UpdateRequestBuilder setRefresh(boolean refresh) {
+        request.refresh(refresh);
+        return this;
+    }
+
+    /**
      * Sets the replication type.
      */
     public UpdateRequestBuilder setReplicationType(ReplicationType replicationType) {

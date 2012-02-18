@@ -57,6 +57,7 @@ public class RestUpdateAction extends BaseRestHandler {
         updateRequest.routing(request.param("routing"));
         updateRequest.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing
         updateRequest.timeout(request.paramAsTime("timeout", updateRequest.timeout()));
+        updateRequest.refresh(request.paramAsBoolean("refresh", updateRequest.refresh()));
         String replicationType = request.param("replication");
         if (replicationType != null) {
             updateRequest.replicationType(ReplicationType.fromString(replicationType));

@@ -53,6 +53,8 @@ public class UpdateRequest extends InstanceShardOperationRequest {
 
     private String percolate;
 
+    private boolean refresh = false;
+
     private ReplicationType replicationType = ReplicationType.DEFAULT;
     private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
 
@@ -271,6 +273,20 @@ public class UpdateRequest extends InstanceShardOperationRequest {
     }
 
     /**
+     * Should a refresh be executed post this update operation causing the operation to
+     * be searchable. Note, heavy indexing should not set this to <tt>true</tt>. Defaults
+     * to <tt>false</tt>.
+     */
+    public UpdateRequest refresh(boolean refresh) {
+        this.refresh = refresh;
+        return this;
+    }
+
+    public boolean refresh() {
+        return this.refresh;
+    }
+
+    /**
      * The replication type.
      */
     public ReplicationType replicationType() {
@@ -316,6 +332,7 @@ public class UpdateRequest extends InstanceShardOperationRequest {
         if (in.readBoolean()) {
             percolate = in.readUTF();
         }
+        refresh = in.readBoolean();
     }
 
     @Override
@@ -346,5 +363,6 @@ public class UpdateRequest extends InstanceShardOperationRequest {
             out.writeBoolean(true);
             out.writeUTF(percolate);
         }
+        out.writeBoolean(refresh);
     }
 }

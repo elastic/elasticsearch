@@ -214,7 +214,8 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                     .source(source, sourceAndContent.v1())
                     .version(getResult.version()).replicationType(request.replicationType()).consistencyLevel(request.consistencyLevel())
                     .timestamp(timestamp).ttl(ttl)
-                    .percolate(request.percolate());
+                    .percolate(request.percolate())
+                    .refresh(request.refresh());
             indexRequest.operationThreaded(false);
             indexAction.execute(indexRequest, new ActionListener<IndexResponse>() {
                 @Override

@@ -82,10 +82,10 @@
 #
 # node.rack: rack314
 
-
 # By default, multiple nodes are allowed to start from the same installation location
 # to disable it, set the following:
 # node.max_local_storage_nodes: 1
+
 
 #################################### Index ####################################
 
@@ -163,6 +163,13 @@
 # Path to where plugins are installed:
 #
 # path.plugins: /path/to/plugins
+
+
+#################################### Plugin ###################################
+
+# If a plugin listed here is not installed for current node, the node will not start.
+#
+# plugin.mandatory: mapper-attachments,lang-groovy
 
 
 ################################### Memory ####################################

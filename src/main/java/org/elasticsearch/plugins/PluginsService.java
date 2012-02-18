@@ -74,8 +74,22 @@ public class PluginsService extends AbstractComponent {
         // first, find all the ones that are in the classpath
         Map<String, Plugin> plugins = Maps.newHashMap();
         plugins.putAll(loadPluginsFromClasspath(settings));
+        Set<String> sitePlugins = sitePlugins();
 
-        logger.info("loaded {}, sites {}", plugins.keySet(), sitePlugins());
+        String[] mandatoryPlugins = settings.getAsArray("plugin.mandatory", null);
+        if (mandatoryPlugins != null) {
+            Set<String> missingPlugins = Sets.newHashSet();
+            for (String mandatoryPlugin : mandatoryPlugins) {
+                if (!plugins.containsKey(mandatoryPlugin) && !sitePlugins.contains(mandatoryPlugin) && !missingPlugins.contains(mandatoryPlugin)) {
+                    missingPlugins.add(mandatoryPlugin);
+                }
+            }
+            if (!missingPlugins.isEmpty()) {
+                throw new ElasticSearchException("Missing mandatory plugins " + missingPlugins);
+            }
+        }
+
+        logger.info("loaded {}, sites {}", plugins.keySet(), sitePlugins);
 
         this.plugins = ImmutableMap.copyOf(plugins);
 

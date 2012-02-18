@@ -34,14 +34,12 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.action.support.replication.ReplicationType;
-import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -266,57 +264,6 @@ public class DocumentActionsTests extends AbstractNodesTests {
             getResult = client1.get(getRequest("test").type("type1").id("2")).actionGet();
             assertThat("cycle #" + i, getResult.exists(), equalTo(false));
             assertThat(getResult.index(), equalTo(getConcreteIndexName()));
-        }
-    }
-
-    @Test
-    public void testUpdate() throws Exception {
-        createIndex();
-        ClusterHealthResponse clusterHealth = client1.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-        assertThat(clusterHealth.timedOut(), equalTo(false));
-        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
-
-        try {
-            client1.prepareUpdate("test", "type1", "1").setScript("ctx._source.field++").execute().actionGet();
-            assert false;
-        } catch (DocumentMissingException e) {
-            // all is well
-        }
-
-        client1.prepareIndex("test", "type1", "1").setSource("field", 1).execute().actionGet();
-
-        UpdateResponse updateResponse = client1.prepareUpdate("test", "type1", "1").setScript("ctx._source.field += 1").execute().actionGet();
-        assertThat(updateResponse.version(), equalTo(2L));
-
-        for (int i = 0; i < 5; i++) {
-            GetResponse getResponse = client1.prepareGet("test", "type1", "1").execute().actionGet();
-            assertThat(getResponse.sourceAsMap().get("field").toString(), equalTo("2"));
-        }
-
-        updateResponse = client1.prepareUpdate("test", "type1", "1").setScript("ctx._source.field += count").addScriptParam("count", 3).execute().actionGet();
-        assertThat(updateResponse.version(), equalTo(3L));
-
-        for (int i = 0; i < 5; i++) {
-            GetResponse getResponse = client1.prepareGet("test", "type1", "1").execute().actionGet();
-            assertThat(getResponse.sourceAsMap().get("field").toString(), equalTo("5"));
-        }
-
-        // check noop
-        updateResponse = client1.prepareUpdate("test", "type1", "1").setScript("ctx.op = 'none'").execute().actionGet();
-        assertThat(updateResponse.version(), equalTo(3L));
-
-        for (int i = 0; i < 5; i++) {
-            GetResponse getResponse = client1.prepareGet("test", "type1", "1").execute().actionGet();
-            assertThat(getResponse.sourceAsMap().get("field").toString(), equalTo("5"));
-        }
-
-        // check delete
-        updateResponse = client1.prepareUpdate("test", "type1", "1").setScript("ctx.op = 'delete'").execute().actionGet();
-        assertThat(updateResponse.version(), equalTo(4L));
-
-        for (int i = 0; i < 5; i++) {
-            GetResponse getResponse = client1.prepareGet("test", "type1", "1").execute().actionGet();
-            assertThat(getResponse.exists(), equalTo(false));
         }
     }
 

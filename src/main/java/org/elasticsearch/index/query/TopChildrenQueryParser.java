@@ -65,7 +65,14 @@ public class TopChildrenQueryParser implements QueryParser {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("query".equals(currentFieldName)) {
-                    query = parseContext.parseInnerQuery();
+                    // TODO we need to set the type, but, `query` can come before `type`... (see HasChildFilterParser)
+                    // since we switch types, make sure we change the context
+                    String[] origTypes = QueryParseContext.setTypesWithPrevious(childType == null ? null : new String[]{childType});
+                    try {
+                        query = parseContext.parseInnerQuery();
+                    } finally {
+                        QueryParseContext.setTypes(origTypes);
+                    }
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[top_children] query does not support [" + currentFieldName + "]");
                 }

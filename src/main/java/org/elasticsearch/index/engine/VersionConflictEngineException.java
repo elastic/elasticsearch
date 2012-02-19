@@ -27,12 +27,26 @@ import org.elasticsearch.rest.RestStatus;
  */
 public class VersionConflictEngineException extends EngineException {
 
-    public VersionConflictEngineException(ShardId shardId, String type, String id, long current, long required) {
-        super(shardId, "[" + type + "][" + id + "]: version conflict, current [" + current + "], required [" + required + "]");
+    private final long current;
+
+    private final long provided;
+
+    public VersionConflictEngineException(ShardId shardId, String type, String id, long current, long provided) {
+        super(shardId, "[" + type + "][" + id + "]: version conflict, current [" + current + "], provided [" + provided + "]");
+        this.current = current;
+        this.provided = provided;
     }
 
     @Override
     public RestStatus status() {
         return RestStatus.CONFLICT;
+    }
+
+    public long getCurrentVersion() {
+        return this.current;
+    }
+
+    public long getProvidedVersion() {
+        return this.provided;
     }
 }

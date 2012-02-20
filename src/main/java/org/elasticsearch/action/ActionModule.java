@@ -98,10 +98,7 @@ import org.elasticsearch.action.mlt.MoreLikeThisAction;
 import org.elasticsearch.action.mlt.TransportMoreLikeThisAction;
 import org.elasticsearch.action.percolate.PercolateAction;
 import org.elasticsearch.action.percolate.TransportPercolateAction;
-import org.elasticsearch.action.search.SearchAction;
-import org.elasticsearch.action.search.SearchScrollAction;
-import org.elasticsearch.action.search.TransportSearchAction;
-import org.elasticsearch.action.search.TransportSearchScrollAction;
+import org.elasticsearch.action.search.*;
 import org.elasticsearch.action.search.type.*;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.update.TransportUpdateAction;
@@ -211,6 +208,7 @@ public class ActionModule extends AbstractModule {
                 TransportSearchScrollQueryThenFetchAction.class,
                 TransportSearchScrollQueryAndFetchAction.class
         );
+        registerAction(MultiSearchAction.INSTANCE, TransportMultiSearchAction.class);
         registerAction(MoreLikeThisAction.INSTANCE, TransportMoreLikeThisAction.class);
         registerAction(PercolateAction.INSTANCE, TransportPercolateAction.class);
 

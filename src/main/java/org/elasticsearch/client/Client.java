@@ -375,6 +375,21 @@ public interface Client {
     SearchScrollRequestBuilder prepareSearchScroll(String scrollId);
 
     /**
+     * Performs multiple search requests.
+     */
+    ActionFuture<MultiSearchResponse> multiSearch(MultiSearchRequest request);
+
+    /**
+     * Performs multiple search requests.
+     */
+    void multiSearch(MultiSearchRequest request, ActionListener<MultiSearchResponse> listener);
+
+    /**
+     * Performs multiple search requests.
+     */
+    MultiSearchRequestBuilder prepareMultiSearch();
+
+    /**
      * A more like this action to search for documents that are "like" a specific document.
      *
      * @param request The more like this request

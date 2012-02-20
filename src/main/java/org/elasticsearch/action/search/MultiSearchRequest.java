@@ -77,35 +77,37 @@ public class MultiSearchRequest implements ActionRequest {
             }
 
             // now parse the action
-            XContentParser parser = xContent.createParser(data, from, nextMarker - from);
-            try {
-                // Move to START_OBJECT, if token is null, its an empty data
-                XContentParser.Token token = parser.nextToken();
-                if (token != null) {
-                    assert token == XContentParser.Token.START_OBJECT;
-                    String currentFieldName = null;
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        if (token == XContentParser.Token.FIELD_NAME) {
-                            currentFieldName = parser.currentName();
-                        } else if (token.isValue()) {
-                            if ("index".equals(currentFieldName) || "indices".equals(currentFieldName)) {
-                                searchRequest.indices(Strings.splitStringByCommaToArray(parser.text()));
-                            } else if ("type".equals(currentFieldName) || "types".equals(currentFieldName)) {
-                                searchRequest.types(Strings.splitStringByCommaToArray(parser.text()));
-                            } else if ("search_type".equals(currentFieldName) || "searchType".equals(currentFieldName)) {
-                                searchRequest.searchType(parser.text());
-                            } else if ("preference".equals(currentFieldName)) {
-                                searchRequest.preference(parser.text());
-                            } else if ("routing".equals(currentFieldName)) {
-                                searchRequest.routing(parser.text());
-                            } else if ("query_hint".equals(currentFieldName) || "queryHint".equals(currentFieldName)) {
-                                searchRequest.queryHint(parser.text());
+            if (nextMarker - from > 0) {
+                XContentParser parser = xContent.createParser(data, from, nextMarker - from);
+                try {
+                    // Move to START_OBJECT, if token is null, its an empty data
+                    XContentParser.Token token = parser.nextToken();
+                    if (token != null) {
+                        assert token == XContentParser.Token.START_OBJECT;
+                        String currentFieldName = null;
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                            if (token == XContentParser.Token.FIELD_NAME) {
+                                currentFieldName = parser.currentName();
+                            } else if (token.isValue()) {
+                                if ("index".equals(currentFieldName) || "indices".equals(currentFieldName)) {
+                                    searchRequest.indices(Strings.splitStringByCommaToArray(parser.text()));
+                                } else if ("type".equals(currentFieldName) || "types".equals(currentFieldName)) {
+                                    searchRequest.types(Strings.splitStringByCommaToArray(parser.text()));
+                                } else if ("search_type".equals(currentFieldName) || "searchType".equals(currentFieldName)) {
+                                    searchRequest.searchType(parser.text());
+                                } else if ("preference".equals(currentFieldName)) {
+                                    searchRequest.preference(parser.text());
+                                } else if ("routing".equals(currentFieldName)) {
+                                    searchRequest.routing(parser.text());
+                                } else if ("query_hint".equals(currentFieldName) || "queryHint".equals(currentFieldName)) {
+                                    searchRequest.queryHint(parser.text());
+                                }
                             }
                         }
                     }
+                } finally {
+                    parser.close();
                 }
-            } finally {
-                parser.close();
             }
 
             // move pointers

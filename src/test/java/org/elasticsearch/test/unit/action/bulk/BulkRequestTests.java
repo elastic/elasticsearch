@@ -26,7 +26,7 @@ import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
-public class BulkActionTests {
+public class BulkRequestTests {
 
     @Test
     public void testSimpleBulk1() throws Exception {

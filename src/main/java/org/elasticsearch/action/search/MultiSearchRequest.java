@@ -70,45 +70,46 @@ public class MultiSearchRequest implements ActionRequest {
             if (nextMarker == -1) {
                 break;
             }
-            // now parse the action
-            XContentParser parser = xContent.createParser(data, from, nextMarker - from);
-
-            // move pointers
-            from = nextMarker + 1;
-
-            // Move to START_OBJECT
-            XContentParser.Token token = parser.nextToken();
-            if (token == null) {
-                continue;
-            }
-            assert token == XContentParser.Token.START_OBJECT;
-
 
             SearchRequest searchRequest = new SearchRequest(indices);
             if (types != null && types.length > 0) {
                 searchRequest.types(types);
             }
-            String currentFieldName = null;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if (token.isValue()) {
-                    if ("index".equals(currentFieldName) || "indices".equals(currentFieldName)) {
-                        searchRequest.indices(Strings.splitStringByCommaToArray(parser.text()));
-                    } else if ("type".equals(currentFieldName) || "types".equals(currentFieldName)) {
-                        searchRequest.types(Strings.splitStringByCommaToArray(parser.text()));
-                    } else if ("search_type".equals(currentFieldName) || "searchType".equals(currentFieldName)) {
-                        searchRequest.searchType(parser.text());
-                    } else if ("preference".equals(currentFieldName)) {
-                        searchRequest.preference(parser.text());
-                    } else if ("routing".equals(currentFieldName)) {
-                        searchRequest.routing(parser.text());
-                    } else if ("query_hint".equals(currentFieldName) || "queryHint".equals(currentFieldName)) {
-                        searchRequest.queryHint(parser.text());
+
+            // now parse the action
+            XContentParser parser = xContent.createParser(data, from, nextMarker - from);
+            try {
+                // Move to START_OBJECT, if token is null, its an empty data
+                XContentParser.Token token = parser.nextToken();
+                if (token != null) {
+                    assert token == XContentParser.Token.START_OBJECT;
+                    String currentFieldName = null;
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            currentFieldName = parser.currentName();
+                        } else if (token.isValue()) {
+                            if ("index".equals(currentFieldName) || "indices".equals(currentFieldName)) {
+                                searchRequest.indices(Strings.splitStringByCommaToArray(parser.text()));
+                            } else if ("type".equals(currentFieldName) || "types".equals(currentFieldName)) {
+                                searchRequest.types(Strings.splitStringByCommaToArray(parser.text()));
+                            } else if ("search_type".equals(currentFieldName) || "searchType".equals(currentFieldName)) {
+                                searchRequest.searchType(parser.text());
+                            } else if ("preference".equals(currentFieldName)) {
+                                searchRequest.preference(parser.text());
+                            } else if ("routing".equals(currentFieldName)) {
+                                searchRequest.routing(parser.text());
+                            } else if ("query_hint".equals(currentFieldName) || "queryHint".equals(currentFieldName)) {
+                                searchRequest.queryHint(parser.text());
+                            }
+                        }
                     }
                 }
+            } finally {
+                parser.close();
             }
 
+            // move pointers
+            from = nextMarker + 1;
             // now for the body
             nextMarker = findNextMarker(marker, from, data, length);
             if (nextMarker == -1) {
@@ -134,7 +135,7 @@ public class MultiSearchRequest implements ActionRequest {
         return -1;
     }
 
-    List<SearchRequest> requests() {
+    public List<SearchRequest> requests() {
         return this.requests;
     }
 

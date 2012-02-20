@@ -227,6 +227,21 @@ public abstract class AbstractClient implements InternalClient {
     }
 
     @Override
+    public ActionFuture<MultiSearchResponse> multiSearch(MultiSearchRequest request) {
+        return execute(MultiSearchAction.INSTANCE, request);
+    }
+
+    @Override
+    public void multiSearch(MultiSearchRequest request, ActionListener<MultiSearchResponse> listener) {
+        execute(MultiSearchAction.INSTANCE, request, listener);
+    }
+
+    @Override
+    public MultiSearchRequestBuilder prepareMultiSearch() {
+        return new MultiSearchRequestBuilder(this);
+    }
+
+    @Override
     public ActionFuture<CountResponse> count(final CountRequest request) {
         return execute(CountAction.INSTANCE, request);
     }

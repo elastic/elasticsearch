@@ -39,9 +39,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.mlt.MoreLikeThisRequest;
 import org.elasticsearch.action.percolate.PercolateRequest;
 import org.elasticsearch.action.percolate.PercolateResponse;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.search.*;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.AdminClient;
@@ -355,6 +353,16 @@ public class TransportClient extends AbstractClient {
     @Override
     public void searchScroll(SearchScrollRequest request, ActionListener<SearchResponse> listener) {
         internalClient.searchScroll(request, listener);
+    }
+
+    @Override
+    public ActionFuture<MultiSearchResponse> multiSearch(MultiSearchRequest request) {
+        return internalClient.multiSearch(request);
+    }
+
+    @Override
+    public void multiSearch(MultiSearchRequest request, ActionListener<MultiSearchResponse> listener) {
+        internalClient.multiSearch(request, listener);
     }
 
     @Override

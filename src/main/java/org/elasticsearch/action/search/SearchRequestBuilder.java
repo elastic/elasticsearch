@@ -715,6 +715,14 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
     }
 
     @Override
+    public SearchRequest request() {
+        if (sourceBuilder != null) {
+            request.source(sourceBuilder());
+        }
+        return request;
+    }
+
+    @Override
     protected void doExecute(ActionListener<SearchResponse> listener) {
         if (sourceBuilder != null) {
             request.source(sourceBuilder());

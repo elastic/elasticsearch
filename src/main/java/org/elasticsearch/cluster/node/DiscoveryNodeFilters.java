@@ -80,7 +80,7 @@ public class DiscoveryNodeFilters {
                     }
                 }
                 return false;
-            } else if ("_name".equals(attr)) {
+            } else if ("_name".equals(attr) || "name".equals(attr)) {
                 for (String value : values) {
                     if (Regex.simpleMatch(value, node.name())) {
                         return true;

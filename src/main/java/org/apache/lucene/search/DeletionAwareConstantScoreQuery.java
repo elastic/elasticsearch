@@ -19,9 +19,7 @@
 
 package org.apache.lucene.search;
 
-import org.apache.lucene.index.IndexReader;
-
-import java.io.IOException;
+import org.elasticsearch.common.lucene.search.NotDeletedFilter;
 
 /**
  *
@@ -29,81 +27,21 @@ import java.io.IOException;
 // LUCENE MONITOR: Against ConstantScoreQuery, basically added logic in the doc iterator to take deletions into account
 // So it can basically be cached safely even with a reader that changes deletions but remain with teh same cache key
 // See more: https://issues.apache.org/jira/browse/LUCENE-2468
+// TODO Lucene 4.0 won't need this, since live docs are "and'ed" while scoring
 public class DeletionAwareConstantScoreQuery extends ConstantScoreQuery {
 
+    private final Filter actualFilter;
+
     public DeletionAwareConstantScoreQuery(Filter filter) {
-        super(filter);
+        super(new NotDeletedFilter(filter));
+        this.actualFilter = filter;
     }
 
+    // trick so any external systems still think that its the actual filter we use, and not the
+    // deleted filter
     @Override
-    public Weight createWeight(Searcher searcher) throws IOException {
-        return new DeletionConstantWeight(searcher);
-    }
-
-    protected class DeletionConstantWeight extends ConstantWeight {
-
-        private final Similarity similarity;
-
-        public DeletionConstantWeight(Searcher searcher) throws IOException {
-            super(searcher);
-            similarity = getSimilarity(searcher);
-        }
-
-        @Override
-        public Scorer scorer(IndexReader reader, boolean scoreDocsInOrder, boolean topScorer) throws IOException {
-            final DocIdSet dis = filter.getDocIdSet(reader);
-            if (dis == null)
-                return null;
-            DocIdSetIterator disi = dis.iterator();
-            if (disi == null) {
-                return null;
-            }
-            return new DeletionConstantScorer(reader, similarity, disi, this);
-        }
-    }
-
-    protected class DeletionConstantScorer extends ConstantScorer {
-
-        private final IndexReader reader;
-        private int doc = -1;
-
-        public DeletionConstantScorer(IndexReader reader, Similarity similarity, DocIdSetIterator docIdSetIterator, Weight w) throws IOException {
-            super(similarity, docIdSetIterator, w);
-            this.reader = reader;
-        }
-
-        @Override
-        public int nextDoc() throws IOException {
-            while ((doc = docIdSetIterator.nextDoc()) != NO_MORE_DOCS) {
-                if (!reader.isDeleted(doc)) {
-                    return doc;
-                }
-            }
-            return doc;
-        }
-
-        @Override
-        public int docID() {
-            return doc;
-        }
-
-        @Override
-        public int advance(int target) throws IOException {
-            doc = docIdSetIterator.advance(target);
-            if (doc != NO_MORE_DOCS) {
-                if (!reader.isDeleted(doc)) {
-                    return doc;
-                } else {
-                    while ((doc = docIdSetIterator.nextDoc()) != NO_MORE_DOCS) {
-                        if (!reader.isDeleted(doc)) {
-                            return doc;
-                        }
-                    }
-                    return doc;
-                }
-            }
-            return doc;
-        }
+    public Filter getFilter() {
+        return this.actualFilter;
     }
 }
 

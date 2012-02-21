@@ -20,6 +20,7 @@
 package org.elasticsearch.search.facet.datehistogram;
 
 import com.google.common.collect.Maps;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilderException;
@@ -30,14 +31,16 @@ import java.util.Map;
 
 /**
  * A facet builder of date histogram facets.
- *
- *
  */
 public class DateHistogramFacetBuilder extends AbstractFacetBuilder {
     private String keyFieldName;
     private String valueFieldName;
     private String interval = null;
-    private String zone = null;
+    private String preZone = null;
+    private String postZone = null;
+    long preOffset = 0;
+    long postOffset = 0;
+    float factor = 1.0f;
     private DateHistogramFacet.ComparatorType comparatorType;
 
     private String valueScript;
@@ -112,11 +115,51 @@ public class DateHistogramFacetBuilder extends AbstractFacetBuilder {
     }
 
     /**
-     * Sets the time zone to use when bucketing the values. Can either be in the form of "-10:00" or
+     * Sets the pre time zone to use when bucketing the values. This timezone will be applied before
+     * rounding off the result.
+     * <p/>
+     * Can either be in the form of "-10:00" or
      * one of the values listed here: http://joda-time.sourceforge.net/timezones.html.
      */
-    public DateHistogramFacetBuilder zone(String zone) {
-        this.zone = zone;
+    public DateHistogramFacetBuilder preZone(String preZone) {
+        this.preZone = preZone;
+        return this;
+    }
+
+    /**
+     * Sets the post time zone to use when bucketing the values. This timezone will be applied after
+     * rounding off the result.
+     * <p/>
+     * Can either be in the form of "-10:00" or
+     * one of the values listed here: http://joda-time.sourceforge.net/timezones.html.
+     */
+    public DateHistogramFacetBuilder postZone(String postZone) {
+        this.postZone = postZone;
+        return this;
+    }
+
+    /**
+     * Sets a pre offset that will be applied before rounding the results.
+     */
+    public DateHistogramFacetBuilder preOffset(TimeValue preOffset) {
+        this.preOffset = preOffset.millis();
+        return this;
+    }
+
+    /**
+     * Sets a post offset that will be applied after rounding the results.
+     */
+    public DateHistogramFacetBuilder postOffset(TimeValue postOffset) {
+        this.postOffset = postOffset.millis();
+        return this;
+    }
+
+    /**
+     * Sets the factor that will be used to multiply the value with before and divided
+     * by after the rounding of the results.
+     */
+    public DateHistogramFacetBuilder factor(float factor) {
+        this.factor = factor;
         return this;
     }
 
@@ -190,8 +233,20 @@ public class DateHistogramFacetBuilder extends AbstractFacetBuilder {
             }
         }
         builder.field("interval", interval);
-        if (zone != null) {
-            builder.field("time_zone", zone);
+        if (preZone != null) {
+            builder.field("pre_zone", preZone);
+        }
+        if (postZone != null) {
+            builder.field("post_zone", postZone);
+        }
+        if (preOffset != 0) {
+            builder.field("pre_offset", preOffset);
+        }
+        if (postOffset != 0) {
+            builder.field("post_offset", postOffset);
+        }
+        if (factor != 1.0f) {
+            builder.field("factor", factor);
         }
         if (comparatorType != null) {
             builder.field("comparator", comparatorType.description());

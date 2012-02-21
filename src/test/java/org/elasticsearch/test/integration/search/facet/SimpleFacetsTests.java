@@ -1398,10 +1398,11 @@ public class SimpleFacetsTests extends AbstractNodesTests {
             SearchResponse searchResponse = client.prepareSearch()
                     .setQuery(matchAllQuery())
                     .addFacet(dateHistogramFacet("stats1").field("date").interval("day"))
-                    .addFacet(dateHistogramFacet("stats2").field("date").interval("day").zone("-02:00"))
-                    .addFacet(dateHistogramFacet("stats3").field("date").valueField("num").interval("day").zone("-02:00"))
-                    .addFacet(dateHistogramFacet("stats4").field("date").valueScript("doc['num'].value * 2").interval("day").zone("-02:00"))
+                    .addFacet(dateHistogramFacet("stats2").field("date").interval("day").preZone("-02:00"))
+                    .addFacet(dateHistogramFacet("stats3").field("date").valueField("num").interval("day").preZone("-02:00"))
+                    .addFacet(dateHistogramFacet("stats4").field("date").valueScript("doc['num'].value * 2").interval("day").preZone("-02:00"))
                     .addFacet(dateHistogramFacet("stats5").field("date").interval("24h"))
+                    .addFacet(dateHistogramFacet("stats6").field("date").valueField("num").interval("day").preZone("-02:00").postZone("-02:00"))
                     .execute().actionGet();
 
             if (searchResponse.failedShards() > 0) {
@@ -1458,6 +1459,16 @@ public class SimpleFacetsTests extends AbstractNodesTests {
             assertThat(facet.entries().get(0).count(), equalTo(2l));
             assertThat(facet.entries().get(1).time(), equalTo(utcTimeInMillis("2009-03-06")));
             assertThat(facet.entries().get(1).count(), equalTo(1l));
+
+            facet = searchResponse.facets().facet("stats6");
+            assertThat(facet.name(), equalTo("stats6"));
+            assertThat(facet.entries().size(), equalTo(2));
+            assertThat(facet.entries().get(0).time(), equalTo(utcTimeInMillis("2009-03-04") - TimeValue.timeValueHours(2).millis()));
+            assertThat(facet.entries().get(0).count(), equalTo(1l));
+            assertThat(facet.entries().get(0).total(), equalTo(1d));
+            assertThat(facet.entries().get(1).time(), equalTo(utcTimeInMillis("2009-03-05") - TimeValue.timeValueHours(2).millis()));
+            assertThat(facet.entries().get(1).count(), equalTo(2l));
+            assertThat(facet.entries().get(1).total(), equalTo(5d));
         }
     }
 

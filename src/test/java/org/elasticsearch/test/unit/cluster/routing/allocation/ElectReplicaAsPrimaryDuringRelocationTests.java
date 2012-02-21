@@ -37,11 +37,10 @@ import static org.elasticsearch.cluster.routing.RoutingBuilders.indexRoutingTabl
 import static org.elasticsearch.cluster.routing.RoutingBuilders.routingTable;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
-import static org.elasticsearch.test.unit.cluster.routing.allocation.RoutingAllocationTests.newNode;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.test.unit.cluster.routing.allocation.RoutingAllocationTests.newNode;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
 
 /**
  *
@@ -104,16 +103,17 @@ public class ElectReplicaAsPrimaryDuringRelocationTests {
             indexShardRoutingTable = routingTable.index("test").shard(1);
         }
 
-        assertThat("failed to find relocating replica", indexShardRoutingTable, notNullValue());
+        // we might have primary relocating, and the test is only for replicas, so only test in the case of replica allocation
+        if (indexShardRoutingTable != null) {
+            logger.info("kill the node [{}] of the primary shard for the relocating replica", indexShardRoutingTable.primaryShard().currentNodeId());
+            clusterState = newClusterStateBuilder().state(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes()).remove(indexShardRoutingTable.primaryShard().currentNodeId())).build();
+            prevRoutingTable = routingTable;
+            routingTable = strategy.reroute(clusterState).routingTable();
+            clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
 
-        logger.info("kill the node [{}] of the primary shard for the relocating replica", indexShardRoutingTable.primaryShard().currentNodeId());
-        clusterState = newClusterStateBuilder().state(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes()).remove(indexShardRoutingTable.primaryShard().currentNodeId())).build();
-        prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
-
-        logger.info("make sure all the primary shards are active");
-        assertThat(routingTable.index("test").shard(0).primaryShard().active(), equalTo(true));
-        assertThat(routingTable.index("test").shard(1).primaryShard().active(), equalTo(true));
+            logger.info("make sure all the primary shards are active");
+            assertThat(routingTable.index("test").shard(0).primaryShard().active(), equalTo(true));
+            assertThat(routingTable.index("test").shard(1).primaryShard().active(), equalTo(true));
+        }
     }
 }

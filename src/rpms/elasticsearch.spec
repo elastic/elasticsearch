@@ -4,7 +4,7 @@
 %define __os_install_post %{nil}
 
 Name:           elasticsearch
-Version:        0.19.0.RC2
+Version:        0.19.0.RC3
 Release:        1%{?dist}
 Summary:        A distributed, highly available, RESTful search engine
 

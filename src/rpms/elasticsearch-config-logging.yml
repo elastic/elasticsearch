@@ -1,0 +1,25 @@
+rootLogger: INFO, file
+logger:
+  # log action execution errors for easier debugging
+  action: DEBUG
+  # reduce the logging for aws, too much is logged under the default INFO
+  com.amazonaws: WARN
+
+
+  # gateway
+  #gateway: DEBUG
+  #index.gateway: DEBUG
+
+  # peer shard recovery
+  #index.shard.recovery: DEBUG
+
+  # discovery
+  #discovery: TRACE
+
+appender:
+  file:
+    type: file
+    file: ${path.logs}/${cluster.name}.log
+    layout:
+      type: pattern
+      conversionPattern: "[%d{ISO8601}][%-5p][%-25c] %m%n"

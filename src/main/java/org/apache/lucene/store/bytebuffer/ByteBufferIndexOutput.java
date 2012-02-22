@@ -29,18 +29,20 @@ public class ByteBufferIndexOutput extends IndexOutput {
 
     private final static ByteBuffer EMPTY_BUFFER = ByteBuffer.allocate(0).asReadOnlyBuffer();
 
+    private final ByteBufferDirectory dir;
     private final String name;
     private final ByteBufferAllocator allocator;
     private final ByteBufferAllocator.Type allocatorType;
     private final int BUFFER_SIZE;
-    private final ByteBufferFile file;
+    private final ByteBufferFileOutput file;
 
     private ByteBuffer currentBuffer;
     private int currentBufferIndex;
 
     private long bufferStart;
 
-    public ByteBufferIndexOutput(String name, ByteBufferAllocator allocator, ByteBufferAllocator.Type allocatorType, ByteBufferFile file) throws IOException {
+    public ByteBufferIndexOutput(ByteBufferDirectory dir, String name, ByteBufferAllocator allocator, ByteBufferAllocator.Type allocatorType, ByteBufferFileOutput file) throws IOException {
+        this.dir = dir;
         this.name = name;
         this.allocator = allocator;
         this.allocatorType = allocatorType;
@@ -54,6 +56,7 @@ public class ByteBufferIndexOutput extends IndexOutput {
     @Override
     public void close() throws IOException {
         flush();
+        dir.closeOutput(name, file);
     }
 
     @Override

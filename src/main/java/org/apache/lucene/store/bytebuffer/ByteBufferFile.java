@@ -18,60 +18,66 @@ package org.apache.lucene.store.bytebuffer;
  */
 
 import java.nio.ByteBuffer;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  */
 public class ByteBufferFile {
 
-    private final CopyOnWriteArrayList<ByteBuffer> buffers = new CopyOnWriteArrayList<ByteBuffer>();
-    private final ByteBufferDirectory dir;
+    final ByteBufferDirectory dir;
+
     final int bufferSize;
 
-    private volatile long length;
-    // This is publicly modifiable via Directory.touchFile(), so direct access not supported
-    private volatile long lastModified = System.currentTimeMillis();
+    final List<ByteBuffer> buffers;
 
-    private final AtomicInteger refCount = new AtomicInteger(1);
+    long length;
 
-    final AtomicLong sizeInBytes = new AtomicLong();
+    volatile long lastModified = System.currentTimeMillis();
+
+    final AtomicInteger refCount;
+
+    long sizeInBytes;
 
     public ByteBufferFile(ByteBufferDirectory dir, int bufferSize) {
         this.dir = dir;
         this.bufferSize = bufferSize;
+        this.buffers = new ArrayList<ByteBuffer>();
+        this.refCount = new AtomicInteger(1);
     }
 
-    // For non-stream access from thread that might be concurrent with writing
+    ByteBufferFile(ByteBufferFile file) {
+        this.dir = file.dir;
+        this.bufferSize = file.bufferSize;
+        this.buffers = file.buffers;
+        this.length = file.length;
+        this.lastModified = file.lastModified;
+        this.refCount = file.refCount;
+        this.sizeInBytes = file.sizeInBytes;
+    }
+
     public long getLength() {
         return length;
     }
 
-    protected void setLength(long length) {
-        this.length = length;
-    }
-
-    // For non-stream access from thread that might be concurrent with writing
     public long getLastModified() {
         return lastModified;
     }
 
-    protected void setLastModified(long lastModified) {
+    void setLastModified(long lastModified) {
         this.lastModified = lastModified;
     }
 
-    protected final void addBuffer(ByteBuffer buffer) {
-        buffers.add(buffer);
-        sizeInBytes.addAndGet(buffer.remaining());
-        dir.sizeInBytes.addAndGet(buffer.remaining());
+    long sizeInBytes() {
+        return sizeInBytes;
     }
 
-    protected final ByteBuffer getBuffer(int index) {
+    ByteBuffer getBuffer(int index) {
         return buffers.get(index);
     }
 
-    protected final int numBuffers() {
+    int numBuffers() {
         return buffers.size();
     }
 
@@ -90,6 +96,7 @@ public class ByteBufferFile {
                 dir.releaseBuffer(buffer);
             }
             buffers.clear();
+            sizeInBytes = 0;
         }
     }
 }

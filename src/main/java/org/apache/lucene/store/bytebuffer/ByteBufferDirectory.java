@@ -133,7 +133,7 @@ public class ByteBufferDirectory extends Directory {
         ByteBufferFile file = files.remove(name);
         if (file == null)
             throw new FileNotFoundException(name);
-        sizeInBytes.addAndGet(-file.sizeInBytes.get());
+        sizeInBytes.addAndGet(-file.sizeInBytes());
         file.delete();
     }
 
@@ -151,13 +151,18 @@ public class ByteBufferDirectory extends Directory {
         if (name.contains("segments") || name.endsWith(".del")) {
             allocatorType = ByteBufferAllocator.Type.SMALL;
         }
-        ByteBufferFile file = new ByteBufferFile(this, allocator.sizeInBytes(allocatorType));
+        ByteBufferFileOutput file = new ByteBufferFileOutput(this, allocator.sizeInBytes(allocatorType));
         ByteBufferFile existing = files.put(name, file);
         if (existing != null) {
-            sizeInBytes.addAndGet(-existing.sizeInBytes.get());
+            sizeInBytes.addAndGet(-existing.sizeInBytes());
             existing.delete();
         }
-        return new ByteBufferIndexOutput(name, allocator, allocatorType, file);
+        return new ByteBufferIndexOutput(this, name, allocator, allocatorType, file);
+    }
+
+    void closeOutput(String name, ByteBufferFileOutput file) {
+        // we replace the output file with a read only file, with no sync
+        files.put(name, new ByteBufferFile(file));
     }
 
     @Override

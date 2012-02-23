@@ -63,6 +63,7 @@ public class ThreadPool extends AbstractComponent {
         public static final String SEARCH = "search";
         public static final String PERCOLATE = "percolate";
         public static final String MANAGEMENT = "management";
+        public static final String FLUSH = "flush";
         public static final String MERGE = "merge";
         public static final String REFRESH = "refresh";
         public static final String SNAPSHOT = "snapshot";
@@ -90,7 +91,8 @@ public class ThreadPool extends AbstractComponent {
         executors.put(Names.BULK, build(Names.BULK, "cached", groupSettings.get(Names.BULK), ImmutableSettings.Builder.EMPTY_SETTINGS));
         executors.put(Names.SEARCH, build(Names.SEARCH, "cached", groupSettings.get(Names.SEARCH), ImmutableSettings.Builder.EMPTY_SETTINGS));
         executors.put(Names.PERCOLATE, build(Names.PERCOLATE, "cached", groupSettings.get(Names.PERCOLATE), ImmutableSettings.Builder.EMPTY_SETTINGS));
-        executors.put(Names.MANAGEMENT, build(Names.MANAGEMENT, "scaling", groupSettings.get(Names.MANAGEMENT), settingsBuilder().put("keep_alive", "5m").put("size", 20).build()));
+        executors.put(Names.MANAGEMENT, build(Names.MANAGEMENT, "scaling", groupSettings.get(Names.MANAGEMENT), settingsBuilder().put("keep_alive", "5m").put("size", 5).build()));
+        executors.put(Names.FLUSH, build(Names.FLUSH, "scaling", groupSettings.get(Names.FLUSH), settingsBuilder().put("keep_alive", "5m").put("size", 10).build()));
         executors.put(Names.MERGE, build(Names.MERGE, "scaling", groupSettings.get(Names.MERGE), settingsBuilder().put("keep_alive", "5m").put("size", 20).build()));
         executors.put(Names.REFRESH, build(Names.REFRESH, "cached", groupSettings.get(Names.REFRESH), settingsBuilder().put("keep_alive", "1m").build()));
         executors.put(Names.SNAPSHOT, build(Names.SNAPSHOT, "scaling", groupSettings.get(Names.SNAPSHOT), settingsBuilder().put("keep_alive", "5m").put("size", 5).build()));

@@ -36,6 +36,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
@@ -132,9 +133,16 @@ public class ThreadPool extends AbstractComponent {
             if ("same".equals(name)) {
                 continue;
             }
-            int threads = ((ThreadPoolExecutor) holder.executor).getPoolSize();
-            int queue = ((ThreadPoolExecutor) holder.executor).getQueue().size();
-            stats.add(new ThreadPoolStats.Stats(name, threads, queue));
+            int threads = -1;
+            int queue = -1;
+            int active = -1;
+            if (holder.executor instanceof ThreadPoolExecutor) {
+                ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) holder.executor;
+                threads = threadPoolExecutor.getPoolSize();
+                queue = threadPoolExecutor.getQueue().size();
+                active = threadPoolExecutor.getActiveCount();
+            }
+            stats.add(new ThreadPoolStats.Stats(name, threads, queue, active));
         }
         return new ThreadPoolStats(stats);
     }
@@ -210,7 +218,7 @@ public class ThreadPool extends AbstractComponent {
         } else if ("cached".equals(type)) {
             TimeValue keepAlive = settings.getAsTime("keep_alive", defaultSettings.getAsTime("keep_alive", timeValueMinutes(5)));
             logger.debug("creating thread_pool [{}], type [{}], keep_alive [{}]", name, type, keepAlive);
-            Executor executor = new ThreadPoolExecutor(0, Integer.MAX_VALUE,
+            Executor executor = new EsThreadPoolExecutor(0, Integer.MAX_VALUE,
                     keepAlive.millis(), TimeUnit.MILLISECONDS,
                     new SynchronousQueue<Runnable>(),
                     threadFactory);
@@ -228,7 +236,7 @@ public class ThreadPool extends AbstractComponent {
                 throw new ElasticSearchIllegalArgumentException("reject_policy [" + rejectSetting + "] not valid for [" + name + "] thread pool");
             }
             logger.debug("creating thread_pool [{}], type [{}], size [{}], queue_size [{}], reject_policy [{}]", name, type, size, capacity, rejectSetting);
-            Executor executor = new ThreadPoolExecutor(size, size,
+            Executor executor = new EsThreadPoolExecutor(size, size,
                     0L, TimeUnit.MILLISECONDS,
                     capacity == null ? new LinkedTransferQueue<Runnable>() : new ArrayBlockingQueue<Runnable>((int) capacity.singles()),
                     threadFactory, rejectedExecutionHandler);

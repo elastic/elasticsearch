@@ -29,21 +29,21 @@ import java.util.concurrent.*;
  */
 public class EsExecutors {
 
-    public static ThreadPoolExecutor newScalingExecutorService(int min, int max, long keepAliveTime, TimeUnit unit,
-                                                               ThreadFactory threadFactory) {
+    public static EsThreadPoolExecutor newScalingExecutorService(int min, int max, long keepAliveTime, TimeUnit unit,
+                                                                 ThreadFactory threadFactory) {
         ExecutorScalingQueue<Runnable> queue = new ExecutorScalingQueue<Runnable>();
         // we force the execution, since we might run into concurrency issues in offer for ScalingBlockingQueue
-        ThreadPoolExecutor executor = new ThreadPoolExecutor(min, max, keepAliveTime, unit, queue, threadFactory,
+        EsThreadPoolExecutor executor = new EsThreadPoolExecutor(min, max, keepAliveTime, unit, queue, threadFactory,
                 new ForceQueuePolicy());
         queue.executor = executor;
         return executor;
     }
 
-    public static ThreadPoolExecutor newBlockingExecutorService(int min, int max, long keepAliveTime, TimeUnit unit,
-                                                                ThreadFactory threadFactory, int capacity,
-                                                                long waitTime, TimeUnit waitTimeUnit) {
+    public static EsThreadPoolExecutor newBlockingExecutorService(int min, int max, long keepAliveTime, TimeUnit unit,
+                                                                  ThreadFactory threadFactory, int capacity,
+                                                                  long waitTime, TimeUnit waitTimeUnit) {
         ExecutorBlockingQueue<Runnable> queue = new ExecutorBlockingQueue<Runnable>(capacity);
-        ThreadPoolExecutor executor = new ThreadPoolExecutor(min, max, keepAliveTime, unit, queue, threadFactory,
+        EsThreadPoolExecutor executor = new EsThreadPoolExecutor(min, max, keepAliveTime, unit, queue, threadFactory,
                 new TimedBlockingPolicy(waitTimeUnit.toMillis(waitTime)));
         queue.executor = executor;
         return executor;

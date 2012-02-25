@@ -129,6 +129,7 @@
             </plugin>
             <plugin>
                 <artifactId>maven-assembly-plugin</artifactId>
+                <version>2.2-beta-5</version>
                 <configuration>
                     <outputDirectory>${project.build.directory}/releases/</outputDirectory>
                     <descriptors>

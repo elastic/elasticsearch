@@ -87,9 +87,11 @@ public class RestClusterHealthAction extends BaseRestHandler {
             public void onResponse(ClusterHealthResponse response) {
                 try {
                     RestStatus status = RestStatus.OK;
-                    if (response.status() == ClusterHealthStatus.RED) {
-                        status = RestStatus.SERVICE_UNAVAILABLE;
-                    }
+                    // not sure..., we handle the health API, so we are not unavailable
+                    // in any case, "/" should be used for
+                    //if (response.status() == ClusterHealthStatus.RED) {
+                    //    status = RestStatus.SERVICE_UNAVAILABLE;
+                    //}
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
 

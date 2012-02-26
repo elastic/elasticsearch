@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <assembly>
-    <id></id>
+    <id>zip</id>
     <formats>
         <format>zip</format>
     </formats>

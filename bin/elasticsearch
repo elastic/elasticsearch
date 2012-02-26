@@ -125,8 +125,7 @@ launch_service()
         # Startup ElasticSearch, background it, and write the pid.
         exec "$JAVA" $JAVA_OPTS $ES_JAVA_OPTS $es_parms -Des.path.home="$ES_HOME" -cp "$ES_CLASSPATH" $props \
                     org.elasticsearch.bootstrap.ElasticSearch <&- &
-        # no longer need to write the pid, the elasticsearch process will do it
-        # [ ! -z "$pidpath" ] && printf '%d' $! > "$pidpath"
+        [ ! -z "$pidpath" ] && printf '%d' $! > "$pidpath"
     fi
 
     return $?

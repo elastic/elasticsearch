@@ -50,4 +50,22 @@ public class MultiSearchRequestTests {
         assertThat(request.requests().get(4).indices(), nullValue());
         assertThat(request.requests().get(4).types().length, equalTo(0));
     }
+
+    @Test
+    public void simpleAdd2() throws Exception {
+        byte[] data = Streams.copyToBytesFromClasspath("/org/elasticsearch/test/unit/action/search/simple-msearch2.json");
+        MultiSearchRequest request = new MultiSearchRequest().add(data, 0, data.length, false, null, null);
+        assertThat(request.requests().size(), equalTo(5));
+        assertThat(request.requests().get(0).indices()[0], equalTo("test"));
+        assertThat(request.requests().get(0).types().length, equalTo(0));
+        assertThat(request.requests().get(1).indices()[0], equalTo("test"));
+        assertThat(request.requests().get(1).types()[0], equalTo("type1"));
+        assertThat(request.requests().get(2).indices(), nullValue());
+        assertThat(request.requests().get(2).types().length, equalTo(0));
+        assertThat(request.requests().get(3).indices(), nullValue());
+        assertThat(request.requests().get(3).types().length, equalTo(0));
+        assertThat(request.requests().get(3).searchType(), equalTo(SearchType.COUNT));
+        assertThat(request.requests().get(4).indices(), nullValue());
+        assertThat(request.requests().get(4).types().length, equalTo(0));
+    }
 }

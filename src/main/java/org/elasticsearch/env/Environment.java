@@ -168,6 +168,7 @@ public class Environment {
     }
 
     public URL resolveConfig(String path) throws FailedToResolveConfigException {
+        String origPath = path;
         // first, try it as a path on the file system
         File f1 = new File(path);
         if (f1.exists()) {
@@ -201,6 +202,6 @@ public class Environment {
                 return resource;
             }
         }
-        throw new FailedToResolveConfigException("Failed to resolve config path [" + path + "], tried file path [" + f1 + "], path file [" + f2 + "], and classpath");
+        throw new FailedToResolveConfigException("Failed to resolve config path [" + origPath + "], tried file path [" + f1 + "], path file [" + f2 + "], and classpath");
     }
 }

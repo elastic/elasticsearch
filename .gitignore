@@ -5,3 +5,6 @@
 /target
 .DS_Store
 *.iml
+/.project
+/.classpath
+/.settings

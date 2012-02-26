@@ -70,6 +70,11 @@ public class MultiSearchRequest implements ActionRequest {
             if (nextMarker == -1) {
                 break;
             }
+            // support first line with \n
+            if (nextMarker == 0) {
+                from = nextMarker + 1;
+                continue;
+            }
 
             SearchRequest searchRequest = new SearchRequest(indices);
             if (types != null && types.length > 0) {

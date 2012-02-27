@@ -23,6 +23,7 @@ import com.google.common.collect.Lists;
 import jsr166y.LinkedTransferQueue;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -342,6 +343,9 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
     }
 
     private UnicastPingResponse handlePingRequest(final UnicastPingRequest request) {
+        if (lifecycle.stoppedOrClosed()) {
+            throw new ElasticSearchIllegalStateException("received ping request while stopped/closed");
+        }
         temporalResponses.add(request.pingResponse);
         threadPool.schedule(TimeValue.timeValueMillis(request.timeout.millis() * 2), ThreadPool.Names.SAME, new Runnable() {
             @Override

@@ -58,7 +58,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
                     return currentState;
                 }
                 MetaData.Builder metaData = MetaData.builder().metaData(currentState.metaData())
-                        .remoteTemplate(request.name);
+                        .removeTemplate(request.name);
 
                 return ClusterState.builder().state(currentState).metaData(metaData).build();
             }

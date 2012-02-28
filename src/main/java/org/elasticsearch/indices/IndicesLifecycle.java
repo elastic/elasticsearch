@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices;
 
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.service.IndexService;
@@ -28,8 +29,6 @@ import org.elasticsearch.index.shard.service.IndexShard;
 /**
  * A global component allowing to register for lifecycle of an index (create/closed) and
  * an index shard (created/closed).
- *
- *
  */
 public interface IndicesLifecycle {
 
@@ -47,6 +46,17 @@ public interface IndicesLifecycle {
      * A listener for index and index shard lifecycle events (create/closed).
      */
     public abstract static class Listener {
+
+        /**
+         * Called when the shard routing has changed state.
+         *
+         * @param indexShard The index shard
+         * @param oldRouting The old routing state (can be null)
+         * @param newRouting The new routing state
+         */
+        public void shardRoutingChanged(IndexShard indexShard, @Nullable ShardRouting oldRouting, ShardRouting newRouting) {
+
+        }
 
         /**
          * Called before the index gets created.

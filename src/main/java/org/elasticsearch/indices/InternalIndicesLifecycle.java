@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices;
 
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -48,6 +49,12 @@ public class InternalIndicesLifecycle extends AbstractComponent implements Indic
 
     public void removeListener(Listener listener) {
         listeners.remove(listener);
+    }
+
+    public void shardRoutingChanged(IndexShard indexShard, @Nullable ShardRouting oldRouting, ShardRouting newRouting) {
+        for (Listener listener : listeners) {
+            listener.shardRoutingChanged(indexShard, oldRouting, newRouting);
+        }
     }
 
     public void beforeIndexCreated(Index index) {

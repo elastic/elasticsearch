@@ -88,6 +88,7 @@ public class DateHistogramFacetProcessor extends AbstractComponent implements Fa
         String interval = null;
         DateTimeZone preZone = DateTimeZone.UTC;
         DateTimeZone postZone = DateTimeZone.UTC;
+        boolean preZoneAdjustLargeInterval = false;
         long preOffset = 0;
         long postOffset = 0;
         float factor = 1.0f;
@@ -115,6 +116,8 @@ public class DateHistogramFacetProcessor extends AbstractComponent implements Fa
                     preZone = parseZone(parser, token);
                 } else if ("pre_zone".equals(fieldName) || "preZone".equals(fieldName)) {
                     preZone = parseZone(parser, token);
+                } else if ("pre_zone_adjust_large_interval".equals(fieldName) || "preZoneAdjustLargeInterval".equals(fieldName)) {
+                    preZoneAdjustLargeInterval = parser.booleanValue();
                 } else if ("post_zone".equals(fieldName) || "postZone".equals(fieldName)) {
                     postZone = parseZone(parser, token);
                 } else if ("pre_offset".equals(fieldName) || "preOffset".equals(fieldName)) {
@@ -160,6 +163,7 @@ public class DateHistogramFacetProcessor extends AbstractComponent implements Fa
 
         TimeZoneRounding tzRounding = tzRoundingBuilder
                 .preZone(preZone).postZone(postZone)
+                .preZoneAdjustLargeInterval(preZoneAdjustLargeInterval)
                 .preOffset(preOffset).postOffset(postOffset)
                 .factor(factor)
                 .build();

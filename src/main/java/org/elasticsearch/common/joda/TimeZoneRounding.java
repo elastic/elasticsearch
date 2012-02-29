@@ -51,6 +51,8 @@ public abstract class TimeZoneRounding {
         private long preOffset;
         private long postOffset;
 
+        private boolean preZoneAdjustLargeInterval = false;
+
         public Builder(DateTimeField field) {
             this.field = field;
             this.interval = -1;
@@ -63,6 +65,11 @@ public abstract class TimeZoneRounding {
 
         public Builder preZone(DateTimeZone preTz) {
             this.preTz = preTz;
+            return this;
+        }
+
+        public Builder preZoneAdjustLargeInterval(boolean preZoneAdjustLargeInterval) {
+            this.preZoneAdjustLargeInterval = preZoneAdjustLargeInterval;
             return this;
         }
 
@@ -91,7 +98,7 @@ public abstract class TimeZoneRounding {
             if (field != null) {
                 if (preTz.equals(DateTimeZone.UTC) && postTz.equals(DateTimeZone.UTC)) {
                     timeZoneRounding = new UTCTimeZoneRoundingFloor(field);
-                } else if (field.getDurationField().getUnitMillis() < DateTimeConstants.MILLIS_PER_HOUR * 12) {
+                } else if (preZoneAdjustLargeInterval || field.getDurationField().getUnitMillis() < DateTimeConstants.MILLIS_PER_HOUR * 12) {
                     timeZoneRounding = new TimeTimeZoneRoundingFloor(field, preTz, postTz);
                 } else {
                     timeZoneRounding = new DayTimeZoneRoundingFloor(field, preTz, postTz);
@@ -99,7 +106,7 @@ public abstract class TimeZoneRounding {
             } else {
                 if (preTz.equals(DateTimeZone.UTC) && postTz.equals(DateTimeZone.UTC)) {
                     timeZoneRounding = new UTCIntervalTimeZoneRounding(interval);
-                } else if (interval < DateTimeConstants.MILLIS_PER_HOUR * 12) {
+                } else if (preZoneAdjustLargeInterval || interval < DateTimeConstants.MILLIS_PER_HOUR * 12) {
                     timeZoneRounding = new TimeIntervalTimeZoneRounding(interval, preTz, postTz);
                 } else {
                     timeZoneRounding = new DayIntervalTimeZoneRounding(interval, preTz, postTz);
@@ -131,7 +138,7 @@ public abstract class TimeZoneRounding {
         public long calc(long utcMillis) {
             long time = utcMillis + preTz.getOffset(utcMillis);
             time = field.roundFloor(time);
-            // now, time is still in local, move it to UTC
+            // now, time is still in local, move it to UTC (or the adjustLargeInterval flag is set)
             time = time - preTz.getOffset(time);
             // now apply post Tz
             time = time + postTz.getOffset(time);

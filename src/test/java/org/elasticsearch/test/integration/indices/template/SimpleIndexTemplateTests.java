@@ -22,6 +22,7 @@ package org.elasticsearch.test.integration.indices.template;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.indices.IndexTemplateAlreadyExistsException;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -77,6 +78,24 @@ public class SimpleIndexTemplateTests extends AbstractNodesTests {
                         .startObject("field2").field("type", "string").field("store", "no").endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
+
+        // test create param
+        try {
+            client.admin().indices().preparePutTemplate("template_2")
+                    .setTemplate("test*")
+                    .setCreate(true)
+                    .setOrder(1)
+                    .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+                            .startObject("field2").field("type", "string").field("store", "no").endObject()
+                            .endObject().endObject().endObject())
+                    .execute().actionGet();
+            assertThat(false, equalTo(true));
+        } catch (IndexTemplateAlreadyExistsException e) {
+            // OK
+        } catch (Exception e) {
+            assertThat(false, equalTo(true));
+        }
+
 
         // index something into test_index, will match on both templates
         client.prepareIndex("test_index", "type1", "1").setSource("field1", "value1", "field2", "value 2").setRefresh(true).execute().actionGet();

@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableList;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.docset.DocSet;
 import org.elasticsearch.common.lucene.docset.DocSets;
 import org.elasticsearch.common.lucene.search.AndFilter;
@@ -40,8 +41,26 @@ public abstract class AbstractFacetCollector extends FacetCollector {
 
     private DocSet docSet = null;
 
+    private boolean groupHeadTruncate = false;
+
+    private int docBase;
+
+    private FixedBitSet groupedResult;
+
     public AbstractFacetCollector(String facetName) {
         this.facetName = facetName;
+    }
+
+    @Override public boolean groupTruncate() {
+        return groupHeadTruncate;
+    }
+
+    public void setGroupedResultSet(FixedBitSet bitSet) {
+        groupedResult = bitSet;
+    }
+
+    @Override public void groupTruncate(boolean grouped) {
+        this.groupHeadTruncate = grouped;
     }
 
     public Filter getFilter() {
@@ -67,8 +86,9 @@ public abstract class AbstractFacetCollector extends FacetCollector {
         return true; // when working on FieldData, docs can be out of order
     }
 
-    @Override
+    @Override 
     public void setNextReader(IndexReader reader, int docBase) throws IOException {
+        this.docBase = docBase;
         if (filter != null) {
             docSet = DocSets.convert(reader, filter.getDocIdSet(reader));
         }
@@ -77,12 +97,22 @@ public abstract class AbstractFacetCollector extends FacetCollector {
 
     protected abstract void doSetNextReader(IndexReader reader, int docBase) throws IOException;
 
-    @Override
+    @Override 
     public void collect(int doc) throws IOException {
-        if (docSet == null) {
-            doCollect(doc);
-        } else if (docSet.get(doc)) {
-            doCollect(doc);
+        if (groupedResult != null) {
+            if (groupedResult.get(docBase + doc)) {
+                if (docSet == null) {
+                    doCollect(doc);
+                } else if (docSet.get(doc)) {
+                    doCollect(doc);
+                }
+            }
+        } else {
+            if (docSet == null) {
+                doCollect(doc);
+            } else if (docSet.get(doc)) {
+                doCollect(doc);
+            }
         }
     }
 

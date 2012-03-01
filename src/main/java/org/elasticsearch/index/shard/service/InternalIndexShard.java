@@ -430,6 +430,26 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         }
     }
 
+    @Override 
+    public long count(float minScore, String groupField, byte[] querySource, int querySourceOffset, int querySourceLength, @Nullable String[] filteringAliases, String... types) throws ElasticSearchException {
+        readAllowed();
+        Query query = queryParserService.parse(querySource, querySourceOffset, querySourceLength).query();
+        query = filterQueryIfNeeded(query, types);
+        Filter aliasFilter = indexAliasesService.aliasFilter(filteringAliases);
+        Engine.Searcher searcher = engine.searcher();
+        try {
+          long count = Lucene.groupedCount(searcher.searcher(), groupField, query, aliasFilter, minScore);
+          if (logger.isTraceEnabled()) {
+            logger.trace("count of [{}] is [{}]", query, count);
+          }
+          return count;
+        } catch (IOException e) {
+          throw new ElasticSearchException("Failed to count query [" + query + "]", e);
+        } finally {
+          searcher.release();
+        }
+    }
+
     @Override
     public void refresh(Engine.Refresh refresh) throws ElasticSearchException {
         verifyStarted();

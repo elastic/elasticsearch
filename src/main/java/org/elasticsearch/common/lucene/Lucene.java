@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.KeywordAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
+import org.apache.lucene.search.grouping.TermAllGroupsCollector;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -85,6 +86,14 @@ public class Lucene {
         CountCollector countCollector = new CountCollector(minScore);
         searcher.search(query, filter, countCollector);
         return countCollector.count();
+    }
+
+    public static long groupedCount(IndexSearcher searcher, String groupField, Query query, Filter filter, float minScore) throws IOException {
+        TermAllGroupsCollector groupCountCollector = new TermAllGroupsCollector(groupField);
+        MinScoreWrappingCollector outerCollector = new MinScoreWrappingCollector(minScore, groupCountCollector);
+
+        searcher.search(query, filter, outerCollector);
+        return groupCountCollector.getGroupCount();
     }
 
     public static int docId(IndexReader reader, Term term) throws IOException {
@@ -334,8 +343,7 @@ public class Lucene {
             this.scorer = scorer;
         }
 
-        @Override
-        public void collect(int doc) throws IOException {
+        @Override public void collect(int doc) throws IOException {
             if (scorer.score() > minScore) {
                 count++;
             }
@@ -348,6 +356,37 @@ public class Lucene {
         @Override
         public boolean acceptsDocsOutOfOrder() {
             return true;
+        }
+    }
+
+    public static class MinScoreWrappingCollector extends Collector {
+
+        private final float minScore;
+        private final Collector wrappedCollector;
+        private Scorer scorer;
+
+        public MinScoreWrappingCollector(float minScore, Collector wrappedCollector) {
+            this.minScore = minScore;
+            this.wrappedCollector = wrappedCollector;
+        }
+
+        @Override public void setScorer(Scorer scorer) throws IOException {
+            this.scorer = scorer;
+            wrappedCollector.setScorer(scorer);
+        }
+
+        @Override public void collect(int doc) throws IOException {
+            if (scorer.score() > minScore) {
+                wrappedCollector.collect(doc);
+            }
+        }
+
+        @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
+            wrappedCollector.setNextReader(reader, docBase);
+        }
+
+        @Override public boolean acceptsDocsOutOfOrder() {
+            return wrappedCollector.acceptsDocsOutOfOrder();
         }
     }
 

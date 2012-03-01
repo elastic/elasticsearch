@@ -57,6 +57,36 @@ public abstract class StringFieldData extends FieldData<StringDocFieldData> {
 
     abstract public String value(int docId);
 
+    abstract public int ordinal(int docId);
+
+    public int binarySearchLookup(String key) {
+        // this case is the reason that Arrays.binarySearch() isn't useful.
+        if (key == null)
+            return 0;
+
+        int low = 1;
+        int high = values.length-1;
+
+        while (low <= high) {
+            int mid = (low + high) >>> 1;
+            final int cmp;
+            // this case is also the reason that Arrays.binarySearch() isn't useful.
+            if (values[mid] == null) {
+                cmp = -1;
+            } else {
+                cmp = values[mid].compareTo(key);
+            }
+
+            if (cmp < 0)
+                low = mid + 1;
+            else if (cmp > 0)
+                high = mid - 1;
+            else
+                return mid; // key found
+        }
+        return -(low + 1);  // key not found.
+    }
+
     abstract public String[] values(int docId);
 
     @Override

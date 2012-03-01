@@ -28,6 +28,7 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lucene.docset.DocSet;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.cache.filter.FilterCache;
@@ -67,6 +68,7 @@ import java.util.Map;
 public class SearchContext implements Releasable {
 
     private static ThreadLocal<SearchContext> current = new ThreadLocal<SearchContext>();
+    private DocSet groupedDocSet;
 
     public static void setCurrent(SearchContext value) {
         current.set(value);
@@ -132,6 +134,8 @@ public class SearchContext implements Releasable {
     private int size = -1;
 
     private Sort sort;
+
+    private String groupField;
 
     private Float minimumScore;
 
@@ -365,6 +369,16 @@ public class SearchContext implements Releasable {
         return this.sort;
     }
 
+    public String groupField() {
+        return groupField;
+    }
+
+    public SearchContext groupField(String groupField) {
+        this.groupField = groupField;
+        this.searchType = SearchType.GROUP_THEN_FETCH;
+        return this;
+    }
+
     public SearchContext trackScores(boolean trackScores) {
         this.trackScores = trackScores;
         return this;
@@ -566,6 +580,15 @@ public class SearchContext implements Releasable {
         }
         return scanContext;
     }
+    
+    public void groupedDocSet(DocSet groupedDocSet) {
+        this.groupedDocSet = groupedDocSet;
+    }
+
+    public DocSet groupedDocSet() {
+        return groupedDocSet;
+    }
+    
 
     public MapperService.SmartNameFieldMappers smartFieldMappers(String name) {
         return mapperService().smartName(name, request.types());
@@ -581,5 +604,9 @@ public class SearchContext implements Releasable {
 
     public MapperService.SmartNameObjectMapper smartNameObjectMapper(String name) {
         return mapperService().smartNameObjectMapper(name, request.types());
+    }
+
+    public boolean grouped() {
+        return groupField != null;
     }
 }

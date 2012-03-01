@@ -1,8 +1,8 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
+ * Licensed to Elastic Search and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
+ * regarding copyright ownership. Elastic Search licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -17,32 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.search.facet;
+package org.elasticsearch.search.query;
 
-import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.OpenBitSet;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.search.SearchParseElement;
+import org.elasticsearch.search.internal.SearchContext;
 
 /**
- *
+ * @author Martijn van Groningen
  */
-public abstract class FacetCollector extends Collector {
+public class GroupFieldParseElement implements SearchParseElement {
 
-    public abstract Facet facet();
-
-    public abstract void setFilter(Filter filter);
-
-    public boolean groupTruncate() {
-        return false;
+    @Override public void parse(XContentParser parser, SearchContext context) throws Exception {
+        XContentParser.Token token = parser.currentToken();
+        if (token.isValue()) {
+            context.groupField(parser.text());
+        }
     }
-
-    public void groupTruncate(boolean groupTruncate) {}
-
-    public void grouped(String groupField) {}
-
-    public boolean grouped() {
-        return false;
-    }
-
 }

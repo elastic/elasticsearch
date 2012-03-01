@@ -23,6 +23,8 @@ import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.thread.ThreadLocals;
 
+import java.util.Arrays;
+
 /**
  *
  */
@@ -113,6 +115,16 @@ public class MultiValueStringFieldData extends StringFieldData {
             }
         }
         return null;
+    }
+
+    @Override public int ordinal(int docId) {
+        for (int[] ordinal : ordinals) {
+            int loc = ordinal[docId];
+            if (loc != 0) {
+                return loc;
+            }
+        }
+        return 0;
     }
 
     @Override

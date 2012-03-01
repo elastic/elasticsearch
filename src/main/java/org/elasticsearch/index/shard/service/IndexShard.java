@@ -94,6 +94,8 @@ public interface IndexShard extends IndexShardComponent {
 
     long count(float minScore, byte[] querySource, int querySourceOffset, int querySourceLength, @Nullable String[] filteringAliases, String... types) throws ElasticSearchException;
 
+    long count(float minScore, String groupField, byte[] querySource, int querySourceOffset, int querySourceLength, @Nullable String[] filteringAliases, String... types) throws ElasticSearchException;
+
     void refresh(Engine.Refresh refresh) throws ElasticSearchException;
 
     void flush(Engine.Flush flush) throws ElasticSearchException;

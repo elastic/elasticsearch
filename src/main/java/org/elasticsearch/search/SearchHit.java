@@ -96,6 +96,11 @@ public interface SearchHit extends Streamable, ToXContent, Iterable<SearchHitFie
     boolean isSourceEmpty();
 
     /**
+     * Is this document grouped or not.
+     */
+    boolean isGrouped();
+
+    /**
      * The source of the document as a map (can be <tt>null</tt>).
      */
     Map<String, Object> getSource();

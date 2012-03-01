@@ -84,16 +84,23 @@ public class InternalSearchHit implements SearchHit {
 
     private Map<String, Object> sourceAsMap;
 
+    private boolean grouped;
+
     private InternalSearchHit() {
 
     }
 
-    public InternalSearchHit(int docId, String id, String type, byte[] source, Map<String, SearchHitField> fields) {
+    public InternalSearchHit(int docId, String id, String type, byte[] source, Map<String, SearchHitField> fields, boolean grouped) {
         this.docId = docId;
         this.id = id;
         this.type = type;
         this.source = source == null ? null : new BytesHolder(source);
         this.fields = fields;
+        this.grouped = grouped;
+    }
+
+    @Override public boolean isGrouped() {
+        return grouped;
     }
 
     public int docId() {
@@ -342,6 +349,7 @@ public class InternalSearchHit implements SearchHit {
         static final XContentBuilderString VALUE = new XContentBuilderString("value");
         static final XContentBuilderString DESCRIPTION = new XContentBuilderString("description");
         static final XContentBuilderString DETAILS = new XContentBuilderString("details");
+        static final XContentBuilderString _GROUPED = new XContentBuilderString("_grouped");
     }
 
     @Override
@@ -365,6 +373,7 @@ public class InternalSearchHit implements SearchHit {
         if (source != null) {
             RestXContentBuilder.restDocumentSource(source.bytes(), source.offset(), source.length(), builder, params);
         }
+        builder.field(Fields._GROUPED, grouped);
         if (fields != null && !fields.isEmpty()) {
             builder.startObject(Fields.FIELDS);
             for (SearchHitField field : fields.values()) {
@@ -453,6 +462,7 @@ public class InternalSearchHit implements SearchHit {
         id = in.readUTF();
         type = in.readUTF();
         version = in.readLong();
+        grouped = in.readBoolean();
         source = in.readBytesReference();
         if (source.length() == 0) {
             source = null;
@@ -586,6 +596,7 @@ public class InternalSearchHit implements SearchHit {
         out.writeUTF(id);
         out.writeUTF(type);
         out.writeLong(version);
+        out.writeBoolean(grouped);
         out.writeBytesHolder(source);
         if (explanation == null) {
             out.writeBoolean(false);

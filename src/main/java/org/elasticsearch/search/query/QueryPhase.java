@@ -20,16 +20,22 @@
 package org.elasticsearch.search.query;
 
 import com.google.common.collect.ImmutableMap;
+import org.apache.lucene.index.ExtendedIndexSearcher;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.*;
+import org.apache.lucene.search.grouping.*;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.docset.FixedBitDocSet;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
+import org.elasticsearch.search.facet.FacetCollector;
 import org.elasticsearch.search.facet.FacetPhase;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.ScopePhase;
@@ -37,7 +43,8 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortParseElement;
 import org.elasticsearch.search.sort.TrackScoresParseElement;
 
-import java.util.Map;
+import java.io.IOException;
+import java.util.*;
 
 /**
  *
@@ -64,6 +71,7 @@ public class QueryPhase implements SearchPhase {
                 .put("filterBinary", new FilterBinaryParseElement())
                 .put("filter_binary", new FilterBinaryParseElement())
                 .put("sort", new SortParseElement())
+                .put("groupField", new GroupFieldParseElement())
                 .put("trackScores", new TrackScoresParseElement())
                 .put("track_scores", new TrackScoresParseElement())
                 .put("min_score", new MinScoreParseElement())
@@ -190,6 +198,72 @@ public class QueryPhase implements SearchPhase {
                 topDocs = new TopDocs(collector.getTotalHits(), Lucene.EMPTY_SCORE_DOCS, 0);
             } else if (searchContext.searchType() == SearchType.SCAN) {
                 topDocs = searchContext.scanContext().execute(searchContext);
+            } else if (searchContext.searchType() == SearchType.GROUP_THEN_FETCH) {
+              boolean truncatedFacets = false;
+              List<FacetCollector> facetCollectors;
+              if (searchContext.facets() != null) {
+                facetCollectors = searchContext.facets().facetCollectors();
+              } else {
+                facetCollectors = Collections.emptyList();
+              }
+
+              for (FacetCollector facetCollector : facetCollectors) {
+                if (facetCollector.groupTruncate()) {
+                  truncatedFacets = true;
+                  break;
+                }
+              }
+
+              Sort _sort = searchContext.sort() != null ? searchContext.sort(): new Sort();
+              // Otherwise we also execute the scoped collectors in ExtendedIndexSearcher. We only need to execute them in the second phase..
+              final ExtendedIndexSearcher searcher = new ExtendedIndexSearcher(searchContext.searcher().getIndexReader());
+
+              // Because filters by default don't effect facets we need to seperately execute a search to get the grouped docset without filters
+              // So we seperate the the getting grouped docset from the main search...
+              if (truncatedFacets) {
+                AbstractAllGroupHeadsCollector termAllGroupHeadsCollector = TermAllGroupHeadsCollector.create(searchContext.groupField(), _sort);
+                searcher.search(query, termAllGroupHeadsCollector);
+
+                FixedBitSet groupHeadBitSet = termAllGroupHeadsCollector.retrieveGroupHeads(searchContext.searcher().maxDoc());
+                searchContext.groupedDocSet(new FixedBitDocSet(groupHeadBitSet));
+                for (FacetCollector facetCollector : facetCollectors) {
+                  if (facetCollector.groupTruncate()) {
+                    facetCollector.setFilter(new BitSetFilter(groupHeadBitSet, searcher));
+                  }
+                }
+              }
+
+              TermFirstPassGroupingCollector firstPassGroupingCollector = new TermFirstPassGroupingCollector(searchContext.groupField(), _sort, numDocs);
+              TermAllGroupsCollector groupCountCollector = new TermAllGroupsCollector(searchContext.groupField());
+              searcher.search(query, searchContext.parsedFilter(), MultiCollector.wrap(firstPassGroupingCollector, groupCountCollector));
+              int totalGroupedHits = groupCountCollector.getGroupCount();
+
+              Collection<SearchGroup<String>> searchGroups = firstPassGroupingCollector.getTopGroups(0, false);
+              if (searchGroups == null || searchGroups.isEmpty()) {
+                if (searchContext.searcher().hasCollectors(ContextIndexSearcher.Scopes.MAIN) ||
+                        searchContext.searcher().hasCollectors(ContextIndexSearcher.Scopes.GLOBAL)) {
+                  searchContext.searcher().search(query, null, EmptyCollector.INSTANCE); // For scoped collectors
+                }
+                topDocs = new TopDocs(totalGroupedHits, new ScoreDoc[0], 0.0f);
+              } else {
+                TermSecondPassGroupingCollector secondPassGroupingCollector = new TermSecondPassGroupingCollector(searchContext.groupField(), searchGroups, _sort, _sort, 2, true, true, false);
+
+                searchContext.searcher().search(query, null, secondPassGroupingCollector);
+                TopGroups<String> topGroups = secondPassGroupingCollector.getTopGroups(0);
+                List<ScoreDoc> scoreDocList = new ArrayList<ScoreDoc>(topGroups.groups.length);
+                for (int i = 0; i < topGroups.groups.length; i++) {
+                  if (topGroups.groups[i].scoreDocs.length < 1) {
+                    continue;
+                  }
+
+                  scoreDocList.add(topGroups.groups[i].scoreDocs[0]);
+                  if (topGroups.groups[i].scoreDocs.length > 1) {
+                    searchContext.queryResult().documentGrouped().add(topGroups.groups[i].scoreDocs[0].doc);
+                  }
+                }
+                ScoreDoc[] scoreDocs = scoreDocList.toArray(new ScoreDoc[scoreDocList.size()]);
+                topDocs = new TopDocs(totalGroupedHits, scoreDocs, 0.0f);
+              }
             } else if (searchContext.sort() != null) {
                 topDocs = searchContext.searcher().search(query, null, numDocs, searchContext.sort());
             } else {
@@ -204,4 +278,85 @@ public class QueryPhase implements SearchPhase {
 
         facetPhase.execute(searchContext);
     }
+
+
+    static class EmptyCollector extends Collector {
+
+        static EmptyCollector INSTANCE = new EmptyCollector();
+
+        private EmptyCollector(){}
+
+        @Override public void setScorer(Scorer scorer) throws IOException {}
+
+        @Override public void collect(int doc) throws IOException {}
+
+        @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {}
+
+        @Override public boolean acceptsDocsOutOfOrder() {return true;}
+    }
+
+
+    class BitSetFilter extends Filter {
+
+        private final FixedBitSet bitSet;
+        private final ExtendedIndexSearcher indexSearcher;
+
+        BitSetFilter(FixedBitSet bitSet, ExtendedIndexSearcher indexSearcher) {
+            this.bitSet = bitSet;
+            this.indexSearcher = indexSearcher;
+        }
+
+        @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
+            if (indexSearcher.getIndexReader() == reader) {
+                return bitSet;
+            }
+            int offset = 0;
+            for (int i = 0; i < indexSearcher.subReaders().length; i++) {
+                if (indexSearcher.subReaders()[i] == reader) {
+                    offset = indexSearcher.docStarts()[i];
+                    break;
+                }
+            }
+            final int base = offset;
+            final int max = reader.maxDoc();
+            return new DocIdSet() {
+
+                @Override public DocIdSetIterator iterator() throws IOException {
+                    return new DocIdSetIterator() {
+                        int pos = base - 1;
+                        int adjustedDoc = -1;
+
+                        @Override
+                        public int docID() {
+                            return adjustedDoc;
+                        }
+
+                        @Override
+                        public int nextDoc() throws IOException {
+                            int nextSeekPos = pos + 1;
+                            if (nextSeekPos >= bitSet.length()) {
+                                return NO_MORE_DOCS;
+                            }
+                            pos = bitSet.nextSetBit(nextSeekPos);
+                            return adjustedDoc = (pos >= 0 && pos < max) ? pos - base : NO_MORE_DOCS;
+                        }
+
+                        @Override
+                        public int advance(int target) throws IOException {
+                            if (target == NO_MORE_DOCS) return adjustedDoc = NO_MORE_DOCS;
+                            pos = bitSet.nextSetBit(target + base);
+                            return adjustedDoc = (pos >= 0 && pos < max) ? pos - base : NO_MORE_DOCS;
+                        }
+                    };
+                }
+
+                @Override public boolean isCacheable() {
+                    return true;
+                }
+            };
+        }
+
+
+    }
+
 }

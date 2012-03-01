@@ -1,8 +1,8 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
+ * Licensed to Elastic Search and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
+ * regarding copyright ownership. Elastic Search licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -41,8 +41,9 @@ class ShardCountRequest extends BroadcastShardOperationRequest {
 
     private String[] types = Strings.EMPTY_ARRAY;
 
-    @Nullable
-    private String[] filteringAliases;
+    @Nullable private String[] filteringAliases;
+
+    private String groupField;
 
     ShardCountRequest() {
 
@@ -56,6 +57,7 @@ class ShardCountRequest extends BroadcastShardOperationRequest {
         this.querySourceLength = request.querySourceLength();
         this.types = request.types();
         this.filteringAliases = filteringAliases;
+        this.groupField = request.groupField();
     }
 
     public float minScore() {
@@ -82,10 +84,19 @@ class ShardCountRequest extends BroadcastShardOperationRequest {
         return filteringAliases;
     }
 
+    public boolean grouped() {
+      return groupField != null && groupField.trim().length() > 0;
+    }
+  
+    public String getGroupField() {
+      return groupField;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         minScore = in.readFloat();
+        groupField = in.readUTF();
 
         BytesHolder bytes = in.readBytesReference();
         querySource = bytes.bytes();
@@ -112,6 +123,7 @@ class ShardCountRequest extends BroadcastShardOperationRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeFloat(minScore);
+        out.writeUTF(groupField);
 
         out.writeBytesHolder(querySource, querySourceOffset, querySourceLength);
 

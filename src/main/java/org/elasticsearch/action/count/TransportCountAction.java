@@ -131,8 +131,17 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
     @Override
     protected ShardCountResponse shardOperation(ShardCountRequest request) throws ElasticSearchException {
         IndexShard indexShard = indicesService.indexServiceSafe(request.index()).shardSafe(request.shardId());
-        long count = indexShard.count(request.minScore(), request.querySource(), request.querySourceOffset(), request.querySourceLength(),
-                request.filteringAliases(), request.types());
+
+        long count;
+        if (request.grouped()) {
+            count = indexShard.count(request.minScore(), request.getGroupField(), request.querySource(),
+                    request.querySourceOffset(), request.querySourceLength(), request.filteringAliases(), request.types()
+            );
+        } else {
+            count = indexShard.count(request.minScore(), request.querySource(), request.querySourceOffset(),
+                    request.querySourceLength(), request.filteringAliases(), request.types()
+            );
+        }
         return new ShardCountResponse(request.index(), request.shardId(), count);
     }
 }

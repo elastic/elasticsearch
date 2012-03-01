@@ -20,6 +20,7 @@
 package org.elasticsearch.search.query;
 
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.grouping.TopGroups;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -28,6 +29,10 @@ import org.elasticsearch.search.facet.Facets;
 import org.elasticsearch.search.facet.InternalFacets;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
 import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
@@ -46,6 +51,10 @@ public class QuerySearchResult implements Streamable, QuerySearchResultProvider 
     private int size;
 
     private TopDocs topDocs;
+
+    private TopGroups<String> topGroups;
+
+    private final Set<Integer> documentGrouped = new HashSet<Integer>();
 
     private InternalFacets facets;
 
@@ -99,6 +108,18 @@ public class QuerySearchResult implements Streamable, QuerySearchResultProvider 
         this.topDocs = topDocs;
     }
 
+    public Set<Integer> documentGrouped() {
+        return documentGrouped;
+    }
+
+    public TopGroups<String> topGroups() {
+        return topGroups;
+    }
+
+    public void topGroups(TopGroups<String> topGroups) {
+        this.topGroups = topGroups;
+    }
+
     public Facets facets() {
         return facets;
     }
@@ -142,6 +163,10 @@ public class QuerySearchResult implements Streamable, QuerySearchResultProvider 
             facets = InternalFacets.readFacets(in);
         }
         searchTimedOut = in.readBoolean();
+        int documentsGroupedSize = in.readVInt();
+        for (int i = 0; i < documentsGroupedSize; i++) {
+            documentGrouped.add(in.readVInt());
+        }
     }
 
     @Override
@@ -158,5 +183,9 @@ public class QuerySearchResult implements Streamable, QuerySearchResultProvider 
             facets.writeTo(out);
         }
         out.writeBoolean(searchTimedOut);
+        out.writeVInt(documentGrouped.size());
+        for (Integer docId : documentGrouped) {
+            out.writeVInt(docId);
+        }
     }
 }

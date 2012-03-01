@@ -460,6 +460,14 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
     }
 
     /**
+     * Enables grouping and specifies on what field to group. By default no grouping occurs.
+     */
+    public SearchRequestBuilder setGroupField(String groupField) {
+        sourceBuilder().groupField(groupField);
+        return this;
+    }
+
+    /**
      * Adds the fields to load and return as part of the search request. If none are specified,
      * the source of the document will be returned.
      */

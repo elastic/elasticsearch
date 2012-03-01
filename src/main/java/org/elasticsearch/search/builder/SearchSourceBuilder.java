@@ -110,6 +110,8 @@ public class SearchSourceBuilder implements ToXContent {
 
     private TObjectFloatHashMap<String> indexBoost = null;
 
+    private String groupField;
+    
     private String[] stats;
 
 
@@ -418,6 +420,11 @@ public class SearchSourceBuilder implements ToXContent {
         return this;
     }
 
+    public SearchSourceBuilder groupField(String groupField) {
+        this.groupField = groupField;
+        return this;
+    }
+
     /**
      * Adds the fields to load and return as part of the search request. If none are specified,
      * the source of the document will be returned.
@@ -635,6 +642,10 @@ public class SearchSourceBuilder implements ToXContent {
                 }
                 builder.endArray();
             }
+        }
+
+        if (groupField != null) {
+            builder.field("groupField", groupField);
         }
 
         if (partialFields != null) {

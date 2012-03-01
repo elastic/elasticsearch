@@ -79,6 +79,8 @@ public class FacetParseElement implements SearchParseElement {
                 Filter filter = null;
                 boolean cacheFilter = true;
                 String nestedPath = null;
+                boolean grouped = false;
+                boolean truncateHead = false;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         facetFieldName = parser.currentName();
@@ -103,6 +105,10 @@ public class FacetParseElement implements SearchParseElement {
                             cacheFilter = parser.booleanValue();
                         } else if ("nested".equals(facetFieldName)) {
                             nestedPath = parser.text();
+                        } else if ("grouped".equals(facetFieldName)) {
+                            grouped = parser.booleanValue();
+                        } else if ("truncate".equals(facetFieldName)) {
+                            truncateHead = parser.booleanValue();
                         }
                     }
                 }
@@ -131,6 +137,14 @@ public class FacetParseElement implements SearchParseElement {
 
                 if (facet == null) {
                     throw new SearchParseException(context, "no facet type found for facet named [" + topLevelFieldName + "]");
+                }
+
+                if (context.grouped()) {
+                    if (grouped) {
+                        facet.grouped(context.groupField());
+                    } else if (truncateHead) {
+                        facet.groupTruncate(true);
+                    }
                 }
 
                 if (facetCollectors == null) {

@@ -21,6 +21,7 @@ package org.elasticsearch.search.facet.terms.strings;
 
 import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.CacheRecycler;
@@ -39,6 +40,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -51,6 +53,10 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
     private final FieldDataCache fieldDataCache;
 
     private final String indexFieldName;
+
+    private String groupFieldName;
+    private FieldDataType groupFieldType;
+    private final List<GroupedFacetHitEntry> previousHits = new LinkedList<GroupedFacetHitEntry>();
 
     private final TermsFacet.ComparatorType comparatorType;
 
@@ -75,6 +81,8 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
 
     private final Matcher matcher;
 
+    SearchContext context;
+
     public TermsStringOrdinalsFacetCollector(String facetName, String fieldName, int size, TermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
                                              ImmutableSet<String> excluded, Pattern pattern) {
         super(facetName);
@@ -82,6 +90,7 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
         this.size = size;
         this.comparatorType = comparatorType;
         this.numberOfShards = context.numberOfShards();
+        this.context = context;
 
         MapperService.SmartNameFieldMappers smartMappers = context.smartFieldMappers(fieldName);
         if (smartMappers == null || !smartMappers.hasMapper()) {
@@ -126,9 +135,38 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
             }
         }
         fieldData = (StringFieldData) fieldDataCache.cache(fieldDataType, reader, indexFieldName);
-        current = new ReaderAggregator(fieldData);
+        if (grouped()) {
+            StringFieldData groupData = (StringFieldData) fieldDataCache.cache(groupFieldType, reader, groupFieldName);
+            current = new GroupedReaderAggregator(fieldData, groupData, previousHits);
+        } else {
+            current = new NonGroupedReaderAggregator(fieldData);
+        }
     }
 
+    @Override 
+    public void grouped(String groupFieldName) {
+        MapperService.SmartNameFieldMappers smartMappers = context.smartFieldMappers(groupFieldName);
+        if (smartMappers == null || !smartMappers.hasMapper()) {
+          throw new ElasticSearchIllegalArgumentException("Field [" + groupFieldName + "] doesn't have a type, can't run terms long facet collector on it");
+        }
+        // add type filter if there is exact doc mapper associated with it
+        if (smartMappers.hasDocMapper() && smartMappers.explicitTypeInName()) {
+          setFilter(context.filterCache().cache(smartMappers.docMapper().typeFilter()));
+        }
+    
+        if (smartMappers.mapper().fieldDataType() != FieldDataType.DefaultTypes.STRING) {
+          throw new ElasticSearchIllegalArgumentException("Field [" + groupFieldName + "] is not of string type, can't run terms string facet collector on it");
+        }
+    
+        this.groupFieldName = smartMappers.mapper().names().indexName();
+        this.groupFieldType = smartMappers.mapper().fieldDataType();
+    }
+
+    @Override 
+    public boolean grouped() {
+      return groupFieldName != null;
+    }
+  
     @Override
     protected void doCollect(int doc) throws IOException {
         fieldData.forEachOrdinalInDoc(doc, current);
@@ -233,7 +271,7 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
         return new InternalStringTermsFacet(facetName, comparatorType, size, ordered, missing, total);
     }
 
-    public static class ReaderAggregator implements FieldData.OrdinalInDocProc {
+    abstract static class ReaderAggregator implements FieldData.OrdinalInDocProc {
 
         final String[] values;
         final int[] counts;
@@ -247,18 +285,77 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
             this.counts = CacheRecycler.popIntArray(fieldData.values().length);
         }
 
-        @Override
-        public void onOrdinal(int docId, int ordinal) {
-            counts[ordinal]++;
-            total++;
-        }
-
         public boolean nextPosition() {
             if (++position >= values.length) {
                 return false;
             }
             current = values[position];
             return true;
+        }
+    }
+
+    static class NonGroupedReaderAggregator extends ReaderAggregator {
+
+        public NonGroupedReaderAggregator(StringFieldData fieldData) {
+            super(fieldData);
+        }
+
+        @Override public void onOrdinal(int docId, int ordinal) {
+            counts[ordinal]++;
+            total++;
+        }
+    }
+
+    static class GroupedReaderAggregator extends ReaderAggregator {
+
+        final FixedBitSet checker;
+        final StringFieldData groupData;
+        final List<GroupedFacetHitEntry> previousHits;
+
+        public GroupedReaderAggregator(StringFieldData fieldData, StringFieldData groupData, List<GroupedFacetHitEntry> previousHits) {
+            super(fieldData);
+            this.groupData = groupData;
+            this.previousHits = previousHits;
+            this.checker = new FixedBitSet(groupData.values().length * values.length);
+            for (GroupedFacetHitEntry previousHit : previousHits) {
+                    int facetOrdinal = fieldData.binarySearchLookup(previousHit.facetValue);
+                    if (facetOrdinal < 0) {
+                        continue;
+                    }
+
+                    int groupOrdinal = groupData.binarySearchLookup(previousHit.groupValue);
+                    if (groupOrdinal < 0) {
+                        continue;
+                    }
+
+                    int checkerIndex = (groupOrdinal * values.length) + facetOrdinal;
+                    checker.set(checkerIndex);
+            }
+        }
+
+        @Override public void onOrdinal(int docId, int ordinal) {
+            int groupOrdinal = groupData.ordinal(docId);
+            int checkerIndex = (groupOrdinal * values.length) + ordinal;
+
+            if (!checker.get(checkerIndex)) {
+                counts[ordinal]++;
+                total++;
+                checker.set(checkerIndex);
+                previousHits.add(new GroupedFacetHitEntry(values[ordinal], groupData.values()[groupOrdinal]));
+
+            }
+        }
+    }
+
+    // To keep track of the cross segment counts
+    static class GroupedFacetHitEntry {
+
+        final String facetValue;
+        final String groupValue;
+
+        GroupedFacetHitEntry(String facetValue, String groupValue) {
+            this.facetValue = facetValue;
+            this.groupValue = groupValue;
         }
     }
 

@@ -47,6 +47,9 @@ public class TermsFacetBuilder extends AbstractFacetBuilder {
     private String lang;
     private Map<String, Object> params;
     String executionHint;
+    
+    private boolean grouped;
+    private boolean truncate;
 
     /**
      * Construct a new term facet with the provided facet name.
@@ -182,6 +185,16 @@ public class TermsFacetBuilder extends AbstractFacetBuilder {
         return this;
     }
 
+    public TermsFacetBuilder grouped(boolean grouped) {
+        this.grouped = grouped;
+        return this;
+    }
+
+    public TermsFacetBuilder truncate(boolean truncate) {
+        this.truncate = truncate;
+        return this;
+    }
+
     /**
      * A parameter that will be passed to the script.
      *
@@ -258,6 +271,8 @@ public class TermsFacetBuilder extends AbstractFacetBuilder {
         }
 
         builder.endObject();
+        builder.field("grouped", grouped);
+        builder.field("truncate", truncate);
 
         addFilterFacetAndGlobal(builder, params);
 

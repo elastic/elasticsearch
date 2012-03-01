@@ -58,7 +58,9 @@ public enum SearchType {
     /**
      * Only counts the results, will still execute facets and the like.
      */
-    COUNT((byte) 5);
+    COUNT((byte) 5),
+
+    GROUP_THEN_FETCH((byte) 6);
 
     /**
      * The default search type ({@link #QUERY_THEN_FETCH}.
@@ -120,6 +122,8 @@ public enum SearchType {
             return SearchType.SCAN;
         } else if ("count".equals(searchType)) {
             return SearchType.COUNT;
+        } else if ("group".equals(searchType)) {
+            return SearchType.GROUP_THEN_FETCH;
         } else {
             throw new ElasticSearchIllegalArgumentException("No search type for [" + searchType + "]");
         }

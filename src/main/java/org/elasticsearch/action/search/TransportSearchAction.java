@@ -90,7 +90,7 @@ public class TransportSearchAction extends TransportAction<SearchRequest, Search
                 String[] concreteIndices = clusterState.metaData().concreteIndices(searchRequest.indices(), false, true);
                 Map<String, Set<String>> routingMap = clusterState.metaData().resolveSearchRouting(searchRequest.routing(), searchRequest.indices());
                 int shardCount = clusterService.operationRouting().searchShardsCount(clusterState, searchRequest.indices(), concreteIndices, searchRequest.queryHint(), routingMap, searchRequest.preference());
-                if (shardCount == 1) {
+                if (shardCount == 1 && searchRequest.searchType() != GROUP_THEN_FETCH) {
                     // if we only have one group, then we always want Q_A_F, no need for DFS, and no need to do THEN since we hit one shard
                     searchRequest.searchType(QUERY_AND_FETCH);
                 }
@@ -108,7 +108,7 @@ public class TransportSearchAction extends TransportAction<SearchRequest, Search
             queryThenFetchAction.execute(searchRequest, listener);
         } else if (searchRequest.searchType() == SearchType.DFS_QUERY_AND_FETCH) {
             dfsQueryAndFetchAction.execute(searchRequest, listener);
-        } else if (searchRequest.searchType() == SearchType.QUERY_AND_FETCH) {
+        } else if (searchRequest.searchType() == SearchType.QUERY_AND_FETCH || searchRequest.searchType() == SearchType.GROUP_THEN_FETCH) {
             queryAndFetchAction.execute(searchRequest, listener);
         } else if (searchRequest.searchType() == SearchType.SCAN) {
             scanAction.execute(searchRequest, listener);

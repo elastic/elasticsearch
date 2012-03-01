@@ -105,10 +105,8 @@ public class QueryPhase implements SearchPhase {
                 throw new QueryPhaseExecutionException(searchContext, "Failed to refresh id cache for child queries", e);
             }
 
-            // process scoped queries (from the last to the first, working with the parsing option here)
-            for (int i = searchContext.scopePhases().size() - 1; i >= 0; i--) {
-                ScopePhase scopePhase = searchContext.scopePhases().get(i);
-
+            // the first scope level is the most nested child
+            for (ScopePhase scopePhase : searchContext.scopePhases()) {
                 if (scopePhase instanceof ScopePhase.TopDocsPhase) {
                     ScopePhase.TopDocsPhase topDocsPhase = (ScopePhase.TopDocsPhase) scopePhase;
                     topDocsPhase.clear();

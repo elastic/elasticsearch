@@ -143,7 +143,7 @@ The facet response part would look like this:
   }
 </pre>
 If the grouped option was set to false or not specified the count for animals would be 4.
-The facet grouping is only supported for string based term facets.
+The grouped faceting is only supported for string based term facets.
 
 
 h2. A Distributed RESTful Search Engine (the rest of the original readme)

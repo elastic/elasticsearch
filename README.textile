@@ -1,6 +1,152 @@
-h1. ElasticSearch
+h1. ElasticSearch with grouping
 
-h2. A Distributed RESTful Search Engine
+This is a modified version of ElasticSearch that support result grouping. This is just something I created for a need to
+have grouping in ES. It is not a perfect solution. The main drawback is that it doesn't support distributed grouping
+(grouping over multiple shards). I'm just adding this to GitHub so others with the same needs can use this.
+
+The Lucene grouping contrib is used to perform the grouping. The Lucene grouping module allows you to group results
+together that sure the same indexed value for a specific field.
+
+h2. Using grouping
+
+In order to make grouping work correctly it is important that you set the following option in your index settings:
+@index.number_of_shards=1@
+
+h3. Basic usage
+
+Let's say we index website content and we want to group by hostname.
+We first index some documents:
+<pre>
+curl -XPUT 'http://localhost:9200/website/site/1' -d '
+{
+    "title": "Animals",
+    "url": "http://hosta.com/1",
+    "domain" : "hosta",
+    "content": "Some content about monkeys"
+}'
+
+curl -XPUT 'http://localhost:9200/website/site/2' -d '
+{
+    "title": "Animals",
+    "url": "http://hosta.com/2",
+    "domain" : "hosta",
+    "content": "Some content about leopards"
+}'
+curl -XPUT 'http://localhost:9200/website/site/3' -d '
+{
+    "title": "Animals",
+    "url": "http://hostb.com/1",
+    "domain" : "hostb",
+    "content": "Some content about monkeys"
+}'
+
+curl -XPUT 'http://localhost:9200/website/site/4' -d '
+{
+    "title": "Animals",
+    "url": "http://hostb.com/1",
+    "domain" : "hostb",
+    "content": "Some content about leopards"
+}'
+</pre>
+
+If we execute the following search request with the groupField option:
+<pre>
+curl -XGET 'http://localhost:9200/website/_search?pretty=true' -d '
+{
+    "query" : {
+        "matchAll" : {}
+    },
+    "groupField": "domain"
+}'
+</pre>
+
+We would then see a response similar to the following response:
+<pre>
+{
+  "took" : 2,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 1,
+    "successful" : 1,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : 2,
+    "max_score" : 0.0,
+    "hits" : [ {
+      "_index" : "website",
+      "_type" : "site",
+      "_id" : "1",
+      "_score" : 1.0,
+      "_source" :
+          {
+              "title": "Monkeys",
+              "url": "http://hosta.com/1",
+              "domain" : "hosta",
+              "content": "Some content about monkeys"
+          },
+      "_grouped" : true
+    }, {
+      "_index" : "website",
+      "_type" : "site",
+      "_id" : "3",
+      "_score" : 1.0,
+      "_source" :
+          {
+              "title": "Monkeys",
+              "url": "http://hostb.com/1",
+              "domain" : "hostb",
+              "content": "Some content about monkeys"
+          },
+      "_grouped" : true
+    } ]
+  }
+}
+</pre>
+
+When the _grouped property is set to true this means that this result has been grouped. Running the same request
+ without grouping would yield 4 results.
+
+By default facet computations do take into account documents and not groups. This can lead to misleading facet counts
+for end users. The grouped option make facets count groups instead of documents. This can be used in the following manner:
+<pre>
+curl -XGET 'http://localhost:9200/website/_search?pretty=true' -d '
+{
+    "query" : {
+        "matchAll" : {}
+    },
+    "groupField": "domain",
+    "facets": {
+        "Title" : {
+            "terms" : {
+                "field" : "title"
+            },
+            "grouped" : true
+        }
+    }
+}'
+</pre>
+
+The facet response part would look like this:
+<pre>
+"facets" : {
+    "Title" : {
+      "_type" : "terms",
+      "missing" : 0,
+      "total" : 2,
+      "other" : 0,
+      "terms" : [ {
+        "term" : "animals",
+        "count" : 2
+      } ]
+    }
+  }
+</pre>
+If the grouped option was set to false or not specified the count for animals would be 4.
+The facet grouping is only supported for string based term facets.
+
+
+h2. A Distributed RESTful Search Engine (the rest of the original readme)
 
 h3. "http://www.elasticsearch.org":http://www.elasticsearch.org
 

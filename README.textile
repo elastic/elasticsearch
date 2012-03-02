@@ -7,6 +7,8 @@ have grouping in ES. It is not a perfect solution. The main drawback is that it 
 The Lucene grouping contrib is used to perform the grouping. The Lucene grouping module allows you to group results
 together that sure the same indexed value for a specific field.
 
+The development was sponsored by Lusini.de and you can checkout their site to see how it behaves and performs.
+
 h2. Using grouping
 
 In order to make grouping work correctly it is important that you set the following option in your index settings:
@@ -145,6 +147,8 @@ The facet response part would look like this:
 If the grouped option was set to false or not specified the count for animals would be 4.
 The grouped faceting is only supported for string based term facets.
 
+There is also an truncate option for facets. Which is used in the same way the group option is used for faceting. This
+options only counts the most relevant document per group if these "group heads" were matched by the facet filters.
 
 h2. A Distributed RESTful Search Engine (the rest of the original readme)
 

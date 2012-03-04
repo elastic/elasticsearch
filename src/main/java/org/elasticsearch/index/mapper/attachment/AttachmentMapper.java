@@ -45,12 +45,15 @@ import static org.elasticsearch.plugin.mapper.attachments.tika.TikaInstance.tika
  * {
  *      file1 : {
  *          _content_type : "application/pdf",
+ *          _content_length : "500000000",
  *          _name : "..../something.pdf",
  *          content : ""
  *      }
  * }
  * </pre>
  *
+ * _content_length = Specify the maximum amount of characters to extract from the attachment. If not specified, then the default for
+ *                   tika is 100,000 characters. Caution is required when setting large values as this can cause memory issues.
  *
  */
 public class AttachmentMapper implements Mapper {
@@ -237,6 +240,7 @@ public class AttachmentMapper implements Mapper {
     public void parse(ParseContext context) throws IOException {
         byte[] content = null;
         String contentType = null;
+        int contentLength = 100000;
         String name = null;
 
         XContentParser parser = context.parser();
@@ -256,10 +260,14 @@ public class AttachmentMapper implements Mapper {
                     } else if ("_name".equals(currentFieldName)) {
                         name = parser.text();
                     }
+                } else if (token == XContentParser.Token.VALUE_NUMBER) {
+                	if ("_content_length".equals(currentFieldName)) {
+                        contentLength = parser.intValue();
+                	}
                 }
             }
         }
-
+        
         Metadata metadata = new Metadata();
         if (contentType != null) {
             metadata.add(Metadata.CONTENT_TYPE, contentType);
@@ -270,9 +278,12 @@ public class AttachmentMapper implements Mapper {
 
         String parsedContent;
         try {
+            // Set the maximum length of strings returned by the parseToString method, -1 sets no limit
+            tika().setMaxStringLength(contentLength);
+            
             parsedContent = tika().parseToString(new FastByteArrayInputStream(content), metadata);
         } catch (TikaException e) {
-            throw new MapperParsingException("Failed to extract text for [" + name + "]", e);
+            throw new MapperParsingException("Failed to extract [" + contentLength + "] characters of text for [" + name + "]", e);
         }
 
         context.externalValue(parsedContent);

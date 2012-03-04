@@ -95,4 +95,42 @@ public class SimpleAttachmentIntegrationTests {
         countResponse = node.client().count(countRequest("test").query(fieldQuery("file", "tests the ability"))).actionGet();
         assertThat(countResponse.count(), equalTo(1l));
     }
+    
+    @Test
+    public void testSimpleAttachmentContentLengthLimit() throws Exception {
+    	String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/xcontent/test-mapping.json");
+    	byte[] txt = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/testContentLength.txt");
+    	final int CONTENT_LENGTH_LIMIT = 18;
+    	
+    	node.client().admin().indices().putMapping(putMappingRequest("test").type("person").source(mapping)).actionGet();
+    	
+    	node.client().index(indexRequest("test").type("person")
+    			.source(jsonBuilder().startObject().field("file").startObject().field("content", txt).field("_content_length", CONTENT_LENGTH_LIMIT).endObject())).actionGet();
+    	node.client().admin().indices().refresh(refreshRequest()).actionGet();
+    	
+    	CountResponse countResponse = node.client().count(countRequest("test").query(fieldQuery("file", "BeforeLimit"))).actionGet();
+    	assertThat(countResponse.count(), equalTo(1l));
+    	
+    	countResponse = node.client().count(countRequest("test").query(fieldQuery("file", "AfterLimit"))).actionGet();
+    	assertThat(countResponse.count(), equalTo(0l));
+    }
+    
+    @Test
+    public void testSimpleAttachmentNoContentLengthLimit() throws Exception {
+    	String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/xcontent/test-mapping.json");
+    	byte[] txt = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/testContentLength.txt");
+    	final int CONTENT_LENGTH_LIMIT = -1;
+    	
+    	node.client().admin().indices().putMapping(putMappingRequest("test").type("person").source(mapping)).actionGet();
+    	
+    	node.client().index(indexRequest("test").type("person")
+    			.source(jsonBuilder().startObject().field("file").startObject().field("content", txt).field("_content_length", CONTENT_LENGTH_LIMIT).endObject())).actionGet();
+    	node.client().admin().indices().refresh(refreshRequest()).actionGet();
+    	
+    	CountResponse countResponse = node.client().count(countRequest("test").query(fieldQuery("file", "Begin"))).actionGet();
+    	assertThat(countResponse.count(), equalTo(1l));
+    	
+    	countResponse = node.client().count(countRequest("test").query(fieldQuery("file", "End"))).actionGet();
+    	assertThat(countResponse.count(), equalTo(1l));
+    }
 }

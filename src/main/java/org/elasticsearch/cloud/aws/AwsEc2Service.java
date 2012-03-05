@@ -94,29 +94,21 @@ public class AwsEc2Service extends AbstractLifecycleComponent<AwsEc2Service> {
         if (componentSettings.get("ec2.endpoint") != null) {
             client.setEndpoint(componentSettings.get("ec2.endpoint"));
         } else if (componentSettings.get("region") != null) {
+            String region = componentSettings.get("region").toLowerCase();
             String endpoint;
-            String region = componentSettings.get("region");
-            if ("us-east".equals(region.toLowerCase())) {
+            if (region.equals("us-east-1") || region.equals("us-east")) {
                 endpoint = "ec2.us-east-1.amazonaws.com";
-            } else if ("us-east-1".equals(region.toLowerCase())) {
-                endpoint = "ec2.us-east-1.amazonaws.com";
-            } else if ("us-west".equals(region.toLowerCase())) {
+            } else if (region.equals("us-west") || region.equals("us-west-1")) {
                 endpoint = "ec2.us-west-1.amazonaws.com";
-            } else if ("us-west-1".equals(region.toLowerCase())) {
-                endpoint = "ec2.us-west-1.amazonaws.com";
-            } else if ("us-west-2".equals(region.toLowerCase())) {
+            } else if (region.equals("us-west-2")) {
                 endpoint = "ec2.us-west-2.amazonaws.com";
-            } else if ("ap-southeast".equals(region.toLowerCase())) {
+            } else if (region.equals("ap-southeast")) {
                 endpoint = "ec2.ap-southeast-1.amazonaws.com";
-            } else if ("ap-southeast-1".equals(region.toLowerCase())) {
+            } else if (region.equals("ap-southeast-1")) {
                 endpoint = "ec2.ap-southeast-1.amazonaws.com";
-            } else if ("ap-northeast".equals(region.toLowerCase())) {
-                endpoint = "ec2.ap-northeast.amazonaws.com\t";
-            } else if ("ap-northeast-1".equals(region.toLowerCase())) {
-                endpoint = "ec2.ap-northeast-1.amazonaws.com\t";
-            } else if ("eu-west".equals(region.toLowerCase())) {
-                endpoint = "ec2.eu-west-1.amazonaws.com";
-            } else if ("eu-west-1".equals(region.toLowerCase())) {
+            } else if (region.equals("ap-northeast") || region.equals("ap-northeast-1")) {
+                endpoint = "ec2.ap-northeast-1.amazonaws.com";
+            } else if (region.equals("eu-west") || region.equals("eu-west-1")) {
                 endpoint = "ec2.eu-west-1.amazonaws.com";
             } else {
                 throw new ElasticSearchIllegalArgumentException("No automatic endpoint could be derived from region [" + region + "]");

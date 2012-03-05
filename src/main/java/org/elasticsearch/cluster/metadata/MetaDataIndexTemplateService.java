@@ -160,7 +160,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         if (request.template.startsWith("_")) {
             throw new InvalidIndexTemplateException(request.name, "template must not start with '_'");
         }
-        if (!request.name.toLowerCase().equals(request.name)) {
+        if (!request.template.toLowerCase().equals(request.template)) {
             throw new InvalidIndexTemplateException(request.name, "template must be lower cased");
         }
         if (!Strings.validFileNameExcludingAstrix(request.template)) {

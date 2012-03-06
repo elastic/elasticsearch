@@ -278,10 +278,8 @@ public class AttachmentMapper implements Mapper {
 
         String parsedContent;
         try {
-            // Set the maximum length of strings returned by the parseToString method, -1 sets no limit
-            tika().setMaxStringLength(contentLength);
-            
-            parsedContent = tika().parseToString(new FastByteArrayInputStream(content), metadata);
+            // Set the maximum length of strings returned by the parseToString method, -1 sets no limit            
+            parsedContent = tika().parseToString(new FastByteArrayInputStream(content), metadata, contentLength);
         } catch (TikaException e) {
             throw new MapperParsingException("Failed to extract [" + contentLength + "] characters of text for [" + name + "]", e);
         }

@@ -19,16 +19,15 @@
 
 package org.elasticsearch.plugin.mapper.attachments.tika;
 
-import org.apache.tika.Tika;
 
 /**
  *
  */
 public class TikaInstance {
 
-    private static final Tika tika = new Tika();
+    private static final TikaExtended tika = new TikaExtended();
 
-    public static Tika tika() {
+    public static TikaExtended tika() {
         return tika;
     }
 }

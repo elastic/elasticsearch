@@ -58,6 +58,8 @@ public class ScriptService extends AbstractComponent {
     // TODO expose some cache aspects like expiration and max size
     private final Cache<CacheKey, CompiledScript> cache = CacheBuilder.newBuilder().build();
 
+    private final boolean disableDynamic;
+
     public ScriptService(Settings settings) {
         this(settings, new Environment(), ImmutableSet.<ScriptEngineService>builder()
                 .add(new MvelScriptEngineService(settings))
@@ -70,6 +72,7 @@ public class ScriptService extends AbstractComponent {
         super(settings);
 
         this.defaultLang = componentSettings.get("default_lang", "mvel");
+        this.disableDynamic = componentSettings.getAsBoolean("disable_dynamic", false);
 
         ImmutableMap.Builder<String, ScriptEngineService> builder = ImmutableMap.builder();
         for (ScriptEngineService scriptEngine : scriptEngines) {
@@ -142,6 +145,9 @@ public class ScriptService extends AbstractComponent {
         if (lang == null) {
             lang = defaultLang;
         }
+        if (dynamicScriptDisabled(lang)) {
+            throw new ScriptException("dynamic scripting disabled");
+        }
         CacheKey cacheKey = new CacheKey(lang, script);
         compiled = cache.getIfPresent(cacheKey);
         if (compiled != null) {
@@ -183,6 +189,14 @@ public class ScriptService extends AbstractComponent {
 
     public void clear() {
         cache.invalidateAll();
+    }
+
+    private boolean dynamicScriptDisabled(String lang) {
+        if (!disableDynamic) {
+            return false;
+        }
+        // we allow "native" executions since they register through plugins, so they are "allowed"
+        return !"native".equals(lang);
     }
 
     public static class CacheKey {

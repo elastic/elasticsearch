@@ -20,6 +20,8 @@
 package org.elasticsearch.cloud.aws.blobstore;
 
 import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.model.DeleteObjectsRequest;
+import com.amazonaws.services.s3.model.DeleteObjectsRequest.KeyVersion;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import org.elasticsearch.common.Nullable;
@@ -31,6 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
+import java.util.ArrayList;
 import java.util.concurrent.Executor;
 
 /**
@@ -102,8 +105,26 @@ public class S3BlobStore extends AbstractComponent implements BlobStore {
             } else {
                 list = client.listObjects(bucket, path.buildAsString("/") + "/");
             }
+            //From http://docs.amazonwebservices.com/AmazonS3/latest/dev/DeletingMultipleObjectsUsingJava.html
+            //we can do at most 1K objects per delete
+            int objectCount = 0;
+            DeleteObjectsRequest multiObjectDeleteRequest = new DeleteObjectsRequest(list.getBucketName());
+            ArrayList<KeyVersion> keys = new ArrayList<KeyVersion>();
             for (S3ObjectSummary summary : list.getObjectSummaries()) {
-                client.deleteObject(summary.getBucketName(), summary.getKey());
+                objectCount++;
+                keys.add(new KeyVersion(summary.getKey()));
+                //Every 500 objects batch the delete request
+                if (objectCount > 500) {
+                    multiObjectDeleteRequest.setKeys(keys);
+                    client.deleteObjects(multiObjectDeleteRequest);
+                    multiObjectDeleteRequest = new DeleteObjectsRequest(list.getBucketName());
+                    keys.clear();
+                    objectCount = 0;
+                }
+            }
+            if (objectCount > 0) {
+                multiObjectDeleteRequest.setKeys(keys);
+                client.deleteObjects(multiObjectDeleteRequest);
             }
             if (list.isTruncated()) {
                 prevListing = list;

@@ -148,9 +148,6 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         if (!request.name.toLowerCase().equals(request.name)) {
             throw new InvalidIndexTemplateException(request.name, "name must be lower cased");
         }
-        if (!request.name.toLowerCase().equals(request.name)) {
-            throw new InvalidIndexTemplateException(request.name, "name must be lower cased");
-        }
         if (request.template.contains(" ")) {
             throw new InvalidIndexTemplateException(request.name, "template must not contain a space");
         }

@@ -35,6 +35,22 @@
     </properties>
 
     <repositories>
+     <repository>
+          <id>codehausSnapshots</id>
+          <name>Codehaus Snapshots</name>
+          <releases>
+            <enabled>true</enabled>
+            <updatePolicy>always</updatePolicy>
+            <checksumPolicy>warn</checksumPolicy>
+          </releases>
+          <snapshots>
+            <enabled>true</enabled>
+            <updatePolicy>always</updatePolicy>
+            <checksumPolicy>fail</checksumPolicy>
+          </snapshots>
+          <url>http://oss.sonatype.org/content/repositories/releases/</url>
+          <layout>default</layout>
+        </repository>
     </repositories>
 
     <dependencies>
@@ -90,6 +106,7 @@
                     <include>**/*.json</include>
                     <include>**/*.yml</include>
                     <include>**/*.html</include>
+                    <include>**/*.txt</include>
                 </includes>
             </testResource>
         </testResources>

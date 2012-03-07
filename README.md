@@ -69,4 +69,11 @@ Both the meta data and the actual content are simple core type mappers (string, 
 
 In the above example, the actual content indexed is mapped under `fields` name `file`, and we decide not to index it, so it will only be available in the `_all` field. The other fields map to their respective metadata names, but there is no need to specify the `type` (like `string` or `date`) since it is already known.
 
+Indexed Characters
+------------------
+
+By default, `100000` characters are extracted when indexing the content. This default value can be changed by setting the `index.mapping.attachment.indexed_chars` setting. It can also be provided on a per document indexed using the `_indexed_chars` parameter. `-1` can be set to extract all text, but note that all the text needs to be allowed to be represented in memory.
+
+Note, this feature is support since `1.3.0` version.
+
 The plugin uses [Apache Tika](http://lucene.apache.org/tika/) to parse attachments, so many formats are supported, listed [here](http://lucene.apache.org/tika/0.10/formats.html).

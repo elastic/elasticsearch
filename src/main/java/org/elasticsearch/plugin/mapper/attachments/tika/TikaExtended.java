@@ -19,9 +19,6 @@
 
 package org.elasticsearch.plugin.mapper.attachments.tika;
 
-import java.io.IOException;
-import java.io.InputStream;
-
 import org.apache.tika.Tika;
 import org.apache.tika.exception.TikaException;
 import org.apache.tika.metadata.Metadata;
@@ -31,31 +28,32 @@ import org.apache.tika.sax.BodyContentHandler;
 import org.apache.tika.sax.WriteOutContentHandler;
 import org.xml.sax.SAXException;
 
+import java.io.IOException;
+import java.io.InputStream;
+
 
 /**
  * Extends the Tika class, so as to provide a way for setting the maximumStringLength on a per parse document basis.
  */
 public class TikaExtended extends Tika {
 
-	public String parseToString(InputStream stream, Metadata metadata, int maxExtractedStringLength) throws IOException, TikaException {
-		
-		// setup
-		WriteOutContentHandler writeHandler = new WriteOutContentHandler(maxExtractedStringLength);
-		BodyContentHandler contentHandler = new BodyContentHandler(writeHandler);
-		Parser parser = getParser();
-		ParseContext context = new ParseContext();
-		context.set(Parser.class, parser);
-
-		try {
-			parser.parse(stream, contentHandler, metadata, context);
-		} catch (SAXException e) {
-			if (!writeHandler.isWriteLimitReached(e)) {
-				throw new TikaException("Unexpected SAX processing failure", e);
-			}
-		} finally {
-			stream.close();
-		}
-
-		return writeHandler.toString();
-	}
+    public String parseToString(InputStream stream, Metadata metadata, int maxStringLength)
+            throws IOException, TikaException {
+        WriteOutContentHandler handler =
+                new WriteOutContentHandler(maxStringLength);
+        try {
+            ParseContext context = new ParseContext();
+            context.set(Parser.class, getParser());
+            getParser().parse(
+                    stream, new BodyContentHandler(handler), metadata, context);
+        } catch (SAXException e) {
+            if (!handler.isWriteLimitReached(e)) {
+                // This should never happen with BodyContentHandler...
+                throw new TikaException("Unexpected SAX processing failure", e);
+            }
+        } finally {
+            stream.close();
+        }
+        return handler.toString();
+    }
 }

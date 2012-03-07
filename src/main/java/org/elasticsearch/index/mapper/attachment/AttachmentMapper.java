@@ -51,10 +51,9 @@ import static org.elasticsearch.plugin.mapper.attachments.tika.TikaInstance.tika
  *      }
  * }
  * </pre>
- *
+ * <p/>
  * _content_length = Specify the maximum amount of characters to extract from the attachment. If not specified, then the default for
- *                   tika is 100,000 characters. Caution is required when setting large values as this can cause memory issues.
- *
+ * tika is 100,000 characters. Caution is required when setting large values as this can cause memory issues.
  */
 public class AttachmentMapper implements Mapper {
 
@@ -67,6 +66,8 @@ public class AttachmentMapper implements Mapper {
     public static class Builder extends Mapper.Builder<Builder, AttachmentMapper> {
 
         private ContentPath.Type pathType = Defaults.PATH_TYPE;
+
+        private Integer defaultIndexedChars = null;
 
         private StringFieldMapper.Builder contentBuilder;
 
@@ -88,6 +89,11 @@ public class AttachmentMapper implements Mapper {
 
         public Builder pathType(ContentPath.Type pathType) {
             this.pathType = pathType;
+            return this;
+        }
+
+        public Builder defaultIndexedChars(int defaultIndexedChars) {
+            this.defaultIndexedChars = defaultIndexedChars;
             return this;
         }
 
@@ -140,7 +146,14 @@ public class AttachmentMapper implements Mapper {
 
             context.path().pathType(origPathType);
 
-            return new AttachmentMapper(name, pathType, contentMapper, dateMapper, titleMapper, authorMapper, keywordsMapper, contentTypeMapper);
+            if (defaultIndexedChars != null && context.indexSettings() != null) {
+                defaultIndexedChars = context.indexSettings().getAsInt("index.mapping.attachment.indexed_chars", 100000);
+            }
+            if (defaultIndexedChars == null) {
+                defaultIndexedChars = 100000;
+            }
+
+            return new AttachmentMapper(name, pathType, defaultIndexedChars, contentMapper, dateMapper, titleMapper, authorMapper, keywordsMapper, contentTypeMapper);
         }
     }
 
@@ -159,8 +172,6 @@ public class AttachmentMapper implements Mapper {
      *      }
      * }
      * </pre>
-     *
-     *
      */
     public static class TypeParser implements Mapper.TypeParser {
 
@@ -206,6 +217,8 @@ public class AttachmentMapper implements Mapper {
 
     private final ContentPath.Type pathType;
 
+    private final int defaultIndexedChars;
+
     private final StringFieldMapper contentMapper;
 
     private final DateFieldMapper dateMapper;
@@ -218,11 +231,12 @@ public class AttachmentMapper implements Mapper {
 
     private final StringFieldMapper contentTypeMapper;
 
-    public AttachmentMapper(String name, ContentPath.Type pathType, StringFieldMapper contentMapper,
+    public AttachmentMapper(String name, ContentPath.Type pathType, int defaultIndexedChars, StringFieldMapper contentMapper,
                             DateFieldMapper dateMapper, StringFieldMapper titleMapper, StringFieldMapper authorMapper,
                             StringFieldMapper keywordsMapper, StringFieldMapper contentTypeMapper) {
         this.name = name;
         this.pathType = pathType;
+        this.defaultIndexedChars = defaultIndexedChars;
         this.contentMapper = contentMapper;
         this.dateMapper = dateMapper;
         this.titleMapper = titleMapper;
@@ -240,7 +254,7 @@ public class AttachmentMapper implements Mapper {
     public void parse(ParseContext context) throws IOException {
         byte[] content = null;
         String contentType = null;
-        int contentLength = 100000;
+        int indexedChars = defaultIndexedChars;
         String name = null;
 
         XContentParser parser = context.parser();
@@ -261,13 +275,13 @@ public class AttachmentMapper implements Mapper {
                         name = parser.text();
                     }
                 } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                	if ("_content_length".equals(currentFieldName)) {
-                        contentLength = parser.intValue();
-                	}
+                    if ("_indexed_chars".equals(currentFieldName) || "_indexedChars".equals(currentFieldName)) {
+                        indexedChars = parser.intValue();
+                    }
                 }
             }
         }
-        
+
         Metadata metadata = new Metadata();
         if (contentType != null) {
             metadata.add(Metadata.CONTENT_TYPE, contentType);
@@ -279,9 +293,9 @@ public class AttachmentMapper implements Mapper {
         String parsedContent;
         try {
             // Set the maximum length of strings returned by the parseToString method, -1 sets no limit            
-            parsedContent = tika().parseToString(new FastByteArrayInputStream(content), metadata, contentLength);
+            parsedContent = tika().parseToString(new FastByteArrayInputStream(content), metadata, indexedChars);
         } catch (TikaException e) {
-            throw new MapperParsingException("Failed to extract [" + contentLength + "] characters of text for [" + name + "]", e);
+            throw new MapperParsingException("Failed to extract [" + indexedChars + "] characters of text for [" + name + "]", e);
         }
 
         context.externalValue(parsedContent);

@@ -100,7 +100,6 @@ public class S3BlobStore extends AbstractComponent implements BlobStore {
         ObjectListing prevListing = null;
         //From http://docs.amazonwebservices.com/AmazonS3/latest/dev/DeletingMultipleObjectsUsingJava.html
         //we can do at most 1K objects per delete
-        int objectCount = 0;
         //We don't know the bucket name until first object listing
         DeleteObjectsRequest multiObjectDeleteRequest = null;
         ArrayList<KeyVersion> keys = new ArrayList<KeyVersion>();
@@ -113,15 +112,13 @@ public class S3BlobStore extends AbstractComponent implements BlobStore {
                 multiObjectDeleteRequest = new DeleteObjectsRequest(list.getBucketName());
             }
             for (S3ObjectSummary summary : list.getObjectSummaries()) {
-                objectCount++;
                 keys.add(new KeyVersion(summary.getKey()));
                 //Every 500 objects batch the delete request
-                if (objectCount > 500) {
+                if (keys.size() > 500) {
                     multiObjectDeleteRequest.setKeys(keys);
                     client.deleteObjects(multiObjectDeleteRequest);
                     multiObjectDeleteRequest = new DeleteObjectsRequest(list.getBucketName());
                     keys.clear();
-                    objectCount = 0;
                 }
             }
             if (list.isTruncated()) {
@@ -130,7 +127,7 @@ public class S3BlobStore extends AbstractComponent implements BlobStore {
                 break;
             }
         }
-        if (objectCount > 0) {
+        if (!keys.isEmpty()) {
             multiObjectDeleteRequest.setKeys(keys);
             client.deleteObjects(multiObjectDeleteRequest);
         }

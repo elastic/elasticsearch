@@ -142,16 +142,10 @@ public class AnalyzeRequest extends SingleCustomOperationRequest {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        if (in.readBoolean()) {
-            index = in.readUTF();
-        }
+        index = in.readOptionalUTF();
         text = in.readUTF();
-        if (in.readBoolean()) {
-            analyzer = in.readUTF();
-        }
-        if (in.readBoolean()) {
-            tokenizer = in.readUTF();
-        }
+        analyzer = in.readOptionalUTF();
+        tokenizer = in.readOptionalUTF();
         int size = in.readVInt();
         if (size > 0) {
             tokenFilters = new String[size];
@@ -159,23 +153,16 @@ public class AnalyzeRequest extends SingleCustomOperationRequest {
                 tokenFilters[i] = in.readUTF();
             }
         }
-        if (in.readBoolean()) {
-            field = in.readUTF();
-        }
+        field = in.readOptionalUTF();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (index == null) {
-            out.writeBoolean(false);
-            out.writeUTF(index);
-        } else {
-            out.writeUTF(index);
-        }
+        out.writeOptionalUTF(index);
         out.writeUTF(text);
-        writeOption(out, analyzer);
-        writeOption(out, tokenizer);
+        out.writeOptionalUTF(analyzer);
+        out.writeOptionalUTF(tokenizer);
         if (tokenFilters == null) {
             out.writeVInt(0);
         } else {
@@ -184,15 +171,6 @@ public class AnalyzeRequest extends SingleCustomOperationRequest {
                 out.writeUTF(tokenFilter);
             }
         }
-        writeOption(out, field);
-    }
-
-    private void writeOption(StreamOutput out, String value) throws IOException {
-        if (value == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeUTF(value);
-        }
+        out.writeOptionalUTF(field);
     }
 }

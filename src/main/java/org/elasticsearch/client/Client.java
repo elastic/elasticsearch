@@ -32,6 +32,9 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryRequest;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryRequestBuilder;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
+import org.elasticsearch.action.explain.ExplainRequest;
+import org.elasticsearch.action.explain.ExplainRequestBuilder;
+import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.get.*;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -431,4 +434,28 @@ public interface Client {
      * @param type  The type of the doc
      */
     PercolateRequestBuilder preparePercolate(String index, String type);
+
+    /**
+     * Explain a particular document against a query.
+     *
+     * @param request The explain request
+     * @return The result future
+     * @see Requests#explainRequest(String)
+     */
+    ActionFuture<ExplainResponse> explain(ExplainRequest request);
+
+    /**
+     * Explain a particular document against a query.
+     *
+     * @param request  The explain request
+     * @param listener A listener to be notified of the result
+     * @see Requests#explainRequest(String)
+     */
+    void explain(ExplainRequest request, ActionListener<ExplainResponse> listener);
+
+    /**
+     * Explain a particular document against a query.
+     */
+    ExplainRequestBuilder prepareExplain(String index);
+
 }

@@ -47,6 +47,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.count.CountRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryRequest;
+import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.mlt.MoreLikeThisRequest;
@@ -173,6 +174,18 @@ public class Requests {
      */
     public static SearchScrollRequest searchScrollRequest(String scrollId) {
         return new SearchScrollRequest(scrollId);
+    }
+
+    /**
+     * Creates an explain request against a query. Note, the query source must be set either using the
+     * actual JSON query source, or the {@link org.elasticsearch.search.builder.ExplainSourceBuilder}.
+     * 
+     * @param index The index to explain against
+     * @return The explain request
+     * @see org.elasticsearch.client.Client#explain(org.elasticsearch.action.explain.ExplainRequest)
+     */
+    public static ExplainRequest explainRequest(String index) {
+        return new ExplainRequest(index);
     }
 
     /**

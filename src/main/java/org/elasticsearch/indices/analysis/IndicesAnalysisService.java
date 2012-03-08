@@ -67,12 +67,7 @@ import org.apache.lucene.analysis.ru.RussianStemFilter;
 import org.apache.lucene.analysis.shingle.ShingleFilter;
 import org.apache.lucene.analysis.snowball.SnowballAnalyzer;
 import org.apache.lucene.analysis.snowball.SnowballFilter;
-import org.apache.lucene.analysis.standard.ClassicAnalyzer;
-import org.apache.lucene.analysis.standard.ClassicTokenizer;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.analysis.standard.StandardFilter;
-import org.apache.lucene.analysis.standard.StandardTokenizer;
-import org.apache.lucene.analysis.standard.UAX29URLEmailTokenizer;
+import org.apache.lucene.analysis.standard.*;
 import org.apache.lucene.analysis.sv.SwedishAnalyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
@@ -189,7 +184,7 @@ public class IndicesAnalysisService extends AbstractComponent {
 
             @Override
             public Tokenizer create(Reader reader) {
-                return new UAX29URLEmailTokenizer(reader);
+                return new UAX29URLEmailTokenizer(Lucene.ANALYZER_VERSION, reader);
             }
         }));
 
@@ -436,6 +431,18 @@ public class IndicesAnalysisService extends AbstractComponent {
             @Override
             public TokenStream create(TokenStream tokenStream) {
                 return new StandardFilter(Lucene.ANALYZER_VERSION, tokenStream);
+            }
+        }));
+
+        tokenFilterFactories.put("classic", new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
+            @Override
+            public String name() {
+                return "classic";
+            }
+
+            @Override
+            public TokenStream create(TokenStream tokenStream) {
+                return new ClassicFilter(tokenStream);
             }
         }));
 

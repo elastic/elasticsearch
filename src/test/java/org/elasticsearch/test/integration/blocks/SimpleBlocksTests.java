@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test.integration.readonly;
+package org.elasticsearch.test.integration.blocks;
 
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
@@ -38,11 +38,12 @@ import org.testng.annotations.Test;
 
 import java.util.HashMap;
 
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.notNullValue;
 
 @Test
-public class ClusterAndIndexReaderOnlyTests extends AbstractNodesTests {
+public class SimpleBlocksTests extends AbstractNodesTests {
 
     @AfterMethod
     public void closeNodes() {
@@ -50,7 +51,7 @@ public class ClusterAndIndexReaderOnlyTests extends AbstractNodesTests {
     }
 
     @Test
-    public void verifyReadOnly() throws Exception {
+    public void verifyIndexAndClusterReadOnly() throws Exception {
         Node node1 = startNode("node1");
         Client client = node1.client();
 
@@ -94,6 +95,23 @@ public class ClusterAndIndexReaderOnlyTests extends AbstractNodesTests {
         setIndexReadOnly(client, "ro", "false");
         canIndexDocument(client, "ro");
         canIndexExists(client, "ro");
+    }
+
+    @Test
+    public void testIndexReadWriteMetaDataBlocks() {
+        Node node1 = startNode("node1");
+        Client client = node1.client();
+
+        canCreateIndex(client, "test1");
+        canIndexDocument(client, "test1");
+        client.admin().indices().prepareUpdateSettings("test1")
+                .setSettings(settingsBuilder().put(IndexMetaData.SETTING_BLOCKS_WRITE, true))
+                .execute().actionGet();
+        canNotIndexDocument(client, "test1");
+        client.admin().indices().prepareUpdateSettings("test1")
+                .setSettings(settingsBuilder().put(IndexMetaData.SETTING_BLOCKS_WRITE, false))
+                .execute().actionGet();
+        canIndexDocument(client, "test1");
     }
 
     private void canCreateIndex(Client client, String index) {

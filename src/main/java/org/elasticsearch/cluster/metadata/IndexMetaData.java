@@ -56,9 +56,15 @@ public class IndexMetaData {
             .add(IndexMetaData.SETTING_NUMBER_OF_REPLICAS)
             .add(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS)
             .add(IndexMetaData.SETTING_READ_ONLY)
+            .add(IndexMetaData.SETTING_BLOCKS_READ)
+            .add(IndexMetaData.SETTING_BLOCKS_WRITE)
+            .add(IndexMetaData.SETTING_BLOCKS_METADATA)
             .build();
 
     public static final ClusterBlock INDEX_READ_ONLY_BLOCK = new ClusterBlock(5, "index read-only (api)", false, false, RestStatus.FORBIDDEN, ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA);
+    public static final ClusterBlock INDEX_READ_BLOCK = new ClusterBlock(7, "index read (api)", false, false, RestStatus.FORBIDDEN, ClusterBlockLevel.READ);
+    public static final ClusterBlock INDEX_WRITE_BLOCK = new ClusterBlock(8, "index write (api)", false, false, RestStatus.FORBIDDEN, ClusterBlockLevel.WRITE);
+    public static final ClusterBlock INDEX_METADATA_BLOCK = new ClusterBlock(9, "index metadata (api)", false, false, RestStatus.FORBIDDEN, ClusterBlockLevel.METADATA);
 
     public static ImmutableSet<String> dynamicSettings() {
         return dynamicSettings;
@@ -116,6 +122,9 @@ public class IndexMetaData {
     public static final String SETTING_NUMBER_OF_REPLICAS = "index.number_of_replicas";
     public static final String SETTING_AUTO_EXPAND_REPLICAS = "index.auto_expand_replicas";
     public static final String SETTING_READ_ONLY = "index.blocks.read_only";
+    public static final String SETTING_BLOCKS_READ = "index.blocks.read";
+    public static final String SETTING_BLOCKS_WRITE = "index.blocks.write";
+    public static final String SETTING_BLOCKS_METADATA = "index.blocks.metadata";
     public static final String SETTING_VERSION_CREATED = "index.version.created";
 
     private final String index;

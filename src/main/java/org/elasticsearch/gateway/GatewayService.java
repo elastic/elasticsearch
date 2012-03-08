@@ -262,6 +262,15 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                         if (indexMetaData.settings().getAsBoolean(IndexMetaData.SETTING_READ_ONLY, false)) {
                             blocks.addIndexBlock(indexMetaData.index(), IndexMetaData.INDEX_READ_ONLY_BLOCK);
                         }
+                        if (indexMetaData.settings().getAsBoolean(IndexMetaData.SETTING_BLOCKS_READ, false)) {
+                            blocks.addIndexBlock(indexMetaData.index(), IndexMetaData.INDEX_READ_BLOCK);
+                        }
+                        if (indexMetaData.settings().getAsBoolean(IndexMetaData.SETTING_BLOCKS_WRITE, false)) {
+                            blocks.addIndexBlock(indexMetaData.index(), IndexMetaData.INDEX_WRITE_BLOCK);
+                        }
+                        if (indexMetaData.settings().getAsBoolean(IndexMetaData.SETTING_BLOCKS_METADATA, false)) {
+                            blocks.addIndexBlock(indexMetaData.index(), IndexMetaData.INDEX_METADATA_BLOCK);
+                        }
                     }
 
                     // update the state to reflect the new metadata and routing

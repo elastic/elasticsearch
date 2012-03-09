@@ -26,8 +26,8 @@ import org.apache.lucene.search.IndexSearcher;
  */
 public class ExtendedIndexSearcher extends IndexSearcher {
 
-    public ExtendedIndexSearcher(IndexSearcher searcher) {
-        super(searcher.getIndexReader());
+    public ExtendedIndexSearcher(ExtendedIndexSearcher searcher) {
+        super(searcher.getIndexReader(), searcher.subReaders(), searcher.docStarts());
         setSimilarity(searcher.getSimilarity());
     }
 

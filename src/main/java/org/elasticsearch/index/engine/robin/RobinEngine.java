@@ -21,6 +21,7 @@ package org.elasticsearch.index.engine.robin;
 
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.FilteredQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.UnicodeUtil;
@@ -32,13 +33,13 @@ import org.elasticsearch.common.bloom.BloomFilter;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.ReaderSearcherHolder;
+import org.elasticsearch.common.lucene.manager.SearcherFactory;
+import org.elasticsearch.common.lucene.manager.SearcherManager;
 import org.elasticsearch.common.lucene.uid.UidField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.resource.AcquirableResource;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bloom.BloomCache;
@@ -71,7 +72,6 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import static org.elasticsearch.common.lucene.Lucene.safeClose;
-import static org.elasticsearch.common.util.concurrent.resource.AcquirableResourceFactory.newAcquirableResource;
 
 /**
  *
@@ -118,10 +118,9 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
     private volatile IndexWriter indexWriter;
 
-    // TODO LUCENE MONITOR 3.6: Replace this with SearchManager (3.6) once its out, it will not allow for forceClose, but maybe its a good thing...
-    // in any case, if we want to retain forceClose, we can call release multiple times...
-    // we won't need AcquirableResource any more as well, and close will not need to replace it with a closeable one
-    private volatile AcquirableResource<ReaderSearcherHolder> nrtResource;
+    // LUCENE MONITOR: 3.6 Remove using the custom SearchManager and use the Lucene 3.6 one
+    private final SearcherFactory searcherFactory = new RobinSearchFactory();
+    private volatile SearcherManager searcherManager;
 
     private volatile boolean closed = false;
 
@@ -263,7 +262,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                     indexWriter.commit(MapBuilder.<String, String>newMapBuilder().put(Translog.TRANSLOG_ID_KEY, Long.toString(translogIdGenerator.get())).map());
                 }
                 translog.newTranslog(translogIdGenerator.get());
-                this.nrtResource = buildNrtResource(indexWriter);
+                this.searcherManager = buildSearchManager(indexWriter);
                 SegmentInfos infos = new SegmentInfos();
                 infos.read(store.directory());
                 lastCommittedSegmentInfos = infos;
@@ -712,15 +711,9 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
     @Override
     public Searcher searcher() throws EngineException {
-        AcquirableResource<ReaderSearcherHolder> holder;
-        for (; ; ) {
-            holder = this.nrtResource;
-            if (holder.acquire()) {
-                break;
-            }
-            Thread.yield();
-        }
-        return new RobinSearchResult(holder);
+        SearcherManager manager = this.searcherManager;
+        IndexSearcher searcher = manager.acquire();
+        return new RobinSearchResult(searcher, manager);
     }
 
     @Override
@@ -748,20 +741,12 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                 throw new EngineClosedException(shardId, failedEngine);
             }
             try {
-                // we need to obtain a mutex here, to make sure we don't leave dangling readers
-                // we could have used an AtomicBoolean#compareAndSet, but, then we might miss refresh requests
-                // compared to on going ones
+                // maybeRefresh will only allow one refresh to execute, and the rest will "pass through",
+                // but, we want to make sure not to loose ant refresh calls, if one is taking time
                 synchronized (refreshMutex) {
                     if (dirty || refresh.force()) {
                         dirty = false;
-                        AcquirableResource<ReaderSearcherHolder> current = nrtResource;
-                        IndexReader newReader = IndexReader.openIfChanged(current.resource().reader(), true);
-                        if (newReader != null) {
-                            ExtendedIndexSearcher indexSearcher = new ExtendedIndexSearcher(newReader);
-                            indexSearcher.setSimilarity(similarityService.defaultSearchSimilarity());
-                            nrtResource = newAcquirableResource(new ReaderSearcherHolder(indexSearcher));
-                            current.markForClose();
-                        }
+                        searcherManager.maybeRefresh();
                     }
                 }
             } catch (AlreadyClosedException e) {
@@ -831,9 +816,9 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                             translog.newTranslog(translogId);
                         }
 
-                        AcquirableResource<ReaderSearcherHolder> current = nrtResource;
-                        nrtResource = buildNrtResource(indexWriter);
-                        current.markForClose();
+                        SearcherManager current = this.searcherManager;
+                        this.searcherManager = buildSearchManager(indexWriter);
+                        current.close();
 
                         refreshVersioningTable(threadPool.estimatedTimeInMillis());
                     } catch (OutOfMemoryError e) {
@@ -1229,10 +1214,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         this.versionMap.clear();
         this.failedEngineListeners.clear();
         try {
-            if (nrtResource != null) {
-                this.nrtResource.forceClose();
-                // replace the NRT resource with a closed one, meaning that
-                this.nrtResource = new ClosedNrtResource();
+            if (searcherManager != null) {
+                searcherManager.close();
             }
             // no need to commit in this case!, we snapshot before we close the shard, so translog and all sync'ed
             if (indexWriter != null) {
@@ -1366,35 +1349,38 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         }
     }
 
-    private AcquirableResource<ReaderSearcherHolder> buildNrtResource(IndexWriter indexWriter) throws IOException {
-        IndexReader indexReader = IndexReader.open(indexWriter, true);
-        ExtendedIndexSearcher indexSearcher = new ExtendedIndexSearcher(indexReader);
-        indexSearcher.setSimilarity(similarityService.defaultSearchSimilarity());
-        return newAcquirableResource(new ReaderSearcherHolder(indexSearcher));
+    private SearcherManager buildSearchManager(IndexWriter indexWriter) throws IOException {
+        return new SearcherManager(indexWriter, true, searcherFactory);
     }
 
     static class RobinSearchResult implements Searcher {
 
-        private final AcquirableResource<ReaderSearcherHolder> nrtHolder;
+        private final IndexSearcher searcher;
+        private final SearcherManager manager;
 
-        private RobinSearchResult(AcquirableResource<ReaderSearcherHolder> nrtHolder) {
-            this.nrtHolder = nrtHolder;
+        private RobinSearchResult(IndexSearcher searcher, SearcherManager manager) {
+            this.searcher = searcher;
+            this.manager = manager;
         }
 
         @Override
         public IndexReader reader() {
-            return nrtHolder.resource().reader();
+            return searcher.getIndexReader();
         }
 
         @Override
         public ExtendedIndexSearcher searcher() {
-            return nrtHolder.resource().searcher();
+            return (ExtendedIndexSearcher) searcher;
         }
 
         @Override
         public boolean release() throws ElasticSearchException {
-            nrtHolder.release();
-            return true;
+            try {
+                manager.release(searcher);
+                return true;
+            } catch (IOException e) {
+                return false;
+            }
         }
     }
 
@@ -1428,27 +1414,13 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         }
     }
 
-    class ClosedNrtResource implements AcquirableResource<ReaderSearcherHolder> {
-        @Override
-        public ReaderSearcherHolder resource() {
-            return null;
-        }
+    class RobinSearchFactory extends SearcherFactory {
 
         @Override
-        public boolean acquire() {
-            throw new EngineClosedException(shardId);
-        }
-
-        @Override
-        public void release() {
-        }
-
-        @Override
-        public void markForClose() {
-        }
-
-        @Override
-        public void forceClose() {
+        public IndexSearcher newSearcher(IndexReader reader) throws IOException {
+            ExtendedIndexSearcher searcher = new ExtendedIndexSearcher(reader);
+            searcher.setSimilarity(similarityService.defaultSearchSimilarity());
+            return searcher;
         }
     }
 }

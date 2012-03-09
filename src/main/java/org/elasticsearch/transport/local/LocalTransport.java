@@ -178,7 +178,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
 
             transportServiceAdapter.sent(data.length);
 
-            threadPool.cached().execute(new Runnable() {
+            threadPool.generic().execute(new Runnable() {
                 @Override
                 public void run() {
                     targetTransport.messageReceived(data, action, LocalTransport.this, requestId);

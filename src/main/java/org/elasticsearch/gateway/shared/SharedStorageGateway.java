@@ -79,7 +79,7 @@ public abstract class SharedStorageGateway extends AbstractLifecycleComponent<Ga
 
     @Override
     public void performStateRecovery(final GatewayStateRecoveredListener listener) throws GatewayException {
-        threadPool.cached().execute(new Runnable() {
+        threadPool.generic().execute(new Runnable() {
             @Override
             public void run() {
                 logger.debug("reading state from gateway {} ...", this);

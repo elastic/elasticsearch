@@ -51,7 +51,7 @@ public class TransportClusterStateAction extends TransportMasterNodeOperationAct
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.CACHED;
+        return ThreadPool.Names.GENERIC;
     }
 
     @Override

@@ -58,7 +58,7 @@ public class ThreadPool extends AbstractComponent {
 
     public static class Names {
         public static final String SAME = "same";
-        public static final String CACHED = "cached";
+        public static final String GENERIC = "generic";
         public static final String INDEX = "index";
         public static final String BULK = "bulk";
         public static final String SEARCH = "search";
@@ -87,7 +87,7 @@ public class ThreadPool extends AbstractComponent {
         Map<String, Settings> groupSettings = settings.getGroups("threadpool");
 
         Map<String, ExecutorHolder> executors = Maps.newHashMap();
-        executors.put(Names.CACHED, build(Names.CACHED, "cached", groupSettings.get(Names.CACHED), settingsBuilder().put("keep_alive", "30s").build()));
+        executors.put(Names.GENERIC, build(Names.GENERIC, "cached", groupSettings.get(Names.GENERIC), settingsBuilder().put("keep_alive", "30s").build()));
         executors.put(Names.INDEX, build(Names.INDEX, "cached", groupSettings.get(Names.INDEX), ImmutableSettings.Builder.EMPTY_SETTINGS));
         executors.put(Names.BULK, build(Names.BULK, "cached", groupSettings.get(Names.BULK), ImmutableSettings.Builder.EMPTY_SETTINGS));
         executors.put(Names.SEARCH, build(Names.SEARCH, "cached", groupSettings.get(Names.SEARCH), ImmutableSettings.Builder.EMPTY_SETTINGS));
@@ -147,8 +147,8 @@ public class ThreadPool extends AbstractComponent {
         return new ThreadPoolStats(stats);
     }
 
-    public Executor cached() {
-        return executor(Names.CACHED);
+    public Executor generic() {
+        return executor(Names.GENERIC);
     }
 
     public Executor executor(String name) {

@@ -194,7 +194,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                     }
                 }
                 final boolean fIgnoreRecoverAfterTime = ignoreRecoverAfterTime;
-                threadPool.cached().execute(new Runnable() {
+                threadPool.generic().execute(new Runnable() {
                     @Override
                     public void run() {
                         performStateRecovery(fIgnoreRecoverAfterTime);
@@ -210,7 +210,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
         if (!ignoreRecoverAfterTime && recoverAfterTime != null) {
             if (scheduledRecovery.compareAndSet(false, true)) {
                 logger.debug("delaying initial state recovery for [{}]", recoverAfterTime);
-                threadPool.schedule(recoverAfterTime, ThreadPool.Names.CACHED, new Runnable() {
+                threadPool.schedule(recoverAfterTime, ThreadPool.Names.GENERIC, new Runnable() {
                     @Override
                     public void run() {
                         if (recovered.compareAndSet(false, true)) {

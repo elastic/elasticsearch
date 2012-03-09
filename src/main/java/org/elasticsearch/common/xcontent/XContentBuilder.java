@@ -742,6 +742,8 @@ public final class XContentBuilder {
         } else if (value instanceof Map) {
             //noinspection unchecked
             value((Map<String, Object>) value);
+        } else if (value instanceof Iterable) {
+            value((Iterable) value);
         } else {
             throw new IOException("Type not allowed [" + type + "]");
         }
@@ -962,6 +964,18 @@ public final class XContentBuilder {
             return nullValue();
         }
         XContentMapConverter.writeMap(generator, map);
+        return this;
+    }
+
+    public XContentBuilder value(Iterable value) throws IOException {
+        if (value == null) {
+            return nullValue();
+        }
+        startArray();
+        for (Object o : value) {
+            value(o);
+        }
+        endArray();
         return this;
     }
 

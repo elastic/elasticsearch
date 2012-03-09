@@ -72,7 +72,7 @@ public class NodeIndexCreatedAction extends AbstractComponent {
     public void nodeIndexCreated(final String index, final String nodeId) throws ElasticSearchException {
         DiscoveryNodes nodes = clusterService.state().nodes();
         if (nodes.localNodeMaster()) {
-            threadPool.cached().execute(new Runnable() {
+            threadPool.generic().execute(new Runnable() {
                 @Override
                 public void run() {
                     innerNodeIndexCreated(index, nodeId);

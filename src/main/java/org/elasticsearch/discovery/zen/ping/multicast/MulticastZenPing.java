@@ -229,7 +229,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
     @Override
     public void ping(final PingListener listener, final TimeValue timeout) {
         if (!pingEnabled) {
-            threadPool.cached().execute(new Runnable() {
+            threadPool.generic().execute(new Runnable() {
                 @Override
                 public void run() {
                     listener.onPing(new PingResponse[0]);
@@ -242,7 +242,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
         sendPingRequest(id);
         // try and send another ping request halfway through (just in case someone woke up during it...)
         // this can be a good trade-off to nailing the initial lookup or un-delivered messages
-        threadPool.schedule(TimeValue.timeValueMillis(timeout.millis() / 2), ThreadPool.Names.CACHED, new Runnable() {
+        threadPool.schedule(TimeValue.timeValueMillis(timeout.millis() / 2), ThreadPool.Names.GENERIC, new Runnable() {
             @Override
             public void run() {
                 try {
@@ -252,7 +252,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                 }
             }
         });
-        threadPool.schedule(timeout, ThreadPool.Names.CACHED, new Runnable() {
+        threadPool.schedule(timeout, ThreadPool.Names.GENERIC, new Runnable() {
             @Override
             public void run() {
                 ConcurrentMap<DiscoveryNode, PingResponse> responses = receivedResponses.remove(id);
@@ -522,7 +522,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
 
             if (!transportService.nodeConnected(requestingNode)) {
                 // do the connect and send on a thread pool
-                threadPool.cached().execute(new Runnable() {
+                threadPool.generic().execute(new Runnable() {
                     @Override
                     public void run() {
                         // connect to the node if possible

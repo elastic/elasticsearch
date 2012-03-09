@@ -144,7 +144,7 @@ public class SimpleBloomCache extends AbstractIndexComponent implements BloomCac
                         filter.loading.set(true);
                         BloomFilterLoader loader = new BloomFilterLoader(reader, fieldName);
                         if (asyncLoad) {
-                            threadPool.cached().execute(loader);
+                            threadPool.generic().execute(loader);
                         } else {
                             loader.run();
                             filter = fieldCache.get(fieldName);
@@ -159,7 +159,7 @@ public class SimpleBloomCache extends AbstractIndexComponent implements BloomCac
                 // do the async loading
                 BloomFilterLoader loader = new BloomFilterLoader(reader, fieldName);
                 if (asyncLoad) {
-                    threadPool.cached().execute(loader);
+                    threadPool.generic().execute(loader);
                 } else {
                     loader.run();
                     filter = fieldCache.get(fieldName);

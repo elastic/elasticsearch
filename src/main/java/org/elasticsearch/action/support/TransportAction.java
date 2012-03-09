@@ -79,7 +79,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
 
         @Override
         public void onResponse(final Response response) {
-            threadPool.cached().execute(new Runnable() {
+            threadPool.generic().execute(new Runnable() {
                 @Override
                 public void run() {
                     try {
@@ -93,7 +93,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
 
         @Override
         public void onFailure(final Throwable e) {
-            threadPool.cached().execute(new Runnable() {
+            threadPool.generic().execute(new Runnable() {
                 @Override
                 public void run() {
                     listener.onFailure(e);

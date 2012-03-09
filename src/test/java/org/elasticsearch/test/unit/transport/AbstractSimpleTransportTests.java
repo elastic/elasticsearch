@@ -79,7 +79,7 @@ public abstract class AbstractSimpleTransportTests {
 
             @Override
             public String executor() {
-                return ThreadPool.Names.CACHED;
+                return ThreadPool.Names.GENERIC;
             }
 
             @Override
@@ -103,7 +103,7 @@ public abstract class AbstractSimpleTransportTests {
 
             @Override
             public String executor() {
-                return ThreadPool.Names.CACHED;
+                return ThreadPool.Names.GENERIC;
             }
 
             @Override
@@ -138,7 +138,7 @@ public abstract class AbstractSimpleTransportTests {
 
             @Override
             public String executor() {
-                return ThreadPool.Names.CACHED;
+                return ThreadPool.Names.GENERIC;
             }
 
             @Override
@@ -161,7 +161,7 @@ public abstract class AbstractSimpleTransportTests {
 
             @Override
             public String executor() {
-                return ThreadPool.Names.CACHED;
+                return ThreadPool.Names.GENERIC;
             }
 
             @Override
@@ -195,7 +195,7 @@ public abstract class AbstractSimpleTransportTests {
 
             @Override
             public String executor() {
-                return ThreadPool.Names.CACHED;
+                return ThreadPool.Names.GENERIC;
             }
 
             @Override
@@ -219,7 +219,7 @@ public abstract class AbstractSimpleTransportTests {
 
             @Override
             public String executor() {
-                return ThreadPool.Names.CACHED;
+                return ThreadPool.Names.GENERIC;
             }
 
             @Override
@@ -254,7 +254,7 @@ public abstract class AbstractSimpleTransportTests {
 
             @Override
             public String executor() {
-                return ThreadPool.Names.CACHED;
+                return ThreadPool.Names.GENERIC;
             }
 
             @Override
@@ -273,7 +273,7 @@ public abstract class AbstractSimpleTransportTests {
 
             @Override
             public String executor() {
-                return ThreadPool.Names.CACHED;
+                return ThreadPool.Names.GENERIC;
             }
 
             @Override
@@ -326,7 +326,7 @@ public abstract class AbstractSimpleTransportTests {
 
             @Override
             public String executor() {
-                return ThreadPool.Names.CACHED;
+                return ThreadPool.Names.GENERIC;
             }
 
             @Override
@@ -351,7 +351,7 @@ public abstract class AbstractSimpleTransportTests {
 
             @Override
             public String executor() {
-                return ThreadPool.Names.CACHED;
+                return ThreadPool.Names.GENERIC;
             }
 
             @Override
@@ -385,7 +385,7 @@ public abstract class AbstractSimpleTransportTests {
 
             @Override
             public String executor() {
-                return ThreadPool.Names.CACHED;
+                return ThreadPool.Names.GENERIC;
             }
 
             @Override
@@ -414,7 +414,7 @@ public abstract class AbstractSimpleTransportTests {
 
             @Override
             public String executor() {
-                return ThreadPool.Names.CACHED;
+                return ThreadPool.Names.GENERIC;
             }
 
             @Override
@@ -450,7 +450,7 @@ public abstract class AbstractSimpleTransportTests {
 
                 @Override
                 public String executor() {
-                    return ThreadPool.Names.CACHED;
+                    return ThreadPool.Names.GENERIC;
                 }
 
                 @Override

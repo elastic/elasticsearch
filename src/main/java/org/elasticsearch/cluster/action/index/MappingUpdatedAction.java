@@ -42,8 +42,6 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * Called by shards in the cluster when their mapping was dynamically updated and it needs to be updated
  * in the cluster state meta data (and broadcast to all members).
- *
- *
  */
 public class MappingUpdatedAction extends TransportMasterNodeOperationAction<MappingUpdatedAction.MappingUpdatedRequest, MappingUpdatedAction.MappingUpdatedResponse> {
 
@@ -63,7 +61,7 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.CACHED;
+        return ThreadPool.Names.GENERIC;
     }
 
     @Override

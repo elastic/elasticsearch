@@ -258,7 +258,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             // we are already joining, ignore...
             return;
         }
-        threadPool.cached().execute(new Runnable() {
+        threadPool.generic().execute(new Runnable() {
             @Override
             public void run() {
                 currentJoinThread = Thread.currentThread();

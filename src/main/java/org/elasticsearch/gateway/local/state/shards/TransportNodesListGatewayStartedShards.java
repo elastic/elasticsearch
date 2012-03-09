@@ -66,7 +66,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.CACHED;
+        return ThreadPool.Names.GENERIC;
     }
 
     @Override

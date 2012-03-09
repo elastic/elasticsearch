@@ -77,8 +77,6 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
  * There are 3 types of connections per node, low/med/high. Low if for batch oriented APIs (like recovery or
  * batch) with high payload that will cause regular request. (like search or single index) to take
  * longer. Med is for the typical search / single doc index. And High is for ping type requests (like FD).
- *
- *
  */
 public class NettyTransport extends AbstractLifecycleComponent<Transport> implements Transport {
 
@@ -315,7 +313,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     protected void doStop() throws ElasticSearchException {
         final CountDownLatch latch = new CountDownLatch(1);
         // make sure we run it on another thread than a possible IO handler thread
-        threadPool.cached().execute(new Runnable() {
+        threadPool.generic().execute(new Runnable() {
             @Override
             public void run() {
                 try {

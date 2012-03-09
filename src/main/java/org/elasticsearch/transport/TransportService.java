@@ -179,7 +179,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         try {
             if (options.timeout() != null) {
                 timeoutHandler = new TimeoutHandler(requestId);
-                timeoutHandler.future = threadPool.schedule(options.timeout(), ThreadPool.Names.CACHED, timeoutHandler);
+                timeoutHandler.future = threadPool.schedule(options.timeout(), ThreadPool.Names.GENERIC, timeoutHandler);
             }
             clientHandlers.put(requestId, new RequestHolder<T>(handler, node, action, timeoutHandler));
             transport.sendRequest(node, requestId, action, message, options);
@@ -198,7 +198,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             // callback that an exception happened, but on a different thread since we don't
             // want handlers to worry about stack overflows
             final SendRequestTransportException sendRequestException = new SendRequestTransportException(node, action, e);
-            threadPool.executor(ThreadPool.Names.CACHED).execute(new Runnable() {
+            threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
                 @Override
                 public void run() {
                     handler.handleException(sendRequestException);
@@ -275,7 +275,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
         @Override
         public void raiseNodeConnected(final DiscoveryNode node) {
-            threadPool.cached().execute(new Runnable() {
+            threadPool.generic().execute(new Runnable() {
                 @Override
                 public void run() {
                     for (TransportConnectionListener connectionListener : connectionListeners) {
@@ -290,7 +290,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             if (lifecycle.stoppedOrClosed()) {
                 return;
             }
-            threadPool.cached().execute(new Runnable() {
+            threadPool.generic().execute(new Runnable() {
                 @Override
                 public void run() {
                     for (TransportConnectionListener connectionListener : connectionListeners) {
@@ -304,7 +304,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                             if (holderToNotify != null) {
                                 // callback that an exception happened, but on a different thread since we don't
                                 // want handlers to worry about stack overflows
-                                threadPool.cached().execute(new Runnable() {
+                                threadPool.generic().execute(new Runnable() {
                                     @Override
                                     public void run() {
                                         holderToNotify.handler().handleException(new NodeDisconnectedException(node, holderToNotify.action()));

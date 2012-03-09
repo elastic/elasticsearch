@@ -148,7 +148,7 @@ public class RecoveryTarget extends AbstractComponent {
             listener.onIgnoreRecovery(false, "local shard closed, stop recovery");
             return;
         }
-        threadPool.cached().execute(new Runnable() {
+        threadPool.generic().execute(new Runnable() {
             @Override
             public void run() {
                 doRecovery(shard, request, fromRetry, listener);
@@ -298,7 +298,7 @@ public class RecoveryTarget extends AbstractComponent {
 
         @Override
         public String executor() {
-            return ThreadPool.Names.CACHED;
+            return ThreadPool.Names.GENERIC;
         }
 
         @Override
@@ -326,7 +326,7 @@ public class RecoveryTarget extends AbstractComponent {
 
         @Override
         public String executor() {
-            return ThreadPool.Names.CACHED;
+            return ThreadPool.Names.GENERIC;
         }
 
         @Override
@@ -355,7 +355,7 @@ public class RecoveryTarget extends AbstractComponent {
 
         @Override
         public String executor() {
-            return ThreadPool.Names.CACHED;
+            return ThreadPool.Names.GENERIC;
         }
 
         @Override
@@ -385,7 +385,7 @@ public class RecoveryTarget extends AbstractComponent {
 
         @Override
         public String executor() {
-            return ThreadPool.Names.CACHED;
+            return ThreadPool.Names.GENERIC;
         }
 
         @Override
@@ -416,7 +416,7 @@ public class RecoveryTarget extends AbstractComponent {
 
         @Override
         public String executor() {
-            return ThreadPool.Names.CACHED;
+            return ThreadPool.Names.GENERIC;
         }
 
         @Override
@@ -484,7 +484,7 @@ public class RecoveryTarget extends AbstractComponent {
 
         @Override
         public String executor() {
-            return ThreadPool.Names.CACHED;
+            return ThreadPool.Names.GENERIC;
         }
 
         @Override

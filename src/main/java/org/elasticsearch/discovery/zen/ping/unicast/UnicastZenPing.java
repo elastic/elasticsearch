@@ -168,11 +168,11 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         final SendPingsHandler sendPingsHandler = new SendPingsHandler(pingIdGenerator.incrementAndGet());
         receivedResponses.put(sendPingsHandler.id(), new ConcurrentHashMap<DiscoveryNode, PingResponse>());
         sendPings(timeout, null, sendPingsHandler);
-        threadPool.schedule(TimeValue.timeValueMillis(timeout.millis() / 2), ThreadPool.Names.CACHED, new Runnable() {
+        threadPool.schedule(TimeValue.timeValueMillis(timeout.millis() / 2), ThreadPool.Names.GENERIC, new Runnable() {
             @Override
             public void run() {
                 sendPings(timeout, null, sendPingsHandler);
-                threadPool.schedule(TimeValue.timeValueMillis(timeout.millis() / 2), ThreadPool.Names.CACHED, new Runnable() {
+                threadPool.schedule(TimeValue.timeValueMillis(timeout.millis() / 2), ThreadPool.Names.GENERIC, new Runnable() {
                     @Override
                     public void run() {
                         sendPings(timeout, TimeValue.timeValueMillis(timeout.millis() / 2), sendPingsHandler);

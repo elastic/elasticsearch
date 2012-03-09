@@ -97,7 +97,7 @@ public class RiversService extends AbstractLifecycleComponent<RiversService> {
         ImmutableSet<RiverName> indices = ImmutableSet.copyOf(this.rivers.keySet());
         final CountDownLatch latch = new CountDownLatch(indices.size());
         for (final RiverName riverName : indices) {
-            threadPool.cached().execute(new Runnable() {
+            threadPool.generic().execute(new Runnable() {
                 @Override
                 public void run() {
                     try {

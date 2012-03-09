@@ -28,7 +28,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 public class VoidTransportResponseHandler implements TransportResponseHandler<VoidStreamable> {
 
     public static final VoidTransportResponseHandler INSTANCE_SAME = new VoidTransportResponseHandler(ThreadPool.Names.SAME);
-    public static final VoidTransportResponseHandler INSTANCE_CACHED = new VoidTransportResponseHandler(ThreadPool.Names.CACHED);
 
     private final String executor;
 

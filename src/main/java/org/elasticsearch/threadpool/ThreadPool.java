@@ -66,6 +66,7 @@ public class ThreadPool extends AbstractComponent {
         public static final String MANAGEMENT = "management";
         public static final String FLUSH = "flush";
         public static final String MERGE = "merge";
+        public static final String CACHE = "cache";
         public static final String REFRESH = "refresh";
         public static final String SNAPSHOT = "snapshot";
     }
@@ -96,6 +97,7 @@ public class ThreadPool extends AbstractComponent {
         executors.put(Names.FLUSH, build(Names.FLUSH, "scaling", groupSettings.get(Names.FLUSH), settingsBuilder().put("keep_alive", "5m").put("size", 10).build()));
         executors.put(Names.MERGE, build(Names.MERGE, "scaling", groupSettings.get(Names.MERGE), settingsBuilder().put("keep_alive", "5m").put("size", 20).build()));
         executors.put(Names.REFRESH, build(Names.REFRESH, "cached", groupSettings.get(Names.REFRESH), settingsBuilder().put("keep_alive", "1m").build()));
+        executors.put(Names.CACHE, build(Names.CACHE, "scaling", groupSettings.get(Names.CACHE), settingsBuilder().put("keep_alive", "5m").put("size", 4).build()));
         executors.put(Names.SNAPSHOT, build(Names.SNAPSHOT, "scaling", groupSettings.get(Names.SNAPSHOT), settingsBuilder().put("keep_alive", "5m").put("size", 5).build()));
         executors.put(Names.SAME, new ExecutorHolder(MoreExecutors.sameThreadExecutor(), new Info(Names.SAME, "same")));
         this.executors = ImmutableMap.copyOf(executors);

@@ -54,7 +54,7 @@ public class TransportShardMultiGetAction extends TransportShardSingleOperationA
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.SEARCH;
+        return ThreadPool.Names.GET;
     }
 
     @Override

@@ -118,6 +118,9 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
     private volatile IndexWriter indexWriter;
 
+    // TODO LUCENE MONITOR 3.6: Replace this with SearchManager (3.6) once its out, it will not allow for forceClose, but maybe its a good thing...
+    // in any case, if we want to retain forceClose, we can call release multiple times...
+    // we won't need AcquirableResource any more as well, and close will not need to replace it with a closeable one
     private volatile AcquirableResource<ReaderSearcherHolder> nrtResource;
 
     private volatile boolean closed = false;
@@ -1228,6 +1231,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         try {
             if (nrtResource != null) {
                 this.nrtResource.forceClose();
+                // replace the NRT resource with a closed one, meaning that
+                this.nrtResource = new ClosedNrtResource();
             }
             // no need to commit in this case!, we snapshot before we close the shard, so translog and all sync'ed
             if (indexWriter != null) {
@@ -1368,7 +1373,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         return newAcquirableResource(new ReaderSearcherHolder(indexSearcher));
     }
 
-    private static class RobinSearchResult implements Searcher {
+    static class RobinSearchResult implements Searcher {
 
         private final AcquirableResource<ReaderSearcherHolder> nrtHolder;
 
@@ -1420,6 +1425,30 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
         public Translog.Location translogLocation() {
             return this.translogLocation;
+        }
+    }
+
+    class ClosedNrtResource implements AcquirableResource<ReaderSearcherHolder> {
+        @Override
+        public ReaderSearcherHolder resource() {
+            return null;
+        }
+
+        @Override
+        public boolean acquire() {
+            throw new EngineClosedException(shardId);
+        }
+
+        @Override
+        public void release() {
+        }
+
+        @Override
+        public void markForClose() {
+        }
+
+        @Override
+        public void forceClose() {
         }
     }
 }

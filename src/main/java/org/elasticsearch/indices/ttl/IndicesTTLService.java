@@ -153,7 +153,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
                 }
                 if (hasTTLEnabled) {
                     for (IndexShard indexShard : indexService) {
-                        if (indexShard.routingEntry().primary() && indexShard.state() == IndexShardState.STARTED && indexShard.routingEntry().started()) {
+                        if (indexShard.state() == IndexShardState.STARTED && indexShard.routingEntry().primary() && indexShard.routingEntry().started()) {
                             shardsToPurge.add(indexShard);
                         }
                     }

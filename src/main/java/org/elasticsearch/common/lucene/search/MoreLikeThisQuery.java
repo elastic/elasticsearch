@@ -81,6 +81,8 @@ public class MoreLikeThisQuery extends Query {
         BooleanClause[] clauses = bq.getClauses();
 
         bq.setMinimumNumberShouldMatch((int) (clauses.length * percentTermsToMatch));
+
+        bq.setBoost(getBoost());
         return bq;
     }
 

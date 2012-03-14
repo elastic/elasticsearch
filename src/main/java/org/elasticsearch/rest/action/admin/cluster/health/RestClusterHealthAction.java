@@ -64,7 +64,7 @@ public class RestClusterHealthAction extends BaseRestHandler {
             clusterHealthRequest.waitForNodes(request.param("wait_for_nodes", clusterHealthRequest.waitForNodes()));
             String sLevel = request.param("level");
             if (sLevel != null) {
-                if ("cluster".equals("sLevel")) {
+                if ("cluster".equals(sLevel)) {
                     level = 0;
                 } else if ("indices".equals(sLevel)) {
                     level = 1;

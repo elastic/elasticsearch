@@ -77,7 +77,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
         this.clusterService = clusterService;
         this.threadPool = threadPool;
 
-        this.danglingTimeout = componentSettings.getAsTime("dangling_timeout", TimeValue.timeValueMinutes(2));
+        this.danglingTimeout = componentSettings.getAsTime("dangling_timeout", TimeValue.timeValueHours(2));
 
         clusterService.addLast(this);
     }

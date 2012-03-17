@@ -72,8 +72,8 @@ public class AttachmentMapper implements Mapper {
         private StringFieldMapper.Builder contentBuilder;
 
         private StringFieldMapper.Builder titleBuilder = stringField("title");
-        
-        private StringFieldMapper.Builder fileNameBuilder = stringField("fileName");
+
+        private StringFieldMapper.Builder nameBuilder = stringField("name");
 
         private StringFieldMapper.Builder authorBuilder = stringField("author");
 
@@ -118,9 +118,9 @@ public class AttachmentMapper implements Mapper {
             this.titleBuilder = title;
             return this;
         }
-        
-        public Builder fileName(StringFieldMapper.Builder fileName) {
-            this.fileNameBuilder = fileName;
+
+        public Builder name(StringFieldMapper.Builder name) {
+            this.nameBuilder = name;
             return this;
         }
 
@@ -147,7 +147,7 @@ public class AttachmentMapper implements Mapper {
             DateFieldMapper dateMapper = dateBuilder.build(context);
             StringFieldMapper authorMapper = authorBuilder.build(context);
             StringFieldMapper titleMapper = titleBuilder.build(context);
-            StringFieldMapper fileNameMapper = fileNameBuilder.build(context);
+            StringFieldMapper nameMapper = nameBuilder.build(context);
             StringFieldMapper keywordsMapper = keywordsBuilder.build(context);
             StringFieldMapper contentTypeMapper = contentTypeBuilder.build(context);
             context.path().remove();
@@ -161,7 +161,7 @@ public class AttachmentMapper implements Mapper {
                 defaultIndexedChars = 100000;
             }
 
-            return new AttachmentMapper(name, pathType, defaultIndexedChars, contentMapper, dateMapper, titleMapper, fileNameMapper, authorMapper, keywordsMapper, contentTypeMapper);
+            return new AttachmentMapper(name, pathType, defaultIndexedChars, contentMapper, dateMapper, titleMapper, nameMapper, authorMapper, keywordsMapper, contentTypeMapper);
         }
     }
 
@@ -206,8 +206,8 @@ public class AttachmentMapper implements Mapper {
                             builder.date((DateFieldMapper.Builder) parserContext.typeParser("date").parse("date", (Map<String, Object>) propNode, parserContext));
                         } else if ("title".equals(propName)) {
                             builder.title((StringFieldMapper.Builder) parserContext.typeParser("string").parse("title", (Map<String, Object>) propNode, parserContext));
-                        } else if ("fileName".equals(propName)) {
-                            builder.fileName((StringFieldMapper.Builder) parserContext.typeParser("string").parse("fileName", (Map<String, Object>) propNode, parserContext));
+                        } else if ("name".equals(propName)) {
+                            builder.name((StringFieldMapper.Builder) parserContext.typeParser("string").parse("name", (Map<String, Object>) propNode, parserContext));
                         } else if ("author".equals(propName)) {
                             builder.author((StringFieldMapper.Builder) parserContext.typeParser("string").parse("author", (Map<String, Object>) propNode, parserContext));
                         } else if ("keywords".equals(propName)) {
@@ -236,15 +236,15 @@ public class AttachmentMapper implements Mapper {
     private final StringFieldMapper authorMapper;
 
     private final StringFieldMapper titleMapper;
-    
-    private final StringFieldMapper fileNameMapper;
+
+    private final StringFieldMapper nameMapper;
 
     private final StringFieldMapper keywordsMapper;
 
     private final StringFieldMapper contentTypeMapper;
 
     public AttachmentMapper(String name, ContentPath.Type pathType, int defaultIndexedChars, StringFieldMapper contentMapper,
-                            DateFieldMapper dateMapper, StringFieldMapper titleMapper, StringFieldMapper fileNameMapper, StringFieldMapper authorMapper,
+                            DateFieldMapper dateMapper, StringFieldMapper titleMapper, StringFieldMapper nameMapper, StringFieldMapper authorMapper,
                             StringFieldMapper keywordsMapper, StringFieldMapper contentTypeMapper) {
         this.name = name;
         this.pathType = pathType;
@@ -252,7 +252,7 @@ public class AttachmentMapper implements Mapper {
         this.contentMapper = contentMapper;
         this.dateMapper = dateMapper;
         this.titleMapper = titleMapper;
-        this.fileNameMapper = fileNameMapper;
+        this.nameMapper = nameMapper;
         this.authorMapper = authorMapper;
         this.keywordsMapper = keywordsMapper;
         this.contentTypeMapper = contentTypeMapper;
@@ -314,9 +314,9 @@ public class AttachmentMapper implements Mapper {
         context.externalValue(parsedContent);
         contentMapper.parse(context);
 
-        
+
         context.externalValue(name);
-        fileNameMapper.parse(context);
+        nameMapper.parse(context);
 
         context.externalValue(metadata.get(Metadata.DATE));
         dateMapper.parse(context);
@@ -344,7 +344,7 @@ public class AttachmentMapper implements Mapper {
         contentMapper.traverse(fieldMapperListener);
         dateMapper.traverse(fieldMapperListener);
         titleMapper.traverse(fieldMapperListener);
-        fileNameMapper.traverse(fieldMapperListener);
+        nameMapper.traverse(fieldMapperListener);
         authorMapper.traverse(fieldMapperListener);
         keywordsMapper.traverse(fieldMapperListener);
         contentTypeMapper.traverse(fieldMapperListener);
@@ -359,7 +359,7 @@ public class AttachmentMapper implements Mapper {
         contentMapper.close();
         dateMapper.close();
         titleMapper.close();
-        fileNameMapper.close();
+        nameMapper.close();
         authorMapper.close();
         keywordsMapper.close();
         contentTypeMapper.close();
@@ -375,7 +375,7 @@ public class AttachmentMapper implements Mapper {
         contentMapper.toXContent(builder, params);
         authorMapper.toXContent(builder, params);
         titleMapper.toXContent(builder, params);
-        fileNameMapper.toXContent(builder, params);
+        nameMapper.toXContent(builder, params);
         dateMapper.toXContent(builder, params);
         keywordsMapper.toXContent(builder, params);
         contentTypeMapper.toXContent(builder, params);

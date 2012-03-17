@@ -38,6 +38,7 @@ public class Queries {
      * A match all docs filter. Note, requires no caching!.
      */
     public final static Filter MATCH_ALL_FILTER = new MatchAllDocsFilter();
+    public final static Filter MATCH_NO_FILTER = new MatchNoDocsFilter();
 
     private final static Field disjuncts;
 

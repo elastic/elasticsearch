@@ -58,7 +58,7 @@ public class DiscoveryNode implements Streamable, Serializable {
     }
 
     public static boolean dataNode(Settings settings) {
-        String data = settings.get("data");
+        String data = settings.get("node.data");
         if (data == null) {
             return !clientNode(settings);
         }

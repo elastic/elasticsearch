@@ -162,6 +162,8 @@ public class HighlightPhase implements FetchSubPhase {
                     entry = new MapperHighlightEntry();
                     entry.highlighter = new Highlighter(formatter, encoder, queryScorer);
                     entry.highlighter.setTextFragmenter(fragmenter);
+                    // always highlight across all data
+                    entry.highlighter.setMaxDocCharsToAnalyze(Integer.MAX_VALUE);
 
                     cache.mappers.put(mapper, entry);
                 }

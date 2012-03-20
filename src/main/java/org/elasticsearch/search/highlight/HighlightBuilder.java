@@ -30,7 +30,6 @@ import static com.google.common.collect.Lists.newArrayList;
 /**
  * A builder for search highlighting.
  *
- *
  * @see org.elasticsearch.search.builder.SearchSourceBuilder#highlight()
  */
 public class HighlightBuilder implements ToXContent {
@@ -46,6 +45,8 @@ public class HighlightBuilder implements ToXContent {
     private String order;
 
     private String encoder;
+
+    private Boolean requireFieldMatch;
 
     /**
      * Adds a field to be highlighted with default fragment size of 100 characters, and
@@ -113,6 +114,13 @@ public class HighlightBuilder implements ToXContent {
         return this;
     }
 
+    public HighlightBuilder field(Field field) {
+        if (fields == null) {
+            fields = newArrayList();
+        }
+        fields.add(field);
+        return this;
+    }
 
     /**
      * Set a tag scheme that encapsulates a built in pre and post tags. The allows schemes
@@ -163,6 +171,11 @@ public class HighlightBuilder implements ToXContent {
         return this;
     }
 
+    public HighlightBuilder requireFieldMatch(boolean requireFieldMatch) {
+        this.requireFieldMatch = requireFieldMatch;
+        return this;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("highlight");
@@ -181,18 +194,24 @@ public class HighlightBuilder implements ToXContent {
         if (encoder != null) {
             builder.field("encoder", encoder);
         }
+        if (requireFieldMatch != null) {
+            builder.field("require_field_match", requireFieldMatch);
+        }
         if (fields != null) {
             builder.startObject("fields");
             for (Field field : fields) {
                 builder.startObject(field.name());
-                if (field.fragmentSize() != -1) {
-                    builder.field("fragment_size", field.fragmentSize());
+                if (field.fragmentSize != -1) {
+                    builder.field("fragment_size", field.fragmentSize);
                 }
-                if (field.numOfFragments() != -1) {
-                    builder.field("number_of_fragments", field.numOfFragments());
+                if (field.numOfFragments != -1) {
+                    builder.field("number_of_fragments", field.numOfFragments);
                 }
-                if (field.fragmentOffset() != -1) {
-                    builder.field("fragment_offset", field.fragmentOffset());
+                if (field.fragmentOffset != -1) {
+                    builder.field("fragment_offset", field.fragmentOffset);
+                }
+                if (field.requireFieldMatch != null) {
+                    builder.field("require_field_match", field.requireFieldMatch);
                 }
 
                 builder.endObject();
@@ -204,11 +223,12 @@ public class HighlightBuilder implements ToXContent {
         return builder;
     }
 
-    private static class Field {
-        private final String name;
-        private int fragmentSize = -1;
-        private int fragmentOffset = -1;
-        private int numOfFragments = -1;
+    public static class Field {
+        final String name;
+        int fragmentSize = -1;
+        int fragmentOffset = -1;
+        int numOfFragments = -1;
+        Boolean requireFieldMatch;
 
         private Field(String name) {
             this.name = name;
@@ -218,17 +238,9 @@ public class HighlightBuilder implements ToXContent {
             return name;
         }
 
-        public int fragmentSize() {
-            return fragmentSize;
-        }
-
         public Field fragmentSize(int fragmentSize) {
             this.fragmentSize = fragmentSize;
             return this;
-        }
-
-        public int fragmentOffset() {
-            return fragmentOffset;
         }
 
         public Field fragmentOffset(int fragmentOffset) {
@@ -236,14 +248,14 @@ public class HighlightBuilder implements ToXContent {
             return this;
         }
 
-        public int numOfFragments() {
-            return numOfFragments;
-        }
-
         public Field numOfFragments(int numOfFragments) {
             this.numOfFragments = numOfFragments;
             return this;
         }
 
+        public Field requireFieldMatch(boolean requireFieldMatch) {
+            this.requireFieldMatch = requireFieldMatch;
+            return this;
+        }
     }
 }

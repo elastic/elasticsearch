@@ -560,6 +560,14 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
     }
 
     /**
+     * Adds a highlighted field.
+     */
+    public SearchRequestBuilder addHighlightedField(HighlightBuilder.Field field) {
+        highlightBuilder().field(field);
+        return this;
+    }
+
+    /**
      * Set a tag scheme that encapsulates a built in pre and post tags. The allows schemes
      * are <tt>styled</tt> and <tt>default</tt>.
      *
@@ -602,6 +610,11 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
      */
     public SearchRequestBuilder setHighlighterEncoder(String encoder) {
         highlightBuilder().encoder(encoder);
+        return this;
+    }
+
+    public SearchRequestBuilder setHighlighterRequireFieldMatch(boolean requireFieldMatch) {
+        highlightBuilder().requireFieldMatch(requireFieldMatch);
         return this;
     }
 

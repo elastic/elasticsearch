@@ -140,7 +140,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
             // break between having loaded it from translog (so we only have _source), and having a document to load
             if (get.docIdAndVersion() != null) {
                 Map<String, GetField> fields = null;
-                byte[] source = null;
+                BytesHolder source = null;
                 UidField.DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
                 ResetFieldSelector fieldSelector = buildFieldSelectors(docMapper, gFields);
                 if (fieldSelector != null) {
@@ -151,7 +151,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
                     } catch (IOException e) {
                         throw new ElasticSearchException("Failed to get type [" + type + "] and id [" + id + "]", e);
                     }
-                    source = extractSource(doc, docMapper);
+                    source = extractSource(type, id, doc, docMapper);
 
                     for (Object oField : doc.getFields()) {
                         Fieldable field = (Fieldable) oField;
@@ -198,6 +198,9 @@ public class ShardGetService extends AbstractIndexShardComponent {
                             SearchScript searchScript = scriptService.search(searchLookup, "mvel", field, null);
                             searchScript.setNextReader(docIdAndVersion.reader);
                             searchScript.setNextDocId(docIdAndVersion.docId);
+                            if(source != null) {
+                                searchLookup.source().setNextSource(source.bytes(), source.offset(), source.length());
+                            }
 
                             try {
                                 value = searchScript.run();
@@ -214,6 +217,9 @@ public class ShardGetService extends AbstractIndexShardComponent {
                                     searchLookup = new SearchLookup(mapperService, indexCache.fieldData());
                                     searchLookup.setNextReader(docIdAndVersion.reader);
                                     searchLookup.setNextDocId(docIdAndVersion.docId);
+                                    if(source != null) {
+                                        searchLookup.source().setNextSource(source.bytes(), source.offset(), source.length());
+                                    }
                                 }
                                 value = searchLookup.source().extractValue(field);
                             }
@@ -233,7 +239,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
                     }
                 }
 
-                return new GetResult(shardId.index().name(), type, id, get.version(), get.exists(), source == null ? null : new BytesHolder(source), fields);
+                return new GetResult(shardId.index().name(), type, id, get.version(), get.exists(), source, fields);
             } else {
                 Translog.Source source = get.source();
 
@@ -355,11 +361,11 @@ public class ShardGetService extends AbstractIndexShardComponent {
         return fieldSelector;
     }
 
-    private static byte[] extractSource(Document doc, DocumentMapper documentMapper) {
-        byte[] source = null;
+    private static BytesHolder extractSource(String type, String id, Document doc, DocumentMapper documentMapper) {
+        BytesHolder source = null;
         Fieldable sourceField = doc.getFieldable(documentMapper.sourceMapper().names().indexName());
         if (sourceField != null) {
-            source = documentMapper.sourceMapper().nativeValue(sourceField);
+            source = documentMapper.sourceMapper().extractSource(type, id, sourceField);
             doc.removeField(documentMapper.sourceMapper().names().indexName());
         }
         return source;

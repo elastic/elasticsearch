@@ -40,7 +40,7 @@ public class SearchLookup {
 
     public SearchLookup(MapperService mapperService, FieldDataCache fieldDataCache) {
         docMap = new DocLookup(mapperService, fieldDataCache);
-        sourceLookup = new SourceLookup();
+        sourceLookup = new SourceLookup(mapperService);
         fieldsLookup = new FieldsLookup(mapperService);
         asMap = ImmutableMap.<String, Object>of("doc", docMap, "_doc", docMap, "_source", sourceLookup, "_fields", fieldsLookup);
     }

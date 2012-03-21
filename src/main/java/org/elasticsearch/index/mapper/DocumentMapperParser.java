@@ -42,6 +42,7 @@ import org.elasticsearch.index.mapper.multifield.MultiFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.source.SourceProviderService;
 
 import java.io.IOException;
 import java.util.Map;
@@ -59,16 +60,20 @@ public class DocumentMapperParser extends AbstractIndexComponent {
 
     private final Object typeParsersMutex = new Object();
 
+    private final SourceProviderService sourceProviderService;
+
     private volatile ImmutableMap<String, Mapper.TypeParser> typeParsers;
     private volatile ImmutableMap<String, Mapper.TypeParser> rootTypeParsers;
 
-    public DocumentMapperParser(Index index, AnalysisService analysisService) {
-        this(index, ImmutableSettings.Builder.EMPTY_SETTINGS, analysisService);
+    public DocumentMapperParser(Index index, AnalysisService analysisService, SourceProviderService sourceProviderService) {
+        this(index, ImmutableSettings.Builder.EMPTY_SETTINGS, analysisService, sourceProviderService);
     }
 
-    public DocumentMapperParser(Index index, @IndexSettings Settings indexSettings, AnalysisService analysisService) {
+    public DocumentMapperParser(Index index, @IndexSettings Settings indexSettings, AnalysisService analysisService,
+                                SourceProviderService sourceProviderService) {
         super(index, indexSettings);
         this.analysisService = analysisService;
+        this.sourceProviderService = sourceProviderService;
         typeParsers = new MapBuilder<String, Mapper.TypeParser>()
                 .put(ByteFieldMapper.CONTENT_TYPE, new ByteFieldMapper.TypeParser())
                 .put(ShortFieldMapper.CONTENT_TYPE, new ShortFieldMapper.TypeParser())
@@ -123,7 +128,7 @@ public class DocumentMapperParser extends AbstractIndexComponent {
     }
 
     public Mapper.TypeParser.ParserContext parserContext() {
-        return new Mapper.TypeParser.ParserContext(analysisService, typeParsers);
+        return new Mapper.TypeParser.ParserContext(analysisService, typeParsers, sourceProviderService);
     }
 
     public DocumentMapper parse(String source) throws MapperParsingException {
@@ -157,7 +162,7 @@ public class DocumentMapperParser extends AbstractIndexComponent {
             }
         }
 
-        Mapper.TypeParser.ParserContext parserContext = new Mapper.TypeParser.ParserContext(analysisService, typeParsers);
+        Mapper.TypeParser.ParserContext parserContext = new Mapper.TypeParser.ParserContext(analysisService, typeParsers, sourceProviderService);
 
         DocumentMapper.Builder docBuilder = doc(index.name(), indexSettings, (RootObjectMapper.Builder) rootObjectTypeParser.parse(type, mapping, parserContext));
 

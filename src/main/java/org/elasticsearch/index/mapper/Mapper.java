@@ -25,6 +25,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.source.SourceProviderService;
 
 import java.io.IOException;
 import java.util.Map;
@@ -80,9 +81,12 @@ public interface Mapper extends ToXContent {
 
             private final ImmutableMap<String, TypeParser> typeParsers;
 
-            public ParserContext(AnalysisService analysisService, ImmutableMap<String, TypeParser> typeParsers) {
+            private final SourceProviderService sourceProviderService;
+
+            public ParserContext(AnalysisService analysisService, ImmutableMap<String, TypeParser> typeParsers, SourceProviderService sourceProviderService) {
                 this.analysisService = analysisService;
                 this.typeParsers = typeParsers;
+                this.sourceProviderService = sourceProviderService;
             }
 
             public AnalysisService analysisService() {
@@ -91,6 +95,10 @@ public interface Mapper extends ToXContent {
 
             public TypeParser typeParser(String type) {
                 return typeParsers.get(Strings.toUnderscoreCase(type));
+            }
+
+            public SourceProviderService sourceProviderService() {
+                return sourceProviderService;
             }
         }
 

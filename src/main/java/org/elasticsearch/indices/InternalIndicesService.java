@@ -62,6 +62,7 @@ import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityModule;
+import org.elasticsearch.index.source.SourceProviderModule;
 import org.elasticsearch.index.store.IndexStoreModule;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
@@ -280,6 +281,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         modules.add(new IndexGatewayModule(indexSettings, injector.getInstance(Gateway.class)));
         modules.add(new IndexModule(indexSettings));
         modules.add(new PercolatorModule());
+        modules.add(new SourceProviderModule(indexSettings));
 
         Injector indexInjector;
         try {

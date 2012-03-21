@@ -22,6 +22,7 @@ package org.elasticsearch.test.unit.index.mapper;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
@@ -32,6 +33,8 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.settings.IndexSettingsModule;
+import org.elasticsearch.index.source.SourceProviderModule;
+import org.elasticsearch.index.source.SourceProviderService;
 import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 
@@ -41,20 +44,44 @@ import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 public class MapperTests {
 
     public static DocumentMapperParser newParser() {
-        return new DocumentMapperParser(new Index("test"), newAnalysisService());
+        return new DocumentMapperParser(new Index("test"), newAnalysisService(), newSourceProviderService());
+    }
+
+    public static DocumentMapperParser newParser(Settings indexSettings) {
+        return new DocumentMapperParser(new Index("test"), indexSettings, newAnalysisService(indexSettings), newSourceProviderService(indexSettings));
     }
 
     public static MapperService newMapperService() {
-        return new MapperService(new Index("test"), ImmutableSettings.Builder.EMPTY_SETTINGS, new Environment(), newAnalysisService());
+        return new MapperService(new Index("test"), ImmutableSettings.Builder.EMPTY_SETTINGS, new Environment(),
+                newAnalysisService(), newSourceProviderService());
     }
 
+
     public static AnalysisService newAnalysisService() {
+        return newAnalysisService(ImmutableSettings.Builder.EMPTY_SETTINGS);
+    }
+
+    public static AnalysisService newAnalysisService(Settings indexSettings) {
         Injector parentInjector = new ModulesBuilder().add(new SettingsModule(ImmutableSettings.Builder.EMPTY_SETTINGS), new EnvironmentModule(new Environment(ImmutableSettings.Builder.EMPTY_SETTINGS)), new IndicesAnalysisModule()).createInjector();
         Injector injector = new ModulesBuilder().add(
-                new IndexSettingsModule(new Index("test"), ImmutableSettings.Builder.EMPTY_SETTINGS),
+                new IndexSettingsModule(new Index("test"), indexSettings),
                 new IndexNameModule(new Index("test")),
-                new AnalysisModule(ImmutableSettings.Builder.EMPTY_SETTINGS, parentInjector.getInstance(IndicesAnalysisService.class))).createChildInjector(parentInjector);
+                new AnalysisModule(indexSettings, parentInjector.getInstance(IndicesAnalysisService.class))).createChildInjector(parentInjector);
 
         return injector.getInstance(AnalysisService.class);
+    }
+
+    public static SourceProviderService newSourceProviderService() {
+        return newSourceProviderService(ImmutableSettings.Builder.EMPTY_SETTINGS);
+    }
+
+    public static SourceProviderService newSourceProviderService(Settings indexSettings) {
+        Injector parentInjector = new ModulesBuilder().add(new SettingsModule(ImmutableSettings.Builder.EMPTY_SETTINGS), new EnvironmentModule(new Environment(ImmutableSettings.Builder.EMPTY_SETTINGS))).createInjector();
+        Injector injector = new ModulesBuilder().add(
+                new IndexSettingsModule(new Index("test"), indexSettings),
+                new IndexNameModule(new Index("test")),
+                new SourceProviderModule(indexSettings)).createChildInjector(parentInjector);
+
+        return injector.getInstance(SourceProviderService.class);
     }
 }

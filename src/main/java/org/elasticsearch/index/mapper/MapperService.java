@@ -48,6 +48,7 @@ import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.source.SourceProviderService;
 import org.elasticsearch.indices.InvalidTypeNameException;
 import org.elasticsearch.indices.TypeMissingException;
 
@@ -97,10 +98,11 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     private final SmartIndexNameSearchAnalyzer searchAnalyzer;
 
     @Inject
-    public MapperService(Index index, @IndexSettings Settings indexSettings, Environment environment, AnalysisService analysisService) {
+    public MapperService(Index index, @IndexSettings Settings indexSettings, Environment environment,
+                         AnalysisService analysisService, SourceProviderService sourceProviderService) {
         super(index, indexSettings);
         this.analysisService = analysisService;
-        this.documentParser = new DocumentMapperParser(index, indexSettings, analysisService);
+        this.documentParser = new DocumentMapperParser(index, indexSettings, analysisService, sourceProviderService);
         this.searchAnalyzer = new SmartIndexNameSearchAnalyzer(analysisService.defaultSearchAnalyzer());
 
         this.dynamic = componentSettings.getAsBoolean("dynamic", true);

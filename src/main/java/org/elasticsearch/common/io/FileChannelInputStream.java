@@ -39,6 +39,8 @@ public class FileChannelInputStream extends InputStream {
     private byte[] bs = null; // Invoker's previous array
     private byte[] b1 = null;
 
+    private long markPosition;
+
     /**
      * @param channel  The channel to read from
      * @param position The position to start reading from
@@ -47,6 +49,7 @@ public class FileChannelInputStream extends InputStream {
     public FileChannelInputStream(FileChannel channel, long position, long length) {
         this.channel = channel;
         this.position = position;
+        this.markPosition = position;
         this.length = position + length; // easier to work with total length
     }
 
@@ -87,5 +90,20 @@ public class FileChannelInputStream extends InputStream {
             position += read;
         }
         return read;
+    }
+
+    @Override
+    public boolean markSupported() {
+        return true;
+    }
+
+    @Override
+    public void mark(int readlimit) {
+        this.markPosition = position;
+    }
+
+    @Override
+    public void reset() throws IOException {
+        position = markPosition;
     }
 }

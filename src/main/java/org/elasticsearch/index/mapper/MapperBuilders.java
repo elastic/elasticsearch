@@ -27,6 +27,7 @@ import org.elasticsearch.index.mapper.ip.IpFieldMapper;
 import org.elasticsearch.index.mapper.multifield.MultiFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
+import org.elasticsearch.index.source.SourceProvider;
 
 /**
  *
@@ -38,11 +39,13 @@ public final class MapperBuilders {
     }
 
     public static DocumentMapper.Builder doc(String index, RootObjectMapper.Builder objectBuilder) {
-        return new DocumentMapper.Builder(index, null, objectBuilder);
+        return new DocumentMapper.Builder(index, null, objectBuilder, SourceFieldMapper.Defaults.PROVIDER);
     }
 
-    public static DocumentMapper.Builder doc(String index, @Nullable Settings settings, RootObjectMapper.Builder objectBuilder) {
-        return new DocumentMapper.Builder(index, settings, objectBuilder);
+    public static DocumentMapper.Builder doc(String index, @Nullable Settings settings,
+                                             RootObjectMapper.Builder objectBuilder,
+                                             SourceProvider defaultSourceProvider) {
+        return new DocumentMapper.Builder(index, settings, objectBuilder, defaultSourceProvider);
     }
 
     public static SourceFieldMapper.Builder source() {

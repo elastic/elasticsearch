@@ -342,4 +342,35 @@ public class CustomSourceMappingIntegrationTests extends AbstractNodesTests {
 
     }
 
+    @Test
+    public void testReplacingDefaultSourceProviderForIndex() throws Exception {
+        startNode("node1");
+        try {
+            client("node1").admin().indices().delete(deleteIndexRequest("test")).actionGet();
+        } catch (ElasticSearchException ex) {
+            // Ignore
+        }
+        client("node1").admin().indices().create(createIndexRequest("test")
+                .settings(
+                        settingsBuilder()
+                                .put("index.number_of_replicas", 0)
+                                .put("index.number_of_shards", 1)
+                                .put("index.source.provider.default.type", TestSourceProviderParser.class.getName())
+                )).actionGet();
+
+        for (int i = 0; i < 10; i++) {
+            client("node1").prepareIndex("test", "type1", Integer.toString(i)).setSource(jsonBuilder().startObject()
+                    .field("value", "test" + i)
+                    .endObject()).execute().actionGet();
+        }
+
+        ClusterHealthResponse clusterHealth = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        assertThat(clusterHealth.timedOut(), equalTo(false));
+        client("node1").admin().indices().prepareFlush().execute().actionGet();
+
+        for (int i = 0; i < 10; i++) {
+            GetResponse getResponse = client("node1").prepareGet("test", "type1", Integer.toString(i)).execute().actionGet();
+            assertThat(getResponse.sourceAsString(), equalTo("--id:" + i + "--"));
+        }
+    }
 }

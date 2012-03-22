@@ -36,6 +36,7 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.source.SourceProvider;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 
 /**
@@ -186,6 +187,32 @@ public class DefaultSourceProvider implements SourceProvider {
     @Override public BytesHolder rehydrateSource(String type, String id, byte[] source, int sourceOffset, int sourceLength) {
         // TODO: Should we decompress here?
         return new BytesHolder(source, sourceOffset, sourceLength);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        DefaultSourceProvider that = (DefaultSourceProvider) o;
+
+        if (compressThreshold != that.compressThreshold) return false;
+        if (compress != null ? !compress.equals(that.compress) : that.compress != null) return false;
+        if (!Arrays.equals(excludes, that.excludes)) return false;
+        if (format != null ? !format.equals(that.format) : that.format != null) return false;
+        if (!Arrays.equals(includes, that.includes)) return false;
+
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = compress != null ? compress.hashCode() : 0;
+        result = 31 * result + (int) (compressThreshold ^ (compressThreshold >>> 32));
+        result = 31 * result + (includes != null ? Arrays.hashCode(includes) : 0);
+        result = 31 * result + (excludes != null ? Arrays.hashCode(excludes) : 0);
+        result = 31 * result + (format != null ? format.hashCode() : 0);
+        return result;
     }
 
     public static class Builder {

@@ -164,7 +164,10 @@ public class DocumentMapperParser extends AbstractIndexComponent {
 
         Mapper.TypeParser.ParserContext parserContext = new Mapper.TypeParser.ParserContext(analysisService, typeParsers, sourceProviderService);
 
-        DocumentMapper.Builder docBuilder = doc(index.name(), indexSettings, (RootObjectMapper.Builder) rootObjectTypeParser.parse(type, mapping, parserContext));
+        DocumentMapper.Builder docBuilder = doc(index.name(), indexSettings,
+                (RootObjectMapper.Builder) rootObjectTypeParser.parse(type, mapping, parserContext),
+                sourceProviderService.defaultSourceProvider()
+        );
 
         for (Map.Entry<String, Object> entry : mapping.entrySet()) {
             String fieldName = Strings.toUnderscoreCase(entry.getKey());

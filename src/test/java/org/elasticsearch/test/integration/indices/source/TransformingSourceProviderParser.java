@@ -132,6 +132,27 @@ public class TransformingSourceProviderParser implements SourceProviderParser {
             byte[] buffer = String.format(sourcePattern, id, type, path).getBytes();
             return new BytesHolder(buffer);
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            TransformingSourceProvider that = (TransformingSourceProvider) o;
+
+            if (pathField != null ? !pathField.equals(that.pathField) : that.pathField != null) return false;
+            if (sourcePattern != null ? !sourcePattern.equals(that.sourcePattern) : that.sourcePattern != null)
+                return false;
+
+            return true;
+        }
+
+        @Override
+        public int hashCode() {
+            int result = sourcePattern != null ? sourcePattern.hashCode() : 0;
+            result = 31 * result + (pathField != null ? pathField.hashCode() : 0);
+            return result;
+        }
     }
 }
 

@@ -37,6 +37,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.internal.*;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
+import org.elasticsearch.index.source.SourceProvider;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -143,7 +144,7 @@ public class DocumentMapper implements ToXContent {
 
         private final Mapper.BuilderContext builderContext;
 
-        public Builder(String index, @Nullable Settings indexSettings, RootObjectMapper.Builder builder) {
+        public Builder(String index, @Nullable Settings indexSettings, RootObjectMapper.Builder builder, SourceProvider defaultSourceProvider) {
             this.index = index;
             this.indexSettings = indexSettings;
             this.builderContext = new Mapper.BuilderContext(indexSettings, new ContentPath(1));
@@ -159,7 +160,7 @@ public class DocumentMapper implements ToXContent {
             // add default mappers, order is important (for example analyzer should come before the rest to set context.analyzer)
             this.rootMappers.put(SizeFieldMapper.class, new SizeFieldMapper());
             this.rootMappers.put(IndexFieldMapper.class, new IndexFieldMapper());
-            this.rootMappers.put(SourceFieldMapper.class, new SourceFieldMapper());
+            this.rootMappers.put(SourceFieldMapper.class, new SourceFieldMapper(defaultSourceProvider));
             this.rootMappers.put(TypeFieldMapper.class, new TypeFieldMapper());
             this.rootMappers.put(AnalyzerMapper.class, new AnalyzerMapper());
             this.rootMappers.put(AllFieldMapper.class, new AllFieldMapper());

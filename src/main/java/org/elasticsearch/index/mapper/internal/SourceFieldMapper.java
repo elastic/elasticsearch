@@ -127,8 +127,8 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
 
     private final String sourceProviderName;
 
-    public SourceFieldMapper() {
-        this(Defaults.NAME, Defaults.ENABLED, Defaults.PROVIDER_NAME, Defaults.PROVIDER);
+    public SourceFieldMapper(SourceProvider defaultSourceProvider) {
+        this(Defaults.NAME, Defaults.ENABLED, Defaults.PROVIDER_NAME, defaultSourceProvider);
     }
 
     protected SourceFieldMapper(String name, boolean enabled, String sourceProviderName, SourceProvider sourceProvider) {
@@ -237,9 +237,12 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // all are defaults, no need to write it at all
-        if (enabled == Defaults.ENABLED && Objects.equal(sourceProvider, Defaults.PROVIDER)) {
+        if (enabled == Defaults.ENABLED
+                && Objects.equal(sourceProviderName, Defaults.PROVIDER_NAME)
+                && Objects.equal(sourceProvider, Defaults.PROVIDER)) {
             return builder;
         }
+
         builder.startObject(contentType());
         if (enabled != Defaults.ENABLED) {
             builder.field("enabled", enabled);

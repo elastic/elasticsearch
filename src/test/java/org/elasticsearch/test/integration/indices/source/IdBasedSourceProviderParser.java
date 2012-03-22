@@ -86,5 +86,23 @@ public class IdBasedSourceProviderParser implements SourceProviderParser {
         @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return builder;
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            IdBasedSourceProvider that = (IdBasedSourceProvider) o;
+
+            if (sourcePattern != null ? !sourcePattern.equals(that.sourcePattern) : that.sourcePattern != null)
+                return false;
+
+            return true;
+        }
+
+        @Override
+        public int hashCode() {
+            return sourcePattern != null ? sourcePattern.hashCode() : 0;
+        }
     }
 }

@@ -27,11 +27,13 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.settings.IndexSettings;
 
 import java.util.Map;
 
 import static com.google.common.collect.Maps.newHashMap;
+import static java.util.Collections.emptyMap;
 
 /**
  *
@@ -43,6 +45,10 @@ public class SourceProviderService extends AbstractIndexComponent {
     }
 
     private final Map<String, SourceProviderParser> sourceProviderParsers;
+    
+    private final SourceProvider defaultSourceProvider;
+    
+    private static final Map<String, Object> EMPTY_PARSER_SETTINGS = emptyMap();
 
     @Inject
     public SourceProviderService(Index index, @IndexSettings Settings indexSettings,
@@ -67,10 +73,19 @@ public class SourceProviderService extends AbstractIndexComponent {
             }
         }
         this.sourceProviderParsers = ImmutableMap.copyOf(sourceProviderMap);
+        
+        SourceProviderParser defaultSourceProviderParser = sourceProviderMap.get(SourceFieldMapper.Defaults.PROVIDER_NAME); 
+        
+        this.defaultSourceProvider = defaultSourceProviderParser.parse(EMPTY_PARSER_SETTINGS); 
     }
 
     
     public SourceProviderParser sourceProviderParser(String name) {
         return sourceProviderParsers.get(name);
     }
+    
+    public SourceProvider defaultSourceProvider() {
+        return defaultSourceProvider;
+    }
+    
 }

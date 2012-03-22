@@ -236,4 +236,30 @@ public class InputStreamIndexInputTests {
         assertThat(is.actualSizeToRead(), equalTo(0l));
         assertThat(is.read(read), equalTo(-1));
     }
+
+    @Test
+    public void testMarkRest() throws Exception {
+        RAMDirectory dir = new RAMDirectory();
+        IndexOutput output = dir.createOutput("test");
+        for (int i = 0; i < 3; i++) {
+            output.writeByte((byte) 1);
+        }
+        for (int i = 0; i < 3; i++) {
+            output.writeByte((byte) 2);
+        }
+
+        output.close();
+
+        IndexInput input = dir.openInput("test");
+        InputStreamIndexInput is = new InputStreamIndexInput(input, 4);
+        assertThat(is.markSupported(), equalTo(true));
+        assertThat(is.read(), equalTo(1));
+        assertThat(is.read(), equalTo(1));
+        is.mark(0);
+        assertThat(is.read(), equalTo(1));
+        assertThat(is.read(), equalTo(2));
+        is.reset();
+        assertThat(is.read(), equalTo(1));
+        assertThat(is.read(), equalTo(2));
+    }
 }

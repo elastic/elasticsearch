@@ -65,10 +65,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
 
     static {
         MetaData.addDynamicSettings(
-                "indices.ttl.interval"
-        );
-
-        IndexMetaData.addDynamicSettings(
+                "indices.ttl.interval",
                 "index.ttl.disable_purge"
         );
     }
@@ -145,9 +142,13 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
          */
         private List<IndexShard> getShardsToPurge() {
             List<IndexShard> shardsToPurge = new ArrayList<IndexShard>();
+            MetaData metaData = clusterService.state().metaData();
             for (IndexService indexService : indicesService) {
                 // check the value of disable_purge for this index
-                IndexMetaData indexMetaData = clusterService.state().metaData().index(indexService.index().name());
+                IndexMetaData indexMetaData = metaData.index(indexService.index().name());
+                if (indexMetaData == null) {
+                    continue;
+                }
                 boolean disablePurge = indexMetaData.settings().getAsBoolean("index.ttl.disable_purge", false);
                 if (disablePurge) {
                     continue;

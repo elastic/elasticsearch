@@ -476,14 +476,14 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         if (boost != 1.0f) {
             builder.field("boost", boost);
         }
-        if (indexAnalyzer != null && searchAnalyzer != null && indexAnalyzer.name().equals(searchAnalyzer.name()) && !indexAnalyzer.name().startsWith("_")) {
+        if (indexAnalyzer != null && searchAnalyzer != null && indexAnalyzer.name().equals(searchAnalyzer.name()) && !indexAnalyzer.name().startsWith("_") && !indexAnalyzer.name().equals("default")) {
             // same analyzers, output it once
             builder.field("analyzer", indexAnalyzer.name());
         } else {
-            if (indexAnalyzer != null && !indexAnalyzer.name().startsWith("_")) {
+            if (indexAnalyzer != null && !indexAnalyzer.name().startsWith("_") && !indexAnalyzer.name().equals("default")) {
                 builder.field("index_analyzer", indexAnalyzer.name());
             }
-            if (searchAnalyzer != null && !searchAnalyzer.name().startsWith("_")) {
+            if (searchAnalyzer != null && !searchAnalyzer.name().startsWith("_") && !searchAnalyzer.name().equals("default")) {
                 builder.field("search_analyzer", searchAnalyzer.name());
             }
         }

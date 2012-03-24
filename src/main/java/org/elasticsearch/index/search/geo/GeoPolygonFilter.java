@@ -28,6 +28,7 @@ import org.elasticsearch.index.mapper.geo.GeoPointFieldData;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldDataType;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  *
@@ -58,6 +59,11 @@ public class GeoPolygonFilter extends Filter {
     public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
         final GeoPointFieldData fieldData = (GeoPointFieldData) fieldDataCache.cache(GeoPointFieldDataType.TYPE, reader, fieldName);
         return new GeoPolygonDocSet(reader.maxDoc(), fieldData, points);
+    }
+
+    @Override
+    public String toString() {
+        return "GeoPolygonFilter(" + fieldName + ", "  + Arrays.toString(points) + ")";
     }
 
     public static class GeoPolygonDocSet extends GetDocSet {

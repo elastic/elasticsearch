@@ -93,4 +93,17 @@ public class PublicTermsFilter extends Filter {
         }
         return result;
     }
+
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder();
+        for(Term term: terms) {
+            if(builder.length() > 0) {
+                builder.append(' ');
+            }
+            builder.append(term);
+        }
+        return builder.toString();
+    }
+
 }

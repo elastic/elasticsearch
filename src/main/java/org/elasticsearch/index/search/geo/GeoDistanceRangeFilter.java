@@ -152,6 +152,11 @@ public class GeoDistanceRangeFilter extends Filter {
     }
 
     @Override
+    public String toString() {
+        return "GeoDistanceRangeFilter(" + fieldName + ", "  + geoDistance + ", ["  + inclusiveLowerPoint + " - " + inclusiveUpperPoint + "], " + lat + ", " + lon + ")";
+    }
+
+    @Override
     public int hashCode() {
         int result;
         long temp;

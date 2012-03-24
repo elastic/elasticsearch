@@ -19,13 +19,17 @@
 
 package org.elasticsearch.action.admin.indices.validate.query;
 
+import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
+
+import static org.elasticsearch.action.admin.indices.validate.query.QueryExplanation.readQueryExplanation;
 
 /**
  * The response of the validate action.
@@ -35,14 +39,20 @@ import java.util.List;
 public class ValidateQueryResponse extends BroadcastOperationResponse {
 
     private boolean valid;
+    
+    private List<QueryExplanation> queryExplanations;
 
     ValidateQueryResponse() {
 
     }
 
-    ValidateQueryResponse(boolean valid, int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
+    ValidateQueryResponse(boolean valid, List<QueryExplanation> queryExplanations, int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.valid = valid;
+        this.queryExplanations = queryExplanations;
+        if (queryExplanations == null) {
+            this.queryExplanations = ImmutableList.of();
+        }
     }
 
     /**
@@ -59,15 +69,44 @@ public class ValidateQueryResponse extends BroadcastOperationResponse {
         return valid;
     }
 
+    /**
+     * The list of query explanations.
+     */
+    public List<? extends QueryExplanation> queryExplanations() {
+        if (queryExplanations == null) {
+            return ImmutableList.of();
+        }
+        return queryExplanations;
+    }
+
+    /**
+     * The list of query explanations.
+     */
+    public List<QueryExplanation> getQueryExplanation() {
+        return queryExplanations;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         valid = in.readBoolean();
+        int size = in.readVInt();
+        if (size > 0) {
+            queryExplanations = new ArrayList<QueryExplanation>(size);
+            for (int i = 0; i < size; i++) {
+                queryExplanations.add(readQueryExplanation(in));
+            }
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeBoolean(valid);
+        out.writeVInt(queryExplanations.size());
+        for (QueryExplanation exp : queryExplanations) {
+            exp.writeTo(out);
+        }
+
     }
 }

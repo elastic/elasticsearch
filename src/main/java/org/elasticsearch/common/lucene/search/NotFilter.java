@@ -66,6 +66,11 @@ public class NotFilter extends Filter {
     }
 
     @Override
+    public String toString() {
+        return "NotFilter(" + filter + ")";
+    }
+
+    @Override
     public int hashCode() {
         return filter != null ? filter.hashCode() : 0;
     }

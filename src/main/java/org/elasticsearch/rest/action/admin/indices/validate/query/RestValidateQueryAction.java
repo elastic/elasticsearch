@@ -20,6 +20,7 @@
 package org.elasticsearch.rest.action.admin.indices.validate.query;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.validate.query.QueryExplanation;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
@@ -83,6 +84,11 @@ public class RestValidateQueryAction extends BaseRestHandler {
                 }
             }
             validateQueryRequest.types(splitTypes(request.param("type")));
+            if (request.paramAsBoolean("explain", false)) {
+                validateQueryRequest.explain(true);
+            } else {
+                validateQueryRequest.explain(false);
+            }
         } catch (Exception e) {
             try {
                 XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
@@ -103,6 +109,24 @@ public class RestValidateQueryAction extends BaseRestHandler {
 
                     buildBroadcastShardsHeader(builder, response);
 
+                    if(response.queryExplanations() != null && !response.queryExplanations().isEmpty()) {
+                        builder.startArray("explanations");
+                        for (QueryExplanation explanation : response.queryExplanations()) {
+                            builder.startObject();
+                            if (explanation.index() != null) {
+                                builder.field("index", explanation.index(), XContentBuilder.FieldCaseConversion.NONE);
+                            }
+                            builder.field("valid", explanation.valid());
+                            if (explanation.error() != null) {
+                                builder.field("error", explanation.error());
+                            }
+                            if (explanation.explanation() != null) {
+                                builder.field("explanation", explanation.explanation());
+                            }
+                            builder.endObject();
+                        }
+                        builder.endArray();
+                    }
                     builder.endObject();
                     channel.sendResponse(new XContentRestResponse(request, OK, builder));
                 } catch (Exception e) {

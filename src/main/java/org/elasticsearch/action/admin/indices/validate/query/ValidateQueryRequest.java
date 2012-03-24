@@ -55,6 +55,8 @@ public class ValidateQueryRequest extends BroadcastOperationRequest {
     private int querySourceOffset;
     private int querySourceLength;
     private boolean querySourceUnsafe;
+    
+    private boolean explain;
 
     private String[] types = Strings.EMPTY_ARRAY;
 
@@ -205,6 +207,20 @@ public class ValidateQueryRequest extends BroadcastOperationRequest {
         return this;
     }
 
+    /**
+     * Indicate if detailed information about query is requested
+     */
+    public void explain(boolean explain) {
+        this.explain = explain;
+    }
+
+    /**
+     * Indicates if detailed information about query is requested
+     */
+    public boolean explain() {
+        return explain;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -222,6 +238,9 @@ public class ValidateQueryRequest extends BroadcastOperationRequest {
                 types[i] = in.readUTF();
             }
         }
+
+        explain = in.readBoolean();
+        
     }
 
     @Override
@@ -234,10 +253,12 @@ public class ValidateQueryRequest extends BroadcastOperationRequest {
         for (String type : types) {
             out.writeUTF(type);
         }
+        
+        out.writeBoolean(explain);
     }
 
     @Override
     public String toString() {
-        return "[" + Arrays.toString(indices) + "]" + Arrays.toString(types) + ", querySource[" + Unicode.fromBytes(querySource, querySourceOffset, querySourceLength) + "]";
+        return "[" + Arrays.toString(indices) + "]" + Arrays.toString(types) + ", querySource[" + Unicode.fromBytes(querySource, querySourceOffset, querySourceLength) + "], explain:" + explain;
     }
 }

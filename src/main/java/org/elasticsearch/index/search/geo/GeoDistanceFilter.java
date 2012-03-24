@@ -138,6 +138,11 @@ public class GeoDistanceFilter extends Filter {
     }
 
     @Override
+    public String toString() {
+        return "GeoDistanceFilter(" + fieldName + ", "  + geoDistance + ", "  + distance + ", " + lat + ", " + lon + ")";
+    }
+
+    @Override
     public int hashCode() {
         int result;
         long temp;

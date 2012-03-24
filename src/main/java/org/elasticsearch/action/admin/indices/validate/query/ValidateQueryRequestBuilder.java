@@ -51,6 +51,16 @@ public class ValidateQueryRequestBuilder extends BaseIndicesRequestBuilder<Valid
     }
 
     /**
+     * Indicates if detailed information about the query should be returned.
+     *
+     * @see org.elasticsearch.index.query.QueryBuilders
+     */
+    public ValidateQueryRequestBuilder setExplain(boolean explain) {
+        request.explain(explain);
+        return this;
+    }
+
+    /**
      * Controls the operation threading model.
      */
     public ValidateQueryRequestBuilder setOperationThreading(BroadcastOperationThreading operationThreading) {

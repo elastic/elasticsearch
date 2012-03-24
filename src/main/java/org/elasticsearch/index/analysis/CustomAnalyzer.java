@@ -20,6 +20,7 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.*;
+import org.apache.lucene.document.Fieldable;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -27,7 +28,7 @@ import java.io.Reader;
 /**
  *
  */
-public final class CustomAnalyzer extends Analyzer implements PositionIncrementGapAnalyzer {
+public final class CustomAnalyzer extends Analyzer {
 
     private final TokenizerFactory tokenizerFactory;
 
@@ -35,18 +36,22 @@ public final class CustomAnalyzer extends Analyzer implements PositionIncrementG
 
     private final TokenFilterFactory[] tokenFilters;
 
-    private int positionIncrementGap = 0;
+    private final int positionIncrementGap;
+    private final int offsetGap;
 
     public CustomAnalyzer(TokenizerFactory tokenizerFactory, CharFilterFactory[] charFilters, TokenFilterFactory[] tokenFilters) {
+        this(tokenizerFactory, charFilters, tokenFilters, 0, -1);
+    }
+
+    public CustomAnalyzer(TokenizerFactory tokenizerFactory, CharFilterFactory[] charFilters, TokenFilterFactory[] tokenFilters,
+                          int positionOffsetGap, int offsetGap) {
         this.tokenizerFactory = tokenizerFactory;
         this.charFilters = charFilters;
         this.tokenFilters = tokenFilters;
+        this.positionIncrementGap = positionOffsetGap;
+        this.offsetGap = offsetGap;
     }
 
-    @Override
-    public void setPositionIncrementGap(int positionIncrementGap) {
-        this.positionIncrementGap = positionIncrementGap;
-    }
 
     public TokenizerFactory tokenizerFactory() {
         return tokenizerFactory;
@@ -63,6 +68,14 @@ public final class CustomAnalyzer extends Analyzer implements PositionIncrementG
     @Override
     public int getPositionIncrementGap(String fieldName) {
         return this.positionIncrementGap;
+    }
+
+    @Override
+    public int getOffsetGap(Fieldable field) {
+        if (offsetGap < 0) {
+            return super.getOffsetGap(field);
+        }
+        return this.offsetGap;
     }
 
     @Override

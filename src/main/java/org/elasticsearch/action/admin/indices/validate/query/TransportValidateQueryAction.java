@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.IndexQueryParserService;
+import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -113,6 +114,7 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
         int failedShards = 0;
         boolean valid = true;
         List<ShardOperationFailedException> shardFailures = null;
+        List<QueryExplanation> queryExplanations = null;
         for (int i = 0; i < shardsResponses.length(); i++) {
             Object shardResponse = shardsResponses.get(i);
             if (shardResponse == null) {
@@ -124,29 +126,48 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
                 }
                 shardFailures.add(new DefaultShardOperationFailedException((BroadcastShardOperationFailedException) shardResponse));
             } else {
-                valid = valid && ((ShardValidateQueryResponse) shardResponse).valid();
+                ShardValidateQueryResponse validateQueryResponse = (ShardValidateQueryResponse) shardResponse;
+                valid = valid && validateQueryResponse.valid();
+                if(request.explain()) {
+                    if(queryExplanations == null) {
+                        queryExplanations = newArrayList();
+                    }
+                    queryExplanations.add(new QueryExplanation(
+                            validateQueryResponse.index(),
+                            validateQueryResponse.valid(),
+                            validateQueryResponse.explanation(),
+                            validateQueryResponse.error()
+                    ));
+                }
                 successfulShards++;
             }
         }
-        return new ValidateQueryResponse(valid, shardsResponses.length(), successfulShards, failedShards, shardFailures);
+        return new ValidateQueryResponse(valid, queryExplanations, shardsResponses.length(), successfulShards, failedShards, shardFailures);
     }
 
     @Override
     protected ShardValidateQueryResponse shardOperation(ShardValidateQueryRequest request) throws ElasticSearchException {
         IndexQueryParserService queryParserService = indicesService.indexServiceSafe(request.index()).queryParserService();
         boolean valid;
+        String explanation = null;
+        String error = null;
         if (request.querySource().length() == 0) {
             valid = true;
         } else {
             try {
-                queryParserService.parse(request.querySource().bytes(), request.querySource().offset(), request.querySource().length());
+                ParsedQuery parsedQuery = queryParserService.parse(request.querySource().bytes(), request.querySource().offset(), request.querySource().length());
                 valid = true;
+                if(request.explain()) {
+                    explanation = parsedQuery.query().toString();
+                }
             } catch (QueryParsingException e) {
                 valid = false;
+                error = e.getDetailedMessage();
             } catch (AssertionError e) {
                 valid = false;
+                error = e.getMessage();
             }
         }
-        return new ShardValidateQueryResponse(request.index(), request.shardId(), valid);
+        return new ShardValidateQueryResponse(request.index(), request.shardId(), valid, explanation, error);
     }
 }

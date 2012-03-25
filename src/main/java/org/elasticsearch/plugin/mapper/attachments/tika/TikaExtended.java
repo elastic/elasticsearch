@@ -35,6 +35,7 @@ import java.io.InputStream;
 /**
  * Extends the Tika class, so as to provide a way for setting the maximumStringLength on a per parse document basis.
  */
+// TODO: https://issues.apache.org/jira/browse/TIKA-870, once Tika 1.2 is out, we don't need this class anymore
 public class TikaExtended extends Tika {
 
     public String parseToString(InputStream stream, Metadata metadata, int maxStringLength)

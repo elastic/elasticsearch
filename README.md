@@ -3,21 +3,21 @@ Mapper Attachments Type for ElasticSearch
 
 The mapper attachments plugin adds the `attachment` type to ElasticSearch using Tika.
 
-In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-mapper-attachments/1.2.0`.
+In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-mapper-attachments/1.3.0`.
 
-    -----------------------------------------------
-    | Attachment Mapper Plugin | ElasticSearch    |
-    -----------------------------------------------
-    | master                   | 0.19 -> master   |
-    -----------------------------------------------
-    | 1.3.0                    | 0.19 -> master   |
-    -----------------------------------------------
-    | 1.2.0                    | 0.19 -> master   |
-    -----------------------------------------------
-    | 1.1.0                    | 0.19 -> master   |
-    -----------------------------------------------
-    | 1.0.0                    | 0.18             |
-    -----------------------------------------------
+    ------------------------------------------------------
+    | Attachment Mapper Plugin | ElasticSearch    | Tika |
+    ------------------------------------------------------
+    | master                   | 0.19 -> master   | 1.1  |
+    ------------------------------------------------------
+    | 1.3.0                    | 0.19 -> master   | 1.0  |
+    ------------------------------------------------------
+    | 1.2.0                    | 0.19 -> master   | 1.0  |
+    ------------------------------------------------------
+    | 1.1.0                    | 0.19 -> master   |      |
+    ------------------------------------------------------
+    | 1.0.0                    | 0.18             |      |
+    ------------------------------------------------------
 
 
 The `attachment` type allows to index different "attachment" type field (encoded as `base64`), for example, microsoft office formats, open document formats, ePub, HTML, and so on (full list can be found [here](http://lucene.apache.org/tika/0.10/formats.html)).

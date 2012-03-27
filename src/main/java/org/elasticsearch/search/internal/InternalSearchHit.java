@@ -32,13 +32,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.highlight.HighlightField;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -83,6 +82,7 @@ public class InternalSearchHit implements SearchHit {
     private SearchShardTarget shard;
 
     private Map<String, Object> sourceAsMap;
+    private byte[] sourceAsBytes;
 
     private InternalSearchHit() {
 
@@ -162,11 +162,11 @@ public class InternalSearchHit implements SearchHit {
         return type();
     }
 
-    @Override
-    public byte[] source() {
-        if (source == null) {
-            return null;
-        }
+
+    /**
+     * Returns bytes reference, also un compress the source if needed.
+     */
+    public BytesHolder sourceRef() {
         if (LZF.isCompressed(source.bytes(), source.offset(), source.length())) {
             try {
                 this.source = new BytesHolder(LZFDecoder.decode(source.bytes(), source.offset(), source.length()));
@@ -174,7 +174,26 @@ public class InternalSearchHit implements SearchHit {
                 throw new ElasticSearchParseException("failed to decompress source", e);
             }
         }
-        return this.source.copyBytes();
+        return this.source;
+    }
+
+    /**
+     * Internal source representation, might be compressed....
+     */
+    public BytesHolder internalSourceRef() {
+        return source;
+    }
+
+    @Override
+    public byte[] source() {
+        if (source == null) {
+            return null;
+        }
+        if (sourceAsBytes != null) {
+            return sourceAsBytes;
+        }
+        this.sourceAsBytes = sourceRef().copyBytes();
+        return this.sourceAsBytes;
     }
 
     @Override
@@ -192,6 +211,7 @@ public class InternalSearchHit implements SearchHit {
         if (source == null) {
             return null;
         }
+        BytesHolder source = sourceRef();
         return Unicode.fromBytes(source.bytes(), source.offset(), source.length());
     }
 
@@ -204,20 +224,9 @@ public class InternalSearchHit implements SearchHit {
         if (sourceAsMap != null) {
             return sourceAsMap;
         }
-        byte[] source = source();
-        XContentParser parser = null;
-        try {
-            parser = XContentFactory.xContent(source).createParser(source);
-            sourceAsMap = parser.map();
-            parser.close();
-            return sourceAsMap;
-        } catch (Exception e) {
-            throw new ElasticSearchParseException("Failed to parse source to map", e);
-        } finally {
-            if (parser != null) {
-                parser.close();
-            }
-        }
+
+        sourceAsMap = SourceLookup.sourceAsMap(source.bytes(), source.offset(), source.length());
+        return sourceAsMap;
     }
 
     @Override

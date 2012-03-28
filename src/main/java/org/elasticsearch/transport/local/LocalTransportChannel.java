@@ -75,7 +75,7 @@ public class LocalTransportChannel implements TransportChannel {
             stream.writeByte(status); // 0 for request, 1 for response.
             message.writeTo(stream);
             final byte[] data = cachedEntry.bytes().copiedByteArray();
-            targetTransport.threadPool().cached().execute(new Runnable() {
+            targetTransport.threadPool().generic().execute(new Runnable() {
                 @Override
                 public void run() {
                     targetTransport.messageReceived(data, action, sourceTransport, null);
@@ -107,7 +107,7 @@ public class LocalTransportChannel implements TransportChannel {
                 too.close();
             }
             final byte[] data = stream.copiedByteArray();
-            targetTransport.threadPool().cached().execute(new Runnable() {
+            targetTransport.threadPool().generic().execute(new Runnable() {
                 @Override
                 public void run() {
                     targetTransport.messageReceived(data, action, sourceTransport, null);

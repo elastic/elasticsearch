@@ -73,6 +73,11 @@ public class InMemoryGeoBoundingBoxFilter extends Filter {
         }
     }
 
+    @Override
+    public String toString() {
+        return "GeoBoundingBoxFilter(" + fieldName + ", "  + topLeft + ", " + bottomRight + ")";
+    }
+
     public static class Meridian180GeoBoundingBoxDocSet extends GetDocSet {
         private final GeoPointFieldData fieldData;
         private final Point topLeft;

@@ -17,33 +17,47 @@
  * under the License.
  */
 
-package org.apache.lucene.index;
+package org.elasticsearch.common.lucene.search;
 
-import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.Filter;
+
+import java.io.IOException;
 
 /**
- *
+ * A filter that matches no docs.
  */
-public class ExtendedIndexSearcher extends IndexSearcher {
+public class MatchNoDocsFilter extends Filter {
 
-    public ExtendedIndexSearcher(ExtendedIndexSearcher searcher) {
-        super(searcher.getIndexReader(), searcher.subReaders(), searcher.docStarts());
-        setSimilarity(searcher.getSimilarity());
+    @Override
+    public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
+        return null;
     }
 
-    public ExtendedIndexSearcher(IndexReader r) {
-        super(r);
+    @Override
+    public int hashCode() {
+        return this.getClass().hashCode();
     }
 
-    public IndexReader[] subReaders() {
-        return this.subReaders;
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj)
+            return true;
+
+        if (obj == null) {
+            return false;
+        }
+
+        if (obj.getClass() == this.getClass()) {
+            return true;
+        }
+
+        return false;
     }
 
-    public int[] docStarts() {
-        return this.docStarts;
-    }
-
-    public int readerIndex(int doc) {
-        return DirectoryReader.readerIndex(doc, docStarts, subReaders.length);
+    @Override
+    public String toString() {
+        return "MatchNoDocsFilter";
     }
 }

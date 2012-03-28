@@ -119,8 +119,8 @@ public class OsStats implements Streamable, Serializable, ToXContent {
         static final XContentBuilderString SWAP = new XContentBuilderString("swap");
         static final XContentBuilderString FREE = new XContentBuilderString("free");
         static final XContentBuilderString FREE_IN_BYTES = new XContentBuilderString("free_in_bytes");
-        static final XContentBuilderString USED = new XContentBuilderString("free");
-        static final XContentBuilderString USED_IN_BYTES = new XContentBuilderString("free_in_bytes");
+        static final XContentBuilderString USED = new XContentBuilderString("used");
+        static final XContentBuilderString USED_IN_BYTES = new XContentBuilderString("used_in_bytes");
 
         static final XContentBuilderString FREE_PERCENT = new XContentBuilderString("free_percent");
         static final XContentBuilderString USED_PERCENT = new XContentBuilderString("used_percent");

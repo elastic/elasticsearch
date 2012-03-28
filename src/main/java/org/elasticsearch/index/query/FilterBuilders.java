@@ -383,6 +383,10 @@ public abstract class FilterBuilders {
         return new NotFilterBuilder(filter);
     }
 
+    public static IndicesFilterBuilder indicesFilter(FilterBuilder filter, String... indices) {
+        return new IndicesFilterBuilder(filter, indices);
+    }
+
     private FilterBuilders() {
 
     }

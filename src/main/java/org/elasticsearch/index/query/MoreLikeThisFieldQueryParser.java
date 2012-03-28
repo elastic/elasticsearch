@@ -92,6 +92,8 @@ public class MoreLikeThisFieldQueryParser implements QueryParser {
                     mltQuery.setPercentTermsToMatch(parser.floatValue());
                 } else if ("analyzer".equals(currentFieldName)) {
                     analyzer = parseContext.analysisService().analyzer(parser.text());
+                } else if ("boost".equals(currentFieldName)) {
+                    mltQuery.setBoost(parser.floatValue());
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[mlt_field] query does not support [" + currentFieldName + "]");
                 }

@@ -175,6 +175,38 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                             }
                         }
                     }
+                    Boolean updateMetaDataBlock = openSettings.getAsBoolean(IndexMetaData.SETTING_BLOCKS_METADATA, null);
+                    if (updateMetaDataBlock != null) {
+                        for (String index : actualIndices) {
+                            if (updateMetaDataBlock) {
+                                blocks.addIndexBlock(index, IndexMetaData.INDEX_METADATA_BLOCK);
+                            } else {
+                                blocks.removeIndexBlock(index, IndexMetaData.INDEX_METADATA_BLOCK);
+                            }
+                        }
+                    }
+
+                    Boolean updateWriteBlock = openSettings.getAsBoolean(IndexMetaData.SETTING_BLOCKS_WRITE, null);
+                    if (updateWriteBlock != null) {
+                        for (String index : actualIndices) {
+                            if (updateWriteBlock) {
+                                blocks.addIndexBlock(index, IndexMetaData.INDEX_WRITE_BLOCK);
+                            } else {
+                                blocks.removeIndexBlock(index, IndexMetaData.INDEX_WRITE_BLOCK);
+                            }
+                        }
+                    }
+
+                    Boolean updateReadBlock = openSettings.getAsBoolean(IndexMetaData.SETTING_BLOCKS_READ, null);
+                    if (updateReadBlock != null) {
+                        for (String index : actualIndices) {
+                            if (updateReadBlock) {
+                                blocks.addIndexBlock(index, IndexMetaData.INDEX_READ_BLOCK);
+                            } else {
+                                blocks.removeIndexBlock(index, IndexMetaData.INDEX_READ_BLOCK);
+                            }
+                        }
+                    }
 
                     // allow to change any settings to a close index, and only allow dynamic settings to be changed
                     // on an open index

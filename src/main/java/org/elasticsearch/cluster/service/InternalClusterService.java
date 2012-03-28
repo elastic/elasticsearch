@@ -114,7 +114,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     protected void doStart() throws ElasticSearchException {
         this.clusterState = newClusterStateBuilder().blocks(initialBlocks).build();
         this.updateTasksExecutor = newSingleThreadExecutor(daemonThreadFactory(settings, "clusterService#updateTask"));
-        this.reconnectToNodes = threadPool.schedule(reconnectInterval, ThreadPool.Names.CACHED, new ReconnectToNodes());
+        this.reconnectToNodes = threadPool.schedule(reconnectInterval, ThreadPool.Names.GENERIC, new ReconnectToNodes());
     }
 
     @Override
@@ -181,7 +181,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
             return;
         }
         NotifyTimeout notifyTimeout = new NotifyTimeout(listener, timeout);
-        notifyTimeout.future = threadPool.schedule(timeout, ThreadPool.Names.CACHED, notifyTimeout);
+        notifyTimeout.future = threadPool.schedule(timeout, ThreadPool.Names.GENERIC, notifyTimeout);
         onGoingTimeouts.add(notifyTimeout);
         clusterStateListeners.add(listener);
         // call the post added notification on the same event thread
@@ -304,7 +304,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                     }
 
                     if (!nodesDelta.removedNodes().isEmpty()) {
-                        threadPool.cached().execute(new Runnable() {
+                        threadPool.generic().execute(new Runnable() {
                             @Override
                             public void run() {
                                 for (DiscoveryNode node : nodesDelta.removedNodes()) {
@@ -387,7 +387,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 }
             }
             if (lifecycle.started()) {
-                reconnectToNodes = threadPool.schedule(reconnectInterval, ThreadPool.Names.CACHED, this);
+                reconnectToNodes = threadPool.schedule(reconnectInterval, ThreadPool.Names.GENERIC, this);
             }
         }
     }

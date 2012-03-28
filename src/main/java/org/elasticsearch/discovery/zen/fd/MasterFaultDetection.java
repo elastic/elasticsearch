@@ -41,8 +41,6 @@ import static org.elasticsearch.transport.TransportRequestOptions.options;
 
 /**
  * A fault detection that pings the master periodically to see if its alive.
- *
- *
  */
 public class MasterFaultDetection extends AbstractComponent {
 
@@ -214,7 +212,7 @@ public class MasterFaultDetection extends AbstractComponent {
     }
 
     private void notifyDisconnectedFromMaster() {
-        threadPool.cached().execute(new Runnable() {
+        threadPool.generic().execute(new Runnable() {
             @Override
             public void run() {
                 for (Listener listener : listeners) {
@@ -226,7 +224,7 @@ public class MasterFaultDetection extends AbstractComponent {
 
     private void notifyMasterFailure(final DiscoveryNode masterNode, final String reason) {
         if (notifiedMasterFailure.compareAndSet(false, true)) {
-            threadPool.cached().execute(new Runnable() {
+            threadPool.generic().execute(new Runnable() {
                 @Override
                 public void run() {
                     for (Listener listener : listeners) {

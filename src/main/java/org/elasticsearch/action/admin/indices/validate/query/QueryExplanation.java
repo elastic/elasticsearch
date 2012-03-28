@@ -19,57 +19,87 @@
 
 package org.elasticsearch.action.admin.indices.validate.query;
 
-import org.elasticsearch.action.support.broadcast.BroadcastShardOperationResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Streamable;
 
 import java.io.IOException;
 
 /**
- * Internal validate response of a shard validate request executed directly against a specific shard.
- *
  *
  */
-class ShardValidateQueryResponse extends BroadcastShardOperationResponse {
+public class QueryExplanation  implements Streamable {
 
+    private String index;
+    
     private boolean valid;
     
     private String explanation;
-
-    private String error;
     
-    ShardValidateQueryResponse() {
+    private String error;
 
+    QueryExplanation() {
+        
     }
-
-    public ShardValidateQueryResponse(String index, int shardId, boolean valid, String explanation, String error) {
-        super(index, shardId);
+    
+    public QueryExplanation(String index, boolean valid, String explanation, String error) {
+        this.index = index;
         this.valid = valid;
         this.explanation = explanation;
         this.error = error;
     }
 
+    public String index() {
+        return this.index;
+    }
+
+    public String getIndex() {
+        return index();
+    }
+
     public boolean valid() {
         return this.valid;
     }
-    
-    public String explanation() {
-        return explanation;
+
+    public boolean getValid() {
+        return valid();
     }
-    
+
     public String error() {
-        return error;
+        return this.error;
+    }
+
+    public String getError() {
+        return error();
+    }
+
+    public String explanation() {
+        return this.explanation;
+    }
+
+    public String getExplanation() {
+        return explanation();
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
+        index = in.readUTF();
         valid = in.readBoolean();
+        explanation = in.readOptionalUTF();
+        error = in.readOptionalUTF();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
+        out.writeUTF(index);
         out.writeBoolean(valid);
+        out.writeOptionalUTF(explanation);
+        out.writeOptionalUTF(error);
+    }
+
+    public static QueryExplanation readQueryExplanation(StreamInput in)  throws IOException {
+        QueryExplanation exp = new QueryExplanation();
+        exp.readFrom(in);
+        return exp;
     }
 }

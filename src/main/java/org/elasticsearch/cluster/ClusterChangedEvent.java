@@ -135,7 +135,7 @@ public class ClusterChangedEvent {
         if (previousIndexMetaData == current) {
             return false;
         }
-        return false;
+        return true;
     }
 
     public boolean blocksChanged() {

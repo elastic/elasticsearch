@@ -239,7 +239,7 @@ public abstract class NetworkUtils {
         List<NetworkInterface> allInterfaces = new ArrayList<NetworkInterface>();
         for (Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces(); interfaces.hasMoreElements(); ) {
             NetworkInterface intf = interfaces.nextElement();
-            allInterfaces.add(interfaces.nextElement());
+            allInterfaces.add(intf);
 
             Enumeration<NetworkInterface> subInterfaces = intf.getSubInterfaces();
             if (subInterfaces != null && subInterfaces.hasMoreElements()) {

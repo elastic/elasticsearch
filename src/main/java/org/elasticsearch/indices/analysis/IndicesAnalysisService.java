@@ -67,10 +67,7 @@ import org.apache.lucene.analysis.ru.RussianStemFilter;
 import org.apache.lucene.analysis.shingle.ShingleFilter;
 import org.apache.lucene.analysis.snowball.SnowballAnalyzer;
 import org.apache.lucene.analysis.snowball.SnowballFilter;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.analysis.standard.StandardFilter;
-import org.apache.lucene.analysis.standard.StandardTokenizer;
-import org.apache.lucene.analysis.standard.UAX29URLEmailTokenizer;
+import org.apache.lucene.analysis.standard.*;
 import org.apache.lucene.analysis.sv.SwedishAnalyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
@@ -116,6 +113,7 @@ public class IndicesAnalysisService extends AbstractComponent {
         analyzerProviderFactories.put("stop", new PreBuiltAnalyzerProviderFactory("stop", AnalyzerScope.INDICES, new StopAnalyzer(Lucene.ANALYZER_VERSION)));
         analyzerProviderFactories.put("whitespace", new PreBuiltAnalyzerProviderFactory("whitespace", AnalyzerScope.INDICES, new WhitespaceAnalyzer(Lucene.ANALYZER_VERSION)));
         analyzerProviderFactories.put("simple", new PreBuiltAnalyzerProviderFactory("simple", AnalyzerScope.INDICES, new SimpleAnalyzer(Lucene.ANALYZER_VERSION)));
+        analyzerProviderFactories.put("classic", new PreBuiltAnalyzerProviderFactory("classic", AnalyzerScope.INDICES, new ClassicAnalyzer(Lucene.ANALYZER_VERSION)));
 
         // extended ones
         analyzerProviderFactories.put("pattern", new PreBuiltAnalyzerProviderFactory("pattern", AnalyzerScope.INDICES, new PatternAnalyzer(Lucene.ANALYZER_VERSION, Regex.compile("\\W+" /*PatternAnalyzer.NON_WORD_PATTERN*/, null), true, StopAnalyzer.ENGLISH_STOP_WORDS_SET)));
@@ -166,6 +164,18 @@ public class IndicesAnalysisService extends AbstractComponent {
             }
         }));
 
+        tokenizerFactories.put("classic", new PreBuiltTokenizerFactoryFactory(new TokenizerFactory() {
+            @Override
+            public String name() {
+                return "classic";
+            }
+
+            @Override
+            public Tokenizer create(Reader reader) {
+                return new ClassicTokenizer(Lucene.ANALYZER_VERSION, reader);
+            }
+        }));
+
         tokenizerFactories.put("uax_url_email", new PreBuiltTokenizerFactoryFactory(new TokenizerFactory() {
             @Override
             public String name() {
@@ -174,7 +184,7 @@ public class IndicesAnalysisService extends AbstractComponent {
 
             @Override
             public Tokenizer create(Reader reader) {
-                return new UAX29URLEmailTokenizer(reader);
+                return new UAX29URLEmailTokenizer(Lucene.ANALYZER_VERSION, reader);
             }
         }));
 
@@ -421,6 +431,18 @@ public class IndicesAnalysisService extends AbstractComponent {
             @Override
             public TokenStream create(TokenStream tokenStream) {
                 return new StandardFilter(Lucene.ANALYZER_VERSION, tokenStream);
+            }
+        }));
+
+        tokenFilterFactories.put("classic", new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
+            @Override
+            public String name() {
+                return "classic";
+            }
+
+            @Override
+            public TokenStream create(TokenStream tokenStream) {
+                return new ClassicFilter(tokenStream);
             }
         }));
 

@@ -33,10 +33,7 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.List;
-import java.util.Set;
-import java.util.TreeSet;
+import java.util.*;
 
 public class UidFilter extends Filter {
 
@@ -93,6 +90,11 @@ public class UidFilter extends Filter {
         if (o == null || getClass() != o.getClass()) return false;
         UidFilter uidFilter = (UidFilter) o;
         return !uids.equals(uidFilter.uids);
+    }
+
+    @Override
+    public String toString() {
+        return "UidFilter(" + uids + ")";
     }
 
     @Override

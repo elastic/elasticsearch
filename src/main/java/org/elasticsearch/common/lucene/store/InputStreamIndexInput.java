@@ -37,6 +37,9 @@ public class InputStreamIndexInput extends InputStream {
 
     private long counter = 0;
 
+    private long markPointer;
+    private long markCounter;
+
     public InputStreamIndexInput(IndexInput indexInput, long limit) {
         this.indexInput = indexInput;
         this.limit = limit;
@@ -81,5 +84,22 @@ public class InputStreamIndexInput extends InputStream {
             return -1;
         }
         return (indexInput.getFilePointer() < indexInput.length()) ? (indexInput.readByte() & 0xff) : -1;
+    }
+
+    @Override
+    public boolean markSupported() {
+        return true;
+    }
+
+    @Override
+    public synchronized void mark(int readlimit) {
+        markPointer = indexInput.getFilePointer();
+        markCounter = counter;
+    }
+
+    @Override
+    public synchronized void reset() throws IOException {
+        indexInput.seek(markPointer);
+        counter = markCounter;
     }
 }

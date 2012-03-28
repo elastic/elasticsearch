@@ -100,7 +100,7 @@ public class TransportClientNodesService extends AbstractComponent {
         } else {
             this.nodesSampler = new SimpleNodeSampler();
         }
-        this.nodesSamplerFuture = threadPool.schedule(nodesSamplerInterval, ThreadPool.Names.CACHED, new ScheduledNodeSampler());
+        this.nodesSamplerFuture = threadPool.schedule(nodesSamplerInterval, ThreadPool.Names.GENERIC, new ScheduledNodeSampler());
 
         // we want the transport service to throw connect exceptions, so we can retry
         transportService.throwConnectException(true);
@@ -248,7 +248,7 @@ public class TransportClientNodesService extends AbstractComponent {
             try {
                 nodesSampler.sample();
                 if (!closed) {
-                    nodesSamplerFuture = threadPool.schedule(nodesSamplerInterval, ThreadPool.Names.CACHED, this);
+                    nodesSamplerFuture = threadPool.schedule(nodesSamplerInterval, ThreadPool.Names.GENERIC, this);
                 }
             } catch (Exception e) {
                 logger.warn("failed to sample", e);

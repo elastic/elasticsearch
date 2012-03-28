@@ -62,7 +62,7 @@ public class TransportActionNodeProxy<Request extends ActionRequest, Response ex
             @Override
             public String executor() {
                 if (request.listenerThreaded()) {
-                    return ThreadPool.Names.CACHED;
+                    return ThreadPool.Names.GENERIC;
                 }
                 return ThreadPool.Names.SAME;
             }

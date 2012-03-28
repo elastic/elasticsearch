@@ -244,7 +244,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         Set<Integer> shardIds = shardIds();
         final CountDownLatch latch = new CountDownLatch(shardIds.size());
         for (final int shardId : shardIds) {
-            executor = executor == null ? threadPool.cached() : executor;
+            executor = executor == null ? threadPool.generic() : executor;
             executor.execute(new Runnable() {
                 @Override
                 public void run() {

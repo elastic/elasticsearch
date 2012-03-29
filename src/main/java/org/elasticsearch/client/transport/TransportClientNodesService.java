@@ -326,7 +326,8 @@ public class TransportClientNodesService extends AbstractComponent {
                                 try {
                                     transportService.connectToNode(listedNode);
                                 } catch (Exception e) {
-                                    logger.debug("failed to connect to node [{}], removed from nodes list", e, listedNode);
+                                    logger.debug("failed to connect to node [{}], ignoring...", e, listedNode);
+                                    latch.countDown();
                                     return;
                                 }
                             }

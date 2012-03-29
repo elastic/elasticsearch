@@ -276,7 +276,7 @@ public class TransportClientNodesService extends AbstractComponent {
                 try {
                     NodesInfoResponse nodeInfo = transportService.submitRequest(node, NodesInfoAction.NAME,
                             Requests.nodesInfoRequest("_local"),
-                            TransportRequestOptions.options().withTimeout(pingTimeout),
+                            TransportRequestOptions.options().withHighType().withTimeout(pingTimeout),
                             new FutureTransportResponseHandler<NodesInfoResponse>() {
                                 @Override
                                 public NodesInfoResponse newInstance() {
@@ -333,7 +333,7 @@ public class TransportClientNodesService extends AbstractComponent {
                             }
                             transportService.sendRequest(listedNode, NodesInfoAction.NAME,
                                     Requests.nodesInfoRequest("_all"),
-                                    TransportRequestOptions.options().withTimeout(pingTimeout),
+                                    TransportRequestOptions.options().withHighType().withTimeout(pingTimeout),
                                     new BaseTransportResponseHandler<NodesInfoResponse>() {
 
                                         @Override

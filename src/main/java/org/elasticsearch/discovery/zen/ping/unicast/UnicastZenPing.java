@@ -83,14 +83,20 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
     private final CopyOnWriteArrayList<UnicastHostsProvider> hostsProviders = new CopyOnWriteArrayList<UnicastHostsProvider>();
 
     public UnicastZenPing(ThreadPool threadPool, TransportService transportService, ClusterName clusterName) {
-        this(EMPTY_SETTINGS, threadPool, transportService, clusterName);
+        this(EMPTY_SETTINGS, threadPool, transportService, clusterName, null);
     }
 
-    public UnicastZenPing(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName) {
+    public UnicastZenPing(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName, @Nullable Set<UnicastHostsProvider> unicastHostsProviders) {
         super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
         this.clusterName = clusterName;
+
+        if (unicastHostsProviders != null) {
+            for (UnicastHostsProvider unicastHostsProvider : unicastHostsProviders) {
+                addHostsProvider(unicastHostsProvider);
+            }
+        }
 
         this.concurrentConnects = componentSettings.getAsInt("concurrent_connects", 10);
         String[] hostArr = componentSettings.getAsArray("hosts");

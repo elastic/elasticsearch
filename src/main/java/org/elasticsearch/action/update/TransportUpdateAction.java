@@ -48,6 +48,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.DocumentSourceMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.get.GetField;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.RoutingFieldMapper;
@@ -60,11 +61,15 @@ import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+
+import static com.google.common.collect.Maps.newHashMapWithExpectedSize;
 
 /**
  */
@@ -148,6 +153,35 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         shardOperation(request, listener, 0);
     }
 
+    protected Map<String, GetField> extractFieldsFromSource(final UpdateRequest request, final Map<String, Object> source) {
+        Map<String, GetField> fields = null;
+        if (request.fields() != null && request.fields().length > 0) {
+            SourceLookup sourceLookup = new SourceLookup();
+            sourceLookup.setNextSource(source);
+            for (String field : request.fields()) {
+                Object value = null;
+                if (field.equals("_source")) {
+                    value = source;
+                } else {
+                    value = sourceLookup.extractValue(field);
+                }
+                if (value != null) {
+                    if (fields == null) {
+                        fields = newHashMapWithExpectedSize(2);
+                    }
+                    GetField getField = fields.get(field);
+                    if (getField == null) {
+                        getField = new GetField(field, new ArrayList<Object>(2));
+                        fields.put(field, getField);
+                    }
+                    getField.values().add(value);
+                }
+            }
+        }
+
+        return fields;
+    }
+
     protected void shardOperation(final UpdateRequest request, final ActionListener<UpdateResponse> listener, final int retryCount) throws ElasticSearchException {
         IndexService indexService = indicesService.indexServiceSafe(request.index());
         IndexShard indexShard = indexService.shardSafe(request.shardId());
@@ -207,6 +241,9 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
             }
         }
 
+        // Extract fields from updated source if necessary
+        final Map<String, GetField> fields = extractFieldsFromSource(request, source);
+
         // TODO: external version type, does it make sense here? does not seem like it...
 
         if (operation == null || "index".equals(operation)) {
@@ -222,6 +259,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 public void onResponse(IndexResponse response) {
                     UpdateResponse update = new UpdateResponse(response.index(), response.type(), response.id(), response.version());
                     update.matches(response.matches());
+                    update.fields(fields);
                     listener.onResponse(update);
                 }
 
@@ -250,6 +288,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 @Override
                 public void onResponse(DeleteResponse response) {
                     UpdateResponse update = new UpdateResponse(response.index(), response.type(), response.id(), response.version());
+                    update.fields(fields);
                     listener.onResponse(update);
                 }
 
@@ -271,7 +310,9 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 }
             });
         } else if ("none".equals(operation)) {
-            listener.onResponse(new UpdateResponse(getResult.index(), getResult.type(), getResult.id(), getResult.version()));
+            UpdateResponse update = new UpdateResponse(getResult.index(), getResult.type(), getResult.id(), getResult.version());
+            update.fields(fields);
+            listener.onResponse(update);
         } else {
             logger.warn("Used update operation [{}] for script [{}], doing nothing...", operation, request.script);
             listener.onResponse(new UpdateResponse(getResult.index(), getResult.type(), getResult.id(), getResult.version()));

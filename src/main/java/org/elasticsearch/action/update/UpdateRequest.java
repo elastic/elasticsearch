@@ -49,6 +49,8 @@ public class UpdateRequest extends InstanceShardOperationRequest {
     @Nullable
     Map<String, Object> scriptParams;
 
+    private String[] fields;
+
     int retryOnConflict = 0;
 
     private String percolate;
@@ -231,6 +233,21 @@ public class UpdateRequest extends InstanceShardOperationRequest {
     }
 
     /**
+     * Explicitly specify the fields that will be returned. By default, nothing is returned.
+     */
+    public UpdateRequest fields(String... fields) {
+        this.fields = fields;
+        return this;
+    }
+
+    /**
+     * Get the fields to be returned.
+     */
+    public String[] fields() {
+        return this.fields;
+    }
+
+    /**
      * Sets the number of retries of a version conflict occurs because the document was updated between
      * getting it and updating it. Defaults to 1.
      */
@@ -333,6 +350,13 @@ public class UpdateRequest extends InstanceShardOperationRequest {
             percolate = in.readUTF();
         }
         refresh = in.readBoolean();
+        int size = in.readInt();
+        if (size >= 0) {
+            fields = new String[size];
+            for (int i = 0; i < size; i++) {
+                fields[i] = in.readUTF();
+            }
+        }
     }
 
     @Override
@@ -364,5 +388,13 @@ public class UpdateRequest extends InstanceShardOperationRequest {
             out.writeUTF(percolate);
         }
         out.writeBoolean(refresh);
+        if (fields == null) {
+            out.writeInt(-1);
+        } else {
+            out.writeInt(fields.length);
+            for (String field : fields) {
+                out.writeUTF(field);
+            }
+        }
     }
 }

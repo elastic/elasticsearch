@@ -25,12 +25,14 @@ import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.get.GetField;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
@@ -76,6 +78,13 @@ public class RestUpdateAction extends BaseRestHandler {
                 updateRequest.addScriptParam(entry.getKey().substring(3), entry.getValue());
             }
         }
+        String sField = request.param("fields");
+        if (sField != null) {
+            String[] sFields = Strings.splitStringByCommaToArray(sField);
+            if (sFields != null) {
+                updateRequest.fields(sFields);
+            }
+        }
         updateRequest.retryOnConflict(request.paramAsInt("retry_on_conflict", updateRequest.retryOnConflict()));
 
         // see if we have it in the body
@@ -116,6 +125,34 @@ public class RestUpdateAction extends BaseRestHandler {
                             .field(Fields._TYPE, response.type())
                             .field(Fields._ID, response.id())
                             .field(Fields._VERSION, response.version());
+
+                    if (response.fields() != null) {
+                        Map<String, GetField> fields = response.fields();
+                        GetField sourceField = fields.get("_source");
+                        if (sourceField != null) {
+                            builder.field(Fields._SOURCE, sourceField.values().get(0));
+                            fields.remove("_source");
+                        }
+                        if (fields.size() > 0) {
+                            builder.startObject(Fields.FIELDS);
+                            for (GetField field : fields.values()) {
+                                if (field.values().isEmpty()) {
+                                    continue;
+                                }
+                                if (field.values().size() == 1) {
+                                    builder.field(field.name(), field.values().get(0));
+                                } else {
+                                    builder.field(field.name());
+                                    builder.startArray();
+                                    for (Object value : field.values()) {
+                                        builder.value(value);
+                                    }
+                                    builder.endArray();
+                                }
+                            }
+                            builder.endObject();
+                        }
+                    }
                     if (response.matches() != null) {
                         builder.startArray(Fields.MATCHES);
                         for (String match : response.matches()) {
@@ -151,6 +188,8 @@ public class RestUpdateAction extends BaseRestHandler {
         static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
         static final XContentBuilderString _ID = new XContentBuilderString("_id");
         static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
+        static final XContentBuilderString _SOURCE = new XContentBuilderString("_source");
         static final XContentBuilderString MATCHES = new XContentBuilderString("matches");
+        static final XContentBuilderString FIELDS = new XContentBuilderString("fields");
     }
 }

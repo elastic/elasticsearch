@@ -112,6 +112,14 @@ public class UpdateRequestBuilder extends BaseRequestBuilder<UpdateRequest, Upda
     }
 
     /**
+     * Explicitly specify the fields that will be returned. By default, nothing is returned.
+     */
+    public UpdateRequestBuilder setFields(String... fields) {
+        request.fields(fields);
+        return this;
+    }
+
+    /**
      * Sets the number of retries of a version conflict occurs because the document was updated between
      * getting it and updating it. Defaults to 1.
      */

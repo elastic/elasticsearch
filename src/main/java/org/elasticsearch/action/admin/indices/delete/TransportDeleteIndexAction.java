@@ -84,7 +84,7 @@ public class TransportDeleteIndexAction extends TransportMasterNodeOperationActi
 
     @Override
     protected void doExecute(DeleteIndexRequest request, ActionListener<DeleteIndexResponse> listener) {
-        if (disableDeleteAllIndices && (request.indices() == null || request.indices().length == 0)) {
+        if (disableDeleteAllIndices && (request.indices() == null || request.indices().length == 0 || (request.indices().length == 1 && request.indices()[0].equals("_all")))) {
             throw new ElasticSearchIllegalArgumentException("deleting all indices is disabled");
         }
         request.indices(clusterService.state().metaData().concreteIndices(request.indices()));

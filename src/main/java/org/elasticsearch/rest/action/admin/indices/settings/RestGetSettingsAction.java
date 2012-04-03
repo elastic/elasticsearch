@@ -30,6 +30,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
@@ -37,6 +39,7 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.action.support.RestActions.splitIndices;
 
@@ -67,12 +70,19 @@ public class RestGetSettingsAction extends BaseRestHandler {
             public void onResponse(ClusterStateResponse response) {
                 try {
                     MetaData metaData = response.state().metaData();
+
+                    if (metaData.indices().isEmpty()) {
+                        channel.sendResponse(new XContentThrowableRestResponse(request, new IndexMissingException(new Index(indices[0]))));
+                        return;
+                    }
+
+                    boolean foundAny = false;
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
 
                     for (IndexMetaData indexMetaData : metaData) {
                         builder.startObject(indexMetaData.index(), XContentBuilder.FieldCaseConversion.NONE);
-
+                        foundAny = true;
                         builder.startObject("settings");
                         Settings settings = settingsFilter.filterSettings(indexMetaData.settings());
                         for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
@@ -85,7 +95,7 @@ public class RestGetSettingsAction extends BaseRestHandler {
 
                     builder.endObject();
 
-                    channel.sendResponse(new XContentRestResponse(request, OK, builder));
+                    channel.sendResponse(new XContentRestResponse(request, foundAny ? OK : NOT_FOUND, builder));
                 } catch (Exception e) {
                     onFailure(e);
                 }

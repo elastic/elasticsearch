@@ -41,6 +41,7 @@ import java.io.IOException;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.action.support.RestActions.splitIndices;
 import static org.elasticsearch.rest.action.support.RestActions.splitTypes;
@@ -72,15 +73,18 @@ public class RestGetMappingAction extends BaseRestHandler {
             @Override
             public void onResponse(ClusterStateResponse response) {
                 try {
+                    boolean foundAny = false;
+
                     MetaData metaData = response.state().metaData();
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
 
+                    if (indices.length == 1 && metaData.indices().isEmpty()) {
+                        channel.sendResponse(new XContentThrowableRestResponse(request, new IndexMissingException(new Index(indices[0]))));
+                        return;
+                    }
+
                     if (indices.length == 1 && types.size() == 1) {
-                        if (metaData.indices().isEmpty()) {
-                            channel.sendResponse(new XContentThrowableRestResponse(request, new IndexMissingException(new Index(indices[0]))));
-                            return;
-                        }
                         boolean foundType = false;
                         IndexMetaData indexMetaData = metaData.iterator().next();
                         for (MappingMetaData mappingMd : indexMetaData.mappings().values()) {
@@ -88,6 +92,7 @@ public class RestGetMappingAction extends BaseRestHandler {
                                 // filter this type out...
                                 continue;
                             }
+                            foundAny = true;
                             foundType = true;
                             builder.field(mappingMd.type());
                             builder.map(mappingMd.sourceAsMap());
@@ -105,6 +110,7 @@ public class RestGetMappingAction extends BaseRestHandler {
                                     // filter this type out...
                                     continue;
                                 }
+                                foundAny = true;
                                 builder.field(mappingMd.type());
                                 builder.map(mappingMd.sourceAsMap());
                             }
@@ -115,7 +121,7 @@ public class RestGetMappingAction extends BaseRestHandler {
 
                     builder.endObject();
 
-                    channel.sendResponse(new XContentRestResponse(request, OK, builder));
+                    channel.sendResponse(new XContentRestResponse(request, foundAny ? OK : NOT_FOUND, builder));
                 } catch (Exception e) {
                     onFailure(e);
                 }

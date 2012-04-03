@@ -67,7 +67,7 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
     GetResult() {
     }
 
-    GetResult(String index, String type, String id, long version, boolean exists, BytesHolder source, Map<String, GetField> fields) {
+    public GetResult(String index, String type, String id, long version, boolean exists, BytesHolder source, Map<String, GetField> fields) {
         this.index = index;
         this.type = type;
         this.id = id;
@@ -252,6 +252,35 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
         static final XContentBuilderString FIELDS = new XContentBuilderString("fields");
     }
 
+    public XContentBuilder toXContentEmbedded(XContentBuilder builder, Params params) throws IOException {
+        builder.field(Fields.EXISTS, exists);
+
+        if (source != null) {
+            RestXContentBuilder.restDocumentSource(source.bytes(), source.offset(), source.length(), builder, params);
+        }
+
+        if (fields != null && !fields.isEmpty()) {
+            builder.startObject(Fields.FIELDS);
+            for (GetField field : fields.values()) {
+                if (field.values().isEmpty()) {
+                    continue;
+                }
+                if (field.values().size() == 1) {
+                    builder.field(field.name(), field.values().get(0));
+                } else {
+                    builder.field(field.name());
+                    builder.startArray();
+                    for (Object value : field.values()) {
+                        builder.value(value);
+                    }
+                    builder.endArray();
+                }
+            }
+            builder.endObject();
+        }
+        return builder;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (!exists()) {
@@ -270,30 +299,7 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
                 builder.field(Fields._VERSION, version);
             }
             builder.field(Fields.EXISTS, true);
-            if (source != null) {
-                RestXContentBuilder.restDocumentSource(source.bytes(), source.offset(), source.length(), builder, params);
-            }
-
-            if (fields != null && !fields.isEmpty()) {
-                builder.startObject(Fields.FIELDS);
-                for (GetField field : fields.values()) {
-                    if (field.values().isEmpty()) {
-                        continue;
-                    }
-                    if (field.values().size() == 1) {
-                        builder.field(field.name(), field.values().get(0));
-                    } else {
-                        builder.field(field.name());
-                        builder.startArray();
-                        for (Object value : field.values()) {
-                            builder.value(value);
-                        }
-                        builder.endArray();
-                    }
-                }
-                builder.endObject();
-            }
-
+            toXContentEmbedded(builder, params);
 
             builder.endObject();
         }

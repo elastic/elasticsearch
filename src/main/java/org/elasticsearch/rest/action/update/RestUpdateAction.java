@@ -32,7 +32,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.get.GetField;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
@@ -126,33 +125,12 @@ public class RestUpdateAction extends BaseRestHandler {
                             .field(Fields._ID, response.id())
                             .field(Fields._VERSION, response.version());
 
-                    if (response.fields() != null) {
-                        Map<String, GetField> fields = response.fields();
-                        GetField sourceField = fields.get("_source");
-                        if (sourceField != null) {
-                            builder.field(Fields._SOURCE, sourceField.values().get(0));
-                            fields.remove("_source");
-                        }
-                        if (fields.size() > 0) {
-                            builder.startObject(Fields.FIELDS);
-                            for (GetField field : fields.values()) {
-                                if (field.values().isEmpty()) {
-                                    continue;
-                                }
-                                if (field.values().size() == 1) {
-                                    builder.field(field.name(), field.values().get(0));
-                                } else {
-                                    builder.field(field.name());
-                                    builder.startArray();
-                                    for (Object value : field.values()) {
-                                        builder.value(value);
-                                    }
-                                    builder.endArray();
-                                }
-                            }
-                            builder.endObject();
-                        }
+                    if (response.getResult() != null) {
+                        builder.startObject(Fields.GET);
+                        response.getResult().toXContentEmbedded(builder, request);
+                        builder.endObject();
                     }
+
                     if (response.matches() != null) {
                         builder.startArray(Fields.MATCHES);
                         for (String match : response.matches()) {
@@ -188,8 +166,7 @@ public class RestUpdateAction extends BaseRestHandler {
         static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
         static final XContentBuilderString _ID = new XContentBuilderString("_id");
         static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
-        static final XContentBuilderString _SOURCE = new XContentBuilderString("_source");
         static final XContentBuilderString MATCHES = new XContentBuilderString("matches");
-        static final XContentBuilderString FIELDS = new XContentBuilderString("fields");
+        static final XContentBuilderString GET = new XContentBuilderString("get");
     }
 }

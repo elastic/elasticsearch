@@ -329,6 +329,10 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         return source;
     }
 
+    public BytesHolder underlyingSourceBytes() {
+        return new BytesHolder(underlyingSource(), underlyingSourceOffset(), underlyingSourceLength());
+    }
+
     public byte[] underlyingSource() {
         if (sourceUnsafe) {
             source();

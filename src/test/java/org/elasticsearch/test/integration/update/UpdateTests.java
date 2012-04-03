@@ -173,6 +173,8 @@ public class UpdateTests extends AbstractNodesTests {
         // check fields parameter
         client.prepareIndex("test", "type1", "1").setSource("field", 1).execute().actionGet();
         updateResponse = client.prepareUpdate("test", "type1", "1").setScript("ctx._source.field += 1").setFields("_source", "field").execute().actionGet();
-        assertThat(updateResponse.fields().size(), equalTo(2));
+        assertThat(updateResponse.getResult(), notNullValue());
+        assertThat(updateResponse.getResult().sourceRef(), notNullValue());
+        assertThat(updateResponse.getResult().field("field").value(), notNullValue());
     }
 }

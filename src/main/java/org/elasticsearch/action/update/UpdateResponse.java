@@ -20,19 +20,14 @@
 package org.elasticsearch.action.update;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.get.GetField;
+import org.elasticsearch.index.get.GetResult;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-
-import static com.google.common.collect.Maps.newHashMapWithExpectedSize;
-import static org.elasticsearch.index.get.GetField.readGetField;
 
 /**
  */
@@ -48,7 +43,7 @@ public class UpdateResponse implements ActionResponse {
 
     private List<String> matches;
 
-    private Map<String, GetField> fields;
+    private GetResult getResult;
 
     public UpdateResponse() {
 
@@ -131,25 +126,16 @@ public class UpdateResponse implements ActionResponse {
         return this.matches;
     }
 
-    /**
-     * Internal.
-     */
-    public void fields(Map<String, GetField> fields) {
-        this.fields = fields;
+    void getResult(GetResult getResult) {
+        this.getResult = getResult;
     }
 
-    /**
-     * Returns extracted fields from updated source. <tt>null</tt> if no field was requested.
-     */
-    public Map<String, GetField> fields() {
-        return this.fields;
+    public GetResult getResult() {
+        return this.getResult;
     }
 
-    /**
-     * Returns extracted fields from updated source. <tt>null</tt> if no field was requested.
-     */
-    public Map<String, GetField> getFields() {
-        return this.fields;
+    public GetResult getGetResult() {
+        return this.getResult;
     }
 
     /**
@@ -186,15 +172,8 @@ public class UpdateResponse implements ActionResponse {
                 }
             }
         }
-        int size = in.readVInt();
-        if (size == 0) {
-            fields = ImmutableMap.of();
-        } else {
-            fields = newHashMapWithExpectedSize(size);
-            for (int i = 0; i < size; i++) {
-                GetField field = readGetField(in);
-                fields.put(field.name(), field);
-            }
+        if (in.readBoolean()) {
+            getResult = GetResult.readGetResult(in);
         }
     }
 
@@ -213,13 +192,11 @@ public class UpdateResponse implements ActionResponse {
                 out.writeUTF(match);
             }
         }
-        if (fields == null) {
-            out.writeVInt(0);
+        if (getResult == null) {
+            out.writeBoolean(false);
         } else {
-            out.writeVInt(fields.size());
-            for (GetField field : fields.values()) {
-                field.writeTo(out);
-            }
+            out.writeBoolean(true);
+            getResult.writeTo(out);
         }
     }
 }

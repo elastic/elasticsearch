@@ -24,6 +24,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.lzf.LZF;
@@ -39,6 +40,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
+import org.elasticsearch.index.source.ExternalSourceProvider;
 
 import java.io.IOException;
 import java.util.List;
@@ -68,6 +70,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
         public static final boolean OMIT_TERM_FREQ_AND_POSITIONS = true;
         public static final String[] INCLUDES = Strings.EMPTY_ARRAY;
         public static final String[] EXCLUDES = Strings.EMPTY_ARRAY;
+        public static final ExternalSourceProvider EXTERNAL_SOURCE_PROVIDER = null;
     }
 
     public static class Builder extends Mapper.Builder<Builder, SourceFieldMapper> {
@@ -82,6 +85,8 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
 
         private String[] includes = Defaults.INCLUDES;
         private String[] excludes = Defaults.EXCLUDES;
+        
+        private ExternalSourceProvider externalSourceProvider = Defaults.EXTERNAL_SOURCE_PROVIDER;
 
         public Builder() {
             super(Defaults.NAME);
@@ -116,10 +121,15 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
             this.excludes = excludes;
             return this;
         }
+        
+        public Builder provider(ExternalSourceProvider externalSourceProvider) {
+            this.externalSourceProvider = externalSourceProvider;
+            return this;
+        }
 
         @Override
         public SourceFieldMapper build(BuilderContext context) {
-            return new SourceFieldMapper(name, enabled, format, compress, compressThreshold, includes, excludes);
+            return new SourceFieldMapper(name, enabled, format, compress, compressThreshold, includes, excludes, externalSourceProvider);
         }
     }
 
@@ -159,6 +169,13 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
                         excludes[i] = values.get(i).toString();
                     }
                     builder.excludes(excludes);
+                } else if ("provider".equals(fieldName)) {
+                    String sourceProviderType = nodeStringValue(fieldNode, null);
+                    ExternalSourceProvider externalSourceProvider = parserContext.sourceProviderService().externalSourceProvider(sourceProviderType);
+                    if (externalSourceProvider == null) {
+                        throw new MapperParsingException("Unable to find external source provider with name  [" + sourceProviderType + "]");
+                    }
+                    builder.provider(externalSourceProvider);
                 }
             }
             return builder;
@@ -179,12 +196,14 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
     private String format;
 
     private XContentType formatContentType;
+    
+    private ExternalSourceProvider externalSourceProvider;
 
     public SourceFieldMapper() {
-        this(Defaults.NAME, Defaults.ENABLED, Defaults.FORMAT, null, -1, Defaults.INCLUDES, Defaults.EXCLUDES);
+        this(Defaults.NAME, Defaults.ENABLED, Defaults.FORMAT, null, -1, Defaults.INCLUDES, Defaults.EXCLUDES, Defaults.EXTERNAL_SOURCE_PROVIDER);
     }
 
-    protected SourceFieldMapper(String name, boolean enabled, String format, Boolean compress, long compressThreshold, String[] includes, String[] excludes) {
+    protected SourceFieldMapper(String name, boolean enabled, String format, Boolean compress, long compressThreshold, String[] includes, String[] excludes, ExternalSourceProvider externalSourceProvider) {
         super(new Names(name, name, name, name), Defaults.INDEX, Defaults.STORE, Defaults.TERM_VECTOR, Defaults.BOOST,
                 Defaults.OMIT_NORMS, Defaults.OMIT_TERM_FREQ_AND_POSITIONS, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
         this.enabled = enabled;
@@ -194,6 +213,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
         this.excludes = excludes;
         this.format = format;
         this.formatContentType = format == null ? null : XContentType.fromRestContentType(format);
+        this.externalSourceProvider = externalSourceProvider;
     }
 
     public boolean enabled() {
@@ -242,31 +262,66 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
         int dataOffset = context.sourceOffset();
         int dataLength = context.sourceLength();
 
+        boolean updateContext = true;
+
+        if (externalSourceProvider != null ) {
+            BytesHolder dehydratedSource = externalSourceProvider.dehydrateSource(context.type(), context.id(), data, dataOffset, dataLength);
+            if (dehydratedSource == null) {
+                // Source shouldn't be stored
+                return null;
+            } else {
+                data = dehydratedSource.bytes();
+                dataOffset = dehydratedSource.offset();
+                dataLength = dehydratedSource.length();
+            }
+            if (dataLength == 0) {
+                // No more processing is required
+                return new Field(names().indexName(), data, dataOffset, dataLength);
+            }
+            // Don't update context source
+            updateContext = false;
+        }
+
         boolean filtered = includes.length > 0 || excludes.length > 0;
         if (filtered) {
             // we don't update the context source if we filter, we want to keep it as is...
+            if (includes.length > 0 || excludes.length > 0) {
+                Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(data, dataOffset, dataLength, true);
+                Map<String, Object> filteredSource = XContentMapValues.filter(mapTuple.v2(), includes, excludes);
+                CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
+                try {
+                    StreamOutput streamOutput;
+                    if (compress != null && compress && (compressThreshold == -1 || dataLength > compressThreshold)) {
+                        streamOutput = cachedEntry.cachedLZFBytes();
+                    } else {
+                        streamOutput = cachedEntry.cachedBytes();
+                    }
+                    XContentType contentType = formatContentType;
+                    if (contentType == null) {
+                        contentType = mapTuple.v1();
+                    }
+                    XContentBuilder builder = XContentFactory.contentBuilder(contentType, streamOutput).map(filteredSource);
+                    builder.close();
 
-            Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(data, dataOffset, dataLength, true);
-            Map<String, Object> filteredSource = XContentMapValues.filter(mapTuple.v2(), includes, excludes);
-            CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
-            StreamOutput streamOutput;
-            if (compress != null && compress && (compressThreshold == -1 || dataLength > compressThreshold)) {
-                streamOutput = cachedEntry.cachedLZFBytes();
-            } else {
-                streamOutput = cachedEntry.cachedBytes();
+                    data = cachedEntry.bytes().copiedByteArray();
+                    dataOffset = 0;
+                    dataLength = data.length;
+                } finally {
+                    CachedStreamOutput.pushEntry(cachedEntry);
+                }
+            } else if (compress != null && compress && (compressThreshold == -1 || dataLength > compressThreshold) && !LZF.isCompressed(data, dataOffset, dataLength)) {
+                CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
+                try {
+                    LZFStreamOutput streamOutput = cachedEntry.cachedLZFBytes();
+                    streamOutput.writeBytes(data, dataOffset, dataLength);
+                    streamOutput.flush();
+                    data = cachedEntry.bytes().copiedByteArray();
+                    dataOffset = 0;
+                    dataLength = data.length;
+                } finally {
+                    CachedStreamOutput.pushEntry(cachedEntry);
+                }
             }
-            XContentType contentType = formatContentType;
-            if (contentType == null) {
-                contentType = mapTuple.v1();
-            }
-            XContentBuilder builder = XContentFactory.contentBuilder(contentType, streamOutput).map(filteredSource);
-            builder.close();
-
-            data = cachedEntry.bytes().copiedByteArray();
-            dataOffset = 0;
-            dataLength = data.length;
-
-            CachedStreamOutput.pushEntry(cachedEntry);
         } else if (compress != null && compress && !LZF.isCompressed(data, dataOffset, dataLength)) {
             if (compressThreshold == -1 || dataLength > compressThreshold) {
                 CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
@@ -287,7 +342,9 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
                     dataOffset = 0;
                     dataLength = data.length;
                     // update the data in the context, so it can be compressed and stored compressed outside...
-                    context.source(data, dataOffset, dataLength);
+                    if (updateContext) {
+                        context.source(data, dataOffset, dataLength);
+                    }
                 } finally {
                     CachedStreamOutput.pushEntry(cachedEntry);
                 }
@@ -311,7 +368,9 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
                         dataOffset = 0;
                         dataLength = data.length;
                         // update the data in the context, so we store it in the translog in this format
-                        context.source(data, dataOffset, dataLength);
+                        if (updateContext) {
+                            context.source(data, dataOffset, dataLength);
+                        }
                     } finally {
                         CachedStreamOutput.pushEntry(cachedEntry);
                     }
@@ -330,7 +389,9 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
                         dataOffset = 0;
                         dataLength = data.length;
                         // update the data in the context, so we store it in the translog in this format
-                        context.source(data, dataOffset, dataLength);
+                        if (updateContext) {
+                            context.source(data, dataOffset, dataLength);
+                        }
                     } finally {
                         CachedStreamOutput.pushEntry(cachedEntry);
                     }
@@ -345,8 +406,13 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
         return field == null ? null : value(field);
     }
 
-    public byte[] nativeValue(Fieldable field) {
-        return field.getBinaryValue();
+    public BytesHolder extractSource(String type, String id, Fieldable fieldable) {
+        if (externalSourceProvider != null) {
+            return externalSourceProvider.rehydrateSource(type, id, fieldable.getBinaryValue(),
+                fieldable.getBinaryOffset(), fieldable.getBinaryLength());
+        } else {
+            return new BytesHolder(fieldable.getBinaryValue(), fieldable.getBinaryOffset(), fieldable.getBinaryLength());
+        }
     }
 
     @Override
@@ -388,7 +454,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // all are defaults, no need to write it at all
-        if (enabled == Defaults.ENABLED && compress == null && compressThreshold == -1 && includes.length == 0 && excludes.length == 0) {
+        if (enabled == Defaults.ENABLED && compress == null && compressThreshold == -1 && includes.length == 0 && excludes.length == 0 && externalSourceProvider == Defaults.EXTERNAL_SOURCE_PROVIDER) {
             return builder;
         }
         builder.startObject(contentType());
@@ -409,6 +475,9 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
         }
         if (excludes.length > 0) {
             builder.field("excludes", excludes);
+        }
+        if (externalSourceProvider != null) {
+            builder.field("provider", externalSourceProvider.name());
         }
         builder.endObject();
         return builder;

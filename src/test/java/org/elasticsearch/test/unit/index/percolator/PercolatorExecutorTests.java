@@ -39,6 +39,7 @@ import org.elasticsearch.index.percolator.PercolatorExecutor;
 import org.elasticsearch.index.query.IndexQueryParserModule;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
+import org.elasticsearch.index.source.ExternalSourceProviderModule;
 import org.elasticsearch.indices.query.IndicesQueriesModule;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.threadpool.ThreadPoolModule;
@@ -76,6 +77,7 @@ public class PercolatorExecutorTests {
                 new SimilarityModule(settings),
                 new IndexQueryParserModule(settings),
                 new IndexNameModule(index),
+                new ExternalSourceProviderModule(settings),
                 new AbstractModule() {
                     @Override
                     protected void configure() {

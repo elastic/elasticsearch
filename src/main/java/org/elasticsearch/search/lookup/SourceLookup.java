@@ -24,10 +24,15 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
-import org.elasticsearch.index.mapper.internal.SourceFieldSelector;
+import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.mapper.selector.UidAndSourceFieldSelector;
 
 import java.util.Collection;
 import java.util.List;
@@ -48,6 +53,12 @@ public class SourceLookup implements Map {
     private int sourceAsBytesOffset;
     private int sourceAsBytesLength;
     private Map<String, Object> source;
+    
+    private MapperService mapperService;
+    
+    public SourceLookup(MapperService mapperService) {
+        this.mapperService = mapperService;    
+    }
 
     public Map<String, Object> source() {
         return source;
@@ -62,17 +73,24 @@ public class SourceLookup implements Map {
             return source;
         }
         try {
-            Document doc = reader.document(docId, SourceFieldSelector.INSTANCE);
+            Document doc = reader.document(docId, new UidAndSourceFieldSelector());
             Fieldable sourceField = doc.getFieldable(SourceFieldMapper.NAME);
             if (sourceField == null) {
                 source = ImmutableMap.of();
             } else {
-                this.source = sourceAsMap(sourceField.getBinaryValue(), sourceField.getBinaryOffset(), sourceField.getBinaryLength());
+                Uid uid = Uid.createUid(doc.get(UidFieldMapper.NAME));
+                DocumentMapper documentMapper = mapperService.documentMapper(uid.type());
+                BytesHolder extractedSource = documentMapper.sourceMapper().extractSource(uid.type(), uid.id(), sourceField);
+                this.source = sourceAsMap(extractedSource);
             }
         } catch (Exception e) {
             throw new ElasticSearchParseException("failed to parse / load source", e);
         }
         return this.source;
+    }
+
+    public static Map<String, Object> sourceAsMap(BytesHolder bytesHolder) throws ElasticSearchParseException {
+        return XContentHelper.convertToMap(bytesHolder.bytes(), bytesHolder.offset(), bytesHolder.length(), false).v2();
     }
 
     public static Map<String, Object> sourceAsMap(byte[] bytes, int offset, int length) throws ElasticSearchParseException {

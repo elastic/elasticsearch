@@ -52,6 +52,7 @@ import org.elasticsearch.index.engine.DocumentSourceMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.get.GetField;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
@@ -158,6 +159,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     protected void shardOperation(final UpdateRequest request, final ActionListener<UpdateResponse> listener, final int retryCount) throws ElasticSearchException {
         IndexService indexService = indicesService.indexServiceSafe(request.index());
         IndexShard indexShard = indexService.shardSafe(request.shardId());
+        final MapperService mapperService = indexService.mapperService();
 
         long getDate = System.currentTimeMillis();
         final GetResult getResult = indexShard.getService().get(request.type(), request.id(),
@@ -231,7 +233,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 public void onResponse(IndexResponse response) {
                     UpdateResponse update = new UpdateResponse(response.index(), response.type(), response.id(), response.version());
                     update.matches(response.matches());
-                    update.getResult(extractGetResult(request, response.version(), updatedSourceAsMap, updateSourceContentType, updateSourceBytes));
+                    update.getResult(extractGetResult(request, response.version(), updatedSourceAsMap, updateSourceContentType, updateSourceBytes, mapperService));
                     listener.onResponse(update);
                 }
 
@@ -260,7 +262,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 @Override
                 public void onResponse(DeleteResponse response) {
                     UpdateResponse update = new UpdateResponse(response.index(), response.type(), response.id(), response.version());
-                    update.getResult(extractGetResult(request, response.version(), updatedSourceAsMap, updateSourceContentType, null));
+                    update.getResult(extractGetResult(request, response.version(), updatedSourceAsMap, updateSourceContentType, null, mapperService));
                     listener.onResponse(update);
                 }
 
@@ -283,7 +285,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
             });
         } else if ("none".equals(operation)) {
             UpdateResponse update = new UpdateResponse(getResult.index(), getResult.type(), getResult.id(), getResult.version());
-            update.getResult(extractGetResult(request, getResult.version(), updatedSourceAsMap, updateSourceContentType, null));
+            update.getResult(extractGetResult(request, getResult.version(), updatedSourceAsMap, updateSourceContentType, null, mapperService));
             listener.onResponse(update);
         } else {
             logger.warn("Used update operation [{}] for script [{}], doing nothing...", operation, request.script);
@@ -292,14 +294,14 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     }
 
     @Nullable
-    protected GetResult extractGetResult(final UpdateRequest request, long version, final Map<String, Object> source, XContentType sourceContentType, @Nullable final BytesHolder sourceAsBytes) {
+    protected GetResult extractGetResult(final UpdateRequest request, long version, final Map<String, Object> source, XContentType sourceContentType, @Nullable final BytesHolder sourceAsBytes, MapperService mapperService) {
         if (request.fields() == null || request.fields().length == 0) {
             return null;
         }
         boolean sourceRequested = false;
         Map<String, GetField> fields = null;
         if (request.fields() != null && request.fields().length > 0) {
-            SourceLookup sourceLookup = new SourceLookup();
+            SourceLookup sourceLookup = new SourceLookup(mapperService);
             sourceLookup.setNextSource(source);
             for (String field : request.fields()) {
                 if (field.equals("_source")) {

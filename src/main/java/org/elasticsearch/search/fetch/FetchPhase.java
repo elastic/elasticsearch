@@ -24,6 +24,7 @@ import com.google.common.collect.Lists;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.IndexReader;
+import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.document.ResetFieldSelector;
@@ -164,7 +165,7 @@ public class FetchPhase implements SearchPhase {
                 throw new TypeMissingException(new Index(context.shardTarget().index()), uid.type(), "failed to find type loaded for doc [" + uid.id() + "]");
             }
 
-            byte[] source = extractSource(doc, documentMapper);
+            BytesHolder source = extractSource(uid.type(), uid.id(), doc, documentMapper);
 
             // get the version
 
@@ -222,7 +223,7 @@ public class FetchPhase implements SearchPhase {
             context.lookup().setNextReader(subReader);
             context.lookup().setNextDocId(subDoc);
             if (source != null) {
-                context.lookup().source().setNextSource(source, 0, source.length);
+                context.lookup().source().setNextSource(source.bytes(), source.offset(), source.length());
             }
             if (extractFieldNames != null) {
                 for (String extractFieldName : extractFieldNames) {
@@ -260,12 +261,12 @@ public class FetchPhase implements SearchPhase {
         context.fetchResult().hits(new InternalSearchHits(hits, context.queryResult().topDocs().totalHits, context.queryResult().topDocs().getMaxScore()));
     }
 
-    private byte[] extractSource(Document doc, DocumentMapper documentMapper) {
+    private BytesHolder extractSource(String type, String id, Document doc, DocumentMapper documentMapper) {
         Fieldable sourceField = doc.getFieldable(SourceFieldMapper.NAME);
         if (sourceField != null) {
-            return documentMapper.sourceMapper().nativeValue(sourceField);
+            return documentMapper.sourceMapper().extractSource(type, id, sourceField);
         }
-        return null;
+        return null;        
     }
 
     private Uid extractUid(SearchContext context, Document doc) {

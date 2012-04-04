@@ -136,14 +136,18 @@ public class OsStats implements Streamable, Serializable, ToXContent {
         builder.startObject(Fields.OS);
         builder.field(Fields.TIMESTAMP, timestamp);
 
-        builder.field(Fields.UPTIME, uptime().format());
-        builder.field(Fields.UPTIME_IN_MILLIS, uptime().millis());
-
-        builder.startArray(Fields.LOAD_AVERAGE);
-        for (double value : loadAverage) {
-            builder.value(value);
+        if (uptime != -1) {
+            builder.field(Fields.UPTIME, uptime().format());
+            builder.field(Fields.UPTIME_IN_MILLIS, uptime().millis());
         }
-        builder.endArray();
+
+        if (loadAverage.length > 0) {
+            builder.startArray(Fields.LOAD_AVERAGE);
+            for (double value : loadAverage) {
+                builder.value(value);
+            }
+            builder.endArray();
+        }
 
         if (cpu != null) {
             builder.startObject(Fields.CPU);

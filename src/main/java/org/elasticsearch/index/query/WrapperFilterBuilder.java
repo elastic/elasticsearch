@@ -31,35 +31,23 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 
 /**
- * A Query builder which allows building a query thanks to a JSON string or binary data. This is useful when you want
- * to use the Java Builder API but still have JSON query strings at hand that you want to combine with other
+ * A Filter builder which allows building a filter thanks to a JSON string or binary data. This is useful when you want
+ * to use the Java Builder API but still have JSON filter strings at hand that you want to combine with other
  * query builders.
- * <p/>
- * Example usage in a boolean query :
- * <pre>
- * {@code
- *      BoolQueryBuilder bool = new BoolQueryBuilder();
- *      bool.must(new WrapperQueryBuilder("{\"term\": {\"field\":\"value\"}}");
- *      bool.must(new TermQueryBuilder("field2","value2");
- * }
- * </pre>
  */
-public class WrapperQueryBuilder extends BaseQueryBuilder {
+public class WrapperFilterBuilder extends BaseFilterBuilder {
 
     private final byte[] source;
     private final int offset;
     private final int length;
 
-    /**
-     * Builds a JSONQueryBuilder using the provided JSON query string.
-     */
-    public WrapperQueryBuilder(String source) {
+    public WrapperFilterBuilder(String source) {
         this.source = source.getBytes(Charsets.UTF_8);
         this.offset = 0;
         this.length = this.source.length;
     }
 
-    public WrapperQueryBuilder(byte[] source, int offset, int length) {
+    public WrapperFilterBuilder(byte[] source, int offset, int length) {
         this.source = source;
         this.offset = offset;
         this.length = length;
@@ -67,8 +55,8 @@ public class WrapperQueryBuilder extends BaseQueryBuilder {
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(WrapperQueryParser.NAME);
-        builder.field("query", source, offset, length);
+        builder.startObject(WrapperFilterParser.NAME);
+        builder.field("filter", source, offset, length);
         builder.endObject();
     }
 }

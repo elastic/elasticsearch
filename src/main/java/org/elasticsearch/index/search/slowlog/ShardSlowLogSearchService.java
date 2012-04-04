@@ -191,7 +191,7 @@ public class ShardSlowLogSearchService extends AbstractIndexShardComponent {
             sb.append("search_type[").append(context.searchType()).append("], total_shards[").append(context.numberOfShards()).append("], ");
             if (context.request().sourceLength() > 0) {
                 try {
-                    sb.append("source[").append(XContentHelper.convertToJson(context.request().source(), context.request().sourceOffset(), context.request().sourceLength(), reformat));
+                    sb.append("source[").append(XContentHelper.convertToJson(context.request().source(), context.request().sourceOffset(), context.request().sourceLength(), reformat)).append("], ");
                 } catch (IOException e) {
                     sb.append("source[_failed_to_convert_], ");
                 }
@@ -200,7 +200,7 @@ public class ShardSlowLogSearchService extends AbstractIndexShardComponent {
             }
             if (context.request().extraSourceLength() > 0) {
                 try {
-                    sb.append("extra_source[").append(XContentHelper.convertToJson(context.request().extraSource(), context.request().extraSourceOffset(), context.request().extraSourceLength(), reformat));
+                    sb.append("extra_source[").append(XContentHelper.convertToJson(context.request().extraSource(), context.request().extraSourceOffset(), context.request().extraSourceLength(), reformat)).append("], ");
                 } catch (IOException e) {
                     sb.append("extra_source[_failed_to_convert_], ");
                 }

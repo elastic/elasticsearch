@@ -32,6 +32,7 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.settings.IndexSettingsModule;
+import org.elasticsearch.index.source.internal.InternalSourceProvider;
 import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 
@@ -41,11 +42,11 @@ import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 public class MapperTests {
 
     public static DocumentMapperParser newParser() {
-        return new DocumentMapperParser(new Index("test"), newAnalysisService());
+        return new DocumentMapperParser(new Index("test"), newAnalysisService(), new InternalSourceProvider());
     }
 
     public static MapperService newMapperService() {
-        return new MapperService(new Index("test"), ImmutableSettings.Builder.EMPTY_SETTINGS, new Environment(), newAnalysisService());
+        return new MapperService(new Index("test"), ImmutableSettings.Builder.EMPTY_SETTINGS, new Environment(), newAnalysisService(), new InternalSourceProvider());
     }
 
     public static AnalysisService newAnalysisService() {

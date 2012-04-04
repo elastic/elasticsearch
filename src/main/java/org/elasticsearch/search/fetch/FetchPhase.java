@@ -24,14 +24,12 @@ import com.google.common.collect.Lists;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.IndexReader;
+import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.document.ResetFieldSelector;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.FieldMappers;
-import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.selector.AllButSourceFieldSelector;
@@ -158,13 +156,14 @@ public class FetchPhase implements SearchPhase {
             Document doc = loadDocument(context, fieldSelector, docId);
             Uid uid = extractUid(context, doc);
 
-            DocumentMapper documentMapper = context.mapperService().documentMapper(uid.type());
+            MapperService mapperService = context.mapperService();
+            DocumentMapper documentMapper = mapperService.documentMapper(uid.type());
 
             if (documentMapper == null) {
                 throw new TypeMissingException(new Index(context.shardTarget().index()), uid.type(), "failed to find type loaded for doc [" + uid.id() + "]");
             }
 
-            byte[] source = extractSource(doc, documentMapper);
+            BytesHolder source = extractSource(uid.type(), uid.id(), doc, mapperService, documentMapper);
 
             // get the version
 
@@ -222,7 +221,7 @@ public class FetchPhase implements SearchPhase {
             context.lookup().setNextReader(subReader);
             context.lookup().setNextDocId(subDoc);
             if (source != null) {
-                context.lookup().source().setNextSource(source, 0, source.length);
+                context.lookup().source().setNextSource(source.bytes(), source.offset(), source.length());
             }
             if (extractFieldNames != null) {
                 for (String extractFieldName : extractFieldNames) {
@@ -260,12 +259,20 @@ public class FetchPhase implements SearchPhase {
         context.fetchResult().hits(new InternalSearchHits(hits, context.queryResult().topDocs().totalHits, context.queryResult().topDocs().getMaxScore()));
     }
 
-    private byte[] extractSource(Document doc, DocumentMapper documentMapper) {
+    private BytesHolder extractSource(String type, String id, Document doc, MapperService mapperService, DocumentMapper documentMapper) {
         Fieldable sourceField = doc.getFieldable(SourceFieldMapper.NAME);
+        BytesHolder source = null;
         if (sourceField != null) {
-            return documentMapper.sourceMapper().nativeValue(sourceField);
+            source = documentMapper.sourceMapper().nativeValue(sourceField);
         }
-        return null;
+        if (mapperService.sourceProvider().enabled()) {
+            if (source != null) {
+                source = mapperService.sourceProvider().rehydrateSource(type, id, source.bytes(), source.offset(), source.length());
+            } else {
+                source = mapperService.sourceProvider().rehydrateSource(type, id, null, 0, 0);
+            }
+        }
+        return source;
     }
 
     private Uid extractUid(SearchContext context, Document doc) {

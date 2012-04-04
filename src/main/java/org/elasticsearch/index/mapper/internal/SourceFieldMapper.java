@@ -24,6 +24,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.lzf.LZF;
@@ -39,6 +40,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
+import org.elasticsearch.index.source.ExternalSourceProvider;
 
 import java.io.IOException;
 import java.util.List;
@@ -242,6 +244,25 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
         int dataOffset = context.sourceOffset();
         int dataLength = context.sourceLength();
 
+        boolean updateContext = true;
+        
+        ExternalSourceProvider externalSourceProvider = context.externalSourceProvider();
+        if (externalSourceProvider.enabled()) {
+            BytesHolder dehydratedSource = externalSourceProvider.dehydrateSource(context.type(), context.id(), data, dataOffset, dataLength);
+            if (dehydratedSource == null) {
+                return null; 
+            }
+            data = dehydratedSource.bytes();
+            dataOffset = dehydratedSource.offset();
+            dataLength = dehydratedSource.length();
+            if (dataLength == 0) {
+                // No more processing is required
+                return new Field(names().indexName(), data, dataOffset, dataLength);
+            }
+            // Don't update context source
+            updateContext = false;
+        }
+
         boolean filtered = includes.length > 0 || excludes.length > 0;
         if (filtered) {
             // we don't update the context source if we filter, we want to keep it as is...
@@ -287,7 +308,9 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
                     dataOffset = 0;
                     dataLength = data.length;
                     // update the data in the context, so it can be compressed and stored compressed outside...
-                    context.source(data, dataOffset, dataLength);
+                    if (updateContext) {
+                        context.source(data, dataOffset, dataLength);
+                    }
                 } finally {
                     CachedStreamOutput.pushEntry(cachedEntry);
                 }
@@ -311,7 +334,9 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
                         dataOffset = 0;
                         dataLength = data.length;
                         // update the data in the context, so we store it in the translog in this format
-                        context.source(data, dataOffset, dataLength);
+                        if (updateContext) {
+                            context.source(data, dataOffset, dataLength);
+                        }
                     } finally {
                         CachedStreamOutput.pushEntry(cachedEntry);
                     }
@@ -330,7 +355,9 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
                         dataOffset = 0;
                         dataLength = data.length;
                         // update the data in the context, so we store it in the translog in this format
-                        context.source(data, dataOffset, dataLength);
+                        if (updateContext) {
+                            context.source(data, dataOffset, dataLength);
+                        }
                     } finally {
                         CachedStreamOutput.pushEntry(cachedEntry);
                     }
@@ -345,8 +372,8 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
         return field == null ? null : value(field);
     }
 
-    public byte[] nativeValue(Fieldable field) {
-        return field.getBinaryValue();
+    public BytesHolder nativeValue(Fieldable field) {
+        return new BytesHolder(field.getBinaryValue(), field.getBinaryOffset(), field.getBinaryLength());
     }
 
     @Override

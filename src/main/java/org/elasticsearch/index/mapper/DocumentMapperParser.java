@@ -42,6 +42,7 @@ import org.elasticsearch.index.mapper.multifield.MultiFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.source.ExternalSourceProvider;
 
 import java.io.IOException;
 import java.util.Map;
@@ -55,6 +56,8 @@ public class DocumentMapperParser extends AbstractIndexComponent {
 
     final AnalysisService analysisService;
 
+    final ExternalSourceProvider externalSourceProvider;
+
     private final RootObjectMapper.TypeParser rootObjectTypeParser = new RootObjectMapper.TypeParser();
 
     private final Object typeParsersMutex = new Object();
@@ -62,13 +65,14 @@ public class DocumentMapperParser extends AbstractIndexComponent {
     private volatile ImmutableMap<String, Mapper.TypeParser> typeParsers;
     private volatile ImmutableMap<String, Mapper.TypeParser> rootTypeParsers;
 
-    public DocumentMapperParser(Index index, AnalysisService analysisService) {
-        this(index, ImmutableSettings.Builder.EMPTY_SETTINGS, analysisService);
+    public DocumentMapperParser(Index index, AnalysisService analysisService, ExternalSourceProvider externalSourceProvider) {
+        this(index, ImmutableSettings.Builder.EMPTY_SETTINGS, analysisService, externalSourceProvider);
     }
 
-    public DocumentMapperParser(Index index, @IndexSettings Settings indexSettings, AnalysisService analysisService) {
+    public DocumentMapperParser(Index index, @IndexSettings Settings indexSettings, AnalysisService analysisService, ExternalSourceProvider externalSourceProvider) {
         super(index, indexSettings);
         this.analysisService = analysisService;
+        this.externalSourceProvider = externalSourceProvider;
         typeParsers = new MapBuilder<String, Mapper.TypeParser>()
                 .put(ByteFieldMapper.CONTENT_TYPE, new ByteFieldMapper.TypeParser())
                 .put(ShortFieldMapper.CONTENT_TYPE, new ShortFieldMapper.TypeParser())

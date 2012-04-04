@@ -21,13 +21,19 @@ package org.elasticsearch.search.lookup;
 
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.FieldSelector;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.SourceFieldSelector;
+import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.mapper.selector.UidAndSourceFieldSelector;
+import org.elasticsearch.index.source.ExternalSourceProvider;
 
 import java.util.Collection;
 import java.util.List;
@@ -49,6 +55,12 @@ public class SourceLookup implements Map {
     private int sourceAsBytesLength;
     private Map<String, Object> source;
 
+    private ExternalSourceProvider externalSourceProvider;
+
+    public SourceLookup(ExternalSourceProvider externalSourceProvider) {
+        this.externalSourceProvider = externalSourceProvider;
+    }
+
     public Map<String, Object> source() {
         return source;
     }
@@ -62,12 +74,32 @@ public class SourceLookup implements Map {
             return source;
         }
         try {
-            Document doc = reader.document(docId, SourceFieldSelector.INSTANCE);
-            Fieldable sourceField = doc.getFieldable(SourceFieldMapper.NAME);
-            if (sourceField == null) {
-                source = ImmutableMap.of();
+            if( externalSourceProvider.enabled()) {
+                FieldSelector fieldSelector = new UidAndSourceFieldSelector();
+                Document doc = reader.document(docId, fieldSelector);
+                Fieldable sourceField = doc.getFieldable(SourceFieldMapper.NAME);
+                Uid uid = Uid.createUid(doc.get(UidFieldMapper.NAME));
+                BytesHolder extractedSource;
+                if (sourceField == null) {
+                    extractedSource = externalSourceProvider.rehydrateSource(uid.type(), uid.id(), null, 0, 0);
+                } else {
+                    extractedSource = externalSourceProvider.rehydrateSource(uid.type(), uid.id(),
+                            sourceField.getBinaryValue(), sourceField.getBinaryOffset(), sourceField.getBinaryLength());
+                }
+                if (extractedSource == null) {
+                    this.source = ImmutableMap.of();
+                } else {
+                    this.source = sourceAsMap(extractedSource.bytes(), extractedSource.offset(), extractedSource.length());
+                }
             } else {
-                this.source = sourceAsMap(sourceField.getBinaryValue(), sourceField.getBinaryOffset(), sourceField.getBinaryLength());
+                FieldSelector fieldSelector = SourceFieldSelector.INSTANCE;
+                Document doc = reader.document(docId, fieldSelector);
+                Fieldable sourceField = doc.getFieldable(SourceFieldMapper.NAME);
+                if (sourceField == null) {
+                    this.source = ImmutableMap.of();
+                } else {
+                    this.source = sourceAsMap(sourceField.getBinaryValue(), sourceField.getBinaryOffset(), sourceField.getBinaryLength());
+                }
             }
         } catch (Exception e) {
             throw new ElasticSearchParseException("failed to parse / load source", e);

@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
+import org.elasticsearch.index.source.ExternalSourceProvider;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -208,6 +209,10 @@ public class ParseContext {
 
     public AnalysisService analysisService() {
         return docMapperParser.analysisService;
+    }
+
+    public ExternalSourceProvider externalSourceProvider() {
+        return docMapperParser.externalSourceProvider;
     }
 
     public String id() {

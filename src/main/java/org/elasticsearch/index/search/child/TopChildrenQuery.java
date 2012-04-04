@@ -134,34 +134,43 @@ public class TopChildrenQuery extends Query implements ScopePhase.TopDocsPhase {
                 // no parent found
                 continue;
             }
+
             // now go over and find the parent doc Id and reader tuple
-            for (IndexReader indexReader : context.searcher().subReaders()) {
-                int parentDocId = context.idCache().reader(indexReader).docById(parentType, parentId);
-                if (parentDocId != -1 && !indexReader.isDeleted(parentDocId)) {
-                    // we found a match, add it and break
+            int parentReaderIndex = 0;
+            int parentDocId = -1;
+            IndexReader parentIndexReader = null;
+            while (parentDocId == -1 && parentReaderIndex < context.searcher().subReaders().length) {
+                parentIndexReader = context.searcher().subReaders()[parentReaderIndex++];
+                parentDocId = context.idCache().reader(parentIndexReader).docById(parentType, parentId);
+                if (parentDocId != -1 && parentIndexReader.isDeleted(parentDocId)) {
+                    parentDocId = -1;
+                }
+            }
 
-                    TIntObjectHashMap<ParentDoc> readerParentDocs = parentDocsPerReader.get(indexReader.getCoreCacheKey());
-                    if (readerParentDocs == null) {
-                        readerParentDocs = new TIntObjectHashMap<ParentDoc>();
-                        parentDocsPerReader.put(indexReader.getCoreCacheKey(), readerParentDocs);
-                    }
+            if (parentDocId == -1) {
+                continue;
+            }
 
-                    ParentDoc parentDoc = readerParentDocs.get(parentDocId);
-                    if (parentDoc == null) {
-                        numHits++; // we have a hit on a parent
-                        parentDoc = new ParentDoc();
-                        parentDoc.docId = parentDocId;
-                        parentDoc.count = 1;
-                        parentDoc.maxScore = scoreDoc.score;
-                        parentDoc.sumScores = scoreDoc.score;
-                        readerParentDocs.put(parentDocId, parentDoc);
-                    } else {
-                        parentDoc.count++;
-                        parentDoc.sumScores += scoreDoc.score;
-                        if (scoreDoc.score > parentDoc.maxScore) {
-                            parentDoc.maxScore = scoreDoc.score;
-                        }
-                    }
+            TIntObjectHashMap<ParentDoc> readerParentDocs = parentDocsPerReader.get(parentIndexReader.getCoreCacheKey());
+            if (readerParentDocs == null) {
+                readerParentDocs = new TIntObjectHashMap<ParentDoc>();
+                parentDocsPerReader.put(parentIndexReader.getCoreCacheKey(), readerParentDocs);
+            }
+
+            ParentDoc parentDoc = readerParentDocs.get(parentDocId);
+            if (parentDoc == null) {
+                numHits++; // we have a hit on a parent
+                parentDoc = new ParentDoc();
+                parentDoc.docId = parentDocId;
+                parentDoc.count = 1;
+                parentDoc.maxScore = scoreDoc.score;
+                parentDoc.sumScores = scoreDoc.score;
+                readerParentDocs.put(parentDocId, parentDoc);
+            } else {
+                parentDoc.count++;
+                parentDoc.sumScores += scoreDoc.score;
+                if (scoreDoc.score > parentDoc.maxScore) {
+                    parentDoc.maxScore = scoreDoc.score;
                 }
             }
         }

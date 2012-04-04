@@ -49,6 +49,7 @@ import org.apache.lucene.analysis.hu.HungarianAnalyzer;
 import org.apache.lucene.analysis.hy.ArmenianAnalyzer;
 import org.apache.lucene.analysis.id.IndonesianAnalyzer;
 import org.apache.lucene.analysis.it.ItalianAnalyzer;
+import org.apache.lucene.analysis.lv.LatvianAnalyzer;
 import org.apache.lucene.analysis.miscellaneous.*;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenizer;
@@ -141,6 +142,7 @@ public class IndicesAnalysisService extends AbstractComponent {
         analyzerProviderFactories.put("hungarian", new PreBuiltAnalyzerProviderFactory("hungarian", AnalyzerScope.INDICES, new HungarianAnalyzer(Lucene.ANALYZER_VERSION)));
         analyzerProviderFactories.put("indonesian", new PreBuiltAnalyzerProviderFactory("indonesian", AnalyzerScope.INDICES, new IndonesianAnalyzer(Lucene.ANALYZER_VERSION)));
         analyzerProviderFactories.put("italian", new PreBuiltAnalyzerProviderFactory("italian", AnalyzerScope.INDICES, new ItalianAnalyzer(Lucene.ANALYZER_VERSION)));
+        analyzerProviderFactories.put("latvian", new PreBuiltAnalyzerProviderFactory("latvian", AnalyzerScope.INDICES, new LatvianAnalyzer(Lucene.ANALYZER_VERSION)));
         analyzerProviderFactories.put("norwegian", new PreBuiltAnalyzerProviderFactory("norwegian", AnalyzerScope.INDICES, new NorwegianAnalyzer(Lucene.ANALYZER_VERSION)));
         analyzerProviderFactories.put("persian", new PreBuiltAnalyzerProviderFactory("persian", AnalyzerScope.INDICES, new PersianAnalyzer(Lucene.ANALYZER_VERSION)));
         analyzerProviderFactories.put("portuguese", new PreBuiltAnalyzerProviderFactory("portuguese", AnalyzerScope.INDICES, new PortugueseAnalyzer(Lucene.ANALYZER_VERSION)));

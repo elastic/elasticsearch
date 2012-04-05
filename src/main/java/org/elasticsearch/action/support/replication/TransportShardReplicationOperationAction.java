@@ -452,7 +452,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                         public void handleException(TransportException exp) {
                             // if we got disconnected from the node, or the node / shard is not in the right state (being closed)
                             if (exp.unwrapCause() instanceof ConnectTransportException || exp.unwrapCause() instanceof NodeClosedException ||
-                                    exp.unwrapCause() instanceof IllegalIndexShardStateException) {
+                                    retryPrimaryException(exp)) {
                                 primaryOperationStarted.set(false);
                                 // we already marked it as started when we executed it (removed the listener) so pass false
                                 // to re-add to the cluster listener
@@ -530,6 +530,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             } catch (Exception e) {
                 // shard has not been allocated yet, retry it here
                 if (retryPrimaryException(e)) {
+                    primaryOperationStarted.set(false);
                     retry(fromDiscoveryListener, null);
                     return;
                 }

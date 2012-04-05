@@ -368,7 +368,6 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                     }
                 }
                 shardIt = shards(clusterState, request);
-                shardIt = shards(clusterState, request);
             } catch (Exception e) {
                 listener.onFailure(e);
                 return true;

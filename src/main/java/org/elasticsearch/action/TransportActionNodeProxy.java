@@ -22,10 +22,13 @@ package org.elasticsearch.action;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BaseTransportResponseHandler;
 import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
 import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
@@ -33,16 +36,20 @@ import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
 /**
  * A generic proxy that will execute the given action against a specific node.
  */
-public class TransportActionNodeProxy<Request extends ActionRequest, Response extends ActionResponse> {
+public class TransportActionNodeProxy<Request extends ActionRequest, Response extends ActionResponse> extends AbstractComponent {
 
     protected final TransportService transportService;
 
     private final GenericAction<Request, Response> action;
 
+    private final TransportRequestOptions transportOptions;
+
     @Inject
-    public TransportActionNodeProxy(GenericAction<Request, Response> action, TransportService transportService) {
+    public TransportActionNodeProxy(Settings settings, GenericAction<Request, Response> action, TransportService transportService) {
+        super(settings);
         this.action = action;
         this.transportService = transportService;
+        this.transportOptions = action.transportOptions(settings);
     }
 
     public ActionFuture<Response> execute(DiscoveryNode node, Request request) throws ElasticSearchException {
@@ -53,7 +60,7 @@ public class TransportActionNodeProxy<Request extends ActionRequest, Response ex
     }
 
     public void execute(DiscoveryNode node, final Request request, final ActionListener<Response> listener) {
-        transportService.sendRequest(node, action.name(), request, action.options(), new BaseTransportResponseHandler<Response>() {
+        transportService.sendRequest(node, action.name(), request, transportOptions, new BaseTransportResponseHandler<Response>() {
             @Override
             public Response newInstance() {
                 return action.newResponse();

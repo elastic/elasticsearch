@@ -59,7 +59,7 @@ public class InternalTransportClient extends AbstractClient implements InternalC
         MapBuilder<Action, TransportActionNodeProxy> actionsBuilder = new MapBuilder<Action, TransportActionNodeProxy>();
         for (GenericAction action : actions.values()) {
             if (action instanceof Action) {
-                actionsBuilder.put((Action) action, new TransportActionNodeProxy(action, transportService));
+                actionsBuilder.put((Action) action, new TransportActionNodeProxy(settings, action, transportService));
             }
         }
         this.actions = actionsBuilder.immutableMap();

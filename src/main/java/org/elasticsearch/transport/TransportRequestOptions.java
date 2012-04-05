@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**
@@ -35,7 +36,19 @@ public class TransportRequestOptions {
     public static enum Type {
         LOW,
         MED,
-        HIGH
+        HIGH;
+
+        public static Type fromString(String type) {
+            if ("low".equalsIgnoreCase(type)) {
+                return LOW;
+            } else if ("med".equalsIgnoreCase(type)) {
+                return MED;
+            } else if ("high".equalsIgnoreCase(type)) {
+                return HIGH;
+            } else {
+                throw new ElasticSearchIllegalArgumentException("failed to match transport type for [" + type + "]");
+            }
+        }
     }
 
     private TimeValue timeout;

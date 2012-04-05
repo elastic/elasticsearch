@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.TransportRequestOptions;
 
 /**
@@ -50,7 +51,7 @@ public abstract class GenericAction<Request extends ActionRequest, Response exte
     /**
      * Optional request options for the action.
      */
-    public TransportRequestOptions options() {
+    public TransportRequestOptions transportOptions(Settings settings) {
         return TransportRequestOptions.EMPTY;
     }
 

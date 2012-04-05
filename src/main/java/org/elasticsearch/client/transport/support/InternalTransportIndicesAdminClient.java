@@ -54,7 +54,7 @@ public class InternalTransportIndicesAdminClient extends AbstractIndicesAdminCli
         MapBuilder<IndicesAction, TransportActionNodeProxy> actionsBuilder = new MapBuilder<IndicesAction, TransportActionNodeProxy>();
         for (GenericAction action : actions.values()) {
             if (action instanceof IndicesAction) {
-                actionsBuilder.put((IndicesAction) action, new TransportActionNodeProxy(action, transportService));
+                actionsBuilder.put((IndicesAction) action, new TransportActionNodeProxy(settings, action, transportService));
             }
         }
         this.actions = actionsBuilder.immutableMap();

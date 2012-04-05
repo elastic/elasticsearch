@@ -73,6 +73,8 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
     protected final WriteConsistencyLevel defaultWriteConsistencyLevel;
 
+    protected final TransportRequestOptions transportOptions;
+
     final String transportAction;
     final String transportReplicaAction;
     final String executor;
@@ -94,6 +96,8 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
         transportService.registerHandler(transportAction, new OperationTransportHandler());
         transportService.registerHandler(transportReplicaAction, new ReplicaOperationTransportHandler());
+
+        this.transportOptions = transportOptions();
 
         this.defaultReplicationType = ReplicationType.fromString(settings.get("action.replication_type", "sync"));
         this.defaultWriteConsistencyLevel = WriteConsistencyLevel.fromString(settings.get("action.write_consistency", "quorum"));
@@ -431,7 +435,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                     }
                 } else {
                     DiscoveryNode node = nodes.get(shard.currentNodeId());
-                    transportService.sendRequest(node, transportAction, request, transportOptions(), new BaseTransportResponseHandler<Response>() {
+                    transportService.sendRequest(node, transportAction, request, transportOptions, new BaseTransportResponseHandler<Response>() {
 
                         @Override
                         public Response newInstance() {
@@ -625,7 +629,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             final ReplicaOperationRequest shardRequest = new ReplicaOperationRequest(shardIt.shardId().id(), response.replicaRequest());
             if (!nodeId.equals(nodes.localNodeId())) {
                 DiscoveryNode node = nodes.get(nodeId);
-                transportService.sendRequest(node, transportReplicaAction, shardRequest, transportOptions(), new VoidTransportResponseHandler(ThreadPool.Names.SAME) {
+                transportService.sendRequest(node, transportReplicaAction, shardRequest, transportOptions, new VoidTransportResponseHandler(ThreadPool.Names.SAME) {
                     @Override
                     public void handleResponse(VoidStreamable vResponse) {
                         finishIfPossible();

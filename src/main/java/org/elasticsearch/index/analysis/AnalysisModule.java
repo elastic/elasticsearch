@@ -146,7 +146,7 @@ public class AnalysisModule extends AbstractModule {
         return this;
     }
 
-    public AnalysisModule addTokenizerFactory(String name, Class<? extends TokenizerFactory> tokenizer) {
+    public AnalysisModule addTokenizer(String name, Class<? extends TokenizerFactory> tokenizer) {
         tokenizers.put(name, tokenizer);
         return this;
     }

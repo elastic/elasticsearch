@@ -4,7 +4,7 @@
 %define __os_install_post %{nil}
 
 Name:           elasticsearch
-Version:        0.19.0.RC3
+Version:        0.19.1
 Release:        1%{?dist}
 Summary:        A distributed, highly available, RESTful search engine
 
@@ -119,6 +119,9 @@ rm -rf $RPM_BUILD_ROOT
 %dir %{_localstatedir}/log/elasticsearch
 
 %changelog
+* Tue Apr 10 2012 Sean Laurent - 0.19.1
+- New upstream version.
+
 * Thu Feb 22 2012 Sean Laurent - 0.19.RC2
 - New upstream version.
 

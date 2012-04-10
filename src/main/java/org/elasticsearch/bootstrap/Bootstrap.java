@@ -151,7 +151,7 @@ public class Bootstrap {
                     FileSystemUtils.mkdirs(fPidFile.getParentFile());
                 }
                 RandomAccessFile rafPidFile = new RandomAccessFile(fPidFile, "rw");
-                rafPidFile.writeBytes(Long.toString(JvmInfo.jvmInfo().pid()) + "\n");
+                rafPidFile.writeBytes(Long.toString(JvmInfo.jvmInfo().pid()));
                 rafPidFile.close();
 
                 fPidFile.deleteOnExit();

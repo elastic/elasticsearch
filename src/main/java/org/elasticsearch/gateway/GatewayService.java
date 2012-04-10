@@ -194,7 +194,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                     }
                 }
                 final boolean fIgnoreRecoverAfterTime = ignoreRecoverAfterTime;
-                threadPool.cached().execute(new Runnable() {
+                threadPool.generic().execute(new Runnable() {
                     @Override
                     public void run() {
                         performStateRecovery(fIgnoreRecoverAfterTime);
@@ -210,7 +210,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
         if (!ignoreRecoverAfterTime && recoverAfterTime != null) {
             if (scheduledRecovery.compareAndSet(false, true)) {
                 logger.debug("delaying initial state recovery for [{}]", recoverAfterTime);
-                threadPool.schedule(recoverAfterTime, ThreadPool.Names.CACHED, new Runnable() {
+                threadPool.schedule(recoverAfterTime, ThreadPool.Names.GENERIC, new Runnable() {
                     @Override
                     public void run() {
                         if (recovered.compareAndSet(false, true)) {
@@ -261,6 +261,15 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                         }
                         if (indexMetaData.settings().getAsBoolean(IndexMetaData.SETTING_READ_ONLY, false)) {
                             blocks.addIndexBlock(indexMetaData.index(), IndexMetaData.INDEX_READ_ONLY_BLOCK);
+                        }
+                        if (indexMetaData.settings().getAsBoolean(IndexMetaData.SETTING_BLOCKS_READ, false)) {
+                            blocks.addIndexBlock(indexMetaData.index(), IndexMetaData.INDEX_READ_BLOCK);
+                        }
+                        if (indexMetaData.settings().getAsBoolean(IndexMetaData.SETTING_BLOCKS_WRITE, false)) {
+                            blocks.addIndexBlock(indexMetaData.index(), IndexMetaData.INDEX_WRITE_BLOCK);
+                        }
+                        if (indexMetaData.settings().getAsBoolean(IndexMetaData.SETTING_BLOCKS_METADATA, false)) {
+                            blocks.addIndexBlock(indexMetaData.index(), IndexMetaData.INDEX_METADATA_BLOCK);
                         }
                     }
 

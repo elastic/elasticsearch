@@ -31,6 +31,8 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -63,10 +65,12 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
 
     static {
         MetaData.addDynamicSettings(
-                "indices.ttl.interval"
+                "indices.ttl.interval",
+                "index.ttl.disable_purge"
         );
     }
 
+    private final ClusterService clusterService;
     private final IndicesService indicesService;
     private final Client client;
 
@@ -75,8 +79,9 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
     private PurgerThread purgerThread;
 
     @Inject
-    public IndicesTTLService(Settings settings, IndicesService indicesService, NodeSettingsService nodeSettingsService, Client client) {
+    public IndicesTTLService(Settings settings, ClusterService clusterService, IndicesService indicesService, NodeSettingsService nodeSettingsService, Client client) {
         super(settings);
+        this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.client = client;
         this.interval = componentSettings.getAsTime("interval", TimeValue.timeValueSeconds(60));
@@ -133,11 +138,22 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
         }
 
         /**
-         * Returns the shards to purge, i.e. the local started primary shards that have ttl enabled
+         * Returns the shards to purge, i.e. the local started primary shards that have ttl enabled and disable_purge to false
          */
         private List<IndexShard> getShardsToPurge() {
             List<IndexShard> shardsToPurge = new ArrayList<IndexShard>();
+            MetaData metaData = clusterService.state().metaData();
             for (IndexService indexService : indicesService) {
+                // check the value of disable_purge for this index
+                IndexMetaData indexMetaData = metaData.index(indexService.index().name());
+                if (indexMetaData == null) {
+                    continue;
+                }
+                boolean disablePurge = indexMetaData.settings().getAsBoolean("index.ttl.disable_purge", false);
+                if (disablePurge) {
+                    continue;
+                }
+
                 // should be optimized with the hasTTL flag
                 FieldMappers ttlFieldMappers = indexService.mapperService().name(TTLFieldMapper.NAME);
                 if (ttlFieldMappers == null) {
@@ -153,7 +169,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
                 }
                 if (hasTTLEnabled) {
                     for (IndexShard indexShard : indexService) {
-                        if (indexShard.routingEntry().primary() && indexShard.state() == IndexShardState.STARTED && indexShard.routingEntry().started()) {
+                        if (indexShard.state() == IndexShardState.STARTED && indexShard.routingEntry().primary() && indexShard.routingEntry().started()) {
                             shardsToPurge.add(indexShard);
                         }
                     }

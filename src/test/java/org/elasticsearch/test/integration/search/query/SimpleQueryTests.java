@@ -24,6 +24,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.WrapperFilterBuilder;
 import org.elasticsearch.index.query.WrapperQueryBuilder;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
@@ -294,7 +295,7 @@ public class SimpleQueryTests extends AbstractNodesTests {
     }
 
     @Test
-    public void passQueryAsJSONStringTest() throws Exception {
+    public void passQueryOrFilterAsJSONStringTest() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
@@ -316,6 +317,10 @@ public class SimpleQueryTests extends AbstractNodesTests {
         searchResponse = client.prepareSearch().setQuery(wrapper).execute().actionGet();
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
 
+        WrapperFilterBuilder wrapperFilter = new WrapperFilterBuilder("{ \"term\" : { \"field1\" : \"value1_1\" } }");
+
+        searchResponse = client.prepareSearch().setFilter(wrapperFilter).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
     }
 
     @Test

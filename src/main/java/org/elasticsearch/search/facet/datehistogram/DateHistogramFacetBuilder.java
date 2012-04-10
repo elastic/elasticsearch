@@ -38,6 +38,7 @@ public class DateHistogramFacetBuilder extends AbstractFacetBuilder {
     private String interval = null;
     private String preZone = null;
     private String postZone = null;
+    private Boolean preZoneAdjustLargeInterval;
     long preOffset = 0;
     long postOffset = 0;
     float factor = 1.0f;
@@ -111,6 +112,14 @@ public class DateHistogramFacetBuilder extends AbstractFacetBuilder {
      */
     public DateHistogramFacetBuilder interval(String interval) {
         this.interval = interval;
+        return this;
+    }
+
+    /**
+     * Should pre zone be adjusted for large (day and above) intervals. Defaults to <tt>false</tt>.
+     */
+    public DateHistogramFacetBuilder preZoneAdjustLargeInterval(boolean preZoneAdjustLargeInterval) {
+        this.preZoneAdjustLargeInterval = preZoneAdjustLargeInterval;
         return this;
     }
 
@@ -235,6 +244,9 @@ public class DateHistogramFacetBuilder extends AbstractFacetBuilder {
         builder.field("interval", interval);
         if (preZone != null) {
             builder.field("pre_zone", preZone);
+        }
+        if (preZoneAdjustLargeInterval != null) {
+            builder.field("pre_zone_adjust_large_interval", preZoneAdjustLargeInterval);
         }
         if (postZone != null) {
             builder.field("post_zone", postZone);

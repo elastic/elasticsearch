@@ -40,15 +40,17 @@ public class ThreadPoolStats implements Streamable, ToXContent, Iterable<ThreadP
         private String name;
         private int threads;
         private int queue;
+        private int active;
 
         Stats() {
 
         }
 
-        public Stats(String name, int threads, int queue) {
+        public Stats(String name, int threads, int queue, int active) {
             this.name = name;
             this.threads = threads;
             this.queue = queue;
+            this.active = active;
         }
 
         public String name() {
@@ -75,11 +77,20 @@ public class ThreadPoolStats implements Streamable, ToXContent, Iterable<ThreadP
             return this.queue;
         }
 
+        public int active() {
+            return this.active;
+        }
+
+        public int getActive() {
+            return this.active;
+        }
+
         @Override
         public void readFrom(StreamInput in) throws IOException {
             name = in.readUTF();
             threads = in.readInt();
             queue = in.readInt();
+            active = in.readInt();
         }
 
         @Override
@@ -87,6 +98,7 @@ public class ThreadPoolStats implements Streamable, ToXContent, Iterable<ThreadP
             out.writeUTF(name);
             out.writeInt(threads);
             out.writeInt(queue);
+            out.writeInt(active);
         }
 
         @Override
@@ -97,6 +109,9 @@ public class ThreadPoolStats implements Streamable, ToXContent, Iterable<ThreadP
             }
             if (queue != -1) {
                 builder.field(Fields.QUEUE, queue);
+            }
+            if (active != -1) {
+                builder.field(Fields.ACTIVE, active);
             }
             builder.endObject();
             return builder;
@@ -147,6 +162,7 @@ public class ThreadPoolStats implements Streamable, ToXContent, Iterable<ThreadP
         static final XContentBuilderString THREAD_POOL = new XContentBuilderString("thread_pool");
         static final XContentBuilderString THREADS = new XContentBuilderString("threads");
         static final XContentBuilderString QUEUE = new XContentBuilderString("queue");
+        static final XContentBuilderString ACTIVE = new XContentBuilderString("active");
     }
 
     @Override

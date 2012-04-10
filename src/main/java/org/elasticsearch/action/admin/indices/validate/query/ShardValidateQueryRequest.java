@@ -36,6 +36,8 @@ class ShardValidateQueryRequest extends BroadcastShardOperationRequest {
     private BytesHolder querySource;
 
     private String[] types = Strings.EMPTY_ARRAY;
+    
+    private boolean explain;
 
     @Nullable
     private String[] filteringAliases;
@@ -48,6 +50,7 @@ class ShardValidateQueryRequest extends BroadcastShardOperationRequest {
         super(index, shardId);
         this.querySource = request.querySource();
         this.types = request.types();
+        this.explain = request.explain();
         this.filteringAliases = filteringAliases;
     }
 
@@ -57,6 +60,10 @@ class ShardValidateQueryRequest extends BroadcastShardOperationRequest {
 
     public String[] types() {
         return this.types;
+    }
+    
+    public boolean explain() {
+        return this.explain;
     }
 
     public String[] filteringAliases() {
@@ -82,6 +89,8 @@ class ShardValidateQueryRequest extends BroadcastShardOperationRequest {
                 filteringAliases[i] = in.readUTF();
             }
         }
+
+        explain = in.readBoolean();
     }
 
     @Override
@@ -101,5 +110,7 @@ class ShardValidateQueryRequest extends BroadcastShardOperationRequest {
         } else {
             out.writeVInt(0);
         }
+
+        out.writeBoolean(explain);
     }
 }

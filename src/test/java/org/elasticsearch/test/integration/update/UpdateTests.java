@@ -169,5 +169,12 @@ public class UpdateTests extends AbstractNodesTests {
         getResponse = client.prepareGet("test", "type1", "3").setFields("_timestamp").execute().actionGet();
         long timestamp = ((Number) getResponse.field("_timestamp").value()).longValue();
         assertThat(timestamp, equalTo(1258294332000L));
+
+        // check fields parameter
+        client.prepareIndex("test", "type1", "1").setSource("field", 1).execute().actionGet();
+        updateResponse = client.prepareUpdate("test", "type1", "1").setScript("ctx._source.field += 1").setFields("_source", "field").execute().actionGet();
+        assertThat(updateResponse.getResult(), notNullValue());
+        assertThat(updateResponse.getResult().sourceRef(), notNullValue());
+        assertThat(updateResponse.getResult().field("field").value(), notNullValue());
     }
 }

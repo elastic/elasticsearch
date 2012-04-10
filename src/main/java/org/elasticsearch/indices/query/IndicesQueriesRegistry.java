@@ -100,6 +100,8 @@ public class IndicesQueriesRegistry {
         addFilterParser(filterParsers, new MatchAllFilterParser());
         addFilterParser(filterParsers, new ExistsFilterParser());
         addFilterParser(filterParsers, new MissingFilterParser());
+        addFilterParser(filterParsers, new IndicesFilterParser(clusterService));
+        addFilterParser(filterParsers, new WrapperFilterParser());
         this.filterParsers = ImmutableMap.copyOf(filterParsers);
     }
 

@@ -87,6 +87,19 @@ public class AndFilter extends Filter {
         return equalFilters(filters, other.filters);
     }
 
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder();
+        for(Filter filter: filters) {
+            if(builder.length() > 0) {
+                builder.append(' ');
+            }
+            builder.append('+');
+            builder.append(filter);
+        }
+        return builder.toString();
+    }
+
     private boolean equalFilters(List<? extends Filter> filters1, List<? extends Filter> filters2) {
         return (filters1 == filters2) || ((filters1 != null) && filters1.equals(filters2));
     }

@@ -38,11 +38,13 @@ import org.apache.lucene.analysis.hi.HindiStemFilter;
 import org.apache.lucene.analysis.hu.HungarianLightStemFilter;
 import org.apache.lucene.analysis.id.IndonesianStemFilter;
 import org.apache.lucene.analysis.it.ItalianLightStemFilter;
+import org.apache.lucene.analysis.lv.LatvianStemFilter;
 import org.apache.lucene.analysis.pt.PortugueseLightStemFilter;
 import org.apache.lucene.analysis.pt.PortugueseMinimalStemFilter;
 import org.apache.lucene.analysis.pt.PortugueseStemFilter;
 import org.apache.lucene.analysis.ru.RussianLightStemFilter;
 import org.apache.lucene.analysis.snowball.SnowballFilter;
+import org.apache.lucene.analysis.sv.SwedishLightStemFilter;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
@@ -101,6 +103,8 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
             return new KStemFilter(tokenStream);
         } else if ("lovins".equalsIgnoreCase(language)) {
             return new SnowballFilter(tokenStream, new LovinsStemmer());
+        } else if ("latvian".equalsIgnoreCase(language)) {
+            return new LatvianStemFilter(tokenStream);
         } else if ("norwegian".equalsIgnoreCase(language)) {
             return new SnowballFilter(tokenStream, new NorwegianStemmer());
         } else if ("porter".equalsIgnoreCase(language)) {
@@ -152,7 +156,7 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
         } else if ("light_spanish".equalsIgnoreCase(language) || "lightSpanish".equalsIgnoreCase(language)) {
             return new SpanishLightStemFilter(tokenStream);
         } else if ("light_swedish".equalsIgnoreCase(language) || "lightSwedish".equalsIgnoreCase(language)) {
-            return new SpanishLightStemFilter(tokenStream);
+            return new SwedishLightStemFilter(tokenStream);
         } else if ("greek".equalsIgnoreCase(language)) {
             return new GreekStemFilter(tokenStream);
         }

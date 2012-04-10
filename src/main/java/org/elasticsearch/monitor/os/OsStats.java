@@ -119,8 +119,8 @@ public class OsStats implements Streamable, Serializable, ToXContent {
         static final XContentBuilderString SWAP = new XContentBuilderString("swap");
         static final XContentBuilderString FREE = new XContentBuilderString("free");
         static final XContentBuilderString FREE_IN_BYTES = new XContentBuilderString("free_in_bytes");
-        static final XContentBuilderString USED = new XContentBuilderString("free");
-        static final XContentBuilderString USED_IN_BYTES = new XContentBuilderString("free_in_bytes");
+        static final XContentBuilderString USED = new XContentBuilderString("used");
+        static final XContentBuilderString USED_IN_BYTES = new XContentBuilderString("used_in_bytes");
 
         static final XContentBuilderString FREE_PERCENT = new XContentBuilderString("free_percent");
         static final XContentBuilderString USED_PERCENT = new XContentBuilderString("used_percent");
@@ -136,14 +136,18 @@ public class OsStats implements Streamable, Serializable, ToXContent {
         builder.startObject(Fields.OS);
         builder.field(Fields.TIMESTAMP, timestamp);
 
-        builder.field(Fields.UPTIME, uptime().format());
-        builder.field(Fields.UPTIME_IN_MILLIS, uptime().millis());
-
-        builder.startArray(Fields.LOAD_AVERAGE);
-        for (double value : loadAverage) {
-            builder.value(value);
+        if (uptime != -1) {
+            builder.field(Fields.UPTIME, uptime().format());
+            builder.field(Fields.UPTIME_IN_MILLIS, uptime().millis());
         }
-        builder.endArray();
+
+        if (loadAverage.length > 0) {
+            builder.startArray(Fields.LOAD_AVERAGE);
+            for (double value : loadAverage) {
+                builder.value(value);
+            }
+            builder.endArray();
+        }
 
         if (cpu != null) {
             builder.startObject(Fields.CPU);

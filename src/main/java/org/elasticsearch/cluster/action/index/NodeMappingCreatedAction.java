@@ -64,7 +64,7 @@ public class NodeMappingCreatedAction extends AbstractComponent {
 
     public void add(final Listener listener, TimeValue timeout) {
         listeners.add(listener);
-        threadPool.schedule(timeout, ThreadPool.Names.CACHED, new Runnable() {
+        threadPool.schedule(timeout, ThreadPool.Names.GENERIC, new Runnable() {
             @Override
             public void run() {
                 boolean removed = listeners.remove(listener);
@@ -82,7 +82,7 @@ public class NodeMappingCreatedAction extends AbstractComponent {
     public void nodeMappingCreated(final NodeMappingCreatedResponse response) throws ElasticSearchException {
         DiscoveryNodes nodes = clusterService.state().nodes();
         if (nodes.localNodeMaster()) {
-            threadPool.cached().execute(new Runnable() {
+            threadPool.generic().execute(new Runnable() {
                 @Override
                 public void run() {
                     innerNodeIndexCreated(response);

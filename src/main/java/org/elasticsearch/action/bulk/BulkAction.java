@@ -21,6 +21,7 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.TransportRequestOptions;
 
 /**
@@ -45,7 +46,10 @@ public class BulkAction extends Action<BulkRequest, BulkResponse, BulkRequestBui
     }
 
     @Override
-    public TransportRequestOptions options() {
-        return TransportRequestOptions.options().withLowType().withCompress(true);
+    public TransportRequestOptions transportOptions(Settings settings) {
+        return TransportRequestOptions.options()
+                .withType(TransportRequestOptions.Type.fromString(settings.get("action.bulk.transport.type", TransportRequestOptions.Type.LOW.toString())))
+                .withCompress(settings.getAsBoolean("action.bulk.compress", true)
+                );
     }
 }

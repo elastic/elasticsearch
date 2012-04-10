@@ -25,6 +25,7 @@ import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -76,6 +77,13 @@ public class RestUpdateAction extends BaseRestHandler {
                 updateRequest.addScriptParam(entry.getKey().substring(3), entry.getValue());
             }
         }
+        String sField = request.param("fields");
+        if (sField != null) {
+            String[] sFields = Strings.splitStringByCommaToArray(sField);
+            if (sFields != null) {
+                updateRequest.fields(sFields);
+            }
+        }
         updateRequest.retryOnConflict(request.paramAsInt("retry_on_conflict", updateRequest.retryOnConflict()));
 
         // see if we have it in the body
@@ -116,6 +124,13 @@ public class RestUpdateAction extends BaseRestHandler {
                             .field(Fields._TYPE, response.type())
                             .field(Fields._ID, response.id())
                             .field(Fields._VERSION, response.version());
+
+                    if (response.getResult() != null) {
+                        builder.startObject(Fields.GET);
+                        response.getResult().toXContentEmbedded(builder, request);
+                        builder.endObject();
+                    }
+
                     if (response.matches() != null) {
                         builder.startArray(Fields.MATCHES);
                         for (String match : response.matches()) {
@@ -152,5 +167,6 @@ public class RestUpdateAction extends BaseRestHandler {
         static final XContentBuilderString _ID = new XContentBuilderString("_id");
         static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
         static final XContentBuilderString MATCHES = new XContentBuilderString("matches");
+        static final XContentBuilderString GET = new XContentBuilderString("get");
     }
 }

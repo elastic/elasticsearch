@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.get.GetResult;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -41,6 +42,8 @@ public class UpdateResponse implements ActionResponse {
     private long version;
 
     private List<String> matches;
+
+    private GetResult getResult;
 
     public UpdateResponse() {
 
@@ -123,6 +126,18 @@ public class UpdateResponse implements ActionResponse {
         return this.matches;
     }
 
+    void getResult(GetResult getResult) {
+        this.getResult = getResult;
+    }
+
+    public GetResult getResult() {
+        return this.getResult;
+    }
+
+    public GetResult getGetResult() {
+        return this.getResult;
+    }
+
     /**
      * Internal.
      */
@@ -157,6 +172,9 @@ public class UpdateResponse implements ActionResponse {
                 }
             }
         }
+        if (in.readBoolean()) {
+            getResult = GetResult.readGetResult(in);
+        }
     }
 
     @Override
@@ -173,6 +191,12 @@ public class UpdateResponse implements ActionResponse {
             for (String match : matches) {
                 out.writeUTF(match);
             }
+        }
+        if (getResult == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            getResult.writeTo(out);
         }
     }
 }

@@ -201,15 +201,21 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     }
 
     public InternalIndexShard routingEntry(ShardRouting shardRouting) {
+        ShardRouting currentRouting = this.shardRouting;
         if (!shardRouting.shardId().equals(shardId())) {
             throw new ElasticSearchIllegalArgumentException("Trying to set a routing entry with shardId [" + shardRouting.shardId() + "] on a shard with shardId [" + shardId() + "]");
         }
-        if (this.shardRouting != null) {
-            if (!shardRouting.primary() && this.shardRouting.primary()) {
+        if (currentRouting != null) {
+            if (!shardRouting.primary() && currentRouting.primary()) {
                 logger.warn("suspect illegal state: trying to move shard from primary mode to backup mode");
+            }
+            // if its the same routing, return
+            if (currentRouting.equals(shardRouting)) {
+                return this;
             }
         }
         this.shardRouting = shardRouting;
+        indicesLifecycle.shardRoutingChanged(this, currentRouting, shardRouting);
         return this;
     }
 

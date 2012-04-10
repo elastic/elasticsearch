@@ -34,7 +34,7 @@ import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameQu
 /**
  * <pre>
  * {
- *  fuzzy_like_This_field : {
+ *  fuzzy_like_this_field : {
  *      field1 : {
  *          maxNumTerms : 12,
  *          boost : 1.1,

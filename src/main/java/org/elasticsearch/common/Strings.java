@@ -789,7 +789,7 @@ public class Strings {
      */
     public static Locale parseLocaleString(String localeString) {
         String[] parts = tokenizeToStringArray(localeString, "_ ", false, false);
-        String language = (parts.length > 0 ? parts[0] : "");
+        String language = (parts.length != 0 ? parts[0] : "");
         String country = (parts.length > 1 ? parts[1] : "");
         String variant = "";
         if (parts.length >= 2) {

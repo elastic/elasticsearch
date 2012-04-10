@@ -184,7 +184,7 @@ public class TranslogService extends AbstractIndexShardComponent {
         }
 
         private void asyncFlushAndReschedule() {
-            threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(new Runnable() {
+            threadPool.executor(ThreadPool.Names.FLUSH).execute(new Runnable() {
                 @Override
                 public void run() {
                     try {

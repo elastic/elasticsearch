@@ -57,7 +57,7 @@ public class TransportGatewaySnapshotAction extends TransportBroadcastOperationA
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.MANAGEMENT;
+        return ThreadPool.Names.SNAPSHOT;
     }
 
     @Override

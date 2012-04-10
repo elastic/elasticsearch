@@ -146,6 +146,10 @@ public class XContentMapConverter {
     }
 
     private static void writeValue(XContentGenerator gen, Object value) throws IOException {
+        if (value == null) {
+            gen.writeNull();
+            return;
+        }
         Class type = value.getClass();
         if (type == String.class) {
             gen.writeString((String) value);

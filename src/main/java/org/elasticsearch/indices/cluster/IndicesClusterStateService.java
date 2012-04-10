@@ -646,7 +646,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
 
         @Override
         public void onRetryRecovery(TimeValue retryAfter) {
-            threadPool.schedule(retryAfter, ThreadPool.Names.CACHED, new Runnable() {
+            threadPool.schedule(retryAfter, ThreadPool.Names.GENERIC, new Runnable() {
                 @Override
                 public void run() {
                     recoveryTarget.startRecovery(request, true, PeerRecoveryListener.this);
@@ -719,7 +719,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 return;
             }
             final ShardRouting fShardRouting = shardRouting;
-            threadPool.cached().execute(new Runnable() {
+            threadPool.generic().execute(new Runnable() {
                 @Override
                 public void run() {
                     synchronized (mutex) {

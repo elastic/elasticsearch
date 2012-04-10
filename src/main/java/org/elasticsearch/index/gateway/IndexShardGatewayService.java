@@ -166,7 +166,7 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
             return;
         }
 
-        threadPool.cached().execute(new Runnable() {
+        threadPool.generic().execute(new Runnable() {
             @Override
             public void run() {
                 recoveryStatus = new RecoveryStatus();

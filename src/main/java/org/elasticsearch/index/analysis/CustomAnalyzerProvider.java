@@ -32,8 +32,6 @@ import static com.google.common.collect.Lists.newArrayList;
 /**
  * A custom analyzer that is built out of a single {@link org.apache.lucene.analysis.Tokenizer} and a list
  * of {@link org.apache.lucene.analysis.TokenFilter}s.
- *
- *
  */
 public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<CustomAnalyzer> {
 
@@ -79,9 +77,15 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
             tokenFilters.add(tokenFilter);
         }
 
+        int positionOffsetGap = analyzerSettings.getAsInt("position_offset_gap", 0);
+        int offsetGap = analyzerSettings.getAsInt("offset_gap", -1);
+
         this.customAnalyzer = new CustomAnalyzer(tokenizer,
                 charFilters.toArray(new CharFilterFactory[charFilters.size()]),
-                tokenFilters.toArray(new TokenFilterFactory[tokenFilters.size()]));
+                tokenFilters.toArray(new TokenFilterFactory[tokenFilters.size()]),
+                positionOffsetGap,
+                offsetGap
+        );
     }
 
     @Override

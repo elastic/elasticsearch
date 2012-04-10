@@ -43,4 +43,12 @@ public class BulkRequestTests {
         bulkRequest.add(bulkAction.getBytes(), 0, bulkAction.length(), true, null, null);
         assertThat(bulkRequest.numberOfActions(), equalTo(3));
     }
+
+    @Test
+    public void testSimpleBulk3() throws Exception {
+        String bulkAction = copyToStringFromClasspath("/org/elasticsearch/test/unit/action/bulk/simple-bulk3.json");
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(bulkAction.getBytes(), 0, bulkAction.length(), true, null, null);
+        assertThat(bulkRequest.numberOfActions(), equalTo(3));
+    }
 }

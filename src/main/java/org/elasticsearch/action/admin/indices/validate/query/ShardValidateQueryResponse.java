@@ -33,18 +33,32 @@ import java.io.IOException;
 class ShardValidateQueryResponse extends BroadcastShardOperationResponse {
 
     private boolean valid;
+    
+    private String explanation;
 
+    private String error;
+    
     ShardValidateQueryResponse() {
 
     }
 
-    public ShardValidateQueryResponse(String index, int shardId, boolean valid) {
+    public ShardValidateQueryResponse(String index, int shardId, boolean valid, String explanation, String error) {
         super(index, shardId);
         this.valid = valid;
+        this.explanation = explanation;
+        this.error = error;
     }
 
-    boolean valid() {
+    public boolean valid() {
         return this.valid;
+    }
+    
+    public String explanation() {
+        return explanation;
+    }
+    
+    public String error() {
+        return error;
     }
 
     @Override

@@ -34,19 +34,26 @@ public class CachedStreamOutput {
     private static Entry newEntry() {
         BytesStreamOutput bytes = new BytesStreamOutput();
         HandlesStreamOutput handles = new HandlesStreamOutput(bytes);
-        LZFStreamOutput lzf = new LZFStreamOutput(bytes, true);
-        return new Entry(bytes, handles, lzf);
+        return new Entry(bytes, handles);
     }
 
     public static class Entry {
         private final BytesStreamOutput bytes;
         private final HandlesStreamOutput handles;
-        private final LZFStreamOutput lzf;
+        private LZFStreamOutput lzf;
 
-        Entry(BytesStreamOutput bytes, HandlesStreamOutput handles, LZFStreamOutput lzf) {
+        Entry(BytesStreamOutput bytes, HandlesStreamOutput handles) {
             this.bytes = bytes;
             this.handles = handles;
-            this.lzf = lzf;
+        }
+
+        // lazily initialize LZF, so we won't allocate it if we don't do
+        // any compression
+        private LZFStreamOutput lzf() {
+            if (lzf == null) {
+                lzf = new LZFStreamOutput(bytes, true);
+            }
+            return lzf;
         }
 
         /**
@@ -65,11 +72,13 @@ public class CachedStreamOutput {
         }
 
         public LZFStreamOutput cachedLZFBytes() throws IOException {
+            LZFStreamOutput lzf = lzf();
             lzf.reset();
             return lzf;
         }
 
         public HandlesStreamOutput cachedHandlesLzfBytes() throws IOException {
+            LZFStreamOutput lzf = lzf();
             handles.reset(lzf);
             return handles;
         }

@@ -42,8 +42,6 @@ import static org.elasticsearch.transport.TransportRequestOptions.options;
 
 /**
  * A fault detection of multiple nodes.
- *
- *
  */
 public class NodesFaultDetection extends AbstractComponent {
 
@@ -180,7 +178,7 @@ public class NodesFaultDetection extends AbstractComponent {
     }
 
     private void notifyNodeFailure(final DiscoveryNode node, final String reason) {
-        threadPool.cached().execute(new Runnable() {
+        threadPool.generic().execute(new Runnable() {
             @Override
             public void run() {
                 for (Listener listener : listeners) {

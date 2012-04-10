@@ -229,6 +229,23 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         return new PlainShardIterator(shardId, primaryAsList);
     }
 
+    public ShardIterator primaryFirstActiveShardsIt() {
+        ArrayList<ShardRouting> ordered = new ArrayList<ShardRouting>(activeShards.size());
+        // fill it in a randomized fashion
+        int index = Math.abs(counter.getAndIncrement());
+        for (int i = 0; i < activeShards.size(); i++) {
+            int loc = (index + i) % activeShards.size();
+            ShardRouting shardRouting = activeShards.get(loc);
+            ordered.add(shardRouting);
+            if (shardRouting.primary()) {
+                // switch, its the matching node id
+                ordered.set(i, ordered.get(0));
+                ordered.set(0, shardRouting);
+            }
+        }
+        return new PlainShardIterator(shardId, ordered);
+    }
+
     /**
      * Prefers execution on the provided node if applicable.
      */

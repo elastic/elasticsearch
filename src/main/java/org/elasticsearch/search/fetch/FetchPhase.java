@@ -141,7 +141,7 @@ public class FetchPhase implements SearchPhase {
             } else if (fieldSelectorMapper != null) {
                 // we are asking specific stored fields, just add the UID and be done
                 fieldSelectorMapper.add(UidFieldMapper.NAME);
-                if (extractFieldNames != null) {
+                if (extractFieldNames != null || sourceRequested) {
                     fieldSelectorMapper.add(SourceFieldMapper.NAME);
                 }
                 fieldSelector = fieldSelectorMapper;

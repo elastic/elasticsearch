@@ -706,7 +706,7 @@ public class MetaData implements Iterable<IndexMetaData> {
             return this;
         }
 
-        public Builder remoteTemplate(String templateName) {
+        public Builder removeTemplate(String templateName) {
             templates.remove(templateName);
             return this;
         }

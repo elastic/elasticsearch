@@ -100,7 +100,7 @@ public class TransportClientNodesService extends AbstractComponent {
         } else {
             this.nodesSampler = new SimpleNodeSampler();
         }
-        this.nodesSamplerFuture = threadPool.schedule(nodesSamplerInterval, ThreadPool.Names.CACHED, new ScheduledNodeSampler());
+        this.nodesSamplerFuture = threadPool.schedule(nodesSamplerInterval, ThreadPool.Names.GENERIC, new ScheduledNodeSampler());
 
         // we want the transport service to throw connect exceptions, so we can retry
         transportService.throwConnectException(true);
@@ -248,7 +248,7 @@ public class TransportClientNodesService extends AbstractComponent {
             try {
                 nodesSampler.sample();
                 if (!closed) {
-                    nodesSamplerFuture = threadPool.schedule(nodesSamplerInterval, ThreadPool.Names.CACHED, this);
+                    nodesSamplerFuture = threadPool.schedule(nodesSamplerInterval, ThreadPool.Names.GENERIC, this);
                 }
             } catch (Exception e) {
                 logger.warn("failed to sample", e);
@@ -276,7 +276,7 @@ public class TransportClientNodesService extends AbstractComponent {
                 try {
                     NodesInfoResponse nodeInfo = transportService.submitRequest(node, NodesInfoAction.NAME,
                             Requests.nodesInfoRequest("_local"),
-                            TransportRequestOptions.options().withTimeout(pingTimeout),
+                            TransportRequestOptions.options().withHighType().withTimeout(pingTimeout),
                             new FutureTransportResponseHandler<NodesInfoResponse>() {
                                 @Override
                                 public NodesInfoResponse newInstance() {
@@ -326,13 +326,14 @@ public class TransportClientNodesService extends AbstractComponent {
                                 try {
                                     transportService.connectToNode(listedNode);
                                 } catch (Exception e) {
-                                    logger.debug("failed to connect to node [{}], removed from nodes list", e, listedNode);
+                                    logger.debug("failed to connect to node [{}], ignoring...", e, listedNode);
+                                    latch.countDown();
                                     return;
                                 }
                             }
                             transportService.sendRequest(listedNode, NodesInfoAction.NAME,
                                     Requests.nodesInfoRequest("_all"),
-                                    TransportRequestOptions.options().withTimeout(pingTimeout),
+                                    TransportRequestOptions.options().withHighType().withTimeout(pingTimeout),
                                     new BaseTransportResponseHandler<NodesInfoResponse>() {
 
                                         @Override

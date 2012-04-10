@@ -56,7 +56,7 @@ public class WrapperQueryBuilder extends BaseQueryBuilder {
     public WrapperQueryBuilder(String source) {
         this.source = source.getBytes(Charsets.UTF_8);
         this.offset = 0;
-        this.length = source.length();
+        this.length = this.source.length;
     }
 
     public WrapperQueryBuilder(byte[] source, int offset, int length) {

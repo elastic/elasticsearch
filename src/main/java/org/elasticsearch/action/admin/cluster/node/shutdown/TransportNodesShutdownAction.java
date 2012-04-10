@@ -69,7 +69,7 @@ public class TransportNodesShutdownAction extends TransportMasterNodeOperationAc
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.CACHED;
+        return ThreadPool.Names.GENERIC;
     }
 
     @Override

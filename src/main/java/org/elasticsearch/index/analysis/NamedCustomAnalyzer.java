@@ -20,9 +20,18 @@
 package org.elasticsearch.index.analysis;
 
 /**
- *
  */
-public interface PositionIncrementGapAnalyzer {
+public class NamedCustomAnalyzer extends NamedAnalyzer {
 
-    void setPositionIncrementGap(int positionIncrementGap);
+    private final int positionOffsetGap;
+
+    public NamedCustomAnalyzer(NamedAnalyzer analyzer, int positionOffsetGap) {
+        super(analyzer.name(), analyzer.scope(), analyzer.analyzer());
+        this.positionOffsetGap = positionOffsetGap;
+    }
+
+    @Override
+    public int getPositionIncrementGap(String fieldName) {
+        return positionOffsetGap;
+    }
 }

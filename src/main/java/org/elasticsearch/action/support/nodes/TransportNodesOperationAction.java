@@ -127,7 +127,7 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
         private void start() {
             if (nodesIds.length == 0) {
                 // nothing to notify
-                threadPool.cached().execute(new Runnable() {
+                threadPool.generic().execute(new Runnable() {
                     @Override
                     public void run() {
                         listener.onResponse(newResponse(request, responses));

@@ -67,6 +67,7 @@ public class NodesStatsResponse extends NodesOperationResponse<NodeStats> implem
         for (NodeStats nodeStats : this) {
             builder.startObject(nodeStats.node().id(), XContentBuilder.FieldCaseConversion.NONE);
 
+            builder.field("timestamp", nodeStats.timestamp());
             builder.field("name", nodeStats.node().name(), XContentBuilder.FieldCaseConversion.NONE);
             builder.field("transport_address", nodeStats.node().address().toString());
 

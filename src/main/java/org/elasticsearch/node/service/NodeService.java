@@ -133,7 +133,7 @@ public class NodeService extends AbstractComponent {
     public NodeStats stats() {
         // for indices stats we want to include previous allocated shards stats as well (it will
         // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
-        return new NodeStats(clusterService.state().nodes().localNode(), hostname,
+        return new NodeStats(clusterService.state().nodes().localNode(), System.currentTimeMillis(), hostname,
                 indicesService.stats(true),
                 monitorService.osService().stats(),
                 monitorService.processService().stats(),
@@ -149,7 +149,7 @@ public class NodeService extends AbstractComponent {
     public NodeStats stats(boolean indices, boolean os, boolean process, boolean jvm, boolean threadPool, boolean network, boolean fs, boolean transport, boolean http) {
         // for indices stats we want to include previous allocated shards stats as well (it will
         // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
-        return new NodeStats(clusterService.state().nodes().localNode(), hostname,
+        return new NodeStats(clusterService.state().nodes().localNode(), System.currentTimeMillis(), hostname,
                 indices ? indicesService.stats(true) : null,
                 os ? monitorService.osService().stats() : null,
                 process ? monitorService.processService().stats() : null,

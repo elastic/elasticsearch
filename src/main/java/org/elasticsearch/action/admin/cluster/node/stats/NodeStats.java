@@ -41,6 +41,8 @@ import java.io.IOException;
  */
 public class NodeStats extends NodeOperationResponse {
 
+    private long timestamp;
+
     @Nullable
     private String hostname;
 
@@ -74,10 +76,11 @@ public class NodeStats extends NodeOperationResponse {
     NodeStats() {
     }
 
-    public NodeStats(DiscoveryNode node, @Nullable String hostname, @Nullable NodeIndicesStats indices,
+    public NodeStats(DiscoveryNode node, long timestamp, @Nullable String hostname, @Nullable NodeIndicesStats indices,
                      @Nullable OsStats os, @Nullable ProcessStats process, @Nullable JvmStats jvm, @Nullable ThreadPoolStats threadPool, @Nullable NetworkStats network,
                      @Nullable FsStats fs, @Nullable TransportStats transport, @Nullable HttpStats http) {
         super(node);
+        this.timestamp = timestamp;
         this.hostname = hostname;
         this.indices = indices;
         this.os = os;
@@ -88,6 +91,14 @@ public class NodeStats extends NodeOperationResponse {
         this.fs = fs;
         this.transport = transport;
         this.http = http;
+    }
+
+    public long timestamp() {
+        return this.timestamp;
+    }
+
+    public long getTimestamp() {
+        return this.timestamp;
     }
 
     @Nullable
@@ -241,6 +252,7 @@ public class NodeStats extends NodeOperationResponse {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
+        timestamp = in.readVLong();
         if (in.readBoolean()) {
             hostname = in.readUTF();
         }
@@ -276,6 +288,7 @@ public class NodeStats extends NodeOperationResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        out.writeVLong(timestamp);
         if (hostname == null) {
             out.writeBoolean(false);
         } else {

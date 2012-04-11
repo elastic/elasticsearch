@@ -849,6 +849,9 @@ public final class XContentBuilder {
     }
 
     public XContentBuilder value(Boolean value) throws IOException {
+        if (value == null) {
+            return nullValue();
+        }
         return value(value.booleanValue());
     }
 

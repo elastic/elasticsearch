@@ -213,6 +213,10 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         }
                     }
 
+                    if (settings.get(SETTING_AUTO_EXPAND_REPLICAS) != null && indexSettingsBuilder.get(SETTING_AUTO_EXPAND_REPLICAS) == null) {
+                        indexSettingsBuilder.put(SETTING_AUTO_EXPAND_REPLICAS, settings.get(SETTING_AUTO_EXPAND_REPLICAS));
+                    }
+
                     indexSettingsBuilder.put(SETTING_VERSION_CREATED, Version.CURRENT);
 
                     Settings actualIndexSettings = indexSettingsBuilder.build();

@@ -243,8 +243,8 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest {
      */
     public PutIndexTemplateRequest source(XContentBuilder templateBuilder) {
         try {
-            return source(templateBuilder.string());
-        } catch (IOException e) {
+            return source(templateBuilder.underlyingBytes(), 0, templateBuilder.underlyingBytesLength());
+        } catch (Exception e) {
             throw new ElasticSearchIllegalArgumentException("Failed to build json for template request", e);
         }
     }
@@ -253,49 +253,58 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest {
      * The template source definition.
      */
     public PutIndexTemplateRequest source(Map templateSource) {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-            builder.map(templateSource);
-            return source(builder.string());
-        } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate [" + templateSource + "]", e);
+        Map<String, Object> source = templateSource;
+        if (source.containsKey("template")) {
+            template(source.get("template").toString());
         }
+        if (source.containsKey("order")) {
+            order(XContentMapValues.nodeIntegerValue(source.get("order"), order()));
+        }
+        if (source.containsKey("settings")) {
+            if (!(source.get("settings") instanceof Map)) {
+                throw new ElasticSearchIllegalArgumentException("Malformed settings section, should include an inner object");
+            }
+            settings((Map<String, Object>) source.get("settings"));
+        }
+        if (source.containsKey("mappings")) {
+            Map<String, Object> mappings = (Map<String, Object>) source.get("mappings");
+            for (Map.Entry<String, Object> entry : mappings.entrySet()) {
+                if (!(entry.getValue() instanceof Map)) {
+                    throw new ElasticSearchIllegalArgumentException("Malformed mappings section for type [" + entry.getKey() + "], should include an inner object describing the mapping");
+                }
+                mapping(entry.getKey(), (Map<String, Object>) entry.getValue());
+            }
+        }
+        return this;
     }
 
     /**
      * The template source definition.
      */
     public PutIndexTemplateRequest source(String templateSource) {
-        // parse source
-        Map<String, Object> source = null;
         try {
-            source = XContentFactory.xContent(templateSource)
-                    .createParser(templateSource).mapOrderedAndClose();
-            if (source.containsKey("template")) {
-                template(source.get("template").toString());
-            }
-            if (source.containsKey("order")) {
-                order(XContentMapValues.nodeIntegerValue(source.get("order"), order()));
-            }
-            if (source.containsKey("settings")) {
-                if (!(source.get("settings") instanceof Map)) {
-                    throw new ElasticSearchIllegalArgumentException("Malformed settings section, should include an inner object");
-                }
-                settings((Map<String, Object>) source.get("settings"));
-            }
-            if (source.containsKey("mappings")) {
-                Map<String, Object> mappings = (Map<String, Object>) source.get("mappings");
-                for (Map.Entry<String, Object> entry : mappings.entrySet()) {
-                    if (!(entry.getValue() instanceof Map)) {
-                        throw new ElasticSearchIllegalArgumentException("Malformed mappings section for type [" + entry.getKey() + "], should include an inner object describing the mapping");
-                    }
-                    mapping(entry.getKey(), (Map<String, Object>) entry.getValue());
-                }
-            }
-        } catch (IOException e) {
-            throw new ElasticSearchIllegalArgumentException("Malformed template source", e);
+            return source(XContentFactory.xContent(templateSource).createParser(templateSource).mapOrderedAndClose());
+        } catch (Exception e) {
+            throw new ElasticSearchIllegalArgumentException("failed to parse template source [" + templateSource + "]", e);
         }
-        return this;
+    }
+
+    /**
+     * The template source definition.
+     */
+    public PutIndexTemplateRequest source(byte[] source) {
+        return source(source, 0, source.length);
+    }
+
+    /**
+     * The template source definition.
+     */
+    public PutIndexTemplateRequest source(byte[] source, int offset, int length) {
+        try {
+            return source(XContentFactory.xContent(source, offset, length).createParser(source, offset, length).mapOrderedAndClose());
+        } catch (IOException e) {
+            throw new ElasticSearchIllegalArgumentException("failed to parse template source", e);
+        }
     }
 
 

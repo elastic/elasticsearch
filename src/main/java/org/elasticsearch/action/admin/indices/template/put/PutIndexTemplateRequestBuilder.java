@@ -164,6 +164,22 @@ public class PutIndexTemplateRequestBuilder extends BaseIndicesRequestBuilder<Pu
     }
 
     /**
+     * The template source definition.
+     */
+    public PutIndexTemplateRequestBuilder setSource(byte[] templateSource) {
+        request.source(templateSource);
+        return this;
+    }
+
+    /**
+     * The template source definition.
+     */
+    public PutIndexTemplateRequestBuilder setSource(byte[] templateSource, int offset, int length) {
+        request.source(templateSource, offset, length);
+        return this;
+    }
+
+    /**
      * Timeout to wait for the index creation to be acknowledged by current cluster nodes. Defaults
      * to <tt>10s</tt>.
      */

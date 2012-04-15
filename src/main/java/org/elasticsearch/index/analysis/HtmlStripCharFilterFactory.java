@@ -21,9 +21,9 @@ package org.elasticsearch.index.analysis;
 
 import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.analysis.CharStream;
+import org.apache.lucene.analysis.charfilter.HTMLStripCharFilter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
-import org.elasticsearch.common.lucene.analysis.HTMLStripCharFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -35,12 +35,9 @@ public class HtmlStripCharFilterFactory extends AbstractCharFilterFactory {
 
     private final ImmutableSet<String> escapedTags;
 
-    private final int readAheadLimit;
-
     @Inject
     public HtmlStripCharFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name);
-        this.readAheadLimit = settings.getAsInt("read_ahead", HTMLStripCharFilter.DEFAULT_READ_AHEAD);
         String[] escapedTags = settings.getAsArray("escaped_tags");
         if (escapedTags.length > 0) {
             this.escapedTags = ImmutableSet.copyOf(escapedTags);
@@ -53,12 +50,8 @@ public class HtmlStripCharFilterFactory extends AbstractCharFilterFactory {
         return escapedTags;
     }
 
-    public int readAheadLimit() {
-        return readAheadLimit;
-    }
-
     @Override
     public CharStream create(CharStream tokenStream) {
-        return new HTMLStripCharFilter(tokenStream, escapedTags, readAheadLimit);
+        return new HTMLStripCharFilter(tokenStream, escapedTags);
     }
 }

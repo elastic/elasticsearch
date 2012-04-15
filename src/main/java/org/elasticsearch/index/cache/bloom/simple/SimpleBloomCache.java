@@ -19,10 +19,7 @@
 
 package org.elasticsearch.index.cache.bloom.simple;
 
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.index.TermDocs;
-import org.apache.lucene.index.TermEnum;
+import org.apache.lucene.index.*;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.UnicodeUtil;
@@ -48,7 +45,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  *
  */
-public class SimpleBloomCache extends AbstractIndexComponent implements BloomCache, IndexReader.ReaderFinishedListener {
+public class SimpleBloomCache extends AbstractIndexComponent implements BloomCache, SegmentReader.CoreClosedListener {
 
     private final ThreadPool threadPool;
 
@@ -78,8 +75,8 @@ public class SimpleBloomCache extends AbstractIndexComponent implements BloomCac
     }
 
     @Override
-    public void finished(IndexReader reader) {
-        clear(reader);
+    public void onClose(SegmentReader owner) {
+        clear(owner);
     }
 
     @Override
@@ -126,7 +123,7 @@ public class SimpleBloomCache extends AbstractIndexComponent implements BloomCac
             synchronized (creationMutex) {
                 fieldCache = cache.get(reader.getCoreCacheKey());
                 if (fieldCache == null) {
-                    reader.addReaderFinishedListener(this);
+                    ((SegmentReader) reader).addCoreClosedListener(this);
                     fieldCache = ConcurrentCollections.newConcurrentMap();
                     cache.put(reader.getCoreCacheKey(), fieldCache);
                 }

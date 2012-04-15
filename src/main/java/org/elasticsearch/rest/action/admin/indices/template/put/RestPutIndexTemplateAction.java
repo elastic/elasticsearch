@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.admin.indices.template.put;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
@@ -28,13 +27,10 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
-import java.util.Map;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.rest.RestStatus.OK;
@@ -68,7 +64,7 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
             putRequest.create(request.paramAsBoolean("create", false));
             putRequest.cause(request.param("cause", ""));
             putRequest.timeout(request.paramAsTime("timeout", timeValueSeconds(10)));
-            putRequest.source(request.contentAsString());
+            putRequest.source(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength());
         } catch (Exception e) {
             try {
                 channel.sendResponse(new XContentThrowableRestResponse(request, e));

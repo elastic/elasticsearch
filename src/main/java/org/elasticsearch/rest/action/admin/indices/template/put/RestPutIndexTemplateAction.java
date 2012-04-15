@@ -68,32 +68,7 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
             putRequest.create(request.paramAsBoolean("create", false));
             putRequest.cause(request.param("cause", ""));
             putRequest.timeout(request.paramAsTime("timeout", timeValueSeconds(10)));
-
-            // parse the parameters
-            Map<String, Object> source = XContentFactory.xContent(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength())
-                    .createParser(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength()).mapOrderedAndClose();
-
-            if (source.containsKey("template")) {
-                putRequest.template(source.get("template").toString());
-            }
-            if (source.containsKey("order")) {
-                putRequest.order(XContentMapValues.nodeIntegerValue(source.get("order"), putRequest.order()));
-            }
-            if (source.containsKey("settings")) {
-                if (!(source.get("settings") instanceof Map)) {
-                    throw new ElasticSearchIllegalArgumentException("Malformed settings section, should include an inner object");
-                }
-                putRequest.settings((Map<String, Object>) source.get("settings"));
-            }
-            if (source.containsKey("mappings")) {
-                Map<String, Object> mappings = (Map<String, Object>) source.get("mappings");
-                for (Map.Entry<String, Object> entry : mappings.entrySet()) {
-                    if (!(entry.getValue() instanceof Map)) {
-                        throw new ElasticSearchIllegalArgumentException("Malformed mappings section for type [" + entry.getKey() + "], should include an inner object describing the mapping");
-                    }
-                    putRequest.mapping(entry.getKey(), (Map<String, Object>) entry.getValue());
-                }
-            }
+            putRequest.source(request.contentAsString());
         } catch (Exception e) {
             try {
                 channel.sendResponse(new XContentThrowableRestResponse(request, e));

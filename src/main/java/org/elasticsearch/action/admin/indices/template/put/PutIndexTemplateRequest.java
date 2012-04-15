@@ -32,6 +32,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
 import java.io.IOException;
 import java.util.Map;
@@ -150,7 +151,7 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest {
     }
 
     /**
-     * The settings to crete the index template with (either json/yaml/properties format).
+     * The settings to create the index template with (either json/yaml/properties format).
      */
     public PutIndexTemplateRequest settings(String source) {
         this.settings = ImmutableSettings.settingsBuilder().loadFromSource(source).build();
@@ -235,6 +236,66 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest {
 
     Map<String, String> mappings() {
         return this.mappings;
+    }
+
+    /**
+     * The template source definition.
+     */
+    public PutIndexTemplateRequest source(XContentBuilder templateBuilder) {
+        try {
+            return source(templateBuilder.string());
+        } catch (IOException e) {
+            throw new ElasticSearchIllegalArgumentException("Failed to build json for template request", e);
+        }
+    }
+
+    /**
+     * The template source definition.
+     */
+    public PutIndexTemplateRequest source(Map templateSource) {
+        try {
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            builder.map(templateSource);
+            return source(builder.string());
+        } catch (IOException e) {
+            throw new ElasticSearchGenerationException("Failed to generate [" + templateSource + "]", e);
+        }
+    }
+
+    /**
+     * The template source definition.
+     */
+    public PutIndexTemplateRequest source(String templateSource) {
+        // parse source
+        Map<String, Object> source = null;
+        try {
+            source = XContentFactory.xContent(templateSource)
+                    .createParser(templateSource).mapOrderedAndClose();
+            if (source.containsKey("template")) {
+                template(source.get("template").toString());
+            }
+            if (source.containsKey("order")) {
+                order(XContentMapValues.nodeIntegerValue(source.get("order"), order()));
+            }
+            if (source.containsKey("settings")) {
+                if (!(source.get("settings") instanceof Map)) {
+                    throw new ElasticSearchIllegalArgumentException("Malformed settings section, should include an inner object");
+                }
+                settings((Map<String, Object>) source.get("settings"));
+            }
+            if (source.containsKey("mappings")) {
+                Map<String, Object> mappings = (Map<String, Object>) source.get("mappings");
+                for (Map.Entry<String, Object> entry : mappings.entrySet()) {
+                    if (!(entry.getValue() instanceof Map)) {
+                        throw new ElasticSearchIllegalArgumentException("Malformed mappings section for type [" + entry.getKey() + "], should include an inner object describing the mapping");
+                    }
+                    mapping(entry.getKey(), (Map<String, Object>) entry.getValue());
+                }
+            }
+        } catch (IOException e) {
+            throw new ElasticSearchIllegalArgumentException("Malformed template source", e);
+        }
+        return this;
     }
 
 

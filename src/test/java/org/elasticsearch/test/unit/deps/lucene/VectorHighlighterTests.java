@@ -60,7 +60,7 @@ public class VectorHighlighterTests {
         String fragment = highlighter.getBestFragment(highlighter.getFieldQuery(new TermQuery(new Term("content", "bad"))),
                 reader, topDocs.scoreDocs[0].doc, "content", 30);
         assertThat(fragment, notNullValue());
-        assertThat(fragment, equalTo("e big <b>bad</b> dog "));
+        assertThat(fragment, equalTo("the big <b>bad</b> dog"));
     }
 
     @Test

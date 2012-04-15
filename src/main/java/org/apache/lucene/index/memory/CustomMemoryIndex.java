@@ -46,10 +46,10 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.common.io.FastStringReader;
 
 import java.io.IOException;
 import java.io.Serializable;
-import java.io.StringReader;
 import java.util.*;
 
 /**
@@ -201,6 +201,8 @@ public class CustomMemoryIndex implements Serializable {
 
     private static final boolean DEBUG = false;
 
+    private final FieldInfos fieldInfos;
+
     /**
      * Sorts term entries into ascending order; also works for
      * Arrays.binarySearch() and Arrays.sort()
@@ -234,6 +236,7 @@ public class CustomMemoryIndex implements Serializable {
      */
     private CustomMemoryIndex(boolean storeOffsets) {
         this.stride = storeOffsets ? 3 : 1;
+        fieldInfos = new FieldInfos();
     }
 
     /**
@@ -257,8 +260,12 @@ public class CustomMemoryIndex implements Serializable {
         if (analyzer == null)
             throw new IllegalArgumentException("analyzer must not be null");
 
-        TokenStream stream = analyzer.tokenStream(fieldName,
-                new StringReader(text));
+        TokenStream stream;
+        try {
+            stream = analyzer.reusableTokenStream(fieldName, new FastStringReader(text));
+        } catch (IOException ex) {
+            throw new RuntimeException(ex);
+        }
 
         addField(fieldName, stream);
     }
@@ -337,6 +344,8 @@ public class CustomMemoryIndex implements Serializable {
             int numTokens = 0;
             int numOverlapTokens = 0;
             int pos = -1;
+
+            fieldInfos.add(fieldName, true, true);
 
             // CHANGE
             if (fields.get(fieldName) != null) {
@@ -760,13 +769,12 @@ public class CustomMemoryIndex implements Serializable {
      * Search support for Lucene framework integration; implements all methods
      * required by the Lucene IndexReader contracts.
      */
-    private final class MemoryIndexReader extends IndexReader {
+    final class MemoryIndexReader extends IndexReader {
 
         private Searcher searcher; // needed to find searcher.getSimilarity()
 
         private MemoryIndexReader() {
             super(); // avoid as much superclass baggage as possible
-            readerFinishedListeners = Collections.synchronizedSet(new HashSet<ReaderFinishedListener>());
         }
 
         private Info getInfo(String fieldName) {
@@ -1174,12 +1182,6 @@ public class CustomMemoryIndex implements Serializable {
             return 1;
         }
 
-        @Override
-        public Document document(int n) {
-            if (DEBUG) System.err.println("MemoryIndexReader.document");
-            return new Document(); // there are no stored fields
-        }
-
         //When we convert to JDK 1.5 make this Set<String>
         @Override
         public Document document(int n, FieldSelector fieldSelector) throws IOException {
@@ -1219,20 +1221,9 @@ public class CustomMemoryIndex implements Serializable {
             if (DEBUG) System.err.println("MemoryIndexReader.doClose");
         }
 
-        // lucene >= 1.9 (remove this method for lucene-1.4.3)
         @Override
-        public Collection<String> getFieldNames(FieldOption fieldOption) {
-            if (DEBUG) System.err.println("MemoryIndexReader.getFieldNamesOption");
-            if (fieldOption == FieldOption.UNINDEXED)
-                return Collections.<String>emptySet();
-            if (fieldOption == FieldOption.INDEXED_NO_TERMVECTOR)
-                return Collections.<String>emptySet();
-            if (fieldOption == FieldOption.TERMVECTOR_WITH_OFFSET && stride == 1)
-                return Collections.<String>emptySet();
-            if (fieldOption == FieldOption.TERMVECTOR_WITH_POSITION_OFFSET && stride == 1)
-                return Collections.<String>emptySet();
-
-            return Collections.unmodifiableSet(fields.keySet());
+        public FieldInfos getFieldInfos() {
+            return fieldInfos;
         }
     }
 

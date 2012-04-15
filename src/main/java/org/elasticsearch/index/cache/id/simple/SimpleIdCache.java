@@ -20,10 +20,7 @@
 package org.elasticsearch.index.cache.id.simple;
 
 import gnu.trove.impl.Constants;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.index.TermDocs;
-import org.apache.lucene.index.TermEnum;
+import org.apache.lucene.index.*;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.BytesWrap;
@@ -50,7 +47,7 @@ import java.util.concurrent.ConcurrentMap;
 /**
  *
  */
-public class SimpleIdCache extends AbstractIndexComponent implements IdCache, IndexReader.ReaderFinishedListener {
+public class SimpleIdCache extends AbstractIndexComponent implements IdCache, SegmentReader.CoreClosedListener {
 
     private final ConcurrentMap<Object, SimpleIdReaderCache> idReaders;
 
@@ -71,8 +68,8 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, In
     }
 
     @Override
-    public void finished(IndexReader reader) {
-        clear(reader);
+    public void onClose(SegmentReader owner) {
+        clear(owner);
     }
 
     @Override
@@ -112,7 +109,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, In
                         continue;
                     }
 
-                    reader.addReaderFinishedListener(this);
+                    ((SegmentReader) reader).addCoreClosedListener(this);
                     HashMap<String, TypeBuilder> readerBuilder = new HashMap<String, TypeBuilder>();
                     builders.put(reader.getCoreCacheKey(), readerBuilder);
 

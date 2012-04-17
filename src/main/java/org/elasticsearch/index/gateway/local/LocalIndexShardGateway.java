@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.gateway.local;
 
+import com.google.common.io.Closeables;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
@@ -178,8 +179,10 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
 
         recoveryStatus.translog().startTime(System.currentTimeMillis());
         recoveryStatus.updateStage(RecoveryStatus.Stage.TRANSLOG);
+        FileInputStream fs = null;
         try {
-            InputStreamStreamInput si = new InputStreamStreamInput(new FileInputStream(recoveringTranslogFile));
+            fs = new FileInputStream(recoveringTranslogFile);
+            InputStreamStreamInput si = new InputStreamStreamInput(fs);
             while (true) {
                 Translog.Operation operation;
                 try {
@@ -199,6 +202,8 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
             // we failed to recovery, make sure to delete the translog file (and keep the recovering one)
             indexShard.translog().close(true);
             throw new IndexShardGatewayRecoveryException(shardId, "failed to recover shard", e);
+        } finally {
+            Closeables.closeQuietly(fs);
         }
         indexShard.performRecoveryFinalization(true);
 

@@ -80,6 +80,9 @@ public class GeoDistanceRangeFilter extends Filter {
             inclusiveUpperPoint = NumericUtils.sortableLongToDouble(includeUpper ? i : (i - 1L));
         } else {
             inclusiveUpperPoint = Double.POSITIVE_INFINITY;
+            // we disable bounding box in this case, since the upper point is all and we create bounding box up to the
+            // upper point it will effectively include all
+            // TODO we can create a bounding box up to from and "not" it
             optimizeBbox = null;
         }
 
@@ -153,7 +156,7 @@ public class GeoDistanceRangeFilter extends Filter {
 
     @Override
     public String toString() {
-        return "GeoDistanceRangeFilter(" + fieldName + ", "  + geoDistance + ", ["  + inclusiveLowerPoint + " - " + inclusiveUpperPoint + "], " + lat + ", " + lon + ")";
+        return "GeoDistanceRangeFilter(" + fieldName + ", " + geoDistance + ", [" + inclusiveLowerPoint + " - " + inclusiveUpperPoint + "], " + lat + ", " + lon + ")";
     }
 
     @Override

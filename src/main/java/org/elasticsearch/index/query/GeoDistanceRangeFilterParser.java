@@ -44,8 +44,6 @@ import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameFi
  *     "name.lon" : 1.2,
  * }
  * </pre>
- *
- *
  */
 public class GeoDistanceRangeFilterParser implements FilterParser {
 
@@ -123,8 +121,7 @@ public class GeoDistanceRangeFilterParser implements FilterParser {
                     }
                 } else if (currentFieldName.equals("to")) {
                     if (token == XContentParser.Token.VALUE_NULL) {
-                    }
-                    if (token == XContentParser.Token.VALUE_STRING) {
+                    } else if (token == XContentParser.Token.VALUE_STRING) {
                         vTo = parser.text(); // a String
                     } else {
                         vTo = parser.numberValue(); // a Number
@@ -151,8 +148,7 @@ public class GeoDistanceRangeFilterParser implements FilterParser {
                     includeLower = true;
                 } else if ("lt".equals(currentFieldName)) {
                     if (token == XContentParser.Token.VALUE_NULL) {
-                    }
-                    if (token == XContentParser.Token.VALUE_STRING) {
+                    } else if (token == XContentParser.Token.VALUE_STRING) {
                         vTo = parser.text(); // a String
                     } else {
                         vTo = parser.numberValue(); // a Number
@@ -160,8 +156,7 @@ public class GeoDistanceRangeFilterParser implements FilterParser {
                     includeUpper = false;
                 } else if ("lte".equals(currentFieldName) || "le".equals(currentFieldName)) {
                     if (token == XContentParser.Token.VALUE_NULL) {
-                    }
-                    if (token == XContentParser.Token.VALUE_STRING) {
+                    } else if (token == XContentParser.Token.VALUE_STRING) {
                         vTo = parser.text(); // a String
                     } else {
                         vTo = parser.numberValue(); // a Number
@@ -210,20 +205,24 @@ public class GeoDistanceRangeFilterParser implements FilterParser {
             }
         }
 
-        double from;
-        double to;
-        if (vFrom instanceof Number) {
-            from = unit.toMiles(((Number) vFrom).doubleValue());
-        } else {
-            from = DistanceUnit.parse((String) vFrom, unit, DistanceUnit.MILES);
+        Double from = null;
+        Double to = null;
+        if (vFrom != null) {
+            if (vFrom instanceof Number) {
+                from = unit.toMiles(((Number) vFrom).doubleValue());
+            } else {
+                from = DistanceUnit.parse((String) vFrom, unit, DistanceUnit.MILES);
+            }
+            from = geoDistance.normalize(from, DistanceUnit.MILES);
         }
-        from = geoDistance.normalize(from, DistanceUnit.MILES);
-        if (vTo instanceof Number) {
-            to = unit.toMiles(((Number) vTo).doubleValue());
-        } else {
-            to = DistanceUnit.parse((String) vTo, unit, DistanceUnit.MILES);
+        if (vTo != null) {
+            if (vTo instanceof Number) {
+                to = unit.toMiles(((Number) vTo).doubleValue());
+            } else {
+                to = DistanceUnit.parse((String) vTo, unit, DistanceUnit.MILES);
+            }
+            to = geoDistance.normalize(to, DistanceUnit.MILES);
         }
-        to = geoDistance.normalize(to, DistanceUnit.MILES);
 
         if (normalizeLat) {
             lat = GeoUtils.normalizeLat(lat);

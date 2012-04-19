@@ -148,5 +148,51 @@ public class XContentMapValuesTests {
         assertThat(extListValue.size(), equalTo(2));
         assertThat(extListValue.get(0).toString(), equalTo("value1"));
         assertThat(extListValue.get(1).toString(), equalTo("value2"));
+
+        // fields with . in them
+        builder = XContentFactory.jsonBuilder().startObject()
+                .field("xxx.yyy", "value")
+                .endObject();
+        map = XContentFactory.xContent(XContentType.JSON).createParser(builder.string()).mapAndClose();
+        assertThat(XContentMapValues.extractValue("xxx.yyy", map).toString(), equalTo("value"));
+
+        builder = XContentFactory.jsonBuilder().startObject()
+                .startObject("path1.xxx").startObject("path2.yyy").field("test", "value").endObject().endObject()
+                .endObject();
+
+        map = XContentFactory.xContent(XContentType.JSON).createParser(builder.string()).mapAndClose();
+        assertThat(XContentMapValues.extractValue("path1.xxx.path2.yyy.test", map).toString(), equalTo("value"));
+    }
+
+    @SuppressWarnings({"unchecked"})
+    @Test
+    public void testExtractRawValue() throws Exception {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
+                .field("test", "value")
+                .endObject();
+
+        Map<String, Object> map = XContentFactory.xContent(XContentType.JSON).createParser(builder.string()).mapAndClose();
+        assertThat(XContentMapValues.extractRawValues("test", map).get(0).toString(), equalTo("value"));
+
+        builder = XContentFactory.jsonBuilder().startObject()
+                .field("test.me", "value")
+                .endObject();
+
+        map = XContentFactory.xContent(XContentType.JSON).createParser(builder.string()).mapAndClose();
+        assertThat(XContentMapValues.extractRawValues("test.me", map).get(0).toString(), equalTo("value"));
+
+        builder = XContentFactory.jsonBuilder().startObject()
+                .startObject("path1").startObject("path2").field("test", "value").endObject().endObject()
+                .endObject();
+
+        map = XContentFactory.xContent(XContentType.JSON).createParser(builder.string()).mapAndClose();
+        assertThat(XContentMapValues.extractRawValues("path1.path2.test", map).get(0).toString(), equalTo("value"));
+
+        builder = XContentFactory.jsonBuilder().startObject()
+                .startObject("path1.xxx").startObject("path2.yyy").field("test", "value").endObject().endObject()
+                .endObject();
+
+        map = XContentFactory.xContent(XContentType.JSON).createParser(builder.string()).mapAndClose();
+        assertThat(XContentMapValues.extractRawValues("path1.xxx.path2.yyy.test", map).get(0).toString(), equalTo("value"));
     }
 }

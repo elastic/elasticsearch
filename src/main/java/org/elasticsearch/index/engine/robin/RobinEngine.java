@@ -212,6 +212,10 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         if (indexingBufferSize == Engine.INACTIVE_SHARD_INDEXING_BUFFER && preValue != Engine.INACTIVE_SHARD_INDEXING_BUFFER) {
             try {
                 flush(new Flush().full(true));
+            } catch (EngineClosedException e) {
+                // ignore
+            } catch (FlushNotAllowedEngineException e) {
+                // ignore
             } catch (Exception e) {
                 logger.warn("failed to flush after setting shard to inactive", e);
             }

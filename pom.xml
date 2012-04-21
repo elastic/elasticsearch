@@ -153,7 +153,7 @@
         <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty</artifactId>
-            <version>3.4.0.Final</version>
+            <version>3.4.1.Final</version>
             <scope>compile</scope>
         </dependency>
         <!-- END: dependencies that are shaded -->

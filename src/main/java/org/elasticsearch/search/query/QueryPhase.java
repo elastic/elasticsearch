@@ -19,8 +19,15 @@
 
 package org.elasticsearch.search.query;
 
-import com.google.common.collect.ImmutableMap;
-import org.apache.lucene.search.*;
+import java.util.Map;
+
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.DeletionAwareConstantScoreQuery;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FilteredQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TotalHitCountCollector;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
@@ -37,7 +44,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortParseElement;
 import org.elasticsearch.search.sort.TrackScoresParseElement;
 
-import java.util.Map;
+import com.google.common.collect.ImmutableMap;
 
 /**
  *
@@ -140,6 +147,8 @@ public class QueryPhase implements SearchPhase {
                             if (numDocs > topDocs.totalHits) {
                                 numDocs = topDocs.totalHits;
                             }
+                            
+                            topDocsPhase.clear();
                         }
                     } catch (Exception e) {
                         throw new QueryPhaseExecutionException(searchContext, "Failed to execute child query [" + scopePhase.query() + "]", e);

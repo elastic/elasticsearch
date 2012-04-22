@@ -19,6 +19,14 @@
 
 package org.elasticsearch.test.integration.search.child;
 
+import static org.elasticsearch.index.query.FilterBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.search.facet.FacetBuilders.*;
+import static org.hamcrest.MatcherAssert.*;
+import static org.hamcrest.Matchers.*;
+
+import java.util.Arrays;
+
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -30,14 +38,6 @@ import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
-
-import java.util.Arrays;
-
-import static org.elasticsearch.index.query.FilterBuilders.hasChildFilter;
-import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.search.facet.FacetBuilders.termsFacet;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -106,6 +106,10 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
         client.prepareIndex("test", "parent", "p2").setSource("p_field", "p_value2").execute().actionGet();
         client.prepareIndex("test", "child", "c3").setSource("c_field", "blue").setParent("p2").execute().actionGet();
         client.prepareIndex("test", "child", "c4").setSource("c_field", "red").setParent("p2").execute().actionGet();
+        client.prepareIndex("test", "child", "c5").setSource("c_field", "orange").setParent("p2").execute().actionGet();
+        client.prepareIndex("test", "child", "c6").setSource("c_field", "orange").setParent("p2").execute().actionGet();
+        client.prepareIndex("test", "child", "c7").setSource("c_field", "orange").setParent("p2").execute().actionGet();
+        client.prepareIndex("test", "child", "c8").setSource("c_field", "orange").setParent("p2").execute().actionGet();
 
         client.admin().indices().prepareRefresh().execute().actionGet();
 
@@ -185,6 +189,12 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().totalHits(), equalTo(2l));
         assertThat(searchResponse.hits().getAt(0).id(), anyOf(equalTo("p2"), equalTo("p1")));
         assertThat(searchResponse.hits().getAt(1).id(), anyOf(equalTo("p2"), equalTo("p1")));
+
+        searchResponse = client.prepareSearch("test").setQuery(topChildrenQuery("child", termQuery("c_field", "orange")).factor(1)).setSize(2).execute().actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
+        assertThat(searchResponse.failedShards(), equalTo(0));
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+        assertThat(searchResponse.hits().getAt(0).id(), equalTo("p2"));
 
         // HAS CHILD QUERY
 

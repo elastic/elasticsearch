@@ -19,7 +19,8 @@
             <useProjectArtifact>true</useProjectArtifact>
             <useTransitiveFiltering>true</useTransitiveFiltering>
             <includes>
-                <include>commons-codec:commons-codec</include>
+               <include>org.apache.lucene:lucene-analyzers-phonetic</include>
+               <include>commons-codec:commons-codec</include>
             </includes>
         </dependencySet>
     </dependencySets>

@@ -126,6 +126,11 @@ public class TextQueryBuilder extends BaseQueryBuilder {
         return this;
     }
 
+    public TextQueryBuilder prefixLength(int prefixLength) {
+        this.prefixLength = prefixLength;
+        return this;
+    }
+
     /**
      * When using fuzzy or prefix type query, the number of term expansions to use. Defaults to unbounded
      * so its recommended to set it to a reasonable value for faster execution.

@@ -121,14 +121,16 @@ launch_service()
         es_parms="$es_parms -Des.foreground=yes"
         exec "$JAVA" $JAVA_OPTS $ES_JAVA_OPTS $es_parms -Des.path.home="$ES_HOME" -cp "$ES_CLASSPATH" $props \
                 org.elasticsearch.bootstrap.ElasticSearch
+        execval=$?
     else
         # Startup ElasticSearch, background it, and write the pid.
         exec "$JAVA" $JAVA_OPTS $ES_JAVA_OPTS $es_parms -Des.path.home="$ES_HOME" -cp "$ES_CLASSPATH" $props \
                     org.elasticsearch.bootstrap.ElasticSearch <&- &
+        execval=$?
         [ ! -z "$pidpath" ] && printf '%d' $! > "$pidpath"
     fi
 
-    return $?
+    return $execval
 }
 
 # Parse any command line options.

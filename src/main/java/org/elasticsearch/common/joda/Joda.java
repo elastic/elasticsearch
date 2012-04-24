@@ -20,7 +20,10 @@
 package org.elasticsearch.common.joda;
 
 import org.elasticsearch.common.Strings;
-import org.joda.time.DateTimeZone;
+import org.joda.time.*;
+import org.joda.time.field.DividedDateTimeField;
+import org.joda.time.field.OffsetDateTimeField;
+import org.joda.time.field.ScaledDurationField;
 import org.joda.time.format.*;
 
 /**
@@ -132,4 +135,29 @@ public class Joda {
         }
         return new FormatDateTimeFormatter(input, formatter.withZone(DateTimeZone.UTC));
     }
+
+
+    public static final DurationFieldType Quarters = new DurationFieldType("quarters") {
+        private static final long serialVersionUID = -8167713675442491871L;
+
+        public DurationField getField(Chronology chronology) {
+            return new ScaledDurationField(chronology.months(), Quarters, 3);
+        }
+    };
+
+    public static final DateTimeFieldType QuarterOfYear = new DateTimeFieldType("quarterOfYear") {
+        private static final long serialVersionUID = -5677872459807379123L;
+
+        public DurationFieldType getDurationType() {
+            return Quarters;
+        }
+
+        public DurationFieldType getRangeDurationType() {
+            return DurationFieldType.years();
+        }
+
+        public DateTimeField getField(Chronology chronology) {
+            return new OffsetDateTimeField(new DividedDateTimeField(new OffsetDateTimeField(chronology.monthOfYear(), -1), QuarterOfYear, 3), 1);
+        }
+    };
 }

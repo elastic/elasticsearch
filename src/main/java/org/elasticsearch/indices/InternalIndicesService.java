@@ -286,6 +286,8 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
             indexInjector = modules.createChildInjector(injector);
         } catch (CreationException e) {
             throw new IndexCreationException(index, Injectors.getFirstErrorFailure(e));
+        } catch (Throwable e) {
+            throw new IndexCreationException(index, e);
         }
 
         indicesInjectors.put(index.name(), indexInjector);

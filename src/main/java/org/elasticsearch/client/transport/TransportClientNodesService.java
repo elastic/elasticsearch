@@ -276,7 +276,7 @@ public class TransportClientNodesService extends AbstractComponent {
                 try {
                     NodesInfoResponse nodeInfo = transportService.submitRequest(node, NodesInfoAction.NAME,
                             Requests.nodesInfoRequest("_local"),
-                            TransportRequestOptions.options().withTimeout(pingTimeout),
+                            TransportRequestOptions.options().withHighType().withTimeout(pingTimeout),
                             new FutureTransportResponseHandler<NodesInfoResponse>() {
                                 @Override
                                 public NodesInfoResponse newInstance() {
@@ -324,15 +324,17 @@ public class TransportClientNodesService extends AbstractComponent {
                         try {
                             if (!transportService.nodeConnected(listedNode)) {
                                 try {
+                                    logger.trace("connecting to node [{}]", listedNode);
                                     transportService.connectToNode(listedNode);
                                 } catch (Exception e) {
-                                    logger.debug("failed to connect to node [{}], removed from nodes list", e, listedNode);
+                                    logger.debug("failed to connect to node [{}], ignoring...", e, listedNode);
+                                    latch.countDown();
                                     return;
                                 }
                             }
                             transportService.sendRequest(listedNode, NodesInfoAction.NAME,
                                     Requests.nodesInfoRequest("_all"),
-                                    TransportRequestOptions.options().withTimeout(pingTimeout),
+                                    TransportRequestOptions.options().withHighType().withTimeout(pingTimeout),
                                     new BaseTransportResponseHandler<NodesInfoResponse>() {
 
                                         @Override
@@ -388,11 +390,14 @@ public class TransportClientNodesService extends AbstractComponent {
             // now, make sure we are connected to all the updated nodes
             for (Iterator<DiscoveryNode> it = newNodes.iterator(); it.hasNext(); ) {
                 DiscoveryNode node = it.next();
-                try {
-                    transportService.connectToNode(node);
-                } catch (Exception e) {
-                    it.remove();
-                    logger.debug("failed to connect to discovered node [" + node + "]", e);
+                if (!transportService.nodeConnected(node)) {
+                    try {
+                        logger.trace("connecting to node [{}]", node);
+                        transportService.connectToNode(node);
+                    } catch (Exception e) {
+                        it.remove();
+                        logger.debug("failed to connect to discovered node [" + node + "]", e);
+                    }
                 }
             }
             nodes = new ImmutableList.Builder<DiscoveryNode>().addAll(newNodes).build();

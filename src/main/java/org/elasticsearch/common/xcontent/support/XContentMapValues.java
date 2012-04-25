@@ -53,15 +53,24 @@ public class XContentMapValues {
         if (index == pathElements.length) {
             return;
         }
-        String currentPath = pathElements[index];
-        Object currentValue = part.get(currentPath);
+
+        String key = pathElements[index];
+        Object currentValue = part.get(key);
+        int nextIndex = index + 1;
+        while (currentValue == null && nextIndex != pathElements.length) {
+            key += "." + pathElements[nextIndex];
+            currentValue = part.get(key);
+            nextIndex++;
+        }
+
         if (currentValue == null) {
             return;
         }
+
         if (currentValue instanceof Map) {
-            extractRawValues(values, (Map<String, Object>) currentValue, pathElements, index + 1);
+            extractRawValues(values, (Map<String, Object>) currentValue, pathElements, nextIndex);
         } else if (currentValue instanceof List) {
-            extractRawValues(values, (List) currentValue, pathElements, index + 1);
+            extractRawValues(values, (List) currentValue, pathElements, nextIndex);
         } else {
             values.add(currentValue);
         }
@@ -101,7 +110,15 @@ public class XContentMapValues {
         }
         if (currentValue instanceof Map) {
             Map map = (Map) currentValue;
-            return extractValue(pathElements, index + 1, map.get(pathElements[index]));
+            String key = pathElements[index];
+            Object mapValue = map.get(key);
+            int nextIndex = index + 1;
+            while (mapValue == null && nextIndex != pathElements.length) {
+                key += "." + pathElements[nextIndex];
+                mapValue = map.get(key);
+                nextIndex++;
+            }
+            return extractValue(pathElements, nextIndex, mapValue);
         }
         if (currentValue instanceof List) {
             List valueList = (List) currentValue;

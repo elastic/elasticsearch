@@ -24,6 +24,7 @@ import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
 import com.google.common.cache.Weigher;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.ElasticSearchException;
@@ -45,7 +46,7 @@ import org.elasticsearch.indices.cache.filter.IndicesFilterCache;
 import java.io.IOException;
 import java.util.concurrent.ConcurrentMap;
 
-public class WeightedFilterCache extends AbstractIndexComponent implements FilterCache, IndexReader.ReaderFinishedListener, RemovalListener<WeightedFilterCache.FilterCacheKey, FilterCacheValue<DocSet>> {
+public class WeightedFilterCache extends AbstractIndexComponent implements FilterCache, SegmentReader.CoreClosedListener, RemovalListener<WeightedFilterCache.FilterCacheKey, FilterCacheValue<DocSet>> {
 
     final IndicesFilterCache indicesFilterCache;
 
@@ -91,8 +92,8 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
     }
 
     @Override
-    public void finished(IndexReader reader) {
-        clear(reader);
+    public void onClose(SegmentReader owner) {
+        clear(owner);
     }
 
     @Override
@@ -165,7 +166,7 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
                 if (!cache.seenReaders.containsKey(reader.getCoreCacheKey())) {
                     Boolean previous = cache.seenReaders.putIfAbsent(reader.getCoreCacheKey(), Boolean.TRUE);
                     if (previous == null) {
-                        reader.addReaderFinishedListener(cache);
+                        ((SegmentReader) reader).addCoreClosedListener(cache);
                         cache.seenReadersCount.inc();
                     }
                 }

@@ -387,6 +387,14 @@ public abstract class FilterBuilders {
         return new IndicesFilterBuilder(filter, indices);
     }
 
+    public static WrapperFilterBuilder wrapperFilter(String filter) {
+        return new WrapperFilterBuilder(filter);
+    }
+
+    public static WrapperFilterBuilder wrapperFilter(byte[] data, int offset, int length) {
+        return new WrapperFilterBuilder(data, offset, length);
+    }
+
     private FilterBuilders() {
 
     }

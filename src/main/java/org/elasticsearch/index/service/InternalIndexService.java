@@ -312,6 +312,8 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
             shardInjector = modules.createChildInjector(injector);
         } catch (CreationException e) {
             throw new IndexShardCreationException(shardId, Injectors.getFirstErrorFailure(e));
+        } catch (Throwable e) {
+            throw new IndexShardCreationException(shardId, e);
         }
 
         shardsInjectors = newMapBuilder(shardsInjectors).put(shardId.id(), shardInjector).immutableMap();

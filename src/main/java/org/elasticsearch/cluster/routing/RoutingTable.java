@@ -311,7 +311,8 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
             for (String index : indices) {
                 IndexRoutingTable indexRoutingTable = indicesRouting.get(index);
                 if (indexRoutingTable == null) {
-                    throw new IndexMissingException(new Index(index));
+                    // ignore index missing failure, its closed...
+                    continue;
                 }
                 int currentNumberOfReplicas = indexRoutingTable.shards().get(0).size() - 1; // remove the required primary
                 IndexRoutingTable.Builder builder = new IndexRoutingTable.Builder(index);

@@ -20,9 +20,7 @@
 package org.elasticsearch.index.engine.robin;
 
 import org.apache.lucene.index.*;
-import org.apache.lucene.search.FilteredQuery;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
+import org.apache.lucene.search.*;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchException;
@@ -33,8 +31,6 @@ import org.elasticsearch.common.bloom.BloomFilter;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.manager.SearcherFactory;
-import org.elasticsearch.common.lucene.manager.SearcherManager;
 import org.elasticsearch.common.lucene.uid.UidField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -216,6 +212,10 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         if (indexingBufferSize == Engine.INACTIVE_SHARD_INDEXING_BUFFER && preValue != Engine.INACTIVE_SHARD_INDEXING_BUFFER) {
             try {
                 flush(new Flush().full(true));
+            } catch (EngineClosedException e) {
+                // ignore
+            } catch (FlushNotAllowedEngineException e) {
+                // ignore
             } catch (Exception e) {
                 logger.warn("failed to flush after setting shard to inactive", e);
             }

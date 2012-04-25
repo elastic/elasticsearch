@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.joda.TimeZoneRounding;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -58,6 +59,7 @@ public class DateHistogramFacetProcessor extends AbstractComponent implements Fa
         dateFieldParsers = MapBuilder.<String, DateFieldParser>newMapBuilder()
                 .put("year", new DateFieldParser.YearOfCentury())
                 .put("1y", new DateFieldParser.YearOfCentury())
+                .put("quarter", new DateFieldParser.Quarter())
                 .put("month", new DateFieldParser.MonthOfYear())
                 .put("1m", new DateFieldParser.MonthOfYear())
                 .put("week", new DateFieldParser.WeekOfWeekyear())
@@ -224,6 +226,13 @@ public class DateHistogramFacetProcessor extends AbstractComponent implements Fa
             @Override
             public DateTimeField parse(Chronology chronology) {
                 return chronology.yearOfCentury();
+            }
+        }
+
+        static class Quarter implements DateFieldParser {
+            @Override
+            public DateTimeField parse(Chronology chronology) {
+                return Joda.QuarterOfYear.getField(chronology);
             }
         }
 

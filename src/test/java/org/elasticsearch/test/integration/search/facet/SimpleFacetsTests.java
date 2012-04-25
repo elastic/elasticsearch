@@ -1403,6 +1403,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                     .addFacet(dateHistogramFacet("stats4").field("date").valueScript("doc['num'].value * 2").interval("day").preZone("-02:00"))
                     .addFacet(dateHistogramFacet("stats5").field("date").interval("24h"))
                     .addFacet(dateHistogramFacet("stats6").field("date").valueField("num").interval("day").preZone("-02:00").postZone("-02:00"))
+                    .addFacet(dateHistogramFacet("stats7").field("date").interval("quarter"))
                     .execute().actionGet();
 
             if (searchResponse.failedShards() > 0) {
@@ -1469,6 +1470,11 @@ public class SimpleFacetsTests extends AbstractNodesTests {
             assertThat(facet.entries().get(1).time(), equalTo(utcTimeInMillis("2009-03-05") - TimeValue.timeValueHours(2).millis()));
             assertThat(facet.entries().get(1).count(), equalTo(2l));
             assertThat(facet.entries().get(1).total(), equalTo(5d));
+
+            facet = searchResponse.facets().facet("stats7");
+            assertThat(facet.name(), equalTo("stats7"));
+            assertThat(facet.entries().size(), equalTo(1));
+            assertThat(facet.entries().get(0).time(), equalTo(utcTimeInMillis("2009-01-01")));
         }
     }
 

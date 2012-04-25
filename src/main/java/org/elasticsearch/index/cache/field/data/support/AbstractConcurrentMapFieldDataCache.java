@@ -21,6 +21,7 @@ package org.elasticsearch.index.cache.field.data.support;
 
 import com.google.common.cache.Cache;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.SegmentReader;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -38,7 +39,7 @@ import java.util.concurrent.ConcurrentMap;
 /**
  *
  */
-public abstract class AbstractConcurrentMapFieldDataCache extends AbstractIndexComponent implements FieldDataCache, IndexReader.ReaderFinishedListener {
+public abstract class AbstractConcurrentMapFieldDataCache extends AbstractIndexComponent implements FieldDataCache, SegmentReader.CoreClosedListener {
 
     private final ConcurrentMap<Object, Cache<String, FieldData>> cache;
 
@@ -67,8 +68,8 @@ public abstract class AbstractConcurrentMapFieldDataCache extends AbstractIndexC
     }
 
     @Override
-    public void finished(IndexReader reader) {
-        clear(reader);
+    public void onClose(SegmentReader owner) {
+        clear(owner);
     }
 
     @Override
@@ -108,7 +109,7 @@ public abstract class AbstractConcurrentMapFieldDataCache extends AbstractIndexC
                 fieldDataCache = cache.get(reader.getCoreCacheKey());
                 if (fieldDataCache == null) {
                     fieldDataCache = buildFieldDataMap();
-                    reader.addReaderFinishedListener(this);
+                    ((SegmentReader) reader).addCoreClosedListener(this);
                     cache.put(reader.getCoreCacheKey(), fieldDataCache);
                 }
             }

@@ -73,6 +73,8 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
     protected final WriteConsistencyLevel defaultWriteConsistencyLevel;
 
+    protected final TransportRequestOptions transportOptions;
+
     final String transportAction;
     final String transportReplicaAction;
     final String executor;
@@ -94,6 +96,8 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
         transportService.registerHandler(transportAction, new OperationTransportHandler());
         transportService.registerHandler(transportReplicaAction, new ReplicaOperationTransportHandler());
+
+        this.transportOptions = transportOptions();
 
         this.defaultReplicationType = ReplicationType.fromString(settings.get("action.replication_type", "sync"));
         this.defaultWriteConsistencyLevel = WriteConsistencyLevel.fromString(settings.get("action.write_consistency", "quorum"));
@@ -368,7 +372,6 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                     }
                 }
                 shardIt = shards(clusterState, request);
-                shardIt = shards(clusterState, request);
             } catch (Exception e) {
                 listener.onFailure(e);
                 return true;
@@ -432,7 +435,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                     }
                 } else {
                     DiscoveryNode node = nodes.get(shard.currentNodeId());
-                    transportService.sendRequest(node, transportAction, request, transportOptions(), new BaseTransportResponseHandler<Response>() {
+                    transportService.sendRequest(node, transportAction, request, transportOptions, new BaseTransportResponseHandler<Response>() {
 
                         @Override
                         public Response newInstance() {
@@ -453,7 +456,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                         public void handleException(TransportException exp) {
                             // if we got disconnected from the node, or the node / shard is not in the right state (being closed)
                             if (exp.unwrapCause() instanceof ConnectTransportException || exp.unwrapCause() instanceof NodeClosedException ||
-                                    exp.unwrapCause() instanceof IllegalIndexShardStateException) {
+                                    retryPrimaryException(exp)) {
                                 primaryOperationStarted.set(false);
                                 // we already marked it as started when we executed it (removed the listener) so pass false
                                 // to re-add to the cluster listener
@@ -531,6 +534,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             } catch (Exception e) {
                 // shard has not been allocated yet, retry it here
                 if (retryPrimaryException(e)) {
+                    primaryOperationStarted.set(false);
                     retry(fromDiscoveryListener, null);
                     return;
                 }
@@ -625,7 +629,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             final ReplicaOperationRequest shardRequest = new ReplicaOperationRequest(shardIt.shardId().id(), response.replicaRequest());
             if (!nodeId.equals(nodes.localNodeId())) {
                 DiscoveryNode node = nodes.get(nodeId);
-                transportService.sendRequest(node, transportReplicaAction, shardRequest, transportOptions(), new VoidTransportResponseHandler(ThreadPool.Names.SAME) {
+                transportService.sendRequest(node, transportReplicaAction, shardRequest, transportOptions, new VoidTransportResponseHandler(ThreadPool.Names.SAME) {
                     @Override
                     public void handleResponse(VoidStreamable vResponse) {
                         finishIfPossible();

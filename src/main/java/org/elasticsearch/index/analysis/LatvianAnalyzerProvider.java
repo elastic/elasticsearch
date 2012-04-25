@@ -19,39 +19,32 @@
 
 package org.elasticsearch.index.analysis;
 
-import com.google.common.collect.ImmutableSet;
-import org.apache.lucene.analysis.CharStream;
-import org.apache.lucene.analysis.charfilter.HTMLStripCharFilter;
+import org.apache.lucene.analysis.CharArraySet;
+import org.apache.lucene.analysis.lv.LatvianAnalyzer;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
 /**
  *
  */
-public class HtmlStripCharFilterFactory extends AbstractCharFilterFactory {
+public class LatvianAnalyzerProvider extends AbstractIndexAnalyzerProvider<LatvianAnalyzer> {
 
-    private final ImmutableSet<String> escapedTags;
+    private final LatvianAnalyzer analyzer;
 
     @Inject
-    public HtmlStripCharFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name);
-        String[] escapedTags = settings.getAsArray("escaped_tags");
-        if (escapedTags.length > 0) {
-            this.escapedTags = ImmutableSet.copyOf(escapedTags);
-        } else {
-            this.escapedTags = null;
-        }
-    }
-
-    public ImmutableSet<String> escapedTags() {
-        return escapedTags;
+    public LatvianAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
+        super(index, indexSettings, name, settings);
+        analyzer = new LatvianAnalyzer(version,
+                Analysis.parseStopWords(env, settings, LatvianAnalyzer.getDefaultStopSet(), version),
+                Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET));
     }
 
     @Override
-    public CharStream create(CharStream tokenStream) {
-        return new HTMLStripCharFilter(tokenStream, escapedTags);
+    public LatvianAnalyzer get() {
+        return this.analyzer;
     }
 }

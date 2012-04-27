@@ -114,6 +114,8 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
 
     private final boolean checkIndexOnStartup;
+    
+    private final boolean fixIndexOnStartup;
 
     private long checkIndexTook = 0;
 
@@ -163,6 +165,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         logger.debug("state: [CREATED]");
 
         this.checkIndexOnStartup = indexSettings.getAsBoolean("index.shard.check_on_startup", false);
+        this.fixIndexOnStartup = indexSettings.getAsBoolean("index.shard.check_on_startup_and_fix", false);
     }
 
     public MergeSchedulerProvider mergeScheduler() {
@@ -865,6 +868,15 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             } else {
                 if (logger.isDebugEnabled()) {
                     logger.debug("check index [success]\n{}", new String(os.underlyingBytes(), 0, os.size()));
+                }
+                if (fixIndexOnStartup) {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("fixing index, writing new segments file ...");
+                    }
+                    checkIndex.fixIndex(status);
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("index fixed, wrote new segments file \"{}\"", status.segmentsFileName);
+                    }
                 }
             }
             checkIndexTook = System.currentTimeMillis() - time;

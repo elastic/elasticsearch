@@ -57,7 +57,9 @@ public class BufferingFsTranslogFile implements FsTranslogFile {
             long position = lastPosition;
             if (size >= buffer.length) {
                 flushBuffer();
-                raf.raf().write(data, from, size);
+                // we use the channel to write, since on windows, writing to the RAF might not be reflected
+                // when reading through the channel
+                raf.channel().write(ByteBuffer.wrap(data, from, size));
                 lastWrittenPosition += size;
                 lastPosition += size;
                 return new Translog.Location(id, position, size);
@@ -76,7 +78,9 @@ public class BufferingFsTranslogFile implements FsTranslogFile {
 
     private void flushBuffer() throws IOException {
         if (bufferCount > 0) {
-            raf.raf().write(buffer, 0, bufferCount);
+            // we use the channel to write, since on windows, writing to the RAF might not be reflected
+            // when reading through the channel
+            raf.channel().write(ByteBuffer.wrap(buffer, 0, bufferCount));
             lastWrittenPosition += bufferCount;
             bufferCount = 0;
         }

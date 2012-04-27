@@ -112,11 +112,8 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     private final Object mutex = new Object();
 
-
-    private final boolean checkIndexOnStartup;
+    private final String checkIndexOnStartup;
     
-    private final boolean fixIndexOnStartup;
-
     private long checkIndexTook = 0;
 
     private volatile IndexShardState state;
@@ -164,8 +161,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
         logger.debug("state: [CREATED]");
 
-        this.checkIndexOnStartup = indexSettings.getAsBoolean("index.shard.check_on_startup", false);
-        this.fixIndexOnStartup = indexSettings.getAsBoolean("index.shard.check_on_startup_and_fix", false);
+        this.checkIndexOnStartup = indexSettings.get("index.shard.check_on_startup", "false");
     }
 
     public MergeSchedulerProvider mergeScheduler() {
@@ -269,7 +265,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             if (state == IndexShardState.RELOCATED) {
                 throw new IndexShardRelocatedException(shardId);
             }
-            if (checkIndexOnStartup) {
+            if (!"false".equalsIgnoreCase(checkIndexOnStartup)) {
                 checkIndex(true);
             }
             engine.start();
@@ -573,7 +569,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             throw new IndexShardNotRecoveringException(shardId, state);
         }
         // also check here, before we apply the translog
-        if (checkIndexOnStartup) {
+        if (!"false".equalsIgnoreCase(checkIndexOnStartup)) {
             checkIndex(true);
         }
         // we disable deletes since we allow for operations to be executed against the shard while recovering
@@ -865,11 +861,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                 if (throwException) {
                     throw new IndexShardException(shardId, "index check failure");
                 }
-            } else {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("check index [success]\n{}", new String(os.underlyingBytes(), 0, os.size()));
-                }
-                if (fixIndexOnStartup) {
+                if ("fix".equalsIgnoreCase(checkIndexOnStartup)) {
                     if (logger.isDebugEnabled()) {
                         logger.debug("fixing index, writing new segments file ...");
                     }
@@ -877,6 +869,10 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                     if (logger.isDebugEnabled()) {
                         logger.debug("index fixed, wrote new segments file \"{}\"", status.segmentsFileName);
                     }
+                }
+            } else {
+                if (logger.isDebugEnabled()) {
+                    logger.debug("check index [success]\n{}", new String(os.underlyingBytes(), 0, os.size()));
                 }
             }
             checkIndexTook = System.currentTimeMillis() - time;

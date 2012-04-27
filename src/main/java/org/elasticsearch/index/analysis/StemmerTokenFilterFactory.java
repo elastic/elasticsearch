@@ -126,7 +126,7 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
         } else if ("minimal_english".equalsIgnoreCase(language) || "minimalEnglish".equalsIgnoreCase(language)) {
             return new EnglishMinimalStemFilter(tokenStream);
         } else if ("possessive_english".equalsIgnoreCase(language) || "possessiveEnglish".equalsIgnoreCase(language)) {
-            return new EnglishPossessiveFilter(tokenStream);
+            return new EnglishPossessiveFilter(version, tokenStream);
         } else if ("light_finish".equalsIgnoreCase(language) || "lightFinish".equalsIgnoreCase(language)) {
             return new FinnishLightStemFilter(tokenStream);
         } else if ("light_french".equalsIgnoreCase(language) || "lightFrench".equalsIgnoreCase(language)) {

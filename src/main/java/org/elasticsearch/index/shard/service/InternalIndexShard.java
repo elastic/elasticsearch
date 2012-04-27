@@ -30,6 +30,7 @@ import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -113,7 +114,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     private final Object mutex = new Object();
 
     private final String checkIndexOnStartup;
-    
+
     private long checkIndexTook = 0;
 
     private volatile IndexShardState state;
@@ -265,7 +266,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             if (state == IndexShardState.RELOCATED) {
                 throw new IndexShardRelocatedException(shardId);
             }
-            if (!"false".equalsIgnoreCase(checkIndexOnStartup)) {
+            if (Booleans.parseBoolean(checkIndexOnStartup, false)) {
                 checkIndex(true);
             }
             engine.start();
@@ -569,7 +570,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             throw new IndexShardNotRecoveringException(shardId, state);
         }
         // also check here, before we apply the translog
-        if (!"false".equalsIgnoreCase(checkIndexOnStartup)) {
+        if (Booleans.parseBoolean(checkIndexOnStartup, false)) {
             checkIndex(true);
         }
         // we disable deletes since we allow for operations to be executed against the shard while recovering
@@ -858,9 +859,6 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                     return;
                 }
                 logger.warn("check index [failure]\n{}", new String(os.underlyingBytes(), 0, os.size()));
-                if (throwException) {
-                    throw new IndexShardException(shardId, "index check failure");
-                }
                 if ("fix".equalsIgnoreCase(checkIndexOnStartup)) {
                     if (logger.isDebugEnabled()) {
                         logger.debug("fixing index, writing new segments file ...");
@@ -868,6 +866,11 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                     checkIndex.fixIndex(status);
                     if (logger.isDebugEnabled()) {
                         logger.debug("index fixed, wrote new segments file \"{}\"", status.segmentsFileName);
+                    }
+                } else {
+                    // only throw a failure if we are not going to fix the index
+                    if (throwException) {
+                        throw new IndexShardException(shardId, "index check failure");
                     }
                 }
             } else {

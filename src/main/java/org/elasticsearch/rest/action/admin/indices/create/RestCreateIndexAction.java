@@ -25,18 +25,13 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
-import java.util.Map;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
-import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
@@ -56,47 +51,15 @@ public class RestCreateIndexAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(request.param("index"));
         if (request.hasContent()) {
-            XContentType xContentType = XContentFactory.xContentType(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength());
-            if (xContentType != null) {
+            try {
+                createIndexRequest.source(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength());
+            } catch (Exception e) {
                 try {
-                    Map<String, Object> source = XContentFactory.xContent(xContentType)
-                            .createParser(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength()).mapAndClose();
-                    boolean found = false;
-                    if (source.containsKey("settings")) {
-                        createIndexRequest.settings((Map<String, Object>) source.get("settings"));
-                        found = true;
-                    }
-                    if (source.containsKey("mappings")) {
-                        found = true;
-                        Map<String, Object> mappings = (Map<String, Object>) source.get("mappings");
-                        for (Map.Entry<String, Object> entry : mappings.entrySet()) {
-                            createIndexRequest.mapping(entry.getKey(), (Map<String, Object>) entry.getValue());
-                        }
-                    }
-                    if (!found) {
-                        // the top level are settings, use them
-                        createIndexRequest.settings(source);
-                    }
-                } catch (Exception e) {
-                    try {
-                        channel.sendResponse(new XContentThrowableRestResponse(request, e));
-                    } catch (IOException e1) {
-                        logger.warn("Failed to send response", e1);
-                    }
-                    return;
+                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                } catch (IOException e1) {
+                    logger.warn("Failed to send response", e1);
                 }
-            } else {
-                // its plain settings, parse and set them
-                try {
-                    createIndexRequest.settings(request.contentAsString());
-                } catch (Exception e) {
-                    try {
-                        channel.sendResponse(new XContentThrowableRestResponse(request, BAD_REQUEST, new SettingsException("Failed to parse index settings", e)));
-                    } catch (IOException e1) {
-                        logger.warn("Failed to send response", e1);
-                    }
-                    return;
-                }
+                return;
             }
         }
 

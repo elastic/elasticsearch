@@ -40,6 +40,8 @@ import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexShardComponent;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.store.StoreStats;
+import org.elasticsearch.index.warmer.ShardIndexWarmerService;
+import org.elasticsearch.index.warmer.WarmerStats;
 
 /**
  *
@@ -51,6 +53,8 @@ public interface IndexShard extends IndexShardComponent {
     ShardGetService getService();
 
     ShardSearchService searchService();
+
+    ShardIndexWarmerService warmerService();
 
     ShardRouting routingEntry();
 
@@ -69,6 +73,8 @@ public interface IndexShard extends IndexShardComponent {
     RefreshStats refreshStats();
 
     FlushStats flushStats();
+
+    WarmerStats warmerStats();
 
     IndexShardState state();
 

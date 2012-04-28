@@ -23,6 +23,7 @@ import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
+import org.elasticsearch.index.warmer.ShardIndexWarmerService;
 import org.elasticsearch.jmx.JmxService;
 
 /**
@@ -46,5 +47,6 @@ public class IndexShardModule extends AbstractModule {
         if (JmxService.shouldExport(settings)) {
             bind(IndexShardManagement.class).asEagerSingleton();
         }
+        bind(ShardIndexWarmerService.class).asEagerSingleton();
     }
 }

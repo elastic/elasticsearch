@@ -25,6 +25,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.bloom.BloomFilter;
@@ -54,6 +55,7 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStreams;
+import org.elasticsearch.indices.warmer.InternalIndicesWarmer;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -93,6 +95,9 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
     private final ThreadPool threadPool;
 
     private final IndexSettingsService indexSettingsService;
+
+    @Nullable
+    private final InternalIndicesWarmer warmer;
 
     private final Store store;
 
@@ -152,7 +157,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
     @Inject
     public RobinEngine(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool,
-                       IndexSettingsService indexSettingsService,
+                       IndexSettingsService indexSettingsService, @Nullable InternalIndicesWarmer warmer,
                        Store store, SnapshotDeletionPolicy deletionPolicy, Translog translog,
                        MergePolicyProvider mergePolicyProvider, MergeSchedulerProvider mergeScheduler,
                        AnalysisService analysisService, SimilarityService similarityService,
@@ -170,6 +175,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
         this.threadPool = threadPool;
         this.indexSettingsService = indexSettingsService;
+        this.warmer = warmer;
         this.store = store;
         this.deletionPolicy = deletionPolicy;
         this.translog = translog;
@@ -713,7 +719,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
     public Searcher searcher() throws EngineException {
         SearcherManager manager = this.searcherManager;
         IndexSearcher searcher = manager.acquire();
-        return new RobinSearchResult(searcher, manager);
+        return new RobinSearcher(searcher, manager);
     }
 
     @Override
@@ -1353,12 +1359,12 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         return new SearcherManager(indexWriter, true, searcherFactory);
     }
 
-    static class RobinSearchResult implements Searcher {
+    static class RobinSearcher implements Searcher {
 
         private final IndexSearcher searcher;
         private final SearcherManager manager;
 
-        private RobinSearchResult(IndexSearcher searcher, SearcherManager manager) {
+        private RobinSearcher(IndexSearcher searcher, SearcherManager manager) {
             this.searcher = searcher;
             this.manager = manager;
         }
@@ -1420,6 +1426,9 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         public IndexSearcher newSearcher(IndexReader reader) throws IOException {
             ExtendedIndexSearcher searcher = new ExtendedIndexSearcher(reader);
             searcher.setSimilarity(similarityService.defaultSearchSimilarity());
+            if (warmer != null) {
+                warmer.warm(shardId, new SimpleSearcher(searcher));
+            }
             return searcher;
         }
     }

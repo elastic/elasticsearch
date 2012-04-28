@@ -65,6 +65,8 @@ import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.warmer.ShardIndexWarmerService;
+import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.InternalIndicesLifecycle;
 import org.elasticsearch.indices.recovery.RecoveryStatus;
@@ -111,6 +113,8 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     private final ShardGetService getService;
 
+    private final ShardIndexWarmerService shardWarmerService;
+
     private final Object mutex = new Object();
 
     private final String checkIndexOnStartup;
@@ -137,7 +141,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     @Inject
     public InternalIndexShard(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService, IndicesLifecycle indicesLifecycle, Store store, Engine engine, MergeSchedulerProvider mergeScheduler, Translog translog,
-                              ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService, ShardIndexingService indexingService, ShardGetService getService, ShardSearchService searchService) {
+                              ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService, ShardIndexingService indexingService, ShardGetService getService, ShardSearchService searchService, ShardIndexWarmerService shardWarmerService) {
         super(shardId, indexSettings);
         this.indicesLifecycle = (InternalIndicesLifecycle) indicesLifecycle;
         this.indexSettingsService = indexSettingsService;
@@ -153,6 +157,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         this.indexingService = indexingService;
         this.getService = getService.setIndexShard(this);
         this.searchService = searchService;
+        this.shardWarmerService = shardWarmerService;
         state = IndexShardState.CREATED;
 
         this.refreshInterval = indexSettings.getAsTime("engine.robin.refresh_interval", indexSettings.getAsTime("index.refresh_interval", engine.defaultRefreshInterval()));
@@ -193,6 +198,11 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     @Override
     public ShardSearchService searchService() {
         return this.searchService;
+    }
+
+    @Override
+    public ShardIndexWarmerService warmerService() {
+        return this.shardWarmerService;
     }
 
     @Override
@@ -493,6 +503,11 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     @Override
     public MergeStats mergeStats() {
         return mergeScheduler.stats();
+    }
+
+    @Override
+    public WarmerStats warmerStats() {
+        return shardWarmerService.stats();
     }
 
     @Override

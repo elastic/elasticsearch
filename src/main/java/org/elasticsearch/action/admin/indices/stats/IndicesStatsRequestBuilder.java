@@ -116,6 +116,11 @@ public class IndicesStatsRequestBuilder extends BaseIndicesRequestBuilder<Indice
         return this;
     }
 
+    public IndicesStatsRequestBuilder setWarmer(boolean warmer) {
+        request.warmer(warmer);
+        return this;
+    }
+
     @Override
     protected void doExecute(ActionListener<IndicesStats> listener) {
         client.stats(request, listener);

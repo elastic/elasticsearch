@@ -128,6 +128,46 @@ public class CreateIndexRequestBuilder extends BaseIndicesRequestBuilder<CreateI
     }
 
     /**
+     * Sets the settings and mappings as a single source.
+     */
+    public CreateIndexRequestBuilder setSource(String source) {
+        request.source(source);
+        return this;
+    }
+
+    /**
+     * Sets the settings and mappings as a single source.
+     */
+    public CreateIndexRequestBuilder setSource(byte[] source) {
+        request.source(source);
+        return this;
+    }
+
+    /**
+     * Sets the settings and mappings as a single source.
+     */
+    public CreateIndexRequestBuilder setSource(byte[] source, int offset, int length) {
+        request.source(source, offset, length);
+        return this;
+    }
+
+    /**
+     * Sets the settings and mappings as a single source.
+     */
+    public CreateIndexRequestBuilder setSource(Map<String, Object> source) {
+        request.source(source);
+        return this;
+    }
+
+    /**
+     * Sets the settings and mappings as a single source.
+     */
+    public CreateIndexRequestBuilder setSource(XContentBuilder source) {
+        request.source(source);
+        return this;
+    }
+
+    /**
      * Timeout to wait for the index creation to be acknowledged by current cluster nodes. Defaults
      * to <tt>10s</tt>.
      */

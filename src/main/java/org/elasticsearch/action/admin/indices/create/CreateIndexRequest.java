@@ -19,8 +19,10 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
+import com.google.common.base.Charsets;
 import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -220,6 +222,71 @@ public class CreateIndexRequest extends MasterNodeOperationRequest {
         } catch (IOException e) {
             throw new ElasticSearchGenerationException("Failed to generate [" + source + "]", e);
         }
+    }
+
+    /**
+     * Sets the settings and mappings as a single source.
+     */
+    public CreateIndexRequest source(String source) {
+        return source(source.getBytes(Charsets.UTF_8));
+    }
+
+    /**
+     * Sets the settings and mappings as a single source.
+     */
+    public CreateIndexRequest source(XContentBuilder source) {
+        try {
+            return source(source.underlyingBytes(), 0, source.underlyingBytesLength());
+        } catch (IOException e) {
+            throw new ElasticSearchParseException("failed to parse source to create index", e);
+        }
+    }
+
+    /**
+     * Sets the settings and mappings as a single source.
+     */
+    public CreateIndexRequest source(byte[] source) {
+        return source(source, 0, source.length);
+    }
+
+    /**
+     * Sets the settings and mappings as a single source.
+     */
+    public CreateIndexRequest source(byte[] source, int offset, int length) {
+        XContentType xContentType = XContentFactory.xContentType(source, offset, length);
+        if (xContentType != null) {
+            try {
+                source(XContentFactory.xContent(xContentType).createParser(source, offset, length).mapAndClose());
+            } catch (IOException e) {
+                throw new ElasticSearchParseException("failed to parse source for create index", e);
+            }
+        } else {
+            settings(new String(source, offset, length, Charsets.UTF_8));
+        }
+        return this;
+    }
+
+    /**
+     * Sets the settings and mappings as a single source.
+     */
+    public CreateIndexRequest source(Map<String, Object> source) {
+        boolean found = false;
+        if (source.containsKey("settings")) {
+            settings((Map<String, Object>) source.get("settings"));
+            found = true;
+        }
+        if (source.containsKey("mappings")) {
+            found = true;
+            Map<String, Object> mappings = (Map<String, Object>) source.get("mappings");
+            for (Map.Entry<String, Object> entry : mappings.entrySet()) {
+                mapping(entry.getKey(), (Map<String, Object>) entry.getValue());
+            }
+        }
+        if (!found) {
+            // the top level are settings, use them
+            settings(source);
+        }
+        return this;
     }
 
     Map<String, String> mappings() {

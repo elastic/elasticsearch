@@ -27,6 +27,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.highlight.*;
 import org.apache.lucene.search.highlight.Formatter;
@@ -142,6 +143,9 @@ public class HighlightPhase implements FetchSubPhase {
                                 query = q.getQuery();
                                 extracted = true;
                             }
+                        } else if (query instanceof FilteredQuery) {
+                            query = ((FilteredQuery) query).getQuery();
+                            extracted = true;
                         }
                         if (!extracted) {
                             break;

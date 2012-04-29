@@ -610,7 +610,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 .build();
 
         // clear the routing table, we have no master, so we need to recreate the routing when we reform the cluster
-        RoutingTable routingTable = RoutingTable.builder().version(clusterState.routingTable().version()).build();
+        RoutingTable routingTable = RoutingTable.builder().build();
         // we also clean the metadata, since we are going to recover it if we become master
         MetaData metaData = MetaData.builder().build();
 

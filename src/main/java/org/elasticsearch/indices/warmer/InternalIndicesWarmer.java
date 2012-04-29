@@ -30,13 +30,17 @@ import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 /**
  */
 public class InternalIndicesWarmer extends AbstractComponent implements IndicesWarmer {
+
+    private final ThreadPool threadPool;
 
     private final ClusterService clusterService;
 
@@ -45,8 +49,9 @@ public class InternalIndicesWarmer extends AbstractComponent implements IndicesW
     private final CopyOnWriteArrayList<Listener> listeners = new CopyOnWriteArrayList<Listener>();
 
     @Inject
-    public InternalIndicesWarmer(Settings settings, ClusterService clusterService, IndicesService indicesService) {
+    public InternalIndicesWarmer(Settings settings, ThreadPool threadPool, ClusterService clusterService, IndicesService indicesService) {
         super(settings);
+        this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
     }
@@ -61,8 +66,8 @@ public class InternalIndicesWarmer extends AbstractComponent implements IndicesW
         listeners.remove(listener);
     }
 
-    public void warm(ShardId shardId, Engine.Searcher searcher) {
-        IndexMetaData indexMetaData = clusterService.state().metaData().index(shardId.index().name());
+    public void warm(final ShardId shardId, final Engine.Searcher searcher) {
+        final IndexMetaData indexMetaData = clusterService.state().metaData().index(shardId.index().name());
         if (indexMetaData == null) {
             return;
         }
@@ -82,11 +87,24 @@ public class InternalIndicesWarmer extends AbstractComponent implements IndicesW
         }
         indexShard.warmerService().onPreWarm();
         long time = System.nanoTime();
-        for (Listener listener : listeners) {
+        for (final Listener listener : listeners) {
+            final CountDownLatch latch = new CountDownLatch(1);
+            threadPool.executor(listener.executor()).execute(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        listener.warm(shardId, indexMetaData, searcher);
+                    } catch (Exception e) {
+                        logger.warn("[{}][{}] failed to warm [{}]", shardId.index().name(), shardId.id(), listener);
+                    } finally {
+                        latch.countDown();
+                    }
+                }
+            });
             try {
-                listener.warm(shardId, indexMetaData, searcher);
-            } catch (Exception e) {
-                logger.warn("[{}][{}] failed to warm [{}]", shardId.index().name(), shardId.id(), listener);
+                latch.await();
+            } catch (InterruptedException e) {
+                return;
             }
         }
         long took = System.nanoTime() - time;

@@ -28,6 +28,9 @@ import org.elasticsearch.index.shard.ShardId;
 public interface IndicesWarmer {
 
     static interface Listener {
+
+        String executor();
+
         void warm(ShardId shardId, IndexMetaData indexMetaData, Engine.Searcher search);
     }
 

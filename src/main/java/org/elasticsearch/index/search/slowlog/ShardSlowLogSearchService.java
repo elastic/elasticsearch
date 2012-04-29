@@ -73,7 +73,7 @@ public class ShardSlowLogSearchService extends AbstractIndexShardComponent {
 
     class ApplySettings implements IndexSettingsService.Listener {
         @Override
-        public void onRefreshSettings(Settings settings) {
+        public synchronized void onRefreshSettings(Settings settings) {
             long queryWarnThreshold = settings.getAsTime("index.search.slowlog.threshold.query.warn", TimeValue.timeValueNanos(ShardSlowLogSearchService.this.queryWarnThreshold)).nanos();
             if (queryWarnThreshold != ShardSlowLogSearchService.this.queryWarnThreshold) {
                 ShardSlowLogSearchService.this.queryWarnThreshold = queryWarnThreshold;

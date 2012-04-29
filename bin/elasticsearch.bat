@@ -29,7 +29,7 @@ if NOT "%ES_HEAP_NEWSIZE%" == "" (
 set JAVA_OPTS=%JAVA_OPTS% -Xmn%ES_HEAP_NEWSIZE%
 )
 
-set JAVA_OPTS=%JAVA_OPTS% -Xss128k
+set JAVA_OPTS=%JAVA_OPTS% -Xss160k
 
 REM Enable aggressive optimizations in the JVM
 REM    - Disabled by default as it might cause the JVM to crash

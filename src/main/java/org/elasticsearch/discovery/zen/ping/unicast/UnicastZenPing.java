@@ -185,6 +185,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                         ConcurrentMap<DiscoveryNode, PingResponse> responses = receivedResponses.remove(sendPingsHandler.id());
                         listener.onPing(responses.values().toArray(new PingResponse[responses.size()]));
                         for (DiscoveryNode node : sendPingsHandler.nodeToDisconnect) {
+                            logger.trace("[{}] disconnecting from {}", sendPingsHandler.id(), node);
                             transportService.disconnectFromNode(node);
                         }
                         sendPingsHandler.close();
@@ -268,12 +269,21 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                         try {
                             // connect to the node, see if we manage to do it, if not, bail
                             if (!nodeFoundByAddress) {
+                                logger.trace("[{}] connecting (light) to {}", sendPingsHandler.id(), nodeToSend);
                                 transportService.connectToNodeLight(nodeToSend);
                             } else {
+                                logger.trace("[{}] connecting to {}", sendPingsHandler.id(), nodeToSend);
                                 transportService.connectToNode(nodeToSend);
                             }
-                            // we are connected, send the ping request
-                            sendPingRequestToNode(sendPingsHandler.id(), timeout, pingRequest, latch, node, nodeToSend);
+                            logger.trace("[{}] connected to {}", sendPingsHandler.id(), node);
+                            if (receivedResponses.containsKey(sendPingsHandler.id())) {
+                                // we are connected and still in progress, send the ping request
+                                sendPingRequestToNode(sendPingsHandler.id(), timeout, pingRequest, latch, node, nodeToSend);
+                            } else {
+                                // connect took too long, just log it and bail
+                                latch.countDown();
+                                logger.trace("[{}] connect to {} was too long outside of ping window, bailing", sendPingsHandler.id(), node);
+                            }
                         } catch (ConnectTransportException e) {
                             // can't connect to the node
                             logger.trace("[{}] failed to connect to {}", e, sendPingsHandler.id(), nodeToSend);
@@ -295,7 +305,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
     }
 
     private void sendPingRequestToNode(final int id, TimeValue timeout, UnicastPingRequest pingRequest, final CountDownLatch latch, final DiscoveryNode node, final DiscoveryNode nodeToSend) {
-        logger.trace("[{}] connecting to {}", id, nodeToSend);
+        logger.trace("[{}] sending to {}", id, nodeToSend);
         transportService.sendRequest(nodeToSend, UnicastPingRequestHandler.ACTION, pingRequest, TransportRequestOptions.options().withTimeout((long) (timeout.millis() * 1.25)), new BaseTransportResponseHandler<UnicastPingResponse>() {
 
             @Override

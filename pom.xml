@@ -31,7 +31,7 @@
     </parent>
 
     <properties>
-        <elasticsearch.version>0.19.0.RC3</elasticsearch.version>
+        <elasticsearch.version>0.19.3</elasticsearch.version>
     </properties>
 
     <repositories>
@@ -48,7 +48,7 @@
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-smartcn</artifactId>
-            <version>3.5.0</version>
+            <version>3.6.0</version>
             <scope>compile</scope>
         </dependency>
 

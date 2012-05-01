@@ -54,12 +54,12 @@ public class NoneFieldDataCache extends AbstractIndexComponent implements FieldD
     }
 
     @Override
-    public void clear(String fieldName) {
+    public void clear(String reason, String fieldName) {
 
     }
 
     @Override
-    public void clear() {
+    public void clear(String reason) {
     }
 
     @Override

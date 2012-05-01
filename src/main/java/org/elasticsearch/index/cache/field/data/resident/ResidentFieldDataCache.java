@@ -125,7 +125,7 @@ public class ResidentFieldDataCache extends AbstractConcurrentMapFieldDataCache 
                 ResidentFieldDataCache.this.expire = expire;
             }
             if (changed) {
-                clear();
+                clear("update_settings");
             }
         }
     }

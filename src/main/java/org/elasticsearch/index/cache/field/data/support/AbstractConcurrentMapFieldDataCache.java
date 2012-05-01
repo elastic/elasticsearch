@@ -121,12 +121,12 @@ public abstract class AbstractConcurrentMapFieldDataCache extends AbstractIndexC
                 fieldData = fieldDataCache.getIfPresent(fieldName);
                 if (fieldData == null) {
                     try {
-                        long time = System.currentTimeMillis();
+                        long time = System.nanoTime();
                         fieldData = FieldData.load(type, reader, fieldName);
                         fieldDataCache.put(fieldName, fieldData);
-                        long took = System.currentTimeMillis() - time;
+                        long took = System.nanoTime() - time;
                         if (logger.isTraceEnabled()) {
-                            logger.trace("loaded field [{}] for reader [{}], took [{}], took_millis [{}]", fieldName, reader, TimeValue.timeValueMillis(took), took);
+                            logger.trace("loaded field [{}] for reader [{}], took [{}], took_millis [{}]", fieldName, reader, TimeValue.timeValueNanos(took), took / 1000);
                         }
                     } catch (OutOfMemoryError e) {
                         logger.warn("loading field [" + fieldName + "] caused out of memory failure", e);

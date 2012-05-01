@@ -50,6 +50,46 @@ import static org.elasticsearch.common.settings.ImmutableSettings.*;
  *
  */
 public class MetaData implements Iterable<IndexMetaData> {
+
+    public interface Custom {
+
+        interface Factory<T extends Custom> {
+
+            String type();
+
+            T readFrom(StreamInput in) throws IOException;
+
+            void writeTo(T customIndexMetaData, StreamOutput out) throws IOException;
+
+            T fromXContent(XContentParser parser) throws IOException;
+
+            void toXContent(T customIndexMetaData, XContentBuilder builder, ToXContent.Params params);
+        }
+    }
+
+    public static Map<String, Custom.Factory> customFactories = new HashMap<String, Custom.Factory>();
+
+    /**
+     * Register a custom index meta data factory. Make sure to call it from a static block.
+     */
+    public static void registerFactory(String type, Custom.Factory factory) {
+        customFactories.put(type, factory);
+    }
+
+    @Nullable
+    public static <T extends Custom> Custom.Factory<T> lookupFactory(String type) {
+        return customFactories.get(type);
+    }
+
+    public static <T extends Custom> Custom.Factory<T> lookupFactorySafe(String type) throws ElasticSearchIllegalArgumentException {
+        Custom.Factory<T> factory = customFactories.get(type);
+        if (factory == null) {
+            throw new ElasticSearchIllegalArgumentException("No custom index metadata factoy registered for type [" + type + "]");
+        }
+        return factory;
+    }
+
+
     public static final String SETTING_READ_ONLY = "cluster.blocks.read_only";
 
     public static final ClusterBlock CLUSTER_READ_ONLY_BLOCK = new ClusterBlock(6, "cluster read-only (api)", false, false, RestStatus.FORBIDDEN, ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA);
@@ -86,6 +126,7 @@ public class MetaData implements Iterable<IndexMetaData> {
     private final Settings settings;
     private final ImmutableMap<String, IndexMetaData> indices;
     private final ImmutableMap<String, IndexTemplateMetaData> templates;
+    private final ImmutableMap<String, Custom> customs;
 
     private final transient int totalNumberOfShards;
 
@@ -101,12 +142,13 @@ public class MetaData implements Iterable<IndexMetaData> {
 
     private final ImmutableMap<String, String[]> aliasAndIndexToIndexMap;
 
-    MetaData(long version, Settings transientSettings, Settings persistentSettings, ImmutableMap<String, IndexMetaData> indices, ImmutableMap<String, IndexTemplateMetaData> templates) {
+    MetaData(long version, Settings transientSettings, Settings persistentSettings, ImmutableMap<String, IndexMetaData> indices, ImmutableMap<String, IndexTemplateMetaData> templates, ImmutableMap<String, Custom> customs) {
         this.version = version;
         this.transientSettings = transientSettings;
         this.persistentSettings = persistentSettings;
         this.settings = ImmutableSettings.settingsBuilder().put(persistentSettings).put(transientSettings).build();
         this.indices = ImmutableMap.copyOf(indices);
+        this.customs = customs;
         this.templates = templates;
         int totalNumberOfShards = 0;
         for (IndexMetaData indexMetaData : indices.values()) {
@@ -555,6 +597,14 @@ public class MetaData implements Iterable<IndexMetaData> {
         return this.templates;
     }
 
+    public ImmutableMap<String, Custom> customs() {
+        return this.customs;
+    }
+
+    public ImmutableMap<String, Custom> getCustoms() {
+        return this.customs;
+    }
+
     public int totalNumberOfShards() {
         return this.totalNumberOfShards;
     }
@@ -654,12 +704,15 @@ public class MetaData implements Iterable<IndexMetaData> {
 
         private MapBuilder<String, IndexTemplateMetaData> templates = newMapBuilder();
 
+        private MapBuilder<String, Custom> customs = newMapBuilder();
+
         public Builder metaData(MetaData metaData) {
             this.transientSettings = metaData.transientSettings;
             this.persistentSettings = metaData.persistentSettings;
             this.version = metaData.version;
             this.indices.putAll(metaData.indices);
             this.templates.putAll(metaData.templates);
+            this.customs.putAll(metaData.customs);
             return this;
         }
 
@@ -708,6 +761,20 @@ public class MetaData implements Iterable<IndexMetaData> {
 
         public Builder removeTemplate(String templateName) {
             templates.remove(templateName);
+            return this;
+        }
+
+        public Custom getCustom(String type) {
+            return customs.get(type);
+        }
+
+        public Builder putCustom(String type, Custom custom) {
+            customs.put(type, custom);
+            return this;
+        }
+
+        public Builder removeCustom(String type) {
+            customs.remove(type);
             return this;
         }
 
@@ -764,7 +831,7 @@ public class MetaData implements Iterable<IndexMetaData> {
         }
 
         public MetaData build() {
-            return new MetaData(version, transientSettings, persistentSettings, indices.immutableMap(), templates.immutableMap());
+            return new MetaData(version, transientSettings, persistentSettings, indices.immutableMap(), templates.immutableMap(), customs.immutableMap());
         }
 
         public static String toXContent(MetaData metaData) throws IOException {
@@ -802,16 +869,29 @@ public class MetaData implements Iterable<IndexMetaData> {
                 builder.endObject();
             }
 
+            for (Map.Entry<String, Custom> entry : metaData.customs().entrySet()) {
+                builder.startObject(entry.getKey());
+                lookupFactorySafe(entry.getKey()).toXContent(entry.getValue(), builder, params);
+                builder.endObject();
+            }
+
             builder.endObject();
         }
 
         public static MetaData fromXContent(XContentParser parser) throws IOException {
             Builder builder = new Builder();
 
+            // we might get here after the meta-data element, or on a fresh parser
             XContentParser.Token token = parser.currentToken();
             String currentFieldName = parser.currentName();
             if (!"meta-data".equals(currentFieldName)) {
                 token = parser.nextToken();
+                if (token == XContentParser.Token.START_OBJECT) {
+                    // move to the field name (meta-data)
+                    token = parser.nextToken();
+                    // move to the next object
+                    token = parser.nextToken();
+                }
                 currentFieldName = parser.currentName();
                 if (token == null) {
                     // no data...
@@ -840,6 +920,15 @@ public class MetaData implements Iterable<IndexMetaData> {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             builder.put(IndexTemplateMetaData.Builder.fromXContent(parser));
                         }
+                    } else {
+                        // check if its a custom index metadata
+                        Custom.Factory<Custom> factory = lookupFactory(currentFieldName);
+                        if (factory == null) {
+                            //TODO warn
+                            parser.skipChildren();
+                        } else {
+                            builder.putCustom(factory.type(), factory.fromXContent(parser));
+                        }
                     }
                 } else if (token.isValue()) {
                     if ("version".equals(currentFieldName)) {
@@ -863,6 +952,12 @@ public class MetaData implements Iterable<IndexMetaData> {
             for (int i = 0; i < size; i++) {
                 builder.put(IndexTemplateMetaData.Builder.readFrom(in));
             }
+            int customSize = in.readVInt();
+            for (int i = 0; i < customSize; i++) {
+                String type = in.readUTF();
+                Custom customIndexMetaData = lookupFactorySafe(type).readFrom(in);
+                builder.putCustom(type, customIndexMetaData);
+            }
             return builder.build();
         }
 
@@ -877,6 +972,11 @@ public class MetaData implements Iterable<IndexMetaData> {
             out.writeVInt(metaData.templates.size());
             for (IndexTemplateMetaData template : metaData.templates.values()) {
                 IndexTemplateMetaData.Builder.writeTo(template, out);
+            }
+            out.writeVInt(metaData.customs().size());
+            for (Map.Entry<String, Custom> entry : metaData.customs().entrySet()) {
+                out.writeUTF(entry.getKey());
+                lookupFactorySafe(entry.getKey()).writeTo(entry.getValue(), out);
             }
         }
     }

@@ -66,13 +66,24 @@ public class TieredMergePolicyProvider extends AbstractIndexShardComponent imple
         this.maxMergeAtOnceExplicit = componentSettings.getAsInt("max_merge_at_once_explicit", 30);
         // TODO is this really a good default number for max_merge_segment, what happens for large indices, won't they end up with many segments?
         this.maxMergedSegment = componentSettings.getAsBytesSize("max_merged_segment", componentSettings.getAsBytesSize("max_merge_segment", new ByteSizeValue(5, ByteSizeUnit.GB)));
-        this.segmentsPerTier = componentSettings.getAsDouble("segments_per_tier", 10d);
+        this.segmentsPerTier = componentSettings.getAsDouble("segments_per_tier", 9.2d);
         this.reclaimDeletesWeight = componentSettings.getAsDouble("reclaim_deletes_weight", 2.0d);
+
+        fixSettingsIfNeeded();
 
         logger.debug("using [tiered] merge policy with expunge_deletes_allowed[{}], floor_segment[{}], max_merge_at_once[{}], max_merge_at_once_explicit[{}], max_merged_segment[{}], segments_per_tier[{}], reclaim_deletes_weight[{}], async_merge[{}]",
                 forceMergeDeletesPctAllowed, floorSegment, maxMergeAtOnce, maxMergeAtOnceExplicit, maxMergedSegment, segmentsPerTier, reclaimDeletesWeight, asyncMerge);
 
         indexSettingsService.addListener(applySettings);
+    }
+
+    private void fixSettingsIfNeeded() {
+        // fixing maxMergeAtOnce, see TieredMergePolicy#setMaxMergeAtOnce
+        if (!(segmentsPerTier >= maxMergeAtOnce)) {
+            int newMaxMergeAtOnce = (int) segmentsPerTier;
+            logger.debug("[tiered] merge policy changing max_merge_at_once from [{}] to [{}] because segments_per_tier [{}] has to be higher or equal to it", maxMergeAtOnce, newMaxMergeAtOnce, segmentsPerTier);
+            this.maxMergeAtOnce = newMaxMergeAtOnce;
+        }
     }
 
 
@@ -187,6 +198,8 @@ public class TieredMergePolicyProvider extends AbstractIndexShardComponent imple
                     policy.setUseCompoundFile(compoundFormat);
                 }
             }
+
+            fixSettingsIfNeeded();
         }
     }
 

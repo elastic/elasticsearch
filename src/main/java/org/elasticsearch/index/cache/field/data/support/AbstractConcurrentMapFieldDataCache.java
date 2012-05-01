@@ -24,6 +24,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SegmentReader;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
@@ -120,8 +121,13 @@ public abstract class AbstractConcurrentMapFieldDataCache extends AbstractIndexC
                 fieldData = fieldDataCache.getIfPresent(fieldName);
                 if (fieldData == null) {
                     try {
+                        long time = System.currentTimeMillis();
                         fieldData = FieldData.load(type, reader, fieldName);
                         fieldDataCache.put(fieldName, fieldData);
+                        long took = System.currentTimeMillis() - time;
+                        if (logger.isTraceEnabled()) {
+                            logger.trace("loaded field [{}] for reader [{}], took [{}], took_millis [{}]", fieldName, reader, TimeValue.timeValueMillis(took), took);
+                        }
                     } catch (OutOfMemoryError e) {
                         logger.warn("loading field [" + fieldName + "] caused out of memory failure", e);
                         final OutOfMemoryError outOfMemoryError = new OutOfMemoryError("loading field [" + fieldName + "] caused out of memory failure");

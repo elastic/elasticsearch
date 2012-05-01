@@ -60,7 +60,7 @@ public class NoneFilterCache extends AbstractIndexComponent implements FilterCac
     }
 
     @Override
-    public void clear() {
+    public void clear(String reason) {
         // nothing to do here
     }
 

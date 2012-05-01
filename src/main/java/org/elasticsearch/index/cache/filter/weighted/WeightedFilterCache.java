@@ -70,12 +70,13 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
 
     @Override
     public void close() throws ElasticSearchException {
-        clear();
+        clear("close");
         indicesFilterCache.removeRemovalListener(index.name());
     }
 
     @Override
-    public void clear() {
+    public void clear(String reason) {
+        logger.debug("full cache clear, reason [{}]", reason);
         for (Object readerKey : seenReaders.keySet()) {
             Boolean removed = seenReaders.remove(readerKey);
             if (removed == null) {

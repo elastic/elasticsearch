@@ -36,9 +36,9 @@ public interface FieldDataCache extends IndexComponent, CloseableComponent {
 
     String type();
 
-    void clear(String fieldName);
+    void clear(String reason, String fieldName);
 
-    void clear();
+    void clear(String reason);
 
     void clear(IndexReader reader);
 

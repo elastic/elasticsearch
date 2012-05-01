@@ -138,9 +138,9 @@ public class IndexCache extends AbstractIndexComponent implements CloseableCompo
         bloomCache.clear(reader);
     }
 
-    public void clear() {
-        filterCache.clear();
-        fieldDataCache.clear();
+    public void clear(String reason) {
+        filterCache.clear(reason);
+        fieldDataCache.clear(reason);
         idCache.clear();
         queryParserCache.clear();
         bloomCache.clear();

@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.metadata;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -42,6 +43,7 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 
@@ -51,6 +53,44 @@ import static org.elasticsearch.common.settings.ImmutableSettings.*;
  *
  */
 public class IndexMetaData {
+
+    public interface Custom {
+
+        interface Factory<T extends Custom> {
+
+            String type();
+
+            T readFrom(StreamInput in) throws IOException;
+
+            void writeTo(T customIndexMetaData, StreamOutput out) throws IOException;
+
+            T fromXContent(XContentParser parser) throws IOException;
+
+            void toXContent(T customIndexMetaData, XContentBuilder builder, ToXContent.Params params);
+        }
+    }
+
+    public static Map<String, Custom.Factory> customFactories = new HashMap<String, Custom.Factory>();
+
+    /**
+     * Register a custom index meta data factory. Make sure to call it from a static block.
+     */
+    public static void registerFactory(String type, Custom.Factory factory) {
+        customFactories.put(type, factory);
+    }
+
+    @Nullable
+    public static <T extends Custom> Custom.Factory<T> lookupFactory(String type) {
+        return customFactories.get(type);
+    }
+
+    public static <T extends Custom> Custom.Factory<T> lookupFactorySafe(String type) throws ElasticSearchIllegalArgumentException {
+        Custom.Factory<T> factory = customFactories.get(type);
+        if (factory == null) {
+            throw new ElasticSearchIllegalArgumentException("No custom index metadata factoy registered for type [" + type + "]");
+        }
+        return factory;
+    }
 
     private static ImmutableSet<String> dynamicSettings = ImmutableSet.<String>builder()
             .add(IndexMetaData.SETTING_NUMBER_OF_REPLICAS)
@@ -138,12 +178,14 @@ public class IndexMetaData {
 
     private final ImmutableMap<String, MappingMetaData> mappings;
 
+    private final ImmutableMap<String, Custom> customs;
+
     private transient final int totalNumberOfShards;
 
     private final DiscoveryNodeFilters includeFilters;
     private final DiscoveryNodeFilters excludeFilters;
 
-    private IndexMetaData(String index, long version, State state, Settings settings, ImmutableMap<String, MappingMetaData> mappings, ImmutableMap<String, AliasMetaData> aliases) {
+    private IndexMetaData(String index, long version, State state, Settings settings, ImmutableMap<String, MappingMetaData> mappings, ImmutableMap<String, AliasMetaData> aliases, ImmutableMap<String, Custom> customs) {
         Preconditions.checkArgument(settings.getAsInt(SETTING_NUMBER_OF_SHARDS, -1) != -1, "must specify numberOfShards for index [" + index + "]");
         Preconditions.checkArgument(settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, -1) != -1, "must specify numberOfReplicas for index [" + index + "]");
         this.index = index;
@@ -151,6 +193,7 @@ public class IndexMetaData {
         this.state = state;
         this.settings = settings;
         this.mappings = mappings;
+        this.customs = customs;
         this.totalNumberOfShards = numberOfShards() * (numberOfReplicas() + 1);
 
         this.aliases = aliases;
@@ -245,6 +288,14 @@ public class IndexMetaData {
         return mappings.get(mappingType);
     }
 
+    public ImmutableMap<String, Custom> customs() {
+        return this.customs;
+    }
+
+    public ImmutableMap<String, Custom> getCustoms() {
+        return this.customs;
+    }
+
     @Nullable
     public DiscoveryNodeFilters includeFilters() {
         return includeFilters;
@@ -303,6 +354,8 @@ public class IndexMetaData {
 
         private MapBuilder<String, AliasMetaData> aliases = MapBuilder.newMapBuilder();
 
+        private MapBuilder<String, Custom> customs = MapBuilder.newMapBuilder();
+
         public Builder(String index) {
             this.index = index;
         }
@@ -312,6 +365,7 @@ public class IndexMetaData {
             settings(indexMetaData.settings());
             mappings.putAll(indexMetaData.mappings);
             aliases.putAll(indexMetaData.aliases);
+            customs.putAll(indexMetaData.customs);
             this.state = indexMetaData.state;
             this.version = indexMetaData.version;
         }
@@ -388,6 +442,20 @@ public class IndexMetaData {
             return this;
         }
 
+        public Builder putCustom(String type, Custom customIndexMetaData) {
+            this.customs.put(type, customIndexMetaData);
+            return this;
+        }
+
+        public Builder removeCustom(String type) {
+            this.customs.remove(type);
+            return this;
+        }
+
+        public Custom getCustom(String type) {
+            return this.customs.get(type);
+        }
+
         public long version() {
             return this.version;
         }
@@ -414,7 +482,7 @@ public class IndexMetaData {
                 tmpSettings = ImmutableSettings.settingsBuilder().put(settings).putArray("index.aliases").build();
             }
 
-            return new IndexMetaData(index, version, state, tmpSettings, mappings.immutableMap(), tmpAliases.immutableMap());
+            return new IndexMetaData(index, version, state, tmpSettings, mappings.immutableMap(), tmpAliases.immutableMap(), customs.immutableMap());
         }
 
         public static void toXContent(IndexMetaData indexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
@@ -444,6 +512,12 @@ public class IndexMetaData {
                 }
             }
             builder.endArray();
+
+            for (Map.Entry<String, Custom> entry : indexMetaData.customs().entrySet()) {
+                builder.startObject(entry.getKey());
+                lookupFactorySafe(entry.getKey()).toXContent(entry.getValue(), builder, params);
+                builder.endObject();
+            }
 
             builder.startObject("aliases");
             for (AliasMetaData alias : indexMetaData.aliases().values()) {
@@ -490,6 +564,15 @@ public class IndexMetaData {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             builder.putAlias(AliasMetaData.Builder.fromXContent(parser));
                         }
+                    } else {
+                        // check if its a custom index metadata
+                        Custom.Factory<Custom> factory = lookupFactory(currentFieldName);
+                        if (factory == null) {
+                            //TODO warn
+                            parser.skipChildren();
+                        } else {
+                            builder.putCustom(factory.type(), factory.fromXContent(parser));
+                        }
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {
                     if ("mappings".equals(currentFieldName)) {
@@ -531,6 +614,12 @@ public class IndexMetaData {
                 AliasMetaData aliasMd = AliasMetaData.Builder.readFrom(in);
                 builder.putAlias(aliasMd);
             }
+            int customSize = in.readVInt();
+            for (int i = 0; i < customSize; i++) {
+                String type = in.readUTF();
+                Custom customIndexMetaData = lookupFactorySafe(type).readFrom(in);
+                builder.putCustom(type, customIndexMetaData);
+            }
             return builder.build();
         }
 
@@ -546,6 +635,11 @@ public class IndexMetaData {
             out.writeVInt(indexMetaData.aliases().size());
             for (AliasMetaData aliasMd : indexMetaData.aliases().values()) {
                 AliasMetaData.Builder.writeTo(aliasMd, out);
+            }
+            out.writeVInt(indexMetaData.customs().size());
+            for (Map.Entry<String, Custom> entry : indexMetaData.customs().entrySet()) {
+                out.writeUTF(entry.getKey());
+                lookupFactorySafe(entry.getKey()).writeTo(entry.getValue(), out);
             }
         }
     }

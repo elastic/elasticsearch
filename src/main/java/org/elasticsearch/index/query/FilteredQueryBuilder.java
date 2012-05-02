@@ -19,14 +19,13 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
 /**
  * A query that applies a filter to the results of another query.
- *
- *
  */
 public class FilteredQueryBuilder extends BaseQueryBuilder {
 
@@ -40,9 +39,9 @@ public class FilteredQueryBuilder extends BaseQueryBuilder {
      * A query that applies a filter to the results of another query.
      *
      * @param queryBuilder  The query to apply the filter to
-     * @param filterBuilder The filter to apply on the query
+     * @param filterBuilder The filter to apply on the query (Can be null)
      */
-    public FilteredQueryBuilder(QueryBuilder queryBuilder, FilterBuilder filterBuilder) {
+    public FilteredQueryBuilder(QueryBuilder queryBuilder, @Nullable FilterBuilder filterBuilder) {
         this.queryBuilder = queryBuilder;
         this.filterBuilder = filterBuilder;
     }
@@ -61,8 +60,10 @@ public class FilteredQueryBuilder extends BaseQueryBuilder {
         builder.startObject(FilteredQueryParser.NAME);
         builder.field("query");
         queryBuilder.toXContent(builder, params);
-        builder.field("filter");
-        filterBuilder.toXContent(builder, params);
+        if (filterBuilder != null) {
+            builder.field("filter");
+            filterBuilder.toXContent(builder, params);
+        }
         if (boost != -1) {
             builder.field("boost", boost);
         }

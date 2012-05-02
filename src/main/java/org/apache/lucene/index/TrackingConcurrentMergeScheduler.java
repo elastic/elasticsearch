@@ -22,6 +22,7 @@ package org.apache.lucene.index;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
@@ -83,7 +84,7 @@ public class TrackingConcurrentMergeScheduler extends ConcurrentMergeScheduler {
         currentMergesNumDocs.inc(totalNumDocs);
         currentMergesSizeInBytes.inc(totalSizeInBytes);
         if (logger.isTraceEnabled()) {
-            logger.trace("merge [{}] starting...", merge.info.name);
+            logger.trace("merge [{}] starting..., merging [{}]/[{}], into [{}]", merge.info.name, totalNumDocs, new ByteSizeValue(totalSizeInBytes), new ByteSizeValue(merge.estimatedMergeBytes));
         }
         try {
             TrackingMergeScheduler.setCurrentMerge(merge);

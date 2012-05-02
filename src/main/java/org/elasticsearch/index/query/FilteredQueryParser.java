@@ -84,8 +84,9 @@ public class FilteredQueryParser implements QueryParser {
         if (query == null) {
             throw new QueryParsingException(parseContext.index(), "[filtered] requires 'query' element");
         }
+        // we allow for null filter, so it makes compositions on the client side to be simpler
         if (filter == null) {
-            throw new QueryParsingException(parseContext.index(), "[filtered] requires 'filter' element");
+            return query;
         }
 
         // cache if required

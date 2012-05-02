@@ -208,6 +208,10 @@ public class QueryParseContext {
         }
         token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
+            // empty filter
+            if (token == XContentParser.Token.END_OBJECT || token == XContentParser.Token.VALUE_NULL) {
+                return null;
+            }
             throw new QueryParsingException(index, "[_na] filter malformed, no field after start_object");
         }
         String filterName = parser.currentName();

@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.routing.operation.OperationRouting;
 import org.elasticsearch.cluster.routing.operation.hash.HashFunction;
 import org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -163,7 +164,10 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
                             throw new IndexShardMissingException(new ShardId(index, shardId));
                         }
                         // we might get duplicates, but that's ok, they will override one another
-                        set.add(preferenceActiveShardIterator(indexShard, clusterState.nodes().localNodeId(), clusterState.nodes(), preference));
+                        ShardIterator iterator = preferenceActiveShardIterator(indexShard, clusterState.nodes().localNodeId(), clusterState.nodes(), preference);
+                        if (iterator != null) {
+                            set.add(iterator);
+                        }
                     }
                 }
             }
@@ -174,7 +178,10 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
             for (String index : concreteIndices) {
                 IndexRoutingTable indexRouting = indexRoutingTable(clusterState, index);
                 for (IndexShardRoutingTable indexShard : indexRouting) {
-                    set.add(preferenceActiveShardIterator(indexShard, clusterState.nodes().localNodeId(), clusterState.nodes(), preference));
+                    ShardIterator iterator = preferenceActiveShardIterator(indexShard, clusterState.nodes().localNodeId(), clusterState.nodes(), preference);
+                    if (iterator != null) {
+                        set.add(iterator);
+                    }
                 }
             }
             return new GroupShardsIterator(set);
@@ -191,6 +198,42 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
             }
         }
         if (preference.charAt(0) == '_') {
+            if (preference.startsWith("_shards:")) {
+                // starts with _shards, so execute on specific ones
+                int index = preference.indexOf(';');
+                String shards;
+                if (index == -1) {
+                    shards = preference.substring("_shards:".length());
+                } else {
+                    shards = preference.substring("_shards:".length(), index);
+                }
+                String[] ids = Strings.splitStringByCommaToArray(shards);
+                boolean found = false;
+                for (String id : ids) {
+                    if (Integer.parseInt(id) == indexShard.shardId().id()) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    return null;
+                }
+                // no more preference
+                if (index == -1 || index == preference.length() - 1) {
+                    String[] awarenessAttributes = awarenessAllocationDecider.awarenessAttributes();
+                    if (awarenessAttributes.length == 0) {
+                        return indexShard.activeShardsRandomIt();
+                    } else {
+                        return indexShard.preferAttributesActiveShardsIt(awarenessAttributes, nodes);
+                    }
+                } else {
+                    // update the preference and continue
+                    preference = preference.substring(index + 1);
+                }
+            }
+            if (preference.startsWith("_prefer_node:")) {
+                return indexShard.preferNodeActiveShardsIt(preference.substring("_prefer_node:".length()));
+            }
             if ("_local".equals(preference)) {
                 return indexShard.preferNodeActiveShardsIt(localNodeId);
             }

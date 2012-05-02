@@ -21,9 +21,11 @@ package org.elasticsearch.common.io.stream;
 
 import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Nullable;
+import org.joda.time.ReadableInstant;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -262,6 +264,12 @@ public abstract class StreamOutput extends OutputStream {
         } else if (type == Byte.class) {
             writeByte((byte) 11);
             writeByte((Byte) value);
+        } else if (type == Date.class) {
+            writeByte((byte) 12);
+            writeLong(((Date) value).getTime());
+        } else if (value instanceof ReadableInstant) {
+            writeByte((byte) 13);
+            writeLong(((ReadableInstant) value).getMillis());
         } else {
             throw new IOException("Can't write type [" + type + "]");
         }

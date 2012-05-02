@@ -83,6 +83,10 @@ public class TrackingSerialMergeScheduler extends MergeScheduler {
             if (merge == null)
                 break;
 
+            // different from serial merge, call mergeInit here so we get the correct stats
+            // mergeInit can be called several times without side affects (checks on merge.info not being null)
+            writer.mergeInit(merge);
+
             int totalNumDocs = merge.totalNumDocs();
             long totalSizeInBytes = merge.totalBytesSize();
             long time = System.currentTimeMillis();

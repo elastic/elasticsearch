@@ -94,8 +94,8 @@ public class InternalIndicesWarmer extends AbstractComponent implements IndicesW
                 public void run() {
                     try {
                         listener.warm(shardId, indexMetaData, searcher);
-                    } catch (Exception e) {
-                        logger.warn("[{}][{}] failed to warm [{}]", shardId.index().name(), shardId.id(), listener);
+                    } catch (Throwable e) {
+                        logger.warn("[{}][{}] failed to warm [{}]", e, shardId.index().name(), shardId.id(), listener);
                     } finally {
                         latch.countDown();
                     }

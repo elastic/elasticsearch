@@ -36,7 +36,7 @@ public class ClusterStateResponse implements ActionResponse {
 
     private ClusterState clusterState;
 
-    ClusterStateResponse() {
+    public ClusterStateResponse() {
     }
 
     ClusterStateResponse(ClusterName clusterName, ClusterState clusterState) {

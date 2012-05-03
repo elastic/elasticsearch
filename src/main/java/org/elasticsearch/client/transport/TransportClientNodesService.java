@@ -125,7 +125,7 @@ public class TransportClientNodesService extends AbstractComponent {
         return this.listedNodes;
     }
 
-    public TransportClientNodesService addTransportAddress(TransportAddress... transportAddresses) {
+    public TransportClientNodesService addTransportAddresses(TransportAddress... transportAddresses) {
         synchronized (transportMutex) {
             List<TransportAddress> filtered = Lists.newArrayListWithExpectedSize(transportAddresses.length);
             for (TransportAddress transportAddress : transportAddresses) {

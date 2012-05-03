@@ -109,7 +109,9 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
                         continue;
                     }
 
-                    ((SegmentReader) reader).addCoreClosedListener(this);
+                    if (reader instanceof SegmentReader) {
+                        ((SegmentReader) reader).addCoreClosedListener(this);
+                    }
                     HashMap<String, TypeBuilder> readerBuilder = new HashMap<String, TypeBuilder>();
                     builders.put(reader.getCoreCacheKey(), readerBuilder);
 

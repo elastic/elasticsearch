@@ -112,7 +112,9 @@ public abstract class AbstractConcurrentMapFieldDataCache extends AbstractIndexC
                 fieldDataCache = cache.get(reader.getCoreCacheKey());
                 if (fieldDataCache == null) {
                     fieldDataCache = buildFieldDataMap();
-                    ((SegmentReader) reader).addCoreClosedListener(this);
+                    if (reader instanceof SegmentReader) {
+                        ((SegmentReader) reader).addCoreClosedListener(this);
+                    }
                     cache.put(reader.getCoreCacheKey(), fieldDataCache);
                 }
             }

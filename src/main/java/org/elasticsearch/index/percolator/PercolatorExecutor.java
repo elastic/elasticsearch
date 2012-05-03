@@ -249,7 +249,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
         }
     }
 
-    public synchronized void addQuery(String name, Query query) {
+    private synchronized void addQuery(String name, Query query) {
         Preconditions.checkArgument(query != null, "query must be provided for percolate request");
         this.queries = MapBuilder.newMapBuilder(queries).put(name, query).immutableMap();
     }
@@ -349,42 +349,45 @@ public class PercolatorExecutor extends AbstractIndexComponent {
         }
 
         final IndexSearcher searcher = memoryIndex.createSearcher();
-
         List<String> matches = new ArrayList<String>();
-        if (request.query() == null) {
-            Lucene.ExistsCollector collector = new Lucene.ExistsCollector();
-            for (Map.Entry<String, Query> entry : queries.entrySet()) {
-                collector.reset();
+
+        try {
+            if (request.query() == null) {
+                Lucene.ExistsCollector collector = new Lucene.ExistsCollector();
+                for (Map.Entry<String, Query> entry : queries.entrySet()) {
+                    collector.reset();
+                    try {
+                        searcher.search(entry.getValue(), collector);
+                    } catch (IOException e) {
+                        logger.warn("[" + entry.getKey() + "] failed to execute query", e);
+                    }
+
+                    if (collector.exists()) {
+                        matches.add(entry.getKey());
+                    }
+                }
+            } else {
+                IndexService percolatorIndex = indicesService.indexService(PercolatorService.INDEX_NAME);
+                if (percolatorIndex == null) {
+                    throw new PercolateIndexUnavailable(new Index(PercolatorService.INDEX_NAME));
+                }
+                if (percolatorIndex.numberOfShards() == 0) {
+                    throw new PercolateIndexUnavailable(new Index(PercolatorService.INDEX_NAME));
+                }
+                IndexShard percolatorShard = percolatorIndex.shard(0);
+                Engine.Searcher percolatorSearcher = percolatorShard.searcher();
                 try {
-                    searcher.search(entry.getValue(), collector);
+                    percolatorSearcher.searcher().search(request.query(), new QueryCollector(logger, queries, searcher, percolatorIndex, matches));
                 } catch (IOException e) {
-                    logger.warn("[" + entry.getKey() + "] failed to execute query", e);
-                }
-
-                if (collector.exists()) {
-                    matches.add(entry.getKey());
+                    logger.warn("failed to execute", e);
+                } finally {
+                    percolatorSearcher.release();
                 }
             }
-        } else {
-            IndexService percolatorIndex = indicesService.indexService(PercolatorService.INDEX_NAME);
-            if (percolatorIndex == null) {
-                throw new PercolateIndexUnavailable(new Index(PercolatorService.INDEX_NAME));
-            }
-            if (percolatorIndex.numberOfShards() == 0) {
-                throw new PercolateIndexUnavailable(new Index(PercolatorService.INDEX_NAME));
-            }
-            IndexShard percolatorShard = percolatorIndex.shard(0);
-            Engine.Searcher percolatorSearcher = percolatorShard.searcher();
-            try {
-                percolatorSearcher.searcher().search(request.query(), new QueryCollector(logger, queries, searcher, percolatorIndex, matches));
-            } catch (IOException e) {
-                logger.warn("failed to execute", e);
-            } finally {
-                percolatorSearcher.release();
-            }
+        } finally {
+            // explicitly clear the reader, since we can only register on callback on SegmentReader
+            indexCache.clear(searcher.getIndexReader());
         }
-
-        indexCache.clear(searcher.getIndexReader());
 
         return new Response(matches, request.doc().mappersAdded());
     }

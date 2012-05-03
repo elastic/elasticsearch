@@ -123,7 +123,9 @@ public class SimpleBloomCache extends AbstractIndexComponent implements BloomCac
             synchronized (creationMutex) {
                 fieldCache = cache.get(reader.getCoreCacheKey());
                 if (fieldCache == null) {
-                    ((SegmentReader) reader).addCoreClosedListener(this);
+                    if (reader instanceof SegmentReader) {
+                        ((SegmentReader) reader).addCoreClosedListener(this);
+                    }
                     fieldCache = ConcurrentCollections.newConcurrentMap();
                     cache.put(reader.getCoreCacheKey(), fieldCache);
                 }

@@ -199,8 +199,21 @@ public class TransportClient extends AbstractClient {
      * <p/>
      * <p>In order to get the list of all the current connected nodes, please see {@link #connectedNodes()}.
      */
-    public TransportClient addTransportAddress(TransportAddress... transportAddress) {
-        nodesService.addTransportAddress(transportAddress);
+    public TransportClient addTransportAddress(TransportAddress transportAddress) {
+        nodesService.addTransportAddresses(transportAddress);
+        return this;
+    }
+
+    /**
+     * Adds a list of transport addresses that will be used to connect to.
+     * <p/>
+     * <p>The Node this transport address represents will be used if its possible to connect to it.
+     * If it is unavailable, it will be automatically connected to once it is up.
+     * <p/>
+     * <p>In order to get the list of all the current connected nodes, please see {@link #connectedNodes()}.
+     */
+    public TransportClient addTransportAddresses(TransportAddress... transportAddress) {
+        nodesService.addTransportAddresses(transportAddress);
         return this;
     }
 

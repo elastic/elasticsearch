@@ -36,6 +36,7 @@ import org.elasticsearch.index.cache.IndexCacheModule;
 import org.elasticsearch.index.engine.IndexEngineModule;
 import org.elasticsearch.index.mapper.MapperServiceModule;
 import org.elasticsearch.index.percolator.PercolatorExecutor;
+import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.IndexQueryParserModule;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
@@ -45,6 +46,7 @@ import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
+import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
@@ -60,7 +62,7 @@ public class PercolatorExecutorTests {
     @BeforeClass
     public void buildPercolatorService() {
         Settings settings = ImmutableSettings.settingsBuilder()
-                .put("index.cache.filter.type", "none")
+                //.put("index.cache.filter.type", "none")
                 .build();
         Index index = new Index("test");
         Injector injector = new ModulesBuilder().add(
@@ -128,5 +130,13 @@ public class PercolatorExecutorTests {
         percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest("type1", source));
         assertThat(percolate.matches(), hasSize(1));
         assertThat(percolate.matches(), hasItems("test1"));
+
+        // add a range query (cached)
+        // add a query
+        percolatorExecutor.addQuery("test1", constantScoreQuery(FilterBuilders.rangeFilter("field2").from("value").includeLower(true)));
+
+        percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest("type1", source));
+        assertThat(percolate.matches(), hasSize(1));
+        assertThat(percolate.matches(), hasItem("test1"));
     }
 }

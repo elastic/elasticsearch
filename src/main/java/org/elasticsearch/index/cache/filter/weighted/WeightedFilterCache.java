@@ -166,7 +166,7 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
             if (cacheValue == null) {
                 if (!cache.seenReaders.containsKey(reader.getCoreCacheKey())) {
                     Boolean previous = cache.seenReaders.putIfAbsent(reader.getCoreCacheKey(), Boolean.TRUE);
-                    if (previous == null) {
+                    if (previous == null && (reader instanceof SegmentReader)) {
                         ((SegmentReader) reader).addCoreClosedListener(cache);
                         cache.seenReadersCount.inc();
                     }

@@ -185,6 +185,13 @@ public class TransportClient extends AbstractClient {
     }
 
     /**
+     * Returns the listed nodes in the transport client (ones added to it).
+     */
+    public ImmutableList<DiscoveryNode> listedNodes() {
+        return nodesService.listedNodes();
+    }
+
+    /**
      * Adds a transport address that will be used to connect to.
      * <p/>
      * <p>The Node this transport address represents will be used if its possible to connect to it.
@@ -192,7 +199,7 @@ public class TransportClient extends AbstractClient {
      * <p/>
      * <p>In order to get the list of all the current connected nodes, please see {@link #connectedNodes()}.
      */
-    public TransportClient addTransportAddress(TransportAddress transportAddress) {
+    public TransportClient addTransportAddress(TransportAddress... transportAddress) {
         nodesService.addTransportAddress(transportAddress);
         return this;
     }

@@ -142,7 +142,6 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         }
 
         if (cumulationBuffer) {
-            assert buffer == this.cumulation;
             if (!buffer.readable()) {
                 this.cumulation = null;
             } else if (buffer.readerIndex() > 0) {

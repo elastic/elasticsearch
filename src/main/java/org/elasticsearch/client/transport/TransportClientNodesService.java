@@ -122,7 +122,9 @@ public class TransportClientNodesService extends AbstractComponent {
     public TransportClientNodesService addTransportAddress(TransportAddress transportAddress) {
         synchronized (transportMutex) {
             ImmutableList.Builder<DiscoveryNode> builder = ImmutableList.builder();
-            listedNodes = builder.addAll(listedNodes).add(new DiscoveryNode("#transport#-" + tempNodeIdGenerator.incrementAndGet(), transportAddress)).build();
+            DiscoveryNode node = new DiscoveryNode("#transport#-" + tempNodeIdGenerator.incrementAndGet(), transportAddress);
+            logger.debug("adding address {}", node);
+            listedNodes = builder.addAll(listedNodes).add(node).build();
         }
         nodesSampler.sample();
         return this;
@@ -134,6 +136,8 @@ public class TransportClientNodesService extends AbstractComponent {
             for (DiscoveryNode otherNode : listedNodes) {
                 if (!otherNode.address().equals(transportAddress)) {
                     builder.add(otherNode);
+                } else {
+                    logger.debug("removing address {}", otherNode);
                 }
             }
             listedNodes = builder.build();

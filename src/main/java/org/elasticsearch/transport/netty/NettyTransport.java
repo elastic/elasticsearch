@@ -139,6 +139,8 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
     private volatile BoundTransportAddress boundAddress;
 
+    private final Object[] connectMutex;
+
     public NettyTransport(ThreadPool threadPool) {
         this(EMPTY_SETTINGS, threadPool, new NetworkService(EMPTY_SETTINGS));
     }
@@ -152,6 +154,11 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         super(settings);
         this.threadPool = threadPool;
         this.networkService = networkService;
+
+        this.connectMutex = new Object[500];
+        for (int i = 0; i < connectMutex.length; i++) {
+            connectMutex[i] = new Object();
+        }
 
         this.workerCount = componentSettings.getAsInt("worker_count", Runtime.getRuntime().availableProcessors() * 2);
         this.blockingServer = settings.getAsBoolean("transport.tcp.blocking_server", settings.getAsBoolean(TCP_BLOCKING_SERVER, settings.getAsBoolean(TCP_BLOCKING, false)));
@@ -489,39 +496,41 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         if (node == null) {
             throw new ConnectTransportException(null, "Can't connect to a null node");
         }
-        try {
-            NodeChannels nodeChannels = connectedNodes.get(node);
-            if (nodeChannels != null) {
-                return;
-            }
+        synchronized (connectLock(node.id())) {
+            try {
+                NodeChannels nodeChannels = connectedNodes.get(node);
+                if (nodeChannels != null) {
+                    return;
+                }
 
-            if (light) {
-                nodeChannels = connectToChannelsLight(node);
-            } else {
-                nodeChannels = new NodeChannels(new Channel[connectionsPerNodeLow], new Channel[connectionsPerNodeMed], new Channel[connectionsPerNodeHigh]);
-                try {
-                    connectToChannels(nodeChannels, node);
-                } catch (Exception e) {
+                if (light) {
+                    nodeChannels = connectToChannelsLight(node);
+                } else {
+                    nodeChannels = new NodeChannels(new Channel[connectionsPerNodeLow], new Channel[connectionsPerNodeMed], new Channel[connectionsPerNodeHigh]);
+                    try {
+                        connectToChannels(nodeChannels, node);
+                    } catch (Exception e) {
+                        nodeChannels.close();
+                        throw e;
+                    }
+                }
+
+                NodeChannels existing = connectedNodes.putIfAbsent(node, nodeChannels);
+                if (existing != null) {
+                    // we are already connected to a node, close this ones
                     nodeChannels.close();
-                    throw e;
+                } else {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("connected to node [{}]", node);
+                    }
+                    transportServiceAdapter.raiseNodeConnected(node);
                 }
-            }
 
-            NodeChannels existing = connectedNodes.putIfAbsent(node, nodeChannels);
-            if (existing != null) {
-                // we are already connected to a node, close this ones
-                nodeChannels.close();
-            } else {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("Connected to node [{}]", node);
-                }
-                transportServiceAdapter.raiseNodeConnected(node);
+            } catch (ConnectTransportException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new ConnectTransportException(node, "General node connection failure", e);
             }
-
-        } catch (ConnectTransportException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new ConnectTransportException(node, "General node connection failure", e);
         }
     }
 
@@ -620,13 +629,15 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
     @Override
     public void disconnectFromNode(DiscoveryNode node) {
-        NodeChannels nodeChannels = connectedNodes.remove(node);
-        if (nodeChannels != null) {
-            try {
-                nodeChannels.close();
-            } finally {
-                logger.debug("Disconnected from [{}]", node);
-                transportServiceAdapter.raiseNodeDisconnected(node);
+        synchronized (connectLock(node.id())) {
+            NodeChannels nodeChannels = connectedNodes.remove(node);
+            if (nodeChannels != null) {
+                try {
+                    nodeChannels.close();
+                } finally {
+                    logger.debug("disconnected from [{}]", node);
+                    transportServiceAdapter.raiseNodeDisconnected(node);
+                }
             }
         }
     }
@@ -637,6 +648,15 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             throw new NodeNotConnectedException(node, "Node not connected");
         }
         return nodeChannels.channel(options.type());
+    }
+
+    private Object connectLock(String nodeId) {
+        int hash = nodeId.hashCode();
+        // abs returns Integer.MIN_VALUE, so we need to protect against it...
+        if (hash == Integer.MIN_VALUE) {
+            hash = 0;
+        }
+        return connectMutex[Math.abs(hash) % connectMutex.length];
     }
 
     private class ChannelCloseListener implements ChannelFutureListener {

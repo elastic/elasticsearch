@@ -20,6 +20,7 @@
 package org.elasticsearch.client.transport;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import jsr166y.LinkedTransferQueue;
 import org.elasticsearch.ElasticSearchException;
@@ -42,6 +43,7 @@ import org.elasticsearch.transport.*;
 
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledFuture;
@@ -119,12 +121,37 @@ public class TransportClientNodesService extends AbstractComponent {
         return this.nodes;
     }
 
-    public TransportClientNodesService addTransportAddress(TransportAddress transportAddress) {
+    public ImmutableList<DiscoveryNode> listedNodes() {
+        return this.listedNodes;
+    }
+
+    public TransportClientNodesService addTransportAddress(TransportAddress... transportAddresses) {
         synchronized (transportMutex) {
+            List<TransportAddress> filtered = Lists.newArrayListWithExpectedSize(transportAddresses.length);
+            for (TransportAddress transportAddress : transportAddresses) {
+                boolean found = false;
+                for (DiscoveryNode otherNode : listedNodes) {
+                    if (otherNode.address().equals(transportAddress)) {
+                        found = true;
+                        logger.debug("address [{}] already exists with [{}], ignoring...", transportAddress, otherNode);
+                        break;
+                    }
+                }
+                if (!found) {
+                    filtered.add(transportAddress);
+                }
+            }
+            if (filtered.isEmpty()) {
+                return this;
+            }
             ImmutableList.Builder<DiscoveryNode> builder = ImmutableList.builder();
-            DiscoveryNode node = new DiscoveryNode("#transport#-" + tempNodeIdGenerator.incrementAndGet(), transportAddress);
-            logger.debug("adding address {}", node);
-            listedNodes = builder.addAll(listedNodes).add(node).build();
+            builder.addAll(listedNodes());
+            for (TransportAddress transportAddress : filtered) {
+                DiscoveryNode node = new DiscoveryNode("#transport#-" + tempNodeIdGenerator.incrementAndGet(), transportAddress);
+                logger.debug("adding address [{}]", node);
+                builder.add(node);
+            }
+            listedNodes = builder.build();
         }
         nodesSampler.sample();
         return this;
@@ -137,7 +164,7 @@ public class TransportClientNodesService extends AbstractComponent {
                 if (!otherNode.address().equals(transportAddress)) {
                     builder.add(otherNode);
                 } else {
-                    logger.debug("removing address {}", otherNode);
+                    logger.debug("removing address [{}]", otherNode);
                 }
             }
             listedNodes = builder.build();

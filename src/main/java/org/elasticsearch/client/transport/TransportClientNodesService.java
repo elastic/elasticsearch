@@ -81,6 +81,8 @@ public class TransportClientNodesService extends AbstractComponent {
 
     private final AtomicInteger randomNodeGenerator = new AtomicInteger();
 
+    private final boolean ignoreClusterName;
+
     private volatile boolean closed;
 
     @Inject
@@ -93,6 +95,7 @@ public class TransportClientNodesService extends AbstractComponent {
 
         this.nodesSamplerInterval = componentSettings.getAsTime("nodes_sampler_interval", timeValueSeconds(5));
         this.pingTimeout = componentSettings.getAsTime("ping_timeout", timeValueSeconds(5)).millis();
+        this.ignoreClusterName = componentSettings.getAsBoolean("ignore_cluster_name", false);
 
         if (logger.isDebugEnabled()) {
             logger.debug("node_sampler_interval[" + nodesSamplerInterval + "]");
@@ -315,7 +318,7 @@ public class TransportClientNodesService extends AbstractComponent {
                                     return new NodesInfoResponse();
                                 }
                             }).txGet();
-                    if (!clusterName.equals(nodeInfo.clusterName())) {
+                    if (!ignoreClusterName && !clusterName.equals(nodeInfo.clusterName())) {
                         logger.warn("node {} not part of the cluster {}, ignoring...", node, clusterName);
                     } else {
                         newNodes.add(node);
@@ -418,7 +421,7 @@ public class TransportClientNodesService extends AbstractComponent {
 
             HashSet<DiscoveryNode> newNodes = new HashSet<DiscoveryNode>();
             for (ClusterStateResponse clusterStateResponse : clusterStateResponses) {
-                if (!clusterName.equals(clusterStateResponse.clusterName())) {
+                if (!ignoreClusterName && !clusterName.equals(clusterStateResponse.clusterName())) {
                     logger.warn("node {} not part of the cluster {}, ignoring...", clusterStateResponse.state().nodes().localNode(), clusterName);
                 }
                 for (DiscoveryNode node : clusterStateResponse.state().nodes().dataNodes().values()) {

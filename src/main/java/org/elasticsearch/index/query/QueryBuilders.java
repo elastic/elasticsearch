@@ -23,8 +23,6 @@ import org.elasticsearch.common.Nullable;
 
 /**
  * A static factory for simple "import static" usage.
- *
- *
  */
 public abstract class QueryBuilders {
 
@@ -389,7 +387,7 @@ public abstract class QueryBuilders {
      * @param filterBuilder The filter to apply on the query
      * @deprecated Use filteredQuery instead (rename)
      */
-    public static FilteredQueryBuilder filtered(QueryBuilder queryBuilder, FilterBuilder filterBuilder) {
+    public static FilteredQueryBuilder filtered(QueryBuilder queryBuilder, @Nullable FilterBuilder filterBuilder) {
         return new FilteredQueryBuilder(queryBuilder, filterBuilder);
     }
 
@@ -399,7 +397,7 @@ public abstract class QueryBuilders {
      * @param queryBuilder  The query to apply the filter to
      * @param filterBuilder The filter to apply on the query
      */
-    public static FilteredQueryBuilder filteredQuery(QueryBuilder queryBuilder, FilterBuilder filterBuilder) {
+    public static FilteredQueryBuilder filteredQuery(QueryBuilder queryBuilder, @Nullable FilterBuilder filterBuilder) {
         return new FilteredQueryBuilder(queryBuilder, filterBuilder);
     }
 

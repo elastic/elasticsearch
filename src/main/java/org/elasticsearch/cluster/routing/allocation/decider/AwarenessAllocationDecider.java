@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.settings.NodeSettingsService;
 
@@ -70,6 +71,14 @@ public class AwarenessAllocationDecider extends AllocationDecider {
     private String[] awarenessAttributes;
 
     private Map<String, String[]> forcedAwarenessAttributes;
+
+    public AwarenessAllocationDecider() {
+        this(ImmutableSettings.Builder.EMPTY_SETTINGS);
+    }
+
+    public AwarenessAllocationDecider(Settings settings) {
+        this(settings, new NodeSettingsService(settings));
+    }
 
     @Inject
     public AwarenessAllocationDecider(Settings settings, NodeSettingsService nodeSettingsService) {

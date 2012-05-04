@@ -33,6 +33,12 @@ import java.net.InetSocketAddress;
  */
 public class InetSocketTransportAddress implements TransportAddress {
 
+    private static boolean resolveAddress = false;
+
+    public static void setResolveAddress(boolean resolveAddress) {
+        InetSocketTransportAddress.resolveAddress = resolveAddress;
+    }
+
     private InetSocketAddress address;
 
     InetSocketTransportAddress() {
@@ -118,7 +124,7 @@ public class InetSocketTransportAddress implements TransportAddress {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (address.getAddress() != null) {
+        if (!resolveAddress && address.getAddress() != null) {
             out.writeByte((byte) 0);
             byte[] bytes = address().getAddress().getAddress();  // 4 bytes (IPv4) or 16 bytes (IPv6)
             out.writeByte((byte) bytes.length); // 1 byte

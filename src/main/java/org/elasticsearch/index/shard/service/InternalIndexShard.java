@@ -30,6 +30,7 @@ import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -64,6 +65,8 @@ import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.warmer.ShardIndexWarmerService;
+import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.InternalIndicesLifecycle;
 import org.elasticsearch.indices.recovery.RecoveryStatus;
@@ -110,10 +113,11 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     private final ShardGetService getService;
 
+    private final ShardIndexWarmerService shardWarmerService;
+
     private final Object mutex = new Object();
 
-
-    private final boolean checkIndexOnStartup;
+    private final String checkIndexOnStartup;
 
     private long checkIndexTook = 0;
 
@@ -137,7 +141,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     @Inject
     public InternalIndexShard(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService, IndicesLifecycle indicesLifecycle, Store store, Engine engine, MergeSchedulerProvider mergeScheduler, Translog translog,
-                              ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService, ShardIndexingService indexingService, ShardGetService getService, ShardSearchService searchService) {
+                              ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService, ShardIndexingService indexingService, ShardGetService getService, ShardSearchService searchService, ShardIndexWarmerService shardWarmerService) {
         super(shardId, indexSettings);
         this.indicesLifecycle = (InternalIndicesLifecycle) indicesLifecycle;
         this.indexSettingsService = indexSettingsService;
@@ -153,6 +157,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         this.indexingService = indexingService;
         this.getService = getService.setIndexShard(this);
         this.searchService = searchService;
+        this.shardWarmerService = shardWarmerService;
         state = IndexShardState.CREATED;
 
         this.refreshInterval = indexSettings.getAsTime("engine.robin.refresh_interval", indexSettings.getAsTime("index.refresh_interval", engine.defaultRefreshInterval()));
@@ -162,7 +167,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
         logger.debug("state: [CREATED]");
 
-        this.checkIndexOnStartup = indexSettings.getAsBoolean("index.shard.check_on_startup", false);
+        this.checkIndexOnStartup = indexSettings.get("index.shard.check_on_startup", "false");
     }
 
     public MergeSchedulerProvider mergeScheduler() {
@@ -193,6 +198,11 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     @Override
     public ShardSearchService searchService() {
         return this.searchService;
+    }
+
+    @Override
+    public ShardIndexWarmerService warmerService() {
+        return this.shardWarmerService;
     }
 
     @Override
@@ -266,7 +276,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             if (state == IndexShardState.RELOCATED) {
                 throw new IndexShardRelocatedException(shardId);
             }
-            if (checkIndexOnStartup) {
+            if (Booleans.parseBoolean(checkIndexOnStartup, false)) {
                 checkIndex(true);
             }
             engine.start();
@@ -516,6 +526,11 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     }
 
     @Override
+    public WarmerStats warmerStats() {
+        return shardWarmerService.stats();
+    }
+
+    @Override
     public void flush(Engine.Flush flush) throws ElasticSearchException {
         // we allows flush while recovering, since we allow for operations to happen
         // while recovering, and we want to keep the translog at bay (up to deletes, which
@@ -590,7 +605,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             throw new IndexShardNotRecoveringException(shardId, state);
         }
         // also check here, before we apply the translog
-        if (checkIndexOnStartup) {
+        if (Booleans.parseBoolean(checkIndexOnStartup, false)) {
             checkIndex(true);
         }
         // we disable deletes since we allow for operations to be executed against the shard while recovering
@@ -879,8 +894,19 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                     return;
                 }
                 logger.warn("check index [failure]\n{}", new String(os.underlyingBytes(), 0, os.size()));
-                if (throwException) {
-                    throw new IndexShardException(shardId, "index check failure");
+                if ("fix".equalsIgnoreCase(checkIndexOnStartup)) {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("fixing index, writing new segments file ...");
+                    }
+                    checkIndex.fixIndex(status);
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("index fixed, wrote new segments file \"{}\"", status.segmentsFileName);
+                    }
+                } else {
+                    // only throw a failure if we are not going to fix the index
+                    if (throwException) {
+                        throw new IndexShardException(shardId, "index check failure");
+                    }
                 }
             } else {
                 if (logger.isDebugEnabled()) {

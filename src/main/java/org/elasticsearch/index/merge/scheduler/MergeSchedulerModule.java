@@ -42,7 +42,7 @@ public class MergeSchedulerModule extends AbstractModule {
     @Override
     protected void configure() {
         bind(MergeSchedulerProvider.class)
-                .to(settings.getAsClass(TYPE, ConcurrentMergeSchedulerProvider.class, "org.elasticsearch.index.scheduler.", "MergeSchedulerProvider"))
+                .to(settings.getAsClass(TYPE, ConcurrentMergeSchedulerProvider.class, "org.elasticsearch.index.merge.scheduler.", "MergeSchedulerProvider"))
                 .asEagerSingleton();
     }
 }

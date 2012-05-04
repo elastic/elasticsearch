@@ -169,6 +169,9 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
         if (request.request.flush()) {
             stats.stats.flush = indexShard.flushStats();
         }
+        if (request.request.warmer()) {
+            stats.stats.warmer = indexShard.warmerStats();
+        }
 
         return stats;
     }

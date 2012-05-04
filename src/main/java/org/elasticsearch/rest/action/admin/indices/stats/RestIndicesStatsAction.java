@@ -73,6 +73,9 @@ public class RestIndicesStatsAction extends BaseRestHandler {
 
         controller.registerHandler(GET, "/_stats/flush", new RestFlushStatsHandler());
         controller.registerHandler(GET, "/{index}/_stats/flush", new RestFlushStatsHandler());
+
+        controller.registerHandler(GET, "/_stats/warmer", new RestWarmerStatsHandler());
+        controller.registerHandler(GET, "/{index}/_stats/warmer", new RestWarmerStatsHandler());
     }
 
     @Override
@@ -99,6 +102,7 @@ public class RestIndicesStatsAction extends BaseRestHandler {
         indicesStatsRequest.merge(request.paramAsBoolean("merge", indicesStatsRequest.merge()));
         indicesStatsRequest.refresh(request.paramAsBoolean("refresh", indicesStatsRequest.refresh()));
         indicesStatsRequest.flush(request.paramAsBoolean("flush", indicesStatsRequest.flush()));
+        indicesStatsRequest.warmer(request.paramAsBoolean("warmer", indicesStatsRequest.warmer()));
 
         client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStats>() {
             @Override
@@ -366,6 +370,43 @@ public class RestIndicesStatsAction extends BaseRestHandler {
         public void handleRequest(final RestRequest request, final RestChannel channel) {
             IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
             indicesStatsRequest.clear().flush(true);
+            indicesStatsRequest.indices(splitIndices(request.param("index")));
+            indicesStatsRequest.types(splitTypes(request.param("types")));
+
+            client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStats>() {
+                @Override
+                public void onResponse(IndicesStats response) {
+                    try {
+                        XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
+                        builder.startObject();
+                        builder.field("ok", true);
+                        buildBroadcastShardsHeader(builder, response);
+                        response.toXContent(builder, request);
+                        builder.endObject();
+                        channel.sendResponse(new XContentRestResponse(request, OK, builder));
+                    } catch (Exception e) {
+                        onFailure(e);
+                    }
+                }
+
+                @Override
+                public void onFailure(Throwable e) {
+                    try {
+                        channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                    } catch (IOException e1) {
+                        logger.error("Failed to send failure response", e1);
+                    }
+                }
+            });
+        }
+    }
+
+    class RestWarmerStatsHandler implements RestHandler {
+
+        @Override
+        public void handleRequest(final RestRequest request, final RestChannel channel) {
+            IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
+            indicesStatsRequest.clear().warmer(true);
             indicesStatsRequest.indices(splitIndices(request.param("index")));
             indicesStatsRequest.types(splitTypes(request.param("types")));
 

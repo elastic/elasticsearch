@@ -24,7 +24,7 @@ if [ "x$ES_HEAP_NEWSIZE" != "x" ]; then
 fi
 
 # reduce the per-thread stack size
-JAVA_OPTS="$JAVA_OPTS -Xss128k"
+JAVA_OPTS="$JAVA_OPTS -Xss256k"
 
 # Force the JVM to use IPv4 stack
 # JAVA_OPTS="$JAVA_OPTS -Djava.net.preferIPv4Stack=true"

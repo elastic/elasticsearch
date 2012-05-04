@@ -22,6 +22,7 @@ package org.apache.lucene.index;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
@@ -83,7 +84,7 @@ public class TrackingConcurrentMergeScheduler extends ConcurrentMergeScheduler {
         currentMergesNumDocs.inc(totalNumDocs);
         currentMergesSizeInBytes.inc(totalSizeInBytes);
         if (logger.isTraceEnabled()) {
-            logger.trace("merge [{}] starting...", merge.info.name);
+            logger.trace("merge [{}] starting..., merging [{}] segments, [{}] docs, [{}] size, into [{}] estimated_size", merge.info == null ? "_na_" : merge.info.name, merge.segments.size(), totalNumDocs, new ByteSizeValue(totalSizeInBytes), new ByteSizeValue(merge.estimatedMergeBytes));
         }
         try {
             TrackingMergeScheduler.setCurrentMerge(merge);
@@ -100,9 +101,9 @@ public class TrackingConcurrentMergeScheduler extends ConcurrentMergeScheduler {
             totalMergesSizeInBytes.inc(totalSizeInBytes);
             totalMerges.inc(took);
             if (took > 20000) { // if more than 20 seconds, DEBUG log it
-                logger.debug("merge [{}] done, took [{}]", merge.info.name, TimeValue.timeValueMillis(took));
+                logger.debug("merge [{}] done, took [{}]", merge.info == null ? "_na_" : merge.info.name, TimeValue.timeValueMillis(took));
             } else if (logger.isTraceEnabled()) {
-                logger.trace("merge [{}] done, took [{}]", merge.info.name, TimeValue.timeValueMillis(took));
+                logger.trace("merge [{}] done, took [{}]", merge.info == null ? "_na_" : merge.info.name, TimeValue.timeValueMillis(took));
             }
         }
     }

@@ -17,39 +17,24 @@
  * under the License.
  */
 
-package org.elasticsearch.index.cache.filter;
+package org.elasticsearch.indices.warmer;
 
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.Filter;
-import org.elasticsearch.common.component.CloseableComponent;
-import org.elasticsearch.index.IndexComponent;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.shard.ShardId;
 
 /**
- *
  */
-public interface FilterCache extends IndexComponent, CloseableComponent {
+public interface IndicesWarmer {
 
-    static class EntriesStats {
-        public final long sizeInBytes;
-        public final long count;
+    static interface Listener {
 
-        public EntriesStats(long sizeInBytes, long count) {
-            this.sizeInBytes = sizeInBytes;
-            this.count = count;
-        }
+        String executor();
+
+        void warm(ShardId shardId, IndexMetaData indexMetaData, Engine.Searcher search);
     }
 
-    String type();
+    void addListener(Listener listener);
 
-    Filter cache(Filter filterToCache);
-
-    boolean isCached(Filter filter);
-
-    void clear(IndexReader reader);
-
-    void clear(String reason);
-
-    EntriesStats entriesStats();
-
-    long evictions();
+    void removeListener(Listener listener);
 }

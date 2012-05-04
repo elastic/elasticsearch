@@ -21,6 +21,7 @@ package org.elasticsearch.common.io.stream;
 
 import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Nullable;
+import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -280,6 +281,10 @@ public abstract class StreamInput extends InputStream {
             return map;
         } else if (type == 11) {
             return readByte();
+        } else if (type == 12) {
+            return new Date(readLong());
+        } else if (type == 13) {
+            return new DateTime(readLong());
         } else {
             throw new IOException("Can't read unknown type [" + type + "]");
         }

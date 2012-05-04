@@ -20,13 +20,16 @@
 package org.elasticsearch.client.transport;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Maps;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+import jsr166y.LinkedTransferQueue;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -40,8 +43,8 @@ import org.elasticsearch.transport.*;
 
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -78,6 +81,8 @@ public class TransportClientNodesService extends AbstractComponent {
 
     private final AtomicInteger randomNodeGenerator = new AtomicInteger();
 
+    private final boolean ignoreClusterName;
+
     private volatile boolean closed;
 
     @Inject
@@ -90,6 +95,7 @@ public class TransportClientNodesService extends AbstractComponent {
 
         this.nodesSamplerInterval = componentSettings.getAsTime("nodes_sampler_interval", timeValueSeconds(5));
         this.pingTimeout = componentSettings.getAsTime("ping_timeout", timeValueSeconds(5)).millis();
+        this.ignoreClusterName = componentSettings.getAsBoolean("ignore_cluster_name", false);
 
         if (logger.isDebugEnabled()) {
             logger.debug("node_sampler_interval[" + nodesSamplerInterval + "]");
@@ -118,10 +124,37 @@ public class TransportClientNodesService extends AbstractComponent {
         return this.nodes;
     }
 
-    public TransportClientNodesService addTransportAddress(TransportAddress transportAddress) {
+    public ImmutableList<DiscoveryNode> listedNodes() {
+        return this.listedNodes;
+    }
+
+    public TransportClientNodesService addTransportAddresses(TransportAddress... transportAddresses) {
         synchronized (transportMutex) {
+            List<TransportAddress> filtered = Lists.newArrayListWithExpectedSize(transportAddresses.length);
+            for (TransportAddress transportAddress : transportAddresses) {
+                boolean found = false;
+                for (DiscoveryNode otherNode : listedNodes) {
+                    if (otherNode.address().equals(transportAddress)) {
+                        found = true;
+                        logger.debug("address [{}] already exists with [{}], ignoring...", transportAddress, otherNode);
+                        break;
+                    }
+                }
+                if (!found) {
+                    filtered.add(transportAddress);
+                }
+            }
+            if (filtered.isEmpty()) {
+                return this;
+            }
             ImmutableList.Builder<DiscoveryNode> builder = ImmutableList.builder();
-            listedNodes = builder.addAll(listedNodes).add(new DiscoveryNode("#transport#-" + tempNodeIdGenerator.incrementAndGet(), transportAddress)).build();
+            builder.addAll(listedNodes());
+            for (TransportAddress transportAddress : filtered) {
+                DiscoveryNode node = new DiscoveryNode("#transport#-" + tempNodeIdGenerator.incrementAndGet(), transportAddress);
+                logger.debug("adding address [{}]", node);
+                builder.add(node);
+            }
+            listedNodes = builder.build();
         }
         nodesSampler.sample();
         return this;
@@ -133,6 +166,8 @@ public class TransportClientNodesService extends AbstractComponent {
             for (DiscoveryNode otherNode : listedNodes) {
                 if (!otherNode.address().equals(transportAddress)) {
                     builder.add(otherNode);
+                } else {
+                    logger.debug("removing address [{}]", otherNode);
                 }
             }
             listedNodes = builder.build();
@@ -283,7 +318,7 @@ public class TransportClientNodesService extends AbstractComponent {
                                     return new NodesInfoResponse();
                                 }
                             }).txGet();
-                    if (!clusterName.equals(nodeInfo.clusterName())) {
+                    if (!ignoreClusterName && !clusterName.equals(nodeInfo.clusterName())) {
                         logger.warn("node {} not part of the cluster {}, ignoring...", node, clusterName);
                     } else {
                         newNodes.add(node);
@@ -307,39 +342,48 @@ public class TransportClientNodesService extends AbstractComponent {
 
             // the nodes we are going to ping include the core listed nodes that were added
             // and the last round of discovered nodes
-            Map<TransportAddress, DiscoveryNode> nodesToPing = Maps.newHashMap();
+            Set<DiscoveryNode> nodesToPing = Sets.newHashSet();
             for (DiscoveryNode node : listedNodes) {
-                nodesToPing.put(node.address(), node);
+                nodesToPing.add(node);
             }
             for (DiscoveryNode node : nodes) {
-                nodesToPing.put(node.address(), node);
+                nodesToPing.add(node);
             }
 
             final CountDownLatch latch = new CountDownLatch(nodesToPing.size());
-            final CopyOnWriteArrayList<NodesInfoResponse> nodesInfoResponses = new CopyOnWriteArrayList<NodesInfoResponse>();
-            for (final DiscoveryNode listedNode : nodesToPing.values()) {
+            final LinkedTransferQueue<ClusterStateResponse> clusterStateResponses = new LinkedTransferQueue<ClusterStateResponse>();
+            for (final DiscoveryNode listedNode : nodesToPing) {
                 threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(new Runnable() {
                     @Override
                     public void run() {
                         try {
                             if (!transportService.nodeConnected(listedNode)) {
                                 try {
-                                    logger.trace("connecting to node [{}]", listedNode);
-                                    transportService.connectToNode(listedNode);
+
+                                    // if its one of hte actual nodes we will talk to, not to listed nodes, fully connect
+                                    if (nodes.contains(listedNode)) {
+                                        logger.trace("connecting to cluster node [{}]", listedNode);
+                                        transportService.connectToNode(listedNode);
+                                    } else {
+                                        // its a listed node, light connect to it...
+                                        logger.trace("connecting to listed node (light) [{}]", listedNode);
+                                        transportService.connectToNodeLight(listedNode);
+                                    }
                                 } catch (Exception e) {
                                     logger.debug("failed to connect to node [{}], ignoring...", e, listedNode);
                                     latch.countDown();
                                     return;
                                 }
                             }
-                            transportService.sendRequest(listedNode, NodesInfoAction.NAME,
-                                    Requests.nodesInfoRequest("_all"),
+                            transportService.sendRequest(listedNode, ClusterStateAction.NAME,
+                                    Requests.clusterStateRequest()
+                                            .filterAll().filterNodes(false).local(true),
                                     TransportRequestOptions.options().withHighType().withTimeout(pingTimeout),
-                                    new BaseTransportResponseHandler<NodesInfoResponse>() {
+                                    new BaseTransportResponseHandler<ClusterStateResponse>() {
 
                                         @Override
-                                        public NodesInfoResponse newInstance() {
-                                            return new NodesInfoResponse();
+                                        public ClusterStateResponse newInstance() {
+                                            return new ClusterStateResponse();
                                         }
 
                                         @Override
@@ -348,20 +392,20 @@ public class TransportClientNodesService extends AbstractComponent {
                                         }
 
                                         @Override
-                                        public void handleResponse(NodesInfoResponse response) {
-                                            nodesInfoResponses.add(response);
+                                        public void handleResponse(ClusterStateResponse response) {
+                                            clusterStateResponses.add(response);
                                             latch.countDown();
                                         }
 
                                         @Override
                                         public void handleException(TransportException e) {
-                                            logger.info("failed to get node info for {}, disconnecting...", e, listedNode);
+                                            logger.info("failed to get local cluster state for {}, disconnecting...", e, listedNode);
                                             transportService.disconnectFromNode(listedNode);
                                             latch.countDown();
                                         }
                                     });
                         } catch (Exception e) {
-                            logger.info("failed to get node info for {}, disconnecting...", e, listedNode);
+                            logger.info("failed to get local cluster state info for {}, disconnecting...", e, listedNode);
                             transportService.disconnectFromNode(listedNode);
                             latch.countDown();
                         }
@@ -376,15 +420,12 @@ public class TransportClientNodesService extends AbstractComponent {
             }
 
             HashSet<DiscoveryNode> newNodes = new HashSet<DiscoveryNode>();
-            for (NodesInfoResponse nodesInfoResponse : nodesInfoResponses) {
-                for (NodeInfo nodeInfo : nodesInfoResponse) {
-                    if (!clusterName.equals(nodesInfoResponse.clusterName())) {
-                        logger.warn("node {} not part of the cluster {}, ignoring...", nodeInfo.node(), clusterName);
-                    } else {
-                        if (nodeInfo.node().dataNode()) { // only add data nodes to connect to
-                            newNodes.add(nodeInfo.node());
-                        }
-                    }
+            for (ClusterStateResponse clusterStateResponse : clusterStateResponses) {
+                if (!ignoreClusterName && !clusterName.equals(clusterStateResponse.clusterName())) {
+                    logger.warn("node {} not part of the cluster {}, ignoring...", clusterStateResponse.state().nodes().localNode(), clusterName);
+                }
+                for (DiscoveryNode node : clusterStateResponse.state().nodes().dataNodes().values()) {
+                    newNodes.add(node);
                 }
             }
             // now, make sure we are connected to all the updated nodes

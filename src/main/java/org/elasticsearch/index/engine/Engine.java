@@ -25,6 +25,7 @@ import org.apache.lucene.index.ExtendedIndexSearcher;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.BytesHolder;
@@ -152,6 +153,31 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         IndexReader reader();
 
         ExtendedIndexSearcher searcher();
+    }
+
+    static class SimpleSearcher implements Searcher {
+
+        private final IndexSearcher searcher;
+
+        public SimpleSearcher(IndexSearcher searcher) {
+            this.searcher = searcher;
+        }
+
+        @Override
+        public IndexReader reader() {
+            return searcher.getIndexReader();
+        }
+
+        @Override
+        public ExtendedIndexSearcher searcher() {
+            return (ExtendedIndexSearcher) searcher;
+        }
+
+        @Override
+        public boolean release() throws ElasticSearchException {
+            // nothing to release here...
+            return true;
+        }
     }
 
     static class Refresh {

@@ -22,6 +22,7 @@ package org.elasticsearch.common.network;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -83,6 +84,7 @@ public class NetworkService extends AbstractComponent {
     @Inject
     public NetworkService(Settings settings) {
         super(settings);
+        InetSocketTransportAddress.setResolveAddress(settings.getAsBoolean("network.address.serialization.resolve", false));
     }
 
     /**

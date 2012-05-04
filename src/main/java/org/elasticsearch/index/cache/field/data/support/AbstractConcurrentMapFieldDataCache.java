@@ -24,6 +24,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SegmentReader;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
@@ -52,18 +53,20 @@ public abstract class AbstractConcurrentMapFieldDataCache extends AbstractIndexC
 
     @Override
     public void close() throws ElasticSearchException {
-        clear();
+        clear("close");
     }
 
     @Override
-    public void clear(String fieldName) {
+    public void clear(String reason, String fieldName) {
+        logger.debug("clearing field [{}] cache, reason [{}]", fieldName, reason);
         for (Map.Entry<Object, Cache<String, FieldData>> entry : cache.entrySet()) {
             entry.getValue().invalidate(fieldName);
         }
     }
 
     @Override
-    public void clear() {
+    public void clear(String reason) {
+        logger.debug("full cache clear, reason [{}]", reason);
         cache.clear();
     }
 
@@ -109,7 +112,9 @@ public abstract class AbstractConcurrentMapFieldDataCache extends AbstractIndexC
                 fieldDataCache = cache.get(reader.getCoreCacheKey());
                 if (fieldDataCache == null) {
                     fieldDataCache = buildFieldDataMap();
-                    ((SegmentReader) reader).addCoreClosedListener(this);
+                    if (reader instanceof SegmentReader) {
+                        ((SegmentReader) reader).addCoreClosedListener(this);
+                    }
                     cache.put(reader.getCoreCacheKey(), fieldDataCache);
                 }
             }
@@ -120,8 +125,13 @@ public abstract class AbstractConcurrentMapFieldDataCache extends AbstractIndexC
                 fieldData = fieldDataCache.getIfPresent(fieldName);
                 if (fieldData == null) {
                     try {
+                        long time = System.nanoTime();
                         fieldData = FieldData.load(type, reader, fieldName);
                         fieldDataCache.put(fieldName, fieldData);
+                        long took = System.nanoTime() - time;
+                        if (logger.isTraceEnabled()) {
+                            logger.trace("loaded field [{}] for reader [{}], took [{}], took_millis [{}]", fieldName, reader, TimeValue.timeValueNanos(took), took / 1000);
+                        }
                     } catch (OutOfMemoryError e) {
                         logger.warn("loading field [" + fieldName + "] caused out of memory failure", e);
                         final OutOfMemoryError outOfMemoryError = new OutOfMemoryError("loading field [" + fieldName + "] caused out of memory failure");

@@ -538,20 +538,6 @@ public class MappingMetaData {
         return new MappingMetaData(type, source, id, routing, timestamp);
     }
 
-    public static class ParseResult {
-        public final String routing;
-        public final boolean routingResolved;
-        public final String timestamp;
-        public final boolean timestampResolved;
-
-        public ParseResult(String routing, boolean routingResolved, String timestamp, boolean timestampResolved) {
-            this.routing = routing;
-            this.routingResolved = routingResolved;
-            this.timestamp = timestamp;
-            this.timestampResolved = timestampResolved;
-        }
-    }
-
     public static class ParseContext {
         final boolean shouldParseId;
         final boolean shouldParseRouting;

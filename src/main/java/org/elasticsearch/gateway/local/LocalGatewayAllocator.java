@@ -156,7 +156,7 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
             int requiredAllocation = 1;
             try {
                 IndexMetaData indexMetaData = routingNodes.metaData().index(shard.index());
-                String initialShards = indexMetaData.settings().get("index.recovery.initial_shards", this.initialShards);
+                String initialShards = indexMetaData.settings().get("index.recovery.initial_shards", settings.get("index.recovery.initial_shards", this.initialShards));
                 if ("quorum".equals(initialShards)) {
                     if (indexMetaData.numberOfReplicas() > 1) {
                         requiredAllocation = ((1 + indexMetaData.numberOfReplicas()) / 2) + 1;

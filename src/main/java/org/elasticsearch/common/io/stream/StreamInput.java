@@ -21,6 +21,7 @@ package org.elasticsearch.common.io.stream;
 
 import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.joda.time.DateTime;
 
 import java.io.IOException;
@@ -224,6 +225,18 @@ public abstract class StreamInput extends InputStream {
 //        readBytes(b, off, len);
 //        return len;
 //    }
+
+    public String[] readStringArray() throws IOException {
+        int size = readVInt();
+        if (size == 0) {
+            return Strings.EMPTY_ARRAY;
+        }
+        String[] ret = new String[size];
+        for (int i = 0; i < size; i++) {
+            ret[i] = readUTF();
+        }
+        return ret;
+    }
 
     @Nullable
     public Map<String, Object> readMap() throws IOException {

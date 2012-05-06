@@ -40,6 +40,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -66,11 +67,16 @@ public class IndexMetaData {
 
             T fromXContent(XContentParser parser) throws IOException;
 
-            void toXContent(T customIndexMetaData, XContentBuilder builder, ToXContent.Params params);
+            void toXContent(T customIndexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException;
         }
     }
 
     public static Map<String, Custom.Factory> customFactories = new HashMap<String, Custom.Factory>();
+
+    static {
+        // register non plugin custom metadata
+        registerFactory(IndexWarmersMetaData.TYPE, IndexWarmersMetaData.FACTORY);
+    }
 
     /**
      * Register a custom index meta data factory. Make sure to call it from a static block.
@@ -296,6 +302,10 @@ public class IndexMetaData {
         return this.customs;
     }
 
+    public <T extends Custom> T custom(String type) {
+        return (T) customs.get(type);
+    }
+
     @Nullable
     public DiscoveryNodeFilters includeFilters() {
         return includeFilters;
@@ -514,7 +524,7 @@ public class IndexMetaData {
             builder.endArray();
 
             for (Map.Entry<String, Custom> entry : indexMetaData.customs().entrySet()) {
-                builder.startObject(entry.getKey());
+                builder.startObject(entry.getKey(), XContentBuilder.FieldCaseConversion.NONE);
                 lookupFactorySafe(entry.getKey()).toXContent(entry.getValue(), builder, params);
                 builder.endObject();
             }

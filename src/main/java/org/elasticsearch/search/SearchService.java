@@ -25,6 +25,7 @@ import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -43,6 +44,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.warmer.IndicesWarmer;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.dfs.CachedDfSource;
 import org.elasticsearch.search.dfs.DfsPhase;
@@ -52,6 +54,7 @@ import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.InternalSearchRequest;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.query.*;
+import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -72,6 +75,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     private final ClusterService clusterService;
 
     private final IndicesService indicesService;
+
+    private final IndicesWarmer indicesWarmer;
 
     private final ScriptService scriptService;
 
@@ -96,12 +101,13 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     private final ImmutableMap<String, SearchParseElement> elementParsers;
 
     @Inject
-    public SearchService(Settings settings, ClusterService clusterService, IndicesService indicesService, IndicesLifecycle indicesLifecycle, ThreadPool threadPool,
+    public SearchService(Settings settings, ClusterService clusterService, IndicesService indicesService, IndicesLifecycle indicesLifecycle, IndicesWarmer indicesWarmer, ThreadPool threadPool,
                          ScriptService scriptService, DfsPhase dfsPhase, QueryPhase queryPhase, FetchPhase fetchPhase) {
         super(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
+        this.indicesWarmer = indicesWarmer;
         this.scriptService = scriptService;
         this.dfsPhase = dfsPhase;
         this.queryPhase = queryPhase;
@@ -120,6 +126,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         indicesLifecycle.addListener(indicesLifecycleListener);
 
         this.keepAliveReaper = threadPool.scheduleWithFixedDelay(new Reaper(), keepAliveInterval);
+
+        this.indicesWarmer.addListener(new SearchWarmer());
     }
 
     @Override
@@ -454,13 +462,17 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         return context;
     }
 
-    private SearchContext createContext(InternalSearchRequest request) throws ElasticSearchException {
+    SearchContext createContext(InternalSearchRequest request) throws ElasticSearchException {
+        return createContext(request, null);
+    }
+
+    SearchContext createContext(InternalSearchRequest request, @Nullable Engine.Searcher searcher) throws ElasticSearchException {
         IndexService indexService = indicesService.indexServiceSafe(request.index());
         IndexShard indexShard = indexService.shardSafe(request.shardId());
 
         SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().id(), request.index(), request.shardId());
 
-        Engine.Searcher engineSearcher = indexShard.searcher();
+        Engine.Searcher engineSearcher = searcher == null ? indexShard.searcher() : searcher;
         SearchContext context = new SearchContext(idGenerator.incrementAndGet(), request, shardTarget, engineSearcher, indexService, indexShard, scriptService);
         SearchContext.setCurrent(context);
         try {
@@ -610,6 +622,44 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         // update the context keep alive based on the new scroll value
         if (request.scroll() != null && request.scroll().keepAlive() != null) {
             context.keepAlive(request.scroll().keepAlive().millis());
+        }
+    }
+
+    class SearchWarmer implements IndicesWarmer.Listener {
+
+        @Override
+        public String executor() {
+            return ThreadPool.Names.SEARCH;
+        }
+
+        @Override
+        public void warm(ShardId shardId, IndexMetaData indexMetaData, Engine.Searcher search) {
+            IndexWarmersMetaData custom = indexMetaData.custom(IndexWarmersMetaData.TYPE);
+            if (custom == null) {
+                return;
+            }
+            for (IndexWarmersMetaData.Entry entry : custom.entries()) {
+                SearchContext context = null;
+                try {
+                    long now = System.nanoTime();
+                    InternalSearchRequest request = new InternalSearchRequest(shardId.index().name(), shardId.id(), indexMetaData.numberOfShards(), SearchType.COUNT)
+                            .source(entry.source().bytes(), entry.source().offset(), entry.source().length())
+                            .types(entry.types());
+                    context = createContext(request, search);
+                    queryPhase.execute(context);
+                    long took = System.nanoTime() - now;
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("[{}][{}] warmed [{}], took [{}]", shardId.index().name(), shardId.id(), entry.name(), TimeValue.timeValueNanos(took));
+                    }
+                } catch (Throwable t) {
+                    logger.warn("[{}][{}] warmer [{}] failed", t, shardId.index().name(), shardId.id(), entry.name());
+                } finally {
+                    if (context != null) {
+                        freeContext(context);
+                        cleanContext(context);
+                    }
+                }
+            }
         }
     }
 

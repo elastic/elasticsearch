@@ -84,6 +84,12 @@ import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRespo
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
+import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerRequest;
+import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerRequestBuilder;
+import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerResponse;
+import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerRequest;
+import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerRequestBuilder;
+import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerResponse;
 import org.elasticsearch.common.Nullable;
 
 /**
@@ -570,4 +576,34 @@ public interface IndicesAdminClient {
      * Validate a query for correctness.
      */
     ValidateQueryRequestBuilder prepareValidateQuery(String... indices);
+
+    /**
+     * Puts an index search warmer to be applies when applicable.
+     */
+    ActionFuture<PutWarmerResponse> putWarmer(PutWarmerRequest request);
+
+    /**
+     * Puts an index search warmer to be applies when applicable.
+     */
+    void putWarmer(PutWarmerRequest request, ActionListener<PutWarmerResponse> listener);
+
+    /**
+     * Puts an index search warmer to be applies when applicable.
+     */
+    PutWarmerRequestBuilder preparePutWarmer(String name);
+
+    /**
+     * Deletes an index warmer.
+     */
+    ActionFuture<DeleteWarmerResponse> deleteWarmer(DeleteWarmerRequest request);
+
+    /**
+     * Deletes an index warmer.
+     */
+    void deleteWarmer(DeleteWarmerRequest request, ActionListener<DeleteWarmerResponse> listener);
+
+    /**
+     * Deletes an index warmer.
+     */
+    DeleteWarmerRequestBuilder prepareDeleteWarmer();
 }

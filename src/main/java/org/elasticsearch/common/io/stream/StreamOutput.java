@@ -203,6 +203,13 @@ public abstract class StreamOutput extends OutputStream {
         writeBytes(b, off, len);
     }
 
+    public void writeStringArray(String[] array) throws IOException {
+        writeVInt(array.length);
+        for (String s : array) {
+            writeUTF(s);
+        }
+    }
+
     public void writeMap(@Nullable Map<String, Object> map) throws IOException {
         writeGenericValue(map);
     }

@@ -55,6 +55,7 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStreams;
+import org.elasticsearch.indices.warmer.IndicesWarmer;
 import org.elasticsearch.indices.warmer.InternalIndicesWarmer;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -157,7 +158,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
     @Inject
     public RobinEngine(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool,
-                       IndexSettingsService indexSettingsService, @Nullable InternalIndicesWarmer warmer,
+                       IndexSettingsService indexSettingsService, @Nullable IndicesWarmer warmer,
                        Store store, SnapshotDeletionPolicy deletionPolicy, Translog translog,
                        MergePolicyProvider mergePolicyProvider, MergeSchedulerProvider mergeScheduler,
                        AnalysisService analysisService, SimilarityService similarityService,
@@ -175,7 +176,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
         this.threadPool = threadPool;
         this.indexSettingsService = indexSettingsService;
-        this.warmer = warmer;
+        this.warmer = (InternalIndicesWarmer) warmer;
         this.store = store;
         this.deletionPolicy = deletionPolicy;
         this.translog = translog;

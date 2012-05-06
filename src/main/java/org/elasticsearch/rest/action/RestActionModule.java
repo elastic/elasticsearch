@@ -56,6 +56,9 @@ import org.elasticsearch.rest.action.admin.indices.template.delete.RestDeleteInd
 import org.elasticsearch.rest.action.admin.indices.template.get.RestGetIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.template.put.RestPutIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.validate.query.RestValidateQueryAction;
+import org.elasticsearch.rest.action.admin.indices.warmer.delete.RestDeleteWarmerAction;
+import org.elasticsearch.rest.action.admin.indices.warmer.get.RestGetWarmerAction;
+import org.elasticsearch.rest.action.admin.indices.warmer.put.RestPutWarmerAction;
 import org.elasticsearch.rest.action.bulk.RestBulkAction;
 import org.elasticsearch.rest.action.count.RestCountAction;
 import org.elasticsearch.rest.action.delete.RestDeleteAction;
@@ -119,6 +122,10 @@ public class RestActionModule extends AbstractModule {
         bind(RestGetIndexTemplateAction.class).asEagerSingleton();
         bind(RestPutIndexTemplateAction.class).asEagerSingleton();
         bind(RestDeleteIndexTemplateAction.class).asEagerSingleton();
+
+        bind(RestPutWarmerAction.class).asEagerSingleton();
+        bind(RestDeleteWarmerAction.class).asEagerSingleton();
+        bind(RestGetWarmerAction.class).asEagerSingleton();
 
         bind(RestPutMappingAction.class).asEagerSingleton();
         bind(RestDeleteMappingAction.class).asEagerSingleton();

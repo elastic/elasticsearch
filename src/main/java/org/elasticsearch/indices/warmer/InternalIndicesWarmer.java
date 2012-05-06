@@ -71,7 +71,7 @@ public class InternalIndicesWarmer extends AbstractComponent implements IndicesW
         if (indexMetaData == null) {
             return;
         }
-        if (!indexMetaData.settings().getAsBoolean("index.warm.enabled", settings.getAsBoolean("index.warm.enabled", true))) {
+        if (!indexMetaData.settings().getAsBoolean("index.warmer.enabled", settings.getAsBoolean("index.warmer.enabled", true))) {
             return;
         }
         IndexService indexService = indicesService.indexService(shardId.index().name());

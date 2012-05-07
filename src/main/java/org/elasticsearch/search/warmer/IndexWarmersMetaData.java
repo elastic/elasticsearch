@@ -20,16 +20,14 @@
 package org.elasticsearch.search.warmer;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.*;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -84,6 +82,11 @@ public class IndexWarmersMetaData implements IndexMetaData.Custom {
         return this.entries;
     }
 
+    @Override
+    public String type() {
+        return TYPE;
+    }
+
     public static class Factory implements IndexMetaData.Custom.Factory<IndexWarmersMetaData> {
 
         @Override
@@ -112,6 +115,23 @@ public class IndexWarmersMetaData implements IndexMetaData.Custom {
                     out.writeBoolean(true);
                     out.writeBytesHolder(entry.source());
                 }
+            }
+        }
+
+        @Override
+        public IndexWarmersMetaData fromMap(Map<String, Object> map) throws IOException {
+            // if it starts with the type, remove it
+            if (map.size() == 1 && map.containsKey(TYPE)) {
+                map = (Map<String, Object>) map.values().iterator().next();
+            }
+            XContentBuilder builder = XContentFactory.smileBuilder().map(map);
+            XContentParser parser = XContentFactory.xContent(XContentType.SMILE).createParser(builder.underlyingBytes(), 0, builder.underlyingBytesLength());
+            try {
+                // move to START_OBJECT
+                parser.nextToken();
+                return fromXContent(parser);
+            } finally {
+                parser.close();
             }
         }
 
@@ -177,6 +197,25 @@ public class IndexWarmersMetaData implements IndexMetaData.Custom {
                 builder.map(mapping);
             }
             builder.endObject();
+        }
+
+        @Override
+        public IndexWarmersMetaData merge(IndexWarmersMetaData first, IndexWarmersMetaData second) {
+            List<Entry> entries = Lists.newArrayList();
+            entries.addAll(first.entries());
+            for (Entry secondEntry : second.entries()) {
+                boolean found = false;
+                for (Entry firstEntry : first.entries()) {
+                    if (firstEntry.name().equals(secondEntry.name())) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    entries.add(secondEntry);
+                }
+            }
+            return new IndexWarmersMetaData(entries.toArray(new Entry[entries.size()]));
         }
     }
 }

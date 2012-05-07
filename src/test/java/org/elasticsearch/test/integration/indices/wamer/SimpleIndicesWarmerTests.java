@@ -20,12 +20,18 @@
 package org.elasticsearch.test.integration.indices.wamer;
 
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.test.integration.AbstractNodesTests;
+import org.hamcrest.Matchers;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
+
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
@@ -66,6 +72,41 @@ public class SimpleIndicesWarmerTests extends AbstractNodesTests {
         client.admin().indices().preparePutWarmer("warmer_2")
                 .setSearchRequest(client.prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "value2")))
                 .execute().actionGet();
+
+        client.prepareIndex("test", "type1", "1").setSource("field", "value1").setRefresh(true).execute().actionGet();
+        client.prepareIndex("test", "type1", "2").setSource("field", "value2").setRefresh(true).execute().actionGet();
+    }
+
+    @Test
+    public void templateWarmer() {
+        client.admin().indices().prepareDelete().execute().actionGet();
+
+        client.admin().indices().preparePutTemplate("template_1")
+                .setSource("{\n" +
+                        "    \"template\" : \"*\",\n" +
+                        "    \"warmers\" : {\n" +
+                        "        \"warmer_1\" : {\n" +
+                        "            \"types\" : [],\n" +
+                        "            \"source\" : {\n" +
+                        "                \"query\" : {\n" +
+                        "                    \"match_all\" : {}\n" +
+                        "                }\n" +
+                        "            }\n" +
+                        "        }\n" +
+                        "    }\n" +
+                        "}")
+                .execute().actionGet();
+
+        client.admin().indices().prepareCreate("test")
+                .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1))
+                .execute().actionGet();
+
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        ClusterState clusterState = client.admin().cluster().prepareState().execute().actionGet().state();
+        IndexWarmersMetaData warmersMetaData = clusterState.metaData().index("test").custom(IndexWarmersMetaData.TYPE);
+        assertThat(warmersMetaData, Matchers.notNullValue());
+        assertThat(warmersMetaData.entries().size(), equalTo(1));
 
         client.prepareIndex("test", "type1", "1").setSource("field", "value1").setRefresh(true).execute().actionGet();
         client.prepareIndex("test", "type1", "2").setSource("field", "value2").setRefresh(true).execute().actionGet();

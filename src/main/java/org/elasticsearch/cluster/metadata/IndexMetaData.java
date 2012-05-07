@@ -57,6 +57,8 @@ public class IndexMetaData {
 
     public interface Custom {
 
+        String type();
+
         interface Factory<T extends Custom> {
 
             String type();
@@ -65,9 +67,17 @@ public class IndexMetaData {
 
             void writeTo(T customIndexMetaData, StreamOutput out) throws IOException;
 
+            T fromMap(Map<String, Object> map) throws IOException;
+
             T fromXContent(XContentParser parser) throws IOException;
 
             void toXContent(T customIndexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException;
+
+            /**
+             * Merges from first to second, with first being more important, i.e., if something exists in first and second,
+             * first will prevail.
+             */
+            T merge(T first, T second);
         }
     }
 

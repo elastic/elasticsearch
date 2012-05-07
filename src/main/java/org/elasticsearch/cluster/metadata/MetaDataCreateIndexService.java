@@ -68,6 +68,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.cluster.metadata.MetaData.newMetaDataBuilder;
@@ -154,7 +155,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         mappings.put(entry.getKey(), parseMapping(entry.getValue()));
                     }
 
-                    // TODO: request should be able to add custom metadata
+                    for (Map.Entry<String, Custom> entry : request.customs.entrySet()) {
+                        customs.put(entry.getKey(), entry.getValue());
+                    }
 
                     // apply templates, merging the mappings into the request mapping if exists
                     for (IndexTemplateMetaData template : templates) {
@@ -503,6 +506,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
         Map<String, String> mappings = Maps.newHashMap();
 
+        Map<String, IndexMetaData.Custom> customs = newHashMap();
+
+
         TimeValue timeout = TimeValue.timeValueSeconds(5);
 
         Set<ClusterBlock> blocks = Sets.newHashSet();
@@ -533,6 +539,11 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             for (Map.Entry<String, CompressedString> entry : mappings.entrySet()) {
                 this.mappings.put(entry.getKey(), entry.getValue().string());
             }
+            return this;
+        }
+
+        public Request customs(Map<String, Custom> customs) {
+            this.customs.putAll(customs);
             return this;
         }
 

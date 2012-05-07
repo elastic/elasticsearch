@@ -111,4 +111,35 @@ public class SimpleIndicesWarmerTests extends AbstractNodesTests {
         client.prepareIndex("test", "type1", "1").setSource("field", "value1").setRefresh(true).execute().actionGet();
         client.prepareIndex("test", "type1", "2").setSource("field", "value2").setRefresh(true).execute().actionGet();
     }
+
+    @Test
+    public void createIndexWarmer() {
+        client.admin().indices().prepareDelete().execute().actionGet();
+
+        client.admin().indices().prepareCreate("test")
+                .setSource("{\n" +
+                        "    \"settings\" : {\n" +
+                        "        \"index.number_of_shards\" : 1\n" +
+                        "    },\n" +
+                        "    \"warmers\" : {\n" +
+                        "        \"warmer_1\" : {\n" +
+                        "            \"types\" : [],\n" +
+                        "            \"source\" : {\n" +
+                        "                \"query\" : {\n" +
+                        "                    \"match_all\" : {}\n" +
+                        "                }\n" +
+                        "            }\n" +
+                        "        }\n" +
+                        "    }\n" +
+                        "}")
+                .execute().actionGet();
+
+        ClusterState clusterState = client.admin().cluster().prepareState().execute().actionGet().state();
+        IndexWarmersMetaData warmersMetaData = clusterState.metaData().index("test").custom(IndexWarmersMetaData.TYPE);
+        assertThat(warmersMetaData, Matchers.notNullValue());
+        assertThat(warmersMetaData.entries().size(), equalTo(1));
+
+        client.prepareIndex("test", "type1", "1").setSource("field", "value1").setRefresh(true).execute().actionGet();
+        client.prepareIndex("test", "type1", "2").setSource("field", "value2").setRefresh(true).execute().actionGet();
+    }
 }

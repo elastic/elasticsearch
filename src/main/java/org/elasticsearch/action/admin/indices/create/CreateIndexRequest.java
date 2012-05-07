@@ -25,6 +25,7 @@ import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -64,6 +65,8 @@ public class CreateIndexRequest extends MasterNodeOperationRequest {
     private Settings settings = EMPTY_SETTINGS;
 
     private Map<String, String> mappings = newHashMap();
+
+    private Map<String, IndexMetaData.Custom> customs = newHashMap();
 
     private TimeValue timeout = new TimeValue(10, TimeUnit.SECONDS);
 
@@ -271,15 +274,28 @@ public class CreateIndexRequest extends MasterNodeOperationRequest {
      */
     public CreateIndexRequest source(Map<String, Object> source) {
         boolean found = false;
-        if (source.containsKey("settings")) {
-            settings((Map<String, Object>) source.get("settings"));
-            found = true;
-        }
-        if (source.containsKey("mappings")) {
-            found = true;
-            Map<String, Object> mappings = (Map<String, Object>) source.get("mappings");
-            for (Map.Entry<String, Object> entry : mappings.entrySet()) {
-                mapping(entry.getKey(), (Map<String, Object>) entry.getValue());
+        for (Map.Entry<String, Object> entry : source.entrySet()) {
+            String name = entry.getKey();
+            if (name.equals("settings")) {
+                found = true;
+                settings((Map<String, Object>) entry.getValue());
+            } else if (name.equals("mappings")) {
+                found = true;
+                Map<String, Object> mappings = (Map<String, Object>) entry.getValue();
+                for (Map.Entry<String, Object> entry1 : mappings.entrySet()) {
+                    mapping(entry1.getKey(), (Map<String, Object>) entry1.getValue());
+                }
+            } else {
+                // maybe custom?
+                IndexMetaData.Custom.Factory factory = IndexMetaData.lookupFactory(name);
+                if (factory != null) {
+                    found = true;
+                    try {
+                        customs.put(name, factory.fromMap((Map<String, Object>) entry.getValue()));
+                    } catch (IOException e) {
+                        throw new ElasticSearchParseException("failed to parse custom metadata for [" + name + "]");
+                    }
+                }
             }
         }
         if (!found) {
@@ -291,6 +307,15 @@ public class CreateIndexRequest extends MasterNodeOperationRequest {
 
     Map<String, String> mappings() {
         return this.mappings;
+    }
+
+    public CreateIndexRequest custom(IndexMetaData.Custom custom) {
+        customs.put(custom.type(), custom);
+        return this;
+    }
+
+    Map<String, IndexMetaData.Custom> customs() {
+        return this.customs;
     }
 
     /**
@@ -338,6 +363,12 @@ public class CreateIndexRequest extends MasterNodeOperationRequest {
         for (int i = 0; i < size; i++) {
             mappings.put(in.readUTF(), in.readUTF());
         }
+        int customSize = in.readVInt();
+        for (int i = 0; i < customSize; i++) {
+            String type = in.readUTF();
+            IndexMetaData.Custom customIndexMetaData = IndexMetaData.lookupFactorySafe(type).readFrom(in);
+            customs.put(type, customIndexMetaData);
+        }
     }
 
     @Override
@@ -351,6 +382,11 @@ public class CreateIndexRequest extends MasterNodeOperationRequest {
         for (Map.Entry<String, String> entry : mappings.entrySet()) {
             out.writeUTF(entry.getKey());
             out.writeUTF(entry.getValue());
+        }
+        out.writeVInt(customs.size());
+        for (Map.Entry<String, IndexMetaData.Custom> entry : customs.entrySet()) {
+            out.writeUTF(entry.getKey());
+            IndexMetaData.lookupFactorySafe(entry.getKey()).writeTo(entry.getValue(), out);
         }
     }
 }

@@ -60,6 +60,9 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest(request.param("name"));
 
+        putRequest.template(request.param("template", putRequest.template()));
+        putRequest.order(request.paramAsInt("order", putRequest.order()));
+
         try {
             putRequest.create(request.paramAsBoolean("create", false));
             putRequest.cause(request.param("cause", ""));
@@ -73,9 +76,6 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
             }
             return;
         }
-
-        putRequest.template(request.param("template", putRequest.template()));
-        putRequest.order(request.paramAsInt("order", putRequest.order()));
 
         client.admin().indices().putTemplate(putRequest, new ActionListener<PutIndexTemplateResponse>() {
             @Override

@@ -26,7 +26,6 @@ import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.cache.CacheBuilderHelper;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -109,8 +108,6 @@ public class IndicesFilterCache extends AbstractComponent implements RemovalList
         if (expire != null) {
             cacheBuilder.expireAfterAccess(expire.millis(), TimeUnit.MILLISECONDS);
         }
-
-        CacheBuilderHelper.disableStats(cacheBuilder);
 
         cache = cacheBuilder.build();
     }

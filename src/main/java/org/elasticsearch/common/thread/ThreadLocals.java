@@ -98,14 +98,15 @@ public class ThreadLocals {
             int staleEntriesCount = 0;
             if (table != null) {
                 for (int j = 0; j < table.length; j++) {
-                    if (table[j] != null) {
+                    Object tableValue = table[j];
+                    if (tableValue != null) {
                         boolean remove = false;
                         // Check the key
-                        Object key = ((Reference<?>) table[j]).get();
+                        Object key = ((Reference<?>) tableValue).get();
                         // Check the value
-                        Field valueField = table[j].getClass().getDeclaredField("value");
+                        Field valueField = tableValue.getClass().getDeclaredField("value");
                         valueField.setAccessible(true);
-                        Object value = valueField.get(table[j]);
+                        Object value = valueField.get(tableValue);
                         if ((value != null && CleanableValue.class.isAssignableFrom(value.getClass()))) {
                             remove = true;
                         }

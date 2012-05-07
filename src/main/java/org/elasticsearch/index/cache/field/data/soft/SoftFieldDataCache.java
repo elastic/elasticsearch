@@ -23,7 +23,6 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
-import org.elasticsearch.common.cache.CacheBuilderHelper;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
@@ -47,7 +46,6 @@ public class SoftFieldDataCache extends AbstractConcurrentMapFieldDataCache impl
     @Override
     protected Cache<String, FieldData> buildFieldDataMap() {
         CacheBuilder<String, FieldData> cacheBuilder = CacheBuilder.newBuilder().softValues().removalListener(this);
-        CacheBuilderHelper.disableStats(cacheBuilder);
         return cacheBuilder.build();
     }
 

@@ -26,7 +26,6 @@ import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.cache.CacheBuilderHelper;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
@@ -80,7 +79,6 @@ public class ResidentFieldDataCache extends AbstractConcurrentMapFieldDataCache 
         if (expire != null) {
             cacheBuilder.expireAfterAccess(expire.nanos(), TimeUnit.NANOSECONDS);
         }
-        CacheBuilderHelper.disableStats(cacheBuilder);
         return cacheBuilder.build();
     }
 

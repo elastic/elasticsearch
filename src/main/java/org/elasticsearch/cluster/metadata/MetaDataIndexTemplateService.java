@@ -106,6 +106,9 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
             for (Map.Entry<String, String> entry : request.mappings.entrySet()) {
                 templateBuilder.putMapping(entry.getKey(), entry.getValue());
             }
+            for (Map.Entry<String, IndexMetaData.Custom> entry : request.customs.entrySet()) {
+                templateBuilder.putCustom(entry.getKey(), entry.getValue());
+            }
         } catch (Exception e) {
             listener.onFailure(e);
             return;
@@ -180,6 +183,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         String template;
         Settings settings = ImmutableSettings.Builder.EMPTY_SETTINGS;
         Map<String, String> mappings = Maps.newHashMap();
+        Map<String, IndexMetaData.Custom> customs = Maps.newHashMap();
 
         public PutRequest(String cause, String name) {
             this.cause = cause;
@@ -208,6 +212,11 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
 
         public PutRequest mappings(Map<String, String> mappings) {
             this.mappings.putAll(mappings);
+            return this;
+        }
+
+        public PutRequest customs(Map<String, IndexMetaData.Custom> customs) {
+            this.customs.putAll(customs);
             return this;
         }
 

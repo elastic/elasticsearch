@@ -146,11 +146,15 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     // find templates, highest order are better matching
                     List<IndexTemplateMetaData> templates = findTemplates(request, currentState);
 
+                    Map<String, Custom> customs = Maps.newHashMap();
+
                     // add the request mapping
                     Map<String, Map<String, Object>> mappings = Maps.newHashMap();
                     for (Map.Entry<String, String> entry : request.mappings.entrySet()) {
                         mappings.put(entry.getKey(), parseMapping(entry.getValue()));
                     }
+
+                    // TODO: request should be able to add custom metadata
 
                     // apply templates, merging the mappings into the request mapping if exists
                     for (IndexTemplateMetaData template : templates) {
@@ -159,6 +163,18 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                                 XContentHelper.mergeDefaults(mappings.get(entry.getKey()), parseMapping(entry.getValue().string()));
                             } else {
                                 mappings.put(entry.getKey(), parseMapping(entry.getValue().string()));
+                            }
+                        }
+                        // handle custom
+                        for (Map.Entry<String, Custom> customEntry : template.customs().entrySet()) {
+                            String type = customEntry.getKey();
+                            IndexMetaData.Custom custom = customEntry.getValue();
+                            IndexMetaData.Custom existing = customs.get(type);
+                            if (existing == null) {
+                                customs.put(type, custom);
+                            } else {
+                                IndexMetaData.Custom merged = IndexMetaData.lookupFactorySafe(type).merge(existing, custom);
+                                customs.put(type, merged);
                             }
                         }
                     }
@@ -258,6 +274,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     final IndexMetaData.Builder indexMetaDataBuilder = newIndexMetaDataBuilder(request.index).settings(actualIndexSettings);
                     for (MappingMetaData mappingMd : mappingsMetaData.values()) {
                         indexMetaDataBuilder.putMapping(mappingMd);
+                    }
+                    for (Map.Entry<String, Custom> customEntry : customs.entrySet()) {
+                        indexMetaDataBuilder.putCustom(customEntry.getKey(), customEntry.getValue());
                     }
                     indexMetaDataBuilder.state(request.state);
                     final IndexMetaData indexMetaData = indexMetaDataBuilder.build();

@@ -82,11 +82,33 @@ public class LocalGatewayIndicesWarmerTests extends AbstractNodesTests {
                 .setSearchRequest(client("node1").prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "value2")))
                 .execute().actionGet();
 
+        logger.info("--> put template with warmer");
+        client("node1").admin().indices().preparePutTemplate("template_1")
+                .setSource("{\n" +
+                        "    \"template\" : \"xxx\",\n" +
+                        "    \"warmers\" : {\n" +
+                        "        \"warmer_1\" : {\n" +
+                        "            \"types\" : [],\n" +
+                        "            \"source\" : {\n" +
+                        "                \"query\" : {\n" +
+                        "                    \"match_all\" : {}\n" +
+                        "                }\n" +
+                        "            }\n" +
+                        "        }\n" +
+                        "    }\n" +
+                        "}")
+                .execute().actionGet();
+
+
         logger.info("--> verify warmers are registered in cluster state");
         ClusterState clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().state();
         IndexWarmersMetaData warmersMetaData = clusterState.metaData().index("test").custom(IndexWarmersMetaData.TYPE);
         assertThat(warmersMetaData, Matchers.notNullValue());
         assertThat(warmersMetaData.entries().size(), equalTo(2));
+
+        IndexWarmersMetaData templateWarmers = clusterState.metaData().templates().get("template_1").custom(IndexWarmersMetaData.TYPE);
+        assertThat(templateWarmers, Matchers.notNullValue());
+        assertThat(templateWarmers.entries().size(), equalTo(1));
 
         logger.info("--> close the node");
         closeNode("node1");
@@ -105,6 +127,15 @@ public class LocalGatewayIndicesWarmerTests extends AbstractNodesTests {
             assertThat(recoveredWarmersMetaData.entries().get(i).name(), equalTo(warmersMetaData.entries().get(i).name()));
             assertThat(recoveredWarmersMetaData.entries().get(i).source(), equalTo(warmersMetaData.entries().get(i).source()));
         }
+
+        logger.info("--> verify warmers in template are recovered");
+        IndexWarmersMetaData recoveredTemplateWarmers = clusterState.metaData().templates().get("template_1").custom(IndexWarmersMetaData.TYPE);
+        assertThat(recoveredTemplateWarmers.entries().size(), equalTo(templateWarmers.entries().size()));
+        for (int i = 0; i < templateWarmers.entries().size(); i++) {
+            assertThat(recoveredTemplateWarmers.entries().get(i).name(), equalTo(templateWarmers.entries().get(i).name()));
+            assertThat(recoveredTemplateWarmers.entries().get(i).source(), equalTo(templateWarmers.entries().get(i).source()));
+        }
+
 
         logger.info("--> delete warmer warmer_1");
         client("node1").admin().indices().prepareDeleteWarmer().setIndices("test").setName("warmer_1").execute().actionGet();

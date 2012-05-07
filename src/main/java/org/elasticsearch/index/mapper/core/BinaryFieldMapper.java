@@ -49,6 +49,7 @@ public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
 
     public static class Defaults extends AbstractFieldMapper.Defaults {
         public static final long COMPRESS_THRESHOLD = -1;
+        public static final Field.Store STORE = Field.Store.YES;
     }
 
     public static class Builder extends AbstractFieldMapper.Builder<Builder, BinaryFieldMapper> {
@@ -59,6 +60,7 @@ public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
 
         public Builder(String name) {
             super(name);
+            store = Defaults.STORE;
             builder = this;
         }
 
@@ -79,7 +81,7 @@ public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
 
         @Override
         public BinaryFieldMapper build(BuilderContext context) {
-            return new BinaryFieldMapper(buildNames(context), compress, compressThreshold);
+            return new BinaryFieldMapper(buildNames(context), store, compress, compressThreshold);
         }
     }
 
@@ -111,8 +113,8 @@ public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
 
     private long compressThreshold;
 
-    protected BinaryFieldMapper(Names names, Boolean compress, long compressThreshold) {
-        super(names, Field.Index.NO, Field.Store.YES, Field.TermVector.NO, 1.0f, true, true, null, null);
+    protected BinaryFieldMapper(Names names, Field.Store store, Boolean compress, long compressThreshold) {
+        super(names, Field.Index.NO, store, Field.TermVector.NO, 1.0f, true, true, null, null);
         this.compress = compress;
         this.compressThreshold = compressThreshold;
     }
@@ -157,6 +159,9 @@ public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
 
     @Override
     protected Field parseCreateField(ParseContext context) throws IOException {
+        if (!stored()) {
+            return null;
+        }
         byte[] value;
         if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
             return null;

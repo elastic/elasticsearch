@@ -171,7 +171,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                         if (mappingsToUpdate == null) {
                             mappingsToUpdate = Sets.newHashSet();
                         }
-                        mappingsToUpdate.add(Tuple.create(indexRequest.index(), indexRequest.type()));
+                        mappingsToUpdate.add(Tuple.tuple(indexRequest.index(), indexRequest.type()));
                     }
 
                     // if we are going to percolate, then we need to keep this op for the postPrimary operation

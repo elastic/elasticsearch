@@ -299,9 +299,12 @@ public class ShardGetService extends AbstractIndexShardComponent {
                                 }
 
                                 FieldMapper<?> x = docMapper.mappers().smartNameFieldMapper(field);
-                                value = searchLookup.source().extractValue(field);
-                                if (x != null && value instanceof String) {
-                                    value = x.valueFromString((String) value);
+                                // only if the field is stored or source is enabled we should add it..
+                                if (docMapper.sourceMapper().enabled() || x == null || x.stored()) {
+                                    value = searchLookup.source().extractValue(field);
+                                    if (x != null && value instanceof String) {
+                                        value = x.valueFromString((String) value);
+                                    }
                                 }
                             }
                         }

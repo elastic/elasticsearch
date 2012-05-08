@@ -633,7 +633,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         }
 
         @Override
-        public void warm(ShardId shardId, IndexMetaData indexMetaData, Engine.Searcher search) {
+        public void warm(IndexShard indexShard, IndexMetaData indexMetaData, Engine.Searcher search) {
             IndexWarmersMetaData custom = indexMetaData.custom(IndexWarmersMetaData.TYPE);
             if (custom == null) {
                 return;
@@ -642,17 +642,17 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                 SearchContext context = null;
                 try {
                     long now = System.nanoTime();
-                    InternalSearchRequest request = new InternalSearchRequest(shardId.index().name(), shardId.id(), indexMetaData.numberOfShards(), SearchType.COUNT)
+                    InternalSearchRequest request = new InternalSearchRequest(indexShard.shardId().index().name(), indexShard.shardId().id(), indexMetaData.numberOfShards(), SearchType.COUNT)
                             .source(entry.source().bytes(), entry.source().offset(), entry.source().length())
                             .types(entry.types());
                     context = createContext(request, search);
                     queryPhase.execute(context);
                     long took = System.nanoTime() - now;
-                    if (logger.isTraceEnabled()) {
-                        logger.trace("[{}][{}] warmed [{}], took [{}]", shardId.index().name(), shardId.id(), entry.name(), TimeValue.timeValueNanos(took));
+                    if (indexShard.warmerService().logger().isTraceEnabled()) {
+                        indexShard.warmerService().logger().trace("warmed [{}], took [{}]", entry.name(), TimeValue.timeValueNanos(took));
                     }
                 } catch (Throwable t) {
-                    logger.warn("[{}][{}] warmer [{}] failed", t, shardId.index().name(), shardId.id(), entry.name());
+                    indexShard.warmerService().logger().warn("warmer [{}] failed", t, entry.name());
                 } finally {
                     if (context != null) {
                         freeContext(context);

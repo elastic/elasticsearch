@@ -21,7 +21,7 @@ package org.elasticsearch.indices.warmer;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.service.IndexShard;
 
 /**
  */
@@ -31,7 +31,7 @@ public interface IndicesWarmer {
 
         String executor();
 
-        void warm(ShardId shardId, IndexMetaData indexMetaData, Engine.Searcher search);
+        void warm(IndexShard indexShard, IndexMetaData indexMetaData, Engine.Searcher search);
     }
 
     void addListener(Listener listener);

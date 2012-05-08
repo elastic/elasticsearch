@@ -298,7 +298,6 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
             if (version != -1) {
                 builder.field(Fields._VERSION, version);
             }
-            builder.field(Fields.EXISTS, true);
             toXContentEmbedded(builder, params);
 
             builder.endObject();

@@ -401,6 +401,8 @@ public class PercolatorExecutor extends AbstractIndexComponent {
 
         private final Lucene.ExistsCollector collector = new Lucene.ExistsCollector();
 
+        private FieldData fieldData;
+
         QueryCollector(ESLogger logger, ImmutableMap<String, Query> queries, IndexSearcher searcher, IndexService percolatorIndex, List<String> matches) {
             this.logger = logger;
             this.queries = queries;
@@ -408,8 +410,6 @@ public class PercolatorExecutor extends AbstractIndexComponent {
             this.percolatorIndex = percolatorIndex;
             this.matches = matches;
         }
-
-        private FieldData fieldData;
 
         @Override
         public void setScorer(Scorer scorer) throws IOException {
@@ -429,6 +429,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
             }
             // run the query
             try {
+                collector.reset();
                 searcher.search(query, collector);
                 if (collector.exists()) {
                     matches.add(id);

@@ -65,9 +65,9 @@ public class XContentHelper {
                 parser = XContentFactory.xContent(contentType).createParser(data, offset, length);
             }
             if (ordered) {
-                return Tuple.create(contentType, parser.mapOrderedAndClose());
+                return Tuple.tuple(contentType, parser.mapOrderedAndClose());
             } else {
-                return Tuple.create(contentType, parser.mapAndClose());
+                return Tuple.tuple(contentType, parser.mapAndClose());
             }
         } catch (IOException e) {
             throw new ElasticSearchParseException("Failed to parse content to map", e);

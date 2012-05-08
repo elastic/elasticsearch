@@ -78,7 +78,7 @@ public class InternalIndicesWarmer extends AbstractComponent implements IndicesW
         if (indexService == null) {
             return;
         }
-        IndexShard indexShard = indexService.shard(shardId.id());
+        final IndexShard indexShard = indexService.shard(shardId.id());
         if (indexShard == null) {
             return;
         }
@@ -93,9 +93,9 @@ public class InternalIndicesWarmer extends AbstractComponent implements IndicesW
                 @Override
                 public void run() {
                     try {
-                        listener.warm(shardId, indexMetaData, searcher);
+                        listener.warm(indexShard, indexMetaData, searcher);
                     } catch (Throwable e) {
-                        logger.warn("[{}][{}] failed to warm [{}]", e, shardId.index().name(), shardId.id(), listener);
+                        indexShard.warmerService().logger().warn("failed to warm [{}]", e, listener);
                     } finally {
                         latch.countDown();
                     }
@@ -109,8 +109,8 @@ public class InternalIndicesWarmer extends AbstractComponent implements IndicesW
         }
         long took = System.nanoTime() - time;
         indexShard.warmerService().onPostWarm(took);
-        if (logger.isTraceEnabled()) {
-            logger.trace("[{}][{}] warming took [{}]", shardId.index().name(), shardId.id(), new TimeValue(took, TimeUnit.NANOSECONDS));
+        if (indexShard.warmerService().logger().isTraceEnabled()) {
+            indexShard.warmerService().logger().trace("warming took [{}]", new TimeValue(took, TimeUnit.NANOSECONDS));
         }
     }
 }

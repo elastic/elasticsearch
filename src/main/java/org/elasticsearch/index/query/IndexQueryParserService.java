@@ -83,6 +83,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
     private final Map<String, FilterParser> filterParsers;
 
     private String defaultField;
+    private boolean queryStringLenient;
 
     @Inject
     public IndexQueryParserService(Index index, @IndexSettings Settings indexSettings,
@@ -101,6 +102,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         this.indexEngine = indexEngine;
 
         this.defaultField = indexSettings.get("index.query.default_field", AllFieldMapper.NAME);
+        this.queryStringLenient = indexSettings.getAsBoolean("index.query_string.lenient", false);
 
         List<QueryParser> queryParsers = newArrayList();
         if (namedQueryParsers != null) {
@@ -155,6 +157,10 @@ public class IndexQueryParserService extends AbstractIndexComponent {
 
     public String defaultField() {
         return this.defaultField;
+    }
+
+    public boolean queryStringLenient() {
+        return this.queryStringLenient;
     }
 
     public QueryParser queryParser(String name) {

@@ -51,6 +51,7 @@ public class QueryParserSettings {
     private String quoteFieldSuffix = null;
     private MultiTermQuery.RewriteMethod rewriteMethod = MultiTermQuery.CONSTANT_SCORE_AUTO_REWRITE_DEFAULT;
     private String minimumShouldMatch;
+    private boolean lenient;
 
     public String queryString() {
         return queryString;
@@ -212,6 +213,14 @@ public class QueryParserSettings {
         return this.quoteFieldSuffix;
     }
 
+    public void lenient(boolean lenient) {
+        this.lenient = lenient;
+    }
+
+    public boolean lenient() {
+        return this.lenient;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -246,6 +255,9 @@ public class QueryParserSettings {
             return false;
         if (quoteFieldSuffix != null ? !quoteFieldSuffix.equals(that.quoteFieldSuffix) : that.quoteFieldSuffix != null)
             return false;
+        if (lenient != that.lenient) {
+            return false;
+        }
 
         return true;
     }

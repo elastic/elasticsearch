@@ -42,6 +42,7 @@ public class DocumentFieldMappers implements Iterable<FieldMapper> {
 
     private final FieldNameAnalyzer indexAnalyzer;
     private final FieldNameAnalyzer searchAnalyzer;
+    private final FieldNameAnalyzer searchQuoteAnalyzer;
 
     public DocumentFieldMappers(DocumentMapper docMapper, Iterable<FieldMapper> fieldMappers) {
         final Map<String, FieldMappers> tempNameFieldMappers = newHashMap();
@@ -50,6 +51,7 @@ public class DocumentFieldMappers implements Iterable<FieldMapper> {
 
         final Map<String, Analyzer> indexAnalyzers = newHashMap();
         final Map<String, Analyzer> searchAnalyzers = newHashMap();
+        final Map<String, Analyzer> searchQuoteAnalyzers = newHashMap();
 
         for (FieldMapper fieldMapper : fieldMappers) {
             FieldMappers mappers = tempNameFieldMappers.get(fieldMapper.names().name());
@@ -82,6 +84,9 @@ public class DocumentFieldMappers implements Iterable<FieldMapper> {
             if (fieldMapper.searchAnalyzer() != null) {
                 searchAnalyzers.put(fieldMapper.names().indexName(), fieldMapper.searchAnalyzer());
             }
+            if (fieldMapper.searchQuoteAnalyzer() != null) {
+                searchQuoteAnalyzers.put(fieldMapper.names().indexName(), fieldMapper.searchQuoteAnalyzer());
+            }
         }
         this.fieldMappers = ImmutableList.copyOf(fieldMappers);
         this.nameFieldMappers = ImmutableMap.copyOf(tempNameFieldMappers);
@@ -90,6 +95,7 @@ public class DocumentFieldMappers implements Iterable<FieldMapper> {
 
         this.indexAnalyzer = new FieldNameAnalyzer(indexAnalyzers, docMapper.indexAnalyzer());
         this.searchAnalyzer = new FieldNameAnalyzer(searchAnalyzers, docMapper.searchAnalyzer());
+        this.searchQuoteAnalyzer = new FieldNameAnalyzer(searchQuoteAnalyzers, docMapper.searchQuotedAnalyzer());
     }
 
     @Override
@@ -177,6 +183,10 @@ public class DocumentFieldMappers implements Iterable<FieldMapper> {
      */
     public Analyzer searchAnalyzer() {
         return this.searchAnalyzer;
+    }
+
+    public Analyzer searchQuoteAnalyzer() {
+        return this.searchQuoteAnalyzer;
     }
 
     public DocumentFieldMappers concat(DocumentMapper docMapper, FieldMapper... fieldMappers) {

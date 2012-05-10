@@ -142,6 +142,12 @@ public class QueryStringQueryParser implements QueryParser {
                         throw new QueryParsingException(parseContext.index(), "[query_string] analyzer [" + parser.text() + "] not found");
                     }
                     qpSettings.forcedAnalyzer(analyzer);
+                } else if ("quote_analyzer".equals(currentFieldName) || "quoteAnalyzer".equals(currentFieldName)) {
+                    NamedAnalyzer analyzer = parseContext.analysisService().analyzer(parser.text());
+                    if (analyzer == null) {
+                        throw new QueryParsingException(parseContext.index(), "[query_string] quote_analyzer [" + parser.text() + "] not found");
+                    }
+                    qpSettings.forcedQuoteAnalyzer(analyzer);
                 } else if ("allow_leading_wildcard".equals(currentFieldName) || "allowLeadingWildcard".equals(currentFieldName)) {
                     qpSettings.allowLeadingWildcard(parser.booleanValue());
                 } else if ("auto_generate_phrase_queries".equals(currentFieldName) || "autoGeneratePhraseQueries".equals(currentFieldName)) {
@@ -170,6 +176,8 @@ public class QueryStringQueryParser implements QueryParser {
                     qpSettings.rewriteMethod(QueryParsers.parseRewriteMethod(parser.textOrNull()));
                 } else if ("minimum_should_match".equals(currentFieldName) || "minimumShouldMatch".equals(currentFieldName)) {
                     qpSettings.minimumShouldMatch(parser.textOrNull());
+                } else if ("quote_field_suffix".equals(currentFieldName) || "quoteFieldSuffix".equals(currentFieldName)) {
+                    qpSettings.quoteFieldSuffix(parser.textOrNull());
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[query_string] query does not support [" + currentFieldName + "]");
                 }
@@ -179,6 +187,7 @@ public class QueryStringQueryParser implements QueryParser {
             throw new QueryParsingException(parseContext.index(), "query_string must be provided with a [query]");
         }
         qpSettings.defaultAnalyzer(parseContext.mapperService().searchAnalyzer());
+        qpSettings.defaultQuoteAnalyzer(parseContext.mapperService().searchQuoteAnalyzer());
 
         if (qpSettings.escape()) {
             qpSettings.queryString(org.apache.lucene.queryParser.QueryParser.escape(qpSettings.queryString()));

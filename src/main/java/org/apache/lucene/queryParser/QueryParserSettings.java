@@ -19,9 +19,12 @@
 
 package org.apache.lucene.queryParser;
 
+import gnu.trove.map.hash.TObjectFloatHashMap;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
+
+import java.util.List;
 
 /**
  *
@@ -52,6 +55,12 @@ public class QueryParserSettings {
     private MultiTermQuery.RewriteMethod rewriteMethod = MultiTermQuery.CONSTANT_SCORE_AUTO_REWRITE_DEFAULT;
     private String minimumShouldMatch;
     private boolean lenient;
+
+
+    List<String> fields = null;
+    TObjectFloatHashMap<String> boosts = null;
+    float tieBreaker = 0.0f;
+    boolean useDisMax = true;
 
     public String queryString() {
         return queryString;
@@ -221,6 +230,38 @@ public class QueryParserSettings {
         return this.lenient;
     }
 
+    public List<String> fields() {
+        return fields;
+    }
+
+    public void fields(List<String> fields) {
+        this.fields = fields;
+    }
+
+    public TObjectFloatHashMap<String> boosts() {
+        return boosts;
+    }
+
+    public void boosts(TObjectFloatHashMap<String> boosts) {
+        this.boosts = boosts;
+    }
+
+    public float tieBreaker() {
+        return tieBreaker;
+    }
+
+    public void tieBreaker(float tieBreaker) {
+        this.tieBreaker = tieBreaker;
+    }
+
+    public boolean useDisMax() {
+        return useDisMax;
+    }
+
+    public void useDisMax(boolean useDisMax) {
+        this.useDisMax = useDisMax;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -259,6 +300,11 @@ public class QueryParserSettings {
             return false;
         }
 
+        if (Float.compare(that.tieBreaker, tieBreaker) != 0) return false;
+        if (useDisMax != that.useDisMax) return false;
+        if (boosts != null ? !boosts.equals(that.boosts) : that.boosts != null) return false;
+        if (fields != null ? !fields.equals(that.fields) : that.fields != null) return false;
+
         return true;
     }
 
@@ -281,6 +327,11 @@ public class QueryParserSettings {
         result = 31 * result + (forcedAnalyzer != null ? forcedAnalyzer.hashCode() : 0);
         result = 31 * result + (forcedQuoteAnalyzer != null ? forcedQuoteAnalyzer.hashCode() : 0);
         result = 31 * result + (analyzeWildcard ? 1 : 0);
+
+        result = 31 * result + (fields != null ? fields.hashCode() : 0);
+        result = 31 * result + (boosts != null ? boosts.hashCode() : 0);
+        result = 31 * result + (tieBreaker != +0.0f ? Float.floatToIntBits(tieBreaker) : 0);
+        result = 31 * result + (useDisMax ? 1 : 0);
         return result;
     }
 }

@@ -156,7 +156,7 @@ public class FieldQueryParser implements QueryParser {
             return query;
         }
 
-        MapperQueryParser queryParser = parseContext.singleQueryParser(qpSettings);
+        MapperQueryParser queryParser = parseContext.queryParser(qpSettings);
 
         try {
             query = queryParser.parse(qpSettings.queryString());

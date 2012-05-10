@@ -22,8 +22,6 @@ package org.elasticsearch.index.query;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import org.apache.lucene.queryParser.MapperQueryParser;
-import org.apache.lucene.queryParser.MultiFieldMapperQueryParser;
-import org.apache.lucene.queryParser.MultiFieldQueryParserSettings;
 import org.apache.lucene.queryParser.QueryParserSettings;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
@@ -80,8 +78,6 @@ public class QueryParseContext {
     private final Map<String, Filter> namedFilters = Maps.newHashMap();
 
     private final MapperQueryParser queryParser = new MapperQueryParser(this);
-
-    private final MultiFieldMapperQueryParser multiFieldQueryParser = new MultiFieldMapperQueryParser(this);
 
     private XContentParser parser;
 
@@ -141,14 +137,9 @@ public class QueryParseContext {
         return indexQueryParser.queryStringLenient();
     }
 
-    public MapperQueryParser singleQueryParser(QueryParserSettings settings) {
+    public MapperQueryParser queryParser(QueryParserSettings settings) {
         queryParser.reset(settings);
         return queryParser;
-    }
-
-    public MultiFieldMapperQueryParser multiQueryParser(MultiFieldQueryParserSettings settings) {
-        multiFieldQueryParser.reset(settings);
-        return multiFieldQueryParser;
     }
 
     public Filter cacheFilter(Filter filter, @Nullable CacheKeyFilter.Key cacheKey) {

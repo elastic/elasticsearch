@@ -148,6 +148,11 @@ public interface FieldMapper<T> {
     Analyzer searchAnalyzer();
 
     /**
+     * The analyzer that will be used for quoted search on the field.
+     */
+    Analyzer searchQuoteAnalyzer();
+
+    /**
      * Returns the value that will be used as a result for search. Can be only of specific types... .
      */
     Object valueForSearch(Fieldable field);

@@ -99,6 +99,12 @@ public class FieldQueryParser implements QueryParser {
                             throw new QueryParsingException(parseContext.index(), "[query_string] analyzer [" + parser.text() + "] not found");
                         }
                         qpSettings.forcedAnalyzer(analyzer);
+                    } else if ("quote_analyzer".equals(currentFieldName) || "quoteAnalyzer".equals(currentFieldName)) {
+                        NamedAnalyzer analyzer = parseContext.analysisService().analyzer(parser.text());
+                        if (analyzer == null) {
+                            throw new QueryParsingException(parseContext.index(), "[query_string] analyzer [" + parser.text() + "] not found");
+                        }
+                        qpSettings.forcedQuoteAnalyzer(analyzer);
                     } else if ("default_operator".equals(currentFieldName) || "defaultOperator".equals(currentFieldName)) {
                         String op = parser.text();
                         if ("or".equalsIgnoreCase(op)) {
@@ -120,6 +126,8 @@ public class FieldQueryParser implements QueryParser {
                         qpSettings.rewriteMethod(QueryParsers.parseRewriteMethod(parser.textOrNull()));
                     } else if ("minimum_should_match".equals(currentFieldName) || "minimumShouldMatch".equals(currentFieldName)) {
                         qpSettings.minimumShouldMatch(parser.textOrNull());
+                    } else if ("quote_field_suffix".equals(currentFieldName) || "quoteFieldSuffix".equals(currentFieldName)) {
+                        qpSettings.quoteFieldSuffix(parser.textOrNull());
                     } else {
                         throw new QueryParsingException(parseContext.index(), "[field] query does not support [" + currentFieldName + "]");
                     }
@@ -133,6 +141,7 @@ public class FieldQueryParser implements QueryParser {
         }
 
         qpSettings.defaultAnalyzer(parseContext.mapperService().searchAnalyzer());
+        qpSettings.defaultQuoteAnalyzer(parseContext.mapperService().searchQuoteAnalyzer());
 
         if (qpSettings.queryString() == null) {
             throw new QueryParsingException(parseContext.index(), "No value specified for term query");

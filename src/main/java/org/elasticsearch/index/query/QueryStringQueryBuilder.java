@@ -34,7 +34,7 @@ import static com.google.common.collect.Lists.newArrayList;
  * will use the {@link #defaultField(String)} set. The second, when one or more fields are added
  * (using {@link #field(String)}), will run the parsed query against the provided fields, and combine
  * them either using DisMax or a plain boolean query (see {@link #useDisMax(boolean)}).
- *
+ * <p/>
  * (shay.baon)
  */
 public class QueryStringQueryBuilder extends BaseQueryBuilder {
@@ -51,6 +51,9 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder {
     private Operator defaultOperator;
 
     private String analyzer;
+    private String quoteAnalyzer;
+
+    private String quoteFieldSuffix;
 
     private Boolean autoGeneratePhraseQueries;
 
@@ -164,6 +167,16 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder {
     }
 
     /**
+     * The optional analyzer used to analyze the query string for phrase searches. Note, if a field has search (quote) analyzer
+     * defined for it, then it will be used automatically. Defaults to the smart search analyzer.
+     */
+    public QueryStringQueryBuilder quoteAnalyzer(String analyzer) {
+        this.quoteAnalyzer = analyzer;
+        return this;
+    }
+
+
+    /**
      * Set to true if phrase queries will be automatically generated
      * when the analyzer returns more than one term from whitespace
      * delimited text.
@@ -258,6 +271,14 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder {
         return this;
     }
 
+    /**
+     * An optional field name suffix to automatically try and add to the field searched when using quoted text.
+     */
+    public QueryStringQueryBuilder quoteFieldSuffix(String quoteFieldSuffix) {
+        this.quoteFieldSuffix = quoteFieldSuffix;
+        return this;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(QueryStringQueryParser.NAME);
@@ -291,6 +312,9 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder {
         if (analyzer != null) {
             builder.field("analyzer", analyzer);
         }
+        if (quoteAnalyzer != null) {
+            builder.field("quote_analyzer", quoteAnalyzer);
+        }
         if (autoGeneratePhraseQueries != null) {
             builder.field("auto_generate_phrase_queries", autoGeneratePhraseQueries);
         }
@@ -323,6 +347,9 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder {
         }
         if (minimumShouldMatch != null) {
             builder.field("minimum_should_match", minimumShouldMatch);
+        }
+        if (quoteFieldSuffix != null) {
+            builder.field("quote_field_suffix", quoteFieldSuffix);
         }
         builder.endObject();
     }

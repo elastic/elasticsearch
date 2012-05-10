@@ -64,11 +64,16 @@ public class MapperQueryParser extends QueryParser {
 
     private final QueryParseContext parseContext;
 
+    private Analyzer quoteAnalyzer;
+
     private boolean forcedAnalyzer;
+    private boolean forcedQuoteAnalyzer;
 
     private FieldMapper currentMapper;
 
     private boolean analyzeWildcard;
+
+    private String quoteFieldSuffix;
 
     public MapperQueryParser(QueryParseContext parseContext) {
         super(Lucene.QUERYPARSER_VERSION, null, null);
@@ -85,6 +90,17 @@ public class MapperQueryParser extends QueryParser {
         this.field = settings.defaultField();
         this.forcedAnalyzer = settings.forcedAnalyzer() != null;
         this.analyzer = forcedAnalyzer ? settings.forcedAnalyzer() : settings.defaultAnalyzer();
+        if (settings.forcedQuoteAnalyzer() != null) {
+            this.forcedQuoteAnalyzer = true;
+            this.quoteAnalyzer = settings.forcedQuoteAnalyzer();
+        } else if (forcedAnalyzer) {
+            this.forcedQuoteAnalyzer = true;
+            this.quoteAnalyzer = settings.forcedAnalyzer();
+        } else {
+            this.forcedAnalyzer = false;
+            this.quoteAnalyzer = settings.defaultQuoteAnalyzer();
+        }
+        this.quoteFieldSuffix = settings.quoteFieldSuffix();
         setMultiTermRewriteMethod(settings.rewriteMethod());
         setEnablePositionIncrements(settings.enablePositionIncrements());
         setAutoGeneratePhraseQueries(settings.autoGeneratePhraseQueries());
@@ -122,10 +138,25 @@ public class MapperQueryParser extends QueryParser {
         currentMapper = null;
         Analyzer oldAnalyzer = analyzer;
         try {
-            MapperService.SmartNameFieldMappers fieldMappers = parseContext.smartFieldMappers(field);
+            MapperService.SmartNameFieldMappers fieldMappers = null;
+            if (quoted) {
+                analyzer = quoteAnalyzer;
+                if (quoteFieldSuffix != null) {
+                    fieldMappers = parseContext.smartFieldMappers(field + quoteFieldSuffix);
+                }
+            }
+            if (fieldMappers == null) {
+                fieldMappers = parseContext.smartFieldMappers(field);
+            }
             if (fieldMappers != null) {
-                if (!forcedAnalyzer) {
-                    analyzer = fieldMappers.searchAnalyzer();
+                if (quoted) {
+                    if (!forcedQuoteAnalyzer) {
+                        analyzer = fieldMappers.searchQuoteAnalyzer();
+                    }
+                } else {
+                    if (!forcedAnalyzer) {
+                        analyzer = fieldMappers.searchAnalyzer();
+                    }
                 }
                 currentMapper = fieldMappers.fieldMappers().mapper();
                 if (currentMapper != null) {

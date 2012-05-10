@@ -45,7 +45,10 @@ public class QueryParserSettings {
     private boolean analyzeWildcard = DEFAULT_ANALYZE_WILDCARD;
     private boolean escape = false;
     private Analyzer defaultAnalyzer = null;
+    private Analyzer defaultQuoteAnalyzer = null;
     private Analyzer forcedAnalyzer = null;
+    private Analyzer forcedQuoteAnalyzer = null;
+    private String quoteFieldSuffix = null;
     private MultiTermQuery.RewriteMethod rewriteMethod = MultiTermQuery.CONSTANT_SCORE_AUTO_REWRITE_DEFAULT;
     private String minimumShouldMatch;
 
@@ -153,12 +156,28 @@ public class QueryParserSettings {
         this.defaultAnalyzer = defaultAnalyzer;
     }
 
+    public Analyzer defaultQuoteAnalyzer() {
+        return defaultQuoteAnalyzer;
+    }
+
+    public void defaultQuoteAnalyzer(Analyzer defaultAnalyzer) {
+        this.defaultQuoteAnalyzer = defaultAnalyzer;
+    }
+
     public Analyzer forcedAnalyzer() {
         return forcedAnalyzer;
     }
 
     public void forcedAnalyzer(Analyzer forcedAnalyzer) {
         this.forcedAnalyzer = forcedAnalyzer;
+    }
+
+    public Analyzer forcedQuoteAnalyzer() {
+        return forcedQuoteAnalyzer;
+    }
+
+    public void forcedQuoteAnalyzer(Analyzer forcedAnalyzer) {
+        this.forcedQuoteAnalyzer = forcedAnalyzer;
     }
 
     public boolean analyzeWildcard() {
@@ -185,6 +204,14 @@ public class QueryParserSettings {
         this.minimumShouldMatch = minimumShouldMatch;
     }
 
+    public void quoteFieldSuffix(String quoteFieldSuffix) {
+        this.quoteFieldSuffix = quoteFieldSuffix;
+    }
+
+    public String quoteFieldSuffix() {
+        return this.quoteFieldSuffix;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -204,7 +231,11 @@ public class QueryParserSettings {
         if (phraseSlop != that.phraseSlop) return false;
         if (defaultAnalyzer != null ? !defaultAnalyzer.equals(that.defaultAnalyzer) : that.defaultAnalyzer != null)
             return false;
+        if (defaultQuoteAnalyzer != null ? !defaultQuoteAnalyzer.equals(that.defaultQuoteAnalyzer) : that.defaultQuoteAnalyzer != null)
+            return false;
         if (forcedAnalyzer != null ? !forcedAnalyzer.equals(that.forcedAnalyzer) : that.forcedAnalyzer != null)
+            return false;
+        if (forcedQuoteAnalyzer != null ? !forcedQuoteAnalyzer.equals(that.forcedQuoteAnalyzer) : that.forcedQuoteAnalyzer != null)
             return false;
         if (defaultField != null ? !defaultField.equals(that.defaultField) : that.defaultField != null) return false;
         if (defaultOperator != that.defaultOperator) return false;
@@ -212,6 +243,8 @@ public class QueryParserSettings {
         if (rewriteMethod != null ? !rewriteMethod.equals(that.rewriteMethod) : that.rewriteMethod != null)
             return false;
         if (minimumShouldMatch != null ? !minimumShouldMatch.equals(that.minimumShouldMatch) : that.minimumShouldMatch != null)
+            return false;
+        if (quoteFieldSuffix != null ? !quoteFieldSuffix.equals(that.quoteFieldSuffix) : that.quoteFieldSuffix != null)
             return false;
 
         return true;
@@ -232,7 +265,9 @@ public class QueryParserSettings {
         result = 31 * result + fuzzyPrefixLength;
         result = 31 * result + (escape ? 1 : 0);
         result = 31 * result + (defaultAnalyzer != null ? defaultAnalyzer.hashCode() : 0);
+        result = 31 * result + (defaultQuoteAnalyzer != null ? defaultQuoteAnalyzer.hashCode() : 0);
         result = 31 * result + (forcedAnalyzer != null ? forcedAnalyzer.hashCode() : 0);
+        result = 31 * result + (forcedQuoteAnalyzer != null ? forcedQuoteAnalyzer.hashCode() : 0);
         result = 31 * result + (analyzeWildcard ? 1 : 0);
         return result;
     }

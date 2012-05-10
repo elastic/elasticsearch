@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.core;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.elasticsearch.common.Strings;
@@ -55,6 +56,8 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
 
         protected int positionOffsetGap = Defaults.POSITION_OFFSET_GAP;
 
+        protected NamedAnalyzer searchQuotedAnalyzer;
+
         public Builder(String name) {
             super(name);
             builder = this;
@@ -71,9 +74,23 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
             return this;
         }
 
+        @Override
+        public Builder searchAnalyzer(NamedAnalyzer searchAnalyzer) {
+            super.searchAnalyzer(searchAnalyzer);
+            if (searchQuotedAnalyzer == null) {
+                searchQuotedAnalyzer = searchAnalyzer;
+            }
+            return this;
+        }
+
         public Builder positionOffsetGap(int positionOffsetGap) {
             this.positionOffsetGap = positionOffsetGap;
             return this;
+        }
+
+        public Builder searchQuotedAnalyzer(NamedAnalyzer analyzer) {
+            this.searchQuotedAnalyzer = analyzer;
+            return builder;
         }
 
         @Override
@@ -81,10 +98,11 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
             if (positionOffsetGap > 0) {
                 indexAnalyzer = new NamedCustomAnalyzer(indexAnalyzer, positionOffsetGap);
                 searchAnalyzer = new NamedCustomAnalyzer(searchAnalyzer, positionOffsetGap);
+                searchQuotedAnalyzer = new NamedCustomAnalyzer(searchQuotedAnalyzer, positionOffsetGap);
             }
             StringFieldMapper fieldMapper = new StringFieldMapper(buildNames(context),
                     index, store, termVector, boost, omitNorms, omitTermFreqAndPositions, nullValue,
-                    indexAnalyzer, searchAnalyzer, positionOffsetGap);
+                    indexAnalyzer, searchAnalyzer, searchQuotedAnalyzer, positionOffsetGap);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -100,6 +118,12 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
                 Object propNode = entry.getValue();
                 if (propName.equals("null_value")) {
                     builder.nullValue(propNode.toString());
+                } else if (propName.equals("search_quote_analyzer")) {
+                    NamedAnalyzer analyzer = parserContext.analysisService().analyzer(propNode.toString());
+                    if (analyzer == null) {
+                        throw new MapperParsingException("Analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
+                    }
+                    builder.searchQuotedAnalyzer(analyzer);
                 } else if (propName.equals("position_offset_gap")) {
                     builder.positionOffsetGap(XContentMapValues.nodeIntegerValue(propNode, -1));
                     // we need to update to actual analyzers if they are not set in this case...
@@ -109,6 +133,9 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
                     }
                     if (builder.searchAnalyzer == null) {
                         builder.searchAnalyzer = parserContext.analysisService().defaultSearchAnalyzer();
+                    }
+                    if (builder.searchQuotedAnalyzer == null) {
+                        builder.searchQuotedAnalyzer = parserContext.analysisService().defaultSearchQuoteAnalyzer();
                     }
                 }
             }
@@ -122,18 +149,21 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
 
     private int positionOffsetGap;
 
+    private NamedAnalyzer searchQuotedAnalyzer;
+
     protected StringFieldMapper(Names names, Field.Index index, Field.Store store, Field.TermVector termVector,
                                 float boost, boolean omitNorms, boolean omitTermFreqAndPositions,
                                 String nullValue, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer) {
-        this(names, index, store, termVector, boost, omitNorms, omitTermFreqAndPositions, nullValue, indexAnalyzer, searchAnalyzer, Defaults.POSITION_OFFSET_GAP);
+        this(names, index, store, termVector, boost, omitNorms, omitTermFreqAndPositions, nullValue, indexAnalyzer, searchAnalyzer, searchAnalyzer, Defaults.POSITION_OFFSET_GAP);
     }
 
     protected StringFieldMapper(Names names, Field.Index index, Field.Store store, Field.TermVector termVector,
                                 float boost, boolean omitNorms, boolean omitTermFreqAndPositions,
-                                String nullValue, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer, int positionOffsetGap) {
+                                String nullValue, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer, NamedAnalyzer searchQuotedAnalyzer, int positionOffsetGap) {
         super(names, index, store, termVector, boost, omitNorms, omitTermFreqAndPositions, indexAnalyzer, searchAnalyzer);
         this.nullValue = nullValue;
         this.positionOffsetGap = positionOffsetGap;
+        this.searchQuotedAnalyzer = searchQuotedAnalyzer != null ? searchQuotedAnalyzer : searchAnalyzer;
     }
 
     @Override
@@ -177,6 +207,11 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
 
     public int getPositionOffsetGap() {
         return this.positionOffsetGap;
+    }
+
+    @Override
+    public Analyzer searchQuoteAnalyzer() {
+        return this.searchQuotedAnalyzer;
     }
 
     @Override
@@ -265,6 +300,9 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
         }
         if (positionOffsetGap != Defaults.POSITION_OFFSET_GAP) {
             builder.field("position_offset_gap", positionOffsetGap);
+        }
+        if (searchQuotedAnalyzer != null && searchAnalyzer != searchQuotedAnalyzer) {
+            builder.field("search_quote_analyzer", searchQuotedAnalyzer.name());
         }
     }
 }

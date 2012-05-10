@@ -105,7 +105,7 @@ public class TransportNodesShutdownAction extends TransportMasterNodeOperationAc
         if (disabled) {
             throw new ElasticSearchIllegalStateException("Shutdown is disabled");
         }
-        Set<DiscoveryNode> nodes = Sets.newHashSet();
+        final Set<DiscoveryNode> nodes = Sets.newHashSet();
         if (state.nodes().isAllNodes(request.nodesIds)) {
             logger.info("[cluster_shutdown]: requested, shutting down in [{}]", request.delay);
             nodes.addAll(state.nodes().dataNodes().values());
@@ -122,8 +122,8 @@ public class TransportNodesShutdownAction extends TransportMasterNodeOperationAc
                     logger.trace("[cluster_shutdown]: stopping the cluster service so no re-routing will occur");
                     clusterService.stop();
 
-                    final CountDownLatch latch = new CountDownLatch(state.nodes().size());
-                    for (final DiscoveryNode node : state.nodes()) {
+                    final CountDownLatch latch = new CountDownLatch(nodes.size());
+                    for (final DiscoveryNode node : nodes) {
                         if (node.id().equals(state.nodes().masterNodeId())) {
                             // don't shutdown the master yet...
                             latch.countDown();

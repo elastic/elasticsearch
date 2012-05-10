@@ -51,6 +51,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
     private final NamedAnalyzer defaultAnalyzer;
     private final NamedAnalyzer defaultIndexAnalyzer;
     private final NamedAnalyzer defaultSearchAnalyzer;
+    private final NamedAnalyzer defaultSearchQuoteAnalyzer;
 
     public AnalysisService(Index index) {
         this(index, ImmutableSettings.Builder.EMPTY_SETTINGS, null, null, null, null, null);
@@ -209,6 +210,9 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
         if (!analyzerProviders.containsKey("default_search")) {
             analyzerProviders.put("default_search", analyzerProviders.get("default"));
         }
+        if (!analyzerProviders.containsKey("default_search_quoted")) {
+            analyzerProviders.put("default_search_quoted", analyzerProviders.get("default_search"));
+        }
 
         Map<String, NamedAnalyzer> analyzers = newHashMap();
         for (AnalyzerProvider analyzerFactory : analyzerProviders.values()) {
@@ -233,6 +237,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
         defaultAnalyzer = analyzers.get("default");
         defaultIndexAnalyzer = analyzers.containsKey("default_index") ? analyzers.get("default_index") : analyzers.get("default");
         defaultSearchAnalyzer = analyzers.containsKey("default_search") ? analyzers.get("default_search") : analyzers.get("default");
+        defaultSearchQuoteAnalyzer = analyzers.containsKey("default_search_quote") ? analyzers.get("default_search_quote") : defaultSearchAnalyzer;
 
         this.analyzers = ImmutableMap.copyOf(analyzers);
     }
@@ -266,6 +271,10 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
 
     public NamedAnalyzer defaultSearchAnalyzer() {
         return defaultSearchAnalyzer;
+    }
+
+    public NamedAnalyzer defaultSearchQuoteAnalyzer() {
+        return defaultSearchQuoteAnalyzer;
     }
 
     public TokenizerFactory tokenizer(String name) {

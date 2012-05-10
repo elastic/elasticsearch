@@ -302,6 +302,11 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
     }
 
     @Override
+    public Analyzer searchQuoteAnalyzer() {
+        return this.searchAnalyzer;
+    }
+
+    @Override
     public void parse(ParseContext context) throws IOException {
         try {
             Fieldable field = parseCreateField(context);

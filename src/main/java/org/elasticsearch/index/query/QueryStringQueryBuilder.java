@@ -85,6 +85,8 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder {
 
     private String minimumShouldMatch;
 
+    private Boolean lenient;
+
     public QueryStringQueryBuilder(String queryString) {
         this.queryString = queryString;
     }
@@ -279,6 +281,15 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder {
         return this;
     }
 
+    /**
+     * Sets the query string parser to be lenient when parsing field values, defaults to the index
+     * setting and if not set, defaults to false.
+     */
+    public QueryStringQueryBuilder lenient(Boolean lenient) {
+        this.lenient = lenient;
+        return this;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(QueryStringQueryParser.NAME);
@@ -350,6 +361,9 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder {
         }
         if (quoteFieldSuffix != null) {
             builder.field("quote_field_suffix", quoteFieldSuffix);
+        }
+        if (lenient != null) {
+            builder.field("lenient", lenient);
         }
         builder.endObject();
     }

@@ -137,6 +137,10 @@ public class QueryParseContext {
         return indexQueryParser.defaultField();
     }
 
+    public boolean queryStringLenient() {
+        return indexQueryParser.queryStringLenient();
+    }
+
     public MapperQueryParser singleQueryParser(QueryParserSettings settings) {
         queryParser.reset(settings);
         return queryParser;

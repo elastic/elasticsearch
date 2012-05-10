@@ -69,6 +69,7 @@ public class QueryStringQueryParser implements QueryParser {
 
         MultiFieldQueryParserSettings qpSettings = new MultiFieldQueryParserSettings();
         qpSettings.defaultField(parseContext.defaultField());
+        qpSettings.lenient(parseContext.queryStringLenient());
         qpSettings.analyzeWildcard(defaultAnalyzeWildcard);
         qpSettings.allowLeadingWildcard(defaultAllowLeadingWildcard);
 
@@ -178,6 +179,8 @@ public class QueryStringQueryParser implements QueryParser {
                     qpSettings.minimumShouldMatch(parser.textOrNull());
                 } else if ("quote_field_suffix".equals(currentFieldName) || "quoteFieldSuffix".equals(currentFieldName)) {
                     qpSettings.quoteFieldSuffix(parser.textOrNull());
+                } else if ("lenient".equalsIgnoreCase(currentFieldName)) {
+                    qpSettings.lenient(parser.booleanValue());
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[query_string] query does not support [" + currentFieldName + "]");
                 }

@@ -75,6 +75,8 @@ public class MapperQueryParser extends QueryParser {
 
     private String quoteFieldSuffix;
 
+    private boolean lenient;
+
     public MapperQueryParser(QueryParseContext parseContext) {
         super(Lucene.QUERYPARSER_VERSION, null, null);
         this.parseContext = parseContext;
@@ -162,15 +164,23 @@ public class MapperQueryParser extends QueryParser {
                 if (currentMapper != null) {
                     Query query = null;
                     if (currentMapper.useFieldQueryWithQueryString()) {
-                        if (fieldMappers.explicitTypeInNameWithDocMapper()) {
-                            String[] previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{fieldMappers.docMapper().type()});
-                            try {
+                        try {
+                            if (fieldMappers.explicitTypeInNameWithDocMapper()) {
+                                String[] previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{fieldMappers.docMapper().type()});
+                                try {
+                                    query = currentMapper.fieldQuery(queryText, parseContext);
+                                } finally {
+                                    QueryParseContext.setTypes(previousTypes);
+                                }
+                            } else {
                                 query = currentMapper.fieldQuery(queryText, parseContext);
-                            } finally {
-                                QueryParseContext.setTypes(previousTypes);
                             }
-                        } else {
-                            query = currentMapper.fieldQuery(queryText, parseContext);
+                        } catch (RuntimeException e) {
+                            if (lenient) {
+                                return null;
+                            } else {
+                                throw e;
+                            }
                         }
                     }
                     if (query == null) {

@@ -23,7 +23,6 @@ import com.google.common.collect.Lists;
 import gnu.trove.impl.Constants;
 import gnu.trove.map.hash.TObjectFloatHashMap;
 import org.apache.lucene.queryParser.MapperQueryParser;
-import org.apache.lucene.queryParser.MultiFieldQueryParserSettings;
 import org.apache.lucene.queryParser.ParseException;
 import org.apache.lucene.queryParser.QueryParserSettings;
 import org.apache.lucene.search.BooleanQuery;
@@ -67,7 +66,7 @@ public class QueryStringQueryParser implements QueryParser {
     public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        MultiFieldQueryParserSettings qpSettings = new MultiFieldQueryParserSettings();
+        QueryParserSettings qpSettings = new QueryParserSettings();
         qpSettings.defaultField(parseContext.defaultField());
         qpSettings.lenient(parseContext.queryStringLenient());
         qpSettings.analyzeWildcard(defaultAnalyzeWildcard);
@@ -201,19 +200,7 @@ public class QueryStringQueryParser implements QueryParser {
             return query;
         }
 
-        MapperQueryParser queryParser;
-        if (qpSettings.fields() != null) {
-            if (qpSettings.fields().size() == 1) {
-                qpSettings.defaultField(qpSettings.fields().get(0));
-                queryParser = parseContext.singleQueryParser(qpSettings);
-            } else {
-                qpSettings.defaultField(null); // reset defaultField when using multi query parser
-                queryParser = parseContext.multiQueryParser(qpSettings);
-            }
-        } else {
-            queryParser = parseContext.singleQueryParser(qpSettings);
-        }
-
+        MapperQueryParser queryParser = parseContext.queryParser(qpSettings);
 
         try {
             query = queryParser.parse(qpSettings.queryString());

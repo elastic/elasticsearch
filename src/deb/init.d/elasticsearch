@@ -60,13 +60,16 @@ export JAVA_HOME
 ES_HOME=/usr/share/$NAME
 
 # Heap Size (defaults to 256m min, 1g max)
+# if ES_HEAP_SIZE is defined, will force min and max to its value
+#ES_MIN_MEM=256m
+#ES_MAX_MEM=1g
 #ES_HEAP_SIZE=2g
 
 # Additional Java OPTS
 #ES_JAVA_OPTS=
 
 # ElasticSearch log directory
-LOG_DIR=/var/log/$NAME
+LOG_DIR=/var/lib/og/$NAME
 
 # ElasticSearch data directory
 DATA_DIR=/var/lib/$NAME
@@ -92,7 +95,7 @@ PID_FILE=/var/run/$NAME.pid
 DAEMON=$ES_HOME/bin/elasticsearch
 DAEMON_OPTS="-p $PID_FILE -Des.config=$CONF_FILE -Des.path.home=$ES_HOME -Des.path.logs=$LOG_DIR -Des.path.data=$DATA_DIR -Des.path.work=$WORK_DIR -Des.path.conf=$CONF_DIR"
 
-export ES_MIN_MEM ES_MAX_MEM
+export ES_MIN_MEM ES_MAX_MEM ES_HEAP_SIZE
 
 # Check DAEMON exists
 test -x $DAEMON || exit 0

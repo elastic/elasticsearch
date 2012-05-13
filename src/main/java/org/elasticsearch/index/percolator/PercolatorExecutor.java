@@ -282,7 +282,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if ("query".equals(currentFieldName)) {
-                        query = queryParserService.parse(parser).query();
+                        query = percolatorIndexServiceSafe().queryParserService().parse(parser).query();
                     }
                 } else if (token == null) {
                     break;
@@ -306,12 +306,12 @@ public class PercolatorExecutor extends AbstractIndexComponent {
     public Response percolate(DocAndSourceQueryRequest request) throws ElasticSearchException {
         Query query = null;
         if (Strings.hasLength(request.query()) && !request.query().equals("*")) {
-            query = queryParserService.parse(QueryBuilders.queryString(request.query())).query();
+            query = percolatorIndexServiceSafe().queryParserService().parse(QueryBuilders.queryString(request.query())).query();
         }
         return percolate(new DocAndQueryRequest(request.doc(), query));
     }
 
-    public Response percolate(DocAndQueryRequest request) throws ElasticSearchException {
+    private Response percolate(DocAndQueryRequest request) throws ElasticSearchException {
         // first, parse the source doc into a MemoryIndex
         final CustomMemoryIndex memoryIndex = new CustomMemoryIndex();
 
@@ -367,10 +367,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
                     }
                 }
             } else {
-                IndexService percolatorIndex = indicesService.indexService(PercolatorService.INDEX_NAME);
-                if (percolatorIndex == null) {
-                    throw new PercolateIndexUnavailable(new Index(PercolatorService.INDEX_NAME));
-                }
+                IndexService percolatorIndex = percolatorIndexServiceSafe();
                 if (percolatorIndex.numberOfShards() == 0) {
                     throw new PercolateIndexUnavailable(new Index(PercolatorService.INDEX_NAME));
                 }
@@ -390,6 +387,14 @@ public class PercolatorExecutor extends AbstractIndexComponent {
         }
 
         return new Response(matches, request.doc().mappersAdded());
+    }
+
+    private IndexService percolatorIndexServiceSafe() {
+        IndexService indexService = indicesService.indexService(PercolatorService.INDEX_NAME);
+        if (indexService == null) {
+            throw new PercolateIndexUnavailable(new Index(PercolatorService.INDEX_NAME));
+        }
+        return indexService;
     }
 
     static class QueryCollector extends Collector {

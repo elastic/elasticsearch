@@ -148,6 +148,21 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                     // add the request mapping
                     Map<String, Map<String, Object>> mappings = Maps.newHashMap();
+
+                    // if its a _percolator index, don't index the query object
+                    if (request.index.equals(PercolatorService.INDEX_NAME)) {
+                        mappings.put(MapperService.DEFAULT_MAPPING, parseMapping("{\n" +
+                                "    \"_default_\":{\n" +
+                                "        \"properties\" : {\n" +
+                                "            \"query\" : {\n" +
+                                "                \"type\" : \"object\",\n" +
+                                "                \"enabled\" : false\n" +
+                                "            }\n" +
+                                "        }\n" +
+                                "    }\n" +
+                                "}"));
+                    }
+
                     for (Map.Entry<String, String> entry : request.mappings.entrySet()) {
                         mappings.put(entry.getKey(), parseMapping(entry.getValue()));
                     }

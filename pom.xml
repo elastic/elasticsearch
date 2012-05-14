@@ -17,10 +17,11 @@
             <distribution>repo</distribution>
         </license>
     </licenses>
+    <url>http://elasticsearch.org</url> 
     <scm>
-        <connection>scm:git:git@github.com:elasticsearch/elasticsearch.git</connection>
-        <developerConnection>scm:git:git@github.com:elasticsearch/elasticsearch.git</developerConnection>
-        <url>http://github.com/elasticsearch/elasticsearch</url>
+        <connection>scm:git:git@github.com:jprante/elasticsearch.git</connection>
+        <developerConnection>scm:git:git@github.com:jprante/elasticsearch.git</developerConnection>
+        <url>http://github.com/jprante/elasticsearch</url>
     </scm>
 
     <parent>
@@ -31,6 +32,7 @@
 
     <properties>
         <lucene.version>3.6.0</lucene.version>
+        <github.global.server>github</github.global.server>
     </properties>
 
     <repositories>
@@ -520,6 +522,77 @@
                     </execution>
                 </executions>
             </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>  
+                    <artifactId>maven-javadoc-plugin</artifactId>
+                    <version>2.8.1</version>
+                    <configuration>
+                        <encoding>${project.build.sourceEncoding}</encoding>
+                        <locale>en</locale>
+                        <linksource>true</linksource>
+                        <validateLinks>true</validateLinks>
+                    </configuration>
+                    <executions>   
+                        <execution>
+                            <phase>package</phase>
+                            <goals>
+                                <goal>jar</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-site-plugin</artifactId>
+                    <version>3.0</version>
+                    <configuration>
+                        <locales>en</locales>
+                        <inputEncoding>UTF-8</inputEncoding>  
+                        <outputEncoding>UTF-8</outputEncoding>
+                    </configuration>
+                </plugin>
+                <plugin>
+                    <groupId>com.github.github</groupId>
+                    <artifactId>site-maven-plugin</artifactId>
+                    <version>0.5</version>
+                    <configuration>
+                        <message>Building site for ${project.version}</message>
+                    </configuration>
+                    <executions>   
+                        <execution>
+                            <goals>
+                                <goal>site</goal>
+                            </goals>
+                            <phase>site</phase>
+                        </execution>
+                    </executions>
+                </plugin>
         </plugins>
     </build>
+    <reporting>
+         <plugins>
+            <plugin>
+               <groupId>org.apache.maven.plugins</groupId>
+               <artifactId>maven-javadoc-plugin</artifactId>
+               <version>2.8.1</version>
+               <configuration>
+                   <encoding>${project.build.sourceEncoding}</encoding>
+                   <locale>en</locale>
+                   <linksource>true</linksource>
+                   <validateLinks>true</validateLinks>
+               </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-report-plugin</artifactId>
+                <version>2.9</version>
+                <configuration>
+                    <includes>
+                        <include>**/*Test.java</include>
+                    </includes>
+                    <encoding>UTF-8</encoding>
+                </configuration>
+            </plugin>
+        </plugins>
+    </reporting>
 </project>

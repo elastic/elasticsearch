@@ -529,15 +529,15 @@
                     <configuration>
                         <encoding>${project.build.sourceEncoding}</encoding>
                         <locale>en</locale>
-                        <linksource>true</linksource>
-                        <validateLinks>true</validateLinks>
+                        <nohelp>true</nohelp>
+                        <show>public</show>
                     </configuration>
                     <executions>   
                         <execution>
-                            <phase>package</phase>
                             <goals>
-                                <goal>jar</goal>
+                                <goal>javadoc</goal>
                             </goals>
+                            <phase>site</phase>
                         </execution>
                     </executions>
                 </plugin>
@@ -554,7 +554,7 @@
                 <plugin>
                     <groupId>com.github.github</groupId>
                     <artifactId>site-maven-plugin</artifactId>
-                    <version>0.5</version>
+                    <version>0.6</version>
                     <configuration>
                         <message>Building site for ${project.version}</message>
                     </configuration>
@@ -578,9 +578,17 @@
                <configuration>
                    <encoding>${project.build.sourceEncoding}</encoding>
                    <locale>en</locale>
-                   <linksource>true</linksource>
-                   <validateLinks>true</validateLinks>
+                   <nohelp>true</nohelp>
+                   <show>public</show>
                </configuration>
+               <reportSets>
+                   <reportSet>
+                     <id>default</id>
+                     <reports>
+                       <report>javadoc</report>
+                     </reports>
+                   </reportSet>
+               </reportSets>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

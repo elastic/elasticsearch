@@ -24,12 +24,13 @@
         <url>http://github.com/jprante/elasticsearch</url>
     </scm>
 
+<!--
     <parent>
         <groupId>org.sonatype.oss</groupId>
         <artifactId>oss-parent</artifactId>
         <version>7</version>
     </parent>
-
+-->
     <properties>
         <lucene.version>3.6.0</lucene.version>
         <github.global.server>github</github.global.server>
@@ -531,6 +532,7 @@
                         <locale>en</locale>
                         <nohelp>true</nohelp>
                         <show>public</show>
+                         <splitindex>true</splitindex>
                     </configuration>
                     <executions>   
                         <execution>
@@ -580,6 +582,7 @@
                    <locale>en</locale>
                    <nohelp>true</nohelp>
                    <show>public</show>
+                   <splitindex>true</splitindex>
                </configuration>
                <reportSets>
                    <reportSet>

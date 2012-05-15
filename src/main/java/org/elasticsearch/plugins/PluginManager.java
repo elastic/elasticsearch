@@ -1,5 +1,6 @@
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.http.client.HttpDownloadHelper;
@@ -196,7 +197,8 @@ public class PluginManager {
                 Streams.copy(zipFile.getInputStream(zipEntry), new FileOutputStream(target));
             }
         } catch (Exception e) {
-            System.err.println("failed to extract plugin [" + pluginFile + "]");
+            System.err.println("failed to extract plugin [" + pluginFile + "]: " + ExceptionsHelper.detailedMessage(e));
+            return;
         } finally {
             if (zipFile != null) {
                 try {

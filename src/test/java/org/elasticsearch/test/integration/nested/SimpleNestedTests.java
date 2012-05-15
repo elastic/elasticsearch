@@ -34,6 +34,7 @@ import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.facet.FacetBuilders;
 import org.elasticsearch.search.facet.filter.FilterFacet;
+import org.elasticsearch.search.facet.statistical.StatisticalFacet;
 import org.elasticsearch.search.facet.termsstats.TermsStatsFacet;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -63,7 +64,7 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
         assertThat(searchResponse.getHits().totalHits(), equalTo(0l));
         searchResponse = client().prepareSearch("test").setQuery(termQuery("nested1.n_field1", "n_value1_1")).execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(0l));
-        
+
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("field1", "value1")
                 .startArray("nested1")
@@ -390,7 +391,10 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
 
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(matchAllQuery())
                 .addFacet(FacetBuilders.termsStatsFacet("facet1").keyField("nested1.nested2.field2_1").valueField("nested1.nested2.field2_2").nested("nested1.nested2"))
-                .execute().actionGet();
+                .addFacet(FacetBuilders.statisticalFacet("facet2").field("field2_2").nested("nested1.nested2"))
+                .addFacet(FacetBuilders.statisticalFacet("facet2_blue").field("field2_2").nested("nested1.nested2")
+                .facetFilter(boolFilter().must(termFilter("field2_1", "blue"))))
+        .execute().actionGet();
 
         assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
@@ -409,6 +413,18 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
         assertThat(termsStatsFacet.getEntries().get(3).getTerm().string(), equalTo("red"));
         assertThat(termsStatsFacet.getEntries().get(3).getCount(), equalTo(1l));
         assertThat(termsStatsFacet.getEntries().get(3).getTotal(), equalTo(12d));
+
+        StatisticalFacet statsFacet = searchResponse.getFacets().facet("facet2");
+        assertThat(statsFacet.getCount(), equalTo(8l));
+        assertThat(statsFacet.getMin(), equalTo(1d));
+        assertThat(statsFacet.getMax(), equalTo(12d));
+        assertThat(statsFacet.getTotal(), equalTo(47d));
+
+        StatisticalFacet blueFacet = searchResponse.getFacets().facet("facet2_blue");
+        assertThat(blueFacet.getCount(), equalTo(3l));
+        assertThat(blueFacet.getMin(), equalTo(1d));
+        assertThat(blueFacet.getMax(), equalTo(5d));
+        assertThat(blueFacet.getTotal(), equalTo(8d));
 
         // test scope ones (collector based)
         searchResponse = client().prepareSearch("test")
@@ -435,6 +451,9 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
         assertThat(termsStatsFacet.getEntries().get(0).getTerm().string(), equalTo("blue"));
         assertThat(termsStatsFacet.getEntries().get(0).getCount(), equalTo(3l));
         assertThat(termsStatsFacet.getEntries().get(0).getTotal(), equalTo(8d));
+
+        // TODO: needed?
+        refresh();
 
         // test scope ones (post based)
         searchResponse = client().prepareSearch("test")
@@ -581,10 +600,10 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
                         .startObject("nested1")
                         .field("type", "nested")
                         .startObject("properties")
-                            .startObject("field1")
-                                .field("type", "long")
-                                .field("store", "yes")
-                            .endObject()
+                        .startObject("field1")
+                        .field("type", "long")
+                        .field("store", "yes")
+                        .endObject()
                         .endObject()
                         .endObject()
                         .endObject().endObject().endObject())

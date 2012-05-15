@@ -2,7 +2,7 @@ Package: elasticsearch
 Version: [[version]]
 Architecture: all
 Maintainer: Nicolas Huray <nicolas.huray@gmail.com>
-Depends: openjdk-7-jre-headless | openjdk-6-jre-headless
+Depends: java7-runtime-headless | java6-runtime-headless | java7-runtime | java6-runtime
 Section: web
 Priority: optional
 Homepage: http://www.elasticsearch.org/

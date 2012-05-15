@@ -27,6 +27,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.facet.FacetBuilders;
+import org.elasticsearch.search.facet.statistical.StatisticalFacet;
 import org.elasticsearch.search.facet.termsstats.TermsStatsFacet;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
@@ -37,7 +38,7 @@ import java.util.Arrays;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.FilterBuilders.nestedFilter;
+import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -72,7 +73,6 @@ public class SimpleNestedTests extends AbstractNodesTests {
                         .endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
-
         client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
 
 
@@ -414,8 +414,11 @@ public class SimpleNestedTests extends AbstractNodesTests {
         client.admin().indices().prepareRefresh().execute().actionGet();
 
         SearchResponse searchResponse = client.prepareSearch("test").setQuery(matchAllQuery())
-                .addFacet(FacetBuilders.termsStatsFacet("facet1").keyField("nested1.nested2.field2_1").valueField("nested1.nested2.field2_2").nested("nested1.nested2"))
-                .execute().actionGet();
+                        .addFacet(FacetBuilders.termsStatsFacet("facet1").keyField("nested1.nested2.field2_1").valueField("nested1.nested2.field2_2").nested("nested1.nested2"))
+                        .addFacet(FacetBuilders.statisticalFacet("facet2").field("field2_2").nested("nested1.nested2"))
+                        .addFacet(FacetBuilders.statisticalFacet("facet2_blue").field("field2_2").nested("nested1.nested2")
+                                .facetFilter(boolFilter().must(termFilter("field2_1", "blue"))))
+                        .execute().actionGet();
 
         assertThat(Arrays.toString(searchResponse.shardFailures()), searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(2l));
@@ -435,6 +438,18 @@ public class SimpleNestedTests extends AbstractNodesTests {
         assertThat(termsStatsFacet.entries().get(3).count(), equalTo(1l));
         assertThat(termsStatsFacet.entries().get(3).total(), equalTo(12d));
 
+        StatisticalFacet statsFacet = searchResponse.facets().facet("facet2");
+        assertThat(statsFacet.count(), equalTo(8l));
+        assertThat(statsFacet.min(), equalTo(1d));
+        assertThat(statsFacet.max(), equalTo(12d));
+        assertThat(statsFacet.total(), equalTo(47d));
+
+        StatisticalFacet blueFacet = searchResponse.facets().facet("facet2_blue");
+        assertThat(blueFacet.count(), equalTo(3l));
+        assertThat(blueFacet.min(), equalTo(1d));
+        assertThat(blueFacet.max(), equalTo(5d));
+        assertThat(blueFacet.total(), equalTo(8d));
+
         // test scope ones
         searchResponse = client.prepareSearch("test")
                 .setQuery(nestedQuery("nested1.nested2", termQuery("nested1.nested2.field2_1", "blue")).scope("my"))
@@ -449,5 +464,10 @@ public class SimpleNestedTests extends AbstractNodesTests {
         assertThat(termsStatsFacet.entries().get(0).term(), equalTo("blue"));
         assertThat(termsStatsFacet.entries().get(0).count(), equalTo(3l));
         assertThat(termsStatsFacet.entries().get(0).total(), equalTo(8d));
+
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
     }
+
+
 }

@@ -244,6 +244,11 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                         type = ObjectMapper.CONTENT_TYPE;
                     } else if (propNode.get("fields") != null) {
                         type = MultiFieldMapper.CONTENT_TYPE;
+                    } else if (propNode.size() == 1 && propNode.get("enabled") != null) {
+                        // if there is a single property with the enabled flag on it, make it an object
+                        // (usually, setting enabled to false to not index any type, including core values, which
+                        // non enabled object type supports).
+                        type = ObjectMapper.CONTENT_TYPE;
                     } else {
                         throw new MapperParsingException("No type specified for property [" + propName + "]");
                     }

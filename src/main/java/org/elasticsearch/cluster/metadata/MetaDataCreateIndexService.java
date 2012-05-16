@@ -433,7 +433,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             templates.add(template);
                         }
                     } catch (Exception e) {
-                        logger.warn("[{}] failed to read template [{}] from config", request.index, templatesFile.getAbsolutePath());
+                        logger.warn("[{}] failed to read template [{}] from config", e, request.index, templatesFile.getAbsolutePath());
                     } finally {
                         Closeables.closeQuietly(parser);
                     }

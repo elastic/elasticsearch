@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
@@ -824,14 +825,7 @@ public class MetaData implements Iterable<IndexMetaData> {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if ("settings".equals(currentFieldName)) {
-                        ImmutableSettings.Builder settingsBuilder = settingsBuilder();
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            String key = parser.currentName();
-                            token = parser.nextToken();
-                            String value = parser.text();
-                            settingsBuilder.put(key, value);
-                        }
-                        builder.persistentSettings(settingsBuilder.build());
+                        builder.persistentSettings(ImmutableSettings.settingsBuilder().put(SettingsLoader.Helper.loadNestedFromMap(parser.mapOrdered())).build());
                     } else if ("indices".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             builder.put(IndexMetaData.Builder.fromXContent(parser), false);

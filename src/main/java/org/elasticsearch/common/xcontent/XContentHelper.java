@@ -20,6 +20,7 @@
 package org.elasticsearch.common.xcontent;
 
 import com.google.common.base.Charsets;
+import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.lzf.LZF;
@@ -108,14 +109,49 @@ public class XContentHelper {
                 if (content.get(defaultEntry.getKey()) instanceof Map && defaultEntry.getValue() instanceof Map) {
                     mergeDefaults((Map<String, Object>) content.get(defaultEntry.getKey()), (Map<String, Object>) defaultEntry.getValue());
                 } else if (content.get(defaultEntry.getKey()) instanceof List && defaultEntry.getValue() instanceof List) {
-                    // if both are lists, simply combine them, first the defaults, then the content
+                    List defaultList = (List) defaultEntry.getValue();
+                    List contentList = (List) content.get(defaultEntry.getKey());
+
                     List mergedList = new ArrayList();
-                    mergedList.addAll((Collection) defaultEntry.getValue());
-                    mergedList.addAll((Collection) content.get(defaultEntry.getKey()));
+                    if (allListValuesAreMapsOfOne(defaultList) && allListValuesAreMapsOfOne(contentList)) {
+                        // all are in the form of [ {"key1" : {}}, {"key2" : {}} ], merge based on keys
+                        Map<String, Map<String, Object>> processed = Maps.newLinkedHashMap();
+                        for (Object o : contentList) {
+                            Map<String, Object> map = (Map<String, Object>) o;
+                            Map.Entry<String, Object> entry = map.entrySet().iterator().next();
+                            processed.put(entry.getKey(), map);
+                        }
+                        for (Object o : defaultList) {
+                            Map<String, Object> map = (Map<String, Object>) o;
+                            Map.Entry<String, Object> entry = map.entrySet().iterator().next();
+                            if (processed.containsKey(entry.getKey())) {
+                                mergeDefaults(processed.get(entry.getKey()), map);
+                            }
+                        }
+                        for (Map<String, Object> map : processed.values()) {
+                            mergedList.add(map);
+                        }
+                    } else {
+                        // if both are lists, simply combine them, first the defaults, then the content
+                        mergedList.addAll((Collection) defaultEntry.getValue());
+                        mergedList.addAll((Collection) content.get(defaultEntry.getKey()));
+                    }
                     content.put(defaultEntry.getKey(), mergedList);
                 }
             }
         }
+    }
+
+    private static boolean allListValuesAreMapsOfOne(List list) {
+        for (Object o : list) {
+            if (!(o instanceof Map)) {
+                return false;
+            }
+            if (((Map) o).size() != 1) {
+                return false;
+            }
+        }
+        return true;
     }
 
     public static void copyCurrentStructure(XContentGenerator generator, XContentParser parser) throws IOException {

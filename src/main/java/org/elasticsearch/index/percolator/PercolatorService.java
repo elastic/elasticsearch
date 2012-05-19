@@ -257,26 +257,44 @@ public class PercolatorService extends AbstractIndexComponent {
 
         @Override
         public Engine.Create preCreate(Engine.Create create) {
+            // validate the query here, before we index
             if (create.type().equals(index().name())) {
-                percolator.addQuery(create.id(), create.source(), create.sourceOffset(), create.sourceLength());
+                percolator.parseQuery(create.id(), create.source(), create.sourceOffset(), create.sourceLength());
             }
             return create;
         }
 
         @Override
+        public void postCreateUnderLock(Engine.Create create) {
+            // add the query under a doc lock
+            if (create.type().equals(index().name())) {
+                percolator.addQuery(create.id(), create.source(), create.sourceOffset(), create.sourceLength());
+            }
+        }
+
+        @Override
         public Engine.Index preIndex(Engine.Index index) {
+            // validate the query here, before we index
             if (index.type().equals(index().name())) {
-                percolator.addQuery(index.id(), index.source(), index.sourceOffset(), index.sourceLength());
+                percolator.parseQuery(index.id(), index.source(), index.sourceOffset(), index.sourceLength());
             }
             return index;
         }
 
         @Override
-        public Engine.Delete preDelete(Engine.Delete delete) {
+        public void postIndexUnderLock(Engine.Index index) {
+            // add the query under a doc lock
+            if (index.type().equals(index().name())) {
+                percolator.addQuery(index.id(), index.source(), index.sourceOffset(), index.sourceLength());
+            }
+        }
+
+        @Override
+        public void postDeleteUnderLock(Engine.Delete delete) {
+            // remove the query under a lock
             if (delete.type().equals(index().name())) {
                 percolator.removeQuery(delete.id());
             }
-            return delete;
         }
     }
 }

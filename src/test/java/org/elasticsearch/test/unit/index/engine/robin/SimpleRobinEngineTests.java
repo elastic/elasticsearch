@@ -21,13 +21,14 @@ package org.elasticsearch.test.unit.index.engine.robin;
 
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bloom.none.NoneBloomCache;
-import org.elasticsearch.test.unit.index.engine.AbstractSimpleEngineTests;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.robin.RobinEngine;
+import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.test.unit.index.engine.AbstractSimpleEngineTests;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
@@ -38,7 +39,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_
 public class SimpleRobinEngineTests extends AbstractSimpleEngineTests {
 
     protected Engine createEngine(Store store, Translog translog) {
-        return new RobinEngine(shardId, EMPTY_SETTINGS, new ThreadPool(), new IndexSettingsService(shardId.index(), EMPTY_SETTINGS), store, createSnapshotDeletionPolicy(), translog, createMergePolicy(), createMergeScheduler(),
+        return new RobinEngine(shardId, EMPTY_SETTINGS, new ThreadPool(), new IndexSettingsService(shardId.index(), EMPTY_SETTINGS), new ShardIndexingService(shardId, EMPTY_SETTINGS), store, createSnapshotDeletionPolicy(), translog, createMergePolicy(), createMergeScheduler(),
                 new AnalysisService(shardId.index()), new SimilarityService(shardId.index()), new NoneBloomCache(shardId.index()));
     }
 }

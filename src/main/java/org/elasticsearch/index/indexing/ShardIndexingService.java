@@ -103,13 +103,29 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
         return create;
     }
 
+    public void postCreateUnderLock(Engine.Create create) {
+        if (listeners != null) {
+            for (IndexingOperationListener listener : listeners) {
+                try {
+                    listener.postCreateUnderLock(create);
+                } catch (Exception e) {
+                    logger.warn("post listener [{}] failed", e, listener);
+                }
+            }
+        }
+    }
+
     public void postCreate(Engine.Create create) {
         long took = create.endTime() - create.startTime();
         totalStats.indexMetric.inc(took);
         typeStats(create.type()).indexMetric.inc(took);
         if (listeners != null) {
             for (IndexingOperationListener listener : listeners) {
-                listener.postCreate(create);
+                try {
+                    listener.postCreate(create);
+                } catch (Exception e) {
+                    logger.warn("post listener [{}] failed", e, listener);
+                }
             }
         }
     }
@@ -125,6 +141,18 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
         return index;
     }
 
+    public void postIndexUnderLock(Engine.Index index) {
+        if (listeners != null) {
+            for (IndexingOperationListener listener : listeners) {
+                try {
+                    listener.postIndexUnderLock(index);
+                } catch (Exception e) {
+                    logger.warn("post listener [{}] failed", e, listener);
+                }
+            }
+        }
+    }
+
     public void postIndex(Engine.Index index) {
         long took = index.endTime() - index.startTime();
         totalStats.indexMetric.inc(took);
@@ -134,7 +162,11 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
         typeStats.indexCurrent.dec();
         if (listeners != null) {
             for (IndexingOperationListener listener : listeners) {
-                listener.postIndex(index);
+                try {
+                    listener.postIndex(index);
+                } catch (Exception e) {
+                    logger.warn("post listener [{}] failed", e, listener);
+                }
             }
         }
     }
@@ -155,6 +187,18 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
         return delete;
     }
 
+    public void postDeleteUnderLock(Engine.Delete delete) {
+        if (listeners != null) {
+            for (IndexingOperationListener listener : listeners) {
+                try {
+                    listener.postDeleteUnderLock(delete);
+                } catch (Exception e) {
+                    logger.warn("post listener [{}] failed", e, listener);
+                }
+            }
+        }
+    }
+
     public void postDelete(Engine.Delete delete) {
         long took = delete.endTime() - delete.startTime();
         totalStats.deleteMetric.inc(took);
@@ -164,7 +208,11 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
         typeStats.deleteCurrent.dec();
         if (listeners != null) {
             for (IndexingOperationListener listener : listeners) {
-                listener.postDelete(delete);
+                try {
+                    listener.postDelete(delete);
+                } catch (Exception e) {
+                    logger.warn("post listener [{}] failed", e, listener);
+                }
             }
         }
     }

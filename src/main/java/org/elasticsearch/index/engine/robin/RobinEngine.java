@@ -42,6 +42,7 @@ import org.elasticsearch.index.cache.bloom.BloomCache;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.*;
+import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.merge.policy.EnableMergePolicy;
 import org.elasticsearch.index.merge.policy.MergePolicyProvider;
@@ -91,6 +92,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
     private volatile boolean enableGcDeletes = true;
 
     private final ThreadPool threadPool;
+
+    private final ShardIndexingService indexingService;
 
     private final IndexSettingsService indexSettingsService;
 
@@ -152,7 +155,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
     @Inject
     public RobinEngine(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool,
-                       IndexSettingsService indexSettingsService,
+                       IndexSettingsService indexSettingsService, ShardIndexingService indexingService,
                        Store store, SnapshotDeletionPolicy deletionPolicy, Translog translog,
                        MergePolicyProvider mergePolicyProvider, MergeSchedulerProvider mergeScheduler,
                        AnalysisService analysisService, SimilarityService similarityService,
@@ -170,6 +173,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
         this.threadPool = threadPool;
         this.indexSettingsService = indexSettingsService;
+        this.indexingService = indexingService;
         this.store = store;
         this.deletionPolicy = deletionPolicy;
         this.translog = translog;
@@ -464,6 +468,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             Translog.Location translogLocation = translog.add(new Translog.Create(create));
 
             versionMap.put(create.uid().text(), new VersionValue(updatedVersion, false, threadPool.estimatedTimeInMillis(), translogLocation));
+
+            indexingService.postCreateUnderLock(create);
         }
     }
 
@@ -576,6 +582,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             Translog.Location translogLocation = translog.add(new Translog.Index(index));
 
             versionMap.put(index.uid().text(), new VersionValue(updatedVersion, false, threadPool.estimatedTimeInMillis(), translogLocation));
+
+            indexingService.postIndexUnderLock(index);
         }
     }
 
@@ -678,6 +686,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                 Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
                 versionMap.put(delete.uid().text(), new VersionValue(updatedVersion, true, threadPool.estimatedTimeInMillis(), translogLocation));
             }
+
+            indexingService.postDeleteUnderLock(delete);
         }
     }
 

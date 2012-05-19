@@ -223,7 +223,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
             String currentFieldName = null;
             XContentParser.Token token = parser.nextToken(); // move the START_OBJECT
             if (token != XContentParser.Token.START_OBJECT) {
-                throw new ElasticSearchException("Failed to add query [" + name + "], not starting with OBJECT");
+                throw new ElasticSearchException("failed to parse query [" + name + "], not starting with OBJECT");
             }
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
@@ -240,8 +240,8 @@ public class PercolatorExecutor extends AbstractIndexComponent {
                 }
             }
             return query;
-        } catch (IOException e) {
-            throw new ElasticSearchException("Failed to add query [" + name + "]", e);
+        } catch (Exception e) {
+            throw new ElasticSearchException("failed to parse query [" + name + "]", e);
         } finally {
             if (parser != null) {
                 parser.close();

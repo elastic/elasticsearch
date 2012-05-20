@@ -51,7 +51,7 @@ public class Index implements Serializable, Streamable {
 
     @Override
     public String toString() {
-        return "Index [" + name + "]";
+        return "[" + name + "]";
     }
 
     @Override

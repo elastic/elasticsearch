@@ -102,7 +102,7 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
         request.index(state.metaData().concreteIndex(request.index()));
         if (state.metaData().hasIndex(request.index())) {
             // check if routing is required, if so, do a broadcast delete
-            MappingMetaData mappingMd = state.metaData().index(request.index()).mapping(request.type());
+            MappingMetaData mappingMd = state.metaData().index(request.index()).mappingOrDefault(request.type());
             if (mappingMd != null && mappingMd.routing().required()) {
                 if (request.routing() == null) {
                     indexDeleteAction.execute(new IndexDeleteRequest(request), new ActionListener<IndexDeleteResponse>() {

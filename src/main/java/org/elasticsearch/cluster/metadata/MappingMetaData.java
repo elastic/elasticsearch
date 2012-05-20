@@ -351,6 +351,18 @@ public class MappingMetaData {
         this.timestamp = timestamp;
     }
 
+    void updateDefaultMapping(MappingMetaData defaultMapping) {
+        if (id == Id.EMPTY) {
+            id = defaultMapping.id();
+        }
+        if (routing == Routing.EMPTY) {
+            routing = defaultMapping.routing();
+        }
+        if (timestamp == Timestamp.EMPTY) {
+            timestamp = defaultMapping.timestamp();
+        }
+    }
+
     public String type() {
         return this.type;
     }

@@ -39,6 +39,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -242,8 +243,25 @@ public class IndexMetaData {
         return mappings();
     }
 
+    @Nullable
     public MappingMetaData mapping(String mappingType) {
         return mappings.get(mappingType);
+    }
+
+    /**
+     * Sometimes, the default mapping exists and an actual mapping is not created yet (introduced),
+     * in this case, we want to return the default mapping in case it has some default mapping definitions.
+     * <p/>
+     * Note, once the mapping type is introduced, the default mapping is applied on the actual typed MappingMetaData,
+     * setting its routing, timestamp, and so on if needed.
+     */
+    @Nullable
+    public MappingMetaData mappingOrDefault(String mappingType) {
+        MappingMetaData mapping = mappings.get(mappingType);
+        if (mapping != null) {
+            return mapping;
+        }
+        return mappings.get(MapperService.DEFAULT_MAPPING);
     }
 
     @Nullable
@@ -413,6 +431,14 @@ public class IndexMetaData {
                 tmpAliases.putAll(aliases.immutableMap());
                 // Remove index.aliases from settings once they are migrated to the new data structure
                 tmpSettings = ImmutableSettings.settingsBuilder().put(settings).putArray("index.aliases").build();
+            }
+
+            // update default mapping on the MappingMetaData
+            if (mappings.containsKey(MapperService.DEFAULT_MAPPING)) {
+                MappingMetaData defaultMapping = mappings.get(MapperService.DEFAULT_MAPPING);
+                for (MappingMetaData mappingMetaData : mappings.map().values()) {
+                    mappingMetaData.updateDefaultMapping(defaultMapping);
+                }
             }
 
             return new IndexMetaData(index, version, state, tmpSettings, mappings.immutableMap(), tmpAliases.immutableMap());

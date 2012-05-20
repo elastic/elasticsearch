@@ -70,7 +70,7 @@ public class ShardId implements Serializable, Streamable {
 
     @Override
     public String toString() {
-        return "Index Shard [" + index.name() + "][" + shardId + "]";
+        return "[" + index.name() + "][" + shardId + "]";
     }
 
     @Override

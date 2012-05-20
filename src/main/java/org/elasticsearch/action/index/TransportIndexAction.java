@@ -125,7 +125,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         request.index(metaData.concreteIndex(request.index()));
         MappingMetaData mappingMd = null;
         if (metaData.hasIndex(request.index())) {
-            mappingMd = metaData.index(request.index()).mapping(request.type());
+            mappingMd = metaData.index(request.index()).mappingOrDefault(request.type());
         }
         request.process(metaData, aliasOrIndex, mappingMd, allowIdGeneration);
         return true;
@@ -186,7 +186,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         final IndexRequest request = shardRequest.request;
 
         // validate, if routing is required, that we got routing
-        MappingMetaData mappingMd = clusterState.metaData().index(request.index()).mapping(request.type());
+        MappingMetaData mappingMd = clusterState.metaData().index(request.index()).mappingOrDefault(request.type());
         if (mappingMd != null && mappingMd.routing().required()) {
             if (request.routing() == null) {
                 throw new RoutingMissingException(request.index(), request.type(), request.id());

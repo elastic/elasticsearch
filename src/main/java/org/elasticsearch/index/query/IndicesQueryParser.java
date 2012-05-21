@@ -57,6 +57,7 @@ public class IndicesQueryParser implements QueryParser {
         XContentParser parser = parseContext.parser();
 
         Query query = null;
+        boolean queryFound = false;
         Set<String> indices = Sets.newHashSet();
 
         String currentFieldName = null;
@@ -68,6 +69,7 @@ public class IndicesQueryParser implements QueryParser {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("query".equals(currentFieldName)) {
                     query = parseContext.parseInnerQuery();
+                    queryFound = true;
                 } else if ("no_match_query".equals(currentFieldName)) {
                     noMatchQuery = parseContext.parseInnerQuery();
                 } else {
@@ -100,8 +102,11 @@ public class IndicesQueryParser implements QueryParser {
                 }
             }
         }
-        if (query == null) {
+        if (!queryFound) {
             throw new QueryParsingException(parseContext.index(), "[indices] requires 'query' element");
+        }
+        if (query == null) {
+            return null;
         }
         if (indices.isEmpty()) {
             throw new QueryParsingException(parseContext.index(), "[indices] requires 'indices' element");

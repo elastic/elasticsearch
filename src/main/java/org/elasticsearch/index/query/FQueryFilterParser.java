@@ -50,6 +50,7 @@ public class FQueryFilterParser implements FilterParser {
         XContentParser parser = parseContext.parser();
 
         Query query = null;
+        boolean queryFound = false;
         boolean cache = false;
         CacheKeyFilter.Key cacheKey = null;
 
@@ -61,6 +62,7 @@ public class FQueryFilterParser implements FilterParser {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("query".equals(currentFieldName)) {
+                    queryFound = true;
                     query = parseContext.parseInnerQuery();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[fquery] filter does not support [" + currentFieldName + "]");
@@ -76,6 +78,12 @@ public class FQueryFilterParser implements FilterParser {
                     throw new QueryParsingException(parseContext.index(), "[fquery] filter does not support [" + currentFieldName + "]");
                 }
             }
+        }
+        if (!queryFound) {
+            throw new QueryParsingException(parseContext.index(), "[fquery] requires 'query' element");
+        }
+        if (query == null) {
+            return null;
         }
         Filter filter = new QueryWrapperFilter(query);
         if (cache) {

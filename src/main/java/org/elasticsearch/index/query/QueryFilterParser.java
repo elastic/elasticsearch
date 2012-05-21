@@ -45,6 +45,9 @@ public class QueryFilterParser implements FilterParser {
     @Override
     public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         Query query = parseContext.parseInnerQuery();
+        if (query == null) {
+            return null;
+        }
         return new QueryWrapperFilter(query);
     }
 }

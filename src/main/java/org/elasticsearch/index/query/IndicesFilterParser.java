@@ -56,6 +56,7 @@ public class IndicesFilterParser implements FilterParser {
         XContentParser parser = parseContext.parser();
 
         Filter filter = null;
+        boolean filterFound = false;
         Set<String> indices = Sets.newHashSet();
 
         String currentFieldName = null;
@@ -66,6 +67,7 @@ public class IndicesFilterParser implements FilterParser {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("filter".equals(currentFieldName)) {
+                    filterFound = true;
                     filter = parseContext.parseInnerFilter();
                 } else if ("no_match_filter".equals(currentFieldName)) {
                     noMatchFilter = parseContext.parseInnerFilter();
@@ -99,11 +101,15 @@ public class IndicesFilterParser implements FilterParser {
                 }
             }
         }
-        if (filter == null) {
+        if (!filterFound) {
             throw new QueryParsingException(parseContext.index(), "[indices] requires 'filter' element");
         }
         if (indices.isEmpty()) {
             throw new QueryParsingException(parseContext.index(), "[indices] requires 'indices' element");
+        }
+
+        if (filter == null) {
+            return null;
         }
 
         String[] concreteIndices = indices.toArray(new String[indices.size()]);

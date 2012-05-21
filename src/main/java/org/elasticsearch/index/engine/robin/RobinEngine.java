@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.engine.robin;
 
+import com.google.common.collect.Lists;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -1438,7 +1439,68 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             ExtendedIndexSearcher searcher = new ExtendedIndexSearcher(reader);
             searcher.setSimilarity(similarityService.defaultSearchSimilarity());
             if (warmer != null) {
-                warmer.warm(shardId, new SimpleSearcher(searcher));
+                // we need to pass a custom searcher that does not release anything on Engine.Search Release,
+                // we will release explicitly
+                Searcher currentSearcher = null;
+                ExtendedIndexSearcher newSearcher = null;
+                boolean closeNewSearcher = false;
+                try {
+                    if (searcherManager == null) {
+                        // fresh index writer, just do on all of it
+                        newSearcher = searcher;
+                    } else {
+                        currentSearcher = searcher();
+                        // figure out the newSearcher, with only the new readers that are relevant for us
+                        List<IndexReader> readers = Lists.newArrayList();
+                        for (IndexReader subReader : searcher.subReaders()) {
+                            boolean found = false;
+                            for (IndexReader currentReader : currentSearcher.searcher().subReaders()) {
+                                if (currentReader.getCoreCacheKey().equals(subReader.getCoreCacheKey())) {
+                                    found = true;
+                                    break;
+                                }
+                            }
+                            if (!found) {
+                                readers.add(subReader);
+                            }
+                        }
+                        if (!readers.isEmpty()) {
+                            // we don't want to close the inner readers, just increase ref on them
+                            newSearcher = new ExtendedIndexSearcher(new MultiReader(readers.toArray(new IndexReader[readers.size()]), false));
+                            closeNewSearcher = true;
+                        }
+                    }
+
+                    if (newSearcher != null) {
+                        IndicesWarmer.WarmerContext context = new IndicesWarmer.WarmerContext(shardId,
+                                new SimpleSearcher(searcher),
+                                new SimpleSearcher(newSearcher));
+                        warmer.warm(context);
+                    }
+                } catch (Exception e) {
+                    if (!closed) {
+                        logger.warn("failed to prepare/warm", e);
+                    }
+                } finally {
+                    // no need to release the fullSearcher, nothing really is done...
+                    if (currentSearcher != null) {
+                        currentSearcher.release();
+                    }
+                    if (newSearcher != null && closeNewSearcher) {
+                        try {
+                            newSearcher.close();
+                        } catch (Exception e) {
+                            // ignore
+                        }
+                        try {
+                            // close the reader as well, since closing the searcher does nothing
+                            // and we want to decRef the inner readers
+                            newSearcher.getIndexReader().close();
+                        } catch (IOException e) {
+                            // ignore
+                        }
+                    }
+                }
             }
             return searcher;
         }

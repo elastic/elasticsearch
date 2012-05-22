@@ -69,6 +69,8 @@ public class TextQueryBuilder extends BaseQueryBuilder {
 
     private Integer maxExpansions;
 
+    private String minimumShouldMatch;
+
     /**
      * Constructs a new text query.
      */
@@ -140,6 +142,11 @@ public class TextQueryBuilder extends BaseQueryBuilder {
         return this;
     }
 
+    public TextQueryBuilder minimumShouldMatch(String minimumShouldMatch) {
+        this.minimumShouldMatch = minimumShouldMatch;
+        return this;
+    }
+
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(TextQueryParser.NAME);
@@ -169,6 +176,9 @@ public class TextQueryBuilder extends BaseQueryBuilder {
         }
         if (maxExpansions != null) {
             builder.field("max_expansions", maxExpansions);
+        }
+        if (minimumShouldMatch != null) {
+            builder.field("minimum_should_match", minimumShouldMatch);
         }
 
         builder.endObject();

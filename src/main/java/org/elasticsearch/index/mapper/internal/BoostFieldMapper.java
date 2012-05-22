@@ -191,6 +191,17 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
     }
 
     @Override
+    public Filter nullValueFilter() {
+        if (nullValue == null) {
+            return null;
+        }
+        return NumericRangeFilter.newFloatRange(names.indexName(), precisionStep,
+                nullValue,
+                nullValue,
+                true, true);
+    }
+
+    @Override
     public void preParse(ParseContext context) throws IOException {
     }
 

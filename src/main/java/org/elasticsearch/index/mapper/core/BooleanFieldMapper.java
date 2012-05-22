@@ -21,9 +21,11 @@ package org.elasticsearch.index.mapper.core;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.Mapper;
@@ -158,6 +160,14 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
             return "T";
         }
         return "F";
+    }
+
+    @Override
+    public Filter nullValueFilter() {
+        if (nullValue == null) {
+            return null;
+        }
+        return new TermFilter(names().createIndexNameTerm(nullValue ? "T" : "F"));
     }
 
     @Override

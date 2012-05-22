@@ -199,6 +199,17 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
     }
 
     @Override
+    public Filter nullValueFilter() {
+        if (nullValue == null) {
+            return null;
+        }
+        return NumericRangeFilter.newDoubleRange(names.indexName(), precisionStep,
+                nullValue,
+                nullValue,
+                true, true);
+    }
+
+    @Override
     protected boolean customBoost() {
         return true;
     }

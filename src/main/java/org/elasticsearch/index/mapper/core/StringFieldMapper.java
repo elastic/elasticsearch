@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper.core;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -212,6 +213,14 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
     @Override
     public Analyzer searchQuoteAnalyzer() {
         return this.searchQuotedAnalyzer;
+    }
+
+    @Override
+    public Filter nullValueFilter() {
+        if (nullValue == null) {
+            return null;
+        }
+        return fieldFilter(nullValue, null);
     }
 
     @Override

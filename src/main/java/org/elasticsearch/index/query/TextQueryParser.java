@@ -20,9 +20,11 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -68,6 +70,7 @@ public class TextQueryParser implements QueryParser {
         int prefixLength = FuzzyQuery.defaultPrefixLength;
         int maxExpansions = FuzzyQuery.defaultMaxExpansions;
         BooleanClause.Occur occur = BooleanClause.Occur.SHOULD;
+        String minimumShouldMatch = null;
 
         token = parser.nextToken();
         if (token == XContentParser.Token.START_OBJECT) {
@@ -111,6 +114,8 @@ public class TextQueryParser implements QueryParser {
                         } else {
                             throw new QueryParsingException(parseContext.index(), "text query requires operator to be either 'and' or 'or', not [" + op + "]");
                         }
+                    } else if ("minimum_should_match".equals(currentFieldName) || "minimumShouldMatch".equals(currentFieldName)) {
+                        minimumShouldMatch = parser.textOrNull();
                     } else {
                         throw new QueryParsingException(parseContext.index(), "[text] query does not support [" + currentFieldName + "]");
                     }
@@ -136,6 +141,11 @@ public class TextQueryParser implements QueryParser {
         tQP.setOccur(occur);
 
         Query query = tQP.parse(type);
+
+        if (query instanceof BooleanQuery) {
+            Queries.applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);
+        }
+
         query.setBoost(boost);
         return query;
     }

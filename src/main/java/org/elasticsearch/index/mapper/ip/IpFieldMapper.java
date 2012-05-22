@@ -227,6 +227,18 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
+    public Filter nullValueFilter() {
+        if (nullValue == null) {
+            return null;
+        }
+        final long value = ipToLong(nullValue);
+        return NumericRangeFilter.newLongRange(names.indexName(), precisionStep,
+                value,
+                value,
+                true, true);
+    }
+
+    @Override
     protected Fieldable parseCreateField(ParseContext context) throws IOException {
         String ipAsString;
         if (context.externalValueSet()) {

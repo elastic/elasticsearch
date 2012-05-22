@@ -416,6 +416,11 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
     }
 
     @Override
+    public Filter nullValueFilter() {
+        return null;
+    }
+
+    @Override
     public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
         if (!this.getClass().equals(mergeWith.getClass())) {
             String mergedType = mergeWith.getClass().getSimpleName();

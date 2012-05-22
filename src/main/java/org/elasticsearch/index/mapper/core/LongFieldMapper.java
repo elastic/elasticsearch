@@ -199,6 +199,17 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
+    public Filter nullValueFilter() {
+        if (nullValue == null) {
+            return null;
+        }
+        return NumericRangeFilter.newLongRange(names.indexName(), precisionStep,
+                nullValue,
+                nullValue,
+                true, true);
+    }
+
+    @Override
     protected boolean customBoost() {
         return true;
     }

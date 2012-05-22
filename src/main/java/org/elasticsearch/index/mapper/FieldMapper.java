@@ -210,5 +210,11 @@ public interface FieldMapper<T> {
      */
     Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context);
 
+    /**
+     * Null value filter, returns <tt>null</tt> if there is no null value associated with the field.
+     */
+    @Nullable
+    Filter nullValueFilter();
+
     FieldDataType fieldDataType();
 }

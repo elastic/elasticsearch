@@ -23,6 +23,7 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.TermRangeFilter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.NotFilter;
+import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
 
@@ -52,6 +53,8 @@ public class MissingFilterParser implements FilterParser {
 
         String fieldName = null;
         String filterName = null;
+        boolean nullValue = false;
+        boolean existence = true;
 
         XContentParser.Token token;
         String currentFieldName = null;
@@ -61,6 +64,10 @@ public class MissingFilterParser implements FilterParser {
             } else if (token.isValue()) {
                 if ("field".equals(currentFieldName)) {
                     fieldName = parser.text();
+                } else if ("null_value".equals(currentFieldName)) {
+                    nullValue = parser.booleanValue();
+                } else if ("existence".equals(currentFieldName)) {
+                    existence = parser.booleanValue();
                 } else if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
                 } else {
@@ -70,27 +77,66 @@ public class MissingFilterParser implements FilterParser {
         }
 
         if (fieldName == null) {
-            throw new QueryParsingException(parseContext.index(), "exists must be provided with a [field]");
+            throw new QueryParsingException(parseContext.index(), "missing must be provided with a [field]");
         }
 
-        Filter filter = null;
+        if (!existence && !nullValue) {
+            throw new QueryParsingException(parseContext.index(), "missing must have either existence, or null_value, or both set to true");
+        }
+
+        Filter existenceFilter = null;
+        Filter nullFilter = null;
+
+
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
-        if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
-            filter = smartNameFieldMappers.mapper().rangeFilter(null, null, true, true, parseContext);
-        }
-        if (filter == null) {
-            filter = new TermRangeFilter(fieldName, null, null, true, true);
+
+        if (existence) {
+            if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
+                existenceFilter = smartNameFieldMappers.mapper().rangeFilter(null, null, true, true, parseContext);
+            }
+            if (existenceFilter == null) {
+                existenceFilter = new TermRangeFilter(fieldName, null, null, true, true);
+            }
+
+            // we always cache this one, really does not change... (exists)
+            existenceFilter = parseContext.cacheFilter(existenceFilter, null);
+            existenceFilter = new NotFilter(existenceFilter);
+            // cache the not filter as well, so it will be faster
+            existenceFilter = parseContext.cacheFilter(existenceFilter, null);
         }
 
-        // we always cache this one, really does not change... (exists)
-        filter = parseContext.cacheFilter(filter, null);
-        filter = new NotFilter(filter);
-        // cache the not filter as well, so it will be faster
-        filter = parseContext.cacheFilter(filter, null);
+        if (nullValue) {
+            if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
+                nullFilter = smartNameFieldMappers.mapper().nullValueFilter();
+                if (nullFilter != null) {
+                    // cache the not filter as well, so it will be faster
+                    nullFilter = parseContext.cacheFilter(nullFilter, null);
+                }
+            }
+        }
+
+        Filter filter;
+        if (nullFilter != null) {
+            if (existenceFilter != null) {
+                XBooleanFilter combined = new XBooleanFilter();
+                combined.addShould(existenceFilter);
+                combined.addShould(nullFilter);
+                // cache the not filter as well, so it will be faster
+                filter = parseContext.cacheFilter(combined, null);
+            } else {
+                filter = nullFilter;
+            }
+        } else {
+            filter = existenceFilter;
+        }
+
+        if (filter == null) {
+            return null;
+        }
 
         filter = wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext);
         if (filterName != null) {
-            parseContext.addNamedFilter(filterName, filter);
+            parseContext.addNamedFilter(filterName, existenceFilter);
         }
         return filter;
     }

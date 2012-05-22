@@ -194,6 +194,17 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
     }
 
     @Override
+    public Filter nullValueFilter() {
+        if (nullValue == null) {
+            return null;
+        }
+        return NumericRangeFilter.newFloatRange(names.indexName(), precisionStep,
+                nullValue,
+                nullValue,
+                true, true);
+    }
+
+    @Override
     protected boolean customBoost() {
         return true;
     }

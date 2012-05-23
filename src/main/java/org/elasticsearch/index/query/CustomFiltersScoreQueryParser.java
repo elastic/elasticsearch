@@ -63,6 +63,7 @@ public class CustomFiltersScoreQueryParser implements QueryParser {
         ArrayList<Filter> filters = new ArrayList<Filter>();
         ArrayList<String> scripts = new ArrayList<String>();
         TFloatArrayList boosts = new TFloatArrayList();
+        float maxBoost = Float.MAX_VALUE;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -133,6 +134,8 @@ public class CustomFiltersScoreQueryParser implements QueryParser {
                     } else {
                         throw new QueryParsingException(parseContext.index(), "[custom_filters_score] illegal score_mode [" + sScoreMode + "]");
                     }
+                } else if ("max_boost".equals(currentFieldName) || "maxBoost".equals(currentFieldName)) {
+                    maxBoost = parser.floatValue();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[custom_filters_score] query does not support [" + currentFieldName + "]");
                 }
@@ -157,7 +160,7 @@ public class CustomFiltersScoreQueryParser implements QueryParser {
             }
             filterFunctions[i] = new FiltersFunctionScoreQuery.FilterFunction(filters.get(i), scoreFunction);
         }
-        FiltersFunctionScoreQuery functionScoreQuery = new FiltersFunctionScoreQuery(query, scoreMode, filterFunctions);
+        FiltersFunctionScoreQuery functionScoreQuery = new FiltersFunctionScoreQuery(query, scoreMode, filterFunctions, maxBoost);
         functionScoreQuery.setBoost(boost);
         return functionScoreQuery;
     }

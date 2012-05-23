@@ -45,6 +45,8 @@ public class QueryParserSettings {
     private int phraseSlop = 0;
     private float fuzzyMinSim = FuzzyQuery.defaultMinSimilarity;
     private int fuzzyPrefixLength = FuzzyQuery.defaultPrefixLength;
+    private int fuzzyMaxExpansions = FuzzyQuery.defaultMaxExpansions;
+    private MultiTermQuery.RewriteMethod fuzzyRewriteMethod = null;
     private boolean analyzeWildcard = DEFAULT_ANALYZE_WILDCARD;
     private boolean escape = false;
     private Analyzer defaultAnalyzer = null;
@@ -148,6 +150,22 @@ public class QueryParserSettings {
 
     public void fuzzyPrefixLength(int fuzzyPrefixLength) {
         this.fuzzyPrefixLength = fuzzyPrefixLength;
+    }
+
+    public int fuzzyMaxExpansions() {
+        return fuzzyMaxExpansions;
+    }
+
+    public void fuzzyMaxExpansions(int fuzzyMaxExpansions) {
+        this.fuzzyMaxExpansions = fuzzyMaxExpansions;
+    }
+
+    public MultiTermQuery.RewriteMethod fuzzyRewriteMethod() {
+        return fuzzyRewriteMethod;
+    }
+
+    public void fuzzyRewriteMethod(MultiTermQuery.RewriteMethod fuzzyRewriteMethod) {
+        this.fuzzyRewriteMethod = fuzzyRewriteMethod;
     }
 
     public boolean escape() {
@@ -277,6 +295,9 @@ public class QueryParserSettings {
         if (analyzeWildcard != that.analyzeWildcard) return false;
         if (Float.compare(that.fuzzyMinSim, fuzzyMinSim) != 0) return false;
         if (fuzzyPrefixLength != that.fuzzyPrefixLength) return false;
+        if (fuzzyMaxExpansions != that.fuzzyMaxExpansions) return false;
+        if (fuzzyRewriteMethod != null ? !fuzzyRewriteMethod.equals(that.fuzzyRewriteMethod) : that.fuzzyRewriteMethod != null)
+            return false;
         if (lowercaseExpandedTerms != that.lowercaseExpandedTerms) return false;
         if (phraseSlop != that.phraseSlop) return false;
         if (defaultAnalyzer != null ? !defaultAnalyzer.equals(that.defaultAnalyzer) : that.defaultAnalyzer != null)

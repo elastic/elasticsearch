@@ -118,6 +118,10 @@ public class FieldQueryParser implements QueryParser {
                         qpSettings.fuzzyMinSim(parser.floatValue());
                     } else if ("fuzzy_prefix_length".equals(currentFieldName) || "fuzzyPrefixLength".equals(currentFieldName)) {
                         qpSettings.fuzzyPrefixLength(parser.intValue());
+                    } else if ("fuzzy_max_expansions".equals(currentFieldName) || "fuzzyMaxExpansions".equals(currentFieldName)) {
+                        qpSettings.fuzzyMaxExpansions(parser.intValue());
+                    } else if ("fuzzy_rewrite".equals(currentFieldName) || "fuzzyRewrite".equals(currentFieldName)) {
+                        qpSettings.fuzzyRewriteMethod(QueryParsers.parseRewriteMethod(parser.textOrNull()));
                     } else if ("escape".equals(currentFieldName)) {
                         qpSettings.escape(parser.booleanValue());
                     } else if ("analyze_wildcard".equals(currentFieldName) || "analyzeWildcard".equals(currentFieldName)) {

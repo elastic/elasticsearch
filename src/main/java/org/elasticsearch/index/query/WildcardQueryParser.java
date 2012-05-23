@@ -97,6 +97,7 @@ public class WildcardQueryParser implements QueryParser {
         }
 
         WildcardQuery query = new WildcardQuery(new Term(fieldName, value));
+        QueryParsers.setRewriteMethod(query, rewriteMethod);
         query.setRewriteMethod(QueryParsers.parseRewriteMethod(rewriteMethod));
         query.setBoost(boost);
         return wrapSmartNameQuery(query, smartNameFieldMappers, parseContext);

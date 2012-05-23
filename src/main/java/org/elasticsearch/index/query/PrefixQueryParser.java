@@ -91,7 +91,7 @@ public class PrefixQueryParser implements QueryParser {
             throw new QueryParsingException(parseContext.index(), "No value specified for prefix query");
         }
 
-        MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(rewriteMethod);
+        MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(rewriteMethod, null);
 
         Query query = null;
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);

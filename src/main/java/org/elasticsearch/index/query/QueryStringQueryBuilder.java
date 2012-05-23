@@ -65,11 +65,13 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder {
 
     private Boolean analyzeWildcard;
 
-    private float fuzzyMinSim = -1;
 
     private float boost = -1;
 
+    private float fuzzyMinSim = -1;
     private int fuzzyPrefixLength = -1;
+    private int fuzzyMaxExpansions = -1;
+    private String fuzzyRewrite;
 
     private int phraseSlop = -1;
 
@@ -237,6 +239,16 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder {
         return this;
     }
 
+    public QueryStringQueryBuilder fuzzyMaxExpansions(int fuzzyMaxExpansions) {
+        this.fuzzyMaxExpansions = fuzzyMaxExpansions;
+        return this;
+    }
+
+    public QueryStringQueryBuilder fuzzyRewrite(String fuzzyRewrite) {
+        this.fuzzyRewrite = fuzzyRewrite;
+        return this;
+    }
+
     /**
      * Sets the default slop for phrases.  If zero, then exact phrase matches
      * are required. Default value is zero.
@@ -346,6 +358,12 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder {
         }
         if (fuzzyPrefixLength != -1) {
             builder.field("fuzzy_prefix_length", fuzzyPrefixLength);
+        }
+        if (fuzzyMaxExpansions != -1) {
+            builder.field("fuzzy_max_expansions", fuzzyMaxExpansions);
+        }
+        if (fuzzyRewrite != null) {
+            builder.field("fuzzy_rewrite", fuzzyRewrite);
         }
         if (phraseSlop != -1) {
             builder.field("phrase_slop", phraseSlop);

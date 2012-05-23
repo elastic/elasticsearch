@@ -27,8 +27,6 @@ import java.io.IOException;
  * A query that executes the query string against a field. It is a simplified
  * version of {@link QueryStringQueryBuilder} that simply runs against
  * a single field.
- *
- *
  */
 public class FieldQueryBuilder extends BaseQueryBuilder {
 
@@ -55,11 +53,12 @@ public class FieldQueryBuilder extends BaseQueryBuilder {
 
     private Boolean analyzeWildcard;
 
+    private int fuzzyPrefixLength = -1;
     private float fuzzyMinSim = -1;
+    private int fuzzyMaxExpansions = -1;
+    private String fuzzyRewrite;
 
     private float boost = -1;
-
-    private int fuzzyPrefixLength = -1;
 
     private int phraseSlop = -1;
 
@@ -253,6 +252,17 @@ public class FieldQueryBuilder extends BaseQueryBuilder {
         return this;
     }
 
+    public FieldQueryBuilder fuzzyMaxExpansions(int fuzzyMaxExpansions) {
+        this.fuzzyMaxExpansions = fuzzyMaxExpansions;
+        return this;
+    }
+
+    public FieldQueryBuilder fuzzyRewrite(String fuzzyRewrite) {
+        this.fuzzyRewrite = fuzzyRewrite;
+        return this;
+    }
+
+
     /**
      * Sets the default slop for phrases.  If zero, then exact phrase matches
      * are required. Default value is zero.
@@ -317,6 +327,12 @@ public class FieldQueryBuilder extends BaseQueryBuilder {
             }
             if (fuzzyPrefixLength != -1) {
                 builder.field("fuzzy_prefix_length", fuzzyPrefixLength);
+            }
+            if (fuzzyMaxExpansions != -1) {
+                builder.field("fuzzy_max_expansions", fuzzyMaxExpansions);
+            }
+            if (fuzzyRewrite != null) {
+                builder.field("fuzzy_rewrite", fuzzyRewrite);
             }
             if (phraseSlop != -1) {
                 builder.field("phrase_slop", phraseSlop);

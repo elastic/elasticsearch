@@ -71,6 +71,9 @@ public class TextQueryBuilder extends BaseQueryBuilder {
 
     private String minimumShouldMatch;
 
+    private String rewrite = null;
+    private String fuzzyRewrite = null;
+
     /**
      * Constructs a new text query.
      */
@@ -147,6 +150,16 @@ public class TextQueryBuilder extends BaseQueryBuilder {
         return this;
     }
 
+    public TextQueryBuilder rewrite(String rewrite) {
+        this.rewrite = rewrite;
+        return this;
+    }
+
+    public TextQueryBuilder fuzzyRewrite(String fuzzyRewrite) {
+        this.fuzzyRewrite = fuzzyRewrite;
+        return this;
+    }
+
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(TextQueryParser.NAME);
@@ -179,6 +192,12 @@ public class TextQueryBuilder extends BaseQueryBuilder {
         }
         if (minimumShouldMatch != null) {
             builder.field("minimum_should_match", minimumShouldMatch);
+        }
+        if (rewrite != null) {
+            builder.field("rewrite", rewrite);
+        }
+        if (fuzzyRewrite != null) {
+            builder.field("fuzzy_rewrite", fuzzyRewrite);
         }
 
         builder.endObject();

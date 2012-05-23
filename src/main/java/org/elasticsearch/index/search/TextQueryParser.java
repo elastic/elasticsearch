@@ -35,6 +35,7 @@ import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -68,6 +69,9 @@ public class TextQueryParser {
     private int fuzzyPrefixLength = FuzzyQuery.defaultPrefixLength;
     private int maxExpansions = FuzzyQuery.defaultMaxExpansions;
 
+    private MultiTermQuery.RewriteMethod rewriteMethod;
+    private MultiTermQuery.RewriteMethod fuzzyRewriteMethod;
+
     public TextQueryParser(QueryParseContext parseContext, String fieldName, String text) {
         this.parseContext = parseContext;
         this.fieldName = fieldName;
@@ -100,6 +104,14 @@ public class TextQueryParser {
 
     public void setMaxExpansions(int maxExpansions) {
         this.maxExpansions = maxExpansions;
+    }
+
+    public void setRewriteMethod(MultiTermQuery.RewriteMethod rewriteMethod) {
+        this.rewriteMethod = rewriteMethod;
+    }
+
+    public void setFuzzyRewriteMethod(MultiTermQuery.RewriteMethod fuzzyRewriteMethod) {
+        this.fuzzyRewriteMethod = fuzzyRewriteMethod;
     }
 
     public Query parse(Type type) {
@@ -347,9 +359,14 @@ public class TextQueryParser {
     private Query newTermQuery(@Nullable FieldMapper mapper, Term term) {
         if (fuzziness != null) {
             if (mapper != null) {
-                return mapper.fuzzyQuery(term.text(), fuzziness, fuzzyPrefixLength, maxExpansions);
+                Query query = mapper.fuzzyQuery(term.text(), fuzziness, fuzzyPrefixLength, maxExpansions);
+                if (query instanceof FuzzyQuery) {
+                    QueryParsers.setRewriteMethod((FuzzyQuery) query, fuzzyRewriteMethod);
+                }
             }
-            return new FuzzyQuery(term, Float.parseFloat(fuzziness), fuzzyPrefixLength, maxExpansions);
+            FuzzyQuery query = new FuzzyQuery(term, Float.parseFloat(fuzziness), fuzzyPrefixLength, maxExpansions);
+            QueryParsers.setRewriteMethod(query, rewriteMethod);
+            return query;
         }
         if (mapper != null) {
             Query termQuery = mapper.queryStringTermQuery(term);

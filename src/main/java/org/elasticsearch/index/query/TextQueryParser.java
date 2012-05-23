@@ -19,13 +19,11 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.search.Query;
+import org.apache.lucene.search.*;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
 
@@ -71,6 +69,8 @@ public class TextQueryParser implements QueryParser {
         int maxExpansions = FuzzyQuery.defaultMaxExpansions;
         BooleanClause.Occur occur = BooleanClause.Occur.SHOULD;
         String minimumShouldMatch = null;
+        MultiTermQuery.RewriteMethod rewriteMethod = null;
+        MultiTermQuery.RewriteMethod fuzzyRewriteMethod = null;
 
         token = parser.nextToken();
         if (token == XContentParser.Token.START_OBJECT) {
@@ -116,6 +116,10 @@ public class TextQueryParser implements QueryParser {
                         }
                     } else if ("minimum_should_match".equals(currentFieldName) || "minimumShouldMatch".equals(currentFieldName)) {
                         minimumShouldMatch = parser.textOrNull();
+                    } else if ("rewrite".equals(currentFieldName)) {
+                        rewriteMethod = QueryParsers.parseRewriteMethod(parser.textOrNull(), null);
+                    } else if ("fuzzy_rewrite".equals(currentFieldName) || "fuzzyRewrite".equals(currentFieldName)) {
+                        fuzzyRewriteMethod = QueryParsers.parseRewriteMethod(parser.textOrNull(), null);
                     } else {
                         throw new QueryParsingException(parseContext.index(), "[text] query does not support [" + currentFieldName + "]");
                     }
@@ -138,6 +142,8 @@ public class TextQueryParser implements QueryParser {
         tQP.setFuzziness(fuzziness);
         tQP.setFuzzyPrefixLength(prefixLength);
         tQP.setMaxExpansions(maxExpansions);
+        tQP.setRewriteMethod(rewriteMethod);
+        tQP.setFuzzyRewriteMethod(fuzzyRewriteMethod);
         tQP.setOccur(occur);
 
         Query query = tQP.parse(type);

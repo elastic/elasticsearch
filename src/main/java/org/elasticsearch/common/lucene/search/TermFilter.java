@@ -30,8 +30,6 @@ import java.io.IOException;
 
 /**
  * A simple filter for a specific term.
- *
- *
  */
 public class TermFilter extends Filter {
 
@@ -51,11 +49,17 @@ public class TermFilter extends Filter {
         TermDocs td = reader.termDocs();
         try {
             td.seek(term);
-            if (td.next()) {
+            // batch read, in Lucene 4.0 its no longer needed
+            int[] docs = new int[32];
+            int[] freqs = new int[32];
+            int number = td.read(docs, freqs);
+            if (number > 0) {
                 result = new FixedBitSet(reader.maxDoc());
-                result.set(td.doc());
-                while (td.next()) {
-                    result.set(td.doc());
+                while (number > 0) {
+                    for (int i = 0; i < number; i++) {
+                        result.set(docs[i]);
+                    }
+                    number = td.read(docs, freqs);
                 }
             }
         } finally {

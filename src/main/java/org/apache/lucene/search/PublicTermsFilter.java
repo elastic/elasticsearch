@@ -76,15 +76,21 @@ public class PublicTermsFilter extends Filter {
         FixedBitSet result = null;
         TermDocs td = reader.termDocs();
         try {
+            // batch read, in Lucene 4.0 its no longer needed
+            int[] docs = new int[32];
+            int[] freqs = new int[32];
             for (Term term : terms) {
                 td.seek(term);
-                if (td.next()) {
+                int number = td.read(docs, freqs);
+                if (number > 0) {
                     if (result == null) {
                         result = new FixedBitSet(reader.maxDoc());
                     }
-                    result.set(td.doc());
-                    while (td.next()) {
-                        result.set(td.doc());
+                    while (number > 0) {
+                        for (int i = 0; i < number; i++) {
+                            result.set(docs[i]);
+                        }
+                        number = td.read(docs, freqs);
                     }
                 }
             }
@@ -97,8 +103,8 @@ public class PublicTermsFilter extends Filter {
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder();
-        for(Term term: terms) {
-            if(builder.length() > 0) {
+        for (Term term : terms) {
+            if (builder.length() > 0) {
                 builder.append(' ');
             }
             builder.append(term);

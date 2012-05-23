@@ -29,8 +29,6 @@ import java.util.Map;
 
 /**
  * A query that uses a filters with a script associated with them to compute the score.
- *
- *
  */
 public class CustomFiltersScoreQueryBuilder extends BaseQueryBuilder {
 
@@ -39,6 +37,8 @@ public class CustomFiltersScoreQueryBuilder extends BaseQueryBuilder {
     private String lang;
 
     private float boost = -1;
+
+    private Float maxBoost;
 
     private Map<String, Object> params = null;
 
@@ -102,6 +102,11 @@ public class CustomFiltersScoreQueryBuilder extends BaseQueryBuilder {
         return this;
     }
 
+    public CustomFiltersScoreQueryBuilder maxBoost(float maxBoost) {
+        this.maxBoost = maxBoost;
+        return this;
+    }
+
     /**
      * Sets the boost for this query.  Documents matching this query will (in addition to the normal
      * weightings) have their score multiplied by the boost provided.
@@ -134,6 +139,9 @@ public class CustomFiltersScoreQueryBuilder extends BaseQueryBuilder {
 
         if (scoreMode != null) {
             builder.field("score_mode", scoreMode);
+        }
+        if (maxBoost != null) {
+            builder.field("max_boost", maxBoost);
         }
 
         if (lang != null) {

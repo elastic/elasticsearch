@@ -25,12 +25,15 @@ import org.elasticsearch.common.io.stream.HandlesStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 import org.elasticsearch.transport.support.TransportStreams;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.channel.*;
+import org.jboss.netty.handler.codec.frame.TooLongFrameException;
 
 import java.io.IOException;
 import java.io.StreamCorruptedException;
@@ -51,6 +54,8 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
 
     // from FrameDecoder
     private ChannelBuffer cumulation;
+
+    private static final long NINETY_PER_HEAP_SIZE = (long) (JvmInfo.jvmInfo().mem().heapMax().bytes() * 0.9);
 
     public MessageChannelHandler(NettyTransport transport, ESLogger logger) {
         this.threadPool = transport.threadPool();
@@ -129,6 +134,11 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
             int dataLen = buffer.getInt(buffer.readerIndex());
             if (dataLen <= 0) {
                 throw new StreamCorruptedException("invalid data length: " + dataLen);
+            }
+            // safety against too large frames being sent
+            if (dataLen > NINETY_PER_HEAP_SIZE) {
+                throw new TooLongFrameException(
+                        "transport content length received [" + new ByteSizeValue(dataLen) + "] exceeded [" + new ByteSizeValue(NINETY_PER_HEAP_SIZE) + "]");
             }
 
             actualSize = dataLen + 4;

@@ -49,6 +49,7 @@ import org.elasticsearch.cluster.ClusterNameModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.io.CachedStreams;
@@ -62,6 +63,8 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.node.internal.InternalSettingsPerparer;
+import org.elasticsearch.plugins.PluginsModule;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.search.TransportSearchModule;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
@@ -87,6 +90,8 @@ public class TransportClient extends AbstractClient {
 
     private final Environment environment;
 
+
+    private final PluginsService pluginsService;
 
     private final TransportClientNodesService nodesService;
 
@@ -141,13 +146,17 @@ public class TransportClient extends AbstractClient {
      */
     public TransportClient(Settings pSettings, boolean loadConfigSettings) throws ElasticSearchException {
         Tuple<Settings, Environment> tuple = InternalSettingsPerparer.prepareSettings(pSettings, loadConfigSettings);
-        this.settings = settingsBuilder().put(tuple.v1())
+        Settings settings = settings = settingsBuilder().put(tuple.v1())
                 .put("network.server", false)
                 .put("node.client", true)
                 .build();
         this.environment = tuple.v2();
 
+        this.pluginsService = new PluginsService(tuple.v1(), tuple.v2());
+        this.settings = pluginsService.updatedSettings();
+
         ModulesBuilder modules = new ModulesBuilder();
+        modules.add(new PluginsModule(settings, pluginsService));
         modules.add(new EnvironmentModule(environment));
         modules.add(new SettingsModule(settings));
         modules.add(new NetworkModule());
@@ -236,6 +245,10 @@ public class TransportClient extends AbstractClient {
             injector.getInstance(MonitorService.class).close();
         } catch (Exception e) {
             // ignore, might not be bounded
+        }
+
+        for (Class<? extends LifecycleComponent> plugin : pluginsService.services()) {
+            injector.getInstance(plugin).close();
         }
 
         injector.getInstance(ThreadPool.class).shutdown();

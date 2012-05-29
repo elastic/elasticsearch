@@ -55,8 +55,8 @@ The following are a list of settings (prefixed with `discovery.ec2`) that can fu
 * `groups`: Either a comma separated list or array based list of (security) groups. Only instances with the provided security groups will be used in the cluster discovery.
 * `host_type`: The type of host type to use to communicate with other instances. Can be one of `private_ip`, `public_ip`, `private_dns`, `public_dns`. Defaults to `private_ip`.
 * `availability_zones`: Either a comma separated list or array based list of availability zones. Only instances within the provided availability zones will be used in the cluster discovery.
-* `any_group`|If set to `false`, will require all security groups to be present for the instance to be used for the discovery. Defaults to `true`.
-* `ping_timeout`|How long to wait for existing EC2 nodes to reply during discovery. Defaults to 3s.
+* `any_group`: If set to `false`, will require all security groups to be present for the instance to be used for the discovery. Defaults to `true`.
+* `ping_timeout`: How long to wait for existing EC2 nodes to reply during discovery. Defaults to 3s.
 
 ### Filtering by Tags
 

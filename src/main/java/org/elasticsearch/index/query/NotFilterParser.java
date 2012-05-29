@@ -64,6 +64,10 @@ public class NotFilterParser implements FilterParser {
                     // its the filter, and the name is the field
                     filter = parseContext.parseInnerFilter(currentFieldName);
                 }
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                filterFound = true;
+                // its the filter, and the name is the field
+                filter = parseContext.parseInnerFilter(currentFieldName);
             } else if (token.isValue()) {
                 if ("_cache".equals(currentFieldName)) {
                     cache = parser.booleanValue();

@@ -28,7 +28,7 @@ import java.io.IOException;
  *
  *
  */
-public class MoreLikeThisFieldQueryBuilder extends BaseQueryBuilder {
+public class MoreLikeThisFieldQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<MoreLikeThisFieldQueryBuilder> {
 
     private final String name;
 

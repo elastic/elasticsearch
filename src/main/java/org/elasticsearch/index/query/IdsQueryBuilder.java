@@ -29,7 +29,7 @@ import java.util.List;
 /**
  * A query that will return only documents matching specific ids (and a type).
  */
-public class IdsQueryBuilder extends BaseQueryBuilder {
+public class IdsQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<IdsQueryBuilder> {
 
     private final List<String> types;
 

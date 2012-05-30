@@ -29,7 +29,7 @@ import java.io.IOException;
  *
  *
  */
-public class MoreLikeThisQueryBuilder extends BaseQueryBuilder {
+public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<MoreLikeThisQueryBuilder> {
 
     private final String[] fields;
 

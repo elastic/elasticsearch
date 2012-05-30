@@ -27,7 +27,7 @@ import java.util.ArrayList;
 /**
  *
  */
-public class SpanNearQueryBuilder extends BaseQueryBuilder implements SpanQueryBuilder {
+public class SpanNearQueryBuilder extends BaseQueryBuilder implements SpanQueryBuilder, BoostableQueryBuilder<SpanNearQueryBuilder> {
 
     private ArrayList<SpanQueryBuilder> clauses = new ArrayList<SpanQueryBuilder>();
 

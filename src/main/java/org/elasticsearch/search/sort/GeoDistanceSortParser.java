@@ -113,11 +113,11 @@ public class GeoDistanceSortParser implements SortParser {
             }
         }
 
-        if (normalizeLat) {
-            lat = GeoUtils.normalizeLat(lat);
-        }
-        if (normalizeLon) {
-            lon = GeoUtils.normalizeLon(lon);
+        if (normalizeLat || normalizeLon) {
+            Point pt = new Point(lat, lon);
+            GeoUtils.normalizePoint(pt, normalizeLat, normalizeLon);
+            lat = pt.lat;
+            lon = pt.lon;
         }
 
         return new SortField(fieldName, GeoDistanceDataComparator.comparatorSource(fieldName, lat, lon, unit, geoDistance, context.fieldDataCache(), context.mapperService()), reverse);

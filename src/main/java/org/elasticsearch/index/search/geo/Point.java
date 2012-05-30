@@ -21,16 +21,30 @@ package org.elasticsearch.index.search.geo;
 
 /**
  */
-public class Point {
+public class Point implements Comparable<Point> {
     public double lat;
     public double lon;
 
     public Point() {
     }
 
+    public Point(Point pt) {
+        this.lat = pt.lat;
+        this.lon = pt.lon;
+    }
+
     public Point(double lat, double lon) {
         this.lat = lat;
         this.lon = lon;
+    }
+
+    @Override
+    public int compareTo(Point pt) {
+        int rtn;
+        rtn = Double.compare(lat, pt.lat);
+        if (rtn != 0) return rtn;
+        rtn = Double.compare(lon, pt.lon);
+        return rtn;
     }
 
     @Override

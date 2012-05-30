@@ -372,11 +372,11 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
     }
 
     private void parseLatLon(ParseContext context, double lat, double lon) throws IOException {
-        if (normalizeLon) {
-            lon = GeoUtils.normalizeLon(lon);
-        }
-        if (normalizeLat) {
-            lat = GeoUtils.normalizeLat(lat);
+        if (normalizeLat || normalizeLon) {
+            Point pt = new Point(lat, lon);
+            GeoUtils.normalizePoint(pt, normalizeLat, normalizeLon);
+            lat = pt.lat;
+            lon = pt.lon;
         }
 
         if (validateLat) {
@@ -409,11 +409,11 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
         double lat = values[0];
         double lon = values[1];
 
-        if (normalizeLon) {
-            lon = GeoUtils.normalizeLon(lon);
-        }
-        if (normalizeLat) {
-            lat = GeoUtils.normalizeLat(lat);
+        if (normalizeLat || normalizeLon) {
+            Point pt = new Point(lat, lon);
+            GeoUtils.normalizePoint(pt, normalizeLat, normalizeLon);
+            lat = pt.lat;
+            lon = pt.lon;
         }
 
         if (validateLat) {

@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -29,6 +30,8 @@ import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.search.geo.*;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameFilter;
 
@@ -61,8 +64,7 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
         String filterName = null;
         String currentFieldName = null;
         XContentParser.Token token;
-        boolean normalizeLon = true;
-        boolean normalizeLat = true;
+        boolean normalize = true;
 
         String type = "memory";
 
@@ -151,23 +153,21 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
                 } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
                     cacheKey = new CacheKeyFilter.Key(parser.text());
                 } else if ("normalize".equals(currentFieldName)) {
-                    normalizeLat = parser.booleanValue();
-                    normalizeLon = parser.booleanValue();
+                    normalize = parser.booleanValue();
                 } else if ("type".equals(currentFieldName)) {
                     type = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[qeo_bbox] filter does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext.index(), "[geo_bbox] filter does not support [" + currentFieldName + "]");
                 }
             }
         }
 
-        if (normalizeLat) {
-            topLeft.lat = GeoUtils.normalizeLat(topLeft.lat);
-            bottomRight.lat = GeoUtils.normalizeLat(bottomRight.lat);
-        }
-        if (normalizeLon) {
-            topLeft.lon = GeoUtils.normalizeLon(topLeft.lon);
-            bottomRight.lon = GeoUtils.normalizeLon(bottomRight.lon);
+        List<Range> ranges = null;
+        if (normalize) {
+            ranges = GeoUtils.normalizeRange(topLeft, bottomRight);
+        } else {
+            ranges = new ArrayList<Range>(1);
+            ranges.add(new Range(topLeft, bottomRight));
         }
 
         MapperService.SmartNameFieldMappers smartMappers = parseContext.smartFieldMappers(fieldName);
@@ -182,15 +182,20 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
 
         fieldName = mapper.names().indexName();
 
-        Filter filter;
-        if ("indexed".equals(type)) {
-            filter = IndexedGeoBoundingBoxFilter.create(topLeft, bottomRight, geoMapper);
-        } else if ("memory".equals(type)) {
-            filter = new InMemoryGeoBoundingBoxFilter(topLeft, bottomRight, fieldName, parseContext.indexCache().fieldData());
-        } else {
-            throw new QueryParsingException(parseContext.index(), "geo bounding box type [" + type + "] not supported, either 'indexed' or 'memory' are allowed");
+        XBooleanFilter boolFilter = new XBooleanFilter();
+        for (Range r : ranges) {
+            Filter f;
+            if ("indexed".equals(type)) {
+                f = IndexedGeoBoundingBoxFilter.create(topLeft, bottomRight, geoMapper);
+            } else if ("memory".equals(type)) {
+                f = new InMemoryGeoBoundingBoxFilter(topLeft, bottomRight, fieldName, parseContext.indexCache().fieldData());
+            } else {
+                throw new QueryParsingException(parseContext.index(), "geo bounding box type [" + type + "] not supported, either 'indexed' or 'memory' are allowed");
+            }
+            boolFilter.addShould(f);
         }
 
+        Filter filter = boolFilter;
         if (cache) {
             filter = parseContext.cacheFilter(filter, cacheKey);
         }

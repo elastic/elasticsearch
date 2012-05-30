@@ -224,11 +224,11 @@ public class GeoDistanceRangeFilterParser implements FilterParser {
             to = geoDistance.normalize(to, DistanceUnit.MILES);
         }
 
-        if (normalizeLat) {
-            lat = GeoUtils.normalizeLat(lat);
-        }
-        if (normalizeLon) {
-            lon = GeoUtils.normalizeLon(lon);
+        if (normalizeLat || normalizeLon) {
+            Point pt = new Point(lat, lon);
+            GeoUtils.normalizePoint(pt, normalizeLat, normalizeLon);
+            lat = pt.lat;
+            lon = pt.lon;
         }
 
         MapperService.SmartNameFieldMappers smartMappers = parseContext.smartFieldMappers(fieldName);

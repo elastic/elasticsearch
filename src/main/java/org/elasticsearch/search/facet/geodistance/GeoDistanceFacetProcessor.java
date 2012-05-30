@@ -171,11 +171,11 @@ public class GeoDistanceFacetProcessor extends AbstractComponent implements Face
             throw new FacetPhaseExecutionException(facetName, "no ranges defined for geo_distance facet");
         }
 
-        if (normalizeLat) {
-            lat = GeoUtils.normalizeLat(lat);
-        }
-        if (normalizeLon) {
-            lon = GeoUtils.normalizeLon(lon);
+        if (normalizeLat || normalizeLon) {
+            Point pt = new Point(lat, lon);
+            GeoUtils.normalizePoint(pt, normalizeLat, normalizeLon);
+            lat = pt.lat;
+            lon = pt.lon;
         }
 
         if (valueFieldName != null) {

@@ -28,7 +28,7 @@ import java.io.IOException;
  *
  *
  */
-public class MatchAllQueryBuilder extends BaseQueryBuilder {
+public class MatchAllQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<MatchAllQueryBuilder> {
 
     private String normsField;
 

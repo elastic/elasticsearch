@@ -29,7 +29,7 @@ import java.io.IOException;
  *
  *
  */
-public class ConstantScoreQueryBuilder extends BaseQueryBuilder {
+public class ConstantScoreQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<ConstantScoreQueryBuilder> {
 
     private final FilterBuilder filterBuilder;
 

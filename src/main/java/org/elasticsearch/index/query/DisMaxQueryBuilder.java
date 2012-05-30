@@ -33,7 +33,7 @@ import static com.google.common.collect.Lists.newArrayList;
  *
  *
  */
-public class DisMaxQueryBuilder extends BaseQueryBuilder {
+public class DisMaxQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<DisMaxQueryBuilder> {
 
     private ArrayList<QueryBuilder> queries = newArrayList();
 

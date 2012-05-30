@@ -165,7 +165,9 @@ public class EvenShardsCountAllocator extends AbstractComponent implements Shard
 
     @Override
     public boolean move(MutableShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        assert shardRouting.started();
+        if (!shardRouting.started()) {
+            return false;
+        }
         boolean changed = false;
         RoutingNode[] sortedNodesLeastToHigh = sortedNodesLeastToHigh(allocation);
         if (sortedNodesLeastToHigh.length == 0) {

@@ -23,7 +23,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class NestedQueryBuilder extends BaseQueryBuilder {
+public class NestedQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<NestedQueryBuilder> {
 
     private final QueryBuilder queryBuilder;
     private final FilterBuilder filterBuilder;

@@ -28,7 +28,7 @@ import java.io.IOException;
  *
  *
  */
-public class TermQueryBuilder extends BaseQueryBuilder {
+public class TermQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<TermQueryBuilder> {
 
     private final String name;
 

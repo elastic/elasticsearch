@@ -30,7 +30,7 @@ import java.util.List;
  *
  *
  */
-public class BoolQueryBuilder extends BaseQueryBuilder {
+public class BoolQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<BoolQueryBuilder> {
 
     private ArrayList<QueryBuilder> mustClauses = new ArrayList<QueryBuilder>();
 

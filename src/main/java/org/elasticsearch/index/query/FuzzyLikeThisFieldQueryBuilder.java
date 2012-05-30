@@ -26,7 +26,7 @@ import java.io.IOException;
 /**
  *
  */
-public class FuzzyLikeThisFieldQueryBuilder extends BaseQueryBuilder {
+public class FuzzyLikeThisFieldQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<FuzzyLikeThisFieldQueryBuilder> {
 
     private final String name;
 

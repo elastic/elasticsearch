@@ -30,7 +30,7 @@ import java.util.Map;
  *
  *
  */
-public class CustomScoreQueryBuilder extends BaseQueryBuilder {
+public class CustomScoreQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<CustomScoreQueryBuilder> {
 
     private final QueryBuilder queryBuilder;
 

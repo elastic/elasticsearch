@@ -302,6 +302,11 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
     }
 
     @Override
+    public Analyzer searchQuoteAnalyzer() {
+        return this.searchAnalyzer;
+    }
+
+    @Override
     public void parse(ParseContext context) throws IOException {
         try {
             Fieldable field = parseCreateField(context);
@@ -408,6 +413,11 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
                 lowerTerm == null ? null : indexedValue(lowerTerm),
                 upperTerm == null ? null : indexedValue(upperTerm),
                 includeLower, includeUpper);
+    }
+
+    @Override
+    public Filter nullValueFilter() {
+        return null;
     }
 
     @Override

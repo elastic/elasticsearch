@@ -19,12 +19,12 @@
 
 package org.elasticsearch.common.xcontent;
 
+import org.elasticsearch.common.BytesHolder;
+
 import java.io.*;
 
 /**
  * A generic abstraction on top of handling content, inspired by JSON and pull parsing.
- *
- *
  */
 public interface XContent {
 
@@ -64,6 +64,11 @@ public interface XContent {
      * Creates a parser over the provided bytes.
      */
     XContentParser createParser(byte[] data, int offset, int length) throws IOException;
+
+    /**
+     * Creates a parser over the provided bytes.
+     */
+    XContentParser createParser(BytesHolder bytes) throws IOException;
 
     /**
      * Creates a parser over the provided reader.

@@ -106,8 +106,7 @@ public class DocumentMapperParser extends AbstractIndexComponent {
 
     public void putTypeParser(String type, Mapper.TypeParser typeParser) {
         synchronized (typeParsersMutex) {
-            typeParsers = new MapBuilder<String, Mapper.TypeParser>()
-                    .putAll(typeParsers)
+            typeParsers = new MapBuilder<String, Mapper.TypeParser>(typeParsers)
                     .put(type, typeParser)
                     .immutableMap();
         }
@@ -177,6 +176,12 @@ public class DocumentMapperParser extends AbstractIndexComponent {
                     throw new MapperParsingException("Analyzer [" + fieldNode.toString() + "] not found for search_analyzer setting on root type [" + type + "]");
                 }
                 docBuilder.searchAnalyzer(analyzer);
+            } else if ("search_quote_analyzer".equals(fieldName)) {
+                NamedAnalyzer analyzer = analysisService.analyzer(fieldNode.toString());
+                if (analyzer == null) {
+                    throw new MapperParsingException("Analyzer [" + fieldNode.toString() + "] not found for search_analyzer setting on root type [" + type + "]");
+                }
+                docBuilder.searchQuoteAnalyzer(analyzer);
             } else if ("analyzer".equals(fieldName)) {
                 NamedAnalyzer analyzer = analysisService.analyzer(fieldNode.toString());
                 if (analyzer == null) {
@@ -197,6 +202,9 @@ public class DocumentMapperParser extends AbstractIndexComponent {
         }
         if (!docBuilder.hasSearchAnalyzer()) {
             docBuilder.searchAnalyzer(analysisService.defaultSearchAnalyzer());
+        }
+        if (!docBuilder.hasSearchQuoteAnalyzer()) {
+            docBuilder.searchAnalyzer(analysisService.defaultSearchQuoteAnalyzer());
         }
 
         ImmutableMap<String, Object> attributes = ImmutableMap.of();

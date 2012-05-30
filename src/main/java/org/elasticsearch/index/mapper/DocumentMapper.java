@@ -132,6 +132,8 @@ public class DocumentMapper implements ToXContent {
 
         private NamedAnalyzer searchAnalyzer;
 
+        private NamedAnalyzer searchQuoteAnalyzer;
+
         private final String index;
 
         @Nullable
@@ -193,6 +195,14 @@ public class DocumentMapper implements ToXContent {
 
         public Builder searchAnalyzer(NamedAnalyzer searchAnalyzer) {
             this.searchAnalyzer = searchAnalyzer;
+            if (this.searchQuoteAnalyzer == null) {
+                this.searchQuoteAnalyzer = searchAnalyzer;
+            }
+            return this;
+        }
+
+        public Builder searchQuoteAnalyzer(NamedAnalyzer searchQuoteAnalyzer) {
+            this.searchQuoteAnalyzer = searchQuoteAnalyzer;
             return this;
         }
 
@@ -200,10 +210,14 @@ public class DocumentMapper implements ToXContent {
             return searchAnalyzer != null;
         }
 
+        public boolean hasSearchQuoteAnalyzer() {
+            return searchQuoteAnalyzer != null;
+        }
+
         public DocumentMapper build(DocumentMapperParser docMapperParser) {
             Preconditions.checkNotNull(rootObjectMapper, "Mapper builder must have the root object mapper set");
             return new DocumentMapper(index, indexSettings, docMapperParser, rootObjectMapper, meta,
-                    indexAnalyzer, searchAnalyzer,
+                    indexAnalyzer, searchAnalyzer, searchQuoteAnalyzer,
                     rootMappers);
         }
     }
@@ -237,6 +251,7 @@ public class DocumentMapper implements ToXContent {
     private final NamedAnalyzer indexAnalyzer;
 
     private final NamedAnalyzer searchAnalyzer;
+    private final NamedAnalyzer searchQuoteAnalyzer;
 
     private volatile DocumentFieldMappers fieldMappers;
 
@@ -257,7 +272,7 @@ public class DocumentMapper implements ToXContent {
     public DocumentMapper(String index, @Nullable Settings indexSettings, DocumentMapperParser docMapperParser,
                           RootObjectMapper rootObjectMapper,
                           ImmutableMap<String, Object> meta,
-                          NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer,
+                          NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer, NamedAnalyzer searchQuoteAnalyzer,
                           Map<Class<? extends RootMapper>, RootMapper> rootMappers) {
         this.index = index;
         this.indexSettings = indexSettings;
@@ -278,6 +293,7 @@ public class DocumentMapper implements ToXContent {
 
         this.indexAnalyzer = indexAnalyzer;
         this.searchAnalyzer = searchAnalyzer;
+        this.searchQuoteAnalyzer = searchQuoteAnalyzer != null ? searchQuoteAnalyzer : searchAnalyzer;
 
         this.typeFilter = typeMapper().fieldFilter(type, null);
 
@@ -387,6 +403,10 @@ public class DocumentMapper implements ToXContent {
 
     public Analyzer searchAnalyzer() {
         return this.searchAnalyzer;
+    }
+
+    public Analyzer searchQuotedAnalyzer() {
+        return this.searchQuoteAnalyzer;
     }
 
     public Filter typeFilter() {

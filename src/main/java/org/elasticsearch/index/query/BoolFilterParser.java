@@ -62,26 +62,44 @@ public class BoolFilterParser implements FilterParser {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("must".equals(currentFieldName)) {
-                    boolFilter.add(new FilterClause(parseContext.parseInnerFilter(), BooleanClause.Occur.MUST));
+                    Filter filter = parseContext.parseInnerFilter();
+                    if (filter != null) {
+                        boolFilter.add(new FilterClause(filter, BooleanClause.Occur.MUST));
+                    }
                 } else if ("must_not".equals(currentFieldName) || "mustNot".equals(currentFieldName)) {
-                    boolFilter.add(new FilterClause(parseContext.parseInnerFilter(), BooleanClause.Occur.MUST_NOT));
+                    Filter filter = parseContext.parseInnerFilter();
+                    if (filter != null) {
+                        boolFilter.add(new FilterClause(filter, BooleanClause.Occur.MUST_NOT));
+                    }
                 } else if ("should".equals(currentFieldName)) {
-                    boolFilter.add(new FilterClause(parseContext.parseInnerFilter(), BooleanClause.Occur.SHOULD));
+                    Filter filter = parseContext.parseInnerFilter();
+                    if (filter != null) {
+                        boolFilter.add(new FilterClause(filter, BooleanClause.Occur.SHOULD));
+                    }
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[bool] filter does not support [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("must".equals(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        boolFilter.add(new FilterClause(parseContext.parseInnerFilter(), BooleanClause.Occur.MUST));
+                        Filter filter = parseContext.parseInnerFilter();
+                        if (filter != null) {
+                            boolFilter.add(new FilterClause(filter, BooleanClause.Occur.MUST));
+                        }
                     }
                 } else if ("must_not".equals(currentFieldName) || "mustNot".equals(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        boolFilter.add(new FilterClause(parseContext.parseInnerFilter(), BooleanClause.Occur.MUST_NOT));
+                        Filter filter = parseContext.parseInnerFilter();
+                        if (filter != null) {
+                            boolFilter.add(new FilterClause(filter, BooleanClause.Occur.MUST_NOT));
+                        }
                     }
                 } else if ("should".equals(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        boolFilter.add(new FilterClause(parseContext.parseInnerFilter(), BooleanClause.Occur.SHOULD));
+                        Filter filter = parseContext.parseInnerFilter();
+                        if (filter != null) {
+                            boolFilter.add(new FilterClause(filter, BooleanClause.Occur.SHOULD));
+                        }
                     }
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[bool] filter does not support [" + currentFieldName + "]");
@@ -97,6 +115,10 @@ public class BoolFilterParser implements FilterParser {
                     throw new QueryParsingException(parseContext.index(), "[bool] filter does not support [" + currentFieldName + "]");
                 }
             }
+        }
+
+        if (boolFilter.getMustFilters().isEmpty() && boolFilter.getNotFilters().isEmpty() && boolFilter.getShouldFilters().isEmpty()) {
+            return null;
         }
 
         Filter filter = boolFilter;

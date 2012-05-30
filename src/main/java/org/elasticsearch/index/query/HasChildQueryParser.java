@@ -52,6 +52,7 @@ public class HasChildQueryParser implements QueryParser {
         XContentParser parser = parseContext.parser();
 
         Query query = null;
+        boolean queryFound = false;
         float boost = 1.0f;
         String childType = null;
         String scope = null;
@@ -68,6 +69,7 @@ public class HasChildQueryParser implements QueryParser {
                     String[] origTypes = QueryParseContext.setTypesWithPrevious(childType == null ? null : new String[]{childType});
                     try {
                         query = parseContext.parseInnerQuery();
+                        queryFound = true;
                     } finally {
                         QueryParseContext.setTypes(origTypes);
                     }
@@ -86,8 +88,11 @@ public class HasChildQueryParser implements QueryParser {
                 }
             }
         }
-        if (query == null) {
+        if (!queryFound) {
             throw new QueryParsingException(parseContext.index(), "[has_child] requires 'query' field");
+        }
+        if (query == null) {
+            return null;
         }
         if (childType == null) {
             throw new QueryParsingException(parseContext.index(), "[has_child] requires 'type' field");

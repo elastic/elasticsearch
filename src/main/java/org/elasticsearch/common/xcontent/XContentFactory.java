@@ -22,6 +22,7 @@ package org.elasticsearch.common.xcontent;
 import org.codehaus.jackson.smile.SmileConstants;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.smile.SmileXContent;
 
@@ -32,8 +33,6 @@ import java.util.Arrays;
 
 /**
  * A one stop to use {@link org.elasticsearch.common.xcontent.XContent} and {@link XContentBuilder}.
- *
- *
  */
 public class XContentFactory {
 
@@ -136,6 +135,13 @@ public class XContentFactory {
      */
     public static XContent xContent(byte[] data) {
         return xContent(data, 0, data.length);
+    }
+
+    /**
+     * Guesses the content type based on the provided bytes.
+     */
+    public static XContent xContent(BytesHolder bytes) {
+        return xContent(bytes.bytes(), bytes.offset(), bytes.length());
     }
 
     /**

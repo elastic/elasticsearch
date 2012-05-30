@@ -35,11 +35,14 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -56,6 +59,8 @@ public class IndexMetaData {
 
     public interface Custom {
 
+        String type();
+
         interface Factory<T extends Custom> {
 
             String type();
@@ -64,13 +69,26 @@ public class IndexMetaData {
 
             void writeTo(T customIndexMetaData, StreamOutput out) throws IOException;
 
+            T fromMap(Map<String, Object> map) throws IOException;
+
             T fromXContent(XContentParser parser) throws IOException;
 
-            void toXContent(T customIndexMetaData, XContentBuilder builder, ToXContent.Params params);
+            void toXContent(T customIndexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException;
+
+            /**
+             * Merges from first to second, with first being more important, i.e., if something exists in first and second,
+             * first will prevail.
+             */
+            T merge(T first, T second);
         }
     }
 
     public static Map<String, Custom.Factory> customFactories = new HashMap<String, Custom.Factory>();
+
+    static {
+        // register non plugin custom metadata
+        registerFactory(IndexWarmersMetaData.TYPE, IndexWarmersMetaData.FACTORY);
+    }
 
     /**
      * Register a custom index meta data factory. Make sure to call it from a static block.
@@ -284,8 +302,25 @@ public class IndexMetaData {
         return mappings();
     }
 
+    @Nullable
     public MappingMetaData mapping(String mappingType) {
         return mappings.get(mappingType);
+    }
+
+    /**
+     * Sometimes, the default mapping exists and an actual mapping is not created yet (introduced),
+     * in this case, we want to return the default mapping in case it has some default mapping definitions.
+     * <p/>
+     * Note, once the mapping type is introduced, the default mapping is applied on the actual typed MappingMetaData,
+     * setting its routing, timestamp, and so on if needed.
+     */
+    @Nullable
+    public MappingMetaData mappingOrDefault(String mappingType) {
+        MappingMetaData mapping = mappings.get(mappingType);
+        if (mapping != null) {
+            return mapping;
+        }
+        return mappings.get(MapperService.DEFAULT_MAPPING);
     }
 
     public ImmutableMap<String, Custom> customs() {
@@ -294,6 +329,10 @@ public class IndexMetaData {
 
     public ImmutableMap<String, Custom> getCustoms() {
         return this.customs;
+    }
+
+    public <T extends Custom> T custom(String type) {
+        return (T) customs.get(type);
     }
 
     @Nullable
@@ -482,6 +521,14 @@ public class IndexMetaData {
                 tmpSettings = ImmutableSettings.settingsBuilder().put(settings).putArray("index.aliases").build();
             }
 
+            // update default mapping on the MappingMetaData
+            if (mappings.containsKey(MapperService.DEFAULT_MAPPING)) {
+                MappingMetaData defaultMapping = mappings.get(MapperService.DEFAULT_MAPPING);
+                for (MappingMetaData mappingMetaData : mappings.map().values()) {
+                    mappingMetaData.updateDefaultMapping(defaultMapping);
+                }
+            }
+
             return new IndexMetaData(index, version, state, tmpSettings, mappings.immutableMap(), tmpAliases.immutableMap(), customs.immutableMap());
         }
 
@@ -514,7 +561,7 @@ public class IndexMetaData {
             builder.endArray();
 
             for (Map.Entry<String, Custom> entry : indexMetaData.customs().entrySet()) {
-                builder.startObject(entry.getKey());
+                builder.startObject(entry.getKey(), XContentBuilder.FieldCaseConversion.NONE);
                 lookupFactorySafe(entry.getKey()).toXContent(entry.getValue(), builder, params);
                 builder.endObject();
             }
@@ -542,14 +589,7 @@ public class IndexMetaData {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if ("settings".equals(currentFieldName)) {
-                        ImmutableSettings.Builder settingsBuilder = settingsBuilder();
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            String key = parser.currentName();
-                            token = parser.nextToken();
-                            String value = parser.text();
-                            settingsBuilder.put(key, value);
-                        }
-                        builder.settings(settingsBuilder.build());
+                        builder.settings(ImmutableSettings.settingsBuilder().put(SettingsLoader.Helper.loadNestedFromMap(parser.mapOrdered())));
                     } else if ("mappings".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             if (token == XContentParser.Token.FIELD_NAME) {

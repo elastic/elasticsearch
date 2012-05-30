@@ -20,6 +20,7 @@
 package org.elasticsearch.index.warmer;
 
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
@@ -40,6 +41,10 @@ public class ShardIndexWarmerService extends AbstractIndexShardComponent {
     @Inject
     public ShardIndexWarmerService(ShardId shardId, @IndexSettings Settings indexSettings) {
         super(shardId, indexSettings);
+    }
+
+    public ESLogger logger() {
+        return this.logger;
     }
 
     public void onPreWarm() {

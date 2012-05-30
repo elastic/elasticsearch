@@ -22,8 +22,6 @@ package org.elasticsearch.index.query;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import org.apache.lucene.queryParser.MapperQueryParser;
-import org.apache.lucene.queryParser.MultiFieldMapperQueryParser;
-import org.apache.lucene.queryParser.MultiFieldQueryParserSettings;
 import org.apache.lucene.queryParser.QueryParserSettings;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
@@ -81,8 +79,6 @@ public class QueryParseContext {
 
     private final MapperQueryParser queryParser = new MapperQueryParser(this);
 
-    private final MultiFieldMapperQueryParser multiFieldQueryParser = new MultiFieldMapperQueryParser(this);
-
     private XContentParser parser;
 
     public QueryParseContext(Index index, IndexQueryParserService indexQueryParser) {
@@ -137,14 +133,13 @@ public class QueryParseContext {
         return indexQueryParser.defaultField();
     }
 
-    public MapperQueryParser singleQueryParser(QueryParserSettings settings) {
-        queryParser.reset(settings);
-        return queryParser;
+    public boolean queryStringLenient() {
+        return indexQueryParser.queryStringLenient();
     }
 
-    public MultiFieldMapperQueryParser multiQueryParser(MultiFieldQueryParserSettings settings) {
-        multiFieldQueryParser.reset(settings);
-        return multiFieldQueryParser;
+    public MapperQueryParser queryParser(QueryParserSettings settings) {
+        queryParser.reset(settings);
+        return queryParser;
     }
 
     public Filter cacheFilter(Filter filter, @Nullable CacheKeyFilter.Key cacheKey) {
@@ -165,6 +160,7 @@ public class QueryParseContext {
         return ImmutableMap.copyOf(namedFilters);
     }
 
+    @Nullable
     public Query parseInnerQuery() throws IOException, QueryParsingException {
         // move to START object
         XContentParser.Token token;
@@ -197,6 +193,7 @@ public class QueryParseContext {
         return result;
     }
 
+    @Nullable
     public Filter parseInnerFilter() throws IOException, QueryParsingException {
         // move to START object
         XContentParser.Token token;

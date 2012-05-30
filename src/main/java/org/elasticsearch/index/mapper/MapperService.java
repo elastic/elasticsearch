@@ -95,6 +95,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     private final InternalObjectMapperListener objectMapperListener = new InternalObjectMapperListener();
 
     private final SmartIndexNameSearchAnalyzer searchAnalyzer;
+    private final SmartIndexNameSearchQuoteAnalyzer searchQuoteAnalyzer;
 
     @Inject
     public MapperService(Index index, @IndexSettings Settings indexSettings, Environment environment, AnalysisService analysisService) {
@@ -102,6 +103,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         this.analysisService = analysisService;
         this.documentParser = new DocumentMapperParser(index, indexSettings, analysisService);
         this.searchAnalyzer = new SmartIndexNameSearchAnalyzer(analysisService.defaultSearchAnalyzer());
+        this.searchQuoteAnalyzer = new SmartIndexNameSearchQuoteAnalyzer(analysisService.defaultSearchQuoteAnalyzer());
 
         this.dynamic = componentSettings.getAsBoolean("dynamic", true);
         String defaultMappingLocation = componentSettings.get("default_mapping_location");
@@ -665,6 +667,10 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         return this.searchAnalyzer;
     }
 
+    public Analyzer searchQuoteAnalyzer() {
+        return this.searchQuoteAnalyzer;
+    }
+
     public static class SmartNameObjectMapper {
         private final ObjectMapper mapper;
         private final DocumentMapper docMapper;
@@ -767,6 +773,19 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             }
             return mapperService.searchAnalyzer();
         }
+
+        public Analyzer searchQuoteAnalyzer() {
+            if (hasMapper()) {
+                Analyzer analyzer = mapper().searchQuoteAnalyzer();
+                if (analyzer != null) {
+                    return analyzer;
+                }
+            }
+            if (docMapper != null && docMapper.searchQuotedAnalyzer() != null) {
+                return docMapper.searchQuotedAnalyzer();
+            }
+            return mapperService.searchQuoteAnalyzer();
+        }
     }
 
     final class SmartIndexNameSearchAnalyzer extends Analyzer {
@@ -862,6 +881,104 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             mappers = indexNameFieldMappers.get(fieldName);
             if (mappers != null && mappers.mapper() != null && mappers.mapper().searchAnalyzer() != null) {
                 return mappers.mapper().searchAnalyzer().reusableTokenStream(fieldName, reader);
+            }
+            return defaultAnalyzer.reusableTokenStream(fieldName, reader);
+        }
+    }
+
+    final class SmartIndexNameSearchQuoteAnalyzer extends Analyzer {
+
+        private final Analyzer defaultAnalyzer;
+
+        SmartIndexNameSearchQuoteAnalyzer(Analyzer defaultAnalyzer) {
+            this.defaultAnalyzer = defaultAnalyzer;
+        }
+
+        @Override
+        public int getPositionIncrementGap(String fieldName) {
+            int dotIndex = fieldName.indexOf('.');
+            if (dotIndex != -1) {
+                String possibleType = fieldName.substring(0, dotIndex);
+                DocumentMapper possibleDocMapper = mappers.get(possibleType);
+                if (possibleDocMapper != null) {
+                    return possibleDocMapper.mappers().searchQuoteAnalyzer().getPositionIncrementGap(fieldName);
+                }
+            }
+            FieldMappers mappers = fullNameFieldMappers.get(fieldName);
+            if (mappers != null && mappers.mapper() != null && mappers.mapper().searchAnalyzer() != null) {
+                return mappers.mapper().searchQuoteAnalyzer().getPositionIncrementGap(fieldName);
+            }
+
+            mappers = indexNameFieldMappers.get(fieldName);
+            if (mappers != null && mappers.mapper() != null && mappers.mapper().searchAnalyzer() != null) {
+                return mappers.mapper().searchQuoteAnalyzer().getPositionIncrementGap(fieldName);
+            }
+            return defaultAnalyzer.getPositionIncrementGap(fieldName);
+        }
+
+        @Override
+        public int getOffsetGap(Fieldable field) {
+            String fieldName = field.name();
+            int dotIndex = fieldName.indexOf('.');
+            if (dotIndex != -1) {
+                String possibleType = fieldName.substring(0, dotIndex);
+                DocumentMapper possibleDocMapper = mappers.get(possibleType);
+                if (possibleDocMapper != null) {
+                    return possibleDocMapper.mappers().searchQuoteAnalyzer().getOffsetGap(field);
+                }
+            }
+            FieldMappers mappers = fullNameFieldMappers.get(fieldName);
+            if (mappers != null && mappers.mapper() != null && mappers.mapper().searchAnalyzer() != null) {
+                return mappers.mapper().searchQuoteAnalyzer().getOffsetGap(field);
+            }
+
+            mappers = indexNameFieldMappers.get(fieldName);
+            if (mappers != null && mappers.mapper() != null && mappers.mapper().searchAnalyzer() != null) {
+                return mappers.mapper().searchQuoteAnalyzer().getOffsetGap(field);
+            }
+            return defaultAnalyzer.getOffsetGap(field);
+        }
+
+        @Override
+        public final TokenStream tokenStream(String fieldName, Reader reader) {
+            int dotIndex = fieldName.indexOf('.');
+            if (dotIndex != -1) {
+                String possibleType = fieldName.substring(0, dotIndex);
+                DocumentMapper possibleDocMapper = mappers.get(possibleType);
+                if (possibleDocMapper != null) {
+                    return possibleDocMapper.mappers().searchQuoteAnalyzer().tokenStream(fieldName, reader);
+                }
+            }
+            FieldMappers mappers = fullNameFieldMappers.get(fieldName);
+            if (mappers != null && mappers.mapper() != null && mappers.mapper().searchAnalyzer() != null) {
+                return mappers.mapper().searchQuoteAnalyzer().tokenStream(fieldName, reader);
+            }
+
+            mappers = indexNameFieldMappers.get(fieldName);
+            if (mappers != null && mappers.mapper() != null && mappers.mapper().searchAnalyzer() != null) {
+                return mappers.mapper().searchQuoteAnalyzer().tokenStream(fieldName, reader);
+            }
+            return defaultAnalyzer.tokenStream(fieldName, reader);
+        }
+
+        @Override
+        public final TokenStream reusableTokenStream(String fieldName, Reader reader) throws IOException {
+            int dotIndex = fieldName.indexOf('.');
+            if (dotIndex != -1) {
+                String possibleType = fieldName.substring(0, dotIndex);
+                DocumentMapper possibleDocMapper = mappers.get(possibleType);
+                if (possibleDocMapper != null) {
+                    return possibleDocMapper.mappers().searchQuoteAnalyzer().reusableTokenStream(fieldName, reader);
+                }
+            }
+            FieldMappers mappers = fullNameFieldMappers.get(fieldName);
+            if (mappers != null && mappers.mapper() != null && mappers.mapper().searchAnalyzer() != null) {
+                return mappers.mapper().searchQuoteAnalyzer().reusableTokenStream(fieldName, reader);
+            }
+
+            mappers = indexNameFieldMappers.get(fieldName);
+            if (mappers != null && mappers.mapper() != null && mappers.mapper().searchAnalyzer() != null) {
+                return mappers.mapper().searchQuoteAnalyzer().reusableTokenStream(fieldName, reader);
             }
             return defaultAnalyzer.reusableTokenStream(fieldName, reader);
         }

@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.Nullable;
 
 import java.io.IOException;
 
@@ -36,6 +37,9 @@ public interface QueryParser {
     /**
      * Parses the into a query from the current parser location. Will be at "START_OBJECT" location,
      * and should end when the token is at the matching "END_OBJECT".
+     * <p/>
+     * Returns <tt>null</tt> if this query should be ignored in the context of the DSL.
      */
+    @Nullable
     Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException;
 }

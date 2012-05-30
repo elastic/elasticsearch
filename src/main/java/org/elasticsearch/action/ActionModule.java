@@ -78,6 +78,10 @@ import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateActio
 import org.elasticsearch.action.admin.indices.template.put.TransportPutIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.validate.query.TransportValidateQueryAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
+import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerAction;
+import org.elasticsearch.action.admin.indices.warmer.delete.TransportDeleteWarmerAction;
+import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerAction;
+import org.elasticsearch.action.admin.indices.warmer.put.TransportPutWarmerAction;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
@@ -182,6 +186,8 @@ public class ActionModule extends AbstractModule {
         registerAction(FlushAction.INSTANCE, TransportFlushAction.class);
         registerAction(OptimizeAction.INSTANCE, TransportOptimizeAction.class);
         registerAction(ClearIndicesCacheAction.INSTANCE, TransportClearIndicesCacheAction.class);
+        registerAction(PutWarmerAction.INSTANCE, TransportPutWarmerAction.class);
+        registerAction(DeleteWarmerAction.INSTANCE, TransportDeleteWarmerAction.class);
 
         registerAction(IndexAction.INSTANCE, TransportIndexAction.class);
         registerAction(GetAction.INSTANCE, TransportGetAction.class);

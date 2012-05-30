@@ -177,8 +177,9 @@ public class InternalSearchRequest implements Streamable {
         return types;
     }
 
-    public void types(String[] types) {
+    public InternalSearchRequest types(String[] types) {
         this.types = types;
+        return this;
     }
 
     @Override

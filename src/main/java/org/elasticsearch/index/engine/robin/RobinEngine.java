@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.engine.robin;
 
+import com.google.common.collect.Lists;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -43,6 +44,7 @@ import org.elasticsearch.index.cache.bloom.BloomCache;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.*;
+import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.merge.policy.EnableMergePolicy;
 import org.elasticsearch.index.merge.policy.MergePolicyProvider;
@@ -55,6 +57,7 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStreams;
+import org.elasticsearch.indices.warmer.IndicesWarmer;
 import org.elasticsearch.indices.warmer.InternalIndicesWarmer;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -93,6 +96,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
     private volatile boolean enableGcDeletes = true;
 
     private final ThreadPool threadPool;
+
+    private final ShardIndexingService indexingService;
 
     private final IndexSettingsService indexSettingsService;
 
@@ -157,7 +162,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
     @Inject
     public RobinEngine(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool,
-                       IndexSettingsService indexSettingsService, @Nullable InternalIndicesWarmer warmer,
+                       IndexSettingsService indexSettingsService, ShardIndexingService indexingService, @Nullable IndicesWarmer warmer,
                        Store store, SnapshotDeletionPolicy deletionPolicy, Translog translog,
                        MergePolicyProvider mergePolicyProvider, MergeSchedulerProvider mergeScheduler,
                        AnalysisService analysisService, SimilarityService similarityService,
@@ -175,7 +180,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
         this.threadPool = threadPool;
         this.indexSettingsService = indexSettingsService;
-        this.warmer = warmer;
+        this.indexingService = indexingService;
+        this.warmer = (InternalIndicesWarmer) warmer;
         this.store = store;
         this.deletionPolicy = deletionPolicy;
         this.translog = translog;
@@ -470,6 +476,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             Translog.Location translogLocation = translog.add(new Translog.Create(create));
 
             versionMap.put(create.uid().text(), new VersionValue(updatedVersion, false, threadPool.estimatedTimeInMillis(), translogLocation));
+
+            indexingService.postCreateUnderLock(create);
         }
     }
 
@@ -582,6 +590,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             Translog.Location translogLocation = translog.add(new Translog.Index(index));
 
             versionMap.put(index.uid().text(), new VersionValue(updatedVersion, false, threadPool.estimatedTimeInMillis(), translogLocation));
+
+            indexingService.postIndexUnderLock(index);
         }
     }
 
@@ -684,6 +694,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                 Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
                 versionMap.put(delete.uid().text(), new VersionValue(updatedVersion, true, threadPool.estimatedTimeInMillis(), translogLocation));
             }
+
+            indexingService.postDeleteUnderLock(delete);
         }
     }
 
@@ -1427,7 +1439,68 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             ExtendedIndexSearcher searcher = new ExtendedIndexSearcher(reader);
             searcher.setSimilarity(similarityService.defaultSearchSimilarity());
             if (warmer != null) {
-                warmer.warm(shardId, new SimpleSearcher(searcher));
+                // we need to pass a custom searcher that does not release anything on Engine.Search Release,
+                // we will release explicitly
+                Searcher currentSearcher = null;
+                ExtendedIndexSearcher newSearcher = null;
+                boolean closeNewSearcher = false;
+                try {
+                    if (searcherManager == null) {
+                        // fresh index writer, just do on all of it
+                        newSearcher = searcher;
+                    } else {
+                        currentSearcher = searcher();
+                        // figure out the newSearcher, with only the new readers that are relevant for us
+                        List<IndexReader> readers = Lists.newArrayList();
+                        for (IndexReader subReader : searcher.subReaders()) {
+                            boolean found = false;
+                            for (IndexReader currentReader : currentSearcher.searcher().subReaders()) {
+                                if (currentReader.getCoreCacheKey().equals(subReader.getCoreCacheKey())) {
+                                    found = true;
+                                    break;
+                                }
+                            }
+                            if (!found) {
+                                readers.add(subReader);
+                            }
+                        }
+                        if (!readers.isEmpty()) {
+                            // we don't want to close the inner readers, just increase ref on them
+                            newSearcher = new ExtendedIndexSearcher(new MultiReader(readers.toArray(new IndexReader[readers.size()]), false));
+                            closeNewSearcher = true;
+                        }
+                    }
+
+                    if (newSearcher != null) {
+                        IndicesWarmer.WarmerContext context = new IndicesWarmer.WarmerContext(shardId,
+                                new SimpleSearcher(searcher),
+                                new SimpleSearcher(newSearcher));
+                        warmer.warm(context);
+                    }
+                } catch (Exception e) {
+                    if (!closed) {
+                        logger.warn("failed to prepare/warm", e);
+                    }
+                } finally {
+                    // no need to release the fullSearcher, nothing really is done...
+                    if (currentSearcher != null) {
+                        currentSearcher.release();
+                    }
+                    if (newSearcher != null && closeNewSearcher) {
+                        try {
+                            newSearcher.close();
+                        } catch (Exception e) {
+                            // ignore
+                        }
+                        try {
+                            // close the reader as well, since closing the searcher does nothing
+                            // and we want to decRef the inner readers
+                            newSearcher.getIndexReader().close();
+                        } catch (IOException e) {
+                            // ignore
+                        }
+                    }
+                }
             }
             return searcher;
         }

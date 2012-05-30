@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.percolator;
 
-import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.IndexReader;
@@ -32,13 +31,13 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.BytesStream;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -171,7 +170,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
 
     private final IndexCache indexCache;
 
-    private volatile ImmutableMap<String, Query> queries = ImmutableMap.of();
+    private final Map<String, Query> queries = ConcurrentCollections.newConcurrentMap();
 
 
     private IndicesService indicesService;
@@ -190,10 +189,8 @@ public class PercolatorExecutor extends AbstractIndexComponent {
         this.indicesService = indicesService;
     }
 
-    public synchronized void close() {
-        ImmutableMap<String, Query> old = queries;
-        queries = ImmutableMap.of();
-        old.clear();
+    public void close() {
+        this.queries.clear();
     }
 
     public void addQuery(String name, QueryBuilder queryBuilder) throws ElasticSearchException {
@@ -223,7 +220,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
             String currentFieldName = null;
             XContentParser.Token token = parser.nextToken(); // move the START_OBJECT
             if (token != XContentParser.Token.START_OBJECT) {
-                throw new ElasticSearchException("Failed to add query [" + name + "], not starting with OBJECT");
+                throw new ElasticSearchException("failed to parse query [" + name + "], not starting with OBJECT");
             }
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
@@ -240,8 +237,8 @@ public class PercolatorExecutor extends AbstractIndexComponent {
                 }
             }
             return query;
-        } catch (IOException e) {
-            throw new ElasticSearchException("Failed to add query [" + name + "]", e);
+        } catch (Exception e) {
+            throw new ElasticSearchException("failed to parse query [" + name + "]", e);
         } finally {
             if (parser != null) {
                 parser.close();
@@ -249,17 +246,17 @@ public class PercolatorExecutor extends AbstractIndexComponent {
         }
     }
 
-    private synchronized void addQuery(String name, Query query) {
+    private void addQuery(String name, Query query) {
         Preconditions.checkArgument(query != null, "query must be provided for percolate request");
-        this.queries = MapBuilder.newMapBuilder(queries).put(name, query).immutableMap();
+        this.queries.put(name, query);
     }
 
-    public synchronized void removeQuery(String name) {
-        this.queries = MapBuilder.newMapBuilder(queries).remove(name).immutableMap();
+    public void removeQuery(String name) {
+        this.queries.remove(name);
     }
 
-    public synchronized void addQueries(Map<String, Query> queries) {
-        this.queries = MapBuilder.newMapBuilder(this.queries).putAll(queries).immutableMap();
+    public void addQueries(Map<String, Query> queries) {
+        this.queries.putAll(queries);
     }
 
     public Response percolate(final SourceRequest request) throws ElasticSearchException {
@@ -282,7 +279,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if ("query".equals(currentFieldName)) {
-                        query = queryParserService.parse(parser).query();
+                        query = percolatorIndexServiceSafe().queryParserService().parse(parser).query();
                     }
                 } else if (token == null) {
                     break;
@@ -306,12 +303,12 @@ public class PercolatorExecutor extends AbstractIndexComponent {
     public Response percolate(DocAndSourceQueryRequest request) throws ElasticSearchException {
         Query query = null;
         if (Strings.hasLength(request.query()) && !request.query().equals("*")) {
-            query = queryParserService.parse(QueryBuilders.queryString(request.query())).query();
+            query = percolatorIndexServiceSafe().queryParserService().parse(QueryBuilders.queryString(request.query())).query();
         }
         return percolate(new DocAndQueryRequest(request.doc(), query));
     }
 
-    public Response percolate(DocAndQueryRequest request) throws ElasticSearchException {
+    private Response percolate(DocAndQueryRequest request) throws ElasticSearchException {
         // first, parse the source doc into a MemoryIndex
         final CustomMemoryIndex memoryIndex = new CustomMemoryIndex();
 
@@ -367,10 +364,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
                     }
                 }
             } else {
-                IndexService percolatorIndex = indicesService.indexService(PercolatorService.INDEX_NAME);
-                if (percolatorIndex == null) {
-                    throw new PercolateIndexUnavailable(new Index(PercolatorService.INDEX_NAME));
-                }
+                IndexService percolatorIndex = percolatorIndexServiceSafe();
                 if (percolatorIndex.numberOfShards() == 0) {
                     throw new PercolateIndexUnavailable(new Index(PercolatorService.INDEX_NAME));
                 }
@@ -392,24 +386,32 @@ public class PercolatorExecutor extends AbstractIndexComponent {
         return new Response(matches, request.doc().mappersAdded());
     }
 
+    private IndexService percolatorIndexServiceSafe() {
+        IndexService indexService = indicesService.indexService(PercolatorService.INDEX_NAME);
+        if (indexService == null) {
+            throw new PercolateIndexUnavailable(new Index(PercolatorService.INDEX_NAME));
+        }
+        return indexService;
+    }
+
     static class QueryCollector extends Collector {
         private final IndexSearcher searcher;
         private final IndexService percolatorIndex;
         private final List<String> matches;
-        private final ImmutableMap<String, Query> queries;
+        private final Map<String, Query> queries;
         private final ESLogger logger;
 
         private final Lucene.ExistsCollector collector = new Lucene.ExistsCollector();
 
-        QueryCollector(ESLogger logger, ImmutableMap<String, Query> queries, IndexSearcher searcher, IndexService percolatorIndex, List<String> matches) {
+        private FieldData fieldData;
+
+        QueryCollector(ESLogger logger, Map<String, Query> queries, IndexSearcher searcher, IndexService percolatorIndex, List<String> matches) {
             this.logger = logger;
             this.queries = queries;
             this.searcher = searcher;
             this.percolatorIndex = percolatorIndex;
             this.matches = matches;
         }
-
-        private FieldData fieldData;
 
         @Override
         public void setScorer(Scorer scorer) throws IOException {
@@ -429,6 +431,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
             }
             // run the query
             try {
+                collector.reset();
                 searcher.search(query, collector);
                 if (collector.exists()) {
                     matches.add(id);

@@ -46,7 +46,7 @@ ES_USER=elasticsearch
 ES_GROUP=elasticsearch
 
 # The first existing directory is used for JAVA_HOME (if JAVA_HOME is not defined in $DEFAULT)
-JDK_DIRS="/usr/lib/jvm/java-7-oracle /usr/lib/jvm/java-6-sun /usr/lib/jvm/java-7-openjdk /usr/lib/jvm/java-6-openjdk"
+JDK_DIRS="/usr/lib/jvm/java-7-oracle /usr/lib/jvm/java-7-openjdk /usr/lib/jvm/java-7-openjdk-amd64/ /usr/lib/jvm/java-7-openjdk-i386/ /usr/lib/jvm/java-6-sun /usr/lib/jvm/java-6-openjdk"
 
 # Look for the right JVM to use
 for jdir in $JDK_DIRS; do
@@ -92,7 +92,7 @@ PID_FILE=/var/run/$NAME.pid
 DAEMON=$ES_HOME/bin/elasticsearch
 DAEMON_OPTS="-p $PID_FILE -Des.config=$CONF_FILE -Des.path.home=$ES_HOME -Des.path.logs=$LOG_DIR -Des.path.data=$DATA_DIR -Des.path.work=$WORK_DIR -Des.path.conf=$CONF_DIR"
 
-export ES_MIN_MEM ES_MAX_MEM
+export ES_HEAP_SIZE
 
 # Check DAEMON exists
 test -x $DAEMON || exit 0

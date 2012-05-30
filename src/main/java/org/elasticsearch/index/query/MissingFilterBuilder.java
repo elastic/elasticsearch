@@ -25,8 +25,6 @@ import java.io.IOException;
 
 /**
  * Constructs a filter that only match on documents that the field has a value in them.
- *
- *
  */
 public class MissingFilterBuilder extends BaseFilterBuilder {
 
@@ -34,8 +32,30 @@ public class MissingFilterBuilder extends BaseFilterBuilder {
 
     private String filterName;
 
+    private Boolean nullValue;
+
+    private Boolean existence;
+
     public MissingFilterBuilder(String name) {
         this.name = name;
+    }
+
+    /**
+     * Should the missing filter automatically include fields with null value configured in the
+     * mappings. Defaults to <tt>false</tt>.
+     */
+    public MissingFilterBuilder nullValue(boolean nullValue) {
+        this.nullValue = nullValue;
+        return this;
+    }
+
+    /**
+     * Should hte missing filter include documents where the field doesn't exists in the docs.
+     * Defaults to <tt>true</tt>.
+     */
+    public MissingFilterBuilder existence(boolean existence) {
+        this.existence = existence;
+        return this;
     }
 
     /**
@@ -46,11 +66,16 @@ public class MissingFilterBuilder extends BaseFilterBuilder {
         return this;
     }
 
-
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(MissingFilterParser.NAME);
         builder.field("field", name);
+        if (nullValue != null) {
+            builder.field("null_value", nullValue);
+        }
+        if (existence != null) {
+            builder.field("existence", existence);
+        }
         if (filterName != null) {
             builder.field("_name", filterName);
         }

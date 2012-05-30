@@ -50,7 +50,9 @@ public class NestedQueryParser implements QueryParser {
         XContentParser parser = parseContext.parser();
 
         Query query = null;
+        boolean queryFound = false;
         Filter filter = null;
+        boolean filterFound = false;
         float boost = 1.0f;
         String scope = null;
         String path = null;
@@ -70,8 +72,10 @@ public class NestedQueryParser implements QueryParser {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if ("query".equals(currentFieldName)) {
+                        queryFound = true;
                         query = parseContext.parseInnerQuery();
                     } else if ("filter".equals(currentFieldName)) {
+                        filterFound = true;
                         filter = parseContext.parseInnerFilter();
                     } else {
                         throw new QueryParsingException(parseContext.index(), "[nested] query does not support [" + currentFieldName + "]");
@@ -101,11 +105,15 @@ public class NestedQueryParser implements QueryParser {
                     }
                 }
             }
-            if (query == null && filter == null) {
+            if (!queryFound && !filterFound) {
                 throw new QueryParsingException(parseContext.index(), "[nested] requires either 'query' or 'filter' field");
             }
             if (path == null) {
                 throw new QueryParsingException(parseContext.index(), "[nested] requires 'path' field");
+            }
+
+            if (query == null && filter == null) {
+                return null;
             }
 
             if (filter != null) {

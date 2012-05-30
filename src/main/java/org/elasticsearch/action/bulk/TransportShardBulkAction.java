@@ -140,7 +140,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                 try {
 
                     // validate, if routing is required, that we got routing
-                    MappingMetaData mappingMd = clusterState.metaData().index(request.index()).mapping(indexRequest.type());
+                    MappingMetaData mappingMd = clusterState.metaData().index(request.index()).mappingOrDefault(indexRequest.type());
                     if (mappingMd != null && mappingMd.routing().required()) {
                         if (indexRequest.routing() == null) {
                             throw new RoutingMissingException(indexRequest.index(), indexRequest.type(), indexRequest.id());
@@ -171,7 +171,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                         if (mappingsToUpdate == null) {
                             mappingsToUpdate = Sets.newHashSet();
                         }
-                        mappingsToUpdate.add(Tuple.create(indexRequest.index(), indexRequest.type()));
+                        mappingsToUpdate.add(Tuple.tuple(indexRequest.index(), indexRequest.type()));
                     }
 
                     // if we are going to percolate, then we need to keep this op for the postPrimary operation

@@ -51,6 +51,7 @@ public class TopChildrenQueryParser implements QueryParser {
         XContentParser parser = parseContext.parser();
 
         Query query = null;
+        boolean queryFound = false;
         float boost = 1.0f;
         String childType = null;
         String scope = null;
@@ -65,6 +66,7 @@ public class TopChildrenQueryParser implements QueryParser {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("query".equals(currentFieldName)) {
+                    queryFound = true;
                     // TODO we need to set the type, but, `query` can come before `type`... (see HasChildFilterParser)
                     // since we switch types, make sure we change the context
                     String[] origTypes = QueryParseContext.setTypesWithPrevious(childType == null ? null : new String[]{childType});
@@ -94,11 +96,15 @@ public class TopChildrenQueryParser implements QueryParser {
                 }
             }
         }
-        if (query == null) {
+        if (!queryFound) {
             throw new QueryParsingException(parseContext.index(), "[child] requires 'query' field");
         }
         if (childType == null) {
             throw new QueryParsingException(parseContext.index(), "[child] requires 'type' field");
+        }
+
+        if (query == null) {
+            return null;
         }
 
         DocumentMapper childDocMapper = parseContext.mapperService().documentMapper(childType);

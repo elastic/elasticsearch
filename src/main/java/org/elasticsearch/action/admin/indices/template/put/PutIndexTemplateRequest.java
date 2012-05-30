@@ -21,8 +21,10 @@ package org.elasticsearch.action.admin.indices.template.put;
 
 import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -63,6 +65,8 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest {
     private Settings settings = EMPTY_SETTINGS;
 
     private Map<String, String> mappings = newHashMap();
+
+    private Map<String, IndexMetaData.Custom> customs = newHashMap();
 
     private TimeValue timeout = new TimeValue(10, TimeUnit.SECONDS);
 
@@ -254,25 +258,35 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest {
      */
     public PutIndexTemplateRequest source(Map templateSource) {
         Map<String, Object> source = templateSource;
-        if (source.containsKey("template")) {
-            template(source.get("template").toString());
-        }
-        if (source.containsKey("order")) {
-            order(XContentMapValues.nodeIntegerValue(source.get("order"), order()));
-        }
-        if (source.containsKey("settings")) {
-            if (!(source.get("settings") instanceof Map)) {
-                throw new ElasticSearchIllegalArgumentException("Malformed settings section, should include an inner object");
-            }
-            settings((Map<String, Object>) source.get("settings"));
-        }
-        if (source.containsKey("mappings")) {
-            Map<String, Object> mappings = (Map<String, Object>) source.get("mappings");
-            for (Map.Entry<String, Object> entry : mappings.entrySet()) {
+        for (Map.Entry<String, Object> entry : source.entrySet()) {
+            String name = entry.getKey();
+            if (name.equals("template")) {
+                template(entry.getValue().toString());
+            } else if (name.equals("order")) {
+                order(XContentMapValues.nodeIntegerValue(entry.getValue(), order()));
+            } else if (name.equals("settings")) {
                 if (!(entry.getValue() instanceof Map)) {
-                    throw new ElasticSearchIllegalArgumentException("Malformed mappings section for type [" + entry.getKey() + "], should include an inner object describing the mapping");
+                    throw new ElasticSearchIllegalArgumentException("Malformed settings section, should include an inner object");
                 }
-                mapping(entry.getKey(), (Map<String, Object>) entry.getValue());
+                settings((Map<String, Object>) entry.getValue());
+            } else if (name.equals("mappings")) {
+                Map<String, Object> mappings = (Map<String, Object>) entry.getValue();
+                for (Map.Entry<String, Object> entry1 : mappings.entrySet()) {
+                    if (!(entry1.getValue() instanceof Map)) {
+                        throw new ElasticSearchIllegalArgumentException("Malformed mappings section for type [" + entry1.getKey() + "], should include an inner object describing the mapping");
+                    }
+                    mapping(entry1.getKey(), (Map<String, Object>) entry1.getValue());
+                }
+            } else {
+                // maybe custom?
+                IndexMetaData.Custom.Factory factory = IndexMetaData.lookupFactory(name);
+                if (factory != null) {
+                    try {
+                        customs.put(name, factory.fromMap((Map<String, Object>) entry.getValue()));
+                    } catch (IOException e) {
+                        throw new ElasticSearchParseException("failed to parse custom metadata for [" + name + "]");
+                    }
+                }
             }
         }
         return this;
@@ -307,6 +321,15 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest {
         }
     }
 
+
+    public PutIndexTemplateRequest custom(IndexMetaData.Custom custom) {
+        customs.put(custom.type(), custom);
+        return this;
+    }
+
+    Map<String, IndexMetaData.Custom> customs() {
+        return this.customs;
+    }
 
     /**
      * Timeout to wait till the put mapping gets acknowledged of all current cluster nodes. Defaults to
@@ -347,6 +370,12 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest {
         for (int i = 0; i < size; i++) {
             mappings.put(in.readUTF(), in.readUTF());
         }
+        int customSize = in.readVInt();
+        for (int i = 0; i < customSize; i++) {
+            String type = in.readUTF();
+            IndexMetaData.Custom customIndexMetaData = IndexMetaData.lookupFactorySafe(type).readFrom(in);
+            customs.put(type, customIndexMetaData);
+        }
     }
 
     @Override
@@ -363,6 +392,11 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest {
         for (Map.Entry<String, String> entry : mappings.entrySet()) {
             out.writeUTF(entry.getKey());
             out.writeUTF(entry.getValue());
+        }
+        out.writeVInt(customs.size());
+        for (Map.Entry<String, IndexMetaData.Custom> entry : customs.entrySet()) {
+            out.writeUTF(entry.getKey());
+            IndexMetaData.lookupFactorySafe(entry.getKey()).writeTo(entry.getValue(), out);
         }
     }
 }

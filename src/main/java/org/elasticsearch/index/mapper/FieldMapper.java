@@ -148,6 +148,11 @@ public interface FieldMapper<T> {
     Analyzer searchAnalyzer();
 
     /**
+     * The analyzer that will be used for quoted search on the field.
+     */
+    Analyzer searchQuoteAnalyzer();
+
+    /**
      * Returns the value that will be used as a result for search. Can be only of specific types... .
      */
     Object valueForSearch(Fieldable field);
@@ -204,6 +209,12 @@ public interface FieldMapper<T> {
      * Constructs a range query filter based on the mapper.
      */
     Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context);
+
+    /**
+     * Null value filter, returns <tt>null</tt> if there is no null value associated with the field.
+     */
+    @Nullable
+    Filter nullValueFilter();
 
     FieldDataType fieldDataType();
 }

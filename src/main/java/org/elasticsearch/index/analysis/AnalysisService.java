@@ -20,6 +20,8 @@
 package org.elasticsearch.index.analysis;
 
 import com.google.common.collect.ImmutableMap;
+import org.apache.lucene.analysis.Analyzer;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.CloseableComponent;
@@ -51,6 +53,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
     private final NamedAnalyzer defaultAnalyzer;
     private final NamedAnalyzer defaultIndexAnalyzer;
     private final NamedAnalyzer defaultSearchAnalyzer;
+    private final NamedAnalyzer defaultSearchQuoteAnalyzer;
 
     public AnalysisService(Index index) {
         this(index, ImmutableSettings.Builder.EMPTY_SETTINGS, null, null, null, null, null);
@@ -209,13 +212,20 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
         if (!analyzerProviders.containsKey("default_search")) {
             analyzerProviders.put("default_search", analyzerProviders.get("default"));
         }
+        if (!analyzerProviders.containsKey("default_search_quoted")) {
+            analyzerProviders.put("default_search_quoted", analyzerProviders.get("default_search"));
+        }
 
         Map<String, NamedAnalyzer> analyzers = newHashMap();
         for (AnalyzerProvider analyzerFactory : analyzerProviders.values()) {
             if (analyzerFactory instanceof CustomAnalyzerProvider) {
                 ((CustomAnalyzerProvider) analyzerFactory).build(this);
             }
-            NamedAnalyzer analyzer = new NamedAnalyzer(analyzerFactory.name(), analyzerFactory.scope(), analyzerFactory.get());
+            Analyzer analyzerF = analyzerFactory.get();
+            if (analyzerF == null) {
+                throw new ElasticSearchIllegalArgumentException("analyzer [" + analyzerFactory.name() + "] created null analyzer");
+            }
+            NamedAnalyzer analyzer = new NamedAnalyzer(analyzerFactory.name(), analyzerFactory.scope(), analyzerF);
             analyzers.put(analyzerFactory.name(), analyzer);
             analyzers.put(Strings.toCamelCase(analyzerFactory.name()), analyzer);
             String strAliases = indexSettings.get("index.analysis.analyzer." + analyzerFactory.name() + ".alias");
@@ -231,8 +241,12 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
         }
 
         defaultAnalyzer = analyzers.get("default");
+        if (defaultAnalyzer == null) {
+            throw new ElasticSearchIllegalArgumentException("no default analyzer configured");
+        }
         defaultIndexAnalyzer = analyzers.containsKey("default_index") ? analyzers.get("default_index") : analyzers.get("default");
         defaultSearchAnalyzer = analyzers.containsKey("default_search") ? analyzers.get("default_search") : analyzers.get("default");
+        defaultSearchQuoteAnalyzer = analyzers.containsKey("default_search_quote") ? analyzers.get("default_search_quote") : defaultSearchAnalyzer;
 
         this.analyzers = ImmutableMap.copyOf(analyzers);
     }
@@ -266,6 +280,10 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
 
     public NamedAnalyzer defaultSearchAnalyzer() {
         return defaultSearchAnalyzer;
+    }
+
+    public NamedAnalyzer defaultSearchQuoteAnalyzer() {
+        return defaultSearchQuoteAnalyzer;
     }
 
     public TokenizerFactory tokenizer(String name) {

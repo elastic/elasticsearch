@@ -49,22 +49,31 @@ public class FieldDataLoader {
         TermDocs termDocs = reader.termDocs();
         TermEnum termEnum = reader.terms(new Term(field));
         try {
+            // bulk read (in lucene 4 it won't be needed).
+            int size = Math.min(128, reader.maxDoc());
+            int[] docs = new int[size];
+            int[] freqs = new int[size];
             do {
                 Term term = termEnum.term();
                 if (term == null || term.field() != field) break;
                 loader.collectTerm(term.text());
                 termDocs.seek(termEnum);
-                while (termDocs.next()) {
-                    int doc = termDocs.doc();
-                    int[] ordinal;
-                    if (idx[doc] >= ordinals.size()) {
-                        ordinal = new int[reader.maxDoc()];
-                        ordinals.add(ordinal);
-                    } else {
-                        ordinal = ordinals.get(idx[doc]);
+
+                int number = termDocs.read(docs, freqs);
+                while (number > 0) {
+                    for (int i = 0; i < number; i++) {
+                        int doc = docs[i];
+                        int[] ordinal;
+                        if (idx[doc] >= ordinals.size()) {
+                            ordinal = new int[reader.maxDoc()];
+                            ordinals.add(ordinal);
+                        } else {
+                            ordinal = ordinals.get(idx[doc]);
+                        }
+                        ordinal[doc] = t;
+                        idx[doc]++;
                     }
-                    ordinal[doc] = t;
-                    idx[doc]++;
+                    number = termDocs.read(docs, freqs);
                 }
                 t++;
             } while (termEnum.next());

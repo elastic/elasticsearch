@@ -90,7 +90,7 @@
         <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
-            <version>11.0.2</version>
+            <version>12.0</version>
             <scope>compile</scope>
             <exclusions>
                 <exclusion>
@@ -159,7 +159,7 @@
         <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty</artifactId>
-            <version>3.4.2.Final</version>
+            <version>3.4.6.Final</version>
             <scope>compile</scope>
         </dependency>
         <!-- END: dependencies that are shaded -->

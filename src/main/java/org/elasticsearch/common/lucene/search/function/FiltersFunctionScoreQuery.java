@@ -72,13 +72,15 @@ public class FiltersFunctionScoreQuery extends Query {
     Query subQuery;
     final FilterFunction[] filterFunctions;
     final ScoreMode scoreMode;
+    final float maxBoost;
     DocSet[] docSets;
 
-    public FiltersFunctionScoreQuery(Query subQuery, ScoreMode scoreMode, FilterFunction[] filterFunctions) {
+    public FiltersFunctionScoreQuery(Query subQuery, ScoreMode scoreMode, FilterFunction[] filterFunctions, float maxBoost) {
         this.subQuery = subQuery;
         this.scoreMode = scoreMode;
         this.filterFunctions = filterFunctions;
         this.docSets = new DocSet[filterFunctions.length];
+        this.maxBoost = maxBoost;
     }
 
     public Query getSubQuery() {
@@ -149,7 +151,7 @@ public class FiltersFunctionScoreQuery extends Query {
                 filterFunction.function.setNextReader(reader);
                 docSets[i] = DocSets.convert(reader, filterFunction.filter.getDocIdSet(reader));
             }
-            return new CustomBoostFactorScorer(getSimilarity(searcher), this, subQueryScorer, scoreMode, filterFunctions, docSets);
+            return new CustomBoostFactorScorer(getSimilarity(searcher), this, subQueryScorer, scoreMode, filterFunctions, maxBoost, docSets);
         }
 
         @Override
@@ -218,6 +220,9 @@ public class FiltersFunctionScoreQuery extends Query {
                             break;
                     }
 
+                    if (factor > maxBoost) {
+                        factor = maxBoost;
+                    }
                     float sc = factor * subQueryExpl.getValue() * getValue();
                     Explanation res = new ComplexExplanation(true, sc, "custom score, score mode [" + scoreMode.toString().toLowerCase() + "]");
                     res.addDetail(subQueryExpl);
@@ -242,15 +247,17 @@ public class FiltersFunctionScoreQuery extends Query {
         private final Scorer scorer;
         private final FilterFunction[] filterFunctions;
         private final ScoreMode scoreMode;
+        private final float maxBoost;
         private final DocSet[] docSets;
 
         private CustomBoostFactorScorer(Similarity similarity, CustomBoostFactorWeight w, Scorer scorer,
-                                        ScoreMode scoreMode, FilterFunction[] filterFunctions, DocSet[] docSets) throws IOException {
+                                        ScoreMode scoreMode, FilterFunction[] filterFunctions, float maxBoost, DocSet[] docSets) throws IOException {
             super(similarity);
             this.subQueryWeight = w.getValue();
             this.scorer = scorer;
             this.scoreMode = scoreMode;
             this.filterFunctions = filterFunctions;
+            this.maxBoost = maxBoost;
             this.docSets = docSets;
         }
 
@@ -321,6 +328,9 @@ public class FiltersFunctionScoreQuery extends Query {
                         factor /= count;
                     }
                 }
+            }
+            if (factor > maxBoost) {
+                factor = maxBoost;
             }
             float score = scorer.score();
             return subQueryWeight * score * factor;

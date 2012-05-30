@@ -68,6 +68,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.cluster.metadata.MetaData.newMetaDataBuilder;
@@ -146,10 +147,31 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     // find templates, highest order are better matching
                     List<IndexTemplateMetaData> templates = findTemplates(request, currentState);
 
+                    Map<String, Custom> customs = Maps.newHashMap();
+
                     // add the request mapping
                     Map<String, Map<String, Object>> mappings = Maps.newHashMap();
+
+                    // if its a _percolator index, don't index the query object
+                    if (request.index.equals(PercolatorService.INDEX_NAME)) {
+                        mappings.put(MapperService.DEFAULT_MAPPING, parseMapping("{\n" +
+                                "    \"_default_\":{\n" +
+                                "        \"properties\" : {\n" +
+                                "            \"query\" : {\n" +
+                                "                \"type\" : \"object\",\n" +
+                                "                \"enabled\" : false\n" +
+                                "            }\n" +
+                                "        }\n" +
+                                "    }\n" +
+                                "}"));
+                    }
+
                     for (Map.Entry<String, String> entry : request.mappings.entrySet()) {
                         mappings.put(entry.getKey(), parseMapping(entry.getValue()));
+                    }
+
+                    for (Map.Entry<String, Custom> entry : request.customs.entrySet()) {
+                        customs.put(entry.getKey(), entry.getValue());
                     }
 
                     // apply templates, merging the mappings into the request mapping if exists
@@ -159,6 +181,18 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                                 XContentHelper.mergeDefaults(mappings.get(entry.getKey()), parseMapping(entry.getValue().string()));
                             } else {
                                 mappings.put(entry.getKey(), parseMapping(entry.getValue().string()));
+                            }
+                        }
+                        // handle custom
+                        for (Map.Entry<String, Custom> customEntry : template.customs().entrySet()) {
+                            String type = customEntry.getKey();
+                            IndexMetaData.Custom custom = customEntry.getValue();
+                            IndexMetaData.Custom existing = customs.get(type);
+                            if (existing == null) {
+                                customs.put(type, custom);
+                            } else {
+                                IndexMetaData.Custom merged = IndexMetaData.lookupFactorySafe(type).merge(existing, custom);
+                                customs.put(type, merged);
                             }
                         }
                     }
@@ -258,6 +292,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     final IndexMetaData.Builder indexMetaDataBuilder = newIndexMetaDataBuilder(request.index).settings(actualIndexSettings);
                     for (MappingMetaData mappingMd : mappingsMetaData.values()) {
                         indexMetaDataBuilder.putMapping(mappingMd);
+                    }
+                    for (Map.Entry<String, Custom> customEntry : customs.entrySet()) {
+                        indexMetaDataBuilder.putCustom(customEntry.getKey(), customEntry.getValue());
                     }
                     indexMetaDataBuilder.state(request.state);
                     final IndexMetaData indexMetaData = indexMetaDataBuilder.build();
@@ -418,7 +455,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             templates.add(template);
                         }
                     } catch (Exception e) {
-                        logger.warn("[{}] failed to read template [{}] from config", request.index, templatesFile.getAbsolutePath());
+                        logger.warn("[{}] failed to read template [{}] from config", e, request.index, templatesFile.getAbsolutePath());
                     } finally {
                         Closeables.closeQuietly(parser);
                     }
@@ -484,6 +521,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
         Map<String, String> mappings = Maps.newHashMap();
 
+        Map<String, IndexMetaData.Custom> customs = newHashMap();
+
+
         TimeValue timeout = TimeValue.timeValueSeconds(5);
 
         Set<ClusterBlock> blocks = Sets.newHashSet();
@@ -514,6 +554,11 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             for (Map.Entry<String, CompressedString> entry : mappings.entrySet()) {
                 this.mappings.put(entry.getKey(), entry.getValue().string());
             }
+            return this;
+        }
+
+        public Request customs(Map<String, Custom> customs) {
+            this.customs.putAll(customs);
             return this;
         }
 

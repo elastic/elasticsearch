@@ -34,7 +34,7 @@ import static com.google.common.collect.Lists.newArrayList;
  * will use the {@link #defaultField(String)} set. The second, when one or more fields are added
  * (using {@link #field(String)}), will run the parsed query against the provided fields, and combine
  * them either using DisMax or a plain boolean query (see {@link #useDisMax(boolean)}).
- *
+ * <p/>
  * (shay.baon)
  */
 public class QueryStringQueryBuilder extends BaseQueryBuilder {
@@ -51,6 +51,9 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder {
     private Operator defaultOperator;
 
     private String analyzer;
+    private String quoteAnalyzer;
+
+    private String quoteFieldSuffix;
 
     private Boolean autoGeneratePhraseQueries;
 
@@ -62,11 +65,13 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder {
 
     private Boolean analyzeWildcard;
 
-    private float fuzzyMinSim = -1;
 
     private float boost = -1;
 
+    private float fuzzyMinSim = -1;
     private int fuzzyPrefixLength = -1;
+    private int fuzzyMaxExpansions = -1;
+    private String fuzzyRewrite;
 
     private int phraseSlop = -1;
 
@@ -81,6 +86,8 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder {
     private String rewrite = null;
 
     private String minimumShouldMatch;
+
+    private Boolean lenient;
 
     public QueryStringQueryBuilder(String queryString) {
         this.queryString = queryString;
@@ -164,6 +171,16 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder {
     }
 
     /**
+     * The optional analyzer used to analyze the query string for phrase searches. Note, if a field has search (quote) analyzer
+     * defined for it, then it will be used automatically. Defaults to the smart search analyzer.
+     */
+    public QueryStringQueryBuilder quoteAnalyzer(String analyzer) {
+        this.quoteAnalyzer = analyzer;
+        return this;
+    }
+
+
+    /**
      * Set to true if phrase queries will be automatically generated
      * when the analyzer returns more than one term from whitespace
      * delimited text.
@@ -222,6 +239,16 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder {
         return this;
     }
 
+    public QueryStringQueryBuilder fuzzyMaxExpansions(int fuzzyMaxExpansions) {
+        this.fuzzyMaxExpansions = fuzzyMaxExpansions;
+        return this;
+    }
+
+    public QueryStringQueryBuilder fuzzyRewrite(String fuzzyRewrite) {
+        this.fuzzyRewrite = fuzzyRewrite;
+        return this;
+    }
+
     /**
      * Sets the default slop for phrases.  If zero, then exact phrase matches
      * are required. Default value is zero.
@@ -258,6 +285,23 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder {
         return this;
     }
 
+    /**
+     * An optional field name suffix to automatically try and add to the field searched when using quoted text.
+     */
+    public QueryStringQueryBuilder quoteFieldSuffix(String quoteFieldSuffix) {
+        this.quoteFieldSuffix = quoteFieldSuffix;
+        return this;
+    }
+
+    /**
+     * Sets the query string parser to be lenient when parsing field values, defaults to the index
+     * setting and if not set, defaults to false.
+     */
+    public QueryStringQueryBuilder lenient(Boolean lenient) {
+        this.lenient = lenient;
+        return this;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(QueryStringQueryParser.NAME);
@@ -291,6 +335,9 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder {
         if (analyzer != null) {
             builder.field("analyzer", analyzer);
         }
+        if (quoteAnalyzer != null) {
+            builder.field("quote_analyzer", quoteAnalyzer);
+        }
         if (autoGeneratePhraseQueries != null) {
             builder.field("auto_generate_phrase_queries", autoGeneratePhraseQueries);
         }
@@ -312,6 +359,12 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder {
         if (fuzzyPrefixLength != -1) {
             builder.field("fuzzy_prefix_length", fuzzyPrefixLength);
         }
+        if (fuzzyMaxExpansions != -1) {
+            builder.field("fuzzy_max_expansions", fuzzyMaxExpansions);
+        }
+        if (fuzzyRewrite != null) {
+            builder.field("fuzzy_rewrite", fuzzyRewrite);
+        }
         if (phraseSlop != -1) {
             builder.field("phrase_slop", phraseSlop);
         }
@@ -323,6 +376,12 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder {
         }
         if (minimumShouldMatch != null) {
             builder.field("minimum_should_match", minimumShouldMatch);
+        }
+        if (quoteFieldSuffix != null) {
+            builder.field("quote_field_suffix", quoteFieldSuffix);
+        }
+        if (lenient != null) {
+            builder.field("lenient", lenient);
         }
         builder.endObject();
     }

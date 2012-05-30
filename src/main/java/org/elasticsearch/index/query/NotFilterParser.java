@@ -48,6 +48,7 @@ public class NotFilterParser implements FilterParser {
         XContentParser parser = parseContext.parser();
 
         Filter filter = null;
+        boolean filterFound = false;
         boolean cache = false;
         CacheKeyFilter.Key cacheKey = null;
 
@@ -60,10 +61,16 @@ public class NotFilterParser implements FilterParser {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("filter".equals(currentFieldName)) {
                     filter = parseContext.parseInnerFilter();
+                    filterFound = true;
                 } else {
+                    filterFound = true;
                     // its the filter, and the name is the field
                     filter = parseContext.parseInnerFilter(currentFieldName);
                 }
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                filterFound = true;
+                // its the filter, and the name is the field
+                filter = parseContext.parseInnerFilter(currentFieldName);
             } else if (token.isValue()) {
                 if ("_cache".equals(currentFieldName)) {
                     cache = parser.booleanValue();
@@ -77,8 +84,12 @@ public class NotFilterParser implements FilterParser {
             }
         }
 
-        if (filter == null) {
+        if (!filterFound) {
             throw new QueryParsingException(parseContext.index(), "filter is required when using `not` filter");
+        }
+
+        if (filter == null) {
+            return null;
         }
 
         Filter notFilter = new NotFilter(filter);

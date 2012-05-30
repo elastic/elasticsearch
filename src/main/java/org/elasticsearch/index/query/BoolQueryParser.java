@@ -67,26 +67,44 @@ public class BoolQueryParser implements QueryParser {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("must".equals(currentFieldName)) {
-                    clauses.add(new BooleanClause(parseContext.parseInnerQuery(), BooleanClause.Occur.MUST));
+                    Query query = parseContext.parseInnerQuery();
+                    if (query != null) {
+                        clauses.add(new BooleanClause(query, BooleanClause.Occur.MUST));
+                    }
                 } else if ("must_not".equals(currentFieldName) || "mustNot".equals(currentFieldName)) {
-                    clauses.add(new BooleanClause(parseContext.parseInnerQuery(), BooleanClause.Occur.MUST_NOT));
+                    Query query = parseContext.parseInnerQuery();
+                    if (query != null) {
+                        clauses.add(new BooleanClause(query, BooleanClause.Occur.MUST_NOT));
+                    }
                 } else if ("should".equals(currentFieldName)) {
-                    clauses.add(new BooleanClause(parseContext.parseInnerQuery(), BooleanClause.Occur.SHOULD));
+                    Query query = parseContext.parseInnerQuery();
+                    if (query != null) {
+                        clauses.add(new BooleanClause(query, BooleanClause.Occur.SHOULD));
+                    }
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[bool] query does not support [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("must".equals(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        clauses.add(new BooleanClause(parseContext.parseInnerQuery(), BooleanClause.Occur.MUST));
+                        Query query = parseContext.parseInnerQuery();
+                        if (query != null) {
+                            clauses.add(new BooleanClause(query, BooleanClause.Occur.MUST));
+                        }
                     }
                 } else if ("must_not".equals(currentFieldName) || "mustNot".equals(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        clauses.add(new BooleanClause(parseContext.parseInnerQuery(), BooleanClause.Occur.MUST_NOT));
+                        Query query = parseContext.parseInnerQuery();
+                        if (query != null) {
+                            clauses.add(new BooleanClause(query, BooleanClause.Occur.MUST_NOT));
+                        }
                     }
                 } else if ("should".equals(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        clauses.add(new BooleanClause(parseContext.parseInnerQuery(), BooleanClause.Occur.SHOULD));
+                        Query query = parseContext.parseInnerQuery();
+                        if (query != null) {
+                            clauses.add(new BooleanClause(query, BooleanClause.Occur.SHOULD));
+                        }
                     }
                 } else {
                     throw new QueryParsingException(parseContext.index(), "bool query does not support [" + currentFieldName + "]");
@@ -104,6 +122,10 @@ public class BoolQueryParser implements QueryParser {
                     throw new QueryParsingException(parseContext.index(), "[bool] query does not support [" + currentFieldName + "]");
                 }
             }
+        }
+
+        if (clauses.isEmpty()) {
+            return null;
         }
 
         if (clauses.size() == 1) {

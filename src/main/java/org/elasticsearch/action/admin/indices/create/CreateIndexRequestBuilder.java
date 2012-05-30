@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.create;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.support.BaseIndicesRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -156,6 +157,11 @@ public class CreateIndexRequestBuilder extends BaseIndicesRequestBuilder<CreateI
      */
     public CreateIndexRequestBuilder setSource(Map<String, Object> source) {
         request.source(source);
+        return this;
+    }
+
+    public CreateIndexRequestBuilder setCustom(IndexMetaData.Custom custom) {
+        request.custom(custom);
         return this;
     }
 

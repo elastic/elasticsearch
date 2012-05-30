@@ -27,7 +27,7 @@ import java.io.IOException;
 /**
  * A query that applies a filter to the results of another query.
  */
-public class FilteredQueryBuilder extends BaseQueryBuilder {
+public class FilteredQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<FilteredQueryBuilder> {
 
     private final QueryBuilder queryBuilder;
 

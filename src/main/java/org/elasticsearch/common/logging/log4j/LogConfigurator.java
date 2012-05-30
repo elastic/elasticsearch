@@ -27,6 +27,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.FailedToResolveConfigException;
 
+import java.io.File;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
@@ -70,7 +75,17 @@ public class LogConfigurator {
             return;
         }
         loaded = true;
+
         Environment environment = new Environment(settings);
+
+        doConfigure(settings, environment);
+
+        long delay = 10000; // we may want this to be configurable
+
+        watchConfig(settings, environment, delay, "logging.yml", "logging.json", "logging.properties");
+    }
+
+    private static void doConfigure(Settings settings, Environment environment) {
         ImmutableSettings.Builder settingsBuilder = settingsBuilder().put(settings);
         try {
             settingsBuilder.loadFromUrl(environment.resolveConfig("logging.yml"));
@@ -110,4 +125,45 @@ public class LogConfigurator {
         }
         PropertyConfigurator.configure(props);
     }
+
+    private static void watchConfig(final Settings settings, final Environment environment, long delay,
+            String... filenames) {
+        List<File> files = new ArrayList<File>();
+
+        for (String filename : filenames) {
+            URL url;
+            try {
+                url = environment.resolveConfig(filename);
+            } catch (FailedToResolveConfigException e) {
+                // not watchable
+                continue;
+            } catch (NoClassDefFoundError e) {
+                // not watchable
+                continue;
+            }
+            try {
+                files.add(new File(url.toURI()));
+            } catch (IllegalArgumentException e) {
+                // not watchable
+                continue;
+            } catch (URISyntaxException e) {
+                // not watchable
+                continue;
+            }
+        }
+
+        if (files.isEmpty()) {
+            return;
+        }
+
+        FilesWatchdog dog = new FilesWatchdog(files.toArray(new File[files.size()])) {
+            @Override
+            protected void doOnChange() {
+                doConfigure(settings, environment);
+            }
+        };
+        dog.setDelay(delay);
+        dog.start();
+    }
+
 }

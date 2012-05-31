@@ -199,6 +199,17 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
     }
 
     @Override
+    public Filter nullValueFilter() {
+        if (nullValue == null) {
+            return null;
+        }
+        return NumericRangeFilter.newIntRange(names.indexName(), precisionStep,
+                nullValue.intValue(),
+                nullValue.intValue(),
+                true, true);
+    }
+
+    @Override
     protected boolean customBoost() {
         return true;
     }

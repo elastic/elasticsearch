@@ -68,12 +68,6 @@ ES_HOME=`dirname "$SCRIPT"`/..
 ES_HOME=`cd "$ES_HOME"; pwd`
 
 
-if [ -x "$JAVA_HOME/bin/java" ]; then
-    JAVA=$JAVA_HOME/bin/java
-else
-    JAVA=`which java`
-fi
-
 # If an include wasn't specified in the environment, then search for one...
 if [ "x$ES_INCLUDE" = "x" ]; then
     # Locations (in order) to use when searching for an include file.
@@ -90,6 +84,12 @@ if [ "x$ES_INCLUDE" = "x" ]; then
 # ...otherwise, source the specified include.
 elif [ -r "$ES_INCLUDE" ]; then
     . "$ES_INCLUDE"
+fi
+
+if [ -x "$JAVA_HOME/bin/java" ]; then
+    JAVA=$JAVA_HOME/bin/java
+else
+    JAVA=`which java`
 fi
 
 if [ -z "$ES_CLASSPATH" ]; then

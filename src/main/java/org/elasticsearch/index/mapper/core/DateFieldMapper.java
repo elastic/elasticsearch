@@ -275,6 +275,19 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
+    public Filter nullValueFilter() {
+        if (nullValue == null) {
+            return null;
+        }
+        long value = parseStringValue(nullValue);
+        return NumericRangeFilter.newLongRange(names.indexName(), precisionStep,
+                value,
+                value,
+                true, true);
+    }
+
+
+    @Override
     protected boolean customBoost() {
         return true;
     }

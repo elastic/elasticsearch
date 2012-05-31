@@ -53,6 +53,7 @@ public class CustomScoreQueryParser implements QueryParser {
         XContentParser parser = parseContext.parser();
 
         Query query = null;
+        boolean queryFound = false;
         float boost = 1.0f;
         String script = null;
         String scriptLang = null;
@@ -66,6 +67,7 @@ public class CustomScoreQueryParser implements QueryParser {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("query".equals(currentFieldName)) {
                     query = parseContext.parseInnerQuery();
+                    queryFound = true;
                 } else if ("params".equals(currentFieldName)) {
                     vars = parser.map();
                 } else {
@@ -83,11 +85,14 @@ public class CustomScoreQueryParser implements QueryParser {
                 }
             }
         }
-        if (query == null) {
+        if (!queryFound) {
             throw new QueryParsingException(parseContext.index(), "[custom_score] requires 'query' field");
         }
         if (script == null) {
             throw new QueryParsingException(parseContext.index(), "[custom_score] requires 'script' field");
+        }
+        if (query == null) {
+            return null;
         }
 
         SearchScript searchScript = parseContext.scriptService().search(parseContext.lookup(), scriptLang, script, vars);

@@ -63,13 +63,16 @@ public abstract class AbstractIndexAnalyzerProvider<T extends Analyzer> extends 
         this.version = Lucene.parseVersion(settings.get("version"), Lucene.ANALYZER_VERSION, logger);
     }
 
+    /**
+     * Returns the injected name of the analyzer.
+     */
     @Override
-    public String name() {
+    public final String name() {
         return this.name;
     }
 
     @Override
-    public AnalyzerScope scope() {
+    public final AnalyzerScope scope() {
         return AnalyzerScope.INDEX;
     }
 }

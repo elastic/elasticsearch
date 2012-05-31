@@ -21,10 +21,12 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
 
@@ -61,6 +63,7 @@ public class FuzzyQueryParser implements QueryParser {
         String minSimilarity = "0.5";
         int prefixLength = FuzzyQuery.defaultPrefixLength;
         int maxExpansions = FuzzyQuery.defaultMaxExpansions;
+        MultiTermQuery.RewriteMethod rewriteMethod = null;
         token = parser.nextToken();
         if (token == XContentParser.Token.START_OBJECT) {
             String currentFieldName = null;
@@ -80,6 +83,8 @@ public class FuzzyQueryParser implements QueryParser {
                         prefixLength = parser.intValue();
                     } else if ("max_expansions".equals(currentFieldName) || "maxExpansions".equals(currentFieldName)) {
                         maxExpansions = parser.intValue();
+                    } else if ("rewrite".equals(currentFieldName)) {
+                        rewriteMethod = QueryParsers.parseRewriteMethod(parser.textOrNull(), null);
                     } else {
                         throw new QueryParsingException(parseContext.index(), "[fuzzy] query does not support [" + currentFieldName + "]");
                     }
@@ -105,6 +110,9 @@ public class FuzzyQueryParser implements QueryParser {
         }
         if (query == null) {
             query = new FuzzyQuery(new Term(fieldName, value), Float.parseFloat(minSimilarity), prefixLength, maxExpansions);
+        }
+        if (query instanceof MultiTermQuery) {
+            QueryParsers.setRewriteMethod((MultiTermQuery) query, rewriteMethod);
         }
         query.setBoost(boost);
 

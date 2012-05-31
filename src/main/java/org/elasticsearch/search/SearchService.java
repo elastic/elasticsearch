@@ -633,7 +633,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         }
 
         @Override
-        public void warm(IndexShard indexShard, IndexMetaData indexMetaData, Engine.Searcher search) {
+        public void warm(IndexShard indexShard, IndexMetaData indexMetaData, IndicesWarmer.WarmerContext warmerContext) {
             IndexWarmersMetaData custom = indexMetaData.custom(IndexWarmersMetaData.TYPE);
             if (custom == null) {
                 return;
@@ -645,7 +645,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                     InternalSearchRequest request = new InternalSearchRequest(indexShard.shardId().index().name(), indexShard.shardId().id(), indexMetaData.numberOfShards(), SearchType.COUNT)
                             .source(entry.source().bytes(), entry.source().offset(), entry.source().length())
                             .types(entry.types());
-                    context = createContext(request, search);
+                    context = createContext(request, warmerContext.newSearcher());
                     queryPhase.execute(context);
                     long took = System.nanoTime() - now;
                     if (indexShard.warmerService().logger().isTraceEnabled()) {

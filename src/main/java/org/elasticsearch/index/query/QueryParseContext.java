@@ -160,6 +160,7 @@ public class QueryParseContext {
         return ImmutableMap.copyOf(namedFilters);
     }
 
+    @Nullable
     public Query parseInnerQuery() throws IOException, QueryParsingException {
         // move to START object
         XContentParser.Token token;
@@ -192,6 +193,7 @@ public class QueryParseContext {
         return result;
     }
 
+    @Nullable
     public Filter parseInnerFilter() throws IOException, QueryParsingException {
         // move to START object
         XContentParser.Token token;

@@ -55,14 +55,17 @@ public class CustomFiltersScoreQueryParser implements QueryParser {
         XContentParser parser = parseContext.parser();
 
         Query query = null;
+        boolean queryFound = false;
         float boost = 1.0f;
         String scriptLang = null;
         Map<String, Object> vars = null;
 
         FiltersFunctionScoreQuery.ScoreMode scoreMode = FiltersFunctionScoreQuery.ScoreMode.First;
         ArrayList<Filter> filters = new ArrayList<Filter>();
+        boolean filtersFound = false;
         ArrayList<String> scripts = new ArrayList<String>();
         TFloatArrayList boosts = new TFloatArrayList();
+        float maxBoost = Float.MAX_VALUE;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -72,6 +75,7 @@ public class CustomFiltersScoreQueryParser implements QueryParser {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("query".equals(currentFieldName)) {
                     query = parseContext.parseInnerQuery();
+                    queryFound = true;
                 } else if ("params".equals(currentFieldName)) {
                     vars = parser.map();
                 } else {
@@ -79,9 +83,11 @@ public class CustomFiltersScoreQueryParser implements QueryParser {
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("filters".equals(currentFieldName)) {
+                    filtersFound = true;
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         String script = null;
                         Filter filter = null;
+                        boolean filterFound = false;
                         float fboost = Float.NaN;
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             if (token == XContentParser.Token.FIELD_NAME) {
@@ -89,6 +95,7 @@ public class CustomFiltersScoreQueryParser implements QueryParser {
                             } else if (token == XContentParser.Token.START_OBJECT) {
                                 if ("filter".equals(currentFieldName)) {
                                     filter = parseContext.parseInnerFilter();
+                                    filterFound = true;
                                 }
                             } else if (token.isValue()) {
                                 if ("script".equals(currentFieldName)) {
@@ -101,12 +108,14 @@ public class CustomFiltersScoreQueryParser implements QueryParser {
                         if (script == null && fboost == -1) {
                             throw new QueryParsingException(parseContext.index(), "[custom_filters_score] missing 'script' or 'boost' in filters array element");
                         }
-                        if (filter == null) {
+                        if (!filterFound) {
                             throw new QueryParsingException(parseContext.index(), "[custom_filters_score] missing 'filter' in filters array element");
                         }
-                        filters.add(filter);
-                        scripts.add(script);
-                        boosts.add(fboost);
+                        if (filter != null) {
+                            filters.add(filter);
+                            scripts.add(script);
+                            boosts.add(fboost);
+                        }
                     }
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[custom_filters_score] query does not support [" + currentFieldName + "]");
@@ -133,16 +142,25 @@ public class CustomFiltersScoreQueryParser implements QueryParser {
                     } else {
                         throw new QueryParsingException(parseContext.index(), "[custom_filters_score] illegal score_mode [" + sScoreMode + "]");
                     }
+                } else if ("max_boost".equals(currentFieldName) || "maxBoost".equals(currentFieldName)) {
+                    maxBoost = parser.floatValue();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[custom_filters_score] query does not support [" + currentFieldName + "]");
                 }
             }
         }
-        if (query == null) {
+        if (!queryFound) {
             throw new QueryParsingException(parseContext.index(), "[custom_filters_score] requires 'query' field");
         }
-        if (filters.isEmpty()) {
+        if (query == null) {
+            return null;
+        }
+        if (!filtersFound) {
             throw new QueryParsingException(parseContext.index(), "[custom_filters_score] requires 'filters' field");
+        }
+        // if all filter elements returned null, just use the query
+        if (filters.isEmpty()) {
+            return query;
         }
 
         FiltersFunctionScoreQuery.FilterFunction[] filterFunctions = new FiltersFunctionScoreQuery.FilterFunction[filters.size()];
@@ -157,7 +175,7 @@ public class CustomFiltersScoreQueryParser implements QueryParser {
             }
             filterFunctions[i] = new FiltersFunctionScoreQuery.FilterFunction(filters.get(i), scoreFunction);
         }
-        FiltersFunctionScoreQuery functionScoreQuery = new FiltersFunctionScoreQuery(query, scoreMode, filterFunctions);
+        FiltersFunctionScoreQuery functionScoreQuery = new FiltersFunctionScoreQuery(query, scoreMode, filterFunctions, maxBoost);
         functionScoreQuery.setBoost(boost);
         return functionScoreQuery;
     }

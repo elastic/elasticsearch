@@ -26,6 +26,7 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.BytesStream;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -232,12 +233,14 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         }
     }
 
+    @Nullable
     public Filter parseInnerFilter(XContentParser parser) throws IOException {
         QueryParseContext context = cache.get();
         context.reset(parser);
         return context.parseInnerFilter();
     }
 
+    @Nullable
     public Query parseInnerQuery(XContentParser parser) throws IOException {
         QueryParseContext context = cache.get();
         context.reset(parser);
@@ -247,6 +250,9 @@ public class IndexQueryParserService extends AbstractIndexComponent {
     private ParsedQuery parse(QueryParseContext parseContext, XContentParser parser) throws IOException, QueryParsingException {
         parseContext.reset(parser);
         Query query = parseContext.parseInnerQuery();
+        if (query == null) {
+            query = Queries.NO_MATCH_QUERY;
+        }
         return new ParsedQuery(query, parseContext.copyNamedFilters());
     }
 

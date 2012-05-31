@@ -67,6 +67,7 @@ import org.elasticsearch.rest.action.get.RestGetAction;
 import org.elasticsearch.rest.action.get.RestMultiGetAction;
 import org.elasticsearch.rest.action.index.RestIndexAction;
 import org.elasticsearch.rest.action.main.RestMainAction;
+import org.elasticsearch.rest.action.main.RestPluginAction;
 import org.elasticsearch.rest.action.mlt.RestMoreLikeThisAction;
 import org.elasticsearch.rest.action.percolate.RestPercolateAction;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
@@ -93,6 +94,7 @@ public class RestActionModule extends AbstractModule {
         }
 
         bind(RestMainAction.class).asEagerSingleton();
+        bind(RestPluginAction.class).asEagerSingleton();
 
         bind(RestNodesInfoAction.class).asEagerSingleton();
         bind(RestNodesStatsAction.class).asEagerSingleton();

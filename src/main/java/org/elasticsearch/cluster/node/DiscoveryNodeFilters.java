@@ -73,6 +73,20 @@ public class DiscoveryNodeFilters {
                     }
                 }
                 return false;
+            } else if ("_host".equals(attr)) {
+                if (!(node.address() instanceof InetSocketTransportAddress)) {
+                    return false;
+                }
+                InetSocketTransportAddress inetAddress = (InetSocketTransportAddress) node.address();
+                for (String value : values) {
+                    if (Regex.simpleMatch(value, inetAddress.address().getHostName())) {
+                        return true;
+                    }
+                    if (Regex.simpleMatch(value, inetAddress.address().getAddress().getHostAddress())) {
+                        return true;
+                    }
+                }
+                return false;
             } else if ("_id".equals(attr)) {
                 for (String value : values) {
                     if (node.id().equals(value)) {

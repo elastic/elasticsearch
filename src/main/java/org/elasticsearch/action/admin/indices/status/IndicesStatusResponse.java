@@ -256,7 +256,7 @@ public class IndicesStatusResponse extends BroadcastOperationResponse implements
                         builder.startObject(Fields.INDEX);
                         builder.field(Fields.PROGRESS, gatewayRecoveryStatus.indexRecoveryProgress());
                         builder.field(Fields.SIZE, gatewayRecoveryStatus.indexSize());
-                        builder.field(Fields.SIZE, gatewayRecoveryStatus.indexSize().bytes());
+                        builder.field(Fields.SIZE_IN_BYTES, gatewayRecoveryStatus.indexSize().bytes());
                         builder.field(Fields.REUSED_SIZE, gatewayRecoveryStatus.reusedIndexSize());
                         builder.field(Fields.REUSED_SIZE_IN_BYTES, gatewayRecoveryStatus.reusedIndexSize().bytes());
                         builder.field(Fields.EXPECTED_RECOVERED_SIZE, gatewayRecoveryStatus.expectedRecoveredIndexSize());

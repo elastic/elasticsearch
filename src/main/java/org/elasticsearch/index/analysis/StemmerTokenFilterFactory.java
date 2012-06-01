@@ -22,6 +22,7 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.PorterStemFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.ar.ArabicStemFilter;
+import org.apache.lucene.analysis.bg.BulgarianStemFilter;
 import org.apache.lucene.analysis.br.BrazilianStemFilter;
 import org.apache.lucene.analysis.cz.CzechStemFilter;
 import org.apache.lucene.analysis.de.GermanLightStemFilter;
@@ -75,6 +76,8 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
             return new SnowballFilter(tokenStream, new BasqueStemmer());
         } else if ("brazilian".equalsIgnoreCase(language)) {
             return new BrazilianStemFilter(tokenStream);
+        } else if ("bulgarian".equalsIgnoreCase(language)) {
+            return new BulgarianStemFilter(tokenStream);
         } else if ("catalan".equalsIgnoreCase(language)) {
             return new SnowballFilter(tokenStream, new CatalanStemmer());
         } else if ("czech".equalsIgnoreCase(language)) {

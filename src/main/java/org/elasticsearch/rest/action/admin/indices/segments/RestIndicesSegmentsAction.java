@@ -51,7 +51,6 @@ public class RestIndicesSegmentsAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         IndicesSegmentsRequest indicesSegmentsRequest = new IndicesSegmentsRequest(splitIndices(request.param("index")));
-        // we just send back a response, no need to fork a listener
         indicesSegmentsRequest.listenerThreaded(false);
         BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operation_threading"), BroadcastOperationThreading.SINGLE_THREAD);
         if (operationThreading == BroadcastOperationThreading.NO_THREADS) {

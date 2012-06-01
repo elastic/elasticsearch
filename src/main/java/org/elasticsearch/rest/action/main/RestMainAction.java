@@ -52,6 +52,7 @@ public class RestMainAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
+        clusterStateRequest.listenerThreaded(false);
         clusterStateRequest.masterNodeTimeout(TimeValue.timeValueMillis(0));
         clusterStateRequest.local(true);
         clusterStateRequest.filterAll().filterBlocks(false);

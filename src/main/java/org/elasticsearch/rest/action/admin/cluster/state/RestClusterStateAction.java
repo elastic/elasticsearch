@@ -72,6 +72,7 @@ public class RestClusterStateAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         final ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest();
+        clusterStateRequest.listenerThreaded(false);
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
         clusterStateRequest.filterNodes(request.paramAsBoolean("filter_nodes", clusterStateRequest.filterNodes()));
         clusterStateRequest.filterRoutingTable(request.paramAsBoolean("filter_routing_table", clusterStateRequest.filterRoutingTable()));

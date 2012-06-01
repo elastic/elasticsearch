@@ -45,6 +45,7 @@ public class RestClusterRerouteAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         final ClusterRerouteRequest clusterRerouteRequest = Requests.clusterRerouteRequest();
+        clusterRerouteRequest.listenerThreaded(false);
         client.admin().cluster().reroute(clusterRerouteRequest, new ActionListener<ClusterRerouteResponse>() {
             @Override
             public void onResponse(ClusterRerouteResponse response) {

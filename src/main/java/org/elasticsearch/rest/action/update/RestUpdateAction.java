@@ -54,6 +54,7 @@ public class RestUpdateAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         UpdateRequest updateRequest = new UpdateRequest(request.param("index"), request.param("type"), request.param("id"));
+        updateRequest.listenerThreaded(false);
         updateRequest.routing(request.param("routing"));
         updateRequest.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing
         updateRequest.timeout(request.paramAsTime("timeout", updateRequest.timeout()));
@@ -67,8 +68,6 @@ public class RestUpdateAction extends BaseRestHandler {
             updateRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
         }
         updateRequest.percolate(request.param("percolate", null));
-        // we just send a response, no need to fork
-        updateRequest.listenerThreaded(false);
         updateRequest.script(request.param("script"));
         updateRequest.scriptLang(request.param("lang"));
         for (Map.Entry<String, String> entry : request.params().entrySet()) {

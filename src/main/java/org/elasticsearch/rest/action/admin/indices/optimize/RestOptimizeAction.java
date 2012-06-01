@@ -57,6 +57,7 @@ public class RestOptimizeAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         OptimizeRequest optimizeRequest = new OptimizeRequest(RestActions.splitIndices(request.param("index")));
+        optimizeRequest.listenerThreaded(false);
         try {
             optimizeRequest.waitForMerge(request.paramAsBoolean("wait_for_merge", optimizeRequest.waitForMerge()));
             optimizeRequest.maxNumSegments(request.paramAsInt("max_num_segments", optimizeRequest.maxNumSegments()));
@@ -64,8 +65,6 @@ public class RestOptimizeAction extends BaseRestHandler {
             optimizeRequest.flush(request.paramAsBoolean("flush", optimizeRequest.flush()));
             optimizeRequest.refresh(request.paramAsBoolean("refresh", optimizeRequest.refresh()));
 
-            // we just send back a response, no need to fork a listener
-            optimizeRequest.listenerThreaded(false);
             BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operation_threading"), BroadcastOperationThreading.SINGLE_THREAD);
             if (operationThreading == BroadcastOperationThreading.NO_THREADS) {
                 // since we don't spawn, don't allow no_threads, but change it to a single thread

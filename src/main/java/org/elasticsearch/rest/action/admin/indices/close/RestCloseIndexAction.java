@@ -49,6 +49,7 @@ public class RestCloseIndexAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         CloseIndexRequest closeIndexRequest = new CloseIndexRequest(request.param("index"));
+        closeIndexRequest.listenerThreaded(false);
         closeIndexRequest.timeout(request.paramAsTime("timeout", timeValueSeconds(10)));
         client.admin().indices().close(closeIndexRequest, new ActionListener<CloseIndexResponse>() {
             @Override

@@ -50,8 +50,6 @@ import static org.elasticsearch.rest.action.support.RestXContentBuilder.restCont
  * { "create" : { "_index" : "test", "_type" : "type1", "_id" : "1" }
  * { "type1" : { "field1" : "value1" } }
  * </pre>
- *
- *
  */
 public class RestBulkAction extends BaseRestHandler {
 
@@ -70,6 +68,7 @@ public class RestBulkAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         BulkRequest bulkRequest = Requests.bulkRequest();
+        bulkRequest.listenerThreaded(false);
         String defaultIndex = request.param("index");
         String defaultType = request.param("type");
 

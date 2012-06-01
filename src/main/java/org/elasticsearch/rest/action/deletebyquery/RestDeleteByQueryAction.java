@@ -58,7 +58,6 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(splitIndices(request.param("index")));
-        // we just build a response and send it, no need to fork a thread
         deleteByQueryRequest.listenerThreaded(false);
         try {
             if (request.hasContent()) {

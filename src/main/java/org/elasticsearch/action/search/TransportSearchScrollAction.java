@@ -87,6 +87,8 @@ public class TransportSearchScrollAction extends TransportAction<SearchScrollReq
 
         @Override
         public void messageReceived(SearchScrollRequest request, final TransportChannel channel) throws Exception {
+            // no need for a threaded listener
+            request.listenerThreaded(false);
             execute(request, new ActionListener<SearchResponse>() {
                 @Override
                 public void onResponse(SearchResponse result) {

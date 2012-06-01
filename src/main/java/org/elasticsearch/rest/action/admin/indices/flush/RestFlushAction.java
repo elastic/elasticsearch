@@ -56,7 +56,6 @@ public class RestFlushAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         FlushRequest flushRequest = new FlushRequest(RestActions.splitIndices(request.param("index")));
-        // we just send back a response, no need to fork a listener
         flushRequest.listenerThreaded(false);
         BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operationThreading"), BroadcastOperationThreading.SINGLE_THREAD);
         if (operationThreading == BroadcastOperationThreading.NO_THREADS) {

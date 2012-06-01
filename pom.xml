@@ -6,7 +6,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.elasticsearch</groupId>
     <artifactId>elasticsearch-cloud-aws</artifactId>
-    <version>1.6.0-SNAPSHOT</version>
+    <version>1.6.0</version>
     <packaging>jar</packaging>
     <description>AWS Cloud plugin for ElasticSearch</description>
     <inceptionYear>2009</inceptionYear>
@@ -48,7 +48,7 @@
         <dependency>
             <groupId>com.amazonaws</groupId>
             <artifactId>aws-java-sdk</artifactId>
-            <version>1.3.3</version>
+            <version>1.3.10</version>
             <scope>compile</scope>
             <exclusions>
                 <!-- We need to exclude httpclient, since it pulls the wrong version -->

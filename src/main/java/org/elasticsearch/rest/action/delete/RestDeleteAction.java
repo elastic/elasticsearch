@@ -54,15 +54,15 @@ public class RestDeleteAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         DeleteRequest deleteRequest = new DeleteRequest(request.param("index"), request.param("type"), request.param("id"));
+
+        deleteRequest.listenerThreaded(false);
+        deleteRequest.operationThreaded(true);
+
         deleteRequest.parent(request.param("parent"));
         deleteRequest.routing(request.param("routing"));
         deleteRequest.timeout(request.paramAsTime("timeout", DeleteRequest.DEFAULT_TIMEOUT));
         deleteRequest.refresh(request.paramAsBoolean("refresh", deleteRequest.refresh()));
         deleteRequest.version(RestActions.parseVersion(request));
-        // we just send a response, no need to fork
-        deleteRequest.listenerThreaded(false);
-        // we don't spawn, then fork if local
-        deleteRequest.operationThreaded(true);
         deleteRequest.versionType(VersionType.fromString(request.param("version_type"), deleteRequest.versionType()));
 
         String replicationType = request.param("replication");

@@ -61,7 +61,6 @@ public class RestValidateQueryAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         ValidateQueryRequest validateQueryRequest = new ValidateQueryRequest(RestActions.splitIndices(request.param("index")));
-        // we just send back a response, no need to fork a listener
         validateQueryRequest.listenerThreaded(false);
         try {
             BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operation_threading"), BroadcastOperationThreading.SINGLE_THREAD);
@@ -109,7 +108,7 @@ public class RestValidateQueryAction extends BaseRestHandler {
 
                     buildBroadcastShardsHeader(builder, response);
 
-                    if(response.queryExplanations() != null && !response.queryExplanations().isEmpty()) {
+                    if (response.queryExplanations() != null && !response.queryExplanations().isEmpty()) {
                         builder.startArray("explanations");
                         for (QueryExplanation explanation : response.queryExplanations()) {
                             builder.startObject();

@@ -67,6 +67,8 @@ public class RestGetWarmerAction extends BaseRestHandler {
                 .filterMetaData(false)
                 .filteredIndices(indices);
 
+        clusterStateRequest.listenerThreaded(false);
+
         client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
             @Override
             public void onResponse(ClusterStateResponse response) {

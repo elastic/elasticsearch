@@ -86,10 +86,12 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
         @Override
         public TimestampFieldMapper build(BuilderContext context) {
             boolean parseUpperInclusive = Defaults.PARSE_UPPER_INCLUSIVE;
+            boolean parseSloppy = Defaults.PARSE_SLOPPY_DATES;
             if (context.indexSettings() != null) {
                 parseUpperInclusive = context.indexSettings().getAsBoolean("index.mapping.date.parse_upper_inclusive", Defaults.PARSE_UPPER_INCLUSIVE);
+                parseSloppy = context.indexSettings().getAsBoolean("index.mapping.date.sloppy", Defaults.PARSE_SLOPPY_DATES);
             }
-            return new TimestampFieldMapper(store, index, enabled, path, dateTimeFormatter, parseUpperInclusive);
+            return new TimestampFieldMapper(store, index, enabled, path, dateTimeFormatter, parseUpperInclusive, parseSloppy);
         }
     }
 
@@ -119,13 +121,13 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
     private final String path;
 
     public TimestampFieldMapper() {
-        this(Defaults.STORE, Defaults.INDEX, Defaults.ENABLED, Defaults.PATH, Defaults.DATE_TIME_FORMATTER, Defaults.PARSE_UPPER_INCLUSIVE);
+        this(Defaults.STORE, Defaults.INDEX, Defaults.ENABLED, Defaults.PATH, Defaults.DATE_TIME_FORMATTER, Defaults.PARSE_UPPER_INCLUSIVE, Defaults.PARSE_SLOPPY_DATES);
     }
 
-    protected TimestampFieldMapper(Field.Store store, Field.Index index, boolean enabled, String path, FormatDateTimeFormatter dateTimeFormatter, boolean parseUpperInclusive) {
+    protected TimestampFieldMapper(Field.Store store, Field.Index index, boolean enabled, String path, FormatDateTimeFormatter dateTimeFormatter, boolean parseUpperInclusive, boolean parseSloppy) {
         super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), dateTimeFormatter,
                 Defaults.PRECISION_STEP, Defaults.FUZZY_FACTOR, index, store, Defaults.BOOST, Defaults.OMIT_NORMS,
-                Defaults.OMIT_TERM_FREQ_AND_POSITIONS, Defaults.NULL_VALUE, TimeUnit.MILLISECONDS /*always milliseconds*/, parseUpperInclusive);
+                Defaults.OMIT_TERM_FREQ_AND_POSITIONS, Defaults.NULL_VALUE, TimeUnit.MILLISECONDS /*always milliseconds*/, parseUpperInclusive, parseSloppy);
         this.enabled = enabled;
         this.path = path;
     }

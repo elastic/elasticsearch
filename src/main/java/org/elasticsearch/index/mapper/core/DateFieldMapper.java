@@ -65,6 +65,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
 
         public static final TimeUnit TIME_UNIT = TimeUnit.MILLISECONDS;
         public static final boolean PARSE_UPPER_INCLUSIVE = true;
+        public static final boolean PARSE_SLOPPY_DATES = false;
     }
 
     public static class Builder extends NumberFieldMapper.Builder<Builder, DateFieldMapper> {
@@ -98,11 +99,14 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         @Override
         public DateFieldMapper build(BuilderContext context) {
             boolean parseUpperInclusive = Defaults.PARSE_UPPER_INCLUSIVE;
+            boolean parseSloppyDates = Defaults.PARSE_SLOPPY_DATES;
             if (context.indexSettings() != null) {
                 parseUpperInclusive = context.indexSettings().getAsBoolean("index.mapping.date.parse_upper_inclusive", Defaults.PARSE_UPPER_INCLUSIVE);
+                parseSloppyDates = context.indexSettings().getAsBoolean("index.mapping.date.sloppy", Defaults.PARSE_SLOPPY_DATES);
             }
+            
             DateFieldMapper fieldMapper = new DateFieldMapper(buildNames(context), dateTimeFormatter,
-                    precisionStep, fuzzyFactor, index, store, boost, omitNorms, omitTermFreqAndPositions, nullValue, timeUnit, parseUpperInclusive);
+                    precisionStep, fuzzyFactor, index, store, boost, omitNorms, omitTermFreqAndPositions, nullValue, timeUnit, parseUpperInclusive, parseSloppyDates);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -131,6 +135,8 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     protected final FormatDateTimeFormatter dateTimeFormatter;
 
     private final boolean parseUpperInclusive;
+    
+    private final boolean parseSloppyDates;
 
     private final DateMathParser dateMathParser;
 
@@ -141,7 +147,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     protected DateFieldMapper(Names names, FormatDateTimeFormatter dateTimeFormatter, int precisionStep, String fuzzyFactor,
                               Field.Index index, Field.Store store,
                               float boost, boolean omitNorms, boolean omitTermFreqAndPositions,
-                              String nullValue, TimeUnit timeUnit, boolean parseUpperInclusive) {
+                              String nullValue, TimeUnit timeUnit, boolean parseUpperInclusive, boolean parseSloppyDates) {
         super(names, precisionStep, fuzzyFactor, index, store, boost, omitNorms, omitTermFreqAndPositions,
                 new NamedAnalyzer("_date/" + precisionStep, new NumericDateAnalyzer(precisionStep, dateTimeFormatter.parser())),
                 new NamedAnalyzer("_date/max", new NumericDateAnalyzer(Integer.MAX_VALUE, dateTimeFormatter.parser())));
@@ -149,6 +155,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         this.nullValue = nullValue;
         this.timeUnit = timeUnit;
         this.parseUpperInclusive = parseUpperInclusive;
+        this.parseSloppyDates = parseSloppyDates;
         this.dateMathParser = new DateMathParser(dateTimeFormatter, timeUnit);
     }
 
@@ -409,7 +416,11 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
                 long time = Long.parseLong(value);
                 return timeUnit.toMillis(time);
             } catch (NumberFormatException e1) {
-                throw new MapperParsingException("failed to parse date field [" + value + "], tried both date format [" + dateTimeFormatter.format() + "], and timestamp number", e);
+                if (parseSloppyDates) {
+                    return 0L; // will set all date parse errors to 1970-01-01 00:00:00 UTC
+                } else {
+                    throw new MapperParsingException("failed to parse date field [" + value + "], tried both date format [" + dateTimeFormatter.format() + "], and timestamp number", e);
+                }
             }
         }
     }

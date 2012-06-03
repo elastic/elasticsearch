@@ -1,0 +1,168 @@
+/*
+ * Licensed to ElasticSearch and Shay Banon under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. ElasticSearch licenses this
+ * file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.elasticsearch.client.transport.support;
+
+import com.google.common.collect.ImmutableMap;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.*;
+import org.elasticsearch.client.AdminClient;
+import org.elasticsearch.client.internal.InternalClient;
+import org.elasticsearch.client.support.AbstractClient;
+import org.elasticsearch.client.transport.TransportClientNodesService;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
+
+/**
+ *
+ */
+public class InternalSafeTransportClient extends AbstractClient implements InternalClient {
+
+    private final ThreadPool threadPool;
+    private final TransportClientNodesService nodesService;
+    private final InternalTransportAdminClient adminClient;
+    private final ImmutableMap<Action, TransportActionNodeProxy> actions;
+    private static final AtomicInteger activeListeners = new AtomicInteger(0);
+    private int maxActiveListeners = 30;
+    private long millisBeforeContinue = 60000L;
+    private int maximumTotalTimeouts = 10;
+    private int totalTimeouts = 0;
+
+    @Inject
+    public InternalSafeTransportClient(Settings settings, ThreadPool threadPool, TransportService transportService,
+            TransportClientNodesService nodesService, InternalTransportAdminClient adminClient,
+            Map<String, GenericAction> actions) {
+        this.threadPool = threadPool;
+        this.nodesService = nodesService;
+        this.adminClient = adminClient;
+
+        MapBuilder<Action, TransportActionNodeProxy> actionsBuilder = new MapBuilder<Action, TransportActionNodeProxy>();
+        for (GenericAction action : actions.values()) {
+            if (action instanceof Action) {
+                actionsBuilder.put((Action) action, new TransportActionNodeProxy(settings, action, transportService));
+            }
+        }
+        this.actions = actionsBuilder.immutableMap();
+    }
+    
+    public void setMaximumActiveListeners(int num) {
+        this.maxActiveListeners = num;
+    }
+    
+    public void setMillisBeforeContinue(long millis) {
+        this.millisBeforeContinue = millis;
+    }    
+    
+    public void setMaximumTotalTimeouts(int num) {
+        this.maximumTotalTimeouts = num;
+    }
+
+    @Override
+    public void close() {
+        while (activeListeners.intValue() > 0) {
+            // logger.info("waiting for {} active listeners", activeListeners);
+            synchronized (activeListeners) {
+                try {
+                    activeListeners.wait(millisBeforeContinue);
+                } catch (InterruptedException e) {
+                    // logger.warning("timeout while waiting for listeners, continuing after {} ms", millisBeforeContinue);
+                    totalTimeouts++;
+                    if (totalTimeouts > maximumTotalTimeouts) {
+                        throw new RuntimeException("fatal number of total timeouts exceeded: " + totalTimeouts);
+                    }
+                }
+            }
+        }
+    }
+
+    @Override
+    public ThreadPool threadPool() {
+        return this.threadPool;
+    }
+
+    @Override
+    public AdminClient admin() {
+        return adminClient;
+    }
+
+    @Override
+    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response>> ActionFuture<Response> execute(final Action<Request, Response, RequestBuilder> action, final Request request) {
+        final TransportActionNodeProxy<Request, Response> proxy = actions.get(action);
+        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<Response>>() {
+
+            @Override
+            public ActionFuture<Response> doWithNode(DiscoveryNode node) throws ElasticSearchException {
+                return proxy.execute(node, request);
+            }
+        });
+    }
+
+    @Override
+    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response>> void execute(final Action<Request, Response, RequestBuilder> action, final Request request, ActionListener<Response> listener) {
+        while (activeListeners.intValue() >= maxActiveListeners) {
+            // logger.info("waiting for {} active listeners", activeListeners);
+            synchronized (activeListeners) {
+                try {
+                    activeListeners.wait(millisBeforeContinue);
+                } catch (InterruptedException e) {
+                    // logger.warn("timeout while waiting, continuing after {} ms", millisBeforeContinue);
+                    totalTimeouts++;
+                }
+            }
+        }
+        activeListeners.incrementAndGet();
+        ActiveActionListener<Response> safeListener = new ActiveActionListener<Response>(listener);
+        final TransportActionNodeProxy<Request, Response> proxy = actions.get(action);
+        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<Response>() {
+
+            @Override
+            public void doWithNode(DiscoveryNode node, ActionListener<Response> listener) throws ElasticSearchException {
+                proxy.execute(node, request, listener);
+            }
+        }, safeListener);
+    }
+
+    public static class ActiveActionListener<Response> implements ActionListener<Response> {
+
+        private final ActionListener<Response> listener;
+
+        public ActiveActionListener(ActionListener<Response> listener) {
+            this.listener = listener;
+        }
+
+        @Override
+        public void onResponse(Response response) {
+            listener.onResponse(response);
+            activeListeners.decrementAndGet();
+            synchronized (activeListeners) {
+                activeListeners.notifyAll();
+            }
+        }
+
+        @Override
+        public void onFailure(Throwable e) {
+            listener.onFailure(e);
+        }
+    }
+}

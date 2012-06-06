@@ -123,9 +123,9 @@ public class SortParseElement implements SearchParseElement {
                                 if ("reverse".equals(innerJsonName)) {
                                     reverse = parser.booleanValue();
                                 } else if ("order".equals(innerJsonName)) {
-                                    if ("asc".equals(parser.text())) {
+                                    if ("asc".equals(parser.text().toLowerCase())) {
                                         reverse = SCORE_FIELD_NAME.equals(fieldName);
-                                    } else if ("desc".equals(parser.text())) {
+                                    } else if ("desc".equals(parser.text().toLowerCase())) {
                                         reverse = !SCORE_FIELD_NAME.equals(fieldName);
                                     }
                                 } else if ("missing".equals(innerJsonName)) {

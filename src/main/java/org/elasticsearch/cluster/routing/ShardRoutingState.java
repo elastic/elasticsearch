@@ -66,7 +66,7 @@ public enum ShardRoutingState {
             case 4:
                 return RELOCATING;
             default:
-                throw new ElasticSearchIllegalStateException("No should routing state mapped for [" + value + "]");
+                throw new ElasticSearchIllegalStateException("No routing state mapped for [" + value + "]");
         }
     }
 }

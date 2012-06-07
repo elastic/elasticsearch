@@ -93,6 +93,7 @@ DAEMON=$ES_HOME/bin/elasticsearch
 DAEMON_OPTS="-p $PID_FILE -Des.config=$CONF_FILE -Des.path.home=$ES_HOME -Des.path.logs=$LOG_DIR -Des.path.data=$DATA_DIR -Des.path.work=$WORK_DIR -Des.path.conf=$CONF_DIR"
 
 export ES_HEAP_SIZE
+export ES_JAVA_OPTS
 
 # Check DAEMON exists
 test -x $DAEMON || exit 0

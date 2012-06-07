@@ -22,7 +22,7 @@ package org.elasticsearch.index.query;
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.PublicTermsFilter;
+import org.apache.lucene.search.XTermsFilter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.AndFilter;
 import org.elasticsearch.common.lucene.search.TermFilter;
@@ -115,17 +115,17 @@ public class TermsFilterParser implements FilterParser {
         try {
             Filter filter;
             if ("plain".equals(execution)) {
-                PublicTermsFilter termsFilter = new PublicTermsFilter();
+                Term[] filterTerms = new Term[terms.size()];
                 if (fieldMapper != null) {
-                    for (String term : terms) {
-                        termsFilter.addTerm(fieldMapper.names().createIndexNameTerm(fieldMapper.indexedValue(term)));
+                    for (int i = 0; i < filterTerms.length; i++) {
+                        filterTerms[i] = fieldMapper.names().createIndexNameTerm(fieldMapper.indexedValue(terms.get(i)));
                     }
                 } else {
-                    for (String term : terms) {
-                        termsFilter.addTerm(new Term(fieldName, term));
+                    for (int i = 0; i < filterTerms.length; i++) {
+                        filterTerms[i] = new Term(fieldName, terms.get(i));
                     }
                 }
-                filter = termsFilter;
+                filter = new XTermsFilter(filterTerms);
                 // cache the whole filter by default, or if explicitly told to
                 if (cache == null || cache) {
                     filter = parseContext.cacheFilter(filter, cacheKey);

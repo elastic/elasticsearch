@@ -1114,10 +1114,10 @@ public class SimpleIndexQueryParserTests {
         Query parsedQuery = queryParser.parse(filteredQuery(termQuery("name.first", "shay"), termsFilter("name.last", "banon", "kimchy"))).query();
         assertThat(parsedQuery, instanceOf(FilteredQuery.class));
         FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        assertThat(filteredQuery.getFilter(), instanceOf(PublicTermsFilter.class));
-        PublicTermsFilter termsFilter = (PublicTermsFilter) filteredQuery.getFilter();
-        assertThat(termsFilter.getTerms().size(), equalTo(2));
-        assertThat(termsFilter.getTerms().iterator().next().text(), equalTo("banon"));
+        assertThat(filteredQuery.getFilter(), instanceOf(XTermsFilter.class));
+        XTermsFilter termsFilter = (XTermsFilter) filteredQuery.getFilter();
+        assertThat(termsFilter.getTerms().length, equalTo(2));
+        assertThat(termsFilter.getTerms()[0].text(), equalTo("banon"));
     }
 
 
@@ -1128,10 +1128,10 @@ public class SimpleIndexQueryParserTests {
         Query parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(FilteredQuery.class));
         FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        assertThat(filteredQuery.getFilter(), instanceOf(PublicTermsFilter.class));
-        PublicTermsFilter termsFilter = (PublicTermsFilter) filteredQuery.getFilter();
-        assertThat(termsFilter.getTerms().size(), equalTo(2));
-        assertThat(termsFilter.getTerms().iterator().next().text(), equalTo("banon"));
+        assertThat(filteredQuery.getFilter(), instanceOf(XTermsFilter.class));
+        XTermsFilter termsFilter = (XTermsFilter) filteredQuery.getFilter();
+        assertThat(termsFilter.getTerms().length, equalTo(2));
+        assertThat(termsFilter.getTerms()[0].text(), equalTo("banon"));
     }
 
     @Test
@@ -1142,10 +1142,10 @@ public class SimpleIndexQueryParserTests {
         assertThat(parsedQuery.namedFilters().containsKey("test"), equalTo(true));
         assertThat(parsedQuery.query(), instanceOf(FilteredQuery.class));
         FilteredQuery filteredQuery = (FilteredQuery) parsedQuery.query();
-        assertThat(filteredQuery.getFilter(), instanceOf(PublicTermsFilter.class));
-        PublicTermsFilter termsFilter = (PublicTermsFilter) filteredQuery.getFilter();
-        assertThat(termsFilter.getTerms().size(), equalTo(2));
-        assertThat(termsFilter.getTerms().iterator().next().text(), equalTo("banon"));
+        assertThat(filteredQuery.getFilter(), instanceOf(XTermsFilter.class));
+        XTermsFilter termsFilter = (XTermsFilter) filteredQuery.getFilter();
+        assertThat(termsFilter.getTerms().length, equalTo(2));
+        assertThat(termsFilter.getTerms()[0].text(), equalTo("banon"));
     }
 
     @Test

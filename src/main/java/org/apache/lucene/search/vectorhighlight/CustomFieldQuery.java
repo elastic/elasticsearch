@@ -105,8 +105,8 @@ public class CustomFieldQuery extends FieldQuery {
         }
         if (sourceFilter instanceof TermFilter) {
             flatten(new TermQuery(((TermFilter) sourceFilter).getTerm()), reader, flatQueries);
-        } else if (sourceFilter instanceof PublicTermsFilter) {
-            PublicTermsFilter termsFilter = (PublicTermsFilter) sourceFilter;
+        } else if (sourceFilter instanceof XTermsFilter) {
+            XTermsFilter termsFilter = (XTermsFilter) sourceFilter;
             for (Term term : termsFilter.getTerms()) {
                 flatten(new TermQuery(term), reader, flatQueries);
             }

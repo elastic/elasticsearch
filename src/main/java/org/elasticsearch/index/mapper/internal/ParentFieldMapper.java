@@ -24,8 +24,8 @@ import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.PublicTermsFilter;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.XTermsFilter;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
@@ -199,11 +199,12 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
             return super.fieldFilter(value, context);
         }
         // we use all types, cause we don't know if its exact or not...
-        PublicTermsFilter filter = new PublicTermsFilter();
+        Term[] typesTerms = new Term[context.mapperService().types().size()];
+        int i = 0;
         for (String type : context.mapperService().types()) {
-            filter.addTerm(names.createIndexNameTerm(Uid.createUid(type, value)));
+            typesTerms[i++] = names.createIndexNameTerm(Uid.createUid(type, value));
         }
-        return filter;
+        return new XTermsFilter(typesTerms);
     }
 
     /**

@@ -26,7 +26,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.PublicTermsFilter;
+import org.apache.lucene.search.XTermsFilter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.FixedBitSet;
@@ -95,20 +95,19 @@ public class TermsFilterTests {
         IndexReader reader = w.getReader();
         w.close();
 
-        PublicTermsFilter tf = new PublicTermsFilter();
-        tf.addTerm(new Term(fieldName, "19"));
+        XTermsFilter tf = new XTermsFilter(new Term[]{new Term(fieldName, "19")});
         FixedBitSet bits = (FixedBitSet) tf.getDocIdSet(reader);
         assertThat(bits, nullValue());
 
-        tf.addTerm(new Term(fieldName, "20"));
+        tf = new XTermsFilter(new Term[]{new Term(fieldName, "19"), new Term(fieldName, "20")});
         bits = (FixedBitSet) tf.getDocIdSet(reader);
         assertThat(bits.cardinality(), equalTo(1));
 
-        tf.addTerm(new Term(fieldName, "10"));
+        tf = new XTermsFilter(new Term[]{new Term(fieldName, "19"), new Term(fieldName, "20"), new Term(fieldName, "10")});
         bits = (FixedBitSet) tf.getDocIdSet(reader);
         assertThat(bits.cardinality(), equalTo(2));
 
-        tf.addTerm(new Term(fieldName, "00"));
+        tf = new XTermsFilter(new Term[]{new Term(fieldName, "19"), new Term(fieldName, "20"), new Term(fieldName, "10"), new Term(fieldName, "00")});
         bits = (FixedBitSet) tf.getDocIdSet(reader);
         assertThat(bits.cardinality(), equalTo(2));
 

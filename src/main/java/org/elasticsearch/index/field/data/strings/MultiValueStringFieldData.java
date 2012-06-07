@@ -76,31 +76,29 @@ public class MultiValueStringFieldData extends StringFieldData {
 
     @Override
     public void forEachValueInDoc(int docId, StringValueInDocProc proc) {
-        boolean found = false;
-        for (int[] ordinal : ordinals) {
-            int loc = ordinal[docId];
-            if (loc != 0) {
-                found = true;
-                proc.onValue(docId, values[loc]);
+        for (int i = 0; i < ordinals.length; i++) {
+            int loc = ordinals[i][docId];
+            if (loc == 0) {
+                if (i == 0) {
+                    proc.onMissing(docId);
+                }
+                break;
             }
-        }
-        if (!found) {
-            proc.onMissing(docId);
+            proc.onValue(docId, values[loc]);
         }
     }
 
     @Override
     public void forEachOrdinalInDoc(int docId, OrdinalInDocProc proc) {
-        boolean found = false;
-        for (int[] ordinal : ordinals) {
-            int loc = ordinal[docId];
-            if (loc != 0) {
-                found = true;
-                proc.onOrdinal(docId, loc);
+        for (int i = 0; i < ordinals.length; i++) {
+            int loc = ordinals[i][docId];
+            if (loc == 0) {
+                if (i == 0) {
+                    proc.onOrdinal(docId, 0);
+                }
+                break;
             }
-        }
-        if (!found) {
-            proc.onOrdinal(docId, 0);
+            proc.onOrdinal(docId, loc);
         }
     }
 
@@ -119,9 +117,10 @@ public class MultiValueStringFieldData extends StringFieldData {
     public String[] values(int docId) {
         int length = 0;
         for (int[] ordinal : ordinals) {
-            if (ordinal[docId] != 0) {
-                length++;
+            if (ordinal[docId] == 0) {
+                break;
             }
+            length++;
         }
         if (length == 0) {
             return Strings.EMPTY_ARRAY;
@@ -132,12 +131,8 @@ public class MultiValueStringFieldData extends StringFieldData {
         } else {
             strings = new String[length];
         }
-        int i = 0;
-        for (int[] ordinal : ordinals) {
-            int loc = ordinal[docId];
-            if (loc != 0) {
-                strings[i++] = values[loc];
-            }
+        for (int i = 0; i < length; i++) {
+            strings[i] = values[ordinals[i][docId]];
         }
         return strings;
     }

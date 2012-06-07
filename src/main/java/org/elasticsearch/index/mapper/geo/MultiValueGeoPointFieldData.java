@@ -102,16 +102,15 @@ public class MultiValueGeoPointFieldData extends GeoPointFieldData {
 
     @Override
     public void forEachValueInDoc(int docId, StringValueInDocProc proc) {
-        boolean found = false;
-        for (int[] ordinal : ordinals) {
-            int loc = ordinal[docId];
-            if (loc != 0) {
-                found = true;
-                proc.onValue(docId, GeoHashUtils.encode(lat[loc], lon[loc]));
+        for (int i = 0; i < ordinals.length; i++) {
+            int loc = ordinals[i][docId];
+            if (loc == 0) {
+                if (i == 0) {
+                    proc.onMissing(docId);
+                }
+                break;
             }
-        }
-        if (!found) {
-            proc.onMissing(docId);
+            proc.onValue(docId, GeoHashUtils.encode(lat[loc], lon[loc]));
         }
     }
 
@@ -119,24 +118,24 @@ public class MultiValueGeoPointFieldData extends GeoPointFieldData {
     public void forEachValueInDoc(int docId, ValueInDocProc proc) {
         for (int[] ordinal : ordinals) {
             int loc = ordinal[docId];
-            if (loc != 0) {
-                proc.onValue(docId, lat[loc], lon[loc]);
+            if (loc == 0) {
+                break;
             }
+            proc.onValue(docId, lat[loc], lon[loc]);
         }
     }
 
     @Override
     public void forEachOrdinalInDoc(int docId, OrdinalInDocProc proc) {
-        boolean found = false;
-        for (int[] ordinal : ordinals) {
-            int loc = ordinal[docId];
-            if (loc != 0) {
-                found = true;
-                proc.onOrdinal(docId, loc);
+        for (int i = 0; i < ordinals.length; i++) {
+            int loc = ordinals[i][docId];
+            if (loc == 0) {
+                if (i == 0) {
+                    proc.onOrdinal(docId, 0);
+                }
+                break;
             }
-        }
-        if (!found) {
-            proc.onOrdinal(docId, 0);
+            proc.onOrdinal(docId, loc);
         }
     }
 
@@ -157,9 +156,10 @@ public class MultiValueGeoPointFieldData extends GeoPointFieldData {
     public GeoPoint[] values(int docId) {
         int length = 0;
         for (int[] ordinal : ordinals) {
-            if (ordinal[docId] != 0) {
-                length++;
+            if (ordinal[docId] == 0) {
+                break;
             }
+            length++;
         }
         if (length == 0) {
             return EMPTY_ARRAY;
@@ -167,21 +167,15 @@ public class MultiValueGeoPointFieldData extends GeoPointFieldData {
         GeoPoint[] points;
         if (length < VALUE_CACHE_SIZE) {
             points = valuesArrayCache.get().get()[length];
-            int i = 0;
-            for (int[] ordinal : ordinals) {
-                int loc = ordinal[docId];
-                if (loc != 0) {
-                    points[i++].latlon(lat[loc], lon[loc]);
-                }
+            for (int i = 0; i < length; i++) {
+                int loc = ordinals[i][docId];
+                points[i].latlon(lat[loc], lon[loc]);
             }
         } else {
             points = new GeoPoint[length];
-            int i = 0;
-            for (int[] ordinal : ordinals) {
-                int loc = ordinal[docId];
-                if (loc != 0) {
-                    points[i++] = new GeoPoint(lat[loc], lon[loc]);
-                }
+            for (int i = 0; i < length; i++) {
+                int loc = ordinals[i][docId];
+                points[i] = new GeoPoint(lat[loc], lon[loc]);
             }
         }
         return points;
@@ -213,9 +207,10 @@ public class MultiValueGeoPointFieldData extends GeoPointFieldData {
     public double[] latValues(int docId) {
         int length = 0;
         for (int[] ordinal : ordinals) {
-            if (ordinal[docId] != 0) {
-                length++;
+            if (ordinal[docId] == 0) {
+                break;
             }
+            length++;
         }
         if (length == 0) {
             return DoubleFieldData.EMPTY_DOUBLE_ARRAY;
@@ -226,12 +221,8 @@ public class MultiValueGeoPointFieldData extends GeoPointFieldData {
         } else {
             doubles = new double[length];
         }
-        int i = 0;
-        for (int[] ordinal : ordinals) {
-            int loc = ordinal[docId];
-            if (loc != 0) {
-                doubles[i++] = lat[loc];
-            }
+        for (int i = 0; i < length; i++) {
+            doubles[i] = lat[ordinals[i][docId]];
         }
         return doubles;
     }
@@ -253,12 +244,8 @@ public class MultiValueGeoPointFieldData extends GeoPointFieldData {
         } else {
             doubles = new double[length];
         }
-        int i = 0;
-        for (int[] ordinal : ordinals) {
-            int loc = ordinal[docId];
-            if (loc != 0) {
-                doubles[i++] = lon[loc];
-            }
+        for (int i = 0; i < length; i++) {
+            doubles[i] = lon[ordinals[i][docId]];
         }
         return doubles;
     }

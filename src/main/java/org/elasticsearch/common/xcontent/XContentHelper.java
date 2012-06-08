@@ -76,8 +76,12 @@ public class XContentHelper {
     }
 
     public static String convertToJson(byte[] data, int offset, int length, boolean reformatJson) throws IOException {
+        return convertToJson(data, offset, length, reformatJson, false);
+    }
+
+    public static String convertToJson(byte[] data, int offset, int length, boolean reformatJson, boolean prettyPrint) throws IOException {
         XContentType xContentType = XContentFactory.xContentType(data, offset, length);
-        if (xContentType == XContentType.JSON && reformatJson) {
+        if (xContentType == XContentType.JSON && !reformatJson) {
             return new String(data, offset, length, Charsets.UTF_8);
         }
         XContentParser parser = null;
@@ -85,6 +89,9 @@ public class XContentHelper {
             parser = XContentFactory.xContent(xContentType).createParser(data, offset, length);
             parser.nextToken();
             XContentBuilder builder = XContentFactory.jsonBuilder();
+            if (prettyPrint) {
+                builder.prettyPrint();
+            }
             builder.copyCurrentStructure(parser);
             return builder.string();
         } finally {

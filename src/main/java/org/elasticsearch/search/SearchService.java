@@ -27,7 +27,6 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -35,6 +34,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Engine;
@@ -562,7 +562,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         } catch (Exception e) {
             String sSource = "_na_";
             try {
-                sSource = Unicode.fromBytes(source, offset, length);
+                sSource = XContentHelper.convertToJson(source, offset, length, false);
             } catch (Throwable e1) {
                 // ignore
             }

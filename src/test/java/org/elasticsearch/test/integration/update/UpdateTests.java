@@ -85,6 +85,34 @@ public class UpdateTests extends AbstractNodesTests {
     }
 
     @Test
+    public void testUpsert() throws Exception {
+        createIndex();
+        ClusterHealthResponse clusterHealth = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        assertThat(clusterHealth.timedOut(), equalTo(false));
+        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
+
+        client.prepareUpdate("test", "type1", "1")
+                .setDoc(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
+                .setScript("ctx._source.field += 1")
+                .execute().actionGet();
+
+        for (int i = 0; i < 5; i++) {
+            GetResponse getResponse = client.prepareGet("test", "type1", "1").execute().actionGet();
+            assertThat(getResponse.sourceAsMap().get("field").toString(), equalTo("1"));
+        }
+
+        client.prepareUpdate("test", "type1", "1")
+                .setDoc(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
+                .setScript("ctx._source.field += 1")
+                .execute().actionGet();
+
+        for (int i = 0; i < 5; i++) {
+            GetResponse getResponse = client.prepareGet("test", "type1", "1").execute().actionGet();
+            assertThat(getResponse.sourceAsMap().get("field").toString(), equalTo("2"));
+        }
+    }
+
+    @Test
     public void testUpdate() throws Exception {
         createIndex();
         ClusterHealthResponse clusterHealth = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();

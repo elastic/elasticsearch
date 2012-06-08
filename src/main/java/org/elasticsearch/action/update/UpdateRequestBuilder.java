@@ -21,10 +21,13 @@ package org.elasticsearch.action.update;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.WriteConsistencyLevel;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.BaseRequestBuilder;
 import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.util.Map;
 
@@ -177,6 +180,63 @@ public class UpdateRequestBuilder extends BaseRequestBuilder<UpdateRequest, Upda
      */
     public UpdateRequestBuilder setPercolate(String percolate) {
         request.percolate(percolate);
+        return this;
+    }
+
+    /**
+     * Sets the index request to be used if the document does not exists. Otherwise, a {@link org.elasticsearch.index.engine.DocumentMissingException}
+     * is thrown.
+     */
+    public UpdateRequestBuilder setDoc(IndexRequest indexRequest) {
+        request.doc(indexRequest);
+        return this;
+    }
+
+    /**
+     * Sets the doc source of the update request to be used when the document does not exists.
+     */
+    public UpdateRequestBuilder setDoc(XContentBuilder source) {
+        request.doc(source);
+        return this;
+    }
+
+    /**
+     * Sets the doc source of the update request to be used when the document does not exists.
+     */
+    public UpdateRequestBuilder setDoc(Map source) {
+        request.doc(source);
+        return this;
+    }
+
+    /**
+     * Sets the doc source of the update request to be used when the document does not exists.
+     */
+    public UpdateRequestBuilder setDoc(Map source, XContentType contentType) {
+        request.doc(source, contentType);
+        return this;
+    }
+
+    /**
+     * Sets the doc source of the update request to be used when the document does not exists.
+     */
+    public UpdateRequestBuilder setDoc(String source) {
+        request.doc(source);
+        return this;
+    }
+
+    /**
+     * Sets the doc source of the update request to be used when the document does not exists.
+     */
+    public UpdateRequestBuilder setDoc(byte[] source) {
+        request.doc(source);
+        return this;
+    }
+
+    /**
+     * Sets the doc source of the update request to be used when the document does not exists.
+     */
+    public UpdateRequestBuilder setDoc(byte[] source, int offset, int length) {
+        request.doc(source, offset, length);
         return this;
     }
 

@@ -22,12 +22,15 @@ package org.elasticsearch.action.update;
 import com.google.common.collect.Maps;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.WriteConsistencyLevel;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Map;
@@ -59,6 +62,8 @@ public class UpdateRequest extends InstanceShardOperationRequest {
 
     private ReplicationType replicationType = ReplicationType.DEFAULT;
     private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
+
+    private IndexRequest indexRequest;
 
     UpdateRequest() {
 
@@ -330,6 +335,74 @@ public class UpdateRequest extends InstanceShardOperationRequest {
         return this;
     }
 
+    /**
+     * Sets the index request to be used if the document does not exists. Otherwise, a {@link org.elasticsearch.index.engine.DocumentMissingException}
+     * is thrown.
+     */
+    public UpdateRequest doc(IndexRequest indexRequest) {
+        this.indexRequest = indexRequest;
+        return this;
+    }
+
+    /**
+     * Sets the doc source of the update request to be used when the document does not exists.
+     */
+    public UpdateRequest doc(XContentBuilder source) {
+        safeIndexRequest().source(source);
+        return this;
+    }
+
+    /**
+     * Sets the doc source of the update request to be used when the document does not exists.
+     */
+    public UpdateRequest doc(Map source) {
+        safeIndexRequest().source(source);
+        return this;
+    }
+
+    /**
+     * Sets the doc source of the update request to be used when the document does not exists.
+     */
+    public UpdateRequest doc(Map source, XContentType contentType) {
+        safeIndexRequest().source(source, contentType);
+        return this;
+    }
+
+    /**
+     * Sets the doc source of the update request to be used when the document does not exists.
+     */
+    public UpdateRequest doc(String source) {
+        safeIndexRequest().source(source);
+        return this;
+    }
+
+    /**
+     * Sets the doc source of the update request to be used when the document does not exists.
+     */
+    public UpdateRequest doc(byte[] source) {
+        safeIndexRequest().source(source);
+        return this;
+    }
+
+    /**
+     * Sets the doc source of the update request to be used when the document does not exists.
+     */
+    public UpdateRequest doc(byte[] source, int offset, int length) {
+        safeIndexRequest().source(source, offset, length);
+        return this;
+    }
+
+    public IndexRequest indexRequest() {
+        return this.indexRequest;
+    }
+
+    private IndexRequest safeIndexRequest() {
+        if (indexRequest == null) {
+            indexRequest = new IndexRequest();
+        }
+        return indexRequest;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -356,6 +429,10 @@ public class UpdateRequest extends InstanceShardOperationRequest {
             for (int i = 0; i < size; i++) {
                 fields[i] = in.readUTF();
             }
+        }
+        if (in.readBoolean()) {
+            indexRequest = new IndexRequest();
+            indexRequest.readFrom(in);
         }
     }
 
@@ -395,6 +472,16 @@ public class UpdateRequest extends InstanceShardOperationRequest {
             for (String field : fields) {
                 out.writeUTF(field);
             }
+        }
+        if (indexRequest == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            // make sure the basics are set
+            indexRequest.index(index);
+            indexRequest.type(type);
+            indexRequest.id(id);
+            indexRequest.writeTo(out);
         }
     }
 }

@@ -21,6 +21,7 @@ package org.elasticsearch.rest.action.update;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.WriteConsistencyLevel;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -32,7 +33,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
@@ -91,7 +94,7 @@ public class RestUpdateAction extends BaseRestHandler {
             if (xContentType != null) {
                 try {
                     Map<String, Object> content = XContentFactory.xContent(xContentType)
-                            .createParser(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength()).mapAndClose();
+                            .createParser(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength()).mapOrderedAndClose();
                     if (content.containsKey("script")) {
                         updateRequest.script(content.get("script").toString());
                     }
@@ -100,6 +103,19 @@ public class RestUpdateAction extends BaseRestHandler {
                     }
                     if (content.containsKey("params")) {
                         updateRequest.scriptParams((Map<String, Object>) content.get("params"));
+                    }
+                    if (content.containsKey("doc")) {
+                        IndexRequest indexRequest = new IndexRequest();
+                        indexRequest.source((Map) content.get("doc"), xContentType);
+                        indexRequest.routing(request.param("routing"));
+                        indexRequest.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing
+                        indexRequest.timestamp(request.param("timestamp"));
+                        if (request.hasParam("ttl")) {
+                            indexRequest.ttl(request.paramAsTime("ttl", null).millis());
+                        }
+                        indexRequest.version(RestActions.parseVersion(request));
+                        indexRequest.versionType(VersionType.fromString(request.param("version_type"), indexRequest.versionType()));
+                        updateRequest.doc(indexRequest);
                     }
                 } catch (Exception e) {
                     try {

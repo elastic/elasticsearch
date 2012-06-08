@@ -95,7 +95,12 @@ public class CustomScoreQueryParser implements QueryParser {
             return null;
         }
 
-        SearchScript searchScript = parseContext.scriptService().search(parseContext.lookup(), scriptLang, script, vars);
+        SearchScript searchScript;
+        try {
+            searchScript = parseContext.scriptService().search(parseContext.lookup(), scriptLang, script, vars);
+        } catch (Exception e) {
+            throw new QueryParsingException(parseContext.index(), "[custom_score] the script could not be loaded", e);
+        }
         FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(query, new ScriptScoreFunction(script, vars, searchScript));
         functionScoreQuery.setBoost(boost);
         return functionScoreQuery;

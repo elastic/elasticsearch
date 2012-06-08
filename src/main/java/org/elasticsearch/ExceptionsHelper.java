@@ -61,13 +61,14 @@ public final class ExceptionsHelper {
         if (t.getCause() != null) {
             StringBuilder sb = new StringBuilder();
             while (t != null) {
+                sb.append(t.getClass().getSimpleName());
                 if (t.getMessage() != null) {
-                    sb.append(t.getClass().getSimpleName()).append("[");
+                    sb.append("[");
                     sb.append(t.getMessage());
                     sb.append("]");
-                    if (!newLines) {
-                        sb.append("; ");
-                    }
+                }
+                if (!newLines) {
+                    sb.append("; ");
                 }
                 t = t.getCause();
                 if (t != null) {

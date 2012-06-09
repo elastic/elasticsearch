@@ -101,20 +101,6 @@
         </dependency>
 
         <dependency>
-            <groupId>org.elasticsearch</groupId>
-            <artifactId>es-jsr166y</artifactId>
-            <version>20120131</version>
-            <scope>compile</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>org.elasticsearch</groupId>
-            <artifactId>es-jsr166e</artifactId>
-            <version>20120131</version>
-            <scope>compile</scope>
-        </dependency>
-
-        <dependency>
             <groupId>joda-time</groupId>
             <artifactId>joda-time</artifactId>
             <!-- joda 2.0 moved to using volatile fields for datetime, which hurts performance for facets! -->
@@ -314,8 +300,6 @@
                         <includes>
                             <include>com.google.guava:guava</include>
                             <include>net.sf.trove4j:trove4j</include>
-                            <include>org.elasticsearch:es-jsr166y</include>
-                            <include>org.elasticsearch:es-jsr166e</include>
                             <include>org.mvel:mvel2</include>
                             <include>org.codehaus.jackson:jackson-core-asl</include>
                             <include>org.codehaus.jackson:jackson-smile</include>

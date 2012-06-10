@@ -35,6 +35,10 @@
     </properties>
 
     <repositories>
+        <repository>
+            <id>sonatype</id>
+            <url>http://oss.sonatype.org/content/repositories/releases/</url>
+        </repository>
     </repositories>
 
     <dependencies>

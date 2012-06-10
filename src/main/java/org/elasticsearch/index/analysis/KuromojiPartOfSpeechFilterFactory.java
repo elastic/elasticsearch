@@ -19,10 +19,12 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.CharArraySet;
-import org.apache.lucene.analysis.ja.JapaneseAnalyzer;
-import org.apache.lucene.analysis.ja.JapaneseTokenizer;
-import org.apache.lucene.analysis.ja.dict.UserDictionary;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.ja.JapanesePartOfSpeechStopFilter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
@@ -30,27 +32,29 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
-import java.util.Set;
+public class KuromojiPartOfSpeechFilterFactory extends
+        AbstractTokenFilterFactory {
 
-/**
- */
-public class KuromojiAnalyzerProvider extends AbstractIndexAnalyzerProvider<JapaneseAnalyzer> {
-
-    private final JapaneseAnalyzer analyzer;
+    private final boolean enablePositionIncrements;
+    private final Set<String> stopTags = new HashSet<String>();
 
     @Inject
-    public KuromojiAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
+    public KuromojiPartOfSpeechFilterFactory(Index index,
+            @IndexSettings Settings indexSettings, Environment env,
+            @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
-        final Set<?> stopWords = Analysis.parseStopWords(env, settings, JapaneseAnalyzer.getDefaultStopSet(), version);
-        final JapaneseTokenizer.Mode mode = KuromojiTokenizerFactory.getMode(settings);
-        final UserDictionary userDictionary = KuromojiTokenizerFactory.getUserDictionary(env, settings);
-        analyzer = new JapaneseAnalyzer(version, userDictionary, mode, CharArraySet.copy(version, stopWords), JapaneseAnalyzer.getDefaultStopTags());
+        List<String> wordList = Analysis.getWordList(env, settings, "stoptags");
+        if (wordList != null) {
+            stopTags.addAll(wordList);
+        }
+        this.enablePositionIncrements = settings.getAsBoolean(
+                "enable_position_increments", true);
     }
 
     @Override
-    public JapaneseAnalyzer get() {
-        return this.analyzer;
+    public TokenStream create(TokenStream tokenStream) {
+        return new JapanesePartOfSpeechStopFilter(enablePositionIncrements,
+                tokenStream, stopTags);
     }
-    
-    
+
 }

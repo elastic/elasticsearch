@@ -17,31 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.analysis.kuromoji;
+package org.elasticsearch.indices.analysis;
 
-import org.elasticsearch.index.analysis.KuromojiAnalysisBinderProcessor;
-import org.elasticsearch.index.analysis.KuromojiAnalyzerProvider;
-import org.elasticsearch.index.analysis.AnalysisModule;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.common.inject.AbstractModule;
 
 /**
- *
  */
-public class AnalysisKuromojiPlugin extends AbstractPlugin {
+public class KuromojiIndicesAnalysisModule extends AbstractModule {
 
     @Override
-    public String name() {
-        return "analysis-kuromoji";
-    }
-
-    @Override
-    public String description() {
-        return "Kuromoji analysis support";
-    }
-
-    public void onModule(AnalysisModule module) {
-        module.addAnalyzer("kuromoji", KuromojiAnalyzerProvider.class);
-        module.addProcessor(new KuromojiAnalysisBinderProcessor());
-
+    protected void configure() {
+        bind(KuromojiIndicesAnalysis.class).asEagerSingleton();
     }
 }

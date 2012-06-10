@@ -1,0 +1,31 @@
+{
+    "index":{
+        "analysis":{
+            "filter":{
+                "kuromoji_rf":{
+                    "type":"kuromoji_readingform",
+                    "use_romaji" : "true"
+                },
+                "kuromoji_pos" : {
+                    "type": "kuromoji_part_of_speech",
+                    "enable_position_increment" : "false",
+                    "stoptags" : ["#  verb-main:", "動詞-自立"]
+                },
+                "kuromoji_ks" : {
+                    "type": "kuromoji_stemmer",
+                    "minimum_length" : 6
+                }
+                
+                
+            },
+            
+            "tokenizer" : {
+                "kuromoji" : {
+                   "type":"kuromoji_tokenizer"
+                }
+            
+            }
+            
+        }
+    }
+}

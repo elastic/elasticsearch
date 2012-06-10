@@ -19,38 +19,28 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.CharArraySet;
-import org.apache.lucene.analysis.ja.JapaneseAnalyzer;
-import org.apache.lucene.analysis.ja.JapaneseTokenizer;
-import org.apache.lucene.analysis.ja.dict.UserDictionary;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.ja.JapaneseReadingFormFilter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
-import java.util.Set;
-
-/**
- */
-public class KuromojiAnalyzerProvider extends AbstractIndexAnalyzerProvider<JapaneseAnalyzer> {
-
-    private final JapaneseAnalyzer analyzer;
+public class KuromojiReadingFormFilterFactory extends
+        AbstractTokenFilterFactory {
+    private final boolean useRomaji;
 
     @Inject
-    public KuromojiAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
+    public KuromojiReadingFormFilterFactory(Index index,
+            @IndexSettings Settings indexSettings, @Assisted String name,
+            @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
-        final Set<?> stopWords = Analysis.parseStopWords(env, settings, JapaneseAnalyzer.getDefaultStopSet(), version);
-        final JapaneseTokenizer.Mode mode = KuromojiTokenizerFactory.getMode(settings);
-        final UserDictionary userDictionary = KuromojiTokenizerFactory.getUserDictionary(env, settings);
-        analyzer = new JapaneseAnalyzer(version, userDictionary, mode, CharArraySet.copy(version, stopWords), JapaneseAnalyzer.getDefaultStopTags());
+        useRomaji = settings.getAsBoolean("use_romaji", false);
     }
 
     @Override
-    public JapaneseAnalyzer get() {
-        return this.analyzer;
+    public TokenStream create(TokenStream tokenStream) {
+        return new JapaneseReadingFormFilter(tokenStream, useRomaji);
     }
-    
-    
 }

@@ -17,31 +17,23 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.analysis.kuromoji;
+package org.elasticsearch.index.analysis;
 
-import org.elasticsearch.index.analysis.KuromojiAnalysisBinderProcessor;
-import org.elasticsearch.index.analysis.KuromojiAnalyzerProvider;
-import org.elasticsearch.index.analysis.AnalysisModule;
-import org.elasticsearch.plugins.AbstractPlugin;
 
 /**
- *
  */
-public class AnalysisKuromojiPlugin extends AbstractPlugin {
+public class KuromojiAnalysisBinderProcessor extends AnalysisModule.AnalysisBinderProcessor {
 
     @Override
-    public String name() {
-        return "analysis-kuromoji";
+    public void processTokenizers(TokenizersBindings tokenizersBindings) {
+      tokenizersBindings.processTokenizer("kuromoji_tokenizer", KuromojiTokenizerFactory.class);
     }
 
     @Override
-    public String description() {
-        return "Kuromoji analysis support";
-    }
-
-    public void onModule(AnalysisModule module) {
-        module.addAnalyzer("kuromoji", KuromojiAnalyzerProvider.class);
-        module.addProcessor(new KuromojiAnalysisBinderProcessor());
-
+    public void processTokenFilters(TokenFiltersBindings tokenFiltersBindings) {
+        tokenFiltersBindings.processTokenFilter("kuromoji_baseform", KuromojiBaseFormFilterFactory.class);
+        tokenFiltersBindings.processTokenFilter("kuromoji_part_of_speech", KuromojiPartOfSpeechFilterFactory.class);
+        tokenFiltersBindings.processTokenFilter("kuromoji_readingform", KuromojiReadingFormFilterFactory.class);
+        tokenFiltersBindings.processTokenFilter("kuromoji_stemmer", KuromojiKatakanaStemmerFactory.class);
     }
 }

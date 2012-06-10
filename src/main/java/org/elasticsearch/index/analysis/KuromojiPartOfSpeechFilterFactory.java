@@ -19,10 +19,6 @@
 
 package org.elasticsearch.index.analysis;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.ja.JapanesePartOfSpeechStopFilter;
 import org.elasticsearch.common.inject.Inject;
@@ -32,29 +28,28 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
-public class KuromojiPartOfSpeechFilterFactory extends
-        AbstractTokenFilterFactory {
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
+public class KuromojiPartOfSpeechFilterFactory extends AbstractTokenFilterFactory {
 
     private final boolean enablePositionIncrements;
     private final Set<String> stopTags = new HashSet<String>();
 
     @Inject
-    public KuromojiPartOfSpeechFilterFactory(Index index,
-            @IndexSettings Settings indexSettings, Environment env,
-            @Assisted String name, @Assisted Settings settings) {
+    public KuromojiPartOfSpeechFilterFactory(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
         List<String> wordList = Analysis.getWordList(env, settings, "stoptags");
         if (wordList != null) {
             stopTags.addAll(wordList);
         }
-        this.enablePositionIncrements = settings.getAsBoolean(
-                "enable_position_increments", true);
+        this.enablePositionIncrements = settings.getAsBoolean("enable_position_increments", true);
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new JapanesePartOfSpeechStopFilter(enablePositionIncrements,
-                tokenStream, stopTags);
+        return new JapanesePartOfSpeechStopFilter(enablePositionIncrements, tokenStream, stopTags);
     }
 
 }

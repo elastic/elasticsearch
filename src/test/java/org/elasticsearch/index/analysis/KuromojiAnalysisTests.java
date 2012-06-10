@@ -19,13 +19,6 @@
 
 package org.elasticsearch.index.analysis;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
-import static org.hamcrest.Matchers.instanceOf;
-
-import java.io.IOException;
-import java.io.StringReader;
-
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ja.JapaneseAnalyzer;
@@ -33,6 +26,7 @@ import org.apache.lucene.analysis.ja.JapaneseTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
@@ -43,11 +37,14 @@ import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.plugin.analysis.kuromoji.AnalysisKuromojiPlugin;
-import org.elasticsearch.plugins.PluginsModule;
-import org.elasticsearch.plugins.PluginsService;
-import org.hamcrest.MatcherAssert;
 import org.testng.Assert;
 import org.testng.annotations.Test;
+
+import java.io.IOException;
+import java.io.StringReader;
+
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  */
@@ -55,164 +52,113 @@ public class KuromojiAnalysisTests {
 
     @Test
     public void testDefaultsKuromojiAnalysis() {
-        Index index = new Index("test");
+        AnalysisService analysisService = createAnalysisService();
 
-        Injector parentInjector = new ModulesBuilder().add(
-                new SettingsModule(EMPTY_SETTINGS),
-                new EnvironmentModule(new Environment(EMPTY_SETTINGS)),
-                new IndicesAnalysisModule()).createInjector();
-        AnalysisModule analysisModule = new AnalysisModule(EMPTY_SETTINGS,
-                parentInjector.getInstance(IndicesAnalysisService.class));
-        new AnalysisKuromojiPlugin().onModule(analysisModule);
-        Injector injector = new ModulesBuilder().add(
-                new IndexSettingsModule(index, EMPTY_SETTINGS),
-                new IndexNameModule(index), analysisModule)
-                .createChildInjector(parentInjector);
+        TokenizerFactory tokenizerFactory = analysisService.tokenizer("kuromoji_tokenizer");
+        assertThat(tokenizerFactory, instanceOf(KuromojiTokenizerFactory.class));
 
-        AnalysisService analysisService = injector
-                .getInstance(AnalysisService.class);
-
-        TokenizerFactory tokenizerFactory = analysisService
-                .tokenizer("kuromoji_tokenizer");
-        MatcherAssert.assertThat(tokenizerFactory,
-                instanceOf(KuromojiTokenizerFactory.class));
-
-        TokenFilterFactory filterFactory = analysisService
-                .tokenFilter("kuromoji_part_of_speech");
-        MatcherAssert.assertThat(filterFactory,
-                instanceOf(KuromojiPartOfSpeechFilterFactory.class));
+        TokenFilterFactory filterFactory = analysisService.tokenFilter("kuromoji_part_of_speech");
+        assertThat(filterFactory, instanceOf(KuromojiPartOfSpeechFilterFactory.class));
 
         filterFactory = analysisService.tokenFilter("kuromoji_readingform");
-        MatcherAssert.assertThat(filterFactory,
-                instanceOf(KuromojiReadingFormFilterFactory.class));
+        assertThat(filterFactory, instanceOf(KuromojiReadingFormFilterFactory.class));
 
         filterFactory = analysisService.tokenFilter("kuromoji_baseform");
-        MatcherAssert.assertThat(filterFactory,
-                instanceOf(KuromojiBaseFormFilterFactory.class));
+        assertThat(filterFactory, instanceOf(KuromojiBaseFormFilterFactory.class));
 
         filterFactory = analysisService.tokenFilter("kuromoji_stemmer");
-        MatcherAssert.assertThat(filterFactory,
-                instanceOf(KuromojiKatakanaStemmerFactory.class));
+        assertThat(filterFactory, instanceOf(KuromojiKatakanaStemmerFactory.class));
 
         NamedAnalyzer analyzer = analysisService.analyzer("kuromoji");
-        MatcherAssert.assertThat(analyzer.analyzer(),
-                instanceOf(JapaneseAnalyzer.class));
+        assertThat(analyzer.analyzer(), instanceOf(JapaneseAnalyzer.class));
     }
 
     @Test
     public void testBaseFormFilterFactory() throws IOException {
         AnalysisService analysisService = createAnalysisService();
-        TokenFilterFactory tokenFilter = analysisService
-                .tokenFilter("kuromoji_pos");
-        MatcherAssert.assertThat(tokenFilter,
-                instanceOf(KuromojiPartOfSpeechFilterFactory.class));
+        TokenFilterFactory tokenFilter = analysisService.tokenFilter("kuromoji_pos");
+        assertThat(tokenFilter, instanceOf(KuromojiPartOfSpeechFilterFactory.class));
         String source = "私は制限スピードを超える。";
-        String[] expected = new String[] { "私", "は", "制限", "スピード", "を" };
-        Tokenizer tokenizer = new JapaneseTokenizer(new StringReader(source),
-                null, true, JapaneseTokenizer.Mode.SEARCH);
+        String[] expected = new String[]{"私", "は", "制限", "スピード", "を"};
+        Tokenizer tokenizer = new JapaneseTokenizer(new StringReader(source), null, true, JapaneseTokenizer.Mode.SEARCH);
         assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);
-
     }
 
     @Test
     public void testReadingFormFilterFactory() throws IOException {
         AnalysisService analysisService = createAnalysisService();
-        TokenFilterFactory tokenFilter = analysisService
-                .tokenFilter("kuromoji_rf");
-        MatcherAssert.assertThat(tokenFilter,
-                instanceOf(KuromojiReadingFormFilterFactory.class));
+        TokenFilterFactory tokenFilter = analysisService.tokenFilter("kuromoji_rf");
+        assertThat(tokenFilter, instanceOf(KuromojiReadingFormFilterFactory.class));
         String source = "今夜はロバート先生と話した";
-        String[] expected_tokens_romanji = new String[] { "kon'ya", "ha",
-                "robato", "sensei", "to", "hanashi", "ta" };
+        String[] expected_tokens_romanji = new String[]{"kon'ya", "ha", "robato", "sensei", "to", "hanashi", "ta"};
 
-        Tokenizer tokenizer = new JapaneseTokenizer(new StringReader(source),
-                null, true, JapaneseTokenizer.Mode.SEARCH);
+        Tokenizer tokenizer = new JapaneseTokenizer(new StringReader(source), null, true, JapaneseTokenizer.Mode.SEARCH);
 
-        assertSimpleTSOutput(tokenFilter.create(tokenizer),
-                expected_tokens_romanji);
+        assertSimpleTSOutput(tokenFilter.create(tokenizer), expected_tokens_romanji);
 
-        tokenizer = new JapaneseTokenizer(new StringReader(source), null, true,
-                JapaneseTokenizer.Mode.SEARCH);
-        String[] expected_tokens_katakana = new String[] { "コンヤ", "ハ", "ロバート",
-                "センセイ", "ト", "ハナシ", "タ" };
+        tokenizer = new JapaneseTokenizer(new StringReader(source), null, true, JapaneseTokenizer.Mode.SEARCH);
+        String[] expected_tokens_katakana = new String[]{"コンヤ", "ハ", "ロバート", "センセイ", "ト", "ハナシ", "タ"};
         tokenFilter = analysisService.tokenFilter("kuromoji_readingform");
-        MatcherAssert.assertThat(tokenFilter,
-                instanceOf(KuromojiReadingFormFilterFactory.class));
-        assertSimpleTSOutput(tokenFilter.create(tokenizer),
-                expected_tokens_katakana);
+        assertThat(tokenFilter, instanceOf(KuromojiReadingFormFilterFactory.class));
+        assertSimpleTSOutput(tokenFilter.create(tokenizer), expected_tokens_katakana);
     }
 
     @Test
     public void testKatakanaStemFilter() throws IOException {
         AnalysisService analysisService = createAnalysisService();
-        TokenFilterFactory tokenFilter = analysisService
-                .tokenFilter("kuromoji_stemmer");
-        MatcherAssert.assertThat(tokenFilter,
-                instanceOf(KuromojiKatakanaStemmerFactory.class));
+        TokenFilterFactory tokenFilter = analysisService.tokenFilter("kuromoji_stemmer");
+        assertThat(tokenFilter, instanceOf(KuromojiKatakanaStemmerFactory.class));
         String source = "明後日パーティーに行く予定がある。図書館で資料をコピーしました。";
-        ;
-        Tokenizer tokenizer = new JapaneseTokenizer(new StringReader(source),
-                null, true, JapaneseTokenizer.Mode.SEARCH);
+
+        Tokenizer tokenizer = new JapaneseTokenizer(new StringReader(source), null, true, JapaneseTokenizer.Mode.SEARCH);
 
         // パーティー should be stemmed by default
         // (min len) コピー should not be stemmed
-        String[] expected_tokens_katakana = new String[] { "明後日", "パーティ", "に",
-                "行く", "予定", "が", "ある", "図書館", "で", "資料", "を", "コピー", "し", "まし",
-                "た" };
-        assertSimpleTSOutput(tokenFilter.create(tokenizer),
-                expected_tokens_katakana);
+        String[] expected_tokens_katakana = new String[]{"明後日", "パーティ", "に", "行く", "予定", "が", "ある", "図書館", "で", "資料", "を", "コピー", "し", "まし", "た"};
+        assertSimpleTSOutput(tokenFilter.create(tokenizer), expected_tokens_katakana);
 
         tokenFilter = analysisService.tokenFilter("kuromoji_ks");
-        MatcherAssert.assertThat(tokenFilter,
-                instanceOf(KuromojiKatakanaStemmerFactory.class));
-        tokenizer = new JapaneseTokenizer(new StringReader(source), null, true,
-                JapaneseTokenizer.Mode.SEARCH);
+        assertThat(tokenFilter, instanceOf(KuromojiKatakanaStemmerFactory.class));
+        tokenizer = new JapaneseTokenizer(new StringReader(source), null, true, JapaneseTokenizer.Mode.SEARCH);
 
         // パーティー should not be stemmed since min len == 6
         // コピー should not be stemmed
-        expected_tokens_katakana = new String[] { "明後日", "パーティー", "に", "行く",
-                "予定", "が", "ある", "図書館", "で", "資料", "を", "コピー", "し", "まし", "た" };
-        assertSimpleTSOutput(tokenFilter.create(tokenizer),
-                expected_tokens_katakana);
-
+        expected_tokens_katakana = new String[]{"明後日", "パーティー", "に", "行く", "予定", "が", "ある", "図書館", "で", "資料", "を", "コピー", "し", "まし", "た"};
+        assertSimpleTSOutput(tokenFilter.create(tokenizer), expected_tokens_katakana);
     }
 
     public AnalysisService createAnalysisService() {
+        Settings settings = ImmutableSettings.settingsBuilder().loadFromClasspath("org/elasticsearch/index/analysis/kuromoji_analysis.json").build();
+
         Index index = new Index("test");
-        Settings settings = settingsBuilder().loadFromClasspath(
-                "org/elasticsearch/index/analysis/kuromoji_analysis.json")
-                .build();
-        Injector parentInjector = new ModulesBuilder().add(
-                new SettingsModule(settings),
+
+        Injector parentInjector = new ModulesBuilder().add(new SettingsModule(settings),
                 new EnvironmentModule(new Environment(settings)),
-                new IndicesAnalysisModule()).createInjector();
-        AnalysisModule analysisModule = new AnalysisModule(settings,
-                parentInjector.getInstance(IndicesAnalysisService.class));
+                new IndicesAnalysisModule())
+                .createInjector();
+
+        AnalysisModule analysisModule = new AnalysisModule(settings, parentInjector.getInstance(IndicesAnalysisService.class));
+        new AnalysisKuromojiPlugin().onModule(analysisModule);
+
         Injector injector = new ModulesBuilder().add(
                 new IndexSettingsModule(index, settings),
-                new PluginsModule(settings, parentInjector
-                        .getInstance(PluginsService.class)),
-                new IndexNameModule(index), analysisModule)
+                new IndexNameModule(index),
+                analysisModule)
                 .createChildInjector(parentInjector);
 
-        AnalysisService analysisService = injector
-                .getInstance(AnalysisService.class);
-        return analysisService;
+        return injector.getInstance(AnalysisService.class);
     }
 
     public static void assertSimpleTSOutput(TokenStream stream,
-            String[] expected) throws IOException {
+                                            String[] expected) throws IOException {
         stream.reset();
-        CharTermAttribute termAttr = stream
-                .getAttribute(CharTermAttribute.class);
+        CharTermAttribute termAttr = stream.getAttribute(CharTermAttribute.class);
         Assert.assertNotNull(termAttr);
         int i = 0;
         while (stream.incrementToken()) {
             Assert.assertTrue(i < expected.length);
-            Assert.assertEquals(expected[i++], termAttr.toString(),
-                    "expected different term at index " + i);
+            Assert.assertEquals(expected[i++], termAttr.toString(), "expected different term at index " + i);
         }
         Assert.assertEquals(i, expected.length, "not all tokens produced");
     }
-
 }

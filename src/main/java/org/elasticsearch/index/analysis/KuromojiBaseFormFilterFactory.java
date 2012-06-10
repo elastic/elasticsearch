@@ -29,13 +29,13 @@ import org.elasticsearch.index.settings.IndexSettings;
 
 public class KuromojiBaseFormFilterFactory extends AbstractTokenFilterFactory {
 
-  @Inject
-  public KuromojiBaseFormFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-      super(index, indexSettings, name, settings);
-  }
+    @Inject
+    public KuromojiBaseFormFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
+        super(index, indexSettings, name, settings);
+    }
 
-  @Override
-  public TokenStream create(TokenStream tokenStream) {
-      return new JapaneseBaseFormFilter(tokenStream);
-  }
+    @Override
+    public TokenStream create(TokenStream tokenStream) {
+        return new JapaneseBaseFormFilter(tokenStream);
+    }
 }

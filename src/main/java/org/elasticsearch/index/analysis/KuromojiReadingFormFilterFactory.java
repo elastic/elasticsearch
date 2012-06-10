@@ -27,14 +27,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
-public class KuromojiReadingFormFilterFactory extends
-        AbstractTokenFilterFactory {
+public class KuromojiReadingFormFilterFactory extends AbstractTokenFilterFactory {
+
     private final boolean useRomaji;
 
     @Inject
-    public KuromojiReadingFormFilterFactory(Index index,
-            @IndexSettings Settings indexSettings, @Assisted String name,
-            @Assisted Settings settings) {
+    public KuromojiReadingFormFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
         useRomaji = settings.getAsBoolean("use_romaji", false);
     }

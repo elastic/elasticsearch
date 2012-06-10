@@ -18,9 +18,6 @@
  */
 package org.elasticsearch.index.analysis;
 
-import java.io.IOException;
-import java.io.Reader;
-
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ja.JapaneseTokenizer;
 import org.apache.lucene.analysis.ja.JapaneseTokenizer.Mode;
@@ -32,6 +29,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
+
+import java.io.IOException;
+import java.io.Reader;
 
 /**
  */
@@ -45,20 +45,16 @@ public class KuromojiTokenizerFactory extends AbstractTokenizerFactory {
     private boolean discartPunctuation;
 
     @Inject
-    public KuromojiTokenizerFactory(Index index,
-            @IndexSettings Settings indexSettings, Environment env,
-            @Assisted String name, @Assisted Settings settings) {
+    public KuromojiTokenizerFactory(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
         mode = getMode(settings);
         userDictionary = getUserDictionary(env, settings);
         discartPunctuation = settings.getAsBoolean("discard_punctuation", true);
     }
 
-    public static UserDictionary getUserDictionary(Environment env,
-            Settings settings) {
+    public static UserDictionary getUserDictionary(Environment env, Settings settings) {
         try {
-            final Reader reader = Analysis.getReaderFromFile(env, settings,
-                    USER_DICT_OPTION);
+            final Reader reader = Analysis.getReaderFromFile(env, settings, USER_DICT_OPTION);
             if (reader == null) {
                 return null;
             } else {
@@ -69,8 +65,7 @@ public class KuromojiTokenizerFactory extends AbstractTokenizerFactory {
                 }
             }
         } catch (IOException e) {
-            throw new ElasticSearchException(
-                    "failed to load kuromoji user dictionary", e);
+            throw new ElasticSearchException("failed to load kuromoji user dictionary", e);
         }
     }
 

@@ -32,12 +32,9 @@ public class KuromojiKatakanaStemmerFactory extends AbstractTokenFilterFactory {
     private final int minimumLength;
 
     @Inject
-    public KuromojiKatakanaStemmerFactory(Index index,
-            @IndexSettings Settings indexSettings, @Assisted String name,
-            @Assisted Settings settings) {
+    public KuromojiKatakanaStemmerFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
-        minimumLength = settings.getAsInt("minimum_length",
-                JapaneseKatakanaStemFilter.DEFAULT_MINIMUM_LENGTH).intValue();
+        minimumLength = settings.getAsInt("minimum_length", JapaneseKatakanaStemFilter.DEFAULT_MINIMUM_LENGTH);
     }
 
     @Override

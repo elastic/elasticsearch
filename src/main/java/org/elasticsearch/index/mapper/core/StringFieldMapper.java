@@ -164,7 +164,7 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
         super(names, index, store, termVector, boost, omitNorms, omitTermFreqAndPositions, indexAnalyzer, searchAnalyzer);
         this.nullValue = nullValue;
         this.positionOffsetGap = positionOffsetGap;
-        this.searchQuotedAnalyzer = searchQuotedAnalyzer != null ? searchQuotedAnalyzer : searchAnalyzer;
+        this.searchQuotedAnalyzer = searchQuotedAnalyzer != null ? searchQuotedAnalyzer : this.searchAnalyzer;
     }
 
     @Override

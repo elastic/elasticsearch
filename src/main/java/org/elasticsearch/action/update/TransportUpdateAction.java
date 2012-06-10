@@ -165,7 +165,48 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
 
         // no doc, what to do, what to do...
         if (!getResult.exists()) {
-            listener.onFailure(new DocumentMissingException(new ShardId(request.index(), request.shardId()), request.type(), request.id()));
+            if (request.indexRequest() == null) {
+                listener.onFailure(new DocumentMissingException(new ShardId(request.index(), request.shardId()), request.type(), request.id()));
+                return;
+            }
+            IndexRequest indexRequest = request.indexRequest();
+            indexRequest.index(request.index()).type(request.type()).id(request.id())
+                    // it has to be a "create!"
+                    .create(true)
+                    .routing(request.routing())
+                    .percolate(request.percolate())
+                    .refresh(request.refresh())
+                    .replicationType(request.replicationType()).consistencyLevel(request.consistencyLevel());
+            indexRequest.operationThreaded(false);
+            // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
+            final BytesHolder updateSourceBytes = indexRequest.underlyingSourceBytes();
+            indexAction.execute(indexRequest, new ActionListener<IndexResponse>() {
+                @Override
+                public void onResponse(IndexResponse response) {
+                    UpdateResponse update = new UpdateResponse(response.index(), response.type(), response.id(), response.version());
+                    update.matches(response.matches());
+                    // TODO: we can parse the index _source and extractGetResult if applicable
+                    update.getResult(null);
+                    listener.onResponse(update);
+                }
+
+                @Override
+                public void onFailure(Throwable e) {
+                    e = ExceptionsHelper.unwrapCause(e);
+                    if (e instanceof VersionConflictEngineException) {
+                        if (retryCount < request.retryOnConflict()) {
+                            threadPool.executor(executor()).execute(new Runnable() {
+                                @Override
+                                public void run() {
+                                    shardOperation(request, listener, retryCount + 1);
+                                }
+                            });
+                            return;
+                        }
+                    }
+                    listener.onFailure(e);
+                }
+            });
             return;
         }
 

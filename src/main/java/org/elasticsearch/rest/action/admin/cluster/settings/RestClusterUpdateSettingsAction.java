@@ -46,7 +46,7 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         final ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = Requests.clusterUpdateSettingsRequest();
-
+        clusterUpdateSettingsRequest.listenerThreaded(false);
         try {
             XContentType xContentType = XContentFactory.xContentType(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength());
             Map<String, Object> source = XContentFactory.xContent(xContentType)

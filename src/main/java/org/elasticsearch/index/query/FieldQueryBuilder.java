@@ -28,7 +28,7 @@ import java.io.IOException;
  * version of {@link QueryStringQueryBuilder} that simply runs against
  * a single field.
  */
-public class FieldQueryBuilder extends BaseQueryBuilder {
+public class FieldQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<FieldQueryBuilder> {
 
     public static enum Operator {
         OR,

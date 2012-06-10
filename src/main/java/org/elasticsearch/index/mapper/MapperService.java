@@ -31,7 +31,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.FilterClause;
-import org.apache.lucene.search.PublicTermsFilter;
+import org.apache.lucene.search.XTermsFilter;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
@@ -336,11 +336,11 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             }
         }
         if (useTermsFilter) {
-            PublicTermsFilter termsFilter = new PublicTermsFilter();
-            for (String type : types) {
-                termsFilter.addTerm(TypeFieldMapper.TERM_FACTORY.createTerm(type));
+            Term[] typesTerms = new Term[types.length];
+            for (int i = 0; i < typesTerms.length; i++) {
+                typesTerms[i] = TypeFieldMapper.TERM_FACTORY.createTerm(types[i]);
             }
-            return termsFilter;
+            return new XTermsFilter(typesTerms);
         } else {
             XBooleanFilter bool = new XBooleanFilter();
             for (String type : types) {
@@ -353,27 +353,6 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             }
             return bool;
         }
-    }
-
-    /**
-     * A filter to filter based on several types.
-     */
-    public Filter typesFilterFailOnMissing(String... types) throws TypeMissingException {
-        if (types.length == 1) {
-            DocumentMapper docMapper = documentMapper(types[0]);
-            if (docMapper == null) {
-                throw new TypeMissingException(index, types[0]);
-            }
-            return docMapper.typeFilter();
-        }
-        PublicTermsFilter termsFilter = new PublicTermsFilter();
-        for (String type : types) {
-            if (!hasMapping(type)) {
-                throw new TypeMissingException(index, type);
-            }
-            termsFilter.addTerm(TypeFieldMapper.TERM_FACTORY.createTerm(type));
-        }
-        return termsFilter;
     }
 
     /**
@@ -905,12 +884,12 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
                 }
             }
             FieldMappers mappers = fullNameFieldMappers.get(fieldName);
-            if (mappers != null && mappers.mapper() != null && mappers.mapper().searchAnalyzer() != null) {
+            if (mappers != null && mappers.mapper() != null && mappers.mapper().searchQuoteAnalyzer() != null) {
                 return mappers.mapper().searchQuoteAnalyzer().getPositionIncrementGap(fieldName);
             }
 
             mappers = indexNameFieldMappers.get(fieldName);
-            if (mappers != null && mappers.mapper() != null && mappers.mapper().searchAnalyzer() != null) {
+            if (mappers != null && mappers.mapper() != null && mappers.mapper().searchQuoteAnalyzer() != null) {
                 return mappers.mapper().searchQuoteAnalyzer().getPositionIncrementGap(fieldName);
             }
             return defaultAnalyzer.getPositionIncrementGap(fieldName);
@@ -928,12 +907,12 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
                 }
             }
             FieldMappers mappers = fullNameFieldMappers.get(fieldName);
-            if (mappers != null && mappers.mapper() != null && mappers.mapper().searchAnalyzer() != null) {
+            if (mappers != null && mappers.mapper() != null && mappers.mapper().searchQuoteAnalyzer() != null) {
                 return mappers.mapper().searchQuoteAnalyzer().getOffsetGap(field);
             }
 
             mappers = indexNameFieldMappers.get(fieldName);
-            if (mappers != null && mappers.mapper() != null && mappers.mapper().searchAnalyzer() != null) {
+            if (mappers != null && mappers.mapper() != null && mappers.mapper().searchQuoteAnalyzer() != null) {
                 return mappers.mapper().searchQuoteAnalyzer().getOffsetGap(field);
             }
             return defaultAnalyzer.getOffsetGap(field);
@@ -950,12 +929,12 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
                 }
             }
             FieldMappers mappers = fullNameFieldMappers.get(fieldName);
-            if (mappers != null && mappers.mapper() != null && mappers.mapper().searchAnalyzer() != null) {
+            if (mappers != null && mappers.mapper() != null && mappers.mapper().searchQuoteAnalyzer() != null) {
                 return mappers.mapper().searchQuoteAnalyzer().tokenStream(fieldName, reader);
             }
 
             mappers = indexNameFieldMappers.get(fieldName);
-            if (mappers != null && mappers.mapper() != null && mappers.mapper().searchAnalyzer() != null) {
+            if (mappers != null && mappers.mapper() != null && mappers.mapper().searchQuoteAnalyzer() != null) {
                 return mappers.mapper().searchQuoteAnalyzer().tokenStream(fieldName, reader);
             }
             return defaultAnalyzer.tokenStream(fieldName, reader);
@@ -972,12 +951,12 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
                 }
             }
             FieldMappers mappers = fullNameFieldMappers.get(fieldName);
-            if (mappers != null && mappers.mapper() != null && mappers.mapper().searchAnalyzer() != null) {
+            if (mappers != null && mappers.mapper() != null && mappers.mapper().searchQuoteAnalyzer() != null) {
                 return mappers.mapper().searchQuoteAnalyzer().reusableTokenStream(fieldName, reader);
             }
 
             mappers = indexNameFieldMappers.get(fieldName);
-            if (mappers != null && mappers.mapper() != null && mappers.mapper().searchAnalyzer() != null) {
+            if (mappers != null && mappers.mapper() != null && mappers.mapper().searchQuoteAnalyzer() != null) {
                 return mappers.mapper().searchQuoteAnalyzer().reusableTokenStream(fieldName, reader);
             }
             return defaultAnalyzer.reusableTokenStream(fieldName, reader);

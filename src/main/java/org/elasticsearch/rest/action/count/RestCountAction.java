@@ -61,7 +61,6 @@ public class RestCountAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         CountRequest countRequest = new CountRequest(RestActions.splitIndices(request.param("index")));
-        // we just send back a response, no need to fork a listener
         countRequest.listenerThreaded(false);
         try {
             BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operation_threading"), BroadcastOperationThreading.SINGLE_THREAD);

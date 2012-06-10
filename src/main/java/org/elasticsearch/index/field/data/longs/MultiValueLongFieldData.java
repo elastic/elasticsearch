@@ -104,16 +104,15 @@ public class MultiValueLongFieldData extends LongFieldData {
 
     @Override
     public void forEachValueInDoc(int docId, StringValueInDocProc proc) {
-        boolean found = false;
-        for (int[] ordinal : ordinals) {
-            int loc = ordinal[docId];
-            if (loc != 0) {
-                found = true;
-                proc.onValue(docId, Long.toString(values[loc]));
+        for (int i = 0; i < ordinals.length; i++) {
+            int loc = ordinals[i][docId];
+            if (loc == 0) {
+                if (i == 0) {
+                    proc.onMissing(docId);
+                }
+                break;
             }
-        }
-        if (!found) {
-            proc.onMissing(docId);
+            proc.onValue(docId, Long.toString(values[loc]));
         }
     }
 
@@ -121,9 +120,10 @@ public class MultiValueLongFieldData extends LongFieldData {
     public void forEachValueInDoc(int docId, DoubleValueInDocProc proc) {
         for (int[] ordinal : ordinals) {
             int loc = ordinal[docId];
-            if (loc != 0) {
-                proc.onValue(docId, values[loc]);
+            if (loc == 0) {
+                break;
             }
+            proc.onValue(docId, values[loc]);
         }
     }
 
@@ -131,69 +131,66 @@ public class MultiValueLongFieldData extends LongFieldData {
     public void forEachValueInDoc(int docId, LongValueInDocProc proc) {
         for (int[] ordinal : ordinals) {
             int loc = ordinal[docId];
-            if (loc != 0) {
-                proc.onValue(docId, values[loc]);
+            if (loc == 0) {
+                break;
             }
+            proc.onValue(docId, values[loc]);
         }
     }
 
     @Override
     public void forEachValueInDoc(int docId, MissingDoubleValueInDocProc proc) {
-        boolean found = false;
-        for (int[] ordinal : ordinals) {
-            int loc = ordinal[docId];
-            if (loc != 0) {
-                found = true;
-                proc.onValue(docId, values[loc]);
+        for (int i = 0; i < ordinals.length; i++) {
+            int loc = ordinals[i][docId];
+            if (loc == 0) {
+                if (i == 0) {
+                    proc.onMissing(docId);
+                }
+                break;
             }
-        }
-        if (!found) {
-            proc.onMissing(docId);
+            proc.onValue(docId, values[loc]);
         }
     }
 
     @Override
     public void forEachValueInDoc(int docId, MissingLongValueInDocProc proc) {
-        boolean found = false;
-        for (int[] ordinal : ordinals) {
-            int loc = ordinal[docId];
-            if (loc != 0) {
-                found = true;
-                proc.onValue(docId, values[loc]);
+        for (int i = 0; i < ordinals.length; i++) {
+            int loc = ordinals[i][docId];
+            if (loc == 0) {
+                if (i == 0) {
+                    proc.onMissing(docId);
+                }
+                break;
             }
-        }
-        if (!found) {
-            proc.onMissing(docId);
+            proc.onValue(docId, values[loc]);
         }
     }
 
     @Override
     public void forEachOrdinalInDoc(int docId, OrdinalInDocProc proc) {
-        boolean found = false;
-        for (int[] ordinal : ordinals) {
-            int loc = ordinal[docId];
-            if (loc != 0) {
-                found = true;
-                proc.onOrdinal(docId, loc);
+        for (int i = 0; i < ordinals.length; i++) {
+            int loc = ordinals[i][docId];
+            if (loc == 0) {
+                if (i == 0) {
+                    proc.onOrdinal(docId, 0);
+                }
+                break;
             }
-        }
-        if (!found) {
-            proc.onOrdinal(docId, 0);
+            proc.onOrdinal(docId, loc);
         }
     }
 
     @Override
     public void forEachValueInDoc(int docId, ValueInDocProc proc) {
-        boolean found = false;
-        for (int[] ordinal : ordinals) {
-            int loc = ordinal[docId];
-            if (loc != 0) {
-                found = true;
-                proc.onValue(docId, values[loc]);
+        for (int i = 0; i < ordinals.length; i++) {
+            int loc = ordinals[i][docId];
+            if (loc == 0) {
+                if (i == 0) {
+                    proc.onMissing(docId);
+                }
+                break;
             }
-        }
-        if (!found) {
-            proc.onMissing(docId);
+            proc.onValue(docId, values[loc]);
         }
     }
 
@@ -202,10 +199,11 @@ public class MultiValueLongFieldData extends LongFieldData {
         MutableDateTime dateTime = dateTimeCache.get().get();
         for (int[] ordinal : ordinals) {
             int loc = ordinal[docId];
-            if (loc != 0) {
-                dateTime.setMillis(values[loc]);
-                proc.onValue(docId, dateTime);
+            if (loc == 0) {
+                break;
             }
+            dateTime.setMillis(values[loc]);
+            proc.onValue(docId, dateTime);
         }
     }
 
@@ -213,10 +211,11 @@ public class MultiValueLongFieldData extends LongFieldData {
     public void forEachValueInDoc(int docId, MutableDateTime dateTime, DateValueInDocProc proc) {
         for (int[] ordinal : ordinals) {
             int loc = ordinal[docId];
-            if (loc != 0) {
-                dateTime.setMillis(values[loc]);
-                proc.onValue(docId, dateTime);
+            if (loc == 0) {
+                break;
             }
+            dateTime.setMillis(values[loc]);
+            proc.onValue(docId, dateTime);
         }
     }
 
@@ -254,9 +253,10 @@ public class MultiValueLongFieldData extends LongFieldData {
     public double[] doubleValues(int docId) {
         int length = 0;
         for (int[] ordinal : ordinals) {
-            if (ordinal[docId] != 0) {
-                length++;
+            if (ordinal[docId] == 0) {
+                break;
             }
+            length++;
         }
         if (length == 0) {
             return DoubleFieldData.EMPTY_DOUBLE_ARRAY;
@@ -267,12 +267,8 @@ public class MultiValueLongFieldData extends LongFieldData {
         } else {
             doubles = new double[length];
         }
-        int i = 0;
-        for (int[] ordinal : ordinals) {
-            int loc = ordinal[docId];
-            if (loc != 0) {
-                doubles[i++] = values[loc];
-            }
+        for (int i = 0; i < length; i++) {
+            doubles[i] = values[ordinals[i][docId]];
         }
         return doubles;
     }
@@ -292,9 +288,10 @@ public class MultiValueLongFieldData extends LongFieldData {
     public long[] values(int docId) {
         int length = 0;
         for (int[] ordinal : ordinals) {
-            if (ordinal[docId] != 0) {
-                length++;
+            if (ordinal[docId] == 0) {
+                break;
             }
+            length++;
         }
         if (length == 0) {
             return EMPTY_LONG_ARRAY;
@@ -305,12 +302,8 @@ public class MultiValueLongFieldData extends LongFieldData {
         } else {
             longs = new long[length];
         }
-        int i = 0;
-        for (int[] ordinal : ordinals) {
-            int loc = ordinal[docId];
-            if (loc != 0) {
-                longs[i++] = values[loc];
-            }
+        for (int i = 0; i < length; i++) {
+            longs[i] = values[ordinals[i][docId]];
         }
         return longs;
     }

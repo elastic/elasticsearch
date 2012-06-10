@@ -27,7 +27,7 @@ import java.io.IOException;
  * Text query is a query that analyzes the text and constructs a query as the result of the analysis. It
  * can construct different queries based on the type provided.
  */
-public class TextQueryBuilder extends BaseQueryBuilder {
+public class TextQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<TextQueryBuilder> {
 
     public static enum Operator {
         OR,

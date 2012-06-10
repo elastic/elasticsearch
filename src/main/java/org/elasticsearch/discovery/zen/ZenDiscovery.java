@@ -19,6 +19,7 @@
 
 package org.elasticsearch.discovery.zen;
 
+import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
@@ -96,6 +97,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     private final ElectMasterService electMaster;
 
+    private final boolean masterElectionFilterClientNodes;
+    private final boolean masterElectionFilterDataNodes;
+
 
     private DiscoveryNode localNode;
 
@@ -128,7 +132,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         this.pingTimeout = settings.getAsTime("discovery.zen.ping.timeout", settings.getAsTime("discovery.zen.ping_timeout", componentSettings.getAsTime("ping_timeout", componentSettings.getAsTime("initial_ping_timeout", timeValueSeconds(3)))));
         this.sendLeaveRequest = componentSettings.getAsBoolean("send_leave_request", true);
 
-        logger.debug("using ping.timeout [{}]", pingTimeout);
+        this.masterElectionFilterClientNodes = settings.getAsBoolean("discovery.zen.master_election.filter_client", true);
+        this.masterElectionFilterDataNodes = settings.getAsBoolean("discovery.zen.master_election.filter_data", false);
+
+        logger.debug("using ping.timeout [{}], master_election.filter_client [{}], master_election.filter_data [{}]", pingTimeout, masterElectionFilterClientNodes, masterElectionFilterDataNodes);
 
         this.electMaster = new ElectMasterService(settings, nodeSettingsService);
 
@@ -550,13 +557,38 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     }
 
     private DiscoveryNode findMaster() {
-        ZenPing.PingResponse[] pingResponses = pingService.pingAndWait(pingTimeout);
-        if (pingResponses == null) {
+        ZenPing.PingResponse[] fullPingResponses = pingService.pingAndWait(pingTimeout);
+        if (fullPingResponses == null) {
             return null;
         }
+        if (logger.isTraceEnabled()) {
+            StringBuilder sb = new StringBuilder("full ping responses:");
+            if (fullPingResponses.length == 0) {
+                sb.append(" {none}");
+            } else {
+                for (ZenPing.PingResponse pingResponse : fullPingResponses) {
+                    sb.append("\n\t--> ").append("target [").append(pingResponse.target()).append("], master [").append(pingResponse.master()).append("]");
+                }
+            }
+            logger.trace(sb.toString());
+        }
+
+        // filter responses
+        List<ZenPing.PingResponse> pingResponses = Lists.newArrayList();
+        for (ZenPing.PingResponse pingResponse : fullPingResponses) {
+            DiscoveryNode node = pingResponse.target();
+            if (masterElectionFilterClientNodes && (node.clientNode() || (!node.masterNode() && !node.dataNode()))) {
+                // filter out the client node, which is a client node, or also one that is not data and not master (effectively, client)
+            } else if (masterElectionFilterDataNodes && (!node.masterNode() && node.dataNode())) {
+                // filter out data node that is not also master
+            } else {
+                pingResponses.add(pingResponse);
+            }
+        }
+
         if (logger.isDebugEnabled()) {
-            StringBuilder sb = new StringBuilder("ping responses:");
-            if (pingResponses.length == 0) {
+            StringBuilder sb = new StringBuilder("filtered ping responses: (filter_client[").append(masterElectionFilterClientNodes).append("], filter_data[").append(masterElectionFilterDataNodes).append("])");
+            if (pingResponses.isEmpty()) {
                 sb.append(" {none}");
             } else {
                 for (ZenPing.PingResponse pingResponse : pingResponses) {

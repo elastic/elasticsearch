@@ -56,7 +56,6 @@ public class RestRefreshAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         RefreshRequest refreshRequest = new RefreshRequest(RestActions.splitIndices(request.param("index")));
-        // we just send back a response, no need to fork a listener
         refreshRequest.listenerThreaded(false);
         BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operation_threading"), BroadcastOperationThreading.SINGLE_THREAD);
         if (operationThreading == BroadcastOperationThreading.NO_THREADS) {

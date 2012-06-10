@@ -26,7 +26,7 @@ import java.io.IOException;
 /**
  *
  */
-public class FieldMaskingSpanQueryBuilder extends BaseQueryBuilder implements SpanQueryBuilder {
+public class FieldMaskingSpanQueryBuilder extends BaseQueryBuilder implements SpanQueryBuilder, BoostableQueryBuilder<FieldMaskingSpanQueryBuilder> {
 
     private final SpanQueryBuilder queryBuilder;
 

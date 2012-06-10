@@ -37,7 +37,7 @@ import static com.google.common.collect.Lists.newArrayList;
  * <p/>
  * (shay.baon)
  */
-public class QueryStringQueryBuilder extends BaseQueryBuilder {
+public class QueryStringQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<QueryStringQueryBuilder> {
 
     public static enum Operator {
         OR,

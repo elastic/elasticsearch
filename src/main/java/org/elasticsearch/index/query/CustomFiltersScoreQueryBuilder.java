@@ -30,7 +30,7 @@ import java.util.Map;
 /**
  * A query that uses a filters with a script associated with them to compute the score.
  */
-public class CustomFiltersScoreQueryBuilder extends BaseQueryBuilder {
+public class CustomFiltersScoreQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<CustomFiltersScoreQueryBuilder> {
 
     private final QueryBuilder queryBuilder;
 

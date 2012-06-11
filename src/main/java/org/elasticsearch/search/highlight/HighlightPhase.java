@@ -33,11 +33,14 @@ import org.apache.lucene.search.highlight.*;
 import org.apache.lucene.search.highlight.Formatter;
 import org.apache.lucene.search.vectorhighlight.*;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.lucene.document.SingleFieldSelector;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.vectorhighlight.SimpleBoundaryScanner2;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -57,11 +60,19 @@ import static com.google.common.collect.Maps.newHashMap;
 /**
  *
  */
-public class HighlightPhase implements FetchSubPhase {
+public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
 
     public static class Encoders {
         public static Encoder DEFAULT = new DefaultEncoder();
         public static Encoder HTML = new SimpleHTMLEncoder();
+    }
+
+    private final boolean termVectorMultiValue;
+
+    @Inject
+    public HighlightPhase(Settings settings) {
+        super(settings);
+        this.termVectorMultiValue = componentSettings.getAsBoolean("term_vector_multi_value", true);
     }
 
     @Override
@@ -243,7 +254,7 @@ public class HighlightPhase implements FetchSubPhase {
                     FieldQuery fieldQuery = null;
                     if (entry == null) {
                         FragListBuilder fragListBuilder;
-                        FragmentsBuilder fragmentsBuilder;
+                        AbstractFragmentsBuilder fragmentsBuilder;
 
                         BoundaryScanner boundaryScanner = SimpleBoundaryScanner2.DEFAULT;
                         if (field.boundaryMaxScan() != SimpleBoundaryScanner2.DEFAULT_MAX_SCAN || field.boundaryChars() != SimpleBoundaryScanner2.DEFAULT_BOUNDARY_CHARS) {
@@ -278,6 +289,7 @@ public class HighlightPhase implements FetchSubPhase {
                                 }
                             }
                         }
+                        fragmentsBuilder.setDiscreteMultiValueHighlighting(termVectorMultiValue);
                         entry = new MapperHighlightEntry();
                         entry.fragListBuilder = fragListBuilder;
                         entry.fragmentsBuilder = fragmentsBuilder;

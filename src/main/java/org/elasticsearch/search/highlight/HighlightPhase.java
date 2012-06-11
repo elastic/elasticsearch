@@ -220,9 +220,9 @@ public class HighlightPhase implements FetchSubPhase {
                 String[] fragments = null;
                 // number_of_fragments is set to 0 but we have a multivalued field
                 if (field.numberOfFragments() == 0 && textsToHighlight.size() > 1 && fragsList.size() > 0) {
-                    fragments = new String[1];
+                    fragments = new String[fragsList.size()];
                     for (int i = 0; i < fragsList.size(); i++) {
-                        fragments[0] = (fragments[0] != null ? (fragments[0] + " ") : "") + fragsList.get(i).toString();
+                        fragments[i] = fragsList.get(i).toString();
                     }
                 } else {
                     // refine numberOfFragments if needed

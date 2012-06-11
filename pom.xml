@@ -425,7 +425,7 @@
                                 <data>
                                     <src>${project.basedir}/bin</src>
                                     <type>directory</type>
-                                    <excludes>*.bat</excludes>
+                                    <excludes>*.bat, .DS_Store</excludes>
                                     <mapper>
                                         <type>perm</type>
                                         <prefix>/usr/share/elasticsearch/bin</prefix>
@@ -470,6 +470,7 @@
                                 <data>
                                     <src>${project.basedir}/src/deb/default/</src>
                                     <type>directory</type>
+                                    <excludes>.DS_Store</excludes>
                                     <mapper>
                                         <type>perm</type>
                                         <prefix>/etc/default</prefix>
@@ -480,6 +481,7 @@
                                 <data>
                                     <src>${project.basedir}/src/deb/init.d/</src>
                                     <type>directory</type>
+                                    <excludes>.DS_Store</excludes>
                                     <mapper>
                                         <type>perm</type>
                                         <prefix>/etc/init.d</prefix>
@@ -491,6 +493,7 @@
                                 <data>
                                     <src>${project.basedir}/config</src>
                                     <type>directory</type>
+                                    <excludes>.DS_Store</excludes>
                                     <mapper>
                                         <type>perm</type>
                                         <prefix>/etc/elasticsearch</prefix>

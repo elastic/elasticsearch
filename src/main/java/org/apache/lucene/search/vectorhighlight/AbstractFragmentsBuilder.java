@@ -110,8 +110,9 @@ public abstract class AbstractFragmentsBuilder extends BaseFragmentsBuilder {
                 }
 
             });
-            fragInfos = getWeightedFragInfoList(fragInfos);
         }
+
+        fragInfos = getWeightedFragInfoList(fragInfos);
 
         StringBuilder buffer = new StringBuilder();
         int[] nextValueIndex = {0};

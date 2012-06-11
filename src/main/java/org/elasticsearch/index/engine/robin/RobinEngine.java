@@ -26,6 +26,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.Unicode;
@@ -193,7 +194,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
         this.indexConcurrency = indexSettings.getAsInt("index.index_concurrency", IndexWriterConfig.DEFAULT_MAX_THREAD_STATES);
         this.versionMap = new ConcurrentHashMap<String, VersionValue>();
-        this.dirtyLocks = new Object[indexConcurrency * 10]; // we multiply it by 10 to have enough...
+        this.dirtyLocks = new Object[indexConcurrency * 50]; // we multiply it to have enough...
         for (int i = 0; i < dirtyLocks.length; i++) {
             dirtyLocks[i] = new Object();
         }
@@ -1251,7 +1252,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
     }
 
     private Object dirtyLock(String id) {
-        int hash = id.hashCode();
+        int hash = DjbHashFunction.DJB_HASH(id);
         // abs returns Integer.MIN_VALUE, so we need to protect against it...
         if (hash == Integer.MIN_VALUE) {
             hash = 0;

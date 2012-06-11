@@ -540,6 +540,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             transportService.connectToNode(node);
             state = clusterService.state();
 
+            // validate the join request, will throw a failure if it fails, which will get back to the
+            // node calling the join request
+            membership.sendValidateJoinRequestBlocking(node, state, pingTimeout);
+
             clusterService.submitStateUpdateTask("zen-disco-receive(join from node[" + node + "])", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {

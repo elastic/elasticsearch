@@ -60,11 +60,13 @@ public class MembershipAction extends AbstractComponent {
         this.listener = listener;
 
         transportService.registerHandler(JoinRequestRequestHandler.ACTION, new JoinRequestRequestHandler());
+        transportService.registerHandler(ValidateJoinRequestRequestHandler.ACTION, new ValidateJoinRequestRequestHandler());
         transportService.registerHandler(LeaveRequestRequestHandler.ACTION, new LeaveRequestRequestHandler());
     }
 
     public void close() {
         transportService.removeHandler(JoinRequestRequestHandler.ACTION);
+        transportService.removeHandler(ValidateJoinRequestRequestHandler.ACTION);
         transportService.removeHandler(LeaveRequestRequestHandler.ACTION);
     }
 
@@ -87,6 +89,14 @@ public class MembershipAction extends AbstractComponent {
                 return new JoinResponse();
             }
         }).txGet(timeout.millis(), TimeUnit.MILLISECONDS).clusterState;
+    }
+
+    /**
+     * Validates the join request, throwing a failure if it failed.
+     */
+    public void sendValidateJoinRequestBlocking(DiscoveryNode node, ClusterState clusterState, TimeValue timeout) throws ElasticSearchException {
+        transportService.submitRequest(node, ValidateJoinRequestRequestHandler.ACTION, new ValidateJoinRequest(clusterState), VoidTransportResponseHandler.INSTANCE_SAME)
+                .txGet(timeout.millis(), TimeUnit.MILLISECONDS);
     }
 
     static class JoinRequest implements Streamable {
@@ -163,6 +173,49 @@ public class MembershipAction extends AbstractComponent {
         }
     }
 
+    class ValidateJoinRequest implements Streamable {
+
+        ClusterState clusterState;
+
+        ValidateJoinRequest() {
+        }
+
+        ValidateJoinRequest(ClusterState clusterState) {
+            this.clusterState = clusterState;
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            clusterState = ClusterState.Builder.readFrom(in, nodesProvider.nodes().localNode());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            ClusterState.Builder.writeTo(clusterState, out);
+        }
+    }
+
+    private class ValidateJoinRequestRequestHandler extends BaseTransportRequestHandler<ValidateJoinRequest> {
+
+        static final String ACTION = "discovery/zen/join/validate";
+
+        @Override
+        public ValidateJoinRequest newInstance() {
+            return new ValidateJoinRequest();
+        }
+
+        @Override
+        public void messageReceived(ValidateJoinRequest request, TransportChannel channel) throws Exception {
+            // for now, the mere fact that we can serialize the cluster state acts as validation....
+            channel.sendResponse(VoidStreamable.INSTANCE);
+        }
+
+        @Override
+        public String executor() {
+            return ThreadPool.Names.GENERIC;
+        }
+    }
+
     private static class LeaveRequest implements Streamable {
 
         private DiscoveryNode node;
@@ -202,7 +255,7 @@ public class MembershipAction extends AbstractComponent {
 
         @Override
         public String executor() {
-            return ThreadPool.Names.SAME;
+            return ThreadPool.Names.GENERIC;
         }
     }
 }

@@ -122,7 +122,8 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         assertThat(search.hits().hits().length, equalTo(5));
 
         for (SearchHit hit : search.hits()) {
-            assertThat(hit.highlightFields().get("attachments.body").fragments()[0], equalTo("<em>attachment</em> 1 <em>attachment</em> 2"));
+            assertThat(hit.highlightFields().get("attachments.body").fragments()[0], equalTo("<em>attachment</em> 1"));
+            assertThat(hit.highlightFields().get("attachments.body").fragments()[1], equalTo("<em>attachment</em> 2"));
         }
     }
 
@@ -167,7 +168,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
 
         search = client.prepareSearch()
                 .setQuery(fieldQuery("attachments.body", "attachment"))
-                .addHighlightedField("attachments.body", -1, 0)
+                .addHighlightedField("attachments.body", -1, 2)
                 .execute().actionGet();
 
         assertThat(Arrays.toString(search.shardFailures()), search.failedShards(), equalTo(0));
@@ -176,9 +177,58 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         assertThat(search.hits().hits().length, equalTo(5));
 
         for (SearchHit hit : search.hits()) {
-            assertThat(hit.highlightFields().get("attachments.body").fragments()[0], equalTo("<em>attachment</em> 1 <em>attachment</em> 2"));
+            assertThat(hit.highlightFields().get("attachments.body").fragments()[0], equalTo("<em>attachment</em> 1"));
+            assertThat(hit.highlightFields().get("attachments.body").fragments()[1], equalTo("<em>attachment</em> 2"));
         }
     }
+
+  @Test
+  public void testHighlightIssue1994() throws Exception {
+    try {
+      client.admin().indices().prepareDelete("test").execute().actionGet();
+    } catch (Exception e) {
+      // ignore
+    }
+
+    client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 2))
+            .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
+                    // we don't store title, now lets see if it works...
+                    .startObject("title").field("type", "string").field("store", "no").endObject()
+                    .startObject("titleTV").field("type", "string").field("store", "no").field("term_vector", "with_positions_offsets").endObject()
+                    .endObject().endObject().endObject())
+            .execute().actionGet();
+
+
+    client.prepareIndex("test", "type1", "1")
+            .setSource(XContentFactory.jsonBuilder().startObject()
+                    .startArray("title")
+                      .value("This is a test on the highlighting bug present in elasticsearch")
+                      .value("The bug is bugging us")
+                    .endArray()
+                    .startArray("titleTV")
+                      .value("This is a test on the highlighting bug present in elasticsearch")
+                      .value("The bug is bugging us")
+                    .endArray()
+                    .endObject())
+            .setRefresh(true).execute().actionGet();
+
+    SearchResponse search = client.prepareSearch()
+            .setQuery(fieldQuery("title", "bug"))
+            .addHighlightedField("title", -1, 2)
+            .addHighlightedField("titleTV", -1, 2)
+            .execute().actionGet();
+
+    assertThat(search.hits().totalHits(), equalTo(1l));
+    assertThat(search.hits().hits().length, equalTo(1));
+
+    assertThat(search.hits().hits()[0].highlightFields().get("title").fragments().length, equalTo(2));
+    assertThat(search.hits().hits()[0].highlightFields().get("title").fragments()[0], equalTo("This is a test on the highlighting <em>bug</em> present in elasticsearch"));
+    assertThat(search.hits().hits()[0].highlightFields().get("title").fragments()[1], equalTo("The <em>bug</em> is bugging us"));
+    assertThat(search.hits().hits()[0].highlightFields().get("titleTV").fragments().length, equalTo(2));
+//    assertThat(search.hits().hits()[0].highlightFields().get("titleTV").fragments()[0], equalTo("This is a test on the highlighting <em>bug</em> present in elasticsearch"));
+    assertThat(search.hits().hits()[0].highlightFields().get("titleTV").fragments()[0], equalTo("highlighting <em>bug</em> present in elasticsearch")); // FastVectorHighlighter starts highlighting from startOffset - margin
+    assertThat(search.hits().hits()[0].highlightFields().get("titleTV").fragments()[1], equalTo("The <em>bug</em> is bugging us"));
+  }
 
     @Test
     public void testPlainHighlighter() throws Exception {

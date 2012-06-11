@@ -30,7 +30,9 @@ Description: Open Source, Distributed, RESTful Search Engine
  * (Near) Real Time Search.
  * Built on top of Lucene
    - Each shard is a fully functional Lucene index
-   - All the power of Lucene easily exposed through simple configuration / plugins.
+   - All the power of Lucene easily exposed through simple 
+     configuration/plugins.
  * Per operation consistency
-   - Single document level operations are atomic, consistent, isolated and durable.
+   - Single document level operations are atomic, consistent, isolated and
+     durable.
  * Open Source under Apache 2 License.

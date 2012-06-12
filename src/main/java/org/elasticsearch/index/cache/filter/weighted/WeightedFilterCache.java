@@ -30,6 +30,7 @@ import org.apache.lucene.search.Filter;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.docset.DocSet;
+import org.elasticsearch.common.lucene.docset.DocSets;
 import org.elasticsearch.common.lucene.search.NoCacheFilter;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
@@ -173,7 +174,7 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
                 }
 
                 DocIdSet docIdSet = filter.getDocIdSet(reader);
-                DocSet docSet = FilterCacheValue.cacheable(reader, docIdSet);
+                DocSet docSet = DocSets.cacheable(reader, docIdSet);
                 cacheValue = new FilterCacheValue<DocSet>(docSet);
                 // we might put the same one concurrently, that's fine, it will be replaced and the removal
                 // will be called

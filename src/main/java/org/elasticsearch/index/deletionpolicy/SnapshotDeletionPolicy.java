@@ -23,6 +23,7 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexDeletionPolicy;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.name.Named;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShardComponent;
 
@@ -44,7 +45,7 @@ public class SnapshotDeletionPolicy extends AbstractIndexShardComponent implemen
 
     private final IndexDeletionPolicy primary;
 
-    private ConcurrentMap<Long, SnapshotHolder> snapshots = new ConcurrentHashMap<Long, SnapshotHolder>();
+    private ConcurrentMap<Long, SnapshotHolder> snapshots = ConcurrentCollections.newConcurrentMap();
 
     private volatile List<SnapshotIndexCommit> commits;
 

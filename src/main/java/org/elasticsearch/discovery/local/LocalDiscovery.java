@@ -31,6 +31,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.InitialStateDiscoveryListener;
 import org.elasticsearch.node.service.NodeService;
@@ -70,7 +71,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
     private final CopyOnWriteArrayList<InitialStateDiscoveryListener> initialStateListeners = new CopyOnWriteArrayList<InitialStateDiscoveryListener>();
 
     // use CHM here and not ConcurrentMaps#new since we want to be able to agentify this using TC later on...
-    private static final ConcurrentMap<ClusterName, ClusterGroup> clusterGroups = new ConcurrentHashMap<ClusterName, ClusterGroup>();
+    private static final ConcurrentMap<ClusterName, ClusterGroup> clusterGroups = ConcurrentCollections.newConcurrentMap();
 
     private static final AtomicLong nodeIdGenerator = new AtomicLong();
 

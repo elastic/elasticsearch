@@ -31,6 +31,7 @@ import org.elasticsearch.common.io.stream.*;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -238,7 +239,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
             return;
         }
         final int id = pingIdGenerator.incrementAndGet();
-        receivedResponses.put(id, new ConcurrentHashMap<DiscoveryNode, PingResponse>());
+        receivedResponses.put(id, ConcurrentCollections.<DiscoveryNode, PingResponse>newConcurrentMap());
         sendPingRequest(id);
         // try and send another ping request halfway through (just in case someone woke up during it...)
         // this can be a good trade-off to nailing the initial lookup or un-delivered messages

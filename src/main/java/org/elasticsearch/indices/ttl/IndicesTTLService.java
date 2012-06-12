@@ -65,7 +65,10 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
 
     static {
         MetaData.addDynamicSettings(
-                "indices.ttl.interval",
+                "indices.ttl.interval"
+        );
+
+        IndexMetaData.addDynamicSettings(
                 "index.ttl.disable_purge"
         );
     }

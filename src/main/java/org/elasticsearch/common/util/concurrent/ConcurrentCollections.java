@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.util.concurrent;
 
+import jsr166e.ConcurrentHashMapV8;
 import org.elasticsearch.common.collect.MapBackedSet;
 
 import java.util.Set;

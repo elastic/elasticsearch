@@ -40,14 +40,13 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
-import org.elasticsearch.index.cache.filter.support.FilterCacheValue;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.indices.cache.filter.IndicesFilterCache;
 
 import java.io.IOException;
 import java.util.concurrent.ConcurrentMap;
 
-public class WeightedFilterCache extends AbstractIndexComponent implements FilterCache, SegmentReader.CoreClosedListener, RemovalListener<WeightedFilterCache.FilterCacheKey, FilterCacheValue<DocSet>> {
+public class WeightedFilterCache extends AbstractIndexComponent implements FilterCache, SegmentReader.CoreClosedListener, RemovalListener<WeightedFilterCache.FilterCacheKey, DocSet> {
 
     final IndicesFilterCache indicesFilterCache;
 
@@ -107,7 +106,7 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
             return;
         }
         seenReadersCount.dec();
-        Cache<FilterCacheKey, FilterCacheValue<DocSet>> cache = indicesFilterCache.cache();
+        Cache<FilterCacheKey, DocSet> cache = indicesFilterCache.cache();
         for (FilterCacheKey key : cache.asMap().keySet()) {
             if (key.readerKey() == reader.getCoreCacheKey()) {
                 // invalidate will cause a removal and will be notified
@@ -161,9 +160,9 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
                 filterKey = ((CacheKeyFilter) filter).cacheKey();
             }
             FilterCacheKey cacheKey = new FilterCacheKey(cache.index().name(), reader.getCoreCacheKey(), filterKey);
-            Cache<FilterCacheKey, FilterCacheValue<DocSet>> innerCache = cache.indicesFilterCache.cache();
+            Cache<FilterCacheKey, DocSet> innerCache = cache.indicesFilterCache.cache();
 
-            FilterCacheValue<DocSet> cacheValue = innerCache.getIfPresent(cacheKey);
+            DocSet cacheValue = innerCache.getIfPresent(cacheKey);
             if (cacheValue == null) {
                 if (!cache.seenReaders.containsKey(reader.getCoreCacheKey())) {
                     Boolean previous = cache.seenReaders.putIfAbsent(reader.getCoreCacheKey(), Boolean.TRUE);
@@ -173,16 +172,15 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
                     }
                 }
 
-                DocIdSet docIdSet = filter.getDocIdSet(reader);
-                DocSet docSet = DocSets.cacheable(reader, docIdSet);
-                cacheValue = new FilterCacheValue<DocSet>(docSet);
+                cacheValue = DocSets.cacheable(reader, filter.getDocIdSet(reader));
                 // we might put the same one concurrently, that's fine, it will be replaced and the removal
                 // will be called
-                cache.totalMetric.inc(cacheValue.value().sizeInBytes());
+                cache.totalMetric.inc(cacheValue.sizeInBytes());
                 innerCache.put(cacheKey, cacheValue);
             }
 
-            return cacheValue.value() == DocSet.EMPTY_DOC_SET ? null : cacheValue.value();
+            // return null if its EMPTY, this allows for further optimizations to ignore filters
+            return cacheValue == DocSet.EMPTY_DOC_SET ? null : cacheValue;
         }
 
         public String toString() {
@@ -200,11 +198,11 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
     }
 
 
-    public static class FilterCacheValueWeigher implements Weigher<WeightedFilterCache.FilterCacheKey, FilterCacheValue<DocSet>> {
+    public static class FilterCacheValueWeigher implements Weigher<WeightedFilterCache.FilterCacheKey, DocSet> {
 
         @Override
-        public int weigh(FilterCacheKey key, FilterCacheValue<DocSet> value) {
-            int weight = (int) Math.min(value.value().sizeInBytes(), Integer.MAX_VALUE);
+        public int weigh(FilterCacheKey key, DocSet value) {
+            int weight = (int) Math.min(value.sizeInBytes(), Integer.MAX_VALUE);
             return weight == 0 ? 1 : weight;
         }
     }
@@ -212,12 +210,12 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
     // this will only be called for our index / data, IndicesFilterCache makes sure it works like this based on the
     // index we register the listener with
     @Override
-    public void onRemoval(RemovalNotification<FilterCacheKey, FilterCacheValue<DocSet>> removalNotification) {
+    public void onRemoval(RemovalNotification<FilterCacheKey, DocSet> removalNotification) {
         if (removalNotification.wasEvicted()) {
             evictionsMetric.inc();
         }
         if (removalNotification.getValue() != null) {
-            totalMetric.dec(removalNotification.getValue().value().sizeInBytes());
+            totalMetric.dec(removalNotification.getValue().sizeInBytes());
         }
     }
 

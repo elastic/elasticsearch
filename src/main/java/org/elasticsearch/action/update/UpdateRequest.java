@@ -30,6 +30,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
@@ -162,6 +164,14 @@ public class UpdateRequest extends InstanceShardOperationRequest {
 
     int shardId() {
         return this.shardId;
+    }
+
+    public String script() {
+        return this.script;
+    }
+
+    public Map<String, Object> scriptParams() {
+        return this.scriptParams;
     }
 
     /**
@@ -401,6 +411,40 @@ public class UpdateRequest extends InstanceShardOperationRequest {
             upsertRequest = new IndexRequest();
         }
         return upsertRequest;
+    }
+
+    public UpdateRequest source(XContentBuilder source) throws Exception {
+        return source(source.underlyingBytes(), 0, source.underlyingBytesLength());
+    }
+
+    public UpdateRequest source(byte[] source) throws Exception {
+        return source(source, 0, source.length);
+    }
+
+    public UpdateRequest source(byte[] source, int offset, int length) throws Exception {
+        XContentType xContentType = XContentFactory.xContentType(source, offset, length);
+        XContentParser parser = XContentFactory.xContent(xContentType).createParser(source, offset, length);
+        XContentParser.Token t = parser.nextToken();
+        if (t == null) {
+            return this;
+        }
+        String currentFieldName = null;
+        while ((t = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (t == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if ("script".equals(currentFieldName)) {
+                script = parser.textOrNull();
+            } else if ("params".equals(currentFieldName)) {
+                scriptParams = parser.map();
+            } else if ("lang".equals(currentFieldName)) {
+                scriptLang = parser.text();
+            } else if ("upsert".equals(currentFieldName)) {
+                XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
+                builder.copyCurrentStructure(parser);
+                safeUpsertRequest().source(builder);
+            }
+        }
+        return this;
     }
 
     @Override

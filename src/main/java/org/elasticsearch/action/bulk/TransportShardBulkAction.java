@@ -183,7 +183,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                     }
 
                     // add the response
-                    responses[i] = new BulkItemResponse(item.id(), indexRequest.opType().toString().toLowerCase(),
+                    responses[i] = new BulkItemResponse(item.id(), indexRequest.opType().toString().toLowerCase(Locale.ENGLISH),
                             new IndexResponse(indexRequest.index(), indexRequest.type(), indexRequest.id(), version));
                 } catch (Exception e) {
                     // rethrow the failure if we are going to retry on primary and let parent failure to handle it
@@ -195,7 +195,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                     } else {
                         logger.debug("[{}][{}] failed to bulk item (index) {}", e, shardRequest.request.index(), shardRequest.shardId, indexRequest);
                     }
-                    responses[i] = new BulkItemResponse(item.id(), indexRequest.opType().toString().toLowerCase(),
+                    responses[i] = new BulkItemResponse(item.id(), indexRequest.opType().toString().toLowerCase(Locale.ENGLISH),
                             new BulkItemResponse.Failure(indexRequest.index(), indexRequest.type(), indexRequest.id(), ExceptionsHelper.detailedMessage(e)));
                     // nullify the request so it won't execute on the replicas
                     request.items()[i] = null;

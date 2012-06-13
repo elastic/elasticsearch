@@ -182,7 +182,7 @@ public class RestClusterStateAction extends BaseRestHandler {
                         for (IndexMetaData indexMetaData : state.metaData()) {
                             builder.startObject(indexMetaData.index(), XContentBuilder.FieldCaseConversion.NONE);
 
-                            builder.field("state", indexMetaData.state().toString().toLowerCase());
+                            builder.field("state", indexMetaData.state().toString().toLowerCase(Locale.ENGLISH));
 
                             builder.startObject("settings");
                             Settings settings = settingsFilter.filterSettings(indexMetaData.settings());

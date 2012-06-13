@@ -92,7 +92,7 @@ public class UpdateTests extends AbstractNodesTests {
         assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
 
         client.prepareUpdate("test", "type1", "1")
-                .setDoc(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
+                .setUpsert(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
                 .setScript("ctx._source.field += 1")
                 .execute().actionGet();
 
@@ -102,7 +102,7 @@ public class UpdateTests extends AbstractNodesTests {
         }
 
         client.prepareUpdate("test", "type1", "1")
-                .setDoc(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
+                .setUpsert(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
                 .setScript("ctx._source.field += 1")
                 .execute().actionGet();
 

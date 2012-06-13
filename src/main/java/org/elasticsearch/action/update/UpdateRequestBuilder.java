@@ -187,56 +187,56 @@ public class UpdateRequestBuilder extends BaseRequestBuilder<UpdateRequest, Upda
      * Sets the index request to be used if the document does not exists. Otherwise, a {@link org.elasticsearch.index.engine.DocumentMissingException}
      * is thrown.
      */
-    public UpdateRequestBuilder setDoc(IndexRequest indexRequest) {
-        request.doc(indexRequest);
+    public UpdateRequestBuilder setUpsert(IndexRequest indexRequest) {
+        request.upsert(indexRequest);
         return this;
     }
 
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequestBuilder setDoc(XContentBuilder source) {
-        request.doc(source);
+    public UpdateRequestBuilder setUpsert(XContentBuilder source) {
+        request.upsert(source);
         return this;
     }
 
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequestBuilder setDoc(Map source) {
-        request.doc(source);
+    public UpdateRequestBuilder setUpsert(Map source) {
+        request.upsert(source);
         return this;
     }
 
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequestBuilder setDoc(Map source, XContentType contentType) {
-        request.doc(source, contentType);
+    public UpdateRequestBuilder setUpsert(Map source, XContentType contentType) {
+        request.upsert(source, contentType);
         return this;
     }
 
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequestBuilder setDoc(String source) {
-        request.doc(source);
+    public UpdateRequestBuilder setUpsert(String source) {
+        request.upsert(source);
         return this;
     }
 
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequestBuilder setDoc(byte[] source) {
-        request.doc(source);
+    public UpdateRequestBuilder setUpsert(byte[] source) {
+        request.upsert(source);
         return this;
     }
 
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequestBuilder setDoc(byte[] source, int offset, int length) {
-        request.doc(source, offset, length);
+    public UpdateRequestBuilder setUpsert(byte[] source, int offset, int length) {
+        request.upsert(source, offset, length);
         return this;
     }
 

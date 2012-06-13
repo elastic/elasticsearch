@@ -165,11 +165,11 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
 
         // no doc, what to do, what to do...
         if (!getResult.exists()) {
-            if (request.indexRequest() == null) {
+            if (request.upsertRequest() == null) {
                 listener.onFailure(new DocumentMissingException(new ShardId(request.index(), request.shardId()), request.type(), request.id()));
                 return;
             }
-            IndexRequest indexRequest = request.indexRequest();
+            IndexRequest indexRequest = request.upsertRequest();
             indexRequest.index(request.index()).type(request.type()).id(request.id())
                     // it has to be a "create!"
                     .create(true)

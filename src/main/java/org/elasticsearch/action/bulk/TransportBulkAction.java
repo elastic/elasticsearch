@@ -48,6 +48,7 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;

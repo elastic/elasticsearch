@@ -56,6 +56,7 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Set;
 
 /**

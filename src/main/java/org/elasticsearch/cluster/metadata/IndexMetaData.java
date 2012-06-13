@@ -45,6 +45,7 @@ import org.elasticsearch.rest.RestStatus;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.*;

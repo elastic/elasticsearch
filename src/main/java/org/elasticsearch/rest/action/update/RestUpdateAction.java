@@ -104,9 +104,9 @@ public class RestUpdateAction extends BaseRestHandler {
                     if (content.containsKey("params")) {
                         updateRequest.scriptParams((Map<String, Object>) content.get("params"));
                     }
-                    if (content.containsKey("doc")) {
+                    if (content.containsKey("upsert")) {
                         IndexRequest indexRequest = new IndexRequest();
-                        indexRequest.source((Map) content.get("doc"), xContentType);
+                        indexRequest.source((Map) content.get("upsert"), xContentType);
                         indexRequest.routing(request.param("routing"));
                         indexRequest.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing
                         indexRequest.timestamp(request.param("timestamp"));
@@ -115,7 +115,7 @@ public class RestUpdateAction extends BaseRestHandler {
                         }
                         indexRequest.version(RestActions.parseVersion(request));
                         indexRequest.versionType(VersionType.fromString(request.param("version_type"), indexRequest.versionType()));
-                        updateRequest.doc(indexRequest);
+                        updateRequest.upsert(indexRequest);
                     }
                 } catch (Exception e) {
                     try {

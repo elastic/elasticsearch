@@ -448,7 +448,7 @@ public class IndexMetaData {
             builder.startObject(indexMetaData.index(), XContentBuilder.FieldCaseConversion.NONE);
 
             builder.field("version", indexMetaData.version());
-            builder.field("state", indexMetaData.state().toString().toLowerCase());
+            builder.field("state", indexMetaData.state().toString().toLowerCase(Locale.ENGLISH));
 
             boolean binary = params.paramAsBoolean("binary", false);
 

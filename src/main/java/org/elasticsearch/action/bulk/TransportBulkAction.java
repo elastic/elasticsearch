@@ -234,7 +234,7 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
                         for (BulkItemRequest request : requests) {
                             if (request.request() instanceof IndexRequest) {
                                 IndexRequest indexRequest = (IndexRequest) request.request();
-                                responses[request.id()] = new BulkItemResponse(request.id(), indexRequest.opType().toString().toLowerCase(),
+                                responses[request.id()] = new BulkItemResponse(request.id(), indexRequest.opType().toString().toLowerCase(Locale.ENGLISH),
                                         new BulkItemResponse.Failure(indexRequest.index(), indexRequest.type(), indexRequest.id(), message));
                             } else if (request.request() instanceof DeleteRequest) {
                                 DeleteRequest deleteRequest = (DeleteRequest) request.request();

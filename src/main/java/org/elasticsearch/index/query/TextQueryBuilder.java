@@ -167,7 +167,7 @@ public class TextQueryBuilder extends BaseQueryBuilder implements BoostableQuery
 
         builder.field("query", text);
         if (type != null) {
-            builder.field("type", type.toString().toLowerCase());
+            builder.field("type", type.toString().toLowerCase(Locale.ENGLISH));
         }
         if (operator != null) {
             builder.field("operator", operator.toString());

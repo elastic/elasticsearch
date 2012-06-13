@@ -39,7 +39,7 @@ import java.util.List;
 
 public class UidFilter extends Filter {
 
-    private final Term[] uids;
+    final Term[] uids;
 
     private final BloomCache bloomCache;
 
@@ -96,7 +96,12 @@ public class UidFilter extends Filter {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         UidFilter uidFilter = (UidFilter) o;
-        return !uids.equals(uidFilter.uids);
+        return Arrays.equals(uids, uidFilter.uids);
+    }
+
+    @Override
+    public int hashCode() {
+        return Arrays.hashCode(uids);
     }
 
     @Override
@@ -109,10 +114,5 @@ public class UidFilter extends Filter {
             builder.append(term);
         }
         return builder.toString();
-    }
-
-    @Override
-    public int hashCode() {
-        return uids.hashCode();
     }
 }

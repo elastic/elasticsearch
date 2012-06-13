@@ -25,6 +25,7 @@ import org.apache.lucene.index.TermDocs;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.common.lucene.Lucene;
 
 import java.io.IOException;
 
@@ -50,8 +51,8 @@ public class TermFilter extends Filter {
         try {
             td.seek(term);
             // batch read, in Lucene 4.0 its no longer needed
-            int[] docs = new int[32];
-            int[] freqs = new int[32];
+            int[] docs = new int[Lucene.BATCH_ENUM_DOCS];
+            int[] freqs = new int[Lucene.BATCH_ENUM_DOCS];
             int number = td.read(docs, freqs);
             if (number > 0) {
                 result = new FixedBitSet(reader.maxDoc());

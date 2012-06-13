@@ -31,8 +31,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
@@ -90,41 +88,26 @@ public class RestUpdateAction extends BaseRestHandler {
 
         // see if we have it in the body
         if (request.hasContent()) {
-            XContentType xContentType = XContentFactory.xContentType(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength());
-            if (xContentType != null) {
-                try {
-                    Map<String, Object> content = XContentFactory.xContent(xContentType)
-                            .createParser(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength()).mapOrderedAndClose();
-                    if (content.containsKey("script")) {
-                        updateRequest.script(content.get("script").toString());
+            try {
+                updateRequest.source(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength());
+                IndexRequest upsertRequest = updateRequest.upsertRequest();
+                if (upsertRequest != null) {
+                    upsertRequest.routing(request.param("routing"));
+                    upsertRequest.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing
+                    upsertRequest.timestamp(request.param("timestamp"));
+                    if (request.hasParam("ttl")) {
+                        upsertRequest.ttl(request.paramAsTime("ttl", null).millis());
                     }
-                    if (content.containsKey("lang")) {
-                        updateRequest.scriptLang(content.get("lang").toString());
-                    }
-                    if (content.containsKey("params")) {
-                        updateRequest.scriptParams((Map<String, Object>) content.get("params"));
-                    }
-                    if (content.containsKey("upsert")) {
-                        IndexRequest indexRequest = new IndexRequest();
-                        indexRequest.source((Map) content.get("upsert"), xContentType);
-                        indexRequest.routing(request.param("routing"));
-                        indexRequest.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing
-                        indexRequest.timestamp(request.param("timestamp"));
-                        if (request.hasParam("ttl")) {
-                            indexRequest.ttl(request.paramAsTime("ttl", null).millis());
-                        }
-                        indexRequest.version(RestActions.parseVersion(request));
-                        indexRequest.versionType(VersionType.fromString(request.param("version_type"), indexRequest.versionType()));
-                        updateRequest.upsert(indexRequest);
-                    }
-                } catch (Exception e) {
-                    try {
-                        channel.sendResponse(new XContentThrowableRestResponse(request, e));
-                    } catch (IOException e1) {
-                        logger.warn("Failed to send response", e1);
-                    }
-                    return;
+                    upsertRequest.version(RestActions.parseVersion(request));
+                    upsertRequest.versionType(VersionType.fromString(request.param("version_type"), upsertRequest.versionType()));
                 }
+            } catch (Exception e) {
+                try {
+                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                } catch (IOException e1) {
+                    logger.warn("Failed to send response", e1);
+                }
+                return;
             }
         }
 

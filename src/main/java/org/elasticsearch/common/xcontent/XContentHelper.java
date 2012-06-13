@@ -51,6 +51,10 @@ public class XContentHelper {
         }
     }
 
+    public static Tuple<XContentType, Map<String, Object>> convertToMap(byte[] data, boolean ordered) throws ElasticSearchParseException {
+        return convertToMap(data, 0, data.length, ordered);
+    }
+
     public static Tuple<XContentType, Map<String, Object>> convertToMap(byte[] data, int offset, int length, boolean ordered) throws ElasticSearchParseException {
         try {
             XContentParser parser;

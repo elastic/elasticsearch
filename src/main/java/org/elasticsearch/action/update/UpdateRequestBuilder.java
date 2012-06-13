@@ -240,6 +240,21 @@ public class UpdateRequestBuilder extends BaseRequestBuilder<UpdateRequest, Upda
         return this;
     }
 
+    public UpdateRequestBuilder setSource(XContentBuilder source) throws Exception {
+        request.source(source);
+        return this;
+    }
+
+    public UpdateRequestBuilder setSource(byte[] source) throws Exception {
+        request.source(source);
+        return this;
+    }
+
+    public UpdateRequestBuilder setSource(byte[] source, int offset, int length) throws Exception {
+        request.source(source, offset, length);
+        return this;
+    }
+
     @Override
     protected void doExecute(ActionListener<UpdateResponse> listener) {
         client.update(request, listener);

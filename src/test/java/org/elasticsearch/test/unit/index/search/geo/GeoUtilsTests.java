@@ -20,6 +20,7 @@
 package org.elasticsearch.test.unit.index.search.geo;
 
 import org.elasticsearch.index.search.geo.GeoUtils;
+import org.elasticsearch.index.search.geo.Point;
 import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -61,7 +62,7 @@ public class GeoUtilsTests {
         assertThat(GeoUtils.normalizeLat(180.0), equalTo(0.0));
         // and halves
         assertThat(GeoUtils.normalizeLon(-180.0), equalTo(180.0));
-        assertThat(GeoUtils.normalizeLat(-90.0), equalTo(90.0));
+        assertThat(GeoUtils.normalizeLat(-90.0), equalTo(-90.0));
         assertThat(GeoUtils.normalizeLon(180.0), equalTo(180.0));
         assertThat(GeoUtils.normalizeLat(90.0), equalTo(90.0));
     }
@@ -73,14 +74,19 @@ public class GeoUtilsTests {
     public void testNormal() {
         // Near bounds
         assertThat(GeoUtils.normalizeLon(-360.5), equalTo(-0.5));
-        assertThat(GeoUtils.normalizeLat(-180.5), equalTo(-0.5));
+        assertThat(GeoUtils.normalizeLat(-180.5), equalTo(0.5));
         assertThat(GeoUtils.normalizeLon(360.5), equalTo(0.5));
-        assertThat(GeoUtils.normalizeLat(180.5), equalTo(0.5));
+        assertThat(GeoUtils.normalizeLat(180.5), equalTo(-0.5));
         // and near halves
         assertThat(GeoUtils.normalizeLon(-180.5), equalTo(179.5));
-        assertThat(GeoUtils.normalizeLat(-90.5), equalTo(89.5));
+        assertThat(GeoUtils.normalizeLat(-90.5), equalTo(-89.5));
         assertThat(GeoUtils.normalizeLon(180.5), equalTo(-179.5));
-        assertThat(GeoUtils.normalizeLat(90.5), equalTo(-89.5));
+        assertThat(GeoUtils.normalizeLat(90.5), equalTo(89.5));
+        // Now with points, to check for longitude shifting with latitude normalization
+        // We've gone past the north pole and down the other side, the longitude will
+        // be shifted by 180
+        assertNormalizedPoint(new Point(90.5, 10), new Point(89.5, -170));
+
         // Every 10-units, multiple full turns
         for (int shift = -20; shift <= 20; ++shift) {
             assertThat(GeoUtils.normalizeLon(shift * 360.0 + 0.0), equalTo(0.0));
@@ -122,25 +128,43 @@ public class GeoUtilsTests {
             assertThat(GeoUtils.normalizeLon(shift * 360.0 + 360.0), equalTo(0.0));
         }
         for (int shift = -20; shift <= 20; ++shift) {
-            assertThat(GeoUtils.normalizeLat(shift * 180.0 + 0.0), equalTo(0.0));
-            assertThat(GeoUtils.normalizeLat(shift * 180.0 + 10.0), equalTo(10.0));
-            assertThat(GeoUtils.normalizeLat(shift * 180.0 + 20.0), equalTo(20.0));
-            assertThat(GeoUtils.normalizeLat(shift * 180.0 + 30.0), equalTo(30.0));
-            assertThat(GeoUtils.normalizeLat(shift * 180.0 + 40.0), equalTo(40.0));
-            assertThat(GeoUtils.normalizeLat(shift * 180.0 + 50.0), equalTo(50.0));
-            assertThat(GeoUtils.normalizeLat(shift * 180.0 + 60.0), equalTo(60.0));
-            assertThat(GeoUtils.normalizeLat(shift * 180.0 + 70.0), equalTo(70.0));
-            assertThat(GeoUtils.normalizeLat(shift * 180.0 + 80.0), equalTo(80.0));
-            assertThat(GeoUtils.normalizeLat(shift * 180.0 + 90.0), equalTo(90.0));
-            assertThat(GeoUtils.normalizeLat(shift * 180.0 + 100.0), equalTo(-80.0));
-            assertThat(GeoUtils.normalizeLat(shift * 180.0 + 110.0), equalTo(-70.0));
-            assertThat(GeoUtils.normalizeLat(shift * 180.0 + 120.0), equalTo(-60.0));
-            assertThat(GeoUtils.normalizeLat(shift * 180.0 + 130.0), equalTo(-50.0));
-            assertThat(GeoUtils.normalizeLat(shift * 180.0 + 140.0), equalTo(-40.0));
-            assertThat(GeoUtils.normalizeLat(shift * 180.0 + 150.0), equalTo(-30.0));
-            assertThat(GeoUtils.normalizeLat(shift * 180.0 + 160.0), equalTo(-20.0));
-            assertThat(GeoUtils.normalizeLat(shift * 180.0 + 170.0), equalTo(-10.0));
-            assertThat(GeoUtils.normalizeLat(shift * 180.0 + 180.0), equalTo(0.0));
+            assertThat(GeoUtils.normalizeLat(shift * 360.0 + 0.0), equalTo(0.0));
+            assertThat(GeoUtils.normalizeLat(shift * 360.0 + 10.0), equalTo(10.0));
+            assertThat(GeoUtils.normalizeLat(shift * 360.0 + 20.0), equalTo(20.0));
+            assertThat(GeoUtils.normalizeLat(shift * 360.0 + 30.0), equalTo(30.0));
+            assertThat(GeoUtils.normalizeLat(shift * 360.0 + 40.0), equalTo(40.0));
+            assertThat(GeoUtils.normalizeLat(shift * 360.0 + 50.0), equalTo(50.0));
+            assertThat(GeoUtils.normalizeLat(shift * 360.0 + 60.0), equalTo(60.0));
+            assertThat(GeoUtils.normalizeLat(shift * 360.0 + 70.0), equalTo(70.0));
+            assertThat(GeoUtils.normalizeLat(shift * 360.0 + 80.0), equalTo(80.0));
+            assertThat(GeoUtils.normalizeLat(shift * 360.0 + 90.0), equalTo(90.0));
+            assertThat(GeoUtils.normalizeLat(shift * 360.0 + 100.0), equalTo(80.0));
+            assertThat(GeoUtils.normalizeLat(shift * 360.0 + 110.0), equalTo(70.0));
+            assertThat(GeoUtils.normalizeLat(shift * 360.0 + 120.0), equalTo(60.0));
+            assertThat(GeoUtils.normalizeLat(shift * 360.0 + 130.0), equalTo(50.0));
+            assertThat(GeoUtils.normalizeLat(shift * 360.0 + 140.0), equalTo(40.0));
+            assertThat(GeoUtils.normalizeLat(shift * 360.0 + 150.0), equalTo(30.0));
+            assertThat(GeoUtils.normalizeLat(shift * 360.0 + 160.0), equalTo(20.0));
+            assertThat(GeoUtils.normalizeLat(shift * 360.0 + 170.0), equalTo(10.0));
+            assertThat(GeoUtils.normalizeLat(shift * 360.0 + 180.0), equalTo(0.0));
+            assertThat(GeoUtils.normalizeLat(shift * 360.0 + 190.0), equalTo(-10.0));
+            assertThat(GeoUtils.normalizeLat(shift * 360.0 + 200.0), equalTo(-20.0));
+            assertThat(GeoUtils.normalizeLat(shift * 360.0 + 210.0), equalTo(-30.0));
+            assertThat(GeoUtils.normalizeLat(shift * 360.0 + 220.0), equalTo(-40.0));
+            assertThat(GeoUtils.normalizeLat(shift * 360.0 + 230.0), equalTo(-50.0));
+            assertThat(GeoUtils.normalizeLat(shift * 360.0 + 240.0), equalTo(-60.0));
+            assertThat(GeoUtils.normalizeLat(shift * 360.0 + 250.0), equalTo(-70.0));
+            assertThat(GeoUtils.normalizeLat(shift * 360.0 + 260.0), equalTo(-80.0));
+            assertThat(GeoUtils.normalizeLat(shift * 360.0 + 270.0), equalTo(-90.0));
+            assertThat(GeoUtils.normalizeLat(shift * 360.0 + 280.0), equalTo(-80.0));
+            assertThat(GeoUtils.normalizeLat(shift * 360.0 + 290.0), equalTo(-70.0));
+            assertThat(GeoUtils.normalizeLat(shift * 360.0 + 300.0), equalTo(-60.0));
+            assertThat(GeoUtils.normalizeLat(shift * 360.0 + 310.0), equalTo(-50.0));
+            assertThat(GeoUtils.normalizeLat(shift * 360.0 + 320.0), equalTo(-40.0));
+            assertThat(GeoUtils.normalizeLat(shift * 360.0 + 330.0), equalTo(-30.0));
+            assertThat(GeoUtils.normalizeLat(shift * 360.0 + 340.0), equalTo(-20.0));
+            assertThat(GeoUtils.normalizeLat(shift * 360.0 + 350.0), equalTo(-10.0));
+            assertThat(GeoUtils.normalizeLat(shift * 360.0 + 360.0), equalTo(0.0));
         }
     }
 
@@ -175,4 +199,8 @@ public class GeoUtilsTests {
         assertThat(GeoUtils.normalizeLat(+18000000000091.0), equalTo(GeoUtils.normalizeLat(+091.0)));
     }
 
+    private static void assertNormalizedPoint(Point input, Point expected) {
+        GeoUtils.normalizePoint(input);
+        assertThat(input, equalTo(expected));
+    }
 }

@@ -29,6 +29,7 @@ import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.search.geo.GeoDistance;
 import org.elasticsearch.index.search.geo.GeoHashUtils;
 import org.elasticsearch.index.search.geo.GeoUtils;
+import org.elasticsearch.index.search.geo.Point;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.FacetCollector;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
@@ -171,11 +172,11 @@ public class GeoDistanceFacetProcessor extends AbstractComponent implements Face
             throw new FacetPhaseExecutionException(facetName, "no ranges defined for geo_distance facet");
         }
 
-        if (normalizeLat) {
-            lat = GeoUtils.normalizeLat(lat);
-        }
-        if (normalizeLon) {
-            lon = GeoUtils.normalizeLon(lon);
+        if (normalizeLat || normalizeLon) {
+            Point point = new Point(lat, lon);
+            GeoUtils.normalizePoint(point, normalizeLat, normalizeLon);
+            lat = point.lat;
+            lon = point.lon;
         }
 
         if (valueFieldName != null) {

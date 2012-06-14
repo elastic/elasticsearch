@@ -23,9 +23,9 @@ import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.search.geo.GeoHashUtils;
+import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -51,7 +51,7 @@ public class LatLonMappingGeoPointTests {
                 .endObject()
                 .copiedBytes());
 
-        assertThat(doc.rootDoc().get("point"), equalTo("-89.0,-179.0"));
+        assertThat(doc.rootDoc().get("point"), equalTo("89.0,1.0"));
 
         doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -59,7 +59,7 @@ public class LatLonMappingGeoPointTests {
                 .endObject()
                 .copiedBytes());
 
-        assertThat(doc.rootDoc().get("point"), equalTo("89.0,179.0"));
+        assertThat(doc.rootDoc().get("point"), equalTo("-89.0,-1.0"));
 
         doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -67,7 +67,7 @@ public class LatLonMappingGeoPointTests {
                 .endObject()
                 .copiedBytes());
 
-        assertThat(doc.rootDoc().get("point"), equalTo("1.0,1.0"));
+        assertThat(doc.rootDoc().get("point"), equalTo("-1.0,-179.0"));
     }
 
     @Test

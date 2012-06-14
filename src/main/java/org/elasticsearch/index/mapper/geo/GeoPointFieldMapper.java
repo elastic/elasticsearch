@@ -35,6 +35,7 @@ import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.object.ArrayValueMapperParser;
 import org.elasticsearch.index.search.geo.GeoHashUtils;
 import org.elasticsearch.index.search.geo.GeoUtils;
+import org.elasticsearch.index.search.geo.Point;
 
 import java.io.IOException;
 import java.util.Map;
@@ -372,11 +373,11 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
     }
 
     private void parseLatLon(ParseContext context, double lat, double lon) throws IOException {
-        if (normalizeLon) {
-            lon = GeoUtils.normalizeLon(lon);
-        }
-        if (normalizeLat) {
-            lat = GeoUtils.normalizeLat(lat);
+       if (normalizeLat || normalizeLon) {
+            Point point = new Point(lat, lon);
+            GeoUtils.normalizePoint(point, normalizeLat, normalizeLon);
+            lat = point.lat;
+            lon = point.lon;
         }
 
         if (validateLat) {
@@ -409,11 +410,11 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
         double lat = values[0];
         double lon = values[1];
 
-        if (normalizeLon) {
-            lon = GeoUtils.normalizeLon(lon);
-        }
-        if (normalizeLat) {
-            lat = GeoUtils.normalizeLat(lat);
+        if (normalizeLat || normalizeLon) {
+            Point point = new Point(lat, lon);
+            GeoUtils.normalizePoint(point, normalizeLat, normalizeLon);
+            lat = point.lat;
+            lon = point.lon;
         }
 
         if (validateLat) {

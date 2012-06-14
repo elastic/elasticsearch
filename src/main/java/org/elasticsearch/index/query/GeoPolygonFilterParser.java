@@ -161,12 +161,9 @@ public class GeoPolygonFilterParser implements FilterParser {
             throw new QueryParsingException(parseContext.index(), "no points defined for geo_polygon filter");
         }
 
-        for (Point point : points) {
-            if (normalizeLat) {
-                point.lat = GeoUtils.normalizeLat(point.lat);
-            }
-            if (normalizeLon) {
-                point.lon = GeoUtils.normalizeLon(point.lon);
+        if (normalizeLat || normalizeLon) {
+            for (Point point : points) {
+                GeoUtils.normalizePoint(point, normalizeLat, normalizeLon);
             }
         }
 

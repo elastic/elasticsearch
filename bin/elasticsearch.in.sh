@@ -26,6 +26,9 @@ fi
 # reduce the per-thread stack size
 JAVA_OPTS="$JAVA_OPTS -Xss256k"
 
+# set to headless, just in case
+JAVA_OPTS="$JAVA_OPTS -Djava.awt.headless=true"
+
 # Force the JVM to use IPv4 stack
 # JAVA_OPTS="$JAVA_OPTS -Djava.net.preferIPv4Stack=true"
 

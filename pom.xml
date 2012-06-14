@@ -103,8 +103,9 @@
         <dependency>
             <groupId>joda-time</groupId>
             <artifactId>joda-time</artifactId>
-            <!-- joda 2.0 moved to using volatile fields for datetime, which hurts performance for facets! -->
-            <version>1.6.2</version>
+            <!-- joda 2.0 moved to using volatile fields for datetime -->
+            <!-- When updating to a new version, make sure to update our copy of BaseDateTime -->
+            <version>2.1</version>
             <scope>compile</scope>
         </dependency>
 

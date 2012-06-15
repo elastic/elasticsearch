@@ -24,6 +24,7 @@ import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.OpenBitSet;
+import org.elasticsearch.common.Nullable;
 
 import java.io.IOException;
 
@@ -116,22 +117,40 @@ public class DocSets {
     /**
      * Returns a cacheable version of the doc id set (might be the same instance provided as a parameter).
      */
-    public static DocSet cacheable(IndexReader reader, DocIdSet docIdSet) throws IOException {
-        if (docIdSet == null) {
+    public static DocSet cacheable(IndexReader reader, @Nullable DocIdSet set) throws IOException {
+        if (set == null) {
             return DocSet.EMPTY_DOC_SET;
-        } else if (docIdSet.isCacheable() && (docIdSet instanceof DocSet)) {
-            return (DocSet) docIdSet;
-        } else if (docIdSet instanceof FixedBitSet) {
-            return new FixedBitDocSet((FixedBitSet) docIdSet);
-        } else if (docIdSet instanceof OpenBitSet) {
-            return new OpenBitDocSet((OpenBitSet) docIdSet);
-        } else {
-            final DocIdSetIterator it = docIdSet.iterator();
-            // null is allowed to be returned by iterator(),
-            // in this case we wrap with the empty set,
-            // which is cacheable.
-            return (it == null) ? DocSet.EMPTY_DOC_SET : new FixedBitDocSet(createFixedBitSet(it, reader.maxDoc()));
         }
+        if (set == DocIdSet.EMPTY_DOCIDSET) {
+            return DocSet.EMPTY_DOC_SET;
+        }
+
+        DocIdSetIterator it = set.iterator();
+        if (it == null) {
+            return DocSet.EMPTY_DOC_SET;
+        }
+        int doc = it.nextDoc();
+        if (doc == DocIdSetIterator.NO_MORE_DOCS) {
+            return DocSet.EMPTY_DOC_SET;
+        }
+
+        if (set.isCacheable() && (set instanceof DocSet)) {
+            return (DocSet) set;
+        }
+        if (set instanceof FixedBitSet) {
+            return new FixedBitDocSet((FixedBitSet) set);
+        }
+        if (set instanceof OpenBitSet) {
+            return new OpenBitDocSet((OpenBitSet) set);
+        }
+
+        // work with the iterator...
+        FixedBitSet fixedBitSet = new FixedBitSet(reader.maxDoc());
+        fixedBitSet.set(doc);
+        while ((doc = it.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+            fixedBitSet.set(doc);
+        }
+        return new FixedBitDocSet(fixedBitSet);
     }
 
     private DocSets() {

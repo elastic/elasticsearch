@@ -28,10 +28,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldDataType;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
-import org.elasticsearch.index.search.geo.GeoDistance;
-import org.elasticsearch.index.search.geo.GeoDistanceRangeFilter;
-import org.elasticsearch.index.search.geo.GeoHashUtils;
-import org.elasticsearch.index.search.geo.GeoUtils;
+import org.elasticsearch.index.search.geo.*;
 
 import java.io.IOException;
 
@@ -224,11 +221,11 @@ public class GeoDistanceRangeFilterParser implements FilterParser {
             to = geoDistance.normalize(to, DistanceUnit.MILES);
         }
 
-        if (normalizeLat) {
-            lat = GeoUtils.normalizeLat(lat);
-        }
-        if (normalizeLon) {
-            lon = GeoUtils.normalizeLon(lon);
+        if (normalizeLat || normalizeLon) {
+            Point point = new Point(lat, lon);
+            GeoUtils.normalizePoint(point, normalizeLat, normalizeLon);
+            lat = point.lat;
+            lon = point.lon;
         }
 
         MapperService.SmartNameFieldMappers smartMappers = parseContext.smartFieldMappers(fieldName);

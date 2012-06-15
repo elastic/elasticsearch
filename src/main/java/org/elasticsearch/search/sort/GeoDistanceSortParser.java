@@ -23,10 +23,7 @@ import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
-import org.elasticsearch.index.search.geo.GeoDistance;
-import org.elasticsearch.index.search.geo.GeoDistanceDataComparator;
-import org.elasticsearch.index.search.geo.GeoHashUtils;
-import org.elasticsearch.index.search.geo.GeoUtils;
+import org.elasticsearch.index.search.geo.*;
 import org.elasticsearch.search.internal.SearchContext;
 
 /**
@@ -113,11 +110,11 @@ public class GeoDistanceSortParser implements SortParser {
             }
         }
 
-        if (normalizeLat) {
-            lat = GeoUtils.normalizeLat(lat);
-        }
-        if (normalizeLon) {
-            lon = GeoUtils.normalizeLon(lon);
+        if (normalizeLat || normalizeLon) {
+            Point point = new Point(lat, lon);
+            GeoUtils.normalizePoint(point, normalizeLat, normalizeLon);
+            lat = point.lat;
+            lon = point.lon;
         }
 
         return new SortField(fieldName, GeoDistanceDataComparator.comparatorSource(fieldName, lat, lon, unit, geoDistance, context.fieldDataCache(), context.mapperService()), reverse);

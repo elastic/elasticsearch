@@ -45,10 +45,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
+import java.util.*;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.*;
 
@@ -536,7 +533,7 @@ public class IndexMetaData {
             builder.startObject(indexMetaData.index(), XContentBuilder.FieldCaseConversion.NONE);
 
             builder.field("version", indexMetaData.version());
-            builder.field("state", indexMetaData.state().toString().toLowerCase());
+            builder.field("state", indexMetaData.state().toString().toLowerCase(Locale.ENGLISH));
 
             boolean binary = params.paramAsBoolean("binary", false);
 

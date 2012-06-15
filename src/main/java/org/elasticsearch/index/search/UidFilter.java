@@ -33,21 +33,27 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
 
 public class UidFilter extends Filter {
 
-    private final Set<Term> uids;
+    final Term[] uids;
 
     private final BloomCache bloomCache;
 
     public UidFilter(Collection<String> types, List<String> ids, BloomCache bloomCache) {
         this.bloomCache = bloomCache;
-        this.uids = new TreeSet<Term>();
+        this.uids = new Term[types.size() * ids.size()];
+        int i = 0;
         for (String type : types) {
             for (String id : ids) {
-                uids.add(UidFieldMapper.TERM_FACTORY.createTerm(Uid.createUid(type, id)));
+                uids[i++] = UidFieldMapper.TERM_FACTORY.createTerm(Uid.createUid(type, id));
             }
+        }
+        if (this.uids.length > 1) {
+            Arrays.sort(this.uids);
         }
     }
 
@@ -69,6 +75,7 @@ public class UidFilter extends Filter {
                     td = reader.termDocs();
                 }
                 td.seek(uid);
+                // no need for batching, its on the UID, there will be only one doc
                 while (td.next()) {
                     if (set == null) {
                         set = new FixedBitSet(reader.maxDoc());
@@ -89,16 +96,23 @@ public class UidFilter extends Filter {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         UidFilter uidFilter = (UidFilter) o;
-        return !uids.equals(uidFilter.uids);
-    }
-
-    @Override
-    public String toString() {
-        return "UidFilter(" + uids + ")";
+        return Arrays.equals(uids, uidFilter.uids);
     }
 
     @Override
     public int hashCode() {
-        return uids.hashCode();
+        return Arrays.hashCode(uids);
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder();
+        for (Term term : uids) {
+            if (builder.length() > 0) {
+                builder.append(' ');
+            }
+            builder.append(term);
+        }
+        return builder.toString();
     }
 }

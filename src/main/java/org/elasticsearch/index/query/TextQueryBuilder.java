@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Locale;
 
 /**
  * Text query is a query that analyzes the text and constructs a query as the result of the analysis. It
@@ -167,7 +168,7 @@ public class TextQueryBuilder extends BaseQueryBuilder implements BoostableQuery
 
         builder.field("query", text);
         if (type != null) {
-            builder.field("type", type.toString().toLowerCase());
+            builder.field("type", type.toString().toLowerCase(Locale.ENGLISH));
         }
         if (operator != null) {
             builder.field("operator", operator.toString());

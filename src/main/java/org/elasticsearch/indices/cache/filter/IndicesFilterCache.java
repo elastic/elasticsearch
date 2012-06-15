@@ -33,7 +33,6 @@ import org.elasticsearch.common.lucene.docset.DocSet;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.cache.filter.support.FilterCacheValue;
 import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.settings.NodeSettingsService;
@@ -41,15 +40,15 @@ import org.elasticsearch.node.settings.NodeSettingsService;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-public class IndicesFilterCache extends AbstractComponent implements RemovalListener<WeightedFilterCache.FilterCacheKey, FilterCacheValue<DocSet>> {
+public class IndicesFilterCache extends AbstractComponent implements RemovalListener<WeightedFilterCache.FilterCacheKey, DocSet> {
 
-    private Cache<WeightedFilterCache.FilterCacheKey, FilterCacheValue<DocSet>> cache;
+    private Cache<WeightedFilterCache.FilterCacheKey, DocSet> cache;
 
     private volatile String size;
     private volatile long sizeInBytes;
     private volatile TimeValue expire;
 
-    private volatile Map<String, RemovalListener<WeightedFilterCache.FilterCacheKey, FilterCacheValue<DocSet>>> removalListeners =
+    private volatile Map<String, RemovalListener<WeightedFilterCache.FilterCacheKey, DocSet>> removalListeners =
             ImmutableMap.of();
 
 
@@ -77,7 +76,7 @@ public class IndicesFilterCache extends AbstractComponent implements RemovalList
                 replace = true;
             }
             if (replace) {
-                Cache<WeightedFilterCache.FilterCacheKey, FilterCacheValue<DocSet>> oldCache = IndicesFilterCache.this.cache;
+                Cache<WeightedFilterCache.FilterCacheKey, DocSet> oldCache = IndicesFilterCache.this.cache;
                 computeSizeInBytes();
                 buildCache();
                 oldCache.invalidateAll();
@@ -98,7 +97,7 @@ public class IndicesFilterCache extends AbstractComponent implements RemovalList
     }
 
     private void buildCache() {
-        CacheBuilder<WeightedFilterCache.FilterCacheKey, FilterCacheValue<DocSet>> cacheBuilder = CacheBuilder.newBuilder()
+        CacheBuilder<WeightedFilterCache.FilterCacheKey, DocSet> cacheBuilder = CacheBuilder.newBuilder()
                 .removalListener(this)
                 .maximumWeight(sizeInBytes).weigher(new WeightedFilterCache.FilterCacheValueWeigher());
 
@@ -121,7 +120,7 @@ public class IndicesFilterCache extends AbstractComponent implements RemovalList
         }
     }
 
-    public synchronized void addRemovalListener(String index, RemovalListener<WeightedFilterCache.FilterCacheKey, FilterCacheValue<DocSet>> listener) {
+    public synchronized void addRemovalListener(String index, RemovalListener<WeightedFilterCache.FilterCacheKey, DocSet> listener) {
         removalListeners = MapBuilder.newMapBuilder(removalListeners).put(index, listener).immutableMap();
     }
 
@@ -133,17 +132,17 @@ public class IndicesFilterCache extends AbstractComponent implements RemovalList
         cache.invalidateAll();
     }
 
-    public Cache<WeightedFilterCache.FilterCacheKey, FilterCacheValue<DocSet>> cache() {
+    public Cache<WeightedFilterCache.FilterCacheKey, DocSet> cache() {
         return this.cache;
     }
 
     @Override
-    public void onRemoval(RemovalNotification<WeightedFilterCache.FilterCacheKey, FilterCacheValue<DocSet>> removalNotification) {
+    public void onRemoval(RemovalNotification<WeightedFilterCache.FilterCacheKey, DocSet> removalNotification) {
         WeightedFilterCache.FilterCacheKey key = removalNotification.getKey();
         if (key == null) {
             return;
         }
-        RemovalListener<WeightedFilterCache.FilterCacheKey, FilterCacheValue<DocSet>> listener = removalListeners.get(key.index());
+        RemovalListener<WeightedFilterCache.FilterCacheKey, DocSet> listener = removalListeners.get(key.index());
         if (listener != null) {
             listener.onRemoval(removalNotification);
         }

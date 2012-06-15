@@ -62,7 +62,8 @@ public class MultiSearchRequest implements ActionRequest {
         return this;
     }
 
-    public MultiSearchRequest add(byte[] data, int from, int length, boolean contentUnsafe, @Nullable String[] indices, @Nullable String[] types) throws Exception {
+    public MultiSearchRequest add(byte[] data, int from, int length, boolean contentUnsafe,
+                                  @Nullable String[] indices, @Nullable String[] types, @Nullable String searchType) throws Exception {
         XContent xContent = XContentFactory.xContent(data, from, length);
         byte marker = xContent.streamSeparator();
         while (true) {
@@ -80,6 +81,7 @@ public class MultiSearchRequest implements ActionRequest {
             if (types != null && types.length > 0) {
                 searchRequest.types(types);
             }
+            searchRequest.searchType(searchType);
 
             // now parse the action
             if (nextMarker - from > 0) {

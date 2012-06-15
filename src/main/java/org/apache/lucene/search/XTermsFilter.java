@@ -23,6 +23,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermDocs;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.common.lucene.Lucene;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -70,8 +71,8 @@ public class XTermsFilter extends Filter {
         TermDocs td = reader.termDocs();
         try {
             // batch read, in Lucene 4.0 its no longer needed
-            int[] docs = new int[32];
-            int[] freqs = new int[32];
+            int[] docs = new int[Lucene.BATCH_ENUM_DOCS];
+            int[] freqs = new int[Lucene.BATCH_ENUM_DOCS];
             for (Term term : terms) {
                 td.seek(term);
                 int number = td.read(docs, freqs);

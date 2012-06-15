@@ -109,8 +109,9 @@
         <dependency>
             <groupId>joda-time</groupId>
             <artifactId>joda-time</artifactId>
-            <!-- joda 2.0 moved to using volatile fields for datetime, which hurts performance for facets! -->
-            <version>1.6.2</version>
+            <!-- joda 2.0 moved to using volatile fields for datetime -->
+            <!-- When updating to a new version, make sure to update our copy of BaseDateTime -->
+            <version>2.1</version>
             <scope>compile</scope>
         </dependency>
 
@@ -431,7 +432,7 @@
                                 <data>
                                     <src>${project.basedir}/bin</src>
                                     <type>directory</type>
-                                    <excludes>*.bat</excludes>
+                                    <excludes>*.bat, .DS_Store</excludes>
                                     <mapper>
                                         <type>perm</type>
                                         <prefix>/usr/share/elasticsearch/bin</prefix>
@@ -476,6 +477,7 @@
                                 <data>
                                     <src>${project.basedir}/src/deb/default/</src>
                                     <type>directory</type>
+                                    <excludes>.DS_Store</excludes>
                                     <mapper>
                                         <type>perm</type>
                                         <prefix>/etc/default</prefix>
@@ -486,6 +488,7 @@
                                 <data>
                                     <src>${project.basedir}/src/deb/init.d/</src>
                                     <type>directory</type>
+                                    <excludes>.DS_Store</excludes>
                                     <mapper>
                                         <type>perm</type>
                                         <prefix>/etc/init.d</prefix>
@@ -497,6 +500,7 @@
                                 <data>
                                     <src>${project.basedir}/config</src>
                                     <type>directory</type>
+                                    <excludes>.DS_Store</excludes>
                                     <mapper>
                                         <type>perm</type>
                                         <prefix>/etc/elasticsearch</prefix>

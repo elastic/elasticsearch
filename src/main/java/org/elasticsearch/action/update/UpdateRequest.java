@@ -30,6 +30,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
@@ -63,7 +65,7 @@ public class UpdateRequest extends InstanceShardOperationRequest {
     private ReplicationType replicationType = ReplicationType.DEFAULT;
     private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
 
-    private IndexRequest indexRequest;
+    private IndexRequest upsertRequest;
 
     UpdateRequest() {
 
@@ -162,6 +164,14 @@ public class UpdateRequest extends InstanceShardOperationRequest {
 
     int shardId() {
         return this.shardId;
+    }
+
+    public String script() {
+        return this.script;
+    }
+
+    public Map<String, Object> scriptParams() {
+        return this.scriptParams;
     }
 
     /**
@@ -339,68 +349,102 @@ public class UpdateRequest extends InstanceShardOperationRequest {
      * Sets the index request to be used if the document does not exists. Otherwise, a {@link org.elasticsearch.index.engine.DocumentMissingException}
      * is thrown.
      */
-    public UpdateRequest doc(IndexRequest indexRequest) {
-        this.indexRequest = indexRequest;
+    public UpdateRequest upsert(IndexRequest upsertRequest) {
+        this.upsertRequest = upsertRequest;
         return this;
     }
 
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequest doc(XContentBuilder source) {
-        safeIndexRequest().source(source);
+    public UpdateRequest upsert(XContentBuilder source) {
+        safeUpsertRequest().source(source);
         return this;
     }
 
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequest doc(Map source) {
-        safeIndexRequest().source(source);
+    public UpdateRequest upsert(Map source) {
+        safeUpsertRequest().source(source);
         return this;
     }
 
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequest doc(Map source, XContentType contentType) {
-        safeIndexRequest().source(source, contentType);
+    public UpdateRequest upsert(Map source, XContentType contentType) {
+        safeUpsertRequest().source(source, contentType);
         return this;
     }
 
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequest doc(String source) {
-        safeIndexRequest().source(source);
+    public UpdateRequest upsert(String source) {
+        safeUpsertRequest().source(source);
         return this;
     }
 
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequest doc(byte[] source) {
-        safeIndexRequest().source(source);
+    public UpdateRequest upsert(byte[] source) {
+        safeUpsertRequest().source(source);
         return this;
     }
 
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequest doc(byte[] source, int offset, int length) {
-        safeIndexRequest().source(source, offset, length);
+    public UpdateRequest upsert(byte[] source, int offset, int length) {
+        safeUpsertRequest().source(source, offset, length);
         return this;
     }
 
-    public IndexRequest indexRequest() {
-        return this.indexRequest;
+    public IndexRequest upsertRequest() {
+        return this.upsertRequest;
     }
 
-    private IndexRequest safeIndexRequest() {
-        if (indexRequest == null) {
-            indexRequest = new IndexRequest();
+    private IndexRequest safeUpsertRequest() {
+        if (upsertRequest == null) {
+            upsertRequest = new IndexRequest();
         }
-        return indexRequest;
+        return upsertRequest;
+    }
+
+    public UpdateRequest source(XContentBuilder source) throws Exception {
+        return source(source.underlyingBytes(), 0, source.underlyingBytesLength());
+    }
+
+    public UpdateRequest source(byte[] source) throws Exception {
+        return source(source, 0, source.length);
+    }
+
+    public UpdateRequest source(byte[] source, int offset, int length) throws Exception {
+        XContentType xContentType = XContentFactory.xContentType(source, offset, length);
+        XContentParser parser = XContentFactory.xContent(xContentType).createParser(source, offset, length);
+        XContentParser.Token t = parser.nextToken();
+        if (t == null) {
+            return this;
+        }
+        String currentFieldName = null;
+        while ((t = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (t == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if ("script".equals(currentFieldName)) {
+                script = parser.textOrNull();
+            } else if ("params".equals(currentFieldName)) {
+                scriptParams = parser.map();
+            } else if ("lang".equals(currentFieldName)) {
+                scriptLang = parser.text();
+            } else if ("upsert".equals(currentFieldName)) {
+                XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
+                builder.copyCurrentStructure(parser);
+                safeUpsertRequest().source(builder);
+            }
+        }
+        return this;
     }
 
     @Override
@@ -431,8 +475,8 @@ public class UpdateRequest extends InstanceShardOperationRequest {
             }
         }
         if (in.readBoolean()) {
-            indexRequest = new IndexRequest();
-            indexRequest.readFrom(in);
+            upsertRequest = new IndexRequest();
+            upsertRequest.readFrom(in);
         }
     }
 
@@ -473,15 +517,15 @@ public class UpdateRequest extends InstanceShardOperationRequest {
                 out.writeUTF(field);
             }
         }
-        if (indexRequest == null) {
+        if (upsertRequest == null) {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
             // make sure the basics are set
-            indexRequest.index(index);
-            indexRequest.type(type);
-            indexRequest.id(id);
-            indexRequest.writeTo(out);
+            upsertRequest.index(index);
+            upsertRequest.type(type);
+            upsertRequest.id(id);
+            upsertRequest.writeTo(out);
         }
     }
 }

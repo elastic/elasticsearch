@@ -48,6 +48,7 @@ public class UpdateRequest extends InstanceShardOperationRequest {
     @Nullable
     private String routing;
 
+    @Nullable
     String script;
     @Nullable
     String scriptLang;
@@ -67,6 +68,9 @@ public class UpdateRequest extends InstanceShardOperationRequest {
 
     private IndexRequest upsertRequest;
 
+    @Nullable
+    private IndexRequest doc;
+    
     UpdateRequest() {
 
     }
@@ -86,8 +90,8 @@ public class UpdateRequest extends InstanceShardOperationRequest {
         if (id == null) {
             validationException = addValidationError("id is missing", validationException);
         }
-        if (script == null) {
-            validationException = addValidationError("script is missing", validationException);
+        if (script == null && doc == null) {
+            validationException = addValidationError("script or doc is missing", validationException);
         }
         return validationException;
     }
@@ -346,6 +350,73 @@ public class UpdateRequest extends InstanceShardOperationRequest {
     }
 
     /**
+     * Sets the doc to use for updates when a script is not specified.
+     */
+    public UpdateRequest doc(IndexRequest doc) {
+        this.doc = doc;
+        return this;
+    }
+
+    /**
+     * Sets the doc to use for updates when a script is not specified.
+     */
+    public UpdateRequest doc(XContentBuilder source) {
+        safeDoc().source(source);
+        return this;
+    }
+
+    /**
+     * Sets the doc to use for updates when a script is not specified.
+     */
+    public UpdateRequest doc(Map source) {
+        safeDoc().source(source);
+        return this;
+    }
+
+    /**
+     * Sets the doc to use for updates when a script is not specified.
+     */
+    public UpdateRequest doc(Map source, XContentType contentType) {
+     safeDoc().source(source, contentType);
+     return this;
+    }
+
+    /**
+     * Sets the doc to use for updates when a script is not specified.
+     */
+    public UpdateRequest doc(String source) {
+        safeDoc().source(source);
+        return this;
+    }
+
+    /**
+     * Sets the doc to use for updates when a script is not specified.
+     */
+    public UpdateRequest doc(byte[] source) {
+        safeDoc().source(source);
+        return this;
+    }
+
+    /**
+     * Sets the doc to use for updates when a script is not specified.
+     */
+    public UpdateRequest doc(byte[] source, int offset, int length) {
+        safeDoc().source(source, offset, length);
+        return this;
+    }
+
+    public IndexRequest doc() {
+        return this.doc;
+    }
+
+    private IndexRequest safeDoc() {
+        if (doc == null) {
+            doc = new IndexRequest();
+        }
+        return doc;
+    }
+    
+    /**
      * Sets the index request to be used if the document does not exists. Otherwise, a {@link org.elasticsearch.index.engine.DocumentMissingException}
      * is thrown.
      */
@@ -442,6 +513,10 @@ public class UpdateRequest extends InstanceShardOperationRequest {
                 XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
                 builder.copyCurrentStructure(parser);
                 safeUpsertRequest().source(builder);
+            } else if ("doc".equals(currentFieldName)) {
+                XContentBuilder docBuilder = XContentFactory.contentBuilder(xContentType);
+                docBuilder.copyCurrentStructure(parser);
+                safeDoc().source(docBuilder);
             }
         }
         return this;
@@ -457,7 +532,9 @@ public class UpdateRequest extends InstanceShardOperationRequest {
         if (in.readBoolean()) {
             routing = in.readUTF();
         }
-        script = in.readUTF();
+        if (in.readBoolean()) {
+            script = in.readUTF();
+        }
         if (in.readBoolean()) {
             scriptLang = in.readUTF();
         }
@@ -467,6 +544,10 @@ public class UpdateRequest extends InstanceShardOperationRequest {
             percolate = in.readUTF();
         }
         refresh = in.readBoolean();
+        if (in.readBoolean()) {
+            doc = new IndexRequest();
+            doc.readFrom(in);
+        }
         int size = in.readInt();
         if (size >= 0) {
             fields = new String[size];
@@ -493,7 +574,12 @@ public class UpdateRequest extends InstanceShardOperationRequest {
             out.writeBoolean(true);
             out.writeUTF(routing);
         }
-        out.writeUTF(script);
+        if (script == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeUTF(script);
+        }
         if (scriptLang == null) {
             out.writeBoolean(false);
         } else {
@@ -509,6 +595,16 @@ public class UpdateRequest extends InstanceShardOperationRequest {
             out.writeUTF(percolate);
         }
         out.writeBoolean(refresh);
+        if (doc == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            // make sure the basics are set
+            doc.index(index);
+            doc.type(type);
+            doc.id(id);
+            doc.writeTo(out);
+        }
         if (fields == null) {
             out.writeInt(-1);
         } else {

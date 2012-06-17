@@ -40,6 +40,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 
@@ -333,6 +334,10 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         return new BytesHolder(underlyingSource(), underlyingSourceOffset(), underlyingSourceLength());
     }
 
+    public Map<String, Object> underlyingSourceAsMap() {
+        return XContentHelper.convertToMap(underlyingSource(), underlyingSourceOffset(), underlyingSourceLength(), false).v2();
+    }
+    
     public byte[] underlyingSource() {
         if (sourceUnsafe) {
             source();

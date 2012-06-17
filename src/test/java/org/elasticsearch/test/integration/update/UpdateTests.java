@@ -36,6 +36,7 @@ import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 import java.util.Map;
+import java.util.HashMap;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -150,6 +151,15 @@ public class UpdateTests extends AbstractNodesTests {
         upsertDoc = XContentHelper.convertToMap(request.upsertRequest().source(), true).v2();
         assertThat(upsertDoc.get("field1").toString(), equalTo("value1"));
         assertThat(((Map) upsertDoc.get("compound")).get("field2").toString(), equalTo("value2"));
+        
+        // script with doc
+        request = new UpdateRequest("test", "type", "1");
+        request.source(XContentFactory.jsonBuilder().startObject()
+                .startObject("doc").field("field1", "value1").startObject("compound").field("field2", "value2").endObject().endObject()
+                .endObject());
+        Map<String, Object> doc = request.doc().underlyingSourceAsMap();
+        assertThat(doc.get("field1").toString(), equalTo("value1"));
+        assertThat(((Map) doc.get("compound")).get("field2").toString(), equalTo("value2"));
     }
 
     @Test
@@ -272,5 +282,49 @@ public class UpdateTests extends AbstractNodesTests {
         assertThat(updateResponse.getResult(), notNullValue());
         assertThat(updateResponse.getResult().sourceRef(), notNullValue());
         assertThat(updateResponse.getResult().field("field").value(), notNullValue());
+        
+        // check updates without script
+        // add new field
+        client.prepareIndex("test", "type1", "1").setSource("field", 1).execute().actionGet();
+        updateResponse = client.prepareUpdate("test", "type1", "1").setDoc(XContentFactory.jsonBuilder().startObject().field("field2", 2).endObject()).execute().actionGet();
+        for (int i = 0; i < 5; i++) {
+            getResponse = client.prepareGet("test", "type1", "1").execute().actionGet();
+            assertThat(getResponse.sourceAsMap().get("field").toString(), equalTo("1"));
+            assertThat(getResponse.sourceAsMap().get("field2").toString(), equalTo("2"));
+        }        
+        
+        // change existing field
+        updateResponse = client.prepareUpdate("test", "type1", "1").setDoc(XContentFactory.jsonBuilder().startObject().field("field", 3).endObject()).execute().actionGet();
+        for (int i = 0; i < 5; i++) {
+            getResponse = client.prepareGet("test", "type1", "1").execute().actionGet();
+            assertThat(getResponse.sourceAsMap().get("field").toString(), equalTo("3"));
+            assertThat(getResponse.sourceAsMap().get("field2").toString(), equalTo("2"));
+        }
+        
+        // recursive map
+        Map<String, Object> testMap = new HashMap<String, Object>();
+        Map<String, Object> testMap2 = new HashMap<String, Object>();
+        Map<String, Object> testMap3 = new HashMap<String, Object>();
+        testMap3.put("commonkey", testMap);
+        testMap3.put("map3", 5);
+        testMap2.put("map2", 6);
+        testMap.put("commonkey", testMap2);
+        testMap.put("map1", 8);
+        
+        client.prepareIndex("test", "type1", "1").setSource("map", testMap).execute().actionGet();
+        updateResponse = client.prepareUpdate("test", "type1", "1").setDoc(XContentFactory.jsonBuilder().startObject().field("map", testMap3).endObject()).execute().actionGet();
+        for (int i = 0; i < 5; i++) {
+            getResponse = client.prepareGet("test", "type1", "1").execute().actionGet();
+            Map map1 = (Map) getResponse.sourceAsMap().get("map");
+            assertThat(map1.size(), equalTo(3));
+            assertThat(map1.containsKey("map1"), equalTo(true));
+            assertThat(map1.containsKey("map3"), equalTo(true));
+            assertThat(map1.containsKey("commonkey"), equalTo(true));
+            Map map2 = (Map) map1.get("commonkey");
+            assertThat(map2.size(), equalTo(3));
+            assertThat(map2.containsKey("map1"), equalTo(true));
+            assertThat(map2.containsKey("map2"), equalTo(true));
+            assertThat(map2.containsKey("commonkey"), equalTo(true));
+        }
     }
 }

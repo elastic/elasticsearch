@@ -101,6 +101,17 @@ public class RestUpdateAction extends BaseRestHandler {
                     upsertRequest.version(RestActions.parseVersion(request));
                     upsertRequest.versionType(VersionType.fromString(request.param("version_type"), upsertRequest.versionType()));
                 }
+                IndexRequest doc = updateRequest.doc();
+                if (doc != null) {
+                    doc.routing(request.param("routing"));
+                    doc.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing
+                    doc.timestamp(request.param("timestamp"));
+                    if (request.hasParam("ttl")) {
+                        doc.ttl(request.paramAsTime("ttl", null).millis());
+                    }
+                    doc.version(RestActions.parseVersion(request));
+                    doc.versionType(VersionType.fromString(request.param("version_type"), doc.versionType()));
+                }
             } catch (Exception e) {
                 try {
                     channel.sendResponse(new XContentThrowableRestResponse(request, e));

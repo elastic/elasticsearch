@@ -73,6 +73,8 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
         } else if (info.versionAsInteger() > 170) {
             defaultEnableLastGc = true;
         }
+        // always disable lastG, some reports it gives are strange...
+        defaultEnableLastGc = false;
 
         boolean enableLastGc = Booleans.parseBoolean(System.getProperty("monitor.jvm.enable_last_gc"), defaultEnableLastGc);
         if (enableLastGc) {

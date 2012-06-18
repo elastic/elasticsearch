@@ -69,47 +69,8 @@ public abstract class AbstractFragmentsBuilder extends BaseFragmentsBuilder {
             return null;
         }
 
-        if (discreteMultiValueHighlighting && values.length > fragInfos.size()) {
-            Map<Field, List<FieldFragList.WeightedFragInfo>> fieldsWeightedFragInfo = new HashMap<Field, List<FieldFragList.WeightedFragInfo>>();
-            int startOffset = 0;
-            int endOffset = 0;
-            for (Field value : values) {
-                endOffset += value.stringValue().length();
-                List<FieldFragList.WeightedFragInfo.SubInfo> fieldToSubInfos = new ArrayList<FieldFragList.WeightedFragInfo.SubInfo>();
-                List<FieldFragList.WeightedFragInfo> fieldToWeightedFragInfos = new ArrayList<FieldFragList.WeightedFragInfo>();
-                fieldsWeightedFragInfo.put(value, fieldToWeightedFragInfos);
-                for (FieldFragList.WeightedFragInfo fragInfo : fragInfos) {
-                    int weightedFragInfoStartOffset = startOffset;
-                    if (fragInfo.getStartOffset() > startOffset && fragInfo.getStartOffset() < endOffset) {
-                        weightedFragInfoStartOffset = fragInfo.getStartOffset();
-                    }
-                    int weightedFragInfoEndOffset = endOffset;
-                    if (fragInfo.getEndOffset() > startOffset && fragInfo.getEndOffset() < endOffset) {
-                        weightedFragInfoEndOffset = fragInfo.getEndOffset();
-                    }
-
-                    fieldToWeightedFragInfos.add(new WeightedFragInfo(weightedFragInfoStartOffset, weightedFragInfoEndOffset, fragInfo.getTotalBoost(), fieldToSubInfos));
-                    for (FieldFragList.WeightedFragInfo.SubInfo subInfo : fragInfo.getSubInfos()) {
-                        for (FieldPhraseList.WeightedPhraseInfo.Toffs toffs : subInfo.getTermsOffsets()) {
-                            if (toffs.getStartOffset() >= startOffset && toffs.getEndOffset() < endOffset) {
-                                fieldToSubInfos.add(subInfo);
-                            }
-                        }
-                    }
-                }
-                startOffset = endOffset + 1;
-            }
-            fragInfos.clear();
-            for (Map.Entry<Field, List<FieldFragList.WeightedFragInfo>> entry : fieldsWeightedFragInfo.entrySet()) {
-                fragInfos.addAll(entry.getValue());
-            }
-            Collections.sort(fragInfos, new Comparator<FieldFragList.WeightedFragInfo>() {
-
-                public int compare(FieldFragList.WeightedFragInfo info1, FieldFragList.WeightedFragInfo info2) {
-                    return info1.getStartOffset() - info2.getStartOffset();
-                }
-
-            });
+        if (discreteMultiValueHighlighting && values.length > 1) {
+            fragInfos = discreteMultiValueHighlighting(fragInfos, values);
         }
 
         fragInfos = getWeightedFragInfoList(fragInfos);
@@ -121,6 +82,92 @@ public abstract class AbstractFragmentsBuilder extends BaseFragmentsBuilder {
             fragments.add(makeFragment(buffer, nextValueIndex, values, fragInfo, preTags, postTags, encoder));
         }
         return fragments.toArray(new String[fragments.size()]);
+    }
+
+    protected List<FieldFragList.WeightedFragInfo> discreteMultiValueHighlighting(List<FieldFragList.WeightedFragInfo> fragInfos, Field[] fields) {
+        Map<String, List<FieldFragList.WeightedFragInfo>> fieldNameToFragInfos = new HashMap<String, List<FieldFragList.WeightedFragInfo>>();
+        for (Field field : fields) {
+            fieldNameToFragInfos.put(field.name(), new ArrayList<FieldFragList.WeightedFragInfo>());
+        }
+
+        fragInfos:
+        for (FieldFragList.WeightedFragInfo fragInfo : fragInfos) {
+            int fieldStart;
+            int fieldEnd = 0;
+            for (Field field : fields) {
+                if (field.stringValue().isEmpty()) {
+                    fieldEnd++;
+                    continue;
+                }
+                fieldStart = fieldEnd;
+                fieldEnd += field.stringValue().length() + 1; // + 1 for going to next field with same name.
+
+                if (fragInfo.getStartOffset() >= fieldStart && fragInfo.getEndOffset() >= fieldStart &&
+                        fragInfo.getStartOffset() <= fieldEnd && fragInfo.getEndOffset() <= fieldEnd) {
+                    fieldNameToFragInfos.get(field.name()).add(fragInfo);
+                    continue fragInfos;
+                }
+
+                if (fragInfo.getSubInfos().isEmpty()) {
+                    continue fragInfos;
+                }
+
+                FieldPhraseList.WeightedPhraseInfo.Toffs firstToffs = fragInfo.getSubInfos().get(0).getTermsOffsets().get(0);
+                if (fragInfo.getStartOffset() >= fieldEnd || firstToffs.getStartOffset() >= fieldEnd) {
+                    continue;
+                }
+
+                int fragStart = fieldStart;
+                if (fragInfo.getStartOffset() > fieldStart && fragInfo.getStartOffset() < fieldEnd) {
+                    fragStart = fragInfo.getStartOffset();
+                }
+
+                int fragEnd = fieldEnd;
+                if (fragInfo.getEndOffset() > fieldStart && fragInfo.getEndOffset() < fieldEnd) {
+                    fragEnd = fragInfo.getEndOffset();
+                }
+
+
+                List<WeightedFragInfo.SubInfo> subInfos = new ArrayList<WeightedFragInfo.SubInfo>();
+                WeightedFragInfo weightedFragInfo = new WeightedFragInfo(fragStart, fragEnd, fragInfo.getTotalBoost(), subInfos);
+
+                Iterator<FieldFragList.WeightedFragInfo.SubInfo> subInfoIterator = fragInfo.getSubInfos().iterator();
+                while (subInfoIterator.hasNext()) {
+                    FieldFragList.WeightedFragInfo.SubInfo subInfo = subInfoIterator.next();
+                    List<FieldPhraseList.WeightedPhraseInfo.Toffs> toffsList = new ArrayList<FieldPhraseList.WeightedPhraseInfo.Toffs>();
+                    Iterator<FieldPhraseList.WeightedPhraseInfo.Toffs> toffsIterator = subInfo.getTermsOffsets().iterator();
+                    while (toffsIterator.hasNext()) {
+                        FieldPhraseList.WeightedPhraseInfo.Toffs toffs = toffsIterator.next();
+                        if (toffs.getStartOffset() >= fieldStart && toffs.getEndOffset() <= fieldEnd) {
+                            toffsList.add(toffs);
+                            toffsIterator.remove();
+                        }
+                    }
+                    if (!toffsList.isEmpty()) {
+                        subInfos.add(new FieldFragList.WeightedFragInfo.SubInfo(subInfo.text, toffsList, subInfo.getSeqnum()));
+                    }
+
+                    if (subInfo.getTermsOffsets().isEmpty()) {
+                        subInfoIterator.remove();
+                    }
+                }
+                fieldNameToFragInfos.get(field.name()).add(weightedFragInfo);
+            }
+        }
+
+        List<FieldFragList.WeightedFragInfo> result = new ArrayList<FieldFragList.WeightedFragInfo>();
+        for (List<FieldFragList.WeightedFragInfo> weightedFragInfos : fieldNameToFragInfos.values()) {
+            result.addAll(weightedFragInfos);
+        }
+        Collections.sort(result, new Comparator<FieldFragList.WeightedFragInfo>() {
+
+            public int compare(FieldFragList.WeightedFragInfo info1, FieldFragList.WeightedFragInfo info2) {
+                return info1.getStartOffset() - info2.getStartOffset();
+            }
+
+        });
+
+        return result;
     }
 
     private static class WeightedFragInfo extends FieldFragList.WeightedFragInfo {

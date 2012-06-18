@@ -22,6 +22,7 @@ package org.elasticsearch.search.fetch.script;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -72,7 +73,13 @@ public class ScriptFieldsFetchSubPhase implements FetchSubPhase {
 
             Object value;
             try {
-                value = scriptField.script().run();
+                SearchScript script = scriptField.script();
+            	try {
+            		value = script.run();
+            	} catch(LinkageError err) {
+                	// wrap linkage errors (most likely recoverable) into a runtime exception to be handled further up the chain
+                	throw new RuntimeException(err);
+                }            	
                 value = scriptField.script().unwrap(value);
             } catch (RuntimeException e) {
                 if (scriptField.ignoreException()) {

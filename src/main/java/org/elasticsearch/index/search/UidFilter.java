@@ -57,6 +57,10 @@ public class UidFilter extends Filter {
         }
     }
 
+    public Term[] getTerms() {
+        return this.uids;
+    }
+
     // TODO Optimizations
     // - If we have a single id, we can create a SingleIdDocIdSet to save on mem
     // - We can use sorted int array DocIdSet to reserve memory compared to OpenBitSet in some cases

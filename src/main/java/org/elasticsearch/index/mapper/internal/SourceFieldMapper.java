@@ -24,11 +24,15 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.compress.lzf.LZF;
-import org.elasticsearch.common.compress.lzf.LZFDecoder;
-import org.elasticsearch.common.io.stream.*;
+import org.elasticsearch.common.compress.CompressedStreamInput;
+import org.elasticsearch.common.compress.Compressor;
+import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.io.stream.BytesStreamInput;
+import org.elasticsearch.common.io.stream.CachedStreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.document.ResetFieldSelector;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -251,7 +255,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
             CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
             StreamOutput streamOutput;
             if (compress != null && compress && (compressThreshold == -1 || dataLength > compressThreshold)) {
-                streamOutput = cachedEntry.cachedLZFBytes();
+                streamOutput = cachedEntry.cachedBytes(CompressorFactory.defaultCompressor());
             } else {
                 streamOutput = cachedEntry.cachedBytes();
             }
@@ -267,19 +271,19 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
             dataLength = data.length;
 
             CachedStreamOutput.pushEntry(cachedEntry);
-        } else if (compress != null && compress && !LZF.isCompressed(data, dataOffset, dataLength)) {
+        } else if (compress != null && compress && !CompressorFactory.isCompressed(data, dataOffset, dataLength)) {
             if (compressThreshold == -1 || dataLength > compressThreshold) {
                 CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
                 try {
                     XContentType contentType = XContentFactory.xContentType(data, dataOffset, dataLength);
                     if (formatContentType != null && formatContentType != contentType) {
-                        XContentBuilder builder = XContentFactory.contentBuilder(formatContentType, cachedEntry.cachedLZFBytes());
+                        XContentBuilder builder = XContentFactory.contentBuilder(formatContentType, cachedEntry.cachedBytes(CompressorFactory.defaultCompressor()));
                         builder.copyCurrentStructure(XContentFactory.xContent(contentType).createParser(data, dataOffset, dataLength));
                         builder.close();
                     } else {
-                        LZFStreamOutput streamOutput = cachedEntry.cachedLZFBytes();
+                        StreamOutput streamOutput = cachedEntry.cachedBytes(CompressorFactory.defaultCompressor());
                         streamOutput.writeBytes(data, dataOffset, dataLength);
-                        streamOutput.flush();
+                        streamOutput.close();
                     }
                     // we copy over the byte array, since we need to push back the cached entry
                     // TODO, we we had a handle into when we are done with parsing, then we push back then and not copy over bytes
@@ -294,18 +298,18 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
             }
         } else if (formatContentType != null) {
             // see if we need to convert the content type
-            if (LZF.isCompressed(data, dataOffset, dataLength)) {
-                BytesStreamInput siBytes = new BytesStreamInput(data, dataOffset, dataLength, false);
-                LZFStreamInput siLzf = CachedStreamInput.cachedLzf(siBytes);
-                XContentType contentType = XContentFactory.xContentType(siLzf);
-                siLzf.resetToBufferStart();
+            Compressor compressor = CompressorFactory.compressor(data, dataOffset, dataLength);
+            if (compressor != null) {
+                CompressedStreamInput compressedStreamInput = compressor.streamInput(new BytesStreamInput(data, dataOffset, dataLength, false));
+                XContentType contentType = XContentFactory.xContentType(compressedStreamInput);
+                compressedStreamInput.resetToBufferStart();
                 if (contentType != formatContentType) {
                     // we need to reread and store back, compressed....
                     CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
                     try {
-                        LZFStreamOutput streamOutput = cachedEntry.cachedLZFBytes();
+                        StreamOutput streamOutput = cachedEntry.cachedBytes(CompressorFactory.defaultCompressor());
                         XContentBuilder builder = XContentFactory.contentBuilder(formatContentType, streamOutput);
-                        builder.copyCurrentStructure(XContentFactory.xContent(contentType).createParser(siLzf));
+                        builder.copyCurrentStructure(XContentFactory.xContent(contentType).createParser(compressedStreamInput));
                         builder.close();
                         data = cachedEntry.bytes().copiedByteArray();
                         dataOffset = 0;
@@ -315,6 +319,8 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
                     } finally {
                         CachedStreamOutput.pushEntry(cachedEntry);
                     }
+                } else {
+                    compressedStreamInput.close();
                 }
             } else {
                 XContentType contentType = XContentFactory.xContentType(data, dataOffset, dataLength);
@@ -355,14 +361,11 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
         if (value == null) {
             return value;
         }
-        if (LZF.isCompressed(value)) {
-            try {
-                return LZFDecoder.decode(value);
-            } catch (IOException e) {
-                throw new ElasticSearchParseException("failed to decompress source", e);
-            }
+        try {
+            return CompressorFactory.uncompressIfNeeded(new BytesHolder(value)).bytes();
+        } catch (IOException e) {
+            throw new ElasticSearchParseException("failed to decompress source", e);
         }
-        return value;
     }
 
     @Override

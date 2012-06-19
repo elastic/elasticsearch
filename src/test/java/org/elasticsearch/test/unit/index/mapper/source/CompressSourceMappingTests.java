@@ -19,11 +19,11 @@
 
 package org.elasticsearch.test.unit.index.mapper.source;
 
-import org.elasticsearch.common.compress.lzf.LZF;
+import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -47,7 +47,7 @@ public class CompressSourceMappingTests {
                 .field("field2", "value2")
                 .endObject().copiedBytes());
 
-        assertThat(LZF.isCompressed(doc.rootDoc().getBinaryValue("_source")), equalTo(false));
+        assertThat(CompressorFactory.isCompressed(doc.rootDoc().getBinaryValue("_source")), equalTo(false));
     }
 
     @Test
@@ -63,7 +63,7 @@ public class CompressSourceMappingTests {
                 .field("field2", "value2")
                 .endObject().copiedBytes());
 
-        assertThat(LZF.isCompressed(doc.rootDoc().getBinaryValue("_source")), equalTo(true));
+        assertThat(CompressorFactory.isCompressed(doc.rootDoc().getBinaryValue("_source")), equalTo(true));
     }
 
     @Test
@@ -78,7 +78,7 @@ public class CompressSourceMappingTests {
                 .field("field1", "value1")
                 .endObject().copiedBytes());
 
-        assertThat(LZF.isCompressed(doc.rootDoc().getBinaryValue("_source")), equalTo(false));
+        assertThat(CompressorFactory.isCompressed(doc.rootDoc().getBinaryValue("_source")), equalTo(false));
 
         doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("field1", "value1")
@@ -88,6 +88,6 @@ public class CompressSourceMappingTests {
                 .field("field2", "value2 xxxxxxxxxxxxxx yyyyyyyyyyyyyyyyyyy zzzzzzzzzzzzzzzzz")
                 .endObject().copiedBytes());
 
-        assertThat(LZF.isCompressed(doc.rootDoc().getBinaryValue("_source")), equalTo(true));
+        assertThat(CompressorFactory.isCompressed(doc.rootDoc().getBinaryValue("_source")), equalTo(true));
     }
 }

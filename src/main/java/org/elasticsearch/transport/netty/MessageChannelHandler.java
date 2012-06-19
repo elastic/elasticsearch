@@ -19,9 +19,11 @@
 
 package org.elasticsearch.transport.netty;
 
+import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.common.compress.Compressor;
+import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.ThrowableObjectInputStream;
 import org.elasticsearch.common.io.stream.CachedStreamInput;
-import org.elasticsearch.common.io.stream.HandlesStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.logging.ESLogger;
@@ -215,9 +217,13 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         byte status = buffer.readByte();
         boolean isRequest = TransportStreams.statusIsRequest(status);
 
-        HandlesStreamInput wrappedStream;
-        if (TransportStreams.statusIsCompress(status)) {
-            wrappedStream = CachedStreamInput.cachedHandlesLzf(streamIn);
+        StreamInput wrappedStream;
+        if (TransportStreams.statusIsCompress(status) && buffer.readable()) {
+            Compressor compressor = CompressorFactory.compressor(buffer);
+            if (compressor == null) {
+                throw new ElasticSearchIllegalStateException("stream marked as compressed, but no compressor found");
+            }
+            wrappedStream = CachedStreamInput.cachedHandlesCompressed(compressor, streamIn);
         } else {
             wrappedStream = CachedStreamInput.cachedHandles(streamIn);
         }
@@ -254,7 +260,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
                 buffer.readerIndex(expectedIndexReader);
             }
         }
-        wrappedStream.cleanHandles();
+        wrappedStream.close();
     }
 
     private void handleResponse(StreamInput buffer, final TransportResponseHandler handler) {

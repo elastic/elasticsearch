@@ -159,7 +159,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     public <T extends Streamable> void sendRequest(final DiscoveryNode node, final long requestId, final String action, final Streamable message, TransportRequestOptions options) throws IOException, TransportException {
         CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
         try {
-            HandlesStreamOutput stream = cachedEntry.cachedHandlesBytes();
+            StreamOutput stream = cachedEntry.cachedHandles();
 
             stream.writeLong(requestId);
             byte status = 0;
@@ -169,12 +169,14 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
             stream.writeUTF(action);
             message.writeTo(stream);
 
+            stream.close();
+
             final LocalTransport targetTransport = connectedNodes.get(node);
             if (targetTransport == null) {
                 throw new NodeNotConnectedException(node, "Node not connected");
             }
 
-            final byte[] data = ((BytesStreamOutput) stream.wrappedOut()).copiedByteArray();
+            final byte[] data = cachedEntry.bytes().copiedByteArray();
 
             transportServiceAdapter.sent(data.length);
 

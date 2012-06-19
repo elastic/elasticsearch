@@ -20,6 +20,7 @@
 package org.elasticsearch.common.io.stream;
 
 import jsr166y.LinkedTransferQueue;
+import org.elasticsearch.common.compress.Compressor;
 
 import java.io.IOException;
 import java.lang.ref.SoftReference;
@@ -40,20 +41,10 @@ public class CachedStreamOutput {
     public static class Entry {
         private final BytesStreamOutput bytes;
         private final HandlesStreamOutput handles;
-        private LZFStreamOutput lzf;
 
         Entry(BytesStreamOutput bytes, HandlesStreamOutput handles) {
             this.bytes = bytes;
             this.handles = handles;
-        }
-
-        // lazily initialize LZF, so we won't allocate it if we don't do
-        // any compression
-        private LZFStreamOutput lzf() {
-            if (lzf == null) {
-                lzf = new LZFStreamOutput(bytes, true);
-            }
-            return lzf;
         }
 
         /**
@@ -71,20 +62,20 @@ public class CachedStreamOutput {
             return bytes;
         }
 
-        public LZFStreamOutput cachedLZFBytes() throws IOException {
-            LZFStreamOutput lzf = lzf();
-            lzf.reset();
-            return lzf;
-        }
-
-        public HandlesStreamOutput cachedHandlesLzfBytes() throws IOException {
-            LZFStreamOutput lzf = lzf();
-            handles.reset(lzf);
+        public StreamOutput cachedHandles() throws IOException {
+            handles.reset(bytes);
             return handles;
         }
 
-        public HandlesStreamOutput cachedHandlesBytes() throws IOException {
-            handles.reset(bytes);
+        public StreamOutput cachedBytes(Compressor compressor) throws IOException {
+            bytes.reset();
+            return compressor.streamOutput(bytes);
+        }
+
+        public StreamOutput cachedHandles(Compressor compressor) throws IOException {
+            bytes.reset();
+            StreamOutput compressed = compressor.streamOutput(bytes);
+            handles.reset(compressed);
             return handles;
         }
     }

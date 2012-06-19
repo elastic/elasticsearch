@@ -143,6 +143,13 @@
             <version>3.5.0.Final</version>
             <scope>compile</scope>
         </dependency>
+
+        <dependency>
+            <groupId>com.ning</groupId>
+            <artifactId>compress-lzf</artifactId>
+            <version>0.9.5</version>
+            <scope>compile</scope>
+        </dependency>
         <!-- END: dependencies that are shaded -->
 
         <dependency>
@@ -307,6 +314,7 @@
                             <include>org.yaml:snakeyaml</include>
                             <include>joda-time:joda-time</include>
                             <include>io.netty:netty</include>
+                            <include>com.ning:compress-lzf</include>
                         </includes>
                     </artifactSet>
                     <relocations>
@@ -345,6 +353,10 @@
                         <relocation>
                             <pattern>org.jboss.netty</pattern>
                             <shadedPattern>org.elasticsearch.common.netty</shadedPattern>
+                        </relocation>
+                        <relocation>
+                            <pattern>com.ning.compress</pattern>
+                            <shadedPattern>org.elasticsearch.common.compress</shadedPattern>
                         </relocation>
                     </relocations>
                     <filters>

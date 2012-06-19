@@ -23,6 +23,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.compress.Compressor;
+import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.*;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
@@ -67,9 +69,9 @@ public class PublishClusterStateAction extends AbstractComponent {
         CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
         byte[] clusterStateInBytes;
         try {
-            HandlesStreamOutput stream = cachedEntry.cachedHandlesLzfBytes();
+            StreamOutput stream = cachedEntry.cachedHandles(CompressorFactory.defaultCompressor());
             ClusterState.Builder.writeTo(clusterState, stream);
-            stream.flush();
+            stream.close();
             clusterStateInBytes = cachedEntry.bytes().copiedByteArray();
         } catch (Exception e) {
             logger.warn("failed to serialize cluster_state before publishing it to nodes", e);
@@ -129,7 +131,14 @@ public class PublishClusterStateAction extends AbstractComponent {
 
         @Override
         public void messageReceived(PublishClusterStateRequest request, TransportChannel channel) throws Exception {
-            StreamInput in = CachedStreamInput.cachedHandlesLzf(new BytesStreamInput(request.clusterStateInBytes.bytes(), request.clusterStateInBytes.offset(), request.clusterStateInBytes.length(), false));
+            Compressor compressor = CompressorFactory.compressor(request.clusterStateInBytes.bytes(), request.clusterStateInBytes.offset(), request.clusterStateInBytes.length());
+            BytesStreamInput bytes = new BytesStreamInput(request.clusterStateInBytes.bytes(), request.clusterStateInBytes.offset(), request.clusterStateInBytes.length(), false);
+            StreamInput in;
+            if (compressor != null) {
+                in = CachedStreamInput.cachedHandlesCompressed(compressor, bytes);
+            } else {
+                in = CachedStreamInput.cachedHandles(bytes);
+            }
             ClusterState clusterState = ClusterState.Builder.readFrom(in, nodesProvider.nodes().localNode());
             listener.onNewClusterState(clusterState);
             channel.sendResponse(VoidStreamable.INSTANCE);

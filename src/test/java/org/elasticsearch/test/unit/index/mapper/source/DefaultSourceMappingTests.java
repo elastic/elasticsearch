@@ -20,8 +20,8 @@
 package org.elasticsearch.test.unit.index.mapper.source;
 
 import org.apache.lucene.document.Fieldable;
-import org.elasticsearch.common.compress.lzf.LZF;
-import org.elasticsearch.common.compress.lzf.LZFDecoder;
+import org.elasticsearch.common.BytesHolder;
+import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -94,8 +94,8 @@ public class DefaultSourceMappingTests {
                 .field("field", "value")
                 .endObject().copiedBytes());
 
-        assertThat(LZF.isCompressed(doc.source(), doc.sourceOffset(), doc.sourceLength()), equalTo(true));
-        byte[] uncompressed = LZFDecoder.decode(doc.source(), doc.sourceOffset(), doc.sourceLength());
+        assertThat(CompressorFactory.isCompressed(doc.source(), doc.sourceOffset(), doc.sourceLength()), equalTo(true));
+        byte[] uncompressed = CompressorFactory.uncompressIfNeeded(new BytesHolder(doc.source(), doc.sourceOffset(), doc.sourceLength())).copyBytes();
         assertThat(XContentFactory.xContentType(uncompressed), equalTo(XContentType.JSON));
 
         documentMapper = MapperTests.newParser().parse(mapping);
@@ -103,8 +103,8 @@ public class DefaultSourceMappingTests {
                 .field("field", "value")
                 .endObject().copiedBytes());
 
-        assertThat(LZF.isCompressed(doc.source(), doc.sourceOffset(), doc.sourceLength()), equalTo(true));
-        uncompressed = LZFDecoder.decode(doc.source(), doc.sourceOffset(), doc.sourceLength());
+        assertThat(CompressorFactory.isCompressed(doc.source(), doc.sourceOffset(), doc.sourceLength()), equalTo(true));
+        uncompressed = CompressorFactory.uncompressIfNeeded(new BytesHolder(doc.source(), doc.sourceOffset(), doc.sourceLength())).copyBytes();
         assertThat(XContentFactory.xContentType(uncompressed), equalTo(XContentType.JSON));
     }
 

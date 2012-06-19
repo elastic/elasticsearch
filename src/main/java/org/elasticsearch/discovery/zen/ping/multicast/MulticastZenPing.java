@@ -43,7 +43,6 @@ import org.elasticsearch.transport.*;
 import java.io.IOException;
 import java.net.*;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -269,12 +268,13 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
         synchronized (sendMutex) {
             CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
             try {
-                HandlesStreamOutput out = cachedEntry.cachedHandlesBytes();
+                StreamOutput out = cachedEntry.cachedHandles();
                 out.writeBytes(INTERNAL_HEADER);
                 Version.writeVersion(Version.CURRENT, out);
                 out.writeInt(id);
                 clusterName.writeTo(out);
                 nodesProvider.nodes().localNode().writeTo(out);
+                out.close();
                 datagramPacketSend.setData(cachedEntry.bytes().copiedByteArray());
                 multicastSocket.send(datagramPacketSend);
                 if (logger.isTraceEnabled()) {

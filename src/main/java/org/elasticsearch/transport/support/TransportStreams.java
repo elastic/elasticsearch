@@ -19,8 +19,9 @@
 
 package org.elasticsearch.transport.support;
 
+import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.CachedStreamOutput;
-import org.elasticsearch.common.io.stream.HandlesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponseOptions;
@@ -105,17 +106,17 @@ public class TransportStreams {
 
         if (options.compress()) {
             status = TransportStreams.statusSetCompress(status);
-            HandlesStreamOutput stream = cachedEntry.cachedHandlesLzfBytes();
+            StreamOutput stream = cachedEntry.cachedHandles(CompressorFactory.defaultCompressor());
             cachedEntry.bytes().write(HEADER_PLACEHOLDER);
             stream.writeUTF(action);
             message.writeTo(stream);
-            stream.flush();
+            stream.close();
         } else {
-            HandlesStreamOutput stream = cachedEntry.cachedHandlesBytes();
+            StreamOutput stream = cachedEntry.cachedHandles();
             cachedEntry.bytes().write(HEADER_PLACEHOLDER);
             stream.writeUTF(action);
             message.writeTo(stream);
-            stream.flush();
+            stream.close();
         }
         TransportStreams.writeHeader(cachedEntry.bytes().underlyingBytes(), cachedEntry.bytes().size(), requestId, status);
     }
@@ -126,15 +127,15 @@ public class TransportStreams {
 
         if (options.compress()) {
             status = TransportStreams.statusSetCompress(status);
-            HandlesStreamOutput stream = cachedEntry.cachedHandlesLzfBytes();
+            StreamOutput stream = cachedEntry.cachedHandles(CompressorFactory.defaultCompressor());
             cachedEntry.bytes().write(HEADER_PLACEHOLDER);
             message.writeTo(stream);
-            stream.flush();
+            stream.close();
         } else {
-            HandlesStreamOutput stream = cachedEntry.cachedHandlesBytes();
+            StreamOutput stream = cachedEntry.cachedHandles();
             cachedEntry.bytes().write(HEADER_PLACEHOLDER);
             message.writeTo(stream);
-            stream.flush();
+            stream.close();
         }
         TransportStreams.writeHeader(cachedEntry.bytes().underlyingBytes(), cachedEntry.bytes().size(), requestId, status);
     }

@@ -26,8 +26,9 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.*;
-import org.elasticsearch.common.compress.lzf.LZF;
-import org.elasticsearch.common.io.stream.*;
+import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.io.stream.CachedStreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.*;
@@ -147,7 +148,7 @@ public abstract class BlobStoreGateway extends SharedStorageGateway {
         try {
             StreamOutput streamOutput;
             if (compress) {
-                streamOutput = cachedEntry.cachedLZFBytes();
+                streamOutput = cachedEntry.cachedBytes(CompressorFactory.defaultCompressor());
             } else {
                 streamOutput = cachedEntry.cachedBytes();
             }
@@ -206,13 +207,7 @@ public abstract class BlobStoreGateway extends SharedStorageGateway {
     private MetaData readMetaData(byte[] data) throws IOException {
         XContentParser parser = null;
         try {
-            if (LZF.isCompressed(data)) {
-                BytesStreamInput siBytes = new BytesStreamInput(data, false);
-                LZFStreamInput siLzf = CachedStreamInput.cachedLzf(siBytes);
-                parser = XContentFactory.xContent(XContentType.JSON).createParser(siLzf);
-            } else {
-                parser = XContentFactory.xContent(XContentType.JSON).createParser(data);
-            }
+            parser = XContentHelper.createParser(data, 0, data.length);
             return MetaData.Builder.fromXContent(parser);
         } finally {
             if (parser != null) {

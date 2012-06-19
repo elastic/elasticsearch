@@ -42,7 +42,9 @@ import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
 import org.elasticsearch.indices.query.IndicesQueriesModule;
 import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
+import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
@@ -57,6 +59,8 @@ import static org.hamcrest.Matchers.*;
 @Test
 public class PercolatorExecutorTests {
 
+    private Injector injector;
+
     private PercolatorExecutor percolatorExecutor;
 
     @BeforeClass
@@ -65,7 +69,7 @@ public class PercolatorExecutorTests {
                 //.put("index.cache.filter.type", "none")
                 .build();
         Index index = new Index("test");
-        Injector injector = new ModulesBuilder().add(
+        injector = new ModulesBuilder().add(
                 new SettingsModule(settings),
                 new ThreadPoolModule(settings),
                 new ScriptModule(settings),
@@ -88,6 +92,11 @@ public class PercolatorExecutorTests {
         ).createInjector();
 
         percolatorExecutor = injector.getInstance(PercolatorExecutor.class);
+    }
+
+    @AfterClass
+    public void close() {
+        injector.getInstance(ThreadPool.class).shutdownNow();
     }
 
     @Test

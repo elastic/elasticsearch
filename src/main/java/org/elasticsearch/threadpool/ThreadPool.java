@@ -215,7 +215,7 @@ public class ThreadPool extends AbstractComponent {
             settings = ImmutableSettings.Builder.EMPTY_SETTINGS;
         }
         String type = settings.get("type", defaultType);
-        ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(settings, "[" + name + "]");
+        ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(this.settings, "[" + name + "]");
         if ("same".equals(type)) {
             logger.debug("creating thread_pool [{}], type [{}]", name, type);
             return new ExecutorHolder(MoreExecutors.sameThreadExecutor(), new Info(name, type));

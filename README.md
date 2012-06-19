@@ -23,7 +23,7 @@ In order to install the plugin, simply run: `bin/plugin -install elasticsearch/e
     | 1.0.0                         | 0.18             |
     ----------------------------------------------------
 
-The plugin includes the `polish` analyzer.
+The plugin includes the `polish` analyzer and `polish_stem` token filter.
 
 License
 -------

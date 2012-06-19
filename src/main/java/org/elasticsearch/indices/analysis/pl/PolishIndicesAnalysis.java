@@ -26,7 +26,16 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.PreBuiltAnalyzerProviderFactory;
+import org.elasticsearch.index.analysis.PreBuiltTokenFilterFactoryFactory;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
+
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.stempel.StempelFilter;
+import org.apache.lucene.analysis.stempel.StempelStemmer;
+import org.egothor.stemmer.Trie;
+
+import java.io.IOException;
 
 /**
  * Registers indices level analysis components so, if not explicitly configured, will be shared
@@ -38,5 +47,21 @@ public class PolishIndicesAnalysis extends AbstractComponent {
     public PolishIndicesAnalysis(Settings settings, IndicesAnalysisService indicesAnalysisService) {
         super(settings);
         indicesAnalysisService.analyzerProviderFactories().put("default", new PreBuiltAnalyzerProviderFactory("default", AnalyzerScope.INDICES, new PolishAnalyzer(Lucene.ANALYZER_VERSION)));
+
+        indicesAnalysisService.tokenFilterFactories().put("polish_stem", new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
+            @Override public String name() {
+                return "polish_stem";
+            }
+
+            @Override public TokenStream create(TokenStream tokenStream) {
+                Trie tire;
+                try {
+                    tire = StempelStemmer.load(PolishAnalyzer.class.getResourceAsStream(PolishAnalyzer.DEFAULT_STEMMER_FILE));
+                } catch (IOException ex) {
+                    throw new RuntimeException("Unable to load default stemming tables", ex);
+                }
+                return new StempelFilter(tokenStream, new StempelStemmer(tire));
+            }
+        }));
     }
 }

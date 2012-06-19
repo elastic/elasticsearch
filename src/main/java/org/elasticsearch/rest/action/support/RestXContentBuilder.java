@@ -19,11 +19,11 @@
 
 package org.elasticsearch.rest.action.support;
 
-import org.elasticsearch.common.compress.lzf.LZF;
+import org.elasticsearch.common.compress.CompressedStreamInput;
+import org.elasticsearch.common.compress.Compressor;
+import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
-import org.elasticsearch.common.io.stream.CachedStreamInput;
 import org.elasticsearch.common.io.stream.CachedStreamOutput;
-import org.elasticsearch.common.io.stream.LZFStreamInput;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.rest.RestRequest;
 
@@ -67,15 +67,15 @@ public class RestXContentBuilder {
     }
 
     public static void restDocumentSource(byte[] source, int offset, int length, XContentBuilder builder, ToXContent.Params params) throws IOException {
-        if (LZF.isCompressed(source, offset, length)) {
-            BytesStreamInput siBytes = new BytesStreamInput(source, offset, length, false);
-            LZFStreamInput siLzf = CachedStreamInput.cachedLzf(siBytes);
-            XContentType contentType = XContentFactory.xContentType(siLzf);
-            siLzf.resetToBufferStart();
+        Compressor compressor = CompressorFactory.compressor(source, offset, length);
+        if (compressor != null) {
+            CompressedStreamInput compressedStreamInput = compressor.streamInput(new BytesStreamInput(source, offset, length, false));
+            XContentType contentType = XContentFactory.xContentType(compressedStreamInput);
+            compressedStreamInput.resetToBufferStart();
             if (contentType == builder.contentType()) {
-                builder.rawField("_source", siLzf);
+                builder.rawField("_source", compressedStreamInput);
             } else {
-                XContentParser parser = XContentFactory.xContent(contentType).createParser(siLzf);
+                XContentParser parser = XContentFactory.xContent(contentType).createParser(compressedStreamInput);
                 try {
                     parser.nextToken();
                     builder.field("_source");

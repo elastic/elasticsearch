@@ -27,14 +27,10 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.compress.lzf.LZF;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
-import org.elasticsearch.common.io.stream.CachedStreamInput;
 import org.elasticsearch.common.io.stream.CachedStreamOutput;
-import org.elasticsearch.common.io.stream.LZFStreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.*;
@@ -402,13 +398,7 @@ public class LocalGatewayShardsState extends AbstractComponent implements Cluste
         try {
             Map<ShardId, ShardStateInfo> shardsState = Maps.newHashMap();
 
-            if (LZF.isCompressed(data)) {
-                BytesStreamInput siBytes = new BytesStreamInput(data, false);
-                LZFStreamInput siLzf = CachedStreamInput.cachedLzf(siBytes);
-                parser = XContentFactory.xContent(XContentType.JSON).createParser(siLzf);
-            } else {
-                parser = XContentFactory.xContent(XContentType.JSON).createParser(data);
-            }
+            parser = XContentHelper.createParser(data, 0, data.length);
 
             String currentFieldName = null;
             XContentParser.Token token = parser.nextToken();

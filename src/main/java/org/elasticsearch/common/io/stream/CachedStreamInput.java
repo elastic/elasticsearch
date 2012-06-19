@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.io.stream;
 
+import org.elasticsearch.common.compress.Compressor;
+
 import java.io.IOException;
 import java.lang.ref.SoftReference;
 
@@ -30,11 +32,9 @@ public class CachedStreamInput {
     static class Entry {
         char[] chars = new char[80];
         final HandlesStreamInput handles;
-        final LZFStreamInput lzf;
 
-        Entry(HandlesStreamInput handles, LZFStreamInput lzf) {
+        Entry(HandlesStreamInput handles) {
             this.handles = handles;
-            this.lzf = lzf;
         }
     }
 
@@ -45,8 +45,7 @@ public class CachedStreamInput {
         Entry entry = ref == null ? null : ref.get();
         if (entry == null) {
             HandlesStreamInput handles = new HandlesStreamInput();
-            LZFStreamInput lzf = new LZFStreamInput(null, true);
-            entry = new Entry(handles, lzf);
+            entry = new Entry(handles);
             cache.set(new SoftReference<Entry>(entry));
         }
         return entry;
@@ -56,10 +55,8 @@ public class CachedStreamInput {
         cache.remove();
     }
 
-    public static LZFStreamInput cachedLzf(StreamInput in) throws IOException {
-        LZFStreamInput lzf = instance().lzf;
-        lzf.reset(in);
-        return lzf;
+    public static StreamInput compressed(Compressor compressor, StreamInput in) throws IOException {
+        return compressor.streamInput(in);
     }
 
     public static HandlesStreamInput cachedHandles(StreamInput in) {
@@ -68,10 +65,9 @@ public class CachedStreamInput {
         return handles;
     }
 
-    public static HandlesStreamInput cachedHandlesLzf(StreamInput in) throws IOException {
+    public static HandlesStreamInput cachedHandlesCompressed(Compressor compressor, StreamInput in) throws IOException {
         Entry entry = instance();
-        entry.lzf.reset(in);
-        entry.handles.reset(entry.lzf);
+        entry.handles.reset(compressor.streamInput(in));
         return entry.handles;
     }
 

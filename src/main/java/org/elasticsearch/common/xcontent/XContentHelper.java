@@ -23,10 +23,10 @@ import com.google.common.base.Charsets;
 import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.compress.lzf.LZF;
+import org.elasticsearch.common.compress.CompressedStreamInput;
+import org.elasticsearch.common.compress.Compressor;
+import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
-import org.elasticsearch.common.io.stream.CachedStreamInput;
-import org.elasticsearch.common.io.stream.LZFStreamInput;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -40,12 +40,12 @@ import java.util.Map;
 public class XContentHelper {
 
     public static XContentParser createParser(byte[] data, int offset, int length) throws IOException {
-        if (LZF.isCompressed(data, offset, length)) {
-            BytesStreamInput siBytes = new BytesStreamInput(data, offset, length, false);
-            LZFStreamInput siLzf = CachedStreamInput.cachedLzf(siBytes);
-            XContentType contentType = XContentFactory.xContentType(siLzf);
-            siLzf.resetToBufferStart();
-            return XContentFactory.xContent(contentType).createParser(siLzf);
+        Compressor compressor = CompressorFactory.compressor(data, offset, length);
+        if (compressor != null) {
+            CompressedStreamInput compressedInput = compressor.streamInput(new BytesStreamInput(data, offset, length, false));
+            XContentType contentType = XContentFactory.xContentType(compressedInput);
+            compressedInput.resetToBufferStart();
+            return XContentFactory.xContent(contentType).createParser(compressedInput);
         } else {
             return XContentFactory.xContent(data, offset, length).createParser(data, offset, length);
         }
@@ -59,12 +59,12 @@ public class XContentHelper {
         try {
             XContentParser parser;
             XContentType contentType;
-            if (LZF.isCompressed(data, offset, length)) {
-                BytesStreamInput siBytes = new BytesStreamInput(data, offset, length, false);
-                LZFStreamInput siLzf = CachedStreamInput.cachedLzf(siBytes);
-                contentType = XContentFactory.xContentType(siLzf);
-                siLzf.resetToBufferStart();
-                parser = XContentFactory.xContent(contentType).createParser(siLzf);
+            Compressor compressor = CompressorFactory.compressor(data, offset, length);
+            if (compressor != null) {
+                CompressedStreamInput compressedStreamInput = compressor.streamInput(new BytesStreamInput(data, offset, length, false));
+                contentType = XContentFactory.xContentType(compressedStreamInput);
+                compressedStreamInput.resetToBufferStart();
+                parser = XContentFactory.xContent(contentType).createParser(compressedStreamInput);
             } else {
                 contentType = XContentFactory.xContentType(data, offset, length);
                 parser = XContentFactory.xContent(contentType).createParser(data, offset, length);

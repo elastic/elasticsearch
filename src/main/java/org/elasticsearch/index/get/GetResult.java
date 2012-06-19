@@ -23,8 +23,7 @@ import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Unicode;
-import org.elasticsearch.common.compress.lzf.LZF;
-import org.elasticsearch.common.compress.lzf.LZFDecoder;
+import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -168,14 +167,12 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
      * Returns bytes reference, also un compress the source if needed.
      */
     public BytesHolder sourceRef() {
-        if (LZF.isCompressed(source.bytes(), source.offset(), source.length())) {
-            try {
-                this.source = new BytesHolder(LZFDecoder.decode(source.bytes(), source.offset(), source.length()));
-            } catch (IOException e) {
-                throw new ElasticSearchParseException("failed to decompress source", e);
-            }
+        try {
+            this.source = CompressorFactory.uncompressIfNeeded(this.source);
+            return this.source;
+        } catch (IOException e) {
+            throw new ElasticSearchParseException("failed to decompress source", e);
         }
-        return this.source;
     }
 
     /**

@@ -45,6 +45,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.fs.FsTranslog;
 import org.elasticsearch.test.unit.index.deletionpolicy.SnapshotIndexCommitExistsMatcher;
 import org.elasticsearch.test.unit.index.translog.TranslogSizeMatcher;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.MatcherAssert;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
@@ -71,6 +72,8 @@ public abstract class AbstractSimpleEngineTests {
 
     protected final ShardId shardId = new ShardId(new Index("index"), 1);
 
+    protected ThreadPool threadPool;
+
     private Store store;
     private Store storeReplica;
 
@@ -79,6 +82,7 @@ public abstract class AbstractSimpleEngineTests {
 
     @BeforeMethod
     public void setUp() throws Exception {
+        threadPool = new ThreadPool();
         store = createStore();
         store.deleteContent();
         storeReplica = createStoreReplica();
@@ -96,6 +100,10 @@ public abstract class AbstractSimpleEngineTests {
 
         engine.close();
         store.close();
+
+        if (threadPool != null) {
+            threadPool.shutdownNow();
+        }
     }
 
     protected Store createStore() throws IOException {

@@ -29,4 +29,8 @@ public class PolishAnalysisBinderProcessor extends AnalysisModule.AnalysisBinder
     public void processAnalyzers(AnalyzersBindings analyzersBindings) {
         analyzersBindings.processAnalyzer("polish", PolishAnalyzerProvider.class);
     }
+    @Override
+    public void processTokenFilters(TokenFiltersBindings tokenFiltersBindings) {
+        tokenFiltersBindings.processTokenFilter("polish_stem", PolishStemTokenFilterFactory.class);
+   }
 }

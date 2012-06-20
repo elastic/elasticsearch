@@ -21,7 +21,8 @@ package org.elasticsearch.cloud.aws;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
-import com.amazonaws.auth.BasicAWSCredentials;
+import com.amazonaws.auth.*;
+import com.amazonaws.internal.StaticCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import org.elasticsearch.ElasticSearchException;
@@ -62,13 +63,6 @@ public class AwsS3Service extends AbstractLifecycleComponent<AwsS3Service> {
         String account = componentSettings.get("access_key", settings.get("cloud.account"));
         String key = componentSettings.get("secret_key", settings.get("cloud.key"));
 
-        if (account == null) {
-            throw new ElasticSearchIllegalArgumentException("No s3 access_key defined for s3 gateway");
-        }
-        if (key == null) {
-            throw new ElasticSearchIllegalArgumentException("No s3 secret_key defined for s3 gateway");
-        }
-
         String proxyHost = componentSettings.get("proxy_host");
         if (proxyHost != null) {
             String portString = componentSettings.get("proxy_port", "80");
@@ -81,7 +75,20 @@ public class AwsS3Service extends AbstractLifecycleComponent<AwsS3Service> {
             clientConfiguration.withProxyHost(proxyHost).setProxyPort(proxyPort);
         }
 
-        this.client = new AmazonS3Client(new BasicAWSCredentials(account, key), clientConfiguration);
+        AWSCredentialsProvider credentials;
+
+        if (account == null && key == null) {
+            credentials = new AWSCredentialsProviderChain(
+                    new EnvironmentVariableCredentialsProvider(),
+                    new SystemPropertiesCredentialsProvider(),
+                    new InstanceProfileCredentialsProvider()
+            );
+        } else {
+            credentials = new AWSCredentialsProviderChain(
+                    new StaticCredentialsProvider(new BasicAWSCredentials(account, key))
+            );
+        }
+        this.client = new AmazonS3Client(credentials, clientConfiguration);
 
         if (componentSettings.get("s3.endpoint") != null) {
             client.setEndpoint(componentSettings.get("s3.endpoint"));

@@ -21,7 +21,8 @@ package org.elasticsearch.cloud.aws;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
-import com.amazonaws.auth.BasicAWSCredentials;
+import com.amazonaws.auth.*;
+import com.amazonaws.internal.StaticCredentialsProvider;
 import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.AmazonEC2Client;
 import org.elasticsearch.ElasticSearchException;
@@ -70,13 +71,6 @@ public class AwsEc2Service extends AbstractLifecycleComponent<AwsEc2Service> {
         String account = componentSettings.get("access_key", settings.get("cloud.account"));
         String key = componentSettings.get("secret_key", settings.get("cloud.key"));
 
-        if (account == null) {
-            throw new ElasticSearchIllegalArgumentException("No aws access_key defined for ec2 discovery");
-        }
-        if (key == null) {
-            throw new ElasticSearchIllegalArgumentException("No aws secret_key defined for ec2 discovery");
-        }
-
         String proxyHost = componentSettings.get("proxy_host");
         if (proxyHost != null) {
             String portString = componentSettings.get("proxy_port", "80");
@@ -89,7 +83,21 @@ public class AwsEc2Service extends AbstractLifecycleComponent<AwsEc2Service> {
             clientConfiguration.withProxyHost(proxyHost).setProxyPort(proxyPort);
         }
 
-        this.client = new AmazonEC2Client(new BasicAWSCredentials(account, key), clientConfiguration);
+        AWSCredentialsProvider credentials;
+
+        if (account == null && key == null) {
+            credentials = new AWSCredentialsProviderChain(
+                    new EnvironmentVariableCredentialsProvider(),
+                    new SystemPropertiesCredentialsProvider(),
+                    new InstanceProfileCredentialsProvider()
+            );
+        } else {
+            credentials = new AWSCredentialsProviderChain(
+                    new StaticCredentialsProvider(new BasicAWSCredentials(account, key))
+            );
+        }
+
+        this.client = new AmazonEC2Client(credentials, clientConfiguration);
 
         if (componentSettings.get("ec2.endpoint") != null) {
             client.setEndpoint(componentSettings.get("ec2.endpoint"));

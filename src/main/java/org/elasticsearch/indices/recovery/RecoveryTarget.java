@@ -520,7 +520,7 @@ public class RecoveryTarget extends AbstractComponent {
                     name = name + "." + onGoingRecovery.startTime;
                 }
 
-                indexOutput = shard.store().createOutputWithNoChecksum(name);
+                indexOutput = shard.store().createOutputRaw(name);
 
                 onGoingRecovery.openIndexOutputs.put(request.name(), indexOutput);
             } else {

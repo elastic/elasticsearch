@@ -24,13 +24,20 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import jsr166y.ThreadLocalRandom;
 import org.apache.lucene.store.*;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.compress.CompressedIndexOutput;
+import org.elasticsearch.common.compress.Compressor;
+import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Directories;
+import org.elasticsearch.common.lucene.store.BufferedChecksumIndexOutput;
+import org.elasticsearch.common.lucene.store.ChecksumIndexOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.support.ForceSyncDirectory;
@@ -43,11 +50,28 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.zip.Adler32;
-import java.util.zip.Checksum;
 
 /**
  */
 public class Store extends AbstractIndexShardComponent {
+
+    static {
+        IndexMetaData.addDynamicSettings(
+                "index.store.compress.stored_fields"
+        );
+    }
+
+    class ApplySettings implements IndexSettingsService.Listener {
+        @Override
+        public void onRefreshSettings(Settings settings) {
+            boolean compressedStoredFields = settings.getAsBoolean("index.store.compress.stored_fields", Store.this.compressedStoredFields);
+            if (compressedStoredFields != Store.this.compressedStoredFields) {
+                logger.info("updating [compress.stored_fields] from [{}] to [{}]", Store.this.compressedStoredFields, compressedStoredFields);
+                Store.this.compressedStoredFields = compressedStoredFields;
+            }
+        }
+    }
+
 
     static final String CHECKSUMS_PREFIX = "_checksums-";
 
@@ -56,6 +80,8 @@ public class Store extends AbstractIndexShardComponent {
     }
 
     private final IndexStore indexStore;
+
+    private final IndexSettingsService indexSettingsService;
 
     private final DirectoryService directoryService;
 
@@ -69,13 +95,22 @@ public class Store extends AbstractIndexShardComponent {
 
     private final boolean sync;
 
+    private volatile boolean compressedStoredFields;
+
+    private final ApplySettings applySettings = new ApplySettings();
+
+
     @Inject
-    public Store(ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore, DirectoryService directoryService) throws IOException {
+    public Store(ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore, IndexSettingsService indexSettingsService, DirectoryService directoryService) throws IOException {
         super(shardId, indexSettings);
         this.indexStore = indexStore;
+        this.indexSettingsService = indexSettingsService;
         this.directoryService = directoryService;
         this.sync = componentSettings.getAsBoolean("sync", true); // TODO we don't really need to fsync when using shared gateway...
         this.directory = new StoreDirectory(directoryService.build());
+
+        this.compressedStoredFields = componentSettings.getAsBoolean("compress.stored_fields", false);
+        indexSettingsService.addListener(applySettings);
     }
 
     public Directory directory() {
@@ -218,7 +253,7 @@ public class Store extends AbstractIndexShardComponent {
                     checksums.put(metaData.name(), metaData.checksum());
                 }
             }
-            IndexOutput output = directory.createOutput(checksumName, false);
+            IndexOutput output = directory.createOutput(checksumName, true);
             output.writeInt(0); // version
             output.writeStringStringMap(checksums);
             output.close();
@@ -242,11 +277,26 @@ public class Store extends AbstractIndexShardComponent {
     }
 
     public void close() throws IOException {
+        indexSettingsService.removeListener(applySettings);
         directory.close();
     }
 
-    public IndexOutput createOutputWithNoChecksum(String name) throws IOException {
-        return directory.createOutput(name, false);
+    /**
+     * Creates a raw output, no checksum is computed, and no compression if enabled.
+     */
+    public IndexOutput createOutputRaw(String name) throws IOException {
+        return directory.createOutput(name, true);
+    }
+
+    /**
+     * Opened an index input in raw form, no decompression for example.
+     */
+    public IndexInput openInputRaw(String name) throws IOException {
+        StoreFileMetaData metaData = filesMetadata.get(name);
+        if (metaData == null) {
+            throw new FileNotFoundException(name);
+        }
+        return metaData.directory().openInput(name);
     }
 
     public void writeChecksum(String name, String checksum) throws IOException {
@@ -387,10 +437,10 @@ public class Store extends AbstractIndexShardComponent {
 
         @Override
         public IndexOutput createOutput(String name) throws IOException {
-            return createOutput(name, true);
+            return createOutput(name, false);
         }
 
-        public IndexOutput createOutput(String name, boolean computeChecksum) throws IOException {
+        public IndexOutput createOutput(String name, boolean raw) throws IOException {
             Directory directory = null;
             if (isChecksum(name)) {
                 directory = delegates[0];
@@ -420,7 +470,26 @@ public class Store extends AbstractIndexShardComponent {
                 StoreFileMetaData metaData = new StoreFileMetaData(name, -1, -1, null, directory);
                 filesMetadata = MapBuilder.newMapBuilder(filesMetadata).put(name, metaData).immutableMap();
                 files = filesMetadata.keySet().toArray(new String[filesMetadata.size()]);
-                return new StoreIndexOutput(metaData, out, name, computeChecksum);
+                boolean computeChecksum = !raw;
+                if (computeChecksum) {
+                    // don't compute checksum for segment based files
+                    if ("segments.gen".equals(name) || name.startsWith("segments")) {
+                        computeChecksum = false;
+                    }
+                }
+                if (!raw && compressedStoredFields && name.endsWith(".fdt")) {
+                    if (computeChecksum) {
+                        // with compression, there is no need for buffering when doing checksums
+                        // since we have buffering on the compressed index output
+                        out = new ChecksumIndexOutput(out, new Adler32());
+                    }
+                    out = CompressorFactory.defaultCompressor().indexOutput(out);
+                } else {
+                    if (computeChecksum) {
+                        out = new BufferedChecksumIndexOutput(out, new Adler32());
+                    }
+                }
+                return new StoreIndexOutput(metaData, out, name);
             }
         }
 
@@ -430,7 +499,30 @@ public class Store extends AbstractIndexShardComponent {
             if (metaData == null) {
                 throw new FileNotFoundException(name);
             }
-            return metaData.directory().openInput(name);
+            IndexInput in = metaData.directory().openInput(name);
+            if (name.endsWith(".fdt")) {
+                Compressor compressor = CompressorFactory.compressor(in);
+                if (compressor != null) {
+                    in = compressor.indexInput(in);
+                }
+            }
+            return in;
+        }
+
+        @Override
+        public IndexInput openInput(String name, int bufferSize) throws IOException {
+            StoreFileMetaData metaData = filesMetadata.get(name);
+            if (metaData == null) {
+                throw new FileNotFoundException(name);
+            }
+            IndexInput in = metaData.directory().openInput(name, bufferSize);
+            if (name.endsWith(".fdt")) {
+                Compressor compressor = CompressorFactory.compressor(in);
+                if (compressor != null) {
+                    in = compressor.indexInput(in);
+                }
+            }
+            return in;
         }
 
         @Override
@@ -447,15 +539,6 @@ public class Store extends AbstractIndexShardComponent {
         @Override
         public Lock makeLock(String name) {
             return delegates[0].makeLock(name);
-        }
-
-        @Override
-        public IndexInput openInput(String name, int bufferSize) throws IOException {
-            StoreFileMetaData metaData = filesMetadata.get(name);
-            if (metaData == null) {
-                throw new FileNotFoundException(name);
-            }
-            return metaData.directory().openInput(name, bufferSize);
         }
 
         @Override
@@ -524,49 +607,32 @@ public class Store extends AbstractIndexShardComponent {
         }
     }
 
-    class StoreIndexOutput extends OpenBufferedIndexOutput {
+    class StoreIndexOutput extends IndexOutput {
 
         private final StoreFileMetaData metaData;
 
-        private final IndexOutput delegate;
+        private final IndexOutput out;
 
         private final String name;
 
-        private final Checksum digest;
-
-        StoreIndexOutput(StoreFileMetaData metaData, IndexOutput delegate, String name, boolean computeChecksum) {
-            // we add 8 to be bigger than the default BufferIndexOutput buffer size so any flush will go directly
-            // to the output without being copied over to the delegate buffer
-            super(OpenBufferedIndexOutput.DEFAULT_BUFFER_SIZE + 64);
+        StoreIndexOutput(StoreFileMetaData metaData, IndexOutput delegate, String name) {
             this.metaData = metaData;
-            this.delegate = delegate;
+            this.out = delegate;
             this.name = name;
-            if (computeChecksum) {
-                if ("segments.gen".equals(name)) {
-                    // no need to create checksum for segments.gen since its not snapshot to recovery
-                    this.digest = null;
-                } else if (name.startsWith("segments")) {
-                    // don't compute checksum for segments files, so pure Lucene can open this directory
-                    // and since we, in any case, always recover the segments files
-                    this.digest = null;
-                } else {
-//                    this.digest = new CRC32();
-                    // adler is faster, and we compare on length as well, should be enough to check for difference
-                    // between files
-                    this.digest = new Adler32();
-                }
-            } else {
-                this.digest = null;
-            }
         }
 
         @Override
         public void close() throws IOException {
-            super.close();
-            delegate.close();
+            out.close();
             String checksum = null;
-            if (digest != null) {
-                checksum = Long.toString(digest.getValue(), Character.MAX_RADIX);
+            IndexOutput underlying = out;
+            if (out instanceof CompressedIndexOutput) {
+                underlying = ((CompressedIndexOutput) out).underlying();
+            }
+            if (underlying instanceof BufferedChecksumIndexOutput) {
+                checksum = Long.toString(((BufferedChecksumIndexOutput) underlying).digest().getValue(), Character.MAX_RADIX);
+            } else if (underlying instanceof ChecksumIndexOutput) {
+                checksum = Long.toString(((ChecksumIndexOutput) underlying).digest().getValue(), Character.MAX_RADIX);
             }
             synchronized (mutex) {
                 StoreFileMetaData md = new StoreFileMetaData(name, metaData.directory().fileLength(name), metaData.directory().fileModified(name), checksum, metaData.directory());
@@ -576,41 +642,48 @@ public class Store extends AbstractIndexShardComponent {
         }
 
         @Override
-        protected void flushBuffer(byte[] b, int offset, int len) throws IOException {
-            delegate.writeBytes(b, offset, len);
-            if (digest != null) {
-                digest.update(b, offset, len);
-            }
+        public void copyBytes(DataInput input, long numBytes) throws IOException {
+            out.copyBytes(input, numBytes);
         }
 
-        // don't override it, base class method simple reads from input and writes to this output
-//        @Override public void copyBytes(IndexInput input, long numBytes) throws IOException {
-//            delegate.copyBytes(input, numBytes);
-//        }
+        @Override
+        public long getFilePointer() {
+            return out.getFilePointer();
+        }
+
+        @Override
+        public void writeByte(byte b) throws IOException {
+            out.writeByte(b);
+        }
+
+        @Override
+        public void writeBytes(byte[] b, int offset, int length) throws IOException {
+            out.writeBytes(b, offset, length);
+        }
 
         @Override
         public void flush() throws IOException {
-            super.flush();
-            delegate.flush();
+            out.flush();
         }
 
         @Override
         public void seek(long pos) throws IOException {
-            // seek might be called on files, which means that the checksum is not file checksum
-            // but a checksum of the bytes written to this stream, which is the same for each
-            // type of file in lucene
-            super.seek(pos);
-            delegate.seek(pos);
+            out.seek(pos);
         }
 
         @Override
         public long length() throws IOException {
-            return delegate.length();
+            return out.length();
         }
 
         @Override
         public void setLength(long length) throws IOException {
-            delegate.setLength(length);
+            out.setLength(length);
+        }
+
+        @Override
+        public String toString() {
+            return out.toString();
         }
     }
 }

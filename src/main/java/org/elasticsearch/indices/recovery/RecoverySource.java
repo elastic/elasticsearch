@@ -134,7 +134,7 @@ public class RecoverySource extends AbstractComponent {
                                     final int BUFFER_SIZE = (int) recoverySettings.fileChunkSize().bytes();
                                     byte[] buf = new byte[BUFFER_SIZE];
                                     StoreFileMetaData md = shard.store().metaData(name);
-                                    indexInput = snapshot.getDirectory().openInput(name);
+                                    indexInput = shard.store().openInputRaw(name);
                                     long len = indexInput.length();
                                     long readCount = 0;
                                     while (readCount < len) {

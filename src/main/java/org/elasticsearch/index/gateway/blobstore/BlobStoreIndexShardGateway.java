@@ -637,7 +637,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         try {
             // we create an output with no checksum, this is because the pure binary data of the file is not
             // the checksum (because of seek). We will create the checksum file once copying is done
-            indexOutput = store.createOutputWithNoChecksum(fileInfo.physicalName());
+            indexOutput = store.createOutputRaw(fileInfo.physicalName());
         } catch (IOException e) {
             failures.add(e);
             latch.countDown();
@@ -752,7 +752,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
 
             IndexInput indexInput = null;
             try {
-                indexInput = dir.openInput(fileInfo.physicalName());
+                indexInput = indexShard.store().openInputRaw(fileInfo.physicalName());
                 indexInput.seek(partNumber * chunkBytes);
                 InputStreamIndexInput is = new ThreadSafeInputStreamIndexInput(indexInput, chunkBytes);
 

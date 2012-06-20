@@ -20,6 +20,7 @@
 package org.elasticsearch.common.compress;
 
 import com.google.common.collect.ImmutableMap;
+import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -84,6 +85,16 @@ public class CompressorFactory {
     public static Compressor compressor(ChannelBuffer buffer) {
         for (Compressor compressor : compressors) {
             if (compressor.isCompressed(buffer)) {
+                return compressor;
+            }
+        }
+        return null;
+    }
+
+    @Nullable
+    public static Compressor compressor(IndexInput in) throws IOException {
+        for (Compressor compressor : compressors) {
+            if (compressor.isCompressed(in)) {
                 return compressor;
             }
         }

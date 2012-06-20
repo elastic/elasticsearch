@@ -32,7 +32,7 @@ import java.io.IOException;
 public class LZFCompressedStreamOutput extends CompressedStreamOutput {
 
     private final BufferRecycler recycler;
-    private final com.ning.compress.lzf.ChunkEncoder encoder;
+    private final ChunkEncoder encoder;
 
     public LZFCompressedStreamOutput(StreamOutput out) throws IOException {
         super(out);

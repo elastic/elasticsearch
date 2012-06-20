@@ -40,6 +40,7 @@ public abstract class CompressedIndexOutput extends IndexOutput {
     private boolean closed;
 
     private final long metaDataPointer;
+    // need to have a growing segment long array list here...
     private TLongArrayList offsets = new TLongArrayList();
 
     public CompressedIndexOutput(IndexOutput out) throws IOException {

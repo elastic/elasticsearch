@@ -20,6 +20,7 @@
 package org.elasticsearch.common.compress;
 
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.common.util.BigLongArray;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -32,7 +33,7 @@ public abstract class CompressedIndexInput extends IndexInput {
 
     private int version;
     private long uncompressedLength;
-    private long[] offsets;
+    private BigLongArray offsets;
 
     private boolean closed;
 
@@ -55,9 +56,9 @@ public abstract class CompressedIndexInput extends IndexInput {
         in.seek(metaDataPosition);
         this.uncompressedLength = in.readVLong();
         int size = in.readVInt();
-        offsets = new long[size];
-        for (int i = 0; i < offsets.length; i++) {
-            offsets[i] = in.readVLong();
+        offsets = new BigLongArray(size);
+        for (int i = 0; i < size; i++) {
+            offsets.set(i, in.readVLong());
         }
         this.currentOffsetIdx = -1;
         this.currentOffset = 0;
@@ -137,7 +138,7 @@ public abstract class CompressedIndexInput extends IndexInput {
     @Override
     public void seek(long pos) throws IOException {
         int idx = (int) (pos / uncompressed.length);
-        if (idx >= offsets.length) {
+        if (idx >= offsets.size) {
             // set the next "readyBuffer" to EOF
             currentOffsetIdx = idx;
             position = 0;
@@ -146,7 +147,7 @@ public abstract class CompressedIndexInput extends IndexInput {
         }
 
         // TODO: optimize so we won't have to readyBuffer on seek, can keep the position around, and set it on readyBuffer in this case
-        long pointer = offsets[idx];
+        long pointer = offsets.get(idx);
         if (pointer != currentOffset) {
             in.seek(pointer);
             position = 0;
@@ -182,7 +183,7 @@ public abstract class CompressedIndexInput extends IndexInput {
             return false;
         }
         // we reached the end...
-        if (currentOffsetIdx + 1 >= offsets.length) {
+        if (currentOffsetIdx + 1 >= offsets.size) {
             return false;
         }
         valid = uncompress(in, uncompressed);
@@ -190,7 +191,7 @@ public abstract class CompressedIndexInput extends IndexInput {
             return false;
         }
         currentOffsetIdx++;
-        currentOffset = offsets[currentOffsetIdx];
+        currentOffset = offsets.get(currentOffsetIdx);
         currentOffsetFilePointer = currentOffset - headerLength;
         position = 0;
         return (position < valid);

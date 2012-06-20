@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.compress;
 
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.jboss.netty.buffer.ChannelBuffer;
@@ -35,6 +37,8 @@ public interface Compressor {
 
     boolean isCompressed(ChannelBuffer buffer);
 
+    boolean isCompressed(IndexInput in) throws IOException;
+
     /**
      * Uncompress the provided data, data can be detected as compressed using {@link #isCompressed(byte[], int, int)}.
      */
@@ -48,4 +52,8 @@ public interface Compressor {
     CompressedStreamInput streamInput(StreamInput in) throws IOException;
 
     CompressedStreamOutput streamOutput(StreamOutput out) throws IOException;
+
+    CompressedIndexInput indexInput(IndexInput in) throws IOException;
+
+    CompressedIndexOutput indexOutput(IndexOutput out) throws IOException;
 }

@@ -23,9 +23,9 @@ import com.ning.compress.lzf.ChunkDecoder;
 import com.ning.compress.lzf.LZFChunk;
 import com.ning.compress.lzf.LZFEncoder;
 import com.ning.compress.lzf.util.ChunkDecoderFactory;
-import org.elasticsearch.common.compress.CompressedStreamInput;
-import org.elasticsearch.common.compress.CompressedStreamOutput;
-import org.elasticsearch.common.compress.Compressor;
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.IndexOutput;
+import org.elasticsearch.common.compress.*;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.Loggers;
@@ -36,6 +36,8 @@ import java.io.IOException;
 /**
  */
 public class LZFCompressor implements Compressor {
+
+    static final byte[] LUCENE_HEADER = {'L', 'Z', 'F', 0};
 
     public static final String TYPE = "lzf";
 
@@ -69,6 +71,23 @@ public class LZFCompressor implements Compressor {
     }
 
     @Override
+    public boolean isCompressed(IndexInput in) throws IOException {
+        long currentPointer = in.getFilePointer();
+        // since we have some metdata before the first compressed header, we check on our specific header
+        if (in.length() - currentPointer < (LUCENE_HEADER.length)) {
+            return false;
+        }
+        for (int i = 0; i < LUCENE_HEADER.length; i++) {
+            if (in.readByte() != LUCENE_HEADER[i]) {
+                in.seek(currentPointer);
+                return false;
+            }
+        }
+        in.seek(currentPointer);
+        return true;
+    }
+
+    @Override
     public byte[] uncompress(byte[] data, int offset, int length) throws IOException {
         return decoder.decode(data, offset, length);
     }
@@ -88,4 +107,13 @@ public class LZFCompressor implements Compressor {
         return new LZFCompressedStreamOutput(out);
     }
 
+    @Override
+    public CompressedIndexInput indexInput(IndexInput in) throws IOException {
+        return new LZFCompressedIndexInput(in, decoder);
+    }
+
+    @Override
+    public CompressedIndexOutput indexOutput(IndexOutput out) throws IOException {
+        return new LZFCompressedIndexOutput(out);
+    }
 }

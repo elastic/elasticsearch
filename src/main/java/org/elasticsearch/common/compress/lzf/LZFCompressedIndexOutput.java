@@ -20,55 +20,45 @@
 package org.elasticsearch.common.compress.lzf;
 
 import com.ning.compress.BufferRecycler;
-import com.ning.compress.lzf.ChunkDecoder;
+import com.ning.compress.lzf.ChunkEncoder;
 import com.ning.compress.lzf.LZFChunk;
-import org.elasticsearch.common.compress.CompressedStreamInput;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.apache.lucene.store.IndexOutput;
+import org.elasticsearch.common.compress.CompressedIndexOutput;
+import org.elasticsearch.common.lucene.store.OutputStreamIndexOutput;
 
 import java.io.IOException;
-import java.io.InputStream;
 
 /**
  */
-public class LZFCompressedStreamInput extends CompressedStreamInput {
+public class LZFCompressedIndexOutput extends CompressedIndexOutput {
 
     private final BufferRecycler recycler;
+    private final ChunkEncoder encoder;
 
-    private final ChunkDecoder decoder;
-
-    // scratch area buffer
-    private byte[] inputBuffer;
-
-    public LZFCompressedStreamInput(StreamInput in, ChunkDecoder decoder) throws IOException {
-        super(in);
+    public LZFCompressedIndexOutput(IndexOutput out) throws IOException {
+        super(out);
         this.recycler = BufferRecycler.instance();
-        this.decoder = decoder;
-
-        this.uncompressed = recycler.allocDecodeBuffer(LZFChunk.MAX_CHUNK_LEN);
-        this.inputBuffer = recycler.allocInputBuffer(LZFChunk.MAX_CHUNK_LEN);
+        this.uncompressed = this.recycler.allocOutputBuffer(LZFChunk.MAX_CHUNK_LEN);
+        this.encoder = new ChunkEncoder(LZFChunk.MAX_CHUNK_LEN);
     }
 
     @Override
-    public void readHeader(StreamInput in) throws IOException {
-        // nothing to do here, each chunk has a header
+    protected void writeHeader(IndexOutput out) throws IOException {
+        out.writeBytes(LZFCompressor.LUCENE_HEADER, LZFCompressor.LUCENE_HEADER.length);
     }
 
     @Override
-    public int uncompress(InputStream in, byte[] out) throws IOException {
-        return decoder.decodeChunk(in, inputBuffer, out);
+    protected void compress(byte[] data, int offset, int len, IndexOutput out) throws IOException {
+        encoder.encodeAndWriteChunk(data, offset, len, new OutputStreamIndexOutput(out));
     }
 
     @Override
     protected void doClose() throws IOException {
-        byte[] buf = inputBuffer;
-        if (buf != null) {
-            inputBuffer = null;
-            recycler.releaseInputBuffer(buf);
-        }
-        buf = uncompressed;
+        byte[] buf = uncompressed;
         if (buf != null) {
             uncompressed = null;
-            recycler.releaseDecodeBuffer(uncompressed);
+            recycler.releaseOutputBuffer(buf);
         }
+        encoder.close();
     }
 }

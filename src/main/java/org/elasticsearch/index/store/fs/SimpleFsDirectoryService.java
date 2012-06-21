@@ -20,7 +20,7 @@
 package org.elasticsearch.index.store.fs;
 
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.SimpleFSDirectory;
+import org.apache.lucene.store.XSimpleFSDirectory;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
@@ -46,7 +46,7 @@ public class SimpleFsDirectoryService extends FsDirectoryService {
         Directory[] dirs = new Directory[locations.length];
         for (int i = 0; i < dirs.length; i++) {
             FileSystemUtils.mkdirs(locations[i]);
-            dirs[i] = new SimpleFSDirectory(locations[i], buildLockFactory());
+            dirs[i] = new XSimpleFSDirectory(locations[i], buildLockFactory(), this, this);
         }
         return dirs;
     }

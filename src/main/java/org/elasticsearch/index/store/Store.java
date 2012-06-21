@@ -173,7 +173,7 @@ public class Store extends AbstractIndexShardComponent {
     }
 
     public StoreStats stats() throws IOException {
-        return new StoreStats(Directories.estimateSize(directory));
+        return new StoreStats(Directories.estimateSize(directory), directoryService.throttleTimeInNanos());
     }
 
     public ByteSizeValue estimateSize() throws IOException {

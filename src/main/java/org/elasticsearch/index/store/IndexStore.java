@@ -19,23 +19,31 @@
 
 package org.elasticsearch.index.store;
 
+import org.apache.lucene.store.StoreRateLimiting;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.index.IndexComponent;
+import org.elasticsearch.index.CloseableIndexComponent;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.store.IndicesStore;
 
 import java.io.IOException;
 
 /**
  * Index store is an index level information of the {@link Store} each shard will use.
- *
- *
  */
-public interface IndexStore extends IndexComponent {
+public interface IndexStore extends CloseableIndexComponent {
 
     /**
      * Is the store a persistent store that can survive full restarts.
      */
     boolean persistent();
+
+    IndicesStore indicesStore();
+
+    /**
+     * Returns the rate limiting, either of the index is explicitly configured, or
+     * the node level one (defaults to the node level one).
+     */
+    StoreRateLimiting rateLimiting();
 
     /**
      * The shard store class that should be used for each shard.

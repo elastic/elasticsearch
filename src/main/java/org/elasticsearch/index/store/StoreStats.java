@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
@@ -35,12 +36,15 @@ public class StoreStats implements Streamable, ToXContent {
 
     private long sizeInBytes;
 
+    private long throttleTimeInNanos;
+
     public StoreStats() {
 
     }
 
-    public StoreStats(long sizeInBytes) {
+    public StoreStats(long sizeInBytes, long throttleTimeInNanos) {
         this.sizeInBytes = sizeInBytes;
+        this.throttleTimeInNanos = throttleTimeInNanos;
     }
 
     public void add(StoreStats stats) {
@@ -48,6 +52,7 @@ public class StoreStats implements Streamable, ToXContent {
             return;
         }
         sizeInBytes += stats.sizeInBytes;
+        throttleTimeInNanos += stats.throttleTimeInNanos;
     }
 
 
@@ -67,6 +72,14 @@ public class StoreStats implements Streamable, ToXContent {
         return size();
     }
 
+    public TimeValue throttleTime() {
+        return TimeValue.timeValueNanos(throttleTimeInNanos);
+    }
+
+    public TimeValue getThrottleTime() {
+        return throttleTime();
+    }
+
     public static StoreStats readStoreStats(StreamInput in) throws IOException {
         StoreStats store = new StoreStats();
         store.readFrom(in);
@@ -76,11 +89,13 @@ public class StoreStats implements Streamable, ToXContent {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         sizeInBytes = in.readVLong();
+        throttleTimeInNanos = in.readVLong();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(sizeInBytes);
+        out.writeVLong(throttleTimeInNanos);
     }
 
     @Override
@@ -88,6 +103,8 @@ public class StoreStats implements Streamable, ToXContent {
         builder.startObject(Fields.STORE);
         builder.field(Fields.SIZE, size().toString());
         builder.field(Fields.SIZE_IN_BYTES, sizeInBytes);
+        builder.field(Fields.THROTTLE_TIME, throttleTime().toString());
+        builder.field(Fields.THROTTLE_TIME_IN_MILLIS, throttleTime().millis());
         builder.endObject();
         return builder;
     }
@@ -96,5 +113,8 @@ public class StoreStats implements Streamable, ToXContent {
         static final XContentBuilderString STORE = new XContentBuilderString("store");
         static final XContentBuilderString SIZE = new XContentBuilderString("size");
         static final XContentBuilderString SIZE_IN_BYTES = new XContentBuilderString("size_in_bytes");
+
+        static final XContentBuilderString THROTTLE_TIME = new XContentBuilderString("throttle_time");
+        static final XContentBuilderString THROTTLE_TIME_IN_MILLIS = new XContentBuilderString("throttle_time_in_millis");
     }
 }

@@ -29,6 +29,7 @@ import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.support.AbstractIndexStore;
+import org.elasticsearch.indices.store.IndicesStore;
 
 import java.io.File;
 import java.io.IOException;
@@ -42,8 +43,8 @@ public abstract class FsIndexStore extends AbstractIndexStore {
 
     private final File[] locations;
 
-    public FsIndexStore(Index index, @IndexSettings Settings indexSettings, IndexService indexService, NodeEnvironment nodeEnv) {
-        super(index, indexSettings, indexService);
+    public FsIndexStore(Index index, @IndexSettings Settings indexSettings, IndexService indexService, IndicesStore indicesStore, NodeEnvironment nodeEnv) {
+        super(index, indexSettings, indexService, indicesStore);
         this.nodeEnv = nodeEnv;
         if (nodeEnv.hasNodeFile()) {
             this.locations = nodeEnv.indexLocations(index);

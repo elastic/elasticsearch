@@ -27,6 +27,7 @@ import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.support.AbstractIndexStore;
+import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.jvm.JvmStats;
 
@@ -36,8 +37,8 @@ import org.elasticsearch.monitor.jvm.JvmStats;
 public class RamIndexStore extends AbstractIndexStore {
 
     @Inject
-    public RamIndexStore(Index index, @IndexSettings Settings indexSettings, IndexService indexService) {
-        super(index, indexSettings, indexService);
+    public RamIndexStore(Index index, @IndexSettings Settings indexSettings, IndexService indexService, IndicesStore indicesStore) {
+        super(index, indexSettings, indexService, indicesStore);
     }
 
     @Override

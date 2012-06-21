@@ -62,6 +62,7 @@ import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityModule;
+import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.IndexStoreModule;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
@@ -348,6 +349,8 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         indexInjector.getInstance(IndexGateway.class).close(delete);
         indexInjector.getInstance(MapperService.class).close();
         indexInjector.getInstance(IndexQueryParserService.class).close();
+
+        indexInjector.getInstance(IndexStore.class).close(delete);
 
         Injectors.close(injector);
 

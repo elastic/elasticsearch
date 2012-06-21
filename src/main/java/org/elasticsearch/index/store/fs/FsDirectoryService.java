@@ -21,6 +21,7 @@ package org.elasticsearch.index.store.fs;
 
 import org.apache.lucene.store.*;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
@@ -35,13 +36,25 @@ import java.io.InterruptedIOException;
 
 /**
  */
-public abstract class FsDirectoryService extends AbstractIndexShardComponent implements DirectoryService {
+public abstract class FsDirectoryService extends AbstractIndexShardComponent implements DirectoryService, StoreRateLimiting.Listener, StoreRateLimiting.Provider {
 
     protected final FsIndexStore indexStore;
+
+    private final CounterMetric rateLimitingTimeInNanos = new CounterMetric();
 
     public FsDirectoryService(ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore) {
         super(shardId, indexSettings);
         this.indexStore = (FsIndexStore) indexStore;
+    }
+
+    @Override
+    public long throttleTimeInNanos() {
+        return rateLimitingTimeInNanos.count();
+    }
+
+    @Override
+    public StoreRateLimiting rateLimiting() {
+        return indexStore.rateLimiting();
     }
 
     protected LockFactory buildLockFactory() throws IOException {
@@ -97,5 +110,10 @@ public abstract class FsDirectoryService extends AbstractIndexShardComponent imp
         if (list == null || list.length == 0) {
             FileSystemUtils.deleteRecursively(fsDirectory.getDirectory().getParentFile());
         }
+    }
+
+    @Override
+    public void onPause(long nanos) {
+        rateLimitingTimeInNanos.inc(nanos);
     }
 }

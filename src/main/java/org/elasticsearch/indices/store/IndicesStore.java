@@ -19,14 +19,17 @@
 
 package org.elasticsearch.indices.store;
 
+import org.apache.lucene.store.StoreRateLimiting;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.env.NodeEnvironment;
@@ -34,6 +37,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.File;
@@ -45,7 +49,38 @@ import java.util.concurrent.ScheduledFuture;
  */
 public class IndicesStore extends AbstractComponent implements ClusterStateListener {
 
+    static {
+        MetaData.addDynamicSettings(
+                "indices.store.throttle.type",
+                "indices.store.throttle.max_bytes_per_sec"
+        );
+    }
+
+    class ApplySettings implements NodeSettingsService.Listener {
+        @Override
+        public void onRefreshSettings(Settings settings) {
+            String rateLimitingType = settings.get("indices.store.throttle.type", IndicesStore.this.rateLimitingType);
+            // try and parse the type
+            StoreRateLimiting.Type.fromString(rateLimitingType);
+            if (!rateLimitingType.equals(IndicesStore.this.rateLimitingType)) {
+                logger.info("updating indices.store.throttle.type from [{}] to [{}]", IndicesStore.this.rateLimitingType, rateLimitingType);
+                IndicesStore.this.rateLimitingType = rateLimitingType;
+                IndicesStore.this.rateLimiting.setType(rateLimitingType);
+            }
+
+            ByteSizeValue rateLimitingThrottle = settings.getAsBytesSize("indices.store.throttle.max_bytes_per_sec", IndicesStore.this.rateLimitingThrottle);
+            if (!rateLimitingThrottle.equals(IndicesStore.this.rateLimitingThrottle)) {
+                logger.info("updating indices.store.throttle.max_bytes_per_sec from [{}] to [{}], note, type is [{}]", IndicesStore.this.rateLimitingThrottle, rateLimitingThrottle, IndicesStore.this.rateLimitingType);
+                IndicesStore.this.rateLimitingThrottle = rateLimitingThrottle;
+                IndicesStore.this.rateLimiting.setMaxRate(rateLimitingThrottle);
+            }
+        }
+    }
+
+
     private final NodeEnvironment nodeEnv;
+
+    private final NodeSettingsService nodeSettingsService;
 
     private final IndicesService indicesService;
 
@@ -59,6 +94,12 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
 
     private final Object danglingMutex = new Object();
 
+    private volatile String rateLimitingType;
+    private volatile ByteSizeValue rateLimitingThrottle;
+    private final StoreRateLimiting rateLimiting = new StoreRateLimiting();
+
+    private final ApplySettings applySettings = new ApplySettings();
+
     static class DanglingIndex {
         public final String index;
         public final ScheduledFuture future;
@@ -70,19 +111,33 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
     }
 
     @Inject
-    public IndicesStore(Settings settings, NodeEnvironment nodeEnv, IndicesService indicesService, ClusterService clusterService, ThreadPool threadPool) {
+    public IndicesStore(Settings settings, NodeEnvironment nodeEnv, NodeSettingsService nodeSettingsService, IndicesService indicesService, ClusterService clusterService, ThreadPool threadPool) {
         super(settings);
         this.nodeEnv = nodeEnv;
+        this.nodeSettingsService = nodeSettingsService;
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
 
+        this.rateLimitingType = componentSettings.get("throttle.type", "none");
+        rateLimiting.setType(rateLimitingType);
+        this.rateLimitingThrottle = componentSettings.getAsBytesSize("throttle.max_bytes_per_sec", new ByteSizeValue(0));
+        rateLimiting.setMaxRate(rateLimitingThrottle);
+
         this.danglingTimeout = componentSettings.getAsTime("dangling_timeout", TimeValue.timeValueHours(2));
 
+        logger.debug("using indices.store.throttle.type [{}], with index.store.throttle.max_bytes_per_sec [{}]", rateLimitingType, rateLimitingThrottle);
+
+        nodeSettingsService.addListener(applySettings);
         clusterService.addLast(this);
     }
 
+    public StoreRateLimiting rateLimiting() {
+        return this.rateLimiting;
+    }
+
     public void close() {
+        nodeSettingsService.removeListener(applySettings);
         clusterService.remove(this);
     }
 

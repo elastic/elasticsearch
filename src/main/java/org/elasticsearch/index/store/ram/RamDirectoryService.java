@@ -42,6 +42,11 @@ public class RamDirectoryService extends AbstractIndexShardComponent implements 
     }
 
     @Override
+    public long throttleTimeInNanos() {
+        return 0;
+    }
+
+    @Override
     public Directory[] build() {
         return new Directory[]{new CustomRAMDirectory()};
     }

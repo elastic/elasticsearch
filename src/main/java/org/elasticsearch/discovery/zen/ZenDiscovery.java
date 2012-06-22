@@ -36,6 +36,10 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.VoidStreamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.Discovery;
@@ -51,8 +55,9 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.*;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -148,6 +153,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         this.publishClusterState = new PublishClusterStateAction(settings, transportService, this, new NewClusterStateListener());
         this.pingService.setNodesProvider(this);
         this.membership = new MembershipAction(settings, transportService, this, new MembershipListener());
+
+        transportService.registerHandler(RejoinClusterRequestHandler.ACTION, new RejoinClusterRequestHandler());
     }
 
     @Override
@@ -362,7 +369,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     currentState = newClusterStateBuilder().state(currentState).nodes(latestDiscoNodes).build();
                     // check if we have enough master nodes, if not, we need to move into joining the cluster again
                     if (!electMaster.hasEnoughMasterNodes(currentState.nodes())) {
-                        return disconnectFromCluster(currentState, "not enough master nodes");
+                        return rejoin(currentState, "not enough master nodes");
                     }
                     return currentState;
                 }
@@ -391,7 +398,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 currentState = newClusterStateBuilder().state(currentState).nodes(latestDiscoNodes).build();
                 // check if we have enough master nodes, if not, we need to move into joining the cluster again
                 if (!electMaster.hasEnoughMasterNodes(currentState.nodes())) {
-                    return disconnectFromCluster(currentState, "not enough master nodes");
+                    return rejoin(currentState, "not enough master nodes");
                 }
                 return currentState;
             }
@@ -430,7 +437,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         .masterNodeId(null);
 
                 if (!electMaster.hasEnoughMasterNodes(nodesBuilder.build())) {
-                    return disconnectFromCluster(ClusterState.builder().state(currentState).nodes(nodesBuilder).build(), "not enough master nodes after master left (reason = " + reason + ")");
+                    return rejoin(ClusterState.builder().state(currentState).nodes(nodesBuilder).build(), "not enough master nodes after master left (reason = " + reason + ")");
                 }
 
                 final DiscoveryNode electedMaster = electMaster.electMaster(nodesBuilder.build()); // elect master
@@ -451,7 +458,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                                 .nodes(latestDiscoNodes)
                                 .build();
                     } else {
-                        return disconnectFromCluster(newClusterStateBuilder().state(currentState).nodes(nodesBuilder.build()).build(), "master_left and no other node elected to become master");
+                        return rejoin(newClusterStateBuilder().state(currentState).nodes(nodesBuilder.build()).build(), "master_left and no other node elected to become master");
                     }
                 }
             }
@@ -466,7 +473,24 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     void handleNewClusterStateFromMaster(final ClusterState newState) {
         if (master) {
-            logger.warn("master should not receive new cluster state from [{}]", newState.nodes().masterNode());
+            clusterService.submitStateUpdateTask("zen-disco-master_receive_cluster_state_from_another_master [" + newState.nodes().masterNode() + "]", new ClusterStateUpdateTask() {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    if (newState.version() > currentState.version()) {
+                        logger.warn("received cluster state from [{}] which is also master but with a newer cluster_state, rejoining to cluster...", newState.nodes().masterNode());
+                        return rejoin(currentState, "zen-disco-master_receive_cluster_state_from_another_master [" + newState.nodes().masterNode() + "]");
+                    } else {
+                        logger.warn("received cluster state from [{}] which is also master but with an older cluster_state, telling [{}] to rejoin the cluster", newState.nodes().masterNode(), newState.nodes().masterNode());
+                        transportService.sendRequest(newState.nodes().masterNode(), RejoinClusterRequestHandler.ACTION, new RejoinClusterRequest(currentState.nodes().localNodeId()), new VoidTransportResponseHandler(ThreadPool.Names.SAME) {
+                            @Override
+                            public void handleException(TransportException exp) {
+                                logger.warn("failed to send rejoin request to [{}]", exp, newState.nodes().masterNode());
+                            }
+                        });
+                        return currentState;
+                    }
+                }
+            });
         } else {
             if (newState.nodes().localNode() == null) {
                 logger.warn("received a cluster state from [{}] and not part of the cluster, should not happen", newState.nodes().masterNode());
@@ -634,7 +658,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         return null;
     }
 
-    private ClusterState disconnectFromCluster(ClusterState clusterState, String reason) {
+    private ClusterState rejoin(ClusterState clusterState, String reason) {
         logger.warn(reason + ", current nodes: {}", clusterState.nodes());
         nodesFD.stop();
         masterFD.stop(reason);
@@ -716,4 +740,57 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             }
         }
     }
+
+    static class RejoinClusterRequest implements Streamable {
+
+        private String fromNodeId;
+
+        RejoinClusterRequest(String fromNodeId) {
+            this.fromNodeId = fromNodeId;
+        }
+
+        RejoinClusterRequest() {
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            fromNodeId = in.readOptionalUTF();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeOptionalUTF(fromNodeId);
+        }
+    }
+
+    class RejoinClusterRequestHandler extends BaseTransportRequestHandler<RejoinClusterRequest> {
+
+        static final String ACTION = "discovery/zen/rejoin";
+
+        @Override
+        public RejoinClusterRequest newInstance() {
+            return new RejoinClusterRequest();
+        }
+
+        @Override
+        public void messageReceived(final RejoinClusterRequest request, final TransportChannel channel) throws Exception {
+            clusterService.submitStateUpdateTask("received a request to rejoin the cluster from [" + request.fromNodeId + "]", new ClusterStateUpdateTask() {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    try {
+                        channel.sendResponse(VoidStreamable.INSTANCE);
+                    } catch (Exception e) {
+                        logger.warn("failed to send response on rejoin cluster request handling", e);
+                    }
+                    return rejoin(currentState, "received a request to rejoin the cluster from [" + request.fromNodeId + "]");
+                }
+            });
+        }
+
+        @Override
+        public String executor() {
+            return ThreadPool.Names.SAME;
+        }
+    }
+
 }

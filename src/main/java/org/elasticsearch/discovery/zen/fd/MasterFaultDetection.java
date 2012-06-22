@@ -305,8 +305,17 @@ public class MasterFaultDetection extends AbstractComponent {
                                 // check if the master node did not get switched on us...
                                 if (masterToPing.equals(MasterFaultDetection.this.masterNode())) {
                                     if (exp.getCause() instanceof NoLongerMasterException) {
-                                        logger.debug("[master] pinging a master {} that is no longer a master", masterNode, pingRetryCount, pingRetryTimeout);
+                                        logger.debug("[master] pinging a master {} that is no longer a master", masterNode);
                                         notifyMasterFailure(masterToPing, "no longer master");
+                                        return;
+                                    } else if (exp.getCause() instanceof NotMasterException) {
+                                        logger.debug("[master] pinging a master {} that is not the master", masterNode);
+                                        notifyMasterFailure(masterToPing, "no longer master");
+                                        return;
+                                    } else if (exp.getCause() instanceof NodeDoesNotExistOnMasterException) {
+                                        logger.debug("[master] pinging a master {} but we do not exists on it, act as if its master failure", masterNode);
+                                        notifyMasterFailure(masterToPing, "do not exists on master, act as master failure");
+                                        return;
                                     }
                                     int retryCount = ++MasterFaultDetection.this.retryCount;
                                     logger.trace("[master] failed to ping [{}], retry [{}] out of [{}]", exp, masterNode, retryCount, pingRetryCount);
@@ -330,7 +339,21 @@ public class MasterFaultDetection extends AbstractComponent {
         }
     }
 
-    private static class NoLongerMasterException extends ElasticSearchIllegalStateException {
+    static class NoLongerMasterException extends ElasticSearchIllegalStateException {
+        @Override
+        public Throwable fillInStackTrace() {
+            return null;
+        }
+    }
+
+    static class NotMasterException extends ElasticSearchIllegalStateException {
+        @Override
+        public Throwable fillInStackTrace() {
+            return null;
+        }
+    }
+
+    static class NodeDoesNotExistOnMasterException extends ElasticSearchIllegalStateException {
         @Override
         public Throwable fillInStackTrace() {
             return null;
@@ -352,11 +375,14 @@ public class MasterFaultDetection extends AbstractComponent {
             // check if we are really the same master as the one we seemed to be think we are
             // this can happen if the master got "kill -9" and then another node started using the same port
             if (!request.masterNodeId.equals(nodes.localNodeId())) {
-                throw new ElasticSearchIllegalStateException("Got ping as master with id [" + request.masterNodeId + "], but not master and no id");
+                throw new NotMasterException();
             }
             // if we are no longer master, fail...
             if (!nodes.localNodeMaster()) {
                 throw new NoLongerMasterException();
+            }
+            if (!nodes.nodeExists(request.nodeId)) {
+                throw new NodeDoesNotExistOnMasterException();
             }
             // send a response, and note if we are connected to the master or not
             channel.sendResponse(new MasterPingResponseResponse(nodes.nodeExists(request.nodeId)));

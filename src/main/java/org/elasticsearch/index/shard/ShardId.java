@@ -102,6 +102,7 @@ public class ShardId implements Serializable, Streamable {
     public void readFrom(StreamInput in) throws IOException {
         index = Index.readIndexName(in);
         shardId = in.readVInt();
+        hashCode = computeHashCode();
     }
 
     @Override

@@ -39,6 +39,10 @@ public class RecoveryStatus {
         DONE
     }
 
+    volatile Thread recoveryThread;
+    volatile boolean canceled;
+    volatile boolean sentCanceledToSource;
+
     ConcurrentMap<String, IndexOutput> openIndexOutputs = ConcurrentCollections.newConcurrentMap();
     ConcurrentMap<String, String> checksums = ConcurrentCollections.newConcurrentMap();
 

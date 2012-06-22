@@ -57,16 +57,16 @@ public class Store extends AbstractIndexShardComponent {
 
     static {
         IndexMetaData.addDynamicSettings(
-                "index.store.compress.stored_fields"
+                "index.store.compress.stored"
         );
     }
 
     class ApplySettings implements IndexSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
-            boolean compressedStoredFields = settings.getAsBoolean("index.store.compress.stored_fields", Store.this.compressedStoredFields);
+            boolean compressedStoredFields = settings.getAsBoolean("index.store.compress.stored", Store.this.compressedStoredFields);
             if (compressedStoredFields != Store.this.compressedStoredFields) {
-                logger.info("updating [compress.stored_fields] from [{}] to [{}]", Store.this.compressedStoredFields, compressedStoredFields);
+                logger.info("updating [index.store.compress.stored] from [{}] to [{}]", Store.this.compressedStoredFields, compressedStoredFields);
                 Store.this.compressedStoredFields = compressedStoredFields;
             }
         }
@@ -109,9 +109,9 @@ public class Store extends AbstractIndexShardComponent {
         this.sync = componentSettings.getAsBoolean("sync", true); // TODO we don't really need to fsync when using shared gateway...
         this.directory = new StoreDirectory(directoryService.build());
 
-        this.compressedStoredFields = componentSettings.getAsBoolean("compress.stored_fields", false);
+        this.compressedStoredFields = componentSettings.getAsBoolean("compress.stored", false);
 
-        logger.debug("using compress.stored_fields [{}]", compressedStoredFields);
+        logger.debug("using compress.stored [{}]", compressedStoredFields);
 
         indexSettingsService.addListener(applySettings);
     }

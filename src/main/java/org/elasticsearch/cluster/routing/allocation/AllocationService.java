@@ -294,6 +294,7 @@ public class AllocationService extends AbstractComponent {
                 // we know this since it has a relocating node id (the node we relocate from) and our state is INITIALIZING (and not RELOCATING)
                 boolean isRelocationDestinationShard = relocatingNodeId != null && shardRoutingEntry.initializing();
 
+                boolean remove = false;
                 boolean currentNodeIsDead = false;
                 if (!liveNodeIds.contains(shardRoutingEntry.currentNodeId())) {
                     changed = true;
@@ -305,7 +306,7 @@ public class AllocationService extends AbstractComponent {
 
                     shardRoutingEntry.deassignNode();
                     currentNodeIsDead = true;
-                    shardsIterator.remove();
+                    remove = true;
                 }
 
                 // move source shard back to active state and cancel relocation mode.
@@ -319,6 +320,10 @@ public class AllocationService extends AbstractComponent {
 
                 if (isRelocationDestinationShard && !liveNodeIds.contains(relocatingNodeId)) {
                     changed = true;
+                    remove = true;
+                }
+
+                if (remove) {
                     shardsIterator.remove();
                 }
             }

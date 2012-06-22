@@ -496,6 +496,32 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             if (indexService.hasShard(shardId)) {
                 InternalIndexShard indexShard = (InternalIndexShard) indexService.shard(shardId);
                 if (!shardRouting.equals(indexShard.routingEntry())) {
+                    ShardRouting currentRoutingEntry = indexShard.routingEntry();
+                    boolean needToDeleteCurrentShard = false;
+                    if (currentRoutingEntry.initializing() && shardRouting.initializing()) {
+                        // both are initializing, see if they are different instanceof of the shard routing, so they got switched on us
+                        if (currentRoutingEntry.primary() && !shardRouting.primary()) {
+                            needToDeleteCurrentShard = true;
+                        }
+                        // recovering from different nodes..., restart recovery
+                        if (currentRoutingEntry.relocatingNodeId() != null && shardRouting.relocatingNodeId() != null &&
+                                !currentRoutingEntry.relocatingNodeId().equals(shardRouting.relocatingNodeId())) {
+                            needToDeleteCurrentShard = true;
+                        }
+                    }
+                    if (needToDeleteCurrentShard) {
+                        if (logger.isDebugEnabled()) {
+                            logger.debug("[{}][{}] removing shard (different instance of it allocated on this node)", shardRouting.index(), shardRouting.id());
+                        }
+                        recoveryTarget.cancelRecovery(shardRouting.shardId());
+                        indexService.removeShard(shardRouting.id(), "removing shard (different instance of it allocated on this node)");
+                    }
+                }
+            }
+
+            if (indexService.hasShard(shardId)) {
+                InternalIndexShard indexShard = (InternalIndexShard) indexService.shard(shardId);
+                if (!shardRouting.equals(indexShard.routingEntry())) {
                     indexShard.routingEntry(shardRouting);
                     indexService.shardInjector(shardId).getInstance(IndexShardGatewayService.class).routingStateChanged();
                 }

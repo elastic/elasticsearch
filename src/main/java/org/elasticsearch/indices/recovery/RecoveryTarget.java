@@ -279,7 +279,7 @@ public class RecoveryTarget extends AbstractComponent {
                 synchronized (entry.getValue()) {
                     try {
                         entry.getValue().close();
-                    } catch (IOException e) {
+                    } catch (Exception e) {
                         // ignore
                     }
                 }
@@ -431,11 +431,11 @@ public class RecoveryTarget extends AbstractComponent {
             // first, we go and move files that were created with the recovery id suffix to
             // the actual names, its ok if we have a corrupted index here, since we have replicas
             // to recover from in case of a full cluster shutdown just when this code executes...
-            String suffix = "." + onGoingRecovery.startTime;
+            String prefix = "recovery." + onGoingRecovery.startTime + ".";
             Set<String> filesToRename = Sets.newHashSet();
             for (String existingFile : shard.store().directory().listAll()) {
-                if (existingFile.endsWith(suffix)) {
-                    filesToRename.add(existingFile.substring(0, existingFile.length() - suffix.length()));
+                if (existingFile.startsWith(prefix)) {
+                    filesToRename.add(existingFile.substring(prefix.length(), existingFile.length()));
                 }
             }
             Exception failureToRename = null;
@@ -447,7 +447,7 @@ public class RecoveryTarget extends AbstractComponent {
                 for (String fileToRename : filesToRename) {
                     // now, rename the files...
                     try {
-                        shard.store().renameFile(fileToRename + suffix, fileToRename);
+                        shard.store().renameFile(prefix + fileToRename, fileToRename);
                     } catch (Exception e) {
                         failureToRename = e;
                         break;
@@ -517,7 +517,7 @@ public class RecoveryTarget extends AbstractComponent {
 
                 String name = request.name();
                 if (shard.store().directory().fileExists(name)) {
-                    name = name + "." + onGoingRecovery.startTime;
+                    name = "recovery." + onGoingRecovery.startTime + "." + name;
                 }
 
                 indexOutput = shard.store().createOutputRaw(name);

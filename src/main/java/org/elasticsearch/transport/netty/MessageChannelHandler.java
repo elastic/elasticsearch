@@ -20,6 +20,7 @@
 package org.elasticsearch.transport.netty;
 
 import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.ThrowableObjectInputStream;
@@ -388,11 +389,14 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
             try {
                 handler.messageReceived(streamable, transportChannel);
             } catch (Throwable e) {
-                try {
-                    transportChannel.sendResponse(e);
-                } catch (IOException e1) {
-                    logger.warn("Failed to send error message back to client for action [" + action + "]", e1);
-                    logger.warn("Actual Exception", e);
+                if (transport.lifecycleState() == Lifecycle.State.STARTED) {
+                    // we can only send a response transport is started....
+                    try {
+                        transportChannel.sendResponse(e);
+                    } catch (IOException e1) {
+                        logger.warn("Failed to send error message back to client for action [" + action + "]", e1);
+                        logger.warn("Actual Exception", e);
+                    }
                 }
             }
         }

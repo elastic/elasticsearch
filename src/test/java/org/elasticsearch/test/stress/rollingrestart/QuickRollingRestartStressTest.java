@@ -91,7 +91,9 @@ public class QuickRollingRestartStressTest {
             if (clusterHealthResponse.timedOut()) {
                 System.err.println("--> timed out waiting for green state...");
                 ClusterState state = client.client().admin().cluster().prepareState().execute().actionGet().state();
+                System.out.println(state.nodes().prettyPrint());
                 System.out.println(state.routingTable().prettyPrint());
+                System.out.println(state.routingNodes().prettyPrint());
                 throw new ElasticSearchException("timed out waiting for green state");
             } else {
                 System.out.println("--> got green status");

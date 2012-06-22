@@ -207,7 +207,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         }
         if (currentRouting != null) {
             if (!shardRouting.primary() && currentRouting.primary()) {
-                logger.warn("suspect illegal state: trying to move shard from primary mode to backup mode");
+                logger.warn("suspect illegal state: trying to move shard from primary mode to replica mode");
             }
             // if its the same routing, return
             if (currentRouting.equals(shardRouting)) {

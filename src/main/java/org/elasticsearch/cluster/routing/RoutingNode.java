@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 
 import java.util.ArrayList;
@@ -65,6 +66,11 @@ public class RoutingNode implements Iterable<MutableShardRouting> {
     }
 
     public void add(MutableShardRouting shard) {
+        for (MutableShardRouting shardRouting : shards) {
+            if (shardRouting.shardId().equals(shard.shardId())) {
+                throw new ElasticSearchIllegalStateException("Trying to add a shard [" + shard.shardId().index().name() + "][" + shard.shardId().id() + "] to a node [" + nodeId + "] where it already exists");
+            }
+        }
         shards.add(shard);
         shard.assignToNode(node.id());
     }

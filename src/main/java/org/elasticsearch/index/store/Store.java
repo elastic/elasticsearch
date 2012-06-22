@@ -110,6 +110,9 @@ public class Store extends AbstractIndexShardComponent {
         this.directory = new StoreDirectory(directoryService.build());
 
         this.compressedStoredFields = componentSettings.getAsBoolean("compress.stored_fields", false);
+
+        logger.debug("using compress.stored_fields [{}]", compressedStoredFields);
+
         indexSettingsService.addListener(applySettings);
     }
 

@@ -57,17 +57,23 @@ public class Store extends AbstractIndexShardComponent {
 
     static {
         IndexMetaData.addDynamicSettings(
-                "index.store.compress.stored"
+                "index.store.compress.stored",
+                "index.store.compress.tv"
         );
     }
 
     class ApplySettings implements IndexSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
-            boolean compressedStoredFields = settings.getAsBoolean("index.store.compress.stored", Store.this.compressedStoredFields);
-            if (compressedStoredFields != Store.this.compressedStoredFields) {
-                logger.info("updating [index.store.compress.stored] from [{}] to [{}]", Store.this.compressedStoredFields, compressedStoredFields);
-                Store.this.compressedStoredFields = compressedStoredFields;
+            boolean compressStored = settings.getAsBoolean("index.store.compress.stored", Store.this.compressStored);
+            if (compressStored != Store.this.compressStored) {
+                logger.info("updating [index.store.compress.stored] from [{}] to [{}]", Store.this.compressStored, compressStored);
+                Store.this.compressStored = compressStored;
+            }
+            boolean compressTv = settings.getAsBoolean("index.store.compress.tv", Store.this.compressTv);
+            if (compressTv != Store.this.compressTv) {
+                logger.info("updating [index.store.compress.tv] from [{}] to [{}]", Store.this.compressTv, compressTv);
+                Store.this.compressTv = compressTv;
             }
         }
     }
@@ -95,7 +101,8 @@ public class Store extends AbstractIndexShardComponent {
 
     private final boolean sync;
 
-    private volatile boolean compressedStoredFields;
+    private volatile boolean compressStored;
+    private volatile boolean compressTv;
 
     private final ApplySettings applySettings = new ApplySettings();
 
@@ -109,9 +116,10 @@ public class Store extends AbstractIndexShardComponent {
         this.sync = componentSettings.getAsBoolean("sync", true); // TODO we don't really need to fsync when using shared gateway...
         this.directory = new StoreDirectory(directoryService.build());
 
-        this.compressedStoredFields = componentSettings.getAsBoolean("compress.stored", false);
+        this.compressStored = componentSettings.getAsBoolean("compress.stored", false);
+        this.compressTv = componentSettings.getAsBoolean("compress.tv", false);
 
-        logger.debug("using compress.stored [{}]", compressedStoredFields);
+        logger.debug("using compress.stored [{}], compress.tv [{}]", compressStored, compressTv);
 
         indexSettingsService.addListener(applySettings);
     }
@@ -480,7 +488,7 @@ public class Store extends AbstractIndexShardComponent {
                         computeChecksum = false;
                     }
                 }
-                if (!raw && compressedStoredFields && name.endsWith(".fdt")) {
+                if (!raw && ((compressStored && name.endsWith(".fdt")) || (compressTv && name.endsWith(".tvf")))) {
                     if (computeChecksum) {
                         // with compression, there is no need for buffering when doing checksums
                         // since we have buffering on the compressed index output
@@ -503,7 +511,7 @@ public class Store extends AbstractIndexShardComponent {
                 throw new FileNotFoundException(name);
             }
             IndexInput in = metaData.directory().openInput(name);
-            if (name.endsWith(".fdt")) {
+            if (name.endsWith(".fdt") || name.endsWith(".tvf")) {
                 Compressor compressor = CompressorFactory.compressor(in);
                 if (compressor != null) {
                     in = compressor.indexInput(in);
@@ -519,7 +527,7 @@ public class Store extends AbstractIndexShardComponent {
                 throw new FileNotFoundException(name);
             }
             IndexInput in = metaData.directory().openInput(name, bufferSize);
-            if (name.endsWith(".fdt")) {
+            if (name.endsWith(".fdt") || name.endsWith(".tvf")) {
                 Compressor compressor = CompressorFactory.compressor(in);
                 if (compressor != null) {
                     in = compressor.indexInput(in);

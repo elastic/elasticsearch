@@ -20,7 +20,7 @@
 package org.elasticsearch.index.field.data;
 
 import org.apache.lucene.index.IndexReader;
-import org.elasticsearch.common.thread.ThreadLocals;
+import org.elasticsearch.common.util.concurrent.ThreadLocals;
 
 import java.io.IOException;
 

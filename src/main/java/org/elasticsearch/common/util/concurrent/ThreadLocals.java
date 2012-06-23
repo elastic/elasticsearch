@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.common.thread;
+package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;

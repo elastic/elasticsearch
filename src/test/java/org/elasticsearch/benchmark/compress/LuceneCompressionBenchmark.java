@@ -45,6 +45,7 @@ public class LuceneCompressionBenchmark {
 
     public static void main(String[] args) throws Exception {
         final long MAX_SIZE = ByteSizeValue.parseBytesSizeValue("50mb").bytes();
+        final boolean WITH_TV = true;
 
         final Compressor compressor = CompressorFactory.defaultCompressor();
 
@@ -61,6 +62,9 @@ public class LuceneCompressionBenchmark {
                 if (name.endsWith(".fdt")) {
                     return compressor.indexOutput(super.createOutput(name));
                 }
+                if (WITH_TV && name.endsWith(".tvf")) {
+                    return compressor.indexOutput(super.createOutput(name));
+                }
                 return super.createOutput(name);
             }
 
@@ -75,12 +79,21 @@ public class LuceneCompressionBenchmark {
                         return in;
                     }
                 }
+                if (WITH_TV && name.endsWith(".tvf")) {
+                    IndexInput in = super.openInput(name);
+                    Compressor compressor1 = CompressorFactory.compressor(in);
+                    if (compressor1 != null) {
+                        return compressor1.indexInput(in);
+                    } else {
+                        return in;
+                    }
+                }
                 return super.openInput(name);
             }
 
             @Override
             public IndexInput openInput(String name, int bufferSize) throws IOException {
-                if (name.endsWith(".fdt")) {
+                if (name.endsWith(".fdt") || name.endsWith(".tvf")) {
                     IndexInput in = super.openInput(name, bufferSize);
                     // in case the override called openInput(String)
                     if (in instanceof CompressedIndexInput) {
@@ -108,6 +121,10 @@ public class LuceneCompressionBenchmark {
             builder.close();
             Document doc = new Document();
             doc.add(new Field("_source", builder.underlyingBytes(), 0, builder.underlyingBytesLength()));
+            if (WITH_TV) {
+                Field field = new Field("text", builder.string(), Field.Store.NO, Field.Index.ANALYZED, Field.TermVector.WITH_POSITIONS_OFFSETS);
+                doc.add(field);
+            }
             uncompressedWriter.addDocument(doc);
             compressedWriter.addDocument(doc);
         }

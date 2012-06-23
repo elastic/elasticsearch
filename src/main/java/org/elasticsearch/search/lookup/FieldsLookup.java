@@ -23,11 +23,13 @@ import com.google.common.collect.Maps;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.document.SingleFieldSelector;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
@@ -39,6 +41,9 @@ public class FieldsLookup implements Map {
 
     private final MapperService mapperService;
 
+    @Nullable
+    private final String[] types;
+
     private IndexReader reader;
 
     private int docId = -1;
@@ -47,8 +52,9 @@ public class FieldsLookup implements Map {
 
     private final SingleFieldSelector fieldSelector = new SingleFieldSelector();
 
-    FieldsLookup(MapperService mapperService) {
+    FieldsLookup(MapperService mapperService, @Nullable String[] types) {
         this.mapperService = mapperService;
+        this.types = types;
     }
 
     public void setNextReader(IndexReader reader) {
@@ -137,9 +143,9 @@ public class FieldsLookup implements Map {
     private FieldLookup loadFieldData(String name) {
         FieldLookup data = cachedFieldData.get(name);
         if (data == null) {
-            FieldMapper mapper = mapperService.smartNameFieldMapper(name);
+            FieldMapper mapper = mapperService.smartNameFieldMapper(name, types);
             if (mapper == null) {
-                throw new ElasticSearchIllegalArgumentException("No field found for [" + name + "]");
+                throw new ElasticSearchIllegalArgumentException("No field found for [" + name + "] in mapping with types " + Arrays.toString(types) + "");
             }
             data = new FieldLookup(mapper);
             cachedFieldData.put(name, data);

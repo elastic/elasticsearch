@@ -43,6 +43,13 @@ public class GeoPointDocFieldData extends DocFieldData<GeoPointFieldData> {
         return fieldData.factorDistance(docId, DistanceUnit.MILES, lat, lon);
     }
 
+    public double factorDistanceWithDefault(double lat, double lon, double defaultValue) {
+        if (!fieldData.hasValue(docId)) {
+            return defaultValue;
+        }
+        return fieldData.factorDistance(docId, DistanceUnit.MILES, lat, lon);
+    }
+
     public double factorDistance02(double lat, double lon) {
         return fieldData.factorDistance(docId, DistanceUnit.MILES, lat, lon) + 1;
     }
@@ -55,7 +62,21 @@ public class GeoPointDocFieldData extends DocFieldData<GeoPointFieldData> {
         return fieldData.arcDistance(docId, DistanceUnit.MILES, lat, lon);
     }
 
+    public double arcDistanceWithDefault(double lat, double lon, double defaultValue) {
+        if (!fieldData.hasValue(docId)) {
+            return defaultValue;
+        }
+        return fieldData.arcDistance(docId, DistanceUnit.MILES, lat, lon);
+    }
+
     public double arcDistanceInKm(double lat, double lon) {
+        return fieldData.arcDistance(docId, DistanceUnit.KILOMETERS, lat, lon);
+    }
+
+    public double arcDistanceInKmWithDefault(double lat, double lon, double defaultValue) {
+        if (!fieldData.hasValue(docId)) {
+            return defaultValue;
+        }
         return fieldData.arcDistance(docId, DistanceUnit.KILOMETERS, lat, lon);
     }
 
@@ -63,11 +84,32 @@ public class GeoPointDocFieldData extends DocFieldData<GeoPointFieldData> {
         return fieldData.distance(docId, DistanceUnit.MILES, lat, lon);
     }
 
+    public double distanceWithDefault(double lat, double lon, double defaultValue) {
+        if (!fieldData.hasValue(docId)) {
+            return defaultValue;
+        }
+        return fieldData.distance(docId, DistanceUnit.MILES, lat, lon);
+    }
+
     public double distanceInKm(double lat, double lon) {
         return fieldData.distance(docId, DistanceUnit.KILOMETERS, lat, lon);
     }
 
+    public double distanceInKmWithDefault(double lat, double lon, double defaultValue) {
+        if (!fieldData.hasValue(docId)) {
+            return defaultValue;
+        }
+        return fieldData.distance(docId, DistanceUnit.KILOMETERS, lat, lon);
+    }
+
     public double geohashDistance(String geohash) {
+        return fieldData.distanceGeohash(docId, DistanceUnit.MILES, geohash);
+    }
+
+    public double geohashDistanceWithDefault(String geohash, double defaultValue) {
+        if (!fieldData.hasValue(docId)) {
+            return defaultValue;
+        }
         return fieldData.distanceGeohash(docId, DistanceUnit.MILES, geohash);
     }
 

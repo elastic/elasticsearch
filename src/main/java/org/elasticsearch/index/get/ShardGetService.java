@@ -193,7 +193,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
                         Object value = null;
                         if (field.contains("_source.") || field.contains("doc[")) {
                             if (searchLookup == null) {
-                                searchLookup = new SearchLookup(mapperService, indexCache.fieldData());
+                                searchLookup = new SearchLookup(mapperService, indexCache.fieldData(), new String[]{type});
                             }
                             SearchScript searchScript = scriptService.search(searchLookup, "mvel", field, null);
                             searchScript.setNextReader(docIdAndVersion.reader);
@@ -211,7 +211,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
                             FieldMappers x = docMapper.mappers().smartName(field);
                             if (x == null || !x.mapper().stored()) {
                                 if (searchLookup == null) {
-                                    searchLookup = new SearchLookup(mapperService, indexCache.fieldData());
+                                    searchLookup = new SearchLookup(mapperService, indexCache.fieldData(), new String[]{type});
                                     searchLookup.setNextReader(docIdAndVersion.reader);
                                     searchLookup.setNextDocId(docIdAndVersion.docId);
                                 }
@@ -271,7 +271,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
                         } else {
                             if (field.contains("_source.")) {
                                 if (searchLookup == null) {
-                                    searchLookup = new SearchLookup(mapperService, indexCache.fieldData());
+                                    searchLookup = new SearchLookup(mapperService, indexCache.fieldData(), new String[]{type});
                                 }
                                 if (sourceAsMap == null) {
                                     sourceAsMap = SourceLookup.sourceAsMap(source.source.bytes(), source.source.offset(), source.source.length());
@@ -294,7 +294,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
                                 }
                             } else {
                                 if (searchLookup == null) {
-                                    searchLookup = new SearchLookup(mapperService, indexCache.fieldData());
+                                    searchLookup = new SearchLookup(mapperService, indexCache.fieldData(), new String[]{type});
                                     searchLookup.source().setNextSource(source.source.bytes(), source.source.offset(), source.source.length());
                                 }
 

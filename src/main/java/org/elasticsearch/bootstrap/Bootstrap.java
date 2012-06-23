@@ -224,7 +224,7 @@ public class Bootstrap {
                         // bail out
                     }
                 }
-            }, "es[keepAlive]");
+            }, "elasticsearch[keepAlive]");
             keepAliveThread.setDaemon(false);
             keepAliveThread.start();
         } catch (Throwable e) {

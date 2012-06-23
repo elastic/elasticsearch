@@ -20,7 +20,7 @@
 package org.elasticsearch.index.field.data.doubles;
 
 import org.elasticsearch.common.RamUsage;
-import org.elasticsearch.common.thread.ThreadLocals;
+import org.elasticsearch.common.util.concurrent.ThreadLocals;
 
 /**
  *

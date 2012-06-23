@@ -24,6 +24,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.policy.EnableMergePolicy;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -111,7 +112,7 @@ public class ConcurrentMergeSchedulerProvider extends AbstractIndexShardComponen
         @Override
         protected MergeThread getMergeThread(IndexWriter writer, MergePolicy.OneMerge merge) throws IOException {
             MergeThread thread = super.getMergeThread(writer, merge);
-            thread.setName("[" + shardId.index().name() + "][" + shardId.id() + "]: " + thread.getName());
+            thread.setName(EsExecutors.threadName(provider.indexSettings(), "[" + shardId.index().name() + "][" + shardId.id() + "]: " + thread.getName()));
             return thread;
         }
 

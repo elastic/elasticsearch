@@ -69,6 +69,10 @@ public class TestData {
         return true;
     }
 
+    public String currentText() {
+        return text;
+    }
+
     /**
      */
     public XContentBuilder current(XContentBuilder builder) throws Exception {

@@ -206,9 +206,10 @@ public abstract class CompressedIndexInput extends IndexInput {
 
     @Override
     public Object clone() {
+        // we clone and we need to make sure we keep the same positions!
         CompressedIndexInput cloned = (CompressedIndexInput) super.clone();
-        cloned.position = 0;
-        cloned.valid = 0;
+        cloned.uncompressed = new byte[uncompressed.length];
+        System.arraycopy(uncompressed, 0, cloned.uncompressed, 0, uncompressed.length);
         cloned.in = (IndexInput) cloned.in.clone();
         return cloned;
     }

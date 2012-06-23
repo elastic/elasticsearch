@@ -150,7 +150,7 @@ public class EsExecutors {
                 executor.getQueue().put(r);
             } catch (InterruptedException e) {
                 //should never happen since we never wait
-                throw new RejectedExecutionException(e);
+                throw new EsRejectedExecutionException(e);
             }
         }
     }
@@ -174,10 +174,9 @@ public class EsExecutors {
             try {
                 boolean successful = executor.getQueue().offer(r, waitTime, TimeUnit.MILLISECONDS);
                 if (!successful)
-                    throw new RejectedExecutionException("Rejected execution after waiting "
-                            + waitTime + " ms for task [" + r.getClass() + "] to be executed.");
+                    throw new EsRejectedExecutionException();
             } catch (InterruptedException e) {
-                throw new RejectedExecutionException(e);
+                throw new EsRejectedExecutionException(e);
             }
         }
     }

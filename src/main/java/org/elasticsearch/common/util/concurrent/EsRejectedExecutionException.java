@@ -19,18 +19,23 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import java.util.concurrent.*;
+import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.rest.RestStatus;
 
 /**
- * An extension to thread pool executor, allowing (in the future) to add specific additional stats to it.
  */
-public class EsThreadPoolExecutor extends ThreadPoolExecutor {
+public class EsRejectedExecutionException extends ElasticSearchException {
 
-    public EsThreadPoolExecutor(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit, BlockingQueue<Runnable> workQueue, ThreadFactory threadFactory) {
-        super(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, EsAbortPolicy.INSTANCE);
+    public EsRejectedExecutionException() {
+        super(null);
     }
 
-    public EsThreadPoolExecutor(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit, BlockingQueue<Runnable> workQueue, ThreadFactory threadFactory, RejectedExecutionHandler handler) {
-        super(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler);
+    public EsRejectedExecutionException(Throwable e) {
+        super(null, e);
+    }
+
+    @Override
+    public RestStatus status() {
+        return RestStatus.SERVICE_UNAVAILABLE;
     }
 }

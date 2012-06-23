@@ -23,6 +23,7 @@ import jsr166y.LinkedTransferQueue;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  *
@@ -56,44 +57,37 @@ public class EsExecutors {
         } else {
             name = "elasticsearch[" + name + "]";
         }
-        return name + namePrefix;
+        return name + "[" + namePrefix + "]";
     }
 
     public static ThreadFactory daemonThreadFactory(Settings settings, String namePrefix) {
         return daemonThreadFactory(threadName(settings, namePrefix));
     }
 
-    /**
-     * A priority based thread factory, for all Thread priority constants:
-     * <tt>Thread.MIN_PRIORITY, Thread.NORM_PRIORITY, Thread.MAX_PRIORITY</tt>;
-     * <p/>
-     * This factory is used instead of Executers.DefaultThreadFactory to allow
-     * manipulation of priority and thread owner name.
-     *
-     * @param namePrefix a name prefix for this thread
-     * @return a thread factory based on given priority.
-     */
     public static ThreadFactory daemonThreadFactory(String namePrefix) {
-        final ThreadFactory f = java.util.concurrent.Executors.defaultThreadFactory();
-        final String o = namePrefix + "-";
+        return new EsThreadFactory(namePrefix);
+    }
 
-        return new ThreadFactory() {
-            public Thread newThread(Runnable r) {
-                Thread t = f.newThread(r);
+    static class EsThreadFactory implements ThreadFactory {
+        final ThreadGroup group;
+        final AtomicInteger threadNumber = new AtomicInteger(1);
+        final String namePrefix;
 
-                /*
-                 * Thread name: owner-pool-N-thread-M, where N is the sequence
-                 * number of this factory, and M is the sequence number of the
-                 * thread created by this factory.
-                 */
-                t.setName(o + t.getName());
+        public EsThreadFactory(String namePrefix) {
+            this.namePrefix = namePrefix;
+            SecurityManager s = System.getSecurityManager();
+            group = (s != null) ? s.getThreadGroup() :
+                    Thread.currentThread().getThreadGroup();
+        }
 
-                /* override default definition t.setDaemon(false); */
-                t.setDaemon(true);
-
-                return t;
-            }
-        };
+        @Override
+        public Thread newThread(Runnable r) {
+            Thread t = new Thread(group, r,
+                    namePrefix + "[T#" + threadNumber.getAndIncrement() + "]",
+                    0);
+            t.setDaemon(true);
+            return t;
+        }
     }
 
     /**

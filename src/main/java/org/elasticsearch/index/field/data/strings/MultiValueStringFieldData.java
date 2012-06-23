@@ -21,7 +21,7 @@ package org.elasticsearch.index.field.data.strings;
 
 import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.thread.ThreadLocals;
+import org.elasticsearch.common.util.concurrent.ThreadLocals;
 
 /**
  *

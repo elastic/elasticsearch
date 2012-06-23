@@ -22,6 +22,7 @@ package org.elasticsearch.http.netty;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.netty.NettyStaticSetup;
 import org.elasticsearch.common.netty.OpenChannelsHandler;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
@@ -35,15 +36,12 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.http.*;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.transport.BindTransportException;
-import org.elasticsearch.transport.netty.NettyInternalESLoggerFactory;
 import org.jboss.netty.bootstrap.ServerBootstrap;
 import org.jboss.netty.channel.*;
 import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
 import org.jboss.netty.channel.socket.oio.OioServerSocketChannelFactory;
 import org.jboss.netty.handler.codec.http.*;
 import org.jboss.netty.handler.timeout.ReadTimeoutException;
-import org.jboss.netty.logging.InternalLogger;
-import org.jboss.netty.logging.InternalLoggerFactory;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -60,12 +58,7 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
 public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpServerTransport> implements HttpServerTransport {
 
     static {
-        InternalLoggerFactory.setDefaultFactory(new NettyInternalESLoggerFactory() {
-            @Override
-            public InternalLogger newInstance(String name) {
-                return super.newInstance(name.replace("org.jboss.netty.", "netty.").replace("org.jboss.netty.", "netty."));
-            }
-        });
+        NettyStaticSetup.setup();
     }
 
     private final NetworkService networkService;

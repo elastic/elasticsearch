@@ -288,7 +288,7 @@ public class QueryParseContext {
             return current.lookup();
         }
         if (lookup == null) {
-            lookup = new SearchLookup(mapperService(), indexCache().fieldData());
+            lookup = new SearchLookup(mapperService(), indexCache().fieldData(), null);
         }
         return lookup;
     }

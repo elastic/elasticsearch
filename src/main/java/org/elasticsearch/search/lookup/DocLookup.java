@@ -24,6 +24,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.DocFieldData;
 import org.elasticsearch.index.field.data.FieldData;
@@ -32,6 +33,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
@@ -47,15 +49,19 @@ public class DocLookup implements Map {
 
     private final FieldDataCache fieldDataCache;
 
+    @Nullable
+    private final String[] types;
+
     private IndexReader reader;
 
     private Scorer scorer;
 
     private int docId = -1;
 
-    DocLookup(MapperService mapperService, FieldDataCache fieldDataCache) {
+    DocLookup(MapperService mapperService, FieldDataCache fieldDataCache, @Nullable String[] types) {
         this.mapperService = mapperService;
         this.fieldDataCache = fieldDataCache;
+        this.types = types;
     }
 
     public MapperService mapperService() {
@@ -105,9 +111,9 @@ public class DocLookup implements Map {
         String fieldName = key.toString();
         FieldData fieldData = localCacheFieldData.get(fieldName);
         if (fieldData == null) {
-            FieldMapper mapper = mapperService.smartNameFieldMapper(fieldName);
+            FieldMapper mapper = mapperService.smartNameFieldMapper(fieldName, types);
             if (mapper == null) {
-                throw new ElasticSearchIllegalArgumentException("No field found for [" + fieldName + "]");
+                throw new ElasticSearchIllegalArgumentException("No field found for [" + fieldName + "] in mapping with types " + Arrays.toString(types) + "");
             }
             try {
                 fieldData = fieldDataCache.cache(mapper.fieldDataType(), reader, mapper.names().indexName());
@@ -124,7 +130,7 @@ public class DocLookup implements Map {
         String fieldName = key.toString();
         FieldData fieldData = localCacheFieldData.get(fieldName);
         if (fieldData == null) {
-            FieldMapper mapper = mapperService.smartNameFieldMapper(fieldName);
+            FieldMapper mapper = mapperService.smartNameFieldMapper(fieldName, types);
             if (mapper == null) {
                 return false;
             }

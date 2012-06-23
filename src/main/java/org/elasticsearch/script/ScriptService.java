@@ -180,7 +180,7 @@ public class ScriptService extends AbstractComponent {
     }
 
     public SearchScript search(MapperService mapperService, FieldDataCache fieldDataCache, String lang, String script, @Nullable Map<String, Object> vars) {
-        return search(compile(lang, script), new SearchLookup(mapperService, fieldDataCache), vars);
+        return search(compile(lang, script), new SearchLookup(mapperService, fieldDataCache, null), vars);
     }
 
     public Object execute(CompiledScript compiledScript, Map vars) {

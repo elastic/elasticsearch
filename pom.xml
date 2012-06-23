@@ -51,7 +51,7 @@
         <dependency>
             <groupId>org.mozilla</groupId>
             <artifactId>rhino</artifactId>
-            <version>1.7R3</version>
+            <version>1.7R4</version>
             <scope>compile</scope>
             <exclusions>
             </exclusions>

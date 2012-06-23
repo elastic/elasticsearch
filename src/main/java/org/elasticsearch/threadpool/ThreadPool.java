@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsAbortPolicy;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -233,7 +234,7 @@ public class ThreadPool extends AbstractComponent {
             RejectedExecutionHandler rejectedExecutionHandler;
             String rejectSetting = settings.get("reject_policy", defaultSettings.get("reject_policy", "abort"));
             if ("abort".equals(rejectSetting)) {
-                rejectedExecutionHandler = new AbortPolicy();
+                rejectedExecutionHandler = EsAbortPolicy.INSTANCE;
             } else if ("caller".equals(rejectSetting)) {
                 rejectedExecutionHandler = new ThreadPoolExecutor.CallerRunsPolicy();
             } else {
@@ -364,29 +365,6 @@ public class ThreadPool extends AbstractComponent {
                     // ignore
                 }
             }
-        }
-    }
-
-    /**
-     * A handler for rejected tasks that throws a
-     * <tt>RejectedExecutionException</tt>.
-     */
-    public static class AbortPolicy implements RejectedExecutionHandler {
-        /**
-         * Creates an <tt>AbortPolicy</tt>.
-         */
-        public AbortPolicy() {
-        }
-
-        /**
-         * Always throws RejectedExecutionException.
-         *
-         * @param r the runnable task requested to be executed
-         * @param e the executor attempting to execute this task
-         * @throws RejectedExecutionException always.
-         */
-        public void rejectedExecution(Runnable r, ThreadPoolExecutor e) {
-            throw new ThreadPoolRejectedException();
         }
     }
 

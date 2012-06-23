@@ -17,21 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.threadpool;
+package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.rest.RestStatus;
+import java.util.concurrent.RejectedExecutionHandler;
+import java.util.concurrent.ThreadPoolExecutor;
 
 /**
  */
-public class ThreadPoolRejectedException extends ElasticSearchException {
+public class EsAbortPolicy implements RejectedExecutionHandler {
 
-    public ThreadPoolRejectedException() {
-        super("rejected");
-    }
+    public static final EsAbortPolicy INSTANCE = new EsAbortPolicy();
 
     @Override
-    public RestStatus status() {
-        return RestStatus.FORBIDDEN;
+    public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
+        throw new EsRejectedExecutionException();
     }
 }

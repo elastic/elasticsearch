@@ -24,8 +24,6 @@ import org.elasticsearch.common.bloom.BloomFilter;
 import org.elasticsearch.common.bloom.BloomFilterFactory;
 import org.testng.annotations.Test;
 
-import java.nio.ByteBuffer;
-
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -38,15 +36,15 @@ public class BoomFilterTests {
     @Test
     public void testSimpleOps() {
         BloomFilter filter = BloomFilterFactory.getFilter(10, 15);
-        filter.add(wrap("1"));
-        assertThat(filter.isPresent(wrap("1")), equalTo(true));
-        assertThat(filter.isPresent(wrap("2")), equalTo(false));
-        filter.add(wrap("2"));
-        assertThat(filter.isPresent(wrap("1")), equalTo(true));
-        assertThat(filter.isPresent(wrap("2")), equalTo(true));
+        filter.add(wrap("1"), 0, wrap("1").length);
+        assertThat(filter.isPresent(wrap("1"), 0, wrap("1").length), equalTo(true));
+        assertThat(filter.isPresent(wrap("2"), 0, wrap("2").length), equalTo(false));
+        filter.add(wrap("2"), 0, wrap("2").length);
+        assertThat(filter.isPresent(wrap("1"), 0, wrap("1").length), equalTo(true));
+        assertThat(filter.isPresent(wrap("2"), 0, wrap("2").length), equalTo(true));
     }
 
-    private ByteBuffer wrap(String key) {
-        return ByteBuffer.wrap(key.getBytes(Charsets.UTF_8));
+    private byte[] wrap(String key) {
+        return key.getBytes(Charsets.UTF_8);
     }
 }

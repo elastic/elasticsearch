@@ -19,8 +19,6 @@
 
 package org.elasticsearch.common.bloom;
 
-import java.nio.ByteBuffer;
-
 /**
  *
  */
@@ -32,16 +30,7 @@ public interface BloomFilter {
         }
 
         @Override
-        public void add(ByteBuffer key) {
-        }
-
-        @Override
         public boolean isPresent(byte[] key, int offset, int length) {
-            return true;
-        }
-
-        @Override
-        public boolean isPresent(ByteBuffer key) {
             return true;
         }
 
@@ -57,16 +46,7 @@ public interface BloomFilter {
         }
 
         @Override
-        public void add(ByteBuffer key) {
-        }
-
-        @Override
         public boolean isPresent(byte[] key, int offset, int length) {
-            return false;
-        }
-
-        @Override
-        public boolean isPresent(ByteBuffer key) {
             return false;
         }
 
@@ -78,11 +58,7 @@ public interface BloomFilter {
 
     void add(byte[] key, int offset, int length);
 
-    void add(ByteBuffer key);
-
     boolean isPresent(byte[] key, int offset, int length);
-
-    boolean isPresent(ByteBuffer key);
 
     long sizeInBytes();
 }

@@ -227,38 +227,43 @@ public class MetaDataMappingService extends AbstractComponent {
         });
     }
 
-    public void removeMapping(final RemoveRequest request) {
+    public void removeMapping(final RemoveRequest request, final Listener listener) {
         clusterService.submitStateUpdateTask("remove-mapping [" + request.mappingType + "]", new ProcessedClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 if (request.indices.length == 0) {
-                    throw new IndexMissingException(new Index("_all"));
+                    listener.onFailure(new IndexMissingException(new Index("_all")));
                 }
 
-                MetaData.Builder builder = newMetaDataBuilder().metaData(currentState.metaData());
-                boolean changed = false;
-                for (String indexName : request.indices) {
-                    IndexMetaData indexMetaData = currentState.metaData().index(indexName);
-                    if (indexMetaData != null) {
-                        if (indexMetaData.mappings().containsKey(request.mappingType)) {
-                            builder.put(newIndexMetaDataBuilder(indexMetaData).removeMapping(request.mappingType));
-                            changed = true;
+                try {
+                    MetaData.Builder builder = newMetaDataBuilder().metaData(currentState.metaData());
+                    boolean changed = false;
+                    for (String indexName : request.indices) {
+                        IndexMetaData indexMetaData = currentState.metaData().index(indexName);
+                        if (indexMetaData != null) {
+                            if (indexMetaData.mappings().containsKey(request.mappingType)) {
+                                builder.put(newIndexMetaDataBuilder(indexMetaData).removeMapping(request.mappingType));
+                                changed = true;
+                            }
                         }
                     }
-                }
 
-                if (!changed) {
+                    if (!changed) {
+                        return currentState;
+                    }
+
+                    logger.info("[{}] remove_mapping [{}]", request.indices, request.mappingType);
+
+                    return ClusterState.builder().state(currentState).metaData(builder).build();
+                } catch (Exception e) {
+                    listener.onFailure(e);
                     return currentState;
                 }
-
-                logger.info("[{}] remove_mapping [{}]", request.indices, request.mappingType);
-
-                return ClusterState.builder().state(currentState).metaData(builder).build();
             }
 
             @Override
             public void clusterStateProcessed(ClusterState clusterState) {
-                // TODO add a listener here!
+                listener.onResponse(new Response(true));
             }
         });
     }

@@ -114,14 +114,34 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
                         refreshAction.execute(Requests.refreshRequest(request.indices()), new ActionListener<RefreshResponse>() {
                             @Override
                             public void onResponse(RefreshResponse refreshResponse) {
-                                metaDataMappingService.removeMapping(new MetaDataMappingService.RemoveRequest(request.indices(), request.type()));
-                                latch.countDown();
+                                metaDataMappingService.removeMapping(new MetaDataMappingService.RemoveRequest(request.indices(), request.type()), new MetaDataMappingService.Listener() {
+                                    @Override
+                                    public void onResponse(MetaDataMappingService.Response response) {
+                                        latch.countDown();
+                                    }
+
+                                    @Override
+                                    public void onFailure(Throwable t) {
+                                        failureRef.set(t);
+                                        latch.countDown();
+                                    }
+                                });
                             }
 
                             @Override
                             public void onFailure(Throwable e) {
-                                metaDataMappingService.removeMapping(new MetaDataMappingService.RemoveRequest(request.indices(), request.type()));
-                                latch.countDown();
+                                metaDataMappingService.removeMapping(new MetaDataMappingService.RemoveRequest(request.indices(), request.type()), new MetaDataMappingService.Listener() {
+                                    @Override
+                                    public void onResponse(MetaDataMappingService.Response response) {
+                                        latch.countDown();
+                                    }
+
+                                    @Override
+                                    public void onFailure(Throwable t) {
+                                        failureRef.set(t);
+                                        latch.countDown();
+                                    }
+                                });
                             }
                         });
                     }

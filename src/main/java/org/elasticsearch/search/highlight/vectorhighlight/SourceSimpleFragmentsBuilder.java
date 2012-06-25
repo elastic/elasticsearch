@@ -22,7 +22,7 @@ package org.elasticsearch.search.highlight.vectorhighlight;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.vectorhighlight.BoundaryScanner;
-import org.apache.lucene.search.vectorhighlight.SimpleFragmentsBuilder;
+import org.apache.lucene.search.vectorhighlight.XSimpleFragmentsBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -33,7 +33,7 @@ import java.util.List;
 /**
  *
  */
-public class SourceSimpleFragmentsBuilder extends SimpleFragmentsBuilder {
+public class SourceSimpleFragmentsBuilder extends XSimpleFragmentsBuilder {
 
     private final FieldMapper mapper;
 

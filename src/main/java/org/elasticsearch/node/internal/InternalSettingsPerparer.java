@@ -54,7 +54,7 @@ public class InternalSettingsPerparer {
             // if its default, then load it, but also load form env
             if (System.getProperty("es.default.config") != null) {
                 loadFromEnv = true;
-                settingsBuilder.loadFromUrl(environment.resolveConfig(System.getProperty("es.config")));
+                settingsBuilder.loadFromUrl(environment.resolveConfig(System.getProperty("es.default.config")));
             }
             // if explicit, just load it and don't load from env
             if (System.getProperty("es.config") != null) {

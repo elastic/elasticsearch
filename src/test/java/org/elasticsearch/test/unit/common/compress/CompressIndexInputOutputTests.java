@@ -127,6 +127,16 @@ public class CompressIndexInputOutputTests {
         long pos3 = out.getFilePointer();
         out.writeVInt(4);
         out.writeInt(4);
+
+        int size = 50;
+        long[] positions = new long[size];
+        String[] data = new String[size];
+        for (int i = 0; i < 50; i++) {
+            positions[i] = out.getFilePointer();
+            data[i] = RandomStringGenerator.random(12345);
+            out.writeString(data[i]);
+        }
+
         out.close();
 
         //IndexInput in = dir.openInput("test");
@@ -138,6 +148,12 @@ public class CompressIndexInputOutputTests {
         in.seek(in.getFilePointer() + numBytes);
         assertThat(in.readVInt(), equalTo(4));
         assertThat(in.readInt(), equalTo(4));
+
+        for (int i = 0; i < size; i++) {
+            in.seek(positions[i]);
+            assertThat(in.getFilePointer(), equalTo(positions[i]));
+            assertThat(in.readString(), equalTo(data[i]));
+        }
     }
 
     @Test

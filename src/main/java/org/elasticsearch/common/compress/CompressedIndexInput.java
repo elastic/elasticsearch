@@ -40,19 +40,16 @@ public abstract class CompressedIndexInput extends IndexInput {
     protected byte[] uncompressed;
     private int position = 0;
     private int valid = 0;
-    private long headerLength;
     private int currentOffsetIdx;
-    private long currentOffset;
-    private long currentOffsetFilePointer;
-    private long metaDataPosition;
+    private long currentUncompressedChunkPointer;
 
     public CompressedIndexInput(IndexInput in) throws IOException {
         super("compressed(" + in.toString() + ")");
         this.in = in;
         readHeader(in);
         this.version = in.readInt();
-        metaDataPosition = in.readLong();
-        headerLength = in.getFilePointer();
+        long metaDataPosition = in.readLong();
+        long headerLength = in.getFilePointer();
         in.seek(metaDataPosition);
         this.uncompressedLength = in.readVLong();
         int size = in.readVInt();
@@ -61,8 +58,7 @@ public abstract class CompressedIndexInput extends IndexInput {
             offsets.set(i, in.readVLong());
         }
         this.currentOffsetIdx = -1;
-        this.currentOffset = 0;
-        this.currentOffsetFilePointer = 0;
+        this.currentUncompressedChunkPointer = 0;
         in.seek(headerLength);
     }
 
@@ -132,7 +128,7 @@ public abstract class CompressedIndexInput extends IndexInput {
 
     @Override
     public long getFilePointer() {
-        return currentOffsetFilePointer + position;
+        return currentUncompressedChunkPointer + position;
     }
 
     @Override
@@ -147,8 +143,8 @@ public abstract class CompressedIndexInput extends IndexInput {
         }
 
         // TODO: optimize so we won't have to readyBuffer on seek, can keep the position around, and set it on readyBuffer in this case
-        long pointer = offsets.get(idx);
-        if (pointer != currentOffset) {
+        if (idx != currentOffsetIdx) {
+            long pointer = offsets.get(idx);
             in.seek(pointer);
             position = 0;
             valid = 0;
@@ -191,8 +187,7 @@ public abstract class CompressedIndexInput extends IndexInput {
             return false;
         }
         currentOffsetIdx++;
-        currentOffset = offsets.get(currentOffsetIdx);
-        currentOffsetFilePointer = currentOffset - headerLength;
+        currentUncompressedChunkPointer = currentOffsetIdx * uncompressed.length;
         position = 0;
         return (position < valid);
     }

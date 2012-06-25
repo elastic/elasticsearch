@@ -265,7 +265,7 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                             fragListBuilder = new SingleFragListBuilder();
 
                             if (mapper.stored()) {
-                                fragmentsBuilder = new SimpleFragmentsBuilder(field.preTags(), field.postTags(), boundaryScanner);
+                                fragmentsBuilder = new XSimpleFragmentsBuilder(field.preTags(), field.postTags(), boundaryScanner);
                             } else {
                                 fragmentsBuilder = new SourceSimpleFragmentsBuilder(mapper, context, field.preTags(), field.postTags(), boundaryScanner);
                             }
@@ -277,13 +277,13 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
 
                             if (field.scoreOrdered()) {
                                 if (mapper.stored()) {
-                                    fragmentsBuilder = new ScoreOrderFragmentsBuilder(field.preTags(), field.postTags(), boundaryScanner);
+                                    fragmentsBuilder = new XScoreOrderFragmentsBuilder(field.preTags(), field.postTags(), boundaryScanner);
                                 } else {
                                     fragmentsBuilder = new SourceScoreOrderFragmentsBuilder(mapper, context, field.preTags(), field.postTags(), boundaryScanner);
                                 }
                             } else {
                                 if (mapper.stored()) {
-                                    fragmentsBuilder = new SimpleFragmentsBuilder(field.preTags(), field.postTags(), boundaryScanner);
+                                    fragmentsBuilder = new XSimpleFragmentsBuilder(field.preTags(), field.postTags(), boundaryScanner);
                                 } else {
                                     fragmentsBuilder = new SourceSimpleFragmentsBuilder(mapper, context, field.preTags(), field.postTags(), boundaryScanner);
                                 }

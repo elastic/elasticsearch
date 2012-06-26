@@ -230,7 +230,7 @@ public class ThreadPool extends AbstractComponent {
             return new ExecutorHolder(executor, new Info(name, type, -1, -1, keepAlive, null));
         } else if ("fixed".equals(type)) {
             int size = settings.getAsInt("size", defaultSettings.getAsInt("size", Runtime.getRuntime().availableProcessors() * 5));
-            SizeValue capacity = settings.getAsSize("capacity", settings.getAsSize("queue_size", defaultSettings.getAsSize("queue_size", null)));
+            SizeValue capacity = settings.getAsSize("capacity", settings.getAsSize("queue", settings.getAsSize("queue_size", defaultSettings.getAsSize("queue", defaultSettings.getAsSize("queue_size", null)))));
             RejectedExecutionHandler rejectedExecutionHandler;
             String rejectSetting = settings.get("reject_policy", defaultSettings.get("reject_policy", "abort"));
             if ("abort".equals(rejectSetting)) {

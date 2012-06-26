@@ -183,6 +183,7 @@ public class SimpleBloomCache extends AbstractIndexComponent implements BloomCac
             TermDocs termDocs = null;
             TermEnum termEnum = null;
             try {
+                UnicodeUtil.UTF8Result utf8Result = new UnicodeUtil.UTF8Result();
                 BloomFilter filter = BloomFilterFactory.getFilter(reader.numDocs(), 15);
                 termDocs = reader.termDocs();
                 termEnum = reader.terms(new Term(field));
@@ -191,7 +192,7 @@ public class SimpleBloomCache extends AbstractIndexComponent implements BloomCac
                     if (term == null || term.field() != field) break;
 
                     // LUCENE MONITOR: 4.0, move to use bytes!
-                    UnicodeUtil.UTF8Result utf8Result = Unicode.fromStringAsUtf8(term.text());
+                    Unicode.fromStringAsUtf8(term.text(), utf8Result);
                     termDocs.seek(termEnum);
                     while (termDocs.next()) {
                         // when traversing, make sure to ignore deleted docs, so the key->docId will be correct

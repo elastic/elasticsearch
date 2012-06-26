@@ -38,7 +38,7 @@ import static org.elasticsearch.index.mapper.MapperBuilders.uid;
  */
 public class UidFieldMapper extends AbstractFieldMapper<Uid> implements InternalMapper, RootMapper {
 
-    public static final String NAME = "_uid";
+    public static final String NAME = "_uid".intern();
 
     public static final Term TERM_FACTORY = new Term(NAME, "");
 

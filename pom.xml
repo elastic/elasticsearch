@@ -374,6 +374,28 @@
                 </configuration>
             </plugin>
             <plugin>
+                <artifactId>maven-resources-plugin</artifactId>
+                <version>2.5</version>
+                <executions>
+                    <execution>
+                        <id>copy-resources</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/bin</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>${basedir}/bin</directory>
+                                    <filtering>true</filtering>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
                 <artifactId>maven-assembly-plugin</artifactId>
                 <version>2.3</version>
                 <configuration>
@@ -436,7 +458,8 @@
                                     </mapper>
                                 </data>
                                 <data>
-                                    <src>${project.basedir}/bin</src>
+                                    <!-- use the filtered one from the resources plugin -->
+                                    <src>${project.build.directory}/bin</src>
                                     <type>directory</type>
                                     <excludes>*.bat, .DS_Store</excludes>
                                     <mapper>

@@ -69,9 +69,10 @@ public class UidFilter extends Filter {
         BloomFilter filter = bloomCache.filter(reader, UidFieldMapper.NAME, true);
         FixedBitSet set = null;
         TermDocs td = null;
+        UnicodeUtil.UTF8Result utf8 = new UnicodeUtil.UTF8Result();
         try {
             for (Term uid : uids) {
-                UnicodeUtil.UTF8Result utf8 = Unicode.fromStringAsUtf8(uid.text());
+                Unicode.fromStringAsUtf8(uid.text(), utf8);
                 if (!filter.isPresent(utf8.result, 0, utf8.length)) {
                     continue;
                 }

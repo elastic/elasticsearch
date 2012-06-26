@@ -9,6 +9,7 @@
 
     <fileSets>
         <fileSet>
+            <filtered>true</filtered>
             <directory>bin</directory>
             <outputDirectory>bin</outputDirectory>
             <lineEnding>dos</lineEnding>
@@ -18,6 +19,7 @@
             </includes>
         </fileSet>
         <fileSet>
+            <filtered>true</filtered>
             <directory>bin</directory>
             <outputDirectory>bin</outputDirectory>
             <fileMode>0755</fileMode>

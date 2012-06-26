@@ -117,6 +117,13 @@ public class NodesInfoRequestBuilder extends BaseClusterRequestBuilder<NodesInfo
         return this;
     }
 
+    /**
+     * Should the node plugin info be returned.
+     */
+    public NodesInfoRequestBuilder setPlugins(boolean plugins) {
+        request.plugins(plugins);
+        return this;
+    }
 
     @Override
     protected void doExecute(ActionListener<NodesInfoResponse> listener) {

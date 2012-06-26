@@ -73,6 +73,9 @@ public class RestNodesInfoAction extends BaseRestHandler {
         controller.registerHandler(RestRequest.Method.GET, "/_nodes/http", new RestHttpHandler());
         controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/http", new RestHttpHandler());
 
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/plugins", new RestPluginsHandler());
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/plugins", new RestPluginsHandler());
+
         this.settingsFilter = settingsFilter;
     }
 
@@ -201,4 +204,14 @@ public class RestNodesInfoAction extends BaseRestHandler {
             executeNodeRequest(request, channel, nodesInfoRequest);
         }
     }
+
+    class RestPluginsHandler implements RestHandler {
+        @Override
+        public void handleRequest(final RestRequest request, final RestChannel channel) {
+            NodesInfoRequest nodesInfoRequest = new NodesInfoRequest(RestActions.splitNodes(request.param("nodeId")));
+            nodesInfoRequest.clear().plugins(true);
+            executeNodeRequest(request, channel, nodesInfoRequest);
+        }
+    }
+
 }

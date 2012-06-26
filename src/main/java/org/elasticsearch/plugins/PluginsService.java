@@ -204,6 +204,10 @@ public class PluginsService extends AbstractComponent {
         }
         return services;
     }
+    
+    public PluginInfo info() {
+        return new PluginInfo(plugins.values());
+    }
 
     public Collection<Class<? extends Module>> shardModules() {
         List<Class<? extends Module>> modules = Lists.newArrayList();

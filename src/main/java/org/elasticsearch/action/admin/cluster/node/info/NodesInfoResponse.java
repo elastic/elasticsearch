@@ -128,6 +128,9 @@ public class NodesInfoResponse extends NodesOperationResponse<NodeInfo> implemen
             if (nodeInfo.http() != null) {
                 nodeInfo.http().toXContent(builder, params);
             }
+            if (nodeInfo.plugins() != null) {
+                nodeInfo.plugins().toXContent(builder, params);
+            }
 
             builder.endObject();
         }

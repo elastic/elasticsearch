@@ -33,10 +33,14 @@ import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.monitor.MonitorService;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.net.InetAddress;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.node.internal.InternalSettingsPerparer;
 
 /**
  */
@@ -51,6 +55,8 @@ public class NodeService extends AbstractComponent {
     private final TransportService transportService;
 
     private final IndicesService indicesService;
+    
+    private final PluginsService pluginsService;
 
     @Nullable
     private HttpServer httpServer;
@@ -73,6 +79,8 @@ public class NodeService extends AbstractComponent {
         if (address != null) {
             this.hostname = address.getHostName();
         }
+        Tuple<Settings, Environment> tuple = InternalSettingsPerparer.prepareSettings(settings, true);
+        pluginsService = new PluginsService(tuple.v1(), tuple.v2());
     }
 
     public void setHttpServer(@Nullable HttpServer httpServer) {
@@ -113,11 +121,12 @@ public class NodeService extends AbstractComponent {
                 threadPool.info(),
                 monitorService.networkService().info(),
                 transportService.info(),
-                httpServer == null ? null : httpServer.info()
+                httpServer == null ? null : httpServer.info(),
+                pluginsService.info()
         );
     }
 
-    public NodeInfo info(boolean settings, boolean os, boolean process, boolean jvm, boolean threadPool, boolean network, boolean transport, boolean http) {
+    public NodeInfo info(boolean settings, boolean os, boolean process, boolean jvm, boolean threadPool, boolean network, boolean transport, boolean http, boolean plugins) {
         return new NodeInfo(hostname, clusterService.state().nodes().localNode(), serviceAttributes,
                 settings ? this.settings : null,
                 os ? monitorService.osService().info() : null,
@@ -126,7 +135,8 @@ public class NodeService extends AbstractComponent {
                 threadPool ? this.threadPool.info() : null,
                 network ? monitorService.networkService().info() : null,
                 transport ? transportService.info() : null,
-                http ? (httpServer == null ? null : httpServer.info()) : null
+                http ? (httpServer == null ? null : httpServer.info()) : null,
+                plugins ? pluginsService.info() : null
         );
     }
 

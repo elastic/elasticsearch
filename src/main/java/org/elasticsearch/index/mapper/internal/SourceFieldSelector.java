@@ -24,8 +24,6 @@ import org.elasticsearch.common.lucene.document.ResetFieldSelector;
 
 /**
  * An optimized field selector that loads just the uid.
- *
- *
  */
 public class SourceFieldSelector implements ResetFieldSelector {
 
@@ -45,5 +43,10 @@ public class SourceFieldSelector implements ResetFieldSelector {
 
     @Override
     public void reset() {
+    }
+
+    @Override
+    public String toString() {
+        return "source";
     }
 }

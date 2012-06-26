@@ -1822,4 +1822,27 @@ public class SimpleIndexQueryParserTests {
         assertThat(filter.points()[2].lat, closeTo(20, 0.00001));
         assertThat(filter.points()[2].lon, closeTo(-90, 0.00001));
     }
+
+    @Test
+    public void testGeoShapeFilter() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/query/geoShape-filter.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(DeletionAwareConstantScoreQuery.class));
+        DeletionAwareConstantScoreQuery constantScoreQuery = (DeletionAwareConstantScoreQuery) parsedQuery;
+        XTermsFilter filter = (XTermsFilter) constantScoreQuery.getFilter();
+        Term exampleTerm = filter.getTerms()[0];
+        assertThat(exampleTerm.field(), equalTo("country"));
+    }
+
+    @Test
+    public void testGeoShapeQuery() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/query/geoShape-query.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(BooleanQuery.class));
+        BooleanQuery booleanQuery = (BooleanQuery) parsedQuery;
+        TermQuery termQuery = (TermQuery) booleanQuery.getClauses()[0].getQuery();
+        assertThat(termQuery.getTerm().field(), equalTo("country"));
+    }
 }

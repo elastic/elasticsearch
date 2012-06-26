@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test.unit.index.mapper.geopoint;
+package org.elasticsearch.test.unit.index.mapper.geo;
 
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Numbers;

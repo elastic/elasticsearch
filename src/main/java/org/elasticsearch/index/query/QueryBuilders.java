@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import com.spatial4j.core.shape.Shape;
 import org.elasticsearch.common.Nullable;
 
 /**
@@ -698,6 +699,17 @@ public abstract class QueryBuilders {
      */
     public static WrapperQueryBuilder wrapperQuery(byte[] source, int offset, int length) {
         return new WrapperQueryBuilder(source, offset, length);
+    }
+
+    /**
+     * Query that matches Documents based on the relationship between the given shape and
+     * indexed shapes
+     *
+     * @param name The shape field name
+     * @param shape Shape to use in the Query
+     */
+    public static GeoShapeQueryBuilder geoShapeQuery(String name, Shape shape) {
+        return new GeoShapeQueryBuilder(name, shape);
     }
 
     private QueryBuilders() {

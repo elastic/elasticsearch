@@ -34,6 +34,8 @@ import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
+import java.io.IOException;
+
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
@@ -178,6 +180,65 @@ public class SimpleValidateQueryTests extends AbstractNodesTests {
                 equalTo("ConstantScore(NotDeleted(NotFilter(cache(foo:bar))))"));
 
     }
+
+    @Test
+    public void explainValidateQueryTwoNodes() throws IOException {
+        client.admin().indices().prepareDelete().execute().actionGet();
+
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder()
+                .put("index.number_of_shards", 1)
+                .put("index.number_of_replicas", 0)).execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().indices().preparePutMapping("test").setType("type1")
+                .setSource(XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("foo").field("type", "string").endObject()
+                        .startObject("bar").field("type", "integer").endObject()
+                        .startObject("baz").field("type", "string").field("analyzer", "snowball").endObject()
+                        .startObject("pin").startObject("properties").startObject("location").field("type", "geo_point").endObject().endObject().endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
+
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+
+        ValidateQueryResponse response;
+        response =  client("node1").admin().indices().prepareValidateQuery("test")
+                .setQuery("foo".getBytes())
+                .setExplain(true)
+                .execute().actionGet();
+        assertThat(response.valid(), equalTo(false));
+        assertThat(response.queryExplanations().size(), equalTo(1));
+        assertThat(response.queryExplanations().get(0).error(), containsString("Failed to parse"));
+        assertThat(response.queryExplanations().get(0).explanation(), nullValue());
+
+        response =  client("node2").admin().indices().prepareValidateQuery("test")
+                .setQuery("foo".getBytes())
+                .setExplain(true)
+                .execute().actionGet();
+        assertThat(response.valid(), equalTo(false));
+        assertThat(response.queryExplanations().size(), equalTo(1));
+        assertThat(response.queryExplanations().get(0).error(), containsString("Failed to parse"));
+        assertThat(response.queryExplanations().get(0).explanation(), nullValue());
+
+        response =  client("node1").admin().indices().prepareValidateQuery("test")
+                .setQuery(QueryBuilders.queryString("foo"))
+                .setExplain(true)
+                .execute().actionGet();
+        assertThat(response.valid(), equalTo(true));
+        assertThat(response.queryExplanations().size(), equalTo(1));
+        assertThat(response.queryExplanations().get(0).explanation(), equalTo("_all:foo"));
+        assertThat(response.queryExplanations().get(0).error(), nullValue());
+
+        response =  client("node2").admin().indices().prepareValidateQuery("test")
+                .setQuery(QueryBuilders.queryString("foo"))
+                .setExplain(true)
+                .execute().actionGet();
+        assertThat(response.valid(), equalTo(true));
+        assertThat(response.queryExplanations().size(), equalTo(1));
+        assertThat(response.queryExplanations().get(0).explanation(), equalTo("_all:foo"));
+        assertThat(response.queryExplanations().get(0).error(), nullValue());
+    }
+
 
     private void assertExplanation(QueryBuilder queryBuilder, Matcher<String> matcher) {
         ValidateQueryResponse response = client.admin().indices().prepareValidateQuery("test")

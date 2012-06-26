@@ -60,6 +60,14 @@ public class Unicode {
         return result;
     }
 
+    public static void fromStringAsUtf8(String source, UnicodeUtil.UTF8Result result) {
+        if (source == null) {
+            result.length = 0;
+            return;
+        }
+        UnicodeUtil.UTF16toUTF8(source, 0, source.length(), result);
+    }
+
     public static UnicodeUtil.UTF8Result unsafeFromStringAsUtf8(String source) {
         if (source == null) {
             return null;

@@ -241,9 +241,17 @@ public class ThreadPool extends AbstractComponent {
                 throw new ElasticSearchIllegalArgumentException("reject_policy [" + rejectSetting + "] not valid for [" + name + "] thread pool");
             }
             logger.debug("creating thread_pool [{}], type [{}], size [{}], queue_size [{}], reject_policy [{}]", name, type, size, capacity, rejectSetting);
+            BlockingQueue<Runnable> workQueue;
+            if (capacity == null) {
+                workQueue = new LinkedTransferQueue<Runnable>();
+            } else if ((int) capacity.singles() > 0) {
+                workQueue = new ArrayBlockingQueue<Runnable>((int) capacity.singles());
+            } else {
+                workQueue = new SynchronousQueue<Runnable>();
+            }
             Executor executor = new EsThreadPoolExecutor(size, size,
                     0L, TimeUnit.MILLISECONDS,
-                    capacity == null ? new LinkedTransferQueue<Runnable>() : new ArrayBlockingQueue<Runnable>((int) capacity.singles()),
+                    workQueue,
                     threadFactory, rejectedExecutionHandler);
             return new ExecutorHolder(executor, new Info(name, type, size, size, null, capacity));
         } else if ("scaling".equals(type)) {

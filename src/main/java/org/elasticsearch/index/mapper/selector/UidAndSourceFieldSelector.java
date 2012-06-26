@@ -26,8 +26,6 @@ import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 
 /**
  * An optimized field selector that loads just the uid and the source.
- *
- *
  */
 public class UidAndSourceFieldSelector implements ResetFieldSelector {
 
@@ -53,5 +51,10 @@ public class UidAndSourceFieldSelector implements ResetFieldSelector {
     @Override
     public void reset() {
         match = 0;
+    }
+
+    @Override
+    public String toString() {
+        return "uid_and_source";
     }
 }

@@ -54,4 +54,9 @@ public class FieldMappersFieldSelector implements ResetFieldSelector {
     @Override
     public void reset() {
     }
+
+    @Override
+    public String toString() {
+        return "fields(" + names + ")";
+    }
 }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import com.spatial4j.core.shape.Shape;
 import org.elasticsearch.common.Nullable;
 
 /**
@@ -336,6 +337,16 @@ public abstract class FilterBuilders {
      */
     public static GeoPolygonFilterBuilder geoPolygonFilter(String name) {
         return new GeoPolygonFilterBuilder(name);
+    }
+
+    /**
+     * A filter to filter based on the relationship between a shape and indexed shapes
+     *
+     * @param name The shape field name
+     * @param shape Shape to use in the filter
+     */
+    public static GeoShapeFilterBuilder geoShapeFilter(String name, Shape shape) {
+        return new GeoShapeFilterBuilder(name, shape);
     }
 
     /**

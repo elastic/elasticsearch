@@ -61,7 +61,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
@@ -1299,7 +1298,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             config.setReaderTermsIndexDivisor(termIndexDivisor);
             config.setMaxThreadStates(indexConcurrency);
 
-            indexWriter = new IndexWriter(store.directory(), config);
+            indexWriter = new XIndexWriter(store.directory(), config, logger, bloomCache);
         } catch (IOException e) {
             safeClose(indexWriter);
             throw e;

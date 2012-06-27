@@ -100,7 +100,9 @@ public class AwsEc2Service extends AbstractLifecycleComponent<AwsEc2Service> {
         this.client = new AmazonEC2Client(credentials, clientConfiguration);
 
         if (componentSettings.get("ec2.endpoint") != null) {
-            client.setEndpoint(componentSettings.get("ec2.endpoint"));
+            String endpoint = componentSettings.get("ec2.endpoint");
+            logger.debug("using explicit ec2 region [{}]", endpoint);
+            client.setEndpoint(endpoint);
         } else if (componentSettings.get("region") != null) {
             String region = componentSettings.get("region").toLowerCase();
             String endpoint;
@@ -122,6 +124,7 @@ public class AwsEc2Service extends AbstractLifecycleComponent<AwsEc2Service> {
                 throw new ElasticSearchIllegalArgumentException("No automatic endpoint could be derived from region [" + region + "]");
             }
             if (endpoint != null) {
+                logger.debug("using ec2 region [{}], with endpoint [{}]", region, endpoint);
                 client.setEndpoint(endpoint);
             }
         }

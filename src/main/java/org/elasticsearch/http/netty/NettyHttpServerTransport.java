@@ -94,6 +94,8 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
 
     private final ByteSizeValue tcpReceiveBufferSize;
 
+    final ByteSizeValue maxCumulationBufferCapacity;
+
     private volatile ServerBootstrap serverBootstrap;
 
     private volatile BoundTransportAddress boundAddress;
@@ -112,9 +114,10 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         this.maxChunkSize = componentSettings.getAsBytesSize("max_chunk_size", settings.getAsBytesSize("http.max_chunk_size", new ByteSizeValue(8, ByteSizeUnit.KB)));
         this.maxHeaderSize = componentSettings.getAsBytesSize("max_header_size", settings.getAsBytesSize("http.max_header_size", new ByteSizeValue(8, ByteSizeUnit.KB)));
         this.maxInitialLineLength = componentSettings.getAsBytesSize("max_initial_line_length", settings.getAsBytesSize("http.max_initial_line_length", new ByteSizeValue(4, ByteSizeUnit.KB)));
-        // don't reset cookies by default, since I don't think we really need to, and parsing of cookies with netty is slow
-        // and requires a large stack allocation because of the use of regex
+        // don't reset cookies by default, since I don't think we really need to
+        // note, parsing cookies was fixed in netty 3.5.1 regarding stack allocation, but still, currently, we don't need cookies
         this.resetCookies = componentSettings.getAsBoolean("reset_cookies", settings.getAsBoolean("http.reset_cookies", false));
+        this.maxCumulationBufferCapacity = componentSettings.getAsBytesSize("max_cumulation_buffer_capacity", null);
         this.workerCount = componentSettings.getAsInt("worker_count", Runtime.getRuntime().availableProcessors() * 2);
         this.blockingServer = settings.getAsBoolean("http.blocking_server", settings.getAsBoolean(TCP_BLOCKING_SERVER, settings.getAsBoolean(TCP_BLOCKING, false)));
         this.port = componentSettings.get("port", settings.get("http.port", "9200-9300"));
@@ -288,11 +291,19 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         public ChannelPipeline getPipeline() throws Exception {
             ChannelPipeline pipeline = Channels.pipeline();
             pipeline.addLast("openChannels", transport.serverOpenChannels);
-            pipeline.addLast("decoder", new HttpRequestDecoder(
+            HttpRequestDecoder requestDecoder = new HttpRequestDecoder(
                     (int) transport.maxInitialLineLength.bytes(),
                     (int) transport.maxHeaderSize.bytes(),
                     (int) transport.maxChunkSize.bytes()
-            ));
+            );
+            if (transport.maxCumulationBufferCapacity != null) {
+                if (transport.maxCumulationBufferCapacity.bytes() > Integer.MAX_VALUE) {
+                    requestDecoder.setMaxCumulationBufferCapacity(Integer.MAX_VALUE);
+                } else {
+                    requestDecoder.setMaxCumulationBufferCapacity((int) transport.maxCumulationBufferCapacity.bytes());
+                }
+            }
+            pipeline.addLast("decoder", requestDecoder);
             if (transport.compression) {
                 pipeline.addLast("decoder_compress", new HttpContentDecompressor());
             }

@@ -91,36 +91,39 @@ public class AwsS3Service extends AbstractLifecycleComponent<AwsS3Service> {
         this.client = new AmazonS3Client(credentials, clientConfiguration);
 
         if (componentSettings.get("s3.endpoint") != null) {
-            client.setEndpoint(componentSettings.get("s3.endpoint"));
+            String endpoint = componentSettings.get("s3.endpoint");
+            logger.debug("using explicit s3 region [{}]", endpoint);
+            client.setEndpoint(endpoint);
         } else if (componentSettings.get("region") != null) {
             String endpoint;
-            String region = componentSettings.get("region");
-            if ("us-east".equals(region.toLowerCase())) {
+            String region = componentSettings.get("region").toLowerCase();
+            if ("us-east".equals(region)) {
                 endpoint = "s3.amazonaws.com";
-            } else if ("us-east-1".equals(region.toLowerCase())) {
+            } else if ("us-east-1".equals(region)) {
                 endpoint = "s3.amazonaws.com";
-            } else if ("us-west".equals(region.toLowerCase())) {
+            } else if ("us-west".equals(region)) {
                 endpoint = "s3-us-west-1.amazonaws.com";
-            } else if ("us-west-1".equals(region.toLowerCase())) {
+            } else if ("us-west-1".equals(region)) {
                 endpoint = "s3-us-west-1.amazonaws.com";
-            } else if ("us-west-2".equals(region.toLowerCase())) {
+            } else if ("us-west-2".equals(region)) {
                 endpoint = "s3-us-west-2.amazonaws.com";
-            } else if ("ap-southeast".equals(region.toLowerCase())) {
+            } else if ("ap-southeast".equals(region)) {
                 endpoint = "s3-ap-southeast-1.amazonaws.com";
-            } else if ("ap-southeast-1".equals(region.toLowerCase())) {
+            } else if ("ap-southeast-1".equals(region)) {
                 endpoint = "s3-ap-southeast-1.amazonaws.com";
-            } else if ("ap-northeast".equals(region.toLowerCase())) {
+            } else if ("ap-northeast".equals(region)) {
                 endpoint = "s3-ap-northeast-1.amazonaws.com";
-            } else if ("ap-northeast-1".equals(region.toLowerCase())) {
+            } else if ("ap-northeast-1".equals(region)) {
                 endpoint = "s3-ap-northeast-1.amazonaws.com";
-            } else if ("eu-west".equals(region.toLowerCase())) {
+            } else if ("eu-west".equals(region)) {
                 endpoint = "s3-eu-west-1.amazonaws.com";
-            } else if ("eu-west-1".equals(region.toLowerCase())) {
+            } else if ("eu-west-1".equals(region)) {
                 endpoint = "s3-eu-west-1.amazonaws.com";
             } else {
                 throw new ElasticSearchIllegalArgumentException("No automatic endpoint could be derived from region [" + region + "]");
             }
             if (endpoint != null) {
+                logger.debug("using s3 region [{}], with endpoint [{}]", region, endpoint);
                 client.setEndpoint(endpoint);
             }
         }

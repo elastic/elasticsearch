@@ -101,7 +101,7 @@ public class AwsEc2Service extends AbstractLifecycleComponent<AwsEc2Service> {
 
         if (componentSettings.get("ec2.endpoint") != null) {
             String endpoint = componentSettings.get("ec2.endpoint");
-            logger.debug("using explicit ec2 region [{}]", endpoint);
+            logger.debug("using explicit ec2 endpoint [{}]", endpoint);
             client.setEndpoint(endpoint);
         } else if (componentSettings.get("region") != null) {
             String region = componentSettings.get("region").toLowerCase();

@@ -206,17 +206,33 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
                 long avgCollectionTime = collectionTime / collections;
 
                 if (avgCollectionTime > gcThreshold.warnThreshold) {
-                    logger.warn("[gc][{}][{}][{}] duration [{}], collections [{}]/[{}], total [{}]/[{}], memory [{}]->[{}]/[{}]",
-                            gc.name(), seq, gc.collectionCount(), TimeValue.timeValueMillis(collectionTime), collections, TimeValue.timeValueMillis(currentJvmStats.timestamp() - lastJvmStats.timestamp()), TimeValue.timeValueMillis(collectionTime), gc.collectionTime(), lastJvmStats.mem().heapUsed(), currentJvmStats.mem().heapUsed(), JvmInfo.jvmInfo().mem().heapMax());
+                    logger.warn("[gc][{}][{}][{}] duration [{}], collections [{}]/[{}], total [{}]/[{}], memory [{}]->[{}]/[{}], all_pools {}",
+                            gc.name(), seq, gc.collectionCount(), TimeValue.timeValueMillis(collectionTime), collections, TimeValue.timeValueMillis(currentJvmStats.timestamp() - lastJvmStats.timestamp()), TimeValue.timeValueMillis(collectionTime), gc.collectionTime(), lastJvmStats.mem().heapUsed(), currentJvmStats.mem().heapUsed(), JvmInfo.jvmInfo().mem().heapMax(), buildPools(lastJvmStats, currentJvmStats));
                 } else if (avgCollectionTime > gcThreshold.infoThreshold) {
-                    logger.info("[gc][{}][{}][{}] duration [{}], collections [{}]/[{}], total [{}]/[{}], memory [{}]->[{}]/[{}]",
-                            gc.name(), seq, gc.collectionCount(), TimeValue.timeValueMillis(collectionTime), collections, TimeValue.timeValueMillis(currentJvmStats.timestamp() - lastJvmStats.timestamp()), TimeValue.timeValueMillis(collectionTime), gc.collectionTime(), lastJvmStats.mem().heapUsed(), currentJvmStats.mem().heapUsed(), JvmInfo.jvmInfo().mem().heapMax());
+                    logger.info("[gc][{}][{}][{}] duration [{}], collections [{}]/[{}], total [{}]/[{}], memory [{}]->[{}]/[{}], all_pools {}",
+                            gc.name(), seq, gc.collectionCount(), TimeValue.timeValueMillis(collectionTime), collections, TimeValue.timeValueMillis(currentJvmStats.timestamp() - lastJvmStats.timestamp()), TimeValue.timeValueMillis(collectionTime), gc.collectionTime(), lastJvmStats.mem().heapUsed(), currentJvmStats.mem().heapUsed(), JvmInfo.jvmInfo().mem().heapMax(), buildPools(lastJvmStats, currentJvmStats));
                 } else if (avgCollectionTime > gcThreshold.debugThreshold && logger.isDebugEnabled()) {
-                    logger.debug("[gc][{}][{}][{}] duration [{}], collections [{}]/[{}], total [{}]/[{}], memory [{}]->[{}]/[{}]",
-                            gc.name(), seq, gc.collectionCount(), TimeValue.timeValueMillis(collectionTime), collections, TimeValue.timeValueMillis(currentJvmStats.timestamp() - lastJvmStats.timestamp()), TimeValue.timeValueMillis(collectionTime), gc.collectionTime(), lastJvmStats.mem().heapUsed(), currentJvmStats.mem().heapUsed(), JvmInfo.jvmInfo().mem().heapMax());
+                    logger.debug("[gc][{}][{}][{}] duration [{}], collections [{}]/[{}], total [{}]/[{}], memory [{}]->[{}]/[{}], all_pools {}",
+                            gc.name(), seq, gc.collectionCount(), TimeValue.timeValueMillis(collectionTime), collections, TimeValue.timeValueMillis(currentJvmStats.timestamp() - lastJvmStats.timestamp()), TimeValue.timeValueMillis(collectionTime), gc.collectionTime(), lastJvmStats.mem().heapUsed(), currentJvmStats.mem().heapUsed(), JvmInfo.jvmInfo().mem().heapMax(), buildPools(lastJvmStats, currentJvmStats));
                 }
             }
             lastJvmStats = currentJvmStats;
+        }
+
+        private String buildPools(JvmStats prev, JvmStats current) {
+            StringBuilder sb = new StringBuilder();
+            for (JvmStats.MemoryPool currentPool : current.mem()) {
+                JvmStats.MemoryPool prevPool = null;
+                for (JvmStats.MemoryPool pool : prev.mem()) {
+                    if (pool.getName().equals(currentPool.getName())) {
+                        prevPool = pool;
+                        break;
+                    }
+                }
+                sb.append("{[").append(currentPool.name())
+                        .append("] [").append(prevPool == null ? "?" : prevPool.used()).append("]->[").append(currentPool.used()).append("]/[").append(currentPool.getMax()).append("]}");
+            }
+            return sb.toString();
         }
 
         private void monitorDeadlock() {

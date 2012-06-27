@@ -37,6 +37,7 @@ import java.util.Map;
 /**
  *
  */
+@SuppressWarnings("unchecked")
 public class XContentHelper {
 
     public static XContentParser createParser(byte[] data, int offset, int length) throws IOException {
@@ -101,6 +102,27 @@ public class XContentHelper {
         } finally {
             if (parser != null) {
                 parser.close();
+            }
+        }
+    }
+
+    /**
+     * Updates the provided changes into the source. If the key exists in the changes, it overrides the one in source
+     * unless both are Maps, in which case it recuersively updated it.
+     */
+    public static void update(Map<String, Object> source, Map<String, Object> changes) {
+        for (Map.Entry<String, Object> changesEntry : changes.entrySet()) {
+            if (!source.containsKey(changesEntry.getKey())) {
+                // safe to copy, change does not exist in source
+                source.put(changesEntry.getKey(), changesEntry.getValue());
+            } else {
+                if (source.get(changesEntry.getKey()) instanceof Map && changesEntry.getValue() instanceof Map) {
+                    // recursive merge maps
+                    update((Map<String, Object>) source.get(changesEntry.getKey()), (Map<String, Object>) changesEntry.getValue());
+                } else {
+                    // update the field
+                    source.put(changesEntry.getKey(), changesEntry.getValue());
+                }
             }
         }
     }

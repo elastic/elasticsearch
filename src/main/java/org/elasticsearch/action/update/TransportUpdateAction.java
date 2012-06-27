@@ -216,7 +216,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
             return;
         }
 
-        Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(getResult.internalSourceRef().bytes(), getResult.internalSourceRef().offset(), getResult.internalSourceRef().length(), true);   
+        Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(getResult.internalSourceRef().bytes(), getResult.internalSourceRef().offset(), getResult.internalSourceRef().length(), true);
         String operation = null;
         String timestamp = null;
         Long ttl = null;
@@ -225,7 +225,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         final XContentType updateSourceContentType = sourceAndContent.v1();
         String routing = getResult.fields().containsKey(RoutingFieldMapper.NAME) ? getResult.field(RoutingFieldMapper.NAME).value().toString() : null;
         String parent = getResult.fields().containsKey(ParentFieldMapper.NAME) ? getResult.field(ParentFieldMapper.NAME).value().toString() : null;
-        
+
         if (request.script() == null && request.doc() != null) {
             IndexRequest indexRequest = request.doc();
             updatedSourceAsMap = sourceAndContent.v2();
@@ -239,11 +239,11 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
             if (indexRequest.parent() != null) {
                 parent = indexRequest.parent();
             }
-            updateSource(updatedSourceAsMap, indexRequest.underlyingSourceAsMap());
+            XContentHelper.update(updatedSourceAsMap, indexRequest.underlyingSourceAsMap());
         } else {
             Map<String, Object> ctx = new HashMap<String, Object>(2);
             ctx.put("_source", sourceAndContent.v2());
-            
+
             try {
                 ExecutableScript script = scriptService.executable(request.scriptLang, request.script, request.scriptParams);
                 script.setNextVar("ctx", ctx);
@@ -264,10 +264,10 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                     ttl = TimeValue.parseTimeValue((String) fetchedTTL, null).millis();
                 }
             }
-        
+
             updatedSourceAsMap = (Map<String, Object>) ctx.get("_source");
         }
-        
+
         // apply script to update the source
         // No TTL has been given in the update script so we keep previous TTL value if there is one
         if (ttl == null) {
@@ -387,25 +387,5 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         // TODO when using delete/none, we can still return the source as bytes by generating it (using the sourceContentType)
 
         return new GetResult(request.index(), request.type(), request.id(), version, true, sourceRequested ? sourceAsBytes : null, fields);
-    }
-    
-    /**
-     * Updates the source with the specified changes.  Maps are updated recursively.
-     */
-    private void updateSource(Map<String, Object> source, Map<String, Object> changes) {
-        for (Map.Entry<String, Object> changesEntry : changes.entrySet()) {
-            if (!source.containsKey(changesEntry.getKey())) {
-                // safe to copy, change does not exist in source
-                source.put(changesEntry.getKey(), changesEntry.getValue());
-            } else {
-                if (source.get(changesEntry.getKey()) instanceof Map && changesEntry.getValue() instanceof Map) {
-                    // recursive merge maps
-                    updateSource((Map<String, Object>) source.get(changesEntry.getKey()), (Map<String, Object>) changesEntry.getValue());
-                } else {
-                    // update the field
-                    source.put(changesEntry.getKey(), changesEntry.getValue());
-                }
-            }
-        }  
     }
 }

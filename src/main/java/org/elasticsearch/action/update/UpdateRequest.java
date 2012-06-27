@@ -70,7 +70,7 @@ public class UpdateRequest extends InstanceShardOperationRequest {
 
     @Nullable
     private IndexRequest doc;
-    
+
     UpdateRequest() {
 
     }
@@ -377,8 +377,8 @@ public class UpdateRequest extends InstanceShardOperationRequest {
      * Sets the doc to use for updates when a script is not specified.
      */
     public UpdateRequest doc(Map source, XContentType contentType) {
-     safeDoc().source(source, contentType);
-     return this;
+        safeDoc().source(source, contentType);
+        return this;
     }
 
     /**
@@ -415,7 +415,7 @@ public class UpdateRequest extends InstanceShardOperationRequest {
         }
         return doc;
     }
-    
+
     /**
      * Sets the index request to be used if the document does not exists. Otherwise, a {@link org.elasticsearch.index.engine.DocumentMissingException}
      * is thrown.
@@ -529,20 +529,12 @@ public class UpdateRequest extends InstanceShardOperationRequest {
         consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
         type = in.readUTF();
         id = in.readUTF();
-        if (in.readBoolean()) {
-            routing = in.readUTF();
-        }
-        if (in.readBoolean()) {
-            script = in.readUTF();
-        }
-        if (in.readBoolean()) {
-            scriptLang = in.readUTF();
-        }
+        routing = in.readOptionalUTF();
+        script = in.readOptionalUTF();
+        scriptLang = in.readOptionalUTF();
         scriptParams = in.readMap();
         retryOnConflict = in.readVInt();
-        if (in.readBoolean()) {
-            percolate = in.readUTF();
-        }
+        percolate = in.readOptionalUTF();
         refresh = in.readBoolean();
         if (in.readBoolean()) {
             doc = new IndexRequest();
@@ -568,32 +560,12 @@ public class UpdateRequest extends InstanceShardOperationRequest {
         out.writeByte(consistencyLevel.id());
         out.writeUTF(type);
         out.writeUTF(id);
-        if (routing == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeUTF(routing);
-        }
-        if (script == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeUTF(script);
-        }
-        if (scriptLang == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeUTF(scriptLang);
-        }
+        out.writeOptionalUTF(routing);
+        out.writeOptionalUTF(script);
+        out.writeOptionalUTF(scriptLang);
         out.writeMap(scriptParams);
         out.writeVInt(retryOnConflict);
-        if (percolate == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeUTF(percolate);
-        }
+        out.writeOptionalUTF(percolate);
         out.writeBoolean(refresh);
         if (doc == null) {
             out.writeBoolean(false);

@@ -92,7 +92,7 @@ public class AwsS3Service extends AbstractLifecycleComponent<AwsS3Service> {
 
         if (componentSettings.get("s3.endpoint") != null) {
             String endpoint = componentSettings.get("s3.endpoint");
-            logger.debug("using explicit s3 region [{}]", endpoint);
+            logger.debug("using explicit s3 endpoint [{}]", endpoint);
             client.setEndpoint(endpoint);
         } else if (componentSettings.get("region") != null) {
             String endpoint;

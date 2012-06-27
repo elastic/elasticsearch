@@ -5,6 +5,14 @@
 # Heap Size (defaults to 256m min, 1g max)
 #ES_HEAP_SIZE=2g
 
+# Maximum number of open files, defaults to 65535.
+#MAX_OPEN_FILES=65535
+
+# Maximum locked memory size. Set to "unlimited" if you use the
+# bootstrap.mlockall option in elasticsearch.yml. You must also set
+# ES_HEAP_SIZE.
+#MAX_LOCKED_MEMORY=unlimited
+
 # ElasticSearch log directory
 #LOG_DIR=/var/log/elasticsearch
 

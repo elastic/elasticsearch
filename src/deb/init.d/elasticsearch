@@ -65,6 +65,12 @@ ES_HOME=/usr/share/$NAME
 # Additional Java OPTS
 #ES_JAVA_OPTS=
 
+# Maximum number of open files
+MAX_OPEN_FILES=65535
+
+# Maximum amount of locked memory
+#MAX_LOCKED_MEMORY=
+
 # ElasticSearch log directory
 LOG_DIR=/var/log/$NAME
 
@@ -105,6 +111,11 @@ case "$1" in
 		exit 1
 	fi
 
+	if [ -n "$MAX_LOCKED_MEMORY" -a -z "$ES_HEAP_SIZE" ]; then
+		log_failure_msg "MAX_LOCKED_MEMORY is set - ES_HEAP_SIZE must also be set"
+		exit 1
+	fi
+
 	log_daemon_msg "Starting $DESC"
 	
 	if start-stop-daemon --test --start --pidfile "$PID_FILE" \
@@ -114,7 +125,14 @@ case "$1" in
 		# Prepare environment
 		mkdir -p "$LOG_DIR" "$DATA_DIR" "$WORK_DIR" && chown "$ES_USER":"$ES_GROUP" "$LOG_DIR" "$DATA_DIR" "$WORK_DIR"
 		touch "$PID_FILE" && chown "$ES_USER":"$ES_GROUP" "$PID_FILE"
-		ulimit -n 65535
+
+		if [ -n "$MAX_OPEN_FILES" ]; then
+			ulimit -n $MAX_OPEN_FILES
+		fi
+
+		if [ -n "$MAX_LOCKED_MEMORY" ]; then
+			ulimit -l $MAX_LOCKED_MEMORY
+		fi
 
 		# Start Daemon
 		start-stop-daemon --start -b --user "$ES_USER" -c "$ES_USER" --pidfile "$PID_FILE" --exec /bin/bash -- -c "$DAEMON $DAEMON_OPTS"

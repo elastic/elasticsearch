@@ -104,6 +104,14 @@ public class SimpleValidateQueryTests extends AbstractNodesTests {
                         .startObject("pin").startObject("properties").startObject("location").field("type", "geo_point").endObject().endObject().endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
+        client.admin().indices().preparePutMapping("test").setType("child-type")
+                .setSource(XContentFactory.jsonBuilder().startObject().startObject("child-type")
+                        .startObject("_parent").field("type", "type1").endObject()
+                        .startObject("properties")
+                        .startObject("foo").field("type", "string").endObject()
+                        .endObject()
+                        .endObject().endObject())
+                .execute().actionGet();
 
         client.admin().indices().prepareRefresh().execute().actionGet();
 
@@ -179,6 +187,19 @@ public class SimpleValidateQueryTests extends AbstractNodesTests {
         assertExplanation(QueryBuilders.constantScoreQuery(FilterBuilders.notFilter(FilterBuilders.termFilter("foo", "bar"))),
                 equalTo("ConstantScore(NotDeleted(NotFilter(cache(foo:bar))))"));
 
+        assertExplanation(QueryBuilders.filteredQuery(
+                QueryBuilders.termQuery("foo", "1"),
+                FilterBuilders.hasChildFilter(
+                        "child-type",
+                        QueryBuilders.fieldQuery("foo", "1")
+                )
+        ), equalTo("filtered(foo:1)->child_filter[child-type/type1](filtered(foo:1)->cache(_type:child-type))"));
+
+        assertExplanation(QueryBuilders.filteredQuery(
+                QueryBuilders.termQuery("foo", "1"),
+                FilterBuilders.scriptFilter("true")
+        ), equalTo("filtered(foo:1)->ScriptFilter(true)"));
+
     }
 
     @Test
@@ -242,6 +263,7 @@ public class SimpleValidateQueryTests extends AbstractNodesTests {
 
     private void assertExplanation(QueryBuilder queryBuilder, Matcher<String> matcher) {
         ValidateQueryResponse response = client.admin().indices().prepareValidateQuery("test")
+                .setTypes("type1")
                 .setQuery(queryBuilder)
                 .setExplain(true)
                 .execute().actionGet();

@@ -181,6 +181,8 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
                     } else {
                         logger.trace("not adding {}, address is null, host_type {}", instance.getInstanceId(), hostType);
                     }
+                } else {
+                    logger.trace("not adding {}, state {} is not pending or running", instance.getInstanceId(), state.getName());
                 }
             }
         }

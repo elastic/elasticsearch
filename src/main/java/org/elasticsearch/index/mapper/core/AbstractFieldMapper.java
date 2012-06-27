@@ -224,12 +224,14 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         this.omitNorms = omitNorms;
         this.omitTermFreqAndPositions = omitTermFreqAndPositions;
         this.indexOptions = omitTermFreqAndPositions ? FieldInfo.IndexOptions.DOCS_ONLY : FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS;
-        if (indexAnalyzer == null && !index.isAnalyzed()) {
+        // automatically set to keyword analyzer if its indexed and not analyzed
+        if (indexAnalyzer == null && !index.isAnalyzed() && index.isIndexed()) {
             this.indexAnalyzer = Lucene.KEYWORD_ANALYZER;
         } else {
             this.indexAnalyzer = indexAnalyzer;
         }
-        if (searchAnalyzer == null && !index.isAnalyzed()) {
+        // automatically set to keyword analyzer if its indexed and not analyzed
+        if (searchAnalyzer == null && !index.isAnalyzed() && index.isIndexed()) {
             this.searchAnalyzer = Lucene.KEYWORD_ANALYZER;
         } else {
             this.searchAnalyzer = searchAnalyzer;

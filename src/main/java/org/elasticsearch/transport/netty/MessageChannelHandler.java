@@ -212,7 +212,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
 
         // netty always copies a buffer, either in NioWorker in its read handler, where it copies to a fresh
         // buffer, or in the cumlation buffer, which is cleaned each time
-        StreamInput streamIn = new ChannelBufferStreamInput(buffer, size);
+        StreamInput streamIn = ChannelBufferStreamInputFactory.create(buffer, size);
 
         long requestId = buffer.readLong();
         byte status = buffer.readByte();

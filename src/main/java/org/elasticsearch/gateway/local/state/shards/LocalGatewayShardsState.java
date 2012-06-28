@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.gateway.local.state.meta.LocalGatewayMetaState;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.File;
@@ -50,13 +51,15 @@ import java.util.Set;
 public class LocalGatewayShardsState extends AbstractComponent implements ClusterStateListener {
 
     private final NodeEnvironment nodeEnv;
+    private final LocalGatewayMetaState metaState;
 
     private volatile Map<ShardId, ShardStateInfo> currentState = Maps.newHashMap();
 
     @Inject
-    public LocalGatewayShardsState(Settings settings, NodeEnvironment nodeEnv, TransportNodesListGatewayStartedShards listGatewayStartedShards) throws Exception {
+    public LocalGatewayShardsState(Settings settings, NodeEnvironment nodeEnv, TransportNodesListGatewayStartedShards listGatewayStartedShards, LocalGatewayMetaState metaState) throws Exception {
         super(settings);
         this.nodeEnv = nodeEnv;
+        this.metaState = metaState;
         listGatewayStartedShards.initGateway(this);
 
         if (DiscoveryNode.dataNode(settings)) {
@@ -154,7 +157,9 @@ public class LocalGatewayShardsState extends AbstractComponent implements Cluste
         for (Map.Entry<ShardId, ShardStateInfo> entry : currentState.entrySet()) {
             ShardId shardId = entry.getKey();
             if (!newState.containsKey(shardId)) {
-                deleteShardState(shardId);
+                if (!metaState.isDangling(shardId.index().name())) {
+                    deleteShardState(shardId);
+                }
             }
         }
 

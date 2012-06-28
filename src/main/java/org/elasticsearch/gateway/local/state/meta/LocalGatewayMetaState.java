@@ -36,9 +36,11 @@ import org.elasticsearch.common.io.stream.CachedStreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -46,6 +48,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ScheduledFuture;
 
 /**
  *
@@ -53,16 +56,23 @@ import java.util.Set;
 public class LocalGatewayMetaState extends AbstractComponent implements ClusterStateListener {
 
     private final NodeEnvironment nodeEnv;
+    private final ThreadPool threadPool;
 
     private volatile MetaData currentMetaData;
 
     private final XContentType format;
     private final ToXContent.Params formatParams;
 
+
+    private final TimeValue danglingTimeout;
+    private final Map<String, DanglingIndex> danglingIndices = ConcurrentCollections.newConcurrentMap();
+    private final Object danglingMutex = new Object();
+
     @Inject
-    public LocalGatewayMetaState(Settings settings, NodeEnvironment nodeEnv, TransportNodesListGatewayMetaState nodesListGatewayMetaState) throws Exception {
+    public LocalGatewayMetaState(Settings settings, ThreadPool threadPool, NodeEnvironment nodeEnv, TransportNodesListGatewayMetaState nodesListGatewayMetaState) throws Exception {
         super(settings);
         this.nodeEnv = nodeEnv;
+        this.threadPool = threadPool;
         this.format = XContentType.fromRestContentType(settings.get("format", "smile"));
         nodesListGatewayMetaState.init(this);
 
@@ -73,6 +83,8 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
         } else {
             formatParams = ToXContent.EMPTY_PARAMS;
         }
+
+        this.danglingTimeout = settings.getAsTime("gateway.local.dangling_timeout", TimeValue.timeValueHours(2));
 
         if (DiscoveryNode.masterNode(settings)) {
             try {
@@ -89,6 +101,10 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
 
     public MetaData currentMetaData() {
         return currentMetaData;
+    }
+
+    public boolean isDangling(String index) {
+        return danglingIndices.containsKey(index);
     }
 
     @Override
@@ -137,11 +153,50 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
             }
         }
 
+        // handle dangling indices
+        if (nodeEnv.hasNodeFile()) {
+            if (danglingTimeout.millis() >= 0) {
+                synchronized (danglingMutex) {
+                    for (String danglingIndex : danglingIndices.keySet()) {
+                        if (event.state().metaData().hasIndex(danglingIndex)) {
+                            logger.debug("[{}] no longer dangling (created), removing", danglingIndex);
+                            DanglingIndex removed = danglingIndices.remove(danglingIndex);
+                            removed.future.cancel(false);
+                        }
+                    }
+                    // delete indices that are no longer part of the metadata
+                    try {
+                        for (String indexName : nodeEnv.findAllIndices()) {
+                            // if we have the index on the metadata, don't delete it
+                            if (event.state().metaData().hasIndex(indexName)) {
+                                continue;
+                            }
+                            if (danglingIndices.containsKey(indexName)) {
+                                // already dangling, continue
+                                continue;
+                            }
+                            if (danglingTimeout.millis() == 0) {
+                                logger.info("[{}] dangling index, exists on local file system, but not in cluster metadata, timeout set to 0, deleting now", indexName);
+                                FileSystemUtils.deleteRecursively(nodeEnv.indexLocations(new Index(indexName)));
+                            } else {
+                                logger.info("[{}] dangling index, exists on local file system, but not in cluster metadata, scheduling to delete in [{}]", indexName, danglingTimeout);
+                                danglingIndices.put(indexName, new DanglingIndex(indexName, threadPool.schedule(danglingTimeout, ThreadPool.Names.SAME, new RemoveDanglingIndex(indexName))));
+                            }
+                        }
+                    } catch (Exception e) {
+                        logger.warn("failed to find dangling indices", e);
+                    }
+                }
+            }
+        }
+
         // delete indices that are no longer there...
         if (currentMetaData != null) {
             for (IndexMetaData current : currentMetaData) {
                 if (event.state().metaData().index(current.index()) == null) {
-                    deleteIndex(current.index());
+                    if (!danglingIndices.containsKey(current.index())) {
+                        deleteIndex(current.index());
+                    }
                 }
             }
         }
@@ -471,5 +526,37 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
         }
 
         logger.info("conversion to new metadata location and format done, backup create at [{}]", backupFile.getAbsolutePath());
+    }
+
+    class RemoveDanglingIndex implements Runnable {
+
+        private final String index;
+
+        RemoveDanglingIndex(String index) {
+            this.index = index;
+        }
+
+        @Override
+        public void run() {
+            synchronized (danglingMutex) {
+                DanglingIndex remove = danglingIndices.remove(index);
+                // no longer there...
+                if (remove == null) {
+                    return;
+                }
+                logger.info("[{}] deleting dangling index", index);
+                FileSystemUtils.deleteRecursively(nodeEnv.indexLocations(new Index(index)));
+            }
+        }
+    }
+
+    static class DanglingIndex {
+        public final String index;
+        public final ScheduledFuture future;
+
+        DanglingIndex(String index, ScheduledFuture future) {
+            this.index = index;
+            this.future = future;
+        }
     }
 }

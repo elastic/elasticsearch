@@ -204,6 +204,8 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
         if (event.state().blocks().disableStatePersistence()) {
             return;
         }
+        // order is important, first metaState, and then shardsState
+        // so dangling indices will be recorded
         metaState.clusterChanged(event);
         shardsState.clusterChanged(event);
     }

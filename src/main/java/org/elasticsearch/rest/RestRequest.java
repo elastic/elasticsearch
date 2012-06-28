@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -57,6 +58,11 @@ public interface RestRequest extends ToXContent.Params {
      * Is the byte array content safe or unsafe for usage on other threads
      */
     boolean contentUnsafe();
+
+    /**
+     * The content as a stream.
+     */
+    StreamInput contentStream();
 
     byte[] contentByteArray();
 

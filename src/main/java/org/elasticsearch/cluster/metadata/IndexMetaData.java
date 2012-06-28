@@ -340,6 +340,11 @@ public class IndexMetaData {
             return index;
         }
 
+        public Builder index(String name) {
+            this.index = index;
+            return this;
+        }
+
         public Builder numberOfShards(int numberOfShards) {
             settings = settingsBuilder().put(settings).put(SETTING_NUMBER_OF_SHARDS, numberOfShards).build();
             return this;

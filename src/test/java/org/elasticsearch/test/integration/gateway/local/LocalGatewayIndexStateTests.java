@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.Gateway;
@@ -325,15 +326,19 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
     }
 
     @Test
-    public void testDanglingIndices() throws Exception {
+    public void testDanglingIndicesAutoImportYes() throws Exception {
+        Settings settings = settingsBuilder()
+                .put("gateway.type", "local").put("gateway.local.auto_import_dangled", "yes")
+                .put("index.number_of_shards", 1).put("index.number_of_replicas", 1)
+                .build();
         logger.info("--> cleaning nodes");
         buildNode("node1", settingsBuilder().put("gateway.type", "local").build());
         buildNode("node2", settingsBuilder().put("gateway.type", "local").build());
         cleanAndCloseNodes();
 
         logger.info("--> starting two nodes");
-        startNode("node1", settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 1).put("index.number_of_replicas", 1).build());
-        startNode("node2", settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 1).put("index.number_of_replicas", 1).build());
+        startNode("node1", settings);
+        startNode("node2", settings);
 
         logger.info("--> indexing a simple document");
         client("node1").prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefresh(true).execute().actionGet();
@@ -357,12 +362,138 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         gateway1.reset();
 
         logger.info("--> start the 2 nodes back, simulating dangling index (exists on second, doesn't exists on first)");
-        startNode("node1", settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 1).put("index.number_of_replicas", 1).build());
-        startNode("node2", settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 1).put("index.number_of_replicas", 1).build());
+        startNode("node1", settings);
+        startNode("node2", settings);
 
         logger.info("--> waiting for green status");
         health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
         assertThat(health.timedOut(), equalTo(false));
+
+        // we need to wait for the allocate dangled to kick in
+        Thread.sleep(500);
+
+        logger.info("--> verify that the dangling index exists");
+        assertThat(client("node1").admin().indices().prepareExists("test").execute().actionGet().exists(), equalTo(true));
+        logger.info("--> waiting for green status");
+        health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        assertThat(health.timedOut(), equalTo(false));
+
+        logger.info("--> verify the doc is there");
+        assertThat(client("node1").prepareGet("test", "type1", "1").execute().actionGet().exists(), equalTo(true));
+    }
+
+    @Test
+    public void testDanglingIndicesAutoImportClose() throws Exception {
+        Settings settings = settingsBuilder()
+                .put("gateway.type", "local").put("gateway.local.auto_import_dangled", "closed")
+                .put("index.number_of_shards", 1).put("index.number_of_replicas", 1)
+                .build();
+        logger.info("--> cleaning nodes");
+        buildNode("node1", settingsBuilder().put("gateway.type", "local").build());
+        buildNode("node2", settingsBuilder().put("gateway.type", "local").build());
+        cleanAndCloseNodes();
+
+        logger.info("--> starting two nodes");
+        startNode("node1", settings);
+        startNode("node2", settings);
+
+        logger.info("--> indexing a simple document");
+        client("node1").prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefresh(true).execute().actionGet();
+
+        logger.info("--> waiting for green status");
+        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        assertThat(health.timedOut(), equalTo(false));
+
+        logger.info("--> verify 1 doc in the index");
+        for (int i = 0; i < 10; i++) {
+            assertThat(client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(1l));
+        }
+        assertThat(client("node1").prepareGet("test", "type1", "1").execute().actionGet().exists(), equalTo(true));
+
+        logger.info("--> shutting down the nodes");
+        Gateway gateway1 = ((InternalNode) node("node1")).injector().getInstance(Gateway.class);
+        closeNode("node1");
+        closeNode("node2");
+
+        logger.info("--> deleting the data for the first node");
+        gateway1.reset();
+
+        logger.info("--> start the 2 nodes back, simulating dangling index (exists on second, doesn't exists on first)");
+        startNode("node1", settings);
+        startNode("node2", settings);
+
+        logger.info("--> waiting for green status");
+        health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        assertThat(health.timedOut(), equalTo(false));
+
+        // we need to wait for the allocate dangled to kick in
+        Thread.sleep(500);
+
+        logger.info("--> verify that the dangling index exists");
+        assertThat(client("node1").admin().indices().prepareExists("test").execute().actionGet().exists(), equalTo(true));
+        logger.info("--> waiting for green status");
+        health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        assertThat(health.timedOut(), equalTo(false));
+
+        logger.info("--> verify the index state is closed");
+        assertThat(client("node1").admin().cluster().prepareState().execute().actionGet().state().metaData().index("test").state(), equalTo(IndexMetaData.State.CLOSE));
+        logger.info("--> open the index");
+        client("node1").admin().indices().prepareOpen("test").execute().actionGet();
+        logger.info("--> waiting for green status");
+        health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        assertThat(health.timedOut(), equalTo(false));
+
+        logger.info("--> verify the doc is there");
+        assertThat(client("node1").prepareGet("test", "type1", "1").execute().actionGet().exists(), equalTo(true));
+    }
+
+    @Test
+    public void testDanglingIndicesNoAutoImport() throws Exception {
+        Settings settings = settingsBuilder()
+                .put("gateway.type", "local").put("gateway.local.auto_import_dangled", "no")
+                .put("index.number_of_shards", 1).put("index.number_of_replicas", 1)
+                .build();
+        logger.info("--> cleaning nodes");
+        buildNode("node1", settingsBuilder().put("gateway.type", "local").build());
+        buildNode("node2", settingsBuilder().put("gateway.type", "local").build());
+        cleanAndCloseNodes();
+
+        logger.info("--> starting two nodes");
+        startNode("node1", settings);
+        startNode("node2", settings);
+
+        logger.info("--> indexing a simple document");
+        client("node1").prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefresh(true).execute().actionGet();
+
+        logger.info("--> waiting for green status");
+        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        assertThat(health.timedOut(), equalTo(false));
+
+        logger.info("--> verify 1 doc in the index");
+        for (int i = 0; i < 10; i++) {
+            assertThat(client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(1l));
+        }
+        assertThat(client("node1").prepareGet("test", "type1", "1").execute().actionGet().exists(), equalTo(true));
+
+        logger.info("--> shutting down the nodes");
+        Gateway gateway1 = ((InternalNode) node("node1")).injector().getInstance(Gateway.class);
+        closeNode("node1");
+        closeNode("node2");
+
+        logger.info("--> deleting the data for the first node");
+        gateway1.reset();
+
+        logger.info("--> start the 2 nodes back, simulating dangling index (exists on second, doesn't exists on first)");
+        startNode("node1", settings);
+        startNode("node2", settings);
+
+        logger.info("--> waiting for green status");
+        health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        assertThat(health.timedOut(), equalTo(false));
+
+        // we need to wait for the allocate dangled to kick in (even though in this case its disabled)
+        // just to make sure
+        Thread.sleep(500);
 
         logger.info("--> verify that the dangling index does not exists");
         assertThat(client("node1").admin().indices().prepareExists("test").execute().actionGet().exists(), equalTo(false));
@@ -372,8 +503,8 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         closeNode("node2");
 
         logger.info("--> start the nodes back, but make sure we do recovery only after we have 2 nodes in the cluster");
-        startNode("node1", settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 1).put("index.number_of_replicas", 1).put("gateway.recover_after_nodes", 2).build());
-        startNode("node2", settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 1).put("index.number_of_replicas", 1).put("gateway.recover_after_nodes", 2).build());
+        startNode("node1", settingsBuilder().put(settings).put("gateway.recover_after_nodes", 2).build());
+        startNode("node2", settingsBuilder().put(settings).put("gateway.recover_after_nodes", 2).build());
 
         logger.info("--> waiting for green status");
         health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
@@ -386,15 +517,20 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
     }
 
     @Test
-    public void testDanglingIndicesStillDanglingAndCreatingSameIndex() throws Exception {
+    public void testDanglingIndicesNoAutoImportStillDanglingAndCreatingSameIndex() throws Exception {
+        Settings settings = settingsBuilder()
+                .put("gateway.type", "local").put("gateway.local.auto_import_dangled", "no")
+                .put("index.number_of_shards", 1).put("index.number_of_replicas", 1)
+                .build();
+
         logger.info("--> cleaning nodes");
         buildNode("node1", settingsBuilder().put("gateway.type", "local").build());
         buildNode("node2", settingsBuilder().put("gateway.type", "local").build());
         cleanAndCloseNodes();
 
         logger.info("--> starting two nodes");
-        startNode("node1", settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 1).put("index.number_of_replicas", 1).build());
-        startNode("node2", settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 1).put("index.number_of_replicas", 1).build());
+        startNode("node1", settings);
+        startNode("node2", settings);
 
         logger.info("--> indexing a simple document");
         client("node1").prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefresh(true).execute().actionGet();
@@ -417,8 +553,8 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         gateway1.reset();
 
         logger.info("--> start the 2 nodes back, simulating dangling index (exists on second, doesn't exists on first)");
-        startNode("node1", settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 1).put("index.number_of_replicas", 1).build());
-        startNode("node2", settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 1).put("index.number_of_replicas", 1).build());
+        startNode("node1", settings);
+        startNode("node2", settings);
 
         logger.info("--> waiting for green status");
         health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();

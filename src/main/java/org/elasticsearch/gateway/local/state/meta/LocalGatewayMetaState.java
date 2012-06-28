@@ -19,8 +19,10 @@
 
 package org.elasticsearch.gateway.local.state.meta;
 
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.io.Closeables;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -46,6 +48,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
@@ -55,8 +58,45 @@ import java.util.concurrent.ScheduledFuture;
  */
 public class LocalGatewayMetaState extends AbstractComponent implements ClusterStateListener {
 
+    static enum AutoImportDangledState {
+        NO() {
+            @Override
+            public boolean shouldImport() {
+                return false;
+            }
+        },
+        YES() {
+            @Override
+            public boolean shouldImport() {
+                return true;
+            }
+        },
+        CLOSED() {
+            @Override
+            public boolean shouldImport() {
+                return true;
+            }
+        };
+
+        public abstract boolean shouldImport();
+
+        public static AutoImportDangledState fromString(String value) {
+            if ("no".equalsIgnoreCase(value)) {
+                return NO;
+            } else if ("yes".equalsIgnoreCase(value)) {
+                return YES;
+            } else if ("closed".equalsIgnoreCase(value)) {
+                return CLOSED;
+            } else {
+                throw new ElasticSearchIllegalArgumentException("failed to parse [" + value + "], not a valid auto dangling import type");
+            }
+        }
+    }
+
     private final NodeEnvironment nodeEnv;
     private final ThreadPool threadPool;
+
+    private final LocalAllocateDangledIndices allocateDangledIndices;
 
     private volatile MetaData currentMetaData;
 
@@ -64,16 +104,19 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
     private final ToXContent.Params formatParams;
 
 
+    private final AutoImportDangledState autoImportDangled;
     private final TimeValue danglingTimeout;
     private final Map<String, DanglingIndex> danglingIndices = ConcurrentCollections.newConcurrentMap();
     private final Object danglingMutex = new Object();
 
     @Inject
-    public LocalGatewayMetaState(Settings settings, ThreadPool threadPool, NodeEnvironment nodeEnv, TransportNodesListGatewayMetaState nodesListGatewayMetaState) throws Exception {
+    public LocalGatewayMetaState(Settings settings, ThreadPool threadPool, NodeEnvironment nodeEnv,
+                                 TransportNodesListGatewayMetaState nodesListGatewayMetaState, LocalAllocateDangledIndices allocateDangledIndices) throws Exception {
         super(settings);
         this.nodeEnv = nodeEnv;
         this.threadPool = threadPool;
         this.format = XContentType.fromRestContentType(settings.get("format", "smile"));
+        this.allocateDangledIndices = allocateDangledIndices;
         nodesListGatewayMetaState.init(this);
 
         if (this.format == XContentType.SMILE) {
@@ -84,7 +127,10 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
             formatParams = ToXContent.EMPTY_PARAMS;
         }
 
+        this.autoImportDangled = AutoImportDangledState.fromString(settings.get("gateway.local.auto_import_dangled", AutoImportDangledState.YES.toString()));
         this.danglingTimeout = settings.getAsTime("gateway.local.dangling_timeout", TimeValue.timeValueHours(2));
+
+        logger.debug("using gateway.local.auto_import_dangled [{}], with gateway.local.dangling_timeout [{}]", this.autoImportDangled, this.danglingTimeout);
 
         if (DiscoveryNode.masterNode(settings)) {
             try {
@@ -113,47 +159,44 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
             return;
         }
 
-        if (!event.state().nodes().localNode().masterNode()) {
-            return;
-        }
+        // we don't check if metaData changed, since we might be called several times and we need to check dangling...
 
-        if (!event.metaDataChanged()) {
-            return;
-        }
-
-        // check if the global state changed?
         boolean success = true;
-        if (currentMetaData == null || !MetaData.isGlobalStateEquals(currentMetaData, event.state().metaData())) {
-            try {
-                writeGlobalState("changed", event.state().metaData(), currentMetaData);
-            } catch (Exception e) {
-                success = false;
+        // only applied to master node, writing the global and index level states
+        if (event.state().nodes().localNode().masterNode()) {
+            // check if the global state changed?
+            if (currentMetaData == null || !MetaData.isGlobalStateEquals(currentMetaData, event.state().metaData())) {
+                try {
+                    writeGlobalState("changed", event.state().metaData(), currentMetaData);
+                } catch (Exception e) {
+                    success = false;
+                }
+            }
+
+            // check and write changes in indices
+            for (IndexMetaData indexMetaData : event.state().metaData()) {
+                String writeReason = null;
+                IndexMetaData currentIndexMetaData = currentMetaData == null ? null : currentMetaData.index(indexMetaData.index());
+                if (currentIndexMetaData == null) {
+                    writeReason = "freshly created";
+                } else if (currentIndexMetaData.version() != indexMetaData.version()) {
+                    writeReason = "version changed from [" + currentIndexMetaData.version() + "] to [" + indexMetaData.version() + "]";
+                }
+
+                // we update the writeReason only if we really need to write it
+                if (writeReason == null) {
+                    continue;
+                }
+
+                try {
+                    writeIndex(writeReason, indexMetaData, currentIndexMetaData);
+                } catch (Exception e) {
+                    success = false;
+                }
             }
         }
 
-        // check and write changes in indices
-        for (IndexMetaData indexMetaData : event.state().metaData()) {
-            String writeReason = null;
-            IndexMetaData currentIndexMetaData = currentMetaData == null ? null : currentMetaData.index(indexMetaData.index());
-            if (currentIndexMetaData == null) {
-                writeReason = "freshly created";
-            } else if (currentIndexMetaData.version() != indexMetaData.version()) {
-                writeReason = "version changed from [" + currentIndexMetaData.version() + "] to [" + indexMetaData.version() + "]";
-            }
-
-            // we update the writeReason only if we really need to write it
-            if (writeReason == null) {
-                continue;
-            }
-
-            try {
-                writeIndex(writeReason, indexMetaData, currentIndexMetaData);
-            } catch (Exception e) {
-                success = false;
-            }
-        }
-
-        // handle dangling indices
+        // handle dangling indices, we handle those for all nodes that have a node file (data or master)
         if (nodeEnv.hasNodeFile()) {
             if (danglingTimeout.millis() >= 0) {
                 synchronized (danglingMutex) {
@@ -179,7 +222,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                                 logger.info("[{}] dangling index, exists on local file system, but not in cluster metadata, timeout set to 0, deleting now", indexName);
                                 FileSystemUtils.deleteRecursively(nodeEnv.indexLocations(new Index(indexName)));
                             } else {
-                                logger.info("[{}] dangling index, exists on local file system, but not in cluster metadata, scheduling to delete in [{}]", indexName, danglingTimeout);
+                                logger.info("[{}] dangling index, exists on local file system, but not in cluster metadata, scheduling to delete in [{}], auto import to cluster state [{}]", indexName, danglingTimeout, autoImportDangled);
                                 danglingIndices.put(indexName, new DanglingIndex(indexName, threadPool.schedule(danglingTimeout, ThreadPool.Names.SAME, new RemoveDanglingIndex(indexName))));
                             }
                         }
@@ -188,14 +231,49 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                     }
                 }
             }
+            if (autoImportDangled.shouldImport() && !danglingIndices.isEmpty()) {
+                final List<IndexMetaData> dangled = Lists.newArrayList();
+                for (String indexName : danglingIndices.keySet()) {
+                    IndexMetaData indexMetaData = loadIndex(indexName);
+                    // we might have someone copying over an index, renaming the directory, handle that
+                    if (!indexMetaData.index().equals(indexName)) {
+                        logger.info("dangled index directory name is [{}], state name is [{}], renaming to directory name", indexName, indexMetaData.index());
+                        indexMetaData = IndexMetaData.newIndexMetaDataBuilder(indexMetaData).index(indexName).build();
+                    }
+                    if (autoImportDangled == AutoImportDangledState.CLOSED) {
+                        indexMetaData = IndexMetaData.newIndexMetaDataBuilder(indexMetaData).state(IndexMetaData.State.CLOSE).build();
+                    }
+                    if (indexMetaData != null) {
+                        dangled.add(indexMetaData);
+                    }
+                }
+                IndexMetaData[] dangledIndices = dangled.toArray(new IndexMetaData[dangled.size()]);
+                try {
+                    allocateDangledIndices.allocateDangled(dangledIndices, new LocalAllocateDangledIndices.Listener() {
+                        @Override
+                        public void onResponse(LocalAllocateDangledIndices.AllocateDangledResponse response) {
+                            logger.trace("allocated dangled");
+                        }
+
+                        @Override
+                        public void onFailure(Throwable e) {
+                            logger.info("failed to send allocated dangled", e);
+                        }
+                    });
+                } catch (Exception e) {
+                    logger.warn("failed to send allocate dangled", e);
+                }
+            }
         }
 
-        // delete indices that are no longer there...
-        if (currentMetaData != null) {
-            for (IndexMetaData current : currentMetaData) {
-                if (event.state().metaData().index(current.index()) == null) {
-                    if (!danglingIndices.containsKey(current.index())) {
-                        deleteIndex(current.index());
+        if (event.state().nodes().localNode().masterNode()) {
+            // delete indices that are no longer there..., allocated dangled ones
+            if (currentMetaData != null) {
+                for (IndexMetaData current : currentMetaData) {
+                    if (event.state().metaData().index(current.index()) == null) {
+                        if (!danglingIndices.containsKey(current.index())) {
+                            deleteIndex(current.index());
+                        }
                     }
                 }
             }

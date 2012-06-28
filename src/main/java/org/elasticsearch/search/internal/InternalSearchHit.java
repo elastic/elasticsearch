@@ -25,12 +25,12 @@ import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
@@ -174,6 +174,11 @@ public class InternalSearchHit implements SearchHit {
         }
     }
 
+    @Override
+    public BytesHolder getSourceRef() {
+        return sourceRef();
+    }
+
     /**
      * Internal source representation, might be compressed....
      */
@@ -209,7 +214,16 @@ public class InternalSearchHit implements SearchHit {
             return null;
         }
         BytesHolder source = sourceRef();
-        return Unicode.fromBytes(source.bytes(), source.offset(), source.length());
+        try {
+            return XContentHelper.convertToJson(source, false);
+        } catch (IOException e) {
+            throw new ElasticSearchParseException("failed to convert source to a json string");
+        }
+    }
+
+    @Override
+    public String getSourceAsString() {
+        return sourceAsString();
     }
 
     @SuppressWarnings({"unchecked"})

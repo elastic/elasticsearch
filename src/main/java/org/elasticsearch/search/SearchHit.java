@@ -91,6 +91,11 @@ public interface SearchHit extends Streamable, ToXContent, Iterable<SearchHitFie
     BytesHolder sourceRef();
 
     /**
+     * Returns bytes reference, also un compress the source if needed.
+     */
+    BytesHolder getSourceRef();
+
+    /**
      * The source of the document (can be <tt>null</tt>). Note, its a copy of the source
      * into a byte array, consider using {@link #sourceRef()} so there won't be a need to copy.
      */
@@ -110,6 +115,11 @@ public interface SearchHit extends Streamable, ToXContent, Iterable<SearchHitFie
      * The source of the document as string (can be <tt>null</tt>).
      */
     String sourceAsString();
+
+    /**
+     * The source of the document as string (can be <tt>null</tt>).
+     */
+    String getSourceAsString();
 
     /**
      * The source of the document as a map (can be <tt>null</tt>).

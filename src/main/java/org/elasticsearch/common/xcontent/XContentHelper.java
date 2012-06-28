@@ -22,6 +22,7 @@ package org.elasticsearch.common.xcontent;
 import com.google.common.base.Charsets;
 import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedStreamInput;
 import org.elasticsearch.common.compress.Compressor;
@@ -73,6 +74,14 @@ public class XContentHelper {
         } catch (IOException e) {
             throw new ElasticSearchParseException("Failed to parse content to map", e);
         }
+    }
+
+    public static String convertToJson(BytesHolder bytes, boolean reformatJson) throws IOException {
+        return convertToJson(bytes.bytes(), bytes.offset(), bytes.length(), reformatJson);
+    }
+
+    public static String convertToJson(BytesHolder bytes, boolean reformatJson, boolean prettyPrint) throws IOException {
+        return convertToJson(bytes.bytes(), bytes.offset(), bytes.length(), reformatJson, prettyPrint);
     }
 
     public static String convertToJson(byte[] data, int offset, int length, boolean reformatJson) throws IOException {

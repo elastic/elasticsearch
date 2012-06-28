@@ -39,7 +39,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
@@ -117,15 +116,15 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
 
     @Override
     protected NodeLocalGatewayStartedShards nodeOperation(NodeRequest request) throws ElasticSearchException {
-        Map<ShardId, ShardStateInfo> shardsStateInfo = shardsState.currentStartedShards();
-        if (shardsStateInfo != null) {
-            for (Map.Entry<ShardId, ShardStateInfo> entry : shardsStateInfo.entrySet()) {
-                if (entry.getKey().equals(request.shardId)) {
-                    return new NodeLocalGatewayStartedShards(clusterService.localNode(), entry.getValue().version);
-                }
+        try {
+            ShardStateInfo shardStateInfo = shardsState.loadShardInfo(request.shardId);
+            if (shardStateInfo != null) {
+                return new NodeLocalGatewayStartedShards(clusterService.localNode(), shardStateInfo.version);
             }
+            return new NodeLocalGatewayStartedShards(clusterService.localNode(), -1);
+        } catch (Exception e) {
+            throw new ElasticSearchException("failed to load started shards", e);
         }
-        return new NodeLocalGatewayStartedShards(clusterService.localNode(), -1);
     }
 
     @Override

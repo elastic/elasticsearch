@@ -149,7 +149,8 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                     continue;
                 }
                 // only delete an unallocated shard if all (other shards) are started
-                if (indexShardRoutingTable.countWithState(ShardRoutingState.STARTED) == indexShardRoutingTable.size()) {
+                int startedShardsCount = indexShardRoutingTable.countWithState(ShardRoutingState.STARTED);
+                if (startedShardsCount > 0 && startedShardsCount == indexShardRoutingTable.size()) {
                     if (logger.isDebugEnabled()) {
                         logger.debug("[{}][{}] deleting unallocated shard", indexShardRoutingTable.shardId().index().name(), indexShardRoutingTable.shardId().id());
                     }

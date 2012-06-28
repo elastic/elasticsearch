@@ -37,7 +37,6 @@ import java.util.Map;
 /**
  * The response of a get action.
  *
- *
  * @see GetRequest
  * @see org.elasticsearch.client.Client#get(GetRequest)
  */
@@ -130,10 +129,24 @@ public class GetResponse implements ActionResponse, Streamable, Iterable<GetFiel
     }
 
     /**
+     * The source of the document if exists.
+     */
+    public byte[] getSourceAsBytes() {
+        return source();
+    }
+
+    /**
      * Returns bytes reference, also un compress the source if needed.
      */
     public BytesHolder sourceRef() {
         return getResult.sourceRef();
+    }
+
+    /**
+     * Returns bytes reference, also un compress the source if needed.
+     */
+    public BytesHolder getSourceAsBytesRef() {
+        return sourceRef();
     }
 
     /**
@@ -148,6 +161,10 @@ public class GetResponse implements ActionResponse, Streamable, Iterable<GetFiel
      */
     public String sourceAsString() {
         return getResult.sourceAsString();
+    }
+
+    public String getSourceAsString() {
+        return sourceAsString();
     }
 
     /**

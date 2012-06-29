@@ -173,8 +173,12 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
                 recoveryStatus.updateStage(RecoveryStatus.Stage.INIT);
 
                 try {
-                    logger.debug("starting recovery from {} ...", shardGateway);
-                    shardGateway.recover(indexShouldExists, recoveryStatus);
+                    if (indexShard.store().indexStore().persistent()) {
+                        logger.debug("starting recovery from {} ...", shardGateway);
+                        shardGateway.recover(indexShouldExists, recoveryStatus);
+                    } else {
+                        logger.debug("skipping recovery from {}, non-persisted index ... ", shardGateway);
+                    }
 
                     lastIndexVersion = recoveryStatus.index().version();
                     lastTranslogId = -1;

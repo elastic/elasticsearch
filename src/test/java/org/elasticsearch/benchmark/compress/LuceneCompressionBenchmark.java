@@ -23,11 +23,10 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.NIOFSDirectory;
-import org.elasticsearch.common.compress.CompressedIndexInput;
+import org.elasticsearch.common.compress.CompressedDirectory;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.FileSystemUtils;
@@ -37,7 +36,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.File;
-import java.io.IOException;
 
 /**
  */
@@ -56,59 +54,7 @@ public class LuceneCompressionBenchmark {
         FSDirectory uncompressedDir = new NIOFSDirectory(new File(testFile, "uncompressed"));
         IndexWriter uncompressedWriter = new IndexWriter(uncompressedDir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
 
-        FSDirectory compressedDir = new NIOFSDirectory(new File(testFile, "compressed")) {
-            @Override
-            public IndexOutput createOutput(String name) throws IOException {
-                if (name.endsWith(".fdt")) {
-                    return compressor.indexOutput(super.createOutput(name));
-                }
-                if (WITH_TV && name.endsWith(".tvf")) {
-                    return compressor.indexOutput(super.createOutput(name));
-                }
-                return super.createOutput(name);
-            }
-
-            @Override
-            public IndexInput openInput(String name) throws IOException {
-                if (name.endsWith(".fdt")) {
-                    IndexInput in = super.openInput(name);
-                    Compressor compressor1 = CompressorFactory.compressor(in);
-                    if (compressor1 != null) {
-                        return compressor1.indexInput(in);
-                    } else {
-                        return in;
-                    }
-                }
-                if (WITH_TV && name.endsWith(".tvf")) {
-                    IndexInput in = super.openInput(name);
-                    Compressor compressor1 = CompressorFactory.compressor(in);
-                    if (compressor1 != null) {
-                        return compressor1.indexInput(in);
-                    } else {
-                        return in;
-                    }
-                }
-                return super.openInput(name);
-            }
-
-            @Override
-            public IndexInput openInput(String name, int bufferSize) throws IOException {
-                if (name.endsWith(".fdt") || name.endsWith(".tvf")) {
-                    IndexInput in = super.openInput(name, bufferSize);
-                    // in case the override called openInput(String)
-                    if (in instanceof CompressedIndexInput) {
-                        return in;
-                    }
-                    Compressor compressor1 = CompressorFactory.compressor(in);
-                    if (compressor1 != null) {
-                        return compressor1.indexInput(in);
-                    } else {
-                        return in;
-                    }
-                }
-                return super.openInput(name, bufferSize);
-            }
-        };
+        Directory compressedDir = new CompressedDirectory(new NIOFSDirectory(new File(testFile, "compressed")), compressor, false, "fdt", "tvf");
 
         IndexWriter compressedWriter = new IndexWriter(compressedDir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
 

@@ -100,6 +100,7 @@ public class RestNodesInfoAction extends BaseRestHandler {
         nodesInfoRequest.network(request.paramAsBoolean("network", nodesInfoRequest.network()));
         nodesInfoRequest.transport(request.paramAsBoolean("transport", nodesInfoRequest.transport()));
         nodesInfoRequest.http(request.paramAsBoolean("http", nodesInfoRequest.http()));
+        nodesInfoRequest.plugins(request.paramAsBoolean("plugins", nodesInfoRequest.plugins()));
 
         executeNodeRequest(request, channel, nodesInfoRequest);
     }

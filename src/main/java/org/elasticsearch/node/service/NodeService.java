@@ -67,20 +67,19 @@ public class NodeService extends AbstractComponent {
     private String hostname;
 
     @Inject
-    public NodeService(Settings settings, ThreadPool threadPool, MonitorService monitorService, Discovery discovery, ClusterService clusterService, TransportService transportService, IndicesService indicesService) {
+    public NodeService(Settings settings, ThreadPool threadPool, MonitorService monitorService, Discovery discovery, ClusterService clusterService, TransportService transportService, IndicesService indicesService, PluginsService pluginsService) {
         super(settings);
         this.threadPool = threadPool;
         this.monitorService = monitorService;
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.indicesService = indicesService;
+        this.pluginsService = pluginsService;
         discovery.setNodeService(this);
         InetAddress address = NetworkUtils.getLocalAddress();
         if (address != null) {
             this.hostname = address.getHostName();
-        }
-        Tuple<Settings, Environment> tuple = InternalSettingsPerparer.prepareSettings(settings, true);
-        pluginsService = new PluginsService(tuple.v1(), tuple.v2());
+        }        
     }
 
     public void setHttpServer(@Nullable HttpServer httpServer) {

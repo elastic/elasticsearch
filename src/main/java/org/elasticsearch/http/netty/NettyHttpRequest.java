@@ -20,11 +20,9 @@
 package org.elasticsearch.http.netty;
 
 import com.google.common.base.Charsets;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.rest.support.AbstractRestRequest;
 import org.elasticsearch.rest.support.RestUtils;
-import org.elasticsearch.transport.netty.ChannelBufferStreamInputFactory;
 import org.jboss.netty.handler.codec.http.HttpMethod;
 
 import java.util.HashMap;
@@ -101,11 +99,6 @@ public class NettyHttpRequest extends AbstractRestRequest implements HttpRequest
     @Override
     public boolean hasContent() {
         return request.getContent().readableBytes() > 0;
-    }
-
-    @Override
-    public StreamInput contentStream() {
-        return ChannelBufferStreamInputFactory.create(request.getContent());
     }
 
     @Override

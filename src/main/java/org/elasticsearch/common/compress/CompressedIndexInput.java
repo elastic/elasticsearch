@@ -187,7 +187,7 @@ public abstract class CompressedIndexInput extends IndexInput {
             return false;
         }
         currentOffsetIdx++;
-        currentUncompressedChunkPointer = currentOffsetIdx * uncompressed.length;
+        currentUncompressedChunkPointer = ((long) currentOffsetIdx) * uncompressed.length;
         position = 0;
         return (position < valid);
     }

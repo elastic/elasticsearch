@@ -230,6 +230,7 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
         mimeTypes.put("png", "image/png");
         mimeTypes.put("svg", "image/svg+xml");
         mimeTypes.put("ico", "image/vnd.microsoft.icon");
+        mimeTypes.put("mp3", "audio/mpeg");
         DEFAULT_MIME_TYPES = ImmutableMap.copyOf(mimeTypes);
     }
 

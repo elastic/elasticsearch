@@ -21,6 +21,7 @@ package org.elasticsearch;
 
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.rest.RestStatus;
 
 /**
  *
@@ -28,6 +29,13 @@ import org.elasticsearch.common.logging.Loggers;
 public final class ExceptionsHelper {
 
     private static final ESLogger logger = Loggers.getLogger(ExceptionsHelper.class);
+
+    public static RestStatus status(Throwable t) {
+        if (t instanceof ElasticSearchException) {
+            return ((ElasticSearchException) t).status();
+        }
+        return RestStatus.INTERNAL_SERVER_ERROR;
+    }
 
     public static Throwable unwrapCause(Throwable t) {
         int counter = 0;

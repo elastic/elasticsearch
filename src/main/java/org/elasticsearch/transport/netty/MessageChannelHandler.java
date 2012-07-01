@@ -218,13 +218,16 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         byte status = buffer.readByte();
         boolean isRequest = TransportStreams.statusIsRequest(status);
 
+        // we have additional bytes to read, outside of the header
+        boolean hasBytesToRead = (size - (TransportStreams.HEADER_SIZE - 4)) != 0;
+
         StreamInput wrappedStream;
-        if (TransportStreams.statusIsCompress(status) && buffer.readable()) {
+        if (TransportStreams.statusIsCompress(status) && hasBytesToRead && buffer.readable()) {
             Compressor compressor = CompressorFactory.compressor(buffer);
             if (compressor == null) {
                 int maxToRead = Math.min(buffer.readableBytes(), 10);
                 int offset = buffer.readerIndex();
-                StringBuilder sb = new StringBuilder("stream marked as compressed, but no compressor found, first [").append(maxToRead).append("] content bytes out of [").append(buffer.readableBytes()).append("] are [");
+                StringBuilder sb = new StringBuilder("stream marked as compressed, but no compressor found, first [").append(maxToRead).append("] content bytes out of [").append(buffer.readableBytes()).append("] readable bytes with message size [").append(size).append("] ").append("] are [");
                 for (int i = 0; i < maxToRead; i++) {
                     sb.append(buffer.getByte(offset + i)).append(",");
                 }

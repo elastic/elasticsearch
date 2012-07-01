@@ -157,15 +157,17 @@ public class LocalGatewayShardsState extends AbstractComponent implements Cluste
             }
         }
 
+        // REMOVED: don't delete shard state, rely on IndicesStore to delete the shard location
+        //          only once all shards are allocated on another node
         // now, go over the current ones and delete ones that are not in the new one
-        for (Map.Entry<ShardId, ShardStateInfo> entry : currentState.entrySet()) {
-            ShardId shardId = entry.getKey();
-            if (!newState.containsKey(shardId)) {
-                if (!metaState.isDangling(shardId.index().name())) {
-                    deleteShardState(shardId);
-                }
-            }
-        }
+//        for (Map.Entry<ShardId, ShardStateInfo> entry : currentState.entrySet()) {
+//            ShardId shardId = entry.getKey();
+//            if (!newState.containsKey(shardId)) {
+//                if (!metaState.isDangling(shardId.index().name())) {
+//                    deleteShardState(shardId);
+//                }
+//            }
+//        }
 
         this.currentState = newState;
     }

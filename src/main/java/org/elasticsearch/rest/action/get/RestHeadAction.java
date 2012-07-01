@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.get;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
@@ -27,8 +28,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.*;
-
-import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
@@ -76,8 +75,8 @@ public class RestHeadAction extends BaseRestHandler {
             @Override
             public void onFailure(Throwable e) {
                 try {
-                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
-                } catch (IOException e1) {
+                    channel.sendResponse(new StringRestResponse(ExceptionsHelper.status(e)));
+                } catch (Exception e1) {
                     logger.error("Failed to send failure response", e1);
                 }
             }

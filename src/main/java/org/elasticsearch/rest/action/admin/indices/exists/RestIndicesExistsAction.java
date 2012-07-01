@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.admin.indices.exists;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.exists.IndicesExistsRequest;
 import org.elasticsearch.action.admin.indices.exists.IndicesExistsResponse;
@@ -70,7 +71,7 @@ public class RestIndicesExistsAction extends BaseRestHandler {
             @Override
             public void onFailure(Throwable e) {
                 try {
-                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                    channel.sendResponse(new StringRestResponse(ExceptionsHelper.status(e)));
                 } catch (Exception e1) {
                     logger.error("Failed to send failure response", e1);
                 }

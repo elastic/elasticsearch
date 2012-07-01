@@ -368,6 +368,10 @@ public class IndexMetaData {
         return result;
     }
 
+    public static Builder builder(String index) {
+        return new Builder(index);
+    }
+
     public static Builder newIndexMetaDataBuilder(String index) {
         return new Builder(index);
     }

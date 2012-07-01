@@ -84,6 +84,10 @@ public class AliasMetaData {
         return indexRouting;
     }
 
+    public static Builder builder(String alias) {
+        return new Builder(alias);
+    }
+
     public static Builder newAliasMetaDataBuilder(String alias) {
         return new Builder(alias);
     }

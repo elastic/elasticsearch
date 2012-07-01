@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.main;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
@@ -30,8 +31,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
-
-import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
@@ -88,8 +87,12 @@ public class RestMainAction extends BaseRestHandler {
             @Override
             public void onFailure(Throwable e) {
                 try {
-                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
-                } catch (IOException e1) {
+                    if (request.method() == HEAD) {
+                        channel.sendResponse(new StringRestResponse(ExceptionsHelper.status(e)));
+                    } else {
+                        channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                    }
+                } catch (Exception e1) {
                     logger.warn("Failed to send response", e);
                 }
             }

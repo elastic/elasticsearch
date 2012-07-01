@@ -124,6 +124,10 @@ public class Store extends AbstractIndexShardComponent {
         indexSettingsService.addListener(applySettings);
     }
 
+    public IndexStore indexStore() {
+        return this.indexStore;
+    }
+
     public Directory directory() {
         return directory;
     }

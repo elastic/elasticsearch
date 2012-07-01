@@ -116,7 +116,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
                     IndexWriter writer = new IndexWriter(indexShard.store().directory(), new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER).setOpenMode(IndexWriterConfig.OpenMode.CREATE));
                     writer.close();
                 }
-            } else if (indexShouldExists) {
+            } else if (indexShouldExists && indexShard.store().indexStore().persistent()) {
                 throw new IndexShardGatewayRecoveryException(shardId(), "shard allocated for local recovery (post api), should exists, but doesn't");
             }
         } catch (IOException e) {

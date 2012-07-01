@@ -222,7 +222,14 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         if (TransportStreams.statusIsCompress(status) && buffer.readable()) {
             Compressor compressor = CompressorFactory.compressor(buffer);
             if (compressor == null) {
-                throw new ElasticSearchIllegalStateException("stream marked as compressed, but no compressor found");
+                int maxToRead = Math.min(buffer.readableBytes(), 10);
+                int offset = buffer.readerIndex();
+                StringBuilder sb = new StringBuilder("stream marked as compressed, but no compressor found, first [").append(maxToRead).append("] content bytes out of [").append(buffer.readableBytes()).append("] are [");
+                for (int i = 0; i < maxToRead; i++) {
+                    sb.append(buffer.getByte(offset + i)).append(",");
+                }
+                sb.append("]");
+                throw new ElasticSearchIllegalStateException(sb.toString());
             }
             wrappedStream = CachedStreamInput.cachedHandlesCompressed(compressor, streamIn);
         } else {

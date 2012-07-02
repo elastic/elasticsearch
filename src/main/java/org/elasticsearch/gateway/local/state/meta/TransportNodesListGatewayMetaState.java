@@ -116,7 +116,11 @@ public class TransportNodesListGatewayMetaState extends TransportNodesOperationA
 
     @Override
     protected NodeLocalGatewayMetaState nodeOperation(NodeRequest request) throws ElasticSearchException {
-        return new NodeLocalGatewayMetaState(clusterService.localNode(), metaState.currentMetaData());
+        try {
+            return new NodeLocalGatewayMetaState(clusterService.localNode(), metaState.loadMetaState());
+        } catch (Exception e) {
+            throw new ElasticSearchException("failed to load metadata", e);
+        }
     }
 
     @Override

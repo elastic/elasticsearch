@@ -21,8 +21,10 @@ package org.elasticsearch.gateway.blobstore;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.*;
@@ -140,6 +142,11 @@ public abstract class BlobStoreGateway extends SharedStorageGateway {
         return commitPoints.commits().get(0);
     }
 
+    @Override
+    protected void delete(IndexMetaData indexMetaData) throws ElasticSearchException {
+        BlobPath indexPath = basePath().add("indices").add(indexMetaData.index());
+        blobStore.delete(indexPath);
+    }
 
     @Override
     public void write(MetaData metaData) throws GatewayException {

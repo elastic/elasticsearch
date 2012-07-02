@@ -61,6 +61,10 @@ public class CompressorFactory {
         return compressor(data, offset, length) != null;
     }
 
+    public static boolean isCompressed(IndexInput in) throws IOException {
+        return compressor(in) != null;
+    }
+
     @Nullable
     public static Compressor compressor(BytesHolder bytes) {
         return compressor(bytes.bytes(), bytes.offset(), bytes.length());

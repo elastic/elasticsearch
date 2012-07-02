@@ -163,8 +163,8 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
             }
         }
 
-        // do the reverse, and delete dangling indices / shards that might remain on that node
-        // this can happen when deleting a closed index, or when a node joins and it has deleted indices / shards
+        // do the reverse, and delete dangling shards that might remain on that node
+        // but are allocated on other nodes
         if (nodeEnv.hasNodeFile()) {
             // delete unused shards for existing indices
             for (IndexRoutingTable indexRoutingTable : routingTable) {

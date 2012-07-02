@@ -25,12 +25,17 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.gateway.GatewayException;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.ExecutorService;
@@ -50,12 +55,21 @@ public abstract class SharedStorageGateway extends AbstractLifecycleComponent<Ga
 
     private ExecutorService writeStateExecutor;
 
+    private volatile MetaData currentMetaData;
+
+    private NodeEnvironment nodeEnv;
+
     public SharedStorageGateway(Settings settings, ThreadPool threadPool, ClusterService clusterService) {
         super(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.writeStateExecutor = newSingleThreadExecutor(daemonThreadFactory(settings, "gateway#writeMetaData"));
-        clusterService.add(this);
+        clusterService.addLast(this);
+    }
+
+    @Inject
+    public void setNodeEnv(NodeEnvironment nodeEnv) {
+        this.nodeEnv = nodeEnv;
     }
 
     @Override
@@ -110,16 +124,17 @@ public abstract class SharedStorageGateway extends AbstractLifecycleComponent<Ga
 
         // nothing to do until we actually recover from the gateway or any other block indicates we need to disable persistency
         if (event.state().blocks().disableStatePersistence()) {
+            this.currentMetaData = null;
             return;
         }
 
-        if (event.localNodeMaster()) {
-            if (!event.metaDataChanged()) {
-                return;
-            }
-            writeStateExecutor.execute(new Runnable() {
-                @Override
-                public void run() {
+        if (!event.metaDataChanged()) {
+            return;
+        }
+        writeStateExecutor.execute(new Runnable() {
+            @Override
+            public void run() {
+                if (event.localNodeMaster()) {
                     logger.debug("writing to gateway {} ...", this);
                     StopWatch stopWatch = new StopWatch().start();
                     try {
@@ -129,12 +144,31 @@ public abstract class SharedStorageGateway extends AbstractLifecycleComponent<Ga
                     } catch (Exception e) {
                         logger.error("failed to write to gateway", e);
                     }
+                    if (currentMetaData != null) {
+                        for (IndexMetaData current : currentMetaData) {
+                            if (!event.state().metaData().hasIndex(current.index())) {
+                                delete(current);
+                            }
+                        }
+                    }
                 }
-            });
-        }
+                if (nodeEnv != null && nodeEnv.hasNodeFile()) {
+                    if (currentMetaData != null) {
+                        for (IndexMetaData current : currentMetaData) {
+                            if (!event.state().metaData().hasIndex(current.index())) {
+                                FileSystemUtils.deleteRecursively(nodeEnv.indexLocations(new Index(current.index())));
+                            }
+                        }
+                    }
+                }
+                currentMetaData = event.state().metaData();
+            }
+        });
     }
 
     protected abstract MetaData read() throws ElasticSearchException;
 
     protected abstract void write(MetaData metaData) throws ElasticSearchException;
+
+    protected abstract void delete(IndexMetaData indexMetaData) throws ElasticSearchException;
 }

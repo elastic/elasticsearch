@@ -229,12 +229,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         for (final String index : indicesService.indices()) {
             if (!event.state().metaData().hasIndex(index)) {
                 if (logger.isDebugEnabled()) {
-                    logger.debug("[{}] deleting index", index);
+                    logger.debug("[{}] cleaning index, no longer part of the metadata", index);
                 }
                 try {
-                    indicesService.deleteIndex(index, "deleting index");
+                    indicesService.cleanIndex(index, "index no longer part of the metadata");
                 } catch (Exception e) {
-                    logger.warn("failed to delete index", e);
+                    logger.warn("failed to clean index", e);
                 }
                 // clear seen mappings as well
                 for (Tuple<String, String> tuple : seenMappings.keySet()) {

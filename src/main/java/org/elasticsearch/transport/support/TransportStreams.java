@@ -106,13 +106,13 @@ public class TransportStreams {
 
         if (options.compress()) {
             status = TransportStreams.statusSetCompress(status);
-            StreamOutput stream = cachedEntry.cachedHandles(CompressorFactory.defaultCompressor());
             cachedEntry.bytes().write(HEADER_PLACEHOLDER);
+            StreamOutput stream = cachedEntry.handles(CompressorFactory.defaultCompressor());
             stream.writeUTF(action);
             message.writeTo(stream);
             stream.close();
         } else {
-            StreamOutput stream = cachedEntry.cachedHandles();
+            StreamOutput stream = cachedEntry.handles();
             cachedEntry.bytes().write(HEADER_PLACEHOLDER);
             stream.writeUTF(action);
             message.writeTo(stream);
@@ -127,12 +127,12 @@ public class TransportStreams {
 
         if (options.compress()) {
             status = TransportStreams.statusSetCompress(status);
-            StreamOutput stream = cachedEntry.cachedHandles(CompressorFactory.defaultCompressor());
             cachedEntry.bytes().write(HEADER_PLACEHOLDER);
+            StreamOutput stream = cachedEntry.handles(CompressorFactory.defaultCompressor());
             message.writeTo(stream);
             stream.close();
         } else {
-            StreamOutput stream = cachedEntry.cachedHandles();
+            StreamOutput stream = cachedEntry.handles();
             cachedEntry.bytes().write(HEADER_PLACEHOLDER);
             message.writeTo(stream);
             stream.close();

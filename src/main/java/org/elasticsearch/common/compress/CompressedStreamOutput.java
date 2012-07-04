@@ -25,23 +25,26 @@ import java.io.IOException;
 
 /**
  */
-public abstract class CompressedStreamOutput extends StreamOutput {
+public abstract class CompressedStreamOutput<T extends CompressorContext> extends StreamOutput {
 
     private final StreamOutput out;
+    protected final T context;
 
     protected byte[] uncompressed;
+    protected int uncompressedLength;
     private int position = 0;
 
     private boolean closed;
 
-    public CompressedStreamOutput(StreamOutput out) throws IOException {
+    public CompressedStreamOutput(StreamOutput out, T context) throws IOException {
         this.out = out;
+        this.context = context;
         writeHeader(out);
     }
 
     @Override
     public void write(int b) throws IOException {
-        if (position >= uncompressed.length) {
+        if (position >= uncompressedLength) {
             flushBuffer();
         }
         uncompressed[position++] = (byte) b;
@@ -49,7 +52,7 @@ public abstract class CompressedStreamOutput extends StreamOutput {
 
     @Override
     public void writeByte(byte b) throws IOException {
-        if (position >= uncompressed.length) {
+        if (position >= uncompressedLength) {
             flushBuffer();
         }
         uncompressed[position++] = b;
@@ -61,7 +64,7 @@ public abstract class CompressedStreamOutput extends StreamOutput {
         if (length == 0) {
             return;
         }
-        final int BUFFER_LEN = uncompressed.length;
+        final int BUFFER_LEN = uncompressedLength;
 
         // simple case first: buffering only (for trivially short writes)
         int free = BUFFER_LEN - position;

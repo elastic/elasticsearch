@@ -17,11 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.common.compress.lzf;
+package org.elasticsearch.common.compress.snappy;
 
 import com.ning.compress.BufferRecycler;
-import com.ning.compress.lzf.ChunkEncoder;
-import com.ning.compress.lzf.LZFChunk;
 import org.elasticsearch.common.compress.CompressedStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -29,27 +27,25 @@ import java.io.IOException;
 
 /**
  */
-public class LZFCompressedStreamOutput extends CompressedStreamOutput<LZFCompressorContext> {
+public abstract class SnappyCompressedStreamOutput extends CompressedStreamOutput<SnappyCompressorContext> {
 
-    private final BufferRecycler recycler;
-    private final ChunkEncoder encoder;
+    protected final BufferRecycler recycler;
 
-    public LZFCompressedStreamOutput(StreamOutput out) throws IOException {
-        super(out, LZFCompressorContext.INSTANCE);
+    protected byte[] compressedBuffer;
+
+    public SnappyCompressedStreamOutput(StreamOutput out, SnappyCompressorContext context) throws IOException {
+        super(out, context);
         this.recycler = BufferRecycler.instance();
-        this.uncompressed = this.recycler.allocOutputBuffer(LZFChunk.MAX_CHUNK_LEN);
-        this.uncompressedLength = LZFChunk.MAX_CHUNK_LEN;
-        this.encoder = new ChunkEncoder(LZFChunk.MAX_CHUNK_LEN);
+        this.uncompressed = this.recycler.allocOutputBuffer(context.compressChunkLength());
+        this.uncompressedLength = context.compressChunkLength();
+        this.compressedBuffer = recycler.allocEncodingBuffer(context.compressMaxCompressedChunkLength());
     }
 
     @Override
     public void writeHeader(StreamOutput out) throws IOException {
-        // nothing to do here, each chunk has a header of its own
-    }
-
-    @Override
-    protected void compress(byte[] data, int offset, int len, StreamOutput out) throws IOException {
-        encoder.encodeAndWriteChunk(data, offset, len, out);
+        out.writeBytes(SnappyCompressor.HEADER);
+        out.writeVInt(context.compressChunkLength());
+        out.writeVInt(context.compressMaxCompressedChunkLength());
     }
 
     @Override
@@ -59,6 +55,10 @@ public class LZFCompressedStreamOutput extends CompressedStreamOutput<LZFCompres
             uncompressed = null;
             recycler.releaseOutputBuffer(buf);
         }
-        encoder.close();
+        buf = compressedBuffer;
+        if (buf != null) {
+            compressedBuffer = null;
+            recycler.releaseEncodeBuffer(buf);
+        }
     }
 }

@@ -155,9 +155,9 @@ public abstract class BlobStoreGateway extends SharedStorageGateway {
         try {
             StreamOutput streamOutput;
             if (compress) {
-                streamOutput = cachedEntry.cachedBytes(CompressorFactory.defaultCompressor());
+                streamOutput = cachedEntry.bytes(CompressorFactory.defaultCompressor());
             } else {
-                streamOutput = cachedEntry.cachedBytes();
+                streamOutput = cachedEntry.bytes();
             }
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, streamOutput);
             builder.startObject();

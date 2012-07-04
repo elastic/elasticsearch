@@ -69,7 +69,7 @@ public class PublishClusterStateAction extends AbstractComponent {
         CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
         byte[] clusterStateInBytes;
         try {
-            StreamOutput stream = cachedEntry.cachedHandles(CompressorFactory.defaultCompressor());
+            StreamOutput stream = cachedEntry.handles(CompressorFactory.defaultCompressor());
             ClusterState.Builder.writeTo(clusterState, stream);
             stream.close();
             clusterStateInBytes = cachedEntry.bytes().copiedByteArray();

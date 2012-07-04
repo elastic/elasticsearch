@@ -184,6 +184,14 @@
             <optional>true</optional>
         </dependency>
 
+        <dependency>
+            <groupId>org.xerial.snappy</groupId>
+            <artifactId>snappy-java</artifactId>
+            <version>1.0.4.1</version>
+            <scope>compile</scope>
+            <optional>true</optional>
+        </dependency>
+
         <!-- We don't use this since the publish pom is then messed up -->
         <!--
         <dependency>
@@ -494,7 +502,7 @@
                                 </data>
                                 <data>
                                     <src>${project.build.directory}/lib</src>
-                                    <includes>lucene*, log4j*, jna*</includes>
+                                    <includes>lucene*, log4j*, jna*, snappy-java-*</includes>
                                     <type>directory</type>
                                     <mapper>
                                         <type>perm</type>

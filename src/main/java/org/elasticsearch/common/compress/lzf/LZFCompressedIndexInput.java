@@ -30,17 +30,18 @@ import java.util.Arrays;
 
 /**
  */
-public class LZFCompressedIndexInput extends CompressedIndexInput {
+public class LZFCompressedIndexInput extends CompressedIndexInput<LZFCompressorContext> {
 
     private final ChunkDecoder decoder;
     // scratch area buffer
     private byte[] inputBuffer;
 
     public LZFCompressedIndexInput(IndexInput in, ChunkDecoder decoder) throws IOException {
-        super(in);
+        super(in, LZFCompressorContext.INSTANCE);
 
         this.decoder = decoder;
         this.uncompressed = new byte[LZFChunk.MAX_CHUNK_LEN];
+        this.uncompressedLength = LZFChunk.MAX_CHUNK_LEN;
         this.inputBuffer = new byte[LZFChunk.MAX_CHUNK_LEN];
     }
 

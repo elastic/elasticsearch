@@ -268,7 +268,7 @@ public class LocalGatewayShardsState extends AbstractComponent implements Cluste
         logger.trace("[{}][{}] writing shard state, reason [{}]", shardId.index().name(), shardId.id(), reason);
         CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
         try {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, cachedEntry.cachedBytes());
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, cachedEntry.bytes());
             builder.prettyPrint();
             builder.startObject();
             builder.field("version", shardStateInfo.version);

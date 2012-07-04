@@ -36,7 +36,7 @@ public class BytesStreamsTests {
 
     @Test
     public void testSimpleStreams() throws Exception {
-        BytesStreamOutput out = CachedStreamOutput.popEntry().cachedBytes();
+        BytesStreamOutput out = CachedStreamOutput.popEntry().bytes();
         out.writeBoolean(false);
         out.writeByte((byte) 1);
         out.writeShort((short) -1);

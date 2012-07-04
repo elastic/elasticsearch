@@ -68,7 +68,7 @@ public class LocalTransportChannel implements TransportChannel {
     public void sendResponse(Streamable message, TransportResponseOptions options) throws IOException {
         CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
         try {
-            StreamOutput stream = cachedEntry.cachedHandles();
+            StreamOutput stream = cachedEntry.handles();
             stream.writeLong(requestId);
             byte status = 0;
             status = TransportStreams.statusSetResponse(status);
@@ -93,14 +93,15 @@ public class LocalTransportChannel implements TransportChannel {
         try {
             BytesStreamOutput stream;
             try {
-                stream = cachedEntry.cachedBytes();
+                stream = cachedEntry.bytes();
                 writeResponseExceptionHeader(stream);
                 RemoteTransportException tx = new RemoteTransportException(targetTransport.nodeName(), targetTransport.boundAddress().boundAddress(), action, error);
                 ThrowableObjectOutputStream too = new ThrowableObjectOutputStream(stream);
                 too.writeObject(tx);
                 too.close();
             } catch (NotSerializableException e) {
-                stream = cachedEntry.cachedBytes();
+                cachedEntry.reset();
+                stream = cachedEntry.bytes();
                 writeResponseExceptionHeader(stream);
                 RemoteTransportException tx = new RemoteTransportException(targetTransport.nodeName(), targetTransport.boundAddress().boundAddress(), action, new NotSerializableTransportException(error));
                 ThrowableObjectOutputStream too = new ThrowableObjectOutputStream(stream);

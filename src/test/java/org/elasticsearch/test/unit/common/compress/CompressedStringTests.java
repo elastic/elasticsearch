@@ -20,6 +20,8 @@
 package org.elasticsearch.test.unit.common.compress;
 
 import org.elasticsearch.common.compress.CompressedString;
+import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
@@ -34,7 +36,17 @@ import static org.hamcrest.Matchers.not;
 public class CompressedStringTests {
 
     @Test
-    public void simpleTests() throws IOException {
+    public void simpleTestsSnappy() throws IOException {
+        simpleTests("snappy");
+    }
+
+    @Test
+    public void simpleTestsLZF() throws IOException {
+        simpleTests("lzf");
+    }
+
+    public void simpleTests(String compressor) throws IOException {
+        CompressorFactory.configure(ImmutableSettings.settingsBuilder().put("compress.default.type", compressor).build());
         String str = "this is a simple string";
         CompressedString cstr = new CompressedString(str);
         assertThat(cstr.string(), equalTo(str));

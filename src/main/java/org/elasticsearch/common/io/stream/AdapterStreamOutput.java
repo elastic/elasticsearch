@@ -34,7 +34,7 @@ public class AdapterStreamOutput extends StreamOutput {
         this.out = out;
     }
 
-    public void reset(StreamOutput out) throws IOException {
+    public void setOut(StreamOutput out) {
         this.out = out;
     }
 

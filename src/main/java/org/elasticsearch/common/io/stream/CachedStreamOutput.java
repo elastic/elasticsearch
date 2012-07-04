@@ -47,35 +47,28 @@ public class CachedStreamOutput {
             this.handles = handles;
         }
 
-        /**
-         * Returns the underlying bytes without any resetting.
-         */
+        public void reset() {
+            bytes.reset();
+            handles.setOut(bytes);
+            handles.clear();
+        }
+
         public BytesStreamOutput bytes() {
             return bytes;
         }
 
-        /**
-         * Returns cached bytes that are also reset.
-         */
-        public BytesStreamOutput cachedBytes() {
-            bytes.reset();
-            return bytes;
-        }
-
-        public StreamOutput cachedHandles() throws IOException {
-            handles.reset(bytes);
+        public StreamOutput handles() throws IOException {
             return handles;
         }
 
-        public StreamOutput cachedBytes(Compressor compressor) throws IOException {
-            bytes.reset();
+        public StreamOutput bytes(Compressor compressor) throws IOException {
             return compressor.streamOutput(bytes);
         }
 
-        public StreamOutput cachedHandles(Compressor compressor) throws IOException {
-            bytes.reset();
+        public StreamOutput handles(Compressor compressor) throws IOException {
             StreamOutput compressed = compressor.streamOutput(bytes);
-            handles.reset(compressed);
+            handles.clear();
+            handles.setOut(compressed);
             return handles;
         }
     }
@@ -118,10 +111,12 @@ public class CachedStreamOutput {
             return newEntry();
         }
         counter.decrementAndGet();
+        entry.reset();
         return entry;
     }
 
     public static void pushEntry(Entry entry) {
+        entry.reset();
         if (entry.bytes().underlyingBytes().length > BYTES_LIMIT) {
             return;
         }

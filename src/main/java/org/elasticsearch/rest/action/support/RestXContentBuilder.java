@@ -47,7 +47,7 @@ public class RestXContentBuilder {
             contentType = XContentType.JSON;
         }
         CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
-        XContentBuilder builder = new XContentBuilder(XContentFactory.xContent(contentType), cachedEntry.cachedBytes(), cachedEntry);
+        XContentBuilder builder = new XContentBuilder(XContentFactory.xContent(contentType), cachedEntry.bytes(), cachedEntry);
         if (request.paramAsBoolean("pretty", false)) {
             builder.prettyPrint();
         }

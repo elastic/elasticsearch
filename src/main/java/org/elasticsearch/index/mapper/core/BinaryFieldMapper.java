@@ -170,7 +170,7 @@ public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
             if (compress != null && compress && !CompressorFactory.isCompressed(value, 0, value.length)) {
                 if (compressThreshold == -1 || value.length > compressThreshold) {
                     CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
-                    StreamOutput streamOutput = cachedEntry.cachedBytes(CompressorFactory.defaultCompressor());
+                    StreamOutput streamOutput = cachedEntry.bytes(CompressorFactory.defaultCompressor());
                     streamOutput.writeBytes(value, 0, value.length);
                     streamOutput.close();
                     // we copy over the byte array, since we need to push back the cached entry

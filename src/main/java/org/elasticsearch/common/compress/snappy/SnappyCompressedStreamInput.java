@@ -17,57 +17,56 @@
  * under the License.
  */
 
-package org.elasticsearch.common.compress.lzf;
+package org.elasticsearch.common.compress.snappy;
 
 import com.ning.compress.BufferRecycler;
-import com.ning.compress.lzf.ChunkDecoder;
-import com.ning.compress.lzf.LZFChunk;
 import org.elasticsearch.common.compress.CompressedStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  */
-public class LZFCompressedStreamInput extends CompressedStreamInput<LZFCompressorContext> {
+public abstract class SnappyCompressedStreamInput extends CompressedStreamInput<SnappyCompressorContext> {
 
-    private final BufferRecycler recycler;
+    protected final BufferRecycler recycler;
 
-    private final ChunkDecoder decoder;
+    protected int chunkSize;
 
-    // scratch area buffer
-    private byte[] inputBuffer;
+    protected int maxCompressedChunkLength;
 
-    public LZFCompressedStreamInput(StreamInput in, ChunkDecoder decoder) throws IOException {
-        super(in, LZFCompressorContext.INSTANCE);
+    protected byte[] inputBuffer;
+
+    public SnappyCompressedStreamInput(StreamInput in, SnappyCompressorContext context) throws IOException {
+        super(in, context);
         this.recycler = BufferRecycler.instance();
-        this.decoder = decoder;
-
-        this.uncompressed = recycler.allocDecodeBuffer(LZFChunk.MAX_CHUNK_LEN);
-        this.inputBuffer = recycler.allocInputBuffer(LZFChunk.MAX_CHUNK_LEN);
+        this.uncompressed = recycler.allocDecodeBuffer(Math.max(chunkSize, maxCompressedChunkLength));
+        this.inputBuffer = recycler.allocInputBuffer(Math.max(chunkSize, maxCompressedChunkLength));
     }
 
     @Override
     public void readHeader(StreamInput in) throws IOException {
-        // nothing to do here, each chunk has a header
-    }
-
-    @Override
-    public int uncompress(StreamInput in, byte[] out) throws IOException {
-        return decoder.decodeChunk(in, inputBuffer, out);
+        byte[] header = new byte[SnappyCompressor.HEADER.length];
+        in.readBytes(header, 0, header.length);
+        if (!Arrays.equals(header, SnappyCompressor.HEADER)) {
+            throw new IOException("wrong snappy compressed header [" + Arrays.toString(header) + "]");
+        }
+        this.chunkSize = in.readVInt();
+        this.maxCompressedChunkLength = in.readVInt();
     }
 
     @Override
     protected void doClose() throws IOException {
-        byte[] buf = inputBuffer;
-        if (buf != null) {
-            inputBuffer = null;
-            recycler.releaseInputBuffer(buf);
-        }
-        buf = uncompressed;
+        byte[] buf = uncompressed;
         if (buf != null) {
             uncompressed = null;
             recycler.releaseDecodeBuffer(uncompressed);
+        }
+        buf = inputBuffer;
+        if (buf != null) {
+            inputBuffer = null;
+            recycler.releaseInputBuffer(inputBuffer);
         }
     }
 }

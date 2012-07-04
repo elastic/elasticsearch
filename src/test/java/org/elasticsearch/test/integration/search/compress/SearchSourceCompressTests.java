@@ -22,6 +22,10 @@ package org.elasticsearch.test.integration.search.compress;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.compress.lzf.LZFCompressor;
+import org.elasticsearch.common.compress.snappy.xerial.XerialSnappy;
+import org.elasticsearch.common.compress.snappy.xerial.XerialSnappyCompressor;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -60,18 +64,29 @@ public class SearchSourceCompressTests extends AbstractNodesTests {
     }
 
     @Test
-    public void testSourceFieldCompressed() throws IOException {
+    public void testSourceCompressionLZF() throws IOException {
+        CompressorFactory.setDefaultCompressor(new LZFCompressor());
         verifySource(true);
-    }
-
-    @Test
-    public void testSourceFieldPlainExplicit() throws IOException {
         verifySource(false);
+        verifySource(null);
     }
 
     @Test
-    public void testSourceFieldPlain() throws IOException {
-        verifySource(null);
+    public void testSourceCompressionXerialSnappy() throws IOException {
+        if (XerialSnappy.available) {
+            CompressorFactory.setDefaultCompressor(new XerialSnappyCompressor());
+            verifySource(true);
+            verifySource(false);
+            verifySource(null);
+        }
+    }
+
+    @Test
+    public void testAll() throws IOException {
+        testSourceCompressionLZF();
+        testSourceCompressionXerialSnappy();
+        testSourceCompressionLZF();
+        testSourceCompressionXerialSnappy();
     }
 
     private void verifySource(Boolean compress) throws IOException {

@@ -27,31 +27,34 @@ import java.io.IOException;
 
 /**
  */
-public abstract class CompressedIndexInput extends IndexInput {
+public abstract class CompressedIndexInput<T extends CompressorContext> extends IndexInput {
 
     private IndexInput in;
+    protected final T context;
 
     private int version;
-    private long uncompressedLength;
+    private long totalUncompressedLength;
     private BigLongArray offsets;
 
     private boolean closed;
 
     protected byte[] uncompressed;
+    protected int uncompressedLength;
     private int position = 0;
     private int valid = 0;
     private int currentOffsetIdx;
     private long currentUncompressedChunkPointer;
 
-    public CompressedIndexInput(IndexInput in) throws IOException {
+    public CompressedIndexInput(IndexInput in, T context) throws IOException {
         super("compressed(" + in.toString() + ")");
         this.in = in;
+        this.context = context;
         readHeader(in);
         this.version = in.readInt();
         long metaDataPosition = in.readLong();
         long headerLength = in.getFilePointer();
         in.seek(metaDataPosition);
-        this.uncompressedLength = in.readVLong();
+        this.totalUncompressedLength = in.readVLong();
         int size = in.readVInt();
         offsets = new BigLongArray(size);
         for (int i = 0; i < size; i++) {
@@ -133,7 +136,7 @@ public abstract class CompressedIndexInput extends IndexInput {
 
     @Override
     public void seek(long pos) throws IOException {
-        int idx = (int) (pos / uncompressed.length);
+        int idx = (int) (pos / uncompressedLength);
         if (idx >= offsets.size) {
             // set the next "readyBuffer" to EOF
             currentOffsetIdx = idx;
@@ -151,12 +154,12 @@ public abstract class CompressedIndexInput extends IndexInput {
             currentOffsetIdx = idx - 1; // we are going to increase it in readyBuffer...
             readyBuffer();
         }
-        position = (int) (pos % uncompressed.length);
+        position = (int) (pos % uncompressedLength);
     }
 
     @Override
     public long length() {
-        return uncompressedLength;
+        return totalUncompressedLength;
     }
 
     @Override
@@ -187,7 +190,7 @@ public abstract class CompressedIndexInput extends IndexInput {
             return false;
         }
         currentOffsetIdx++;
-        currentUncompressedChunkPointer = ((long) currentOffsetIdx) * uncompressed.length;
+        currentUncompressedChunkPointer = ((long) currentOffsetIdx) * uncompressedLength;
         position = 0;
         return (position < valid);
     }
@@ -203,8 +206,8 @@ public abstract class CompressedIndexInput extends IndexInput {
     public Object clone() {
         // we clone and we need to make sure we keep the same positions!
         CompressedIndexInput cloned = (CompressedIndexInput) super.clone();
-        cloned.uncompressed = new byte[uncompressed.length];
-        System.arraycopy(uncompressed, 0, cloned.uncompressed, 0, uncompressed.length);
+        cloned.uncompressed = new byte[uncompressedLength];
+        System.arraycopy(uncompressed, 0, cloned.uncompressed, 0, uncompressedLength);
         cloned.in = (IndexInput) cloned.in.clone();
         return cloned;
     }

@@ -323,7 +323,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
         rwl.readLock().lock();
         try {
-            BytesStreamOutput out = cachedEntry.cachedBytes();
+            BytesStreamOutput out = cachedEntry.bytes();
             out.writeInt(0); // marker for the size...
             TranslogStreams.writeTranslogOperation(out, operation);
             out.flush();

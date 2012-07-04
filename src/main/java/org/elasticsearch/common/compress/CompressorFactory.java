@@ -20,14 +20,22 @@
 package org.elasticsearch.common.compress;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.lzf.LZFCompressor;
+import org.elasticsearch.common.compress.snappy.UnavailableSnappyCompressor;
+import org.elasticsearch.common.compress.snappy.xerial.XerialSnappy;
+import org.elasticsearch.common.compress.snappy.xerial.XerialSnappyCompressor;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Settings;
 import org.jboss.netty.buffer.ChannelBuffer;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Locale;
 
 /**
  */
@@ -37,20 +45,57 @@ public class CompressorFactory {
 
     private static final Compressor[] compressors;
     private static final ImmutableMap<String, Compressor> compressorsByType;
+    private static Compressor defaultCompressor;
 
     static {
-        compressors = new Compressor[1];
-        compressors[0] = LZF;
+        List<Compressor> compressorsX = Lists.newArrayList();
+        compressorsX.add(LZF);
+        boolean addedSnappy = false;
+        if (XerialSnappy.available) {
+            compressorsX.add(new XerialSnappyCompressor());
+            addedSnappy = true;
+        } else {
+            Loggers.getLogger(CompressorFactory.class).debug("failed to load xerial snappy-java", XerialSnappy.failure);
+        }
+        if (!addedSnappy) {
+            compressorsX.add(new UnavailableSnappyCompressor());
+        }
+
+        compressors = compressorsX.toArray(new Compressor[compressorsX.size()]);
 
         MapBuilder<String, Compressor> compressorsByTypeX = MapBuilder.newMapBuilder();
         for (Compressor compressor : compressors) {
             compressorsByTypeX.put(compressor.type(), compressor);
         }
         compressorsByType = compressorsByTypeX.immutableMap();
+
+        defaultCompressor = LZF;
+    }
+
+    public static synchronized void configure(Settings settings) {
+        for (Compressor compressor : compressors) {
+            compressor.configure(settings);
+        }
+        String defaultType = settings.get("compress.default.type", "lzf").toLowerCase(Locale.ENGLISH);
+        boolean found = false;
+        for (Compressor compressor : compressors) {
+            if (defaultType.equalsIgnoreCase(compressor.type())) {
+                defaultCompressor = compressor;
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            Loggers.getLogger(CompressorFactory.class).warn("failed to find default type [{}]", defaultType);
+        }
+    }
+
+    public static synchronized void setDefaultCompressor(Compressor defaultCompressor) {
+        CompressorFactory.defaultCompressor = defaultCompressor;
     }
 
     public static Compressor defaultCompressor() {
-        return LZF;
+        return defaultCompressor;
     }
 
     public static boolean isCompressed(byte[] data) {

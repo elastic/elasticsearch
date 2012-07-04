@@ -224,7 +224,7 @@ public class ClusterState {
         public static byte[] toBytes(ClusterState state) throws IOException {
             CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
             try {
-                BytesStreamOutput os = cachedEntry.cachedBytes();
+                BytesStreamOutput os = cachedEntry.bytes();
                 writeTo(state, os);
                 return os.copiedByteArray();
             } finally {

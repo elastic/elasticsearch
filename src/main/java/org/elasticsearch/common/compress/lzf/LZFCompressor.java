@@ -29,6 +29,7 @@ import org.elasticsearch.common.compress.*;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Settings;
 import org.jboss.netty.buffer.ChannelBuffer;
 
 import java.io.IOException;
@@ -51,6 +52,10 @@ public class LZFCompressor implements Compressor {
     @Override
     public String type() {
         return TYPE;
+    }
+
+    @Override
+    public void configure(Settings settings) {
     }
 
     @Override

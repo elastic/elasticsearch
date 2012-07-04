@@ -255,9 +255,9 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
             CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
             StreamOutput streamOutput;
             if (compress != null && compress && (compressThreshold == -1 || dataLength > compressThreshold)) {
-                streamOutput = cachedEntry.cachedBytes(CompressorFactory.defaultCompressor());
+                streamOutput = cachedEntry.bytes(CompressorFactory.defaultCompressor());
             } else {
-                streamOutput = cachedEntry.cachedBytes();
+                streamOutput = cachedEntry.bytes();
             }
             XContentType contentType = formatContentType;
             if (contentType == null) {
@@ -277,11 +277,11 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
                 try {
                     XContentType contentType = XContentFactory.xContentType(data, dataOffset, dataLength);
                     if (formatContentType != null && formatContentType != contentType) {
-                        XContentBuilder builder = XContentFactory.contentBuilder(formatContentType, cachedEntry.cachedBytes(CompressorFactory.defaultCompressor()));
+                        XContentBuilder builder = XContentFactory.contentBuilder(formatContentType, cachedEntry.bytes(CompressorFactory.defaultCompressor()));
                         builder.copyCurrentStructure(XContentFactory.xContent(contentType).createParser(data, dataOffset, dataLength));
                         builder.close();
                     } else {
-                        StreamOutput streamOutput = cachedEntry.cachedBytes(CompressorFactory.defaultCompressor());
+                        StreamOutput streamOutput = cachedEntry.bytes(CompressorFactory.defaultCompressor());
                         streamOutput.writeBytes(data, dataOffset, dataLength);
                         streamOutput.close();
                     }
@@ -307,7 +307,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
                     // we need to reread and store back, compressed....
                     CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
                     try {
-                        StreamOutput streamOutput = cachedEntry.cachedBytes(CompressorFactory.defaultCompressor());
+                        StreamOutput streamOutput = cachedEntry.bytes(CompressorFactory.defaultCompressor());
                         XContentBuilder builder = XContentFactory.contentBuilder(formatContentType, streamOutput);
                         builder.copyCurrentStructure(XContentFactory.xContent(contentType).createParser(compressedStreamInput));
                         builder.close();
@@ -329,7 +329,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
                     // we need to reread and store back, compressed....
                     CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
                     try {
-                        XContentBuilder builder = XContentFactory.contentBuilder(formatContentType, cachedEntry.cachedBytes());
+                        XContentBuilder builder = XContentFactory.contentBuilder(formatContentType, cachedEntry.bytes());
                         builder.copyCurrentStructure(XContentFactory.xContent(contentType).createParser(data, dataOffset, dataLength));
                         builder.close();
                         data = cachedEntry.bytes().copiedByteArray();

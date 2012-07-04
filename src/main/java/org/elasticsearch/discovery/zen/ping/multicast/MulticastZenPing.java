@@ -268,7 +268,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
         synchronized (sendMutex) {
             CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
             try {
-                StreamOutput out = cachedEntry.cachedHandles();
+                StreamOutput out = cachedEntry.handles();
                 out.writeBytes(INTERNAL_HEADER);
                 Version.writeVersion(Version.CURRENT, out);
                 out.writeInt(id);

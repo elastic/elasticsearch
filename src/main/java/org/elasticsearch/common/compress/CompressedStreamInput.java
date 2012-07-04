@@ -23,13 +23,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.EOFException;
 import java.io.IOException;
-import java.io.InputStream;
 
 /**
  */
-public abstract class CompressedStreamInput extends StreamInput {
+public abstract class CompressedStreamInput<T extends CompressorContext> extends StreamInput {
 
     private final StreamInput in;
+    protected final CompressorContext context;
 
     private boolean closed;
 
@@ -37,8 +37,9 @@ public abstract class CompressedStreamInput extends StreamInput {
     private int position = 0;
     private int valid = 0;
 
-    public CompressedStreamInput(StreamInput in) throws IOException {
+    public CompressedStreamInput(StreamInput in, T context) throws IOException {
         this.in = in;
+        this.context = context;
         readHeader(in);
     }
 
@@ -169,6 +170,6 @@ public abstract class CompressedStreamInput extends StreamInput {
     /**
      * Uncompress the data into the out array, returning the size uncompressed
      */
-    protected abstract int uncompress(InputStream in, byte[] out) throws IOException;
+    protected abstract int uncompress(StreamInput in, byte[] out) throws IOException;
 
 }

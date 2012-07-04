@@ -159,7 +159,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     public <T extends Streamable> void sendRequest(final DiscoveryNode node, final long requestId, final String action, final Streamable message, TransportRequestOptions options) throws IOException, TransportException {
         CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
         try {
-            StreamOutput stream = cachedEntry.cachedHandles();
+            StreamOutput stream = cachedEntry.handles();
 
             stream.writeLong(requestId);
             byte status = 0;

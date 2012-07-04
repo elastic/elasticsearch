@@ -85,14 +85,15 @@ public class NettyTransportChannel implements TransportChannel {
         CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
         BytesStreamOutput stream;
         try {
-            stream = cachedEntry.cachedBytes();
+            stream = cachedEntry.bytes();
             writeResponseExceptionHeader(stream);
             RemoteTransportException tx = new RemoteTransportException(transport.nodeName(), transport.wrapAddress(channel.getLocalAddress()), action, error);
             ThrowableObjectOutputStream too = new ThrowableObjectOutputStream(stream);
             too.writeObject(tx);
             too.close();
         } catch (NotSerializableException e) {
-            stream = cachedEntry.cachedBytes();
+            cachedEntry.reset();
+            stream = cachedEntry.bytes();
             writeResponseExceptionHeader(stream);
             RemoteTransportException tx = new RemoteTransportException(transport.nodeName(), transport.wrapAddress(channel.getLocalAddress()), action, new NotSerializableTransportException(error));
             ThrowableObjectOutputStream too = new ThrowableObjectOutputStream(stream);

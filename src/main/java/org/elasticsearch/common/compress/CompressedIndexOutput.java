@@ -28,11 +28,13 @@ import java.io.IOException;
 
 /**
  */
-public abstract class CompressedIndexOutput extends IndexOutput {
+public abstract class CompressedIndexOutput<T extends CompressorContext> extends IndexOutput {
 
     final IndexOutput out;
+    protected final T context;
 
     protected byte[] uncompressed;
+    protected int uncompressedLength;
     private int position = 0;
 
     private long uncompressedPosition;
@@ -43,8 +45,9 @@ public abstract class CompressedIndexOutput extends IndexOutput {
     // need to have a growing segment long array list here...
     private TLongArrayList offsets = new TLongArrayList();
 
-    public CompressedIndexOutput(IndexOutput out) throws IOException {
+    public CompressedIndexOutput(IndexOutput out, T context) throws IOException {
         this.out = out;
+        this.context = context;
         writeHeader(out);
         out.writeInt(0); // version
         metaDataPointer = out.getFilePointer();
@@ -57,7 +60,7 @@ public abstract class CompressedIndexOutput extends IndexOutput {
 
     @Override
     public void writeByte(byte b) throws IOException {
-        if (position >= uncompressed.length) {
+        if (position >= uncompressedLength) {
             flushBuffer();
         }
         uncompressedPosition++;
@@ -70,7 +73,7 @@ public abstract class CompressedIndexOutput extends IndexOutput {
         if (length == 0) {
             return;
         }
-        final int BUFFER_LEN = uncompressed.length;
+        final int BUFFER_LEN = uncompressedLength;
 
         // simple case first: buffering only (for trivially short writes)
         int free = BUFFER_LEN - position;
@@ -109,7 +112,7 @@ public abstract class CompressedIndexOutput extends IndexOutput {
 
     @Override
     public void copyBytes(DataInput input, long length) throws IOException {
-        final int BUFFER_LEN = uncompressed.length;
+        final int BUFFER_LEN = uncompressedLength;
 
         // simple case first: buffering only (for trivially short writes)
         int free = BUFFER_LEN - position;

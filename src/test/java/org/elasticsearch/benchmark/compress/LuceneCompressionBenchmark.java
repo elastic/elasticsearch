@@ -27,8 +27,8 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.elasticsearch.common.compress.CompressedDirectory;
-import org.elasticsearch.common.compress.Compressor;
-import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.compress.lzf.LZFCompressor;
+import org.elasticsearch.common.compress.snappy.xerial.XerialSnappyCompressor;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -45,8 +45,6 @@ public class LuceneCompressionBenchmark {
         final long MAX_SIZE = ByteSizeValue.parseBytesSizeValue("50mb").bytes();
         final boolean WITH_TV = true;
 
-        final Compressor compressor = CompressorFactory.defaultCompressor();
-
         File testFile = new File("target/test/compress/lucene");
         FileSystemUtils.deleteRecursively(testFile);
         testFile.mkdirs();
@@ -54,9 +52,11 @@ public class LuceneCompressionBenchmark {
         FSDirectory uncompressedDir = new NIOFSDirectory(new File(testFile, "uncompressed"));
         IndexWriter uncompressedWriter = new IndexWriter(uncompressedDir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
 
-        Directory compressedDir = new CompressedDirectory(new NIOFSDirectory(new File(testFile, "compressed")), compressor, false, "fdt", "tvf");
+        Directory compressedLzfDir = new CompressedDirectory(new NIOFSDirectory(new File(testFile, "compressed_lzf")), new LZFCompressor(), false, "fdt", "tvf");
+        IndexWriter compressedLzfWriter = new IndexWriter(compressedLzfDir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
 
-        IndexWriter compressedWriter = new IndexWriter(compressedDir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
+        Directory compressedSnappyDir = new CompressedDirectory(new NIOFSDirectory(new File(testFile, "compressed_snappy")), new XerialSnappyCompressor(), false, "fdt", "tvf");
+        IndexWriter compressedSnappyWriter = new IndexWriter(compressedSnappyDir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
 
         System.out.println("feeding data...");
         TestData testData = new TestData();
@@ -72,19 +72,24 @@ public class LuceneCompressionBenchmark {
                 doc.add(field);
             }
             uncompressedWriter.addDocument(doc);
-            compressedWriter.addDocument(doc);
+            compressedLzfWriter.addDocument(doc);
+            compressedSnappyWriter.addDocument(doc);
         }
         System.out.println("optimizing...");
         uncompressedWriter.forceMerge(1);
-        compressedWriter.forceMerge(1);
+        compressedLzfWriter.forceMerge(1);
+        compressedSnappyWriter.forceMerge(1);
         uncompressedWriter.waitForMerges();
-        compressedWriter.waitForMerges();
+        compressedLzfWriter.waitForMerges();
+        compressedSnappyWriter.waitForMerges();
 
         System.out.println("done");
-        uncompressedDir.close();
-        compressedWriter.close();
+        uncompressedWriter.close();
+        compressedLzfWriter.close();
+        compressedSnappyWriter.close();
 
-        compressedDir.close();
+        compressedLzfDir.close();
+        compressedSnappyDir.close();
         uncompressedDir.close();
     }
 

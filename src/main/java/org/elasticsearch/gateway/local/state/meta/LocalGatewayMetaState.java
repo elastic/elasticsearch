@@ -322,7 +322,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
         logger.trace("[{}] writing state, reason [{}]", indexMetaData.index(), reason);
         CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
         try {
-            XContentBuilder builder = XContentFactory.contentBuilder(format, cachedEntry.cachedBytes());
+            XContentBuilder builder = XContentFactory.contentBuilder(format, cachedEntry.bytes());
             builder.startObject();
             IndexMetaData.Builder.toXContent(indexMetaData, builder, formatParams);
             builder.endObject();
@@ -373,7 +373,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
 
         CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
         try {
-            XContentBuilder builder = XContentFactory.contentBuilder(format, cachedEntry.cachedBytes());
+            XContentBuilder builder = XContentFactory.contentBuilder(format, cachedEntry.bytes());
             builder.startObject();
             MetaData.Builder.toXContent(globalMetaData, builder, formatParams);
             builder.endObject();

@@ -80,12 +80,14 @@ public class HandlesStreamOutput extends AdapterStreamOutput {
     public void reset() throws IOException {
         handles.clear();
         identityHandles.clear();
-        out.reset();
+        if (out != null) {
+            out.reset();
+        }
     }
 
-    public void reset(StreamOutput out) throws IOException {
-        super.reset(out);
-        reset();
+    public void clear() {
+        handles.clear();
+        identityHandles.clear();
     }
 
     /**

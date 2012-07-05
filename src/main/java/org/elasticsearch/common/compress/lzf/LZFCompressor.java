@@ -56,15 +56,17 @@ public class LZFCompressor implements Compressor {
 
     @Override
     public void configure(Settings settings) {
-        String decoderType = settings.get("compress.lzf.decoder", "optimal");
-        if ("optimal".equalsIgnoreCase(decoderType)) {
-            this.decoder = ChunkDecoderFactory.optimalInstance();
-            Loggers.getLogger(LZFCompressor.class).debug("using [{}] decoder", this.decoder.getClass().getSimpleName());
-        } else if ("safe".equalsIgnoreCase(decoderType)) {
-            this.decoder = ChunkDecoderFactory.safeInstance();
-            Loggers.getLogger(LZFCompressor.class).debug("using [{}] decoder", this.decoder.getClass().getSimpleName());
-        } else {
-            Loggers.getLogger(LZFCompressor.class).warn("decoder type not recognized [{}], still using [{}]", decoderType, this.decoder.getClass().getSimpleName());
+        String decoderType = settings.get("compress.lzf.decoder", null);
+        if (decoderType != null) {
+            if ("optimal".equalsIgnoreCase(decoderType)) {
+                this.decoder = ChunkDecoderFactory.optimalInstance();
+                Loggers.getLogger(LZFCompressor.class).debug("using [{}] decoder", this.decoder.getClass().getSimpleName());
+            } else if ("safe".equalsIgnoreCase(decoderType)) {
+                this.decoder = ChunkDecoderFactory.safeInstance();
+                Loggers.getLogger(LZFCompressor.class).debug("using [{}] decoder", this.decoder.getClass().getSimpleName());
+            } else {
+                Loggers.getLogger(LZFCompressor.class).warn("decoder type not recognized [{}], still using [{}]", decoderType, this.decoder.getClass().getSimpleName());
+            }
         }
     }
 

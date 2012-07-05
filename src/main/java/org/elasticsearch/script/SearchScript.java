@@ -26,8 +26,8 @@ import java.util.Map;
 
 /**
  * A search script.
- * 
- * @see ExplanableSearchScript for script which can explain a score
+ *
+ * @see ExplainableSearchScript for script which can explain a score
  */
 public interface SearchScript extends ExecutableScript {
 

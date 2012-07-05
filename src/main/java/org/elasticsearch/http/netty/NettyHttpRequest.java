@@ -39,11 +39,14 @@ public class NettyHttpRequest extends AbstractRestRequest implements HttpRequest
 
     private final String rawPath;
 
-    private byte[] cachedData;
+    private final int contentLength;
+
+    private byte[] contentAsBytes;
 
     public NettyHttpRequest(org.jboss.netty.handler.codec.http.HttpRequest request) {
         this.request = request;
         this.params = new HashMap<String, String>();
+        this.contentLength = request.getContent().readableBytes();
 
         String uri = request.getUri();
         int pathEndPos = uri.indexOf('?');
@@ -98,37 +101,45 @@ public class NettyHttpRequest extends AbstractRestRequest implements HttpRequest
 
     @Override
     public boolean hasContent() {
-        return request.getContent().readableBytes() > 0;
+        return contentLength > 0;
     }
 
     @Override
     public int contentLength() {
-        return request.getContent().readableBytes();
+        return contentLength;
     }
 
     @Override
     public boolean contentUnsafe() {
-        // HttpMessageDecoder#content variable gets freshly created for each request and not reused across
-        // requests
+        // if its a copy, then its not unsafe...
+        if (contentAsBytes != null) {
+            return false;
+        }
+        // HttpMessageDecoder#content is sliced but out of freshly created buffers for each read
         return false;
         //return request.getContent().hasArray();
     }
 
     @Override
     public byte[] contentByteArray() {
+        if (contentAsBytes != null) {
+            return contentAsBytes;
+        }
         if (request.getContent().hasArray()) {
             return request.getContent().array();
         }
-        if (cachedData != null) {
-            return cachedData;
-        }
-        cachedData = new byte[request.getContent().readableBytes()];
-        request.getContent().getBytes(request.getContent().readerIndex(), cachedData);
-        return cachedData;
+        contentAsBytes = new byte[request.getContent().readableBytes()];
+        request.getContent().getBytes(request.getContent().readerIndex(), contentAsBytes);
+        // clear the content, so it can be GC'ed, we make sure to work from contentAsBytes from here on
+        request.setContent(null);
+        return contentAsBytes;
     }
 
     @Override
     public int contentByteArrayOffset() {
+        if (contentAsBytes != null) {
+            return 0;
+        }
         if (request.getContent().hasArray()) {
             // get the array offset, and the reader index offset within it
             return request.getContent().arrayOffset() + request.getContent().readerIndex();
@@ -138,6 +149,9 @@ public class NettyHttpRequest extends AbstractRestRequest implements HttpRequest
 
     @Override
     public String contentAsString() {
+        if (contentAsBytes != null) {
+            return new String(contentAsBytes, Charsets.UTF_8);
+        }
         return request.getContent().toString(Charsets.UTF_8);
     }
 

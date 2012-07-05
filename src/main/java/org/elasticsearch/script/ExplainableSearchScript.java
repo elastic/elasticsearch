@@ -23,12 +23,10 @@ import org.apache.lucene.search.Explanation;
 /**
  * To be implemented by {@link SearchScript} which can provided an {@link Explanation} of the score
  */
-public interface ExplanableSearchScript {
+public interface ExplainableSearchScript extends SearchScript {
 
     /**
      * Build the explanation of the current document being scored
-     * 
-     * @return
      */
     Explanation explain();
 

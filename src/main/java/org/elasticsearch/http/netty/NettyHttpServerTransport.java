@@ -95,6 +95,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
     private final ByteSizeValue tcpReceiveBufferSize;
 
     final ByteSizeValue maxCumulationBufferCapacity;
+    final int maxCompositeBufferComponents;
 
     private volatile ServerBootstrap serverBootstrap;
 
@@ -118,6 +119,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         // note, parsing cookies was fixed in netty 3.5.1 regarding stack allocation, but still, currently, we don't need cookies
         this.resetCookies = componentSettings.getAsBoolean("reset_cookies", settings.getAsBoolean("http.reset_cookies", false));
         this.maxCumulationBufferCapacity = componentSettings.getAsBytesSize("max_cumulation_buffer_capacity", null);
+        this.maxCompositeBufferComponents = componentSettings.getAsInt("max_composite_buffer_components", -1);
         this.workerCount = componentSettings.getAsInt("worker_count", Runtime.getRuntime().availableProcessors() * 2);
         this.blockingServer = settings.getAsBoolean("http.blocking_server", settings.getAsBoolean(TCP_BLOCKING_SERVER, settings.getAsBoolean(TCP_BLOCKING, false)));
         this.port = componentSettings.get("port", settings.get("http.port", "9200-9300"));
@@ -303,11 +305,18 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
                     requestDecoder.setMaxCumulationBufferCapacity((int) transport.maxCumulationBufferCapacity.bytes());
                 }
             }
+            if (transport.maxCompositeBufferComponents != -1) {
+                requestDecoder.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
+            }
             pipeline.addLast("decoder", requestDecoder);
             if (transport.compression) {
                 pipeline.addLast("decoder_compress", new HttpContentDecompressor());
             }
-            pipeline.addLast("aggregator", new HttpChunkAggregator((int) transport.maxContentLength.bytes()));
+            HttpChunkAggregator httpChunkAggregator = new HttpChunkAggregator((int) transport.maxContentLength.bytes());
+            if (transport.maxCompositeBufferComponents != -1) {
+                httpChunkAggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
+            }
+            pipeline.addLast("aggregator", httpChunkAggregator);
             pipeline.addLast("encoder", new HttpResponseEncoder());
             if (transport.compression) {
                 pipeline.addLast("encoder_compress", new HttpContentCompressor(transport.compressionLevel));

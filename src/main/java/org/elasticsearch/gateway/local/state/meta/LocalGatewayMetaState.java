@@ -328,12 +328,13 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
             builder.endObject();
             builder.flush();
 
+            String stateFileName = "state-" + indexMetaData.version();
             Exception lastFailure = null;
             boolean wroteAtLeastOnce = false;
             for (File indexLocation : nodeEnv.indexLocations(new Index(indexMetaData.index()))) {
                 File stateLocation = new File(indexLocation, "_state");
                 FileSystemUtils.mkdirs(stateLocation);
-                File stateFile = new File(stateLocation, "state-" + indexMetaData.version());
+                File stateFile = new File(stateLocation, stateFileName);
 
                 FileOutputStream fos = null;
                 try {
@@ -357,8 +358,19 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
             // delete the old files
             if (previousIndexMetaData != null && previousIndexMetaData.version() != indexMetaData.version()) {
                 for (File indexLocation : nodeEnv.indexLocations(new Index(indexMetaData.index()))) {
-                    File stateFile = new File(new File(indexLocation, "_state"), "state-" + previousIndexMetaData.version());
-                    stateFile.delete();
+                    File[] files = new File(indexLocation, "_state").listFiles();
+                    if (files == null) {
+                        continue;
+                    }
+                    for (File file : files) {
+                        if (!file.getName().startsWith("state-")) {
+                            continue;
+                        }
+                        if (file.getName().equals(stateFileName)) {
+                            continue;
+                        }
+                        file.delete();
+                    }
                 }
             }
         } finally {
@@ -379,12 +391,13 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
             builder.endObject();
             builder.flush();
 
+            String globalFileName = "global-" + globalMetaData.version();
             Exception lastFailure = null;
             boolean wroteAtLeastOnce = false;
             for (File dataLocation : nodeEnv.nodeDataLocations()) {
                 File stateLocation = new File(dataLocation, "_state");
                 FileSystemUtils.mkdirs(stateLocation);
-                File stateFile = new File(stateLocation, "global-" + globalMetaData.version());
+                File stateFile = new File(stateLocation, globalFileName);
 
                 FileOutputStream fos = null;
                 try {
@@ -406,10 +419,19 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
             }
 
             // delete the old files
-            if (previousMetaData != null && previousMetaData.version() != metaData.version()) {
-                for (File dataLocation : nodeEnv.nodeDataLocations()) {
-                    File stateFile = new File(new File(dataLocation, "_state"), "global-" + previousMetaData.version());
-                    stateFile.delete();
+            for (File dataLocation : nodeEnv.nodeDataLocations()) {
+                File[] files = new File(dataLocation, "_state").listFiles();
+                if (files == null) {
+                    continue;
+                }
+                for (File file : files) {
+                    if (!file.getName().startsWith("global-")) {
+                        continue;
+                    }
+                    if (file.getName().equals(globalFileName)) {
+                        continue;
+                    }
+                    file.delete();
                 }
             }
         } finally {

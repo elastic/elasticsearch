@@ -1,5 +1,5 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to Elastic Search under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
  * regarding copyright ownership. Elastic Search licenses this
@@ -16,34 +16,20 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.script;
 
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.Scorer;
-
-import java.util.Map;
+import org.apache.lucene.search.Explanation;
 
 /**
- * A search script.
- * 
- * @see ExplanableSearchScript for script which can explain a score
+ * To be implemented by {@link SearchScript} which can provided an {@link Explanation} of the score
  */
-public interface SearchScript extends ExecutableScript {
+public interface ExplanableSearchScript {
 
-    void setScorer(Scorer scorer);
+    /**
+     * Build the explanation of the current document being scored
+     * 
+     * @return
+     */
+    Explanation explain();
 
-    void setNextReader(IndexReader reader);
-
-    void setNextDocId(int doc);
-
-    void setNextSource(Map<String, Object> source);
-
-    void setNextScore(float score);
-
-    float runAsFloat();
-
-    long runAsLong();
-
-    double runAsDouble();
 }

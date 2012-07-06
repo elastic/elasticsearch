@@ -27,7 +27,9 @@ public interface ExplainableSearchScript extends SearchScript {
 
     /**
      * Build the explanation of the current document being scored
+     * 
+     * @param subQueryExpl the explanation of the subQuery 
      */
-    Explanation explain();
+    Explanation explain(Explanation subQueryExpl);
 
 }

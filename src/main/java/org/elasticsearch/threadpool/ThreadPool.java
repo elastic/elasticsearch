@@ -240,15 +240,22 @@ public class ThreadPool extends AbstractComponent {
             } else {
                 throw new ElasticSearchIllegalArgumentException("reject_policy [" + rejectSetting + "] not valid for [" + name + "] thread pool");
             }
-            logger.debug("creating thread_pool [{}], type [{}], size [{}], queue_size [{}], reject_policy [{}]", name, type, size, capacity, rejectSetting);
+            String queueType = settings.get("queue_type", "linked");
             BlockingQueue<Runnable> workQueue;
             if (capacity == null) {
                 workQueue = new LinkedTransferQueue<Runnable>();
             } else if ((int) capacity.singles() > 0) {
-                workQueue = new ArrayBlockingQueue<Runnable>((int) capacity.singles());
+                if ("linked".equals(queueType)) {
+                    workQueue = new LinkedBlockingQueue<Runnable>((int) capacity.singles());
+                } else if ("array".equals(queueType)) {
+                    workQueue = new ArrayBlockingQueue<Runnable>((int) capacity.singles());
+                } else {
+                    throw new ElasticSearchIllegalArgumentException("illegal queue_type set to [" + queueType + "], should be either linked or array");
+                }
             } else {
                 workQueue = new SynchronousQueue<Runnable>();
             }
+            logger.debug("creating thread_pool [{}], type [{}], size [{}], queue_size [{}], reject_policy [{}], queue_type [{}]", name, type, size, capacity, rejectSetting, queueType);
             Executor executor = new EsThreadPoolExecutor(size, size,
                     0L, TimeUnit.MILLISECONDS,
                     workQueue,

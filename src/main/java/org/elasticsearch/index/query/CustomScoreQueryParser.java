@@ -136,12 +136,12 @@ public class CustomScoreQueryParser implements QueryParser {
             if (script instanceof ExplainableSearchScript) {
                 script.setNextDocId(docId);
                 script.setNextScore(subQueryExpl.getValue());
-                exp = ((ExplainableSearchScript) script).explain();
+                exp = ((ExplainableSearchScript) script).explain(subQueryExpl);
             } else {
                 float score = score(docId, subQueryExpl.getValue());
-                exp = new Explanation(score, "script score function: product of:");
+                exp = new Explanation(score, "script score function: composed of:");
+                exp.addDetail(subQueryExpl);
             }
-            exp.addDetail(subQueryExpl);
             return exp;
         }
 

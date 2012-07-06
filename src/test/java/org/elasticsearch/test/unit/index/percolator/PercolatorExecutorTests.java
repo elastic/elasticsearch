@@ -20,6 +20,7 @@
 package org.elasticsearch.test.unit.index.percolator;
 
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
@@ -106,13 +107,13 @@ public class PercolatorExecutorTests {
                 .field("field1", 1)
                 .field("field2", "value")
                 .endObject().endObject();
-        byte[] source = doc.copiedBytes();
+        BytesReference source = doc.bytes();
 
         XContentBuilder docWithType = XContentFactory.jsonBuilder().startObject().startObject("doc").startObject("type1")
                 .field("field1", 1)
                 .field("field2", "value")
                 .endObject().endObject().endObject();
-        byte[] sourceWithType = docWithType.copiedBytes();
+        BytesReference sourceWithType = docWithType.bytes();
 
         PercolatorExecutor.Response percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest("type1", source));
         assertThat(percolate.matches(), hasSize(0));

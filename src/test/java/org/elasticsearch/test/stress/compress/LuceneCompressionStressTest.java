@@ -69,7 +69,7 @@ public class LuceneCompressionStressTest {
             testData.current(builder);
             builder.close();
             Document doc = new Document();
-            doc.add(new Field("_source", builder.underlyingBytes(), 0, builder.underlyingBytesLength()));
+            doc.add(new Field("_source", builder.bytes().array(), builder.bytes().arrayOffset(), builder.bytes().length()));
             if (true) {
                 Field field = new Field("text", builder.string(), Field.Store.NO, Field.Index.ANALYZED, Field.TermVector.WITH_POSITIONS_OFFSETS);
                 doc.add(field);
@@ -89,7 +89,7 @@ public class LuceneCompressionStressTest {
                 out.flush();
                 CheckIndex.Status status = checkIndex.checkIndex();
                 if (!status.clean) {
-                    System.out.println("check index [failure]\n" + new String(os.underlyingBytes(), 0, os.size()));
+                    System.out.println("check index [failure]\n" + new String(os.bytes().toBytes()));
                 } else {
                     System.out.println(DateTime.now() + "[" + round + "] checked");
                 }

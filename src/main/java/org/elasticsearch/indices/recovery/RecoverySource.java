@@ -23,8 +23,8 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.StopWatch;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.inject.Inject;
@@ -155,7 +155,7 @@ public class RecoverySource extends AbstractComponent {
                                         }
 
                                         indexInput.readBytes(buf, 0, toRead, false);
-                                        BytesHolder content = new BytesHolder(buf, 0, toRead);
+                                        BytesArray content = new BytesArray(buf, 0, toRead);
                                         transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.FILE_CHUNK, new RecoveryFileChunkRequest(request.shardId(), name, position, len, md.checksum(), content),
                                                 TransportRequestOptions.options().withCompress(shouldCompressRequest).withLowType(), VoidTransportResponseHandler.INSTANCE_SAME).txGet();
                                         readCount += toRead;

@@ -181,7 +181,7 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
                         .listenerThreaded(request.listenerThreaded());
 
                 if (request.searchSource() != null) {
-                    searchRequest.source(request.searchSource(), request.searchSourceOffset(), request.searchSourceLength(), request.searchSourceUnsafe());
+                    searchRequest.source(request.searchSource(), request.searchSourceUnsafe());
                 }
                 searchAction.execute(searchRequest, new ActionListener<SearchResponse>() {
                     @Override
@@ -208,7 +208,7 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
         if (getResponse.source() == null) {
             return;
         }
-        docMapper.parse(SourceToParse.source(getResponse.sourceRef().bytes(), getResponse.sourceRef().offset(), getResponse.sourceRef().length()).type(request.type()).id(request.id()), new DocumentMapper.ParseListenerAdapter() {
+        docMapper.parse(SourceToParse.source(getResponse.sourceRef()).type(request.type()).id(request.id()), new DocumentMapper.ParseListenerAdapter() {
             @Override
             public boolean beforeFieldAdded(FieldMapper fieldMapper, Fieldable field, Object parseContext) {
                 if (fieldMapper instanceof InternalMapper) {

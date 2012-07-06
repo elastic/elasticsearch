@@ -21,7 +21,7 @@ package org.elasticsearch.action.get;
 
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.BytesHolder;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -138,14 +138,14 @@ public class GetResponse implements ActionResponse, Streamable, Iterable<GetFiel
     /**
      * Returns bytes reference, also un compress the source if needed.
      */
-    public BytesHolder sourceRef() {
+    public BytesReference sourceRef() {
         return getResult.sourceRef();
     }
 
     /**
      * Returns bytes reference, also un compress the source if needed.
      */
-    public BytesHolder getSourceAsBytesRef() {
+    public BytesReference getSourceAsBytesRef() {
         return sourceRef();
     }
 

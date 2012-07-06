@@ -4,6 +4,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.support.BaseIndicesRequestBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.query.QueryBuilder;
 
 /**
@@ -37,6 +38,26 @@ public class ValidateQueryRequestBuilder extends BaseIndicesRequestBuilder<Valid
      */
     public ValidateQueryRequestBuilder setQuery(QueryBuilder queryBuilder) {
         request.query(queryBuilder);
+        return this;
+    }
+
+    /**
+     * The query source to validate.
+     *
+     * @see org.elasticsearch.index.query.QueryBuilders
+     */
+    public ValidateQueryRequestBuilder setQuery(BytesReference querySource) {
+        request.query(querySource, false);
+        return this;
+    }
+
+    /**
+     * The query source to validate.
+     *
+     * @see org.elasticsearch.index.query.QueryBuilders
+     */
+    public ValidateQueryRequestBuilder setQuery(BytesReference querySource, boolean unsafe) {
+        request.query(querySource, unsafe);
         return this;
     }
 

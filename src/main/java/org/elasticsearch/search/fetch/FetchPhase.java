@@ -25,6 +25,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.document.ResetFieldSelector;
 import org.elasticsearch.index.Index;
@@ -222,7 +223,7 @@ public class FetchPhase implements SearchPhase {
             context.lookup().setNextReader(subReader);
             context.lookup().setNextDocId(subDoc);
             if (source != null) {
-                context.lookup().source().setNextSource(source, 0, source.length);
+                context.lookup().source().setNextSource(new BytesArray(source));
             }
             if (extractFieldNames != null) {
                 for (String extractFieldName : extractFieldNames) {

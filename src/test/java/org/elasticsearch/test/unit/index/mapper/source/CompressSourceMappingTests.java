@@ -45,7 +45,7 @@ public class CompressSourceMappingTests {
         ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("field1", "value1")
                 .field("field2", "value2")
-                .endObject().copiedBytes());
+                .endObject().bytes());
 
         assertThat(CompressorFactory.isCompressed(doc.rootDoc().getBinaryValue("_source")), equalTo(false));
     }
@@ -61,7 +61,7 @@ public class CompressSourceMappingTests {
         ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("field1", "value1")
                 .field("field2", "value2")
-                .endObject().copiedBytes());
+                .endObject().bytes());
 
         assertThat(CompressorFactory.isCompressed(doc.rootDoc().getBinaryValue("_source")), equalTo(true));
     }
@@ -76,7 +76,7 @@ public class CompressSourceMappingTests {
 
         ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("field1", "value1")
-                .endObject().copiedBytes());
+                .endObject().bytes());
 
         assertThat(CompressorFactory.isCompressed(doc.rootDoc().getBinaryValue("_source")), equalTo(false));
 
@@ -86,7 +86,7 @@ public class CompressSourceMappingTests {
                 .field("field2", "value2 xxxxxxxxxxxxxx yyyyyyyyyyyyyyyyyyy zzzzzzzzzzzzzzzzz")
                 .field("field2", "value2 xxxxxxxxxxxxxx yyyyyyyyyyyyyyyyyyy zzzzzzzzzzzzzzzzz")
                 .field("field2", "value2 xxxxxxxxxxxxxx yyyyyyyyyyyyyyyyyyy zzzzzzzzzzzzzzzzz")
-                .endObject().copiedBytes());
+                .endObject().bytes());
 
         assertThat(CompressorFactory.isCompressed(doc.rootDoc().getBinaryValue("_source")), equalTo(true));
     }

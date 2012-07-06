@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
@@ -339,7 +340,8 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                 FileOutputStream fos = null;
                 try {
                     fos = new FileOutputStream(stateFile);
-                    fos.write(cachedEntry.bytes().underlyingBytes(), 0, cachedEntry.bytes().size());
+                    BytesReference bytes = cachedEntry.bytes().bytes();
+                    fos.write(bytes.array(), bytes.arrayOffset(), bytes.length());
                     fos.getChannel().force(true);
                     Closeables.closeQuietly(fos);
                     wroteAtLeastOnce = true;
@@ -402,7 +404,8 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                 FileOutputStream fos = null;
                 try {
                     fos = new FileOutputStream(stateFile);
-                    fos.write(cachedEntry.bytes().underlyingBytes(), 0, cachedEntry.bytes().size());
+                    BytesReference bytes = cachedEntry.bytes().bytes();
+                    fos.write(bytes.array(), bytes.arrayOffset(), bytes.length());
                     fos.getChannel().force(true);
                     Closeables.closeQuietly(fos);
                     wroteAtLeastOnce = true;

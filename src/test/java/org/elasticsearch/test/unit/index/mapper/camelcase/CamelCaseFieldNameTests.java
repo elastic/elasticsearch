@@ -21,8 +21,8 @@ package org.elasticsearch.test.unit.index.mapper.camelcase;
 
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -43,7 +43,7 @@ public class CamelCaseFieldNameTests {
 
         ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("thisIsCamelCase", "value1")
-                .endObject().copiedBytes());
+                .endObject().bytes());
 
         assertThat(documentMapper.mappers().indexName("thisIsCamelCase").isEmpty(), equalTo(false));
         assertThat(documentMapper.mappers().indexName("this_is_camel_case"), nullValue());

@@ -21,8 +21,8 @@ package org.elasticsearch.test.unit.index.mapper.boost;
 
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -55,7 +55,7 @@ public class CustomBoostMappingTests {
                 .startObject("d_field").field("value", 1).field("boost", 7.0f).endObject()
                 .startObject("f_field").field("value", 1).field("boost", 8.0f).endObject()
                 .startObject("date_field").field("value", "20100101").field("boost", 9.0f).endObject()
-                .endObject().copiedBytes());
+                .endObject().bytes());
 
         assertThat(doc.rootDoc().getFieldable("s_field").getBoost(), equalTo(2.0f));
         assertThat(doc.rootDoc().getFieldable("l_field").getBoost(), equalTo(3.0f));

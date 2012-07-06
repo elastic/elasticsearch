@@ -49,11 +49,11 @@ public class BuilderRawFieldTests {
         XContentBuilder builder = XContentFactory.contentBuilder(type);
         builder.startObject();
         builder.field("field1", "value1");
-        builder.rawField("_source", XContentFactory.contentBuilder(type).startObject().field("s_field", "s_value").endObject().copiedBytes());
+        builder.rawField("_source", XContentFactory.contentBuilder(type).startObject().field("s_field", "s_value").endObject().bytes());
         builder.field("field2", "value2");
         builder.endObject();
 
-        XContentParser parser = XContentFactory.xContent(type).createParser(builder.copiedBytes());
+        XContentParser parser = XContentFactory.xContent(type).createParser(builder.bytes());
         assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
         assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
         assertThat(parser.currentName(), equalTo("field1"));

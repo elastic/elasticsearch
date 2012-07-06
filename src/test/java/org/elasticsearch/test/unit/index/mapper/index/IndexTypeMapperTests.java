@@ -22,9 +22,9 @@ package org.elasticsearch.test.unit.index.mapper.index;
 import org.apache.lucene.document.Field;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
+import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -50,7 +50,7 @@ public class IndexTypeMapperTests {
                 .startObject()
                 .field("field", "value")
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.rootDoc().get("_index"), equalTo("test"));
         assertThat(doc.rootDoc().get("field"), equalTo("value"));
@@ -70,7 +70,7 @@ public class IndexTypeMapperTests {
                 .startObject()
                 .field("field", "value")
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.rootDoc().get("_index"), nullValue());
         assertThat(doc.rootDoc().get("field"), equalTo("value"));
@@ -89,7 +89,7 @@ public class IndexTypeMapperTests {
                 .startObject()
                 .field("field", "value")
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.rootDoc().get("_index"), nullValue());
         assertThat(doc.rootDoc().get("field"), equalTo("value"));

@@ -22,9 +22,10 @@ package org.elasticsearch.search.internal;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticSearchParseException;
-import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -65,7 +66,7 @@ public class InternalSearchHit implements SearchHit {
 
     private long version = -1;
 
-    private BytesHolder source;
+    private BytesReference source;
 
     private Map<String, SearchHitField> fields = ImmutableMap.of();
 
@@ -91,7 +92,7 @@ public class InternalSearchHit implements SearchHit {
         this.docId = docId;
         this.id = id;
         this.type = type;
-        this.source = source == null ? null : new BytesHolder(source);
+        this.source = source == null ? null : new BytesArray(source);
         this.fields = fields;
     }
 
@@ -165,7 +166,7 @@ public class InternalSearchHit implements SearchHit {
     /**
      * Returns bytes reference, also un compress the source if needed.
      */
-    public BytesHolder sourceRef() {
+    public BytesReference sourceRef() {
         try {
             this.source = CompressorFactory.uncompressIfNeeded(this.source);
             return this.source;
@@ -175,14 +176,14 @@ public class InternalSearchHit implements SearchHit {
     }
 
     @Override
-    public BytesHolder getSourceRef() {
+    public BytesReference getSourceRef() {
         return sourceRef();
     }
 
     /**
      * Internal source representation, might be compressed....
      */
-    public BytesHolder internalSourceRef() {
+    public BytesReference internalSourceRef() {
         return source;
     }
 
@@ -194,7 +195,7 @@ public class InternalSearchHit implements SearchHit {
         if (sourceAsBytes != null) {
             return sourceAsBytes;
         }
-        this.sourceAsBytes = sourceRef().copyBytes();
+        this.sourceAsBytes = sourceRef().toBytes();
         return this.sourceAsBytes;
     }
 
@@ -213,9 +214,8 @@ public class InternalSearchHit implements SearchHit {
         if (source == null) {
             return null;
         }
-        BytesHolder source = sourceRef();
         try {
-            return XContentHelper.convertToJson(source, false);
+            return XContentHelper.convertToJson(sourceRef(), false);
         } catch (IOException e) {
             throw new ElasticSearchParseException("failed to convert source to a json string");
         }
@@ -236,7 +236,7 @@ public class InternalSearchHit implements SearchHit {
             return sourceAsMap;
         }
 
-        sourceAsMap = SourceLookup.sourceAsMap(source.bytes(), source.offset(), source.length());
+        sourceAsMap = SourceLookup.sourceAsMap(source);
         return sourceAsMap;
     }
 
@@ -383,7 +383,7 @@ public class InternalSearchHit implements SearchHit {
             builder.field(Fields._SCORE, score);
         }
         if (source != null) {
-            RestXContentBuilder.restDocumentSource(source.bytes(), source.offset(), source.length(), builder, params);
+            RestXContentBuilder.restDocumentSource(source, builder, params);
         }
         if (fields != null && !fields.isEmpty()) {
             builder.startObject(Fields.FIELDS);
@@ -606,7 +606,7 @@ public class InternalSearchHit implements SearchHit {
         out.writeUTF(id);
         out.writeUTF(type);
         out.writeLong(version);
-        out.writeBytesHolder(source);
+        out.writeBytesReference(source, true);
         if (explanation == null) {
             out.writeBoolean(false);
         } else {

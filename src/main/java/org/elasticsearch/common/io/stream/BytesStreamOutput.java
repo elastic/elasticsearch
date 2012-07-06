@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.io.stream;
 
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.BytesStream;
 
 import java.io.IOException;
@@ -88,24 +90,9 @@ public class BytesStreamOutput extends StreamOutput implements BytesStream {
         // nothing to do here
     }
 
-    /**
-     * Creates a newly allocated byte array. Its size is the current
-     * size of this output stream and the valid contents of the buffer
-     * have been copied into it.
-     *
-     * @return the current contents of this output stream, as a byte array.
-     * @see java.io.ByteArrayOutputStream#size()
-     */
-    public byte copiedByteArray()[] {
-        return Arrays.copyOf(buf, count);
-    }
-
-    /**
-     * Returns the underlying byte array. Note, use {@link #size()} in order to know
-     * the length of it.
-     */
-    public byte[] underlyingBytes() {
-        return buf;
+    @Override
+    public BytesReference bytes() {
+        return new BytesArray(buf, 0, count);
     }
 
     /**

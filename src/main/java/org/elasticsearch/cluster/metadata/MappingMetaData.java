@@ -281,7 +281,7 @@ public class MappingMetaData {
     public MappingMetaData(String type, Map<String, Object> mapping) throws IOException {
         this.type = type;
         XContentBuilder mappingBuilder = XContentFactory.jsonBuilder().map(mapping);
-        this.source = new CompressedString(mappingBuilder.underlyingBytes(), 0, mappingBuilder.underlyingBytesLength());
+        this.source = new CompressedString(mappingBuilder.bytes());
         Map<String, Object> withoutType = mapping;
         if (mapping.size() == 1 && mapping.containsKey(type)) {
             withoutType = (Map<String, Object>) mapping.get(type);

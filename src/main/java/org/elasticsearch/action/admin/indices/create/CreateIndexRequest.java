@@ -26,6 +26,8 @@ import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -238,11 +240,7 @@ public class CreateIndexRequest extends MasterNodeOperationRequest {
      * Sets the settings and mappings as a single source.
      */
     public CreateIndexRequest source(XContentBuilder source) {
-        try {
-            return source(source.underlyingBytes(), 0, source.underlyingBytesLength());
-        } catch (IOException e) {
-            throw new ElasticSearchParseException("failed to parse source to create index", e);
-        }
+        return source(source.bytes());
     }
 
     /**
@@ -252,19 +250,23 @@ public class CreateIndexRequest extends MasterNodeOperationRequest {
         return source(source, 0, source.length);
     }
 
+    public CreateIndexRequest source(byte[] source, int offset, int length) {
+        return source(new BytesArray(source, offset, length));
+    }
+
     /**
      * Sets the settings and mappings as a single source.
      */
-    public CreateIndexRequest source(byte[] source, int offset, int length) {
-        XContentType xContentType = XContentFactory.xContentType(source, offset, length);
+    public CreateIndexRequest source(BytesReference source) {
+        XContentType xContentType = XContentFactory.xContentType(source);
         if (xContentType != null) {
             try {
-                source(XContentFactory.xContent(xContentType).createParser(source, offset, length).mapAndClose());
+                source(XContentFactory.xContent(xContentType).createParser(source).mapAndClose());
             } catch (IOException e) {
                 throw new ElasticSearchParseException("failed to parse source for create index", e);
             }
         } else {
-            settings(new String(source, offset, length, Charsets.UTF_8));
+            settings(new String(source.toBytes(), Charsets.UTF_8));
         }
         return this;
     }

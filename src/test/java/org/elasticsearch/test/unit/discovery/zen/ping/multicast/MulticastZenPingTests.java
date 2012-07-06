@@ -131,7 +131,7 @@ public class MulticastZenPingTests {
 
             DatagramPacket datagramPacket = new DatagramPacket(new byte[2048], 2048, InetAddress.getByName("224.2.2.4"), 54328);
             XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("request").field("cluster_name", "test").endObject().endObject();
-            datagramPacket.setData(builder.copiedBytes());
+            datagramPacket.setData(builder.bytes().toBytes());
             multicastSocket.send(datagramPacket);
             Thread.sleep(100);
         } finally {

@@ -21,6 +21,8 @@ package org.elasticsearch.common.compress;
 
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.Unicode;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -44,6 +46,17 @@ public class CompressedString implements Streamable {
      */
     public CompressedString(byte[] compressed) {
         this.bytes = compressed;
+    }
+
+    public CompressedString(BytesReference data) throws IOException {
+        Compressor compressor = CompressorFactory.compressor(data);
+        if (compressor != null) {
+            // already compressed...
+            this.bytes = data.toBytes();
+        } else {
+            BytesArray bytesArray = data.toBytesArray();
+            this.bytes = CompressorFactory.defaultCompressor().compress(bytesArray.array(), bytesArray.arrayOffset(), bytesArray.length());
+        }
     }
 
     /**

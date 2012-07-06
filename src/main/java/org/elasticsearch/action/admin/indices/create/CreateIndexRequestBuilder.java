@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.support.BaseIndicesRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -132,6 +133,14 @@ public class CreateIndexRequestBuilder extends BaseIndicesRequestBuilder<CreateI
      * Sets the settings and mappings as a single source.
      */
     public CreateIndexRequestBuilder setSource(String source) {
+        request.source(source);
+        return this;
+    }
+
+    /**
+     * Sets the settings and mappings as a single source.
+     */
+    public CreateIndexRequestBuilder setSource(BytesReference source) {
         request.source(source);
         return this;
     }

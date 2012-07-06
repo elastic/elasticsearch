@@ -22,6 +22,8 @@ package org.elasticsearch.test.unit.index.mapper.multifield;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.test.unit.index.mapper.MapperTests;
@@ -43,7 +45,7 @@ public class MultiFieldTests {
     public void testMultiField() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/mapper/multifield/test-mapping.json");
         DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
-        byte[] json = copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/mapper/multifield/test-data.json");
+        BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/mapper/multifield/test-data.json"));
         Document doc = docMapper.parse(json).rootDoc();
 
         Fieldable f = doc.getFieldable("name");
@@ -90,7 +92,7 @@ public class MultiFieldTests {
         DocumentMapper docMapper = mapperParser.parse(builtMapping);
 
 
-        byte[] json = copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/mapper/multifield/test-data.json");
+        BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/mapper/multifield/test-data.json"));
         Document doc = docMapper.parse(json).rootDoc();
 
         Fieldable f = doc.getFieldable("name");

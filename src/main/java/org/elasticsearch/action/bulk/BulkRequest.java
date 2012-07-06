@@ -27,6 +27,8 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -78,6 +80,10 @@ public class BulkRequest implements ActionRequest {
         return this;
     }
 
+    public List<ActionRequest> requests() {
+        return this.requests;
+    }
+
     /**
      * Adds a framed data in binary format
      */
@@ -89,7 +95,16 @@ public class BulkRequest implements ActionRequest {
      * Adds a framed data in binary format
      */
     public BulkRequest add(byte[] data, int from, int length, boolean contentUnsafe, @Nullable String defaultIndex, @Nullable String defaultType) throws Exception {
-        XContent xContent = XContentFactory.xContent(data, from, length);
+        return add(new BytesArray(data, from, length), contentUnsafe, defaultIndex, defaultType);
+    }
+
+    /**
+     * Adds a framed data in binary format
+     */
+    public BulkRequest add(BytesReference data, boolean contentUnsafe, @Nullable String defaultIndex, @Nullable String defaultType) throws Exception {
+        XContent xContent = XContentFactory.xContent(data);
+        int from = 0;
+        int length = data.length();
         byte marker = xContent.streamSeparator();
         while (true) {
             int nextMarker = findNextMarker(marker, from, data, length);
@@ -97,7 +112,7 @@ public class BulkRequest implements ActionRequest {
                 break;
             }
             // now parse the action
-            XContentParser parser = xContent.createParser(data, from, nextMarker - from);
+            XContentParser parser = xContent.createParser(data.slice(from, nextMarker - from));
 
             try {
                 // move pointers
@@ -177,18 +192,18 @@ public class BulkRequest implements ActionRequest {
                     if ("index".equals(action)) {
                         if (opType == null) {
                             internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).timestamp(timestamp).ttl(ttl).version(version).versionType(versionType)
-                                    .source(data, from, nextMarker - from, contentUnsafe)
+                                    .source(data.slice(from, nextMarker - from), contentUnsafe)
                                     .percolate(percolate));
                         } else {
                             internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).timestamp(timestamp).ttl(ttl).version(version).versionType(versionType)
                                     .create("create".equals(opType))
-                                    .source(data, from, nextMarker - from, contentUnsafe)
+                                    .source(data.slice(from, nextMarker - from), contentUnsafe)
                                     .percolate(percolate));
                         }
                     } else if ("create".equals(action)) {
                         internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).timestamp(timestamp).ttl(ttl).version(version).versionType(versionType)
                                 .create(true)
-                                .source(data, from, nextMarker - from, contentUnsafe)
+                                .source(data.slice(from, nextMarker - from), contentUnsafe)
                                 .percolate(percolate));
                     }
                     // move pointers
@@ -239,9 +254,9 @@ public class BulkRequest implements ActionRequest {
         return this.replicationType;
     }
 
-    private int findNextMarker(byte marker, int from, byte[] data, int length) {
+    private int findNextMarker(byte marker, int from, BytesReference data, int length) {
         for (int i = from; i < length; i++) {
-            if (data[i] == marker) {
+            if (data.get(i) == marker) {
                 return i;
             }
         }

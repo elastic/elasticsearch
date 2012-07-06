@@ -25,6 +25,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.BaseRequestBuilder;
 import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -238,7 +239,7 @@ public class UpdateRequestBuilder extends BaseRequestBuilder<UpdateRequest, Upda
         request.doc(source, offset, length);
         return this;
     }
-    
+
     /**
      * Sets the index request to be used if the document does not exists. Otherwise, a {@link org.elasticsearch.index.engine.DocumentMissingException}
      * is thrown.
@@ -308,6 +309,11 @@ public class UpdateRequestBuilder extends BaseRequestBuilder<UpdateRequest, Upda
 
     public UpdateRequestBuilder setSource(byte[] source, int offset, int length) throws Exception {
         request.source(source, offset, length);
+        return this;
+    }
+
+    public UpdateRequestBuilder setSource(BytesReference source) throws Exception {
+        request.source(source);
         return this;
     }
 

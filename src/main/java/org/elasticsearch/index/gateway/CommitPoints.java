@@ -116,7 +116,7 @@ public class CommitPoints implements Iterable<CommitPoint> {
         builder.endObject();
 
         builder.endObject();
-        return builder.copiedBytes();
+        return builder.bytes().toBytes();
     }
 
     public static CommitPoint fromXContent(byte[] data) throws Exception {

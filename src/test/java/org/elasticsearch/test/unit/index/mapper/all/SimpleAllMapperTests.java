@@ -20,6 +20,7 @@
 package org.elasticsearch.test.unit.index.mapper.all;
 
 import org.apache.lucene.document.Document;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.all.AllEntries;
 import org.elasticsearch.common.lucene.all.AllField;
 import org.elasticsearch.common.lucene.all.AllTokenStream;
@@ -43,7 +44,7 @@ public class SimpleAllMapperTests {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/mapper/all/mapping.json");
         DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/mapper/all/test1.json");
-        Document doc = docMapper.parse(json).rootDoc();
+        Document doc = docMapper.parse(new BytesArray(json)).rootDoc();
         AllField field = (AllField) doc.getFieldable("_all");
         AllEntries allEntries = ((AllTokenStream) field.tokenStreamValue()).allEntries();
         assertThat(allEntries.fields().size(), equalTo(3));
@@ -61,7 +62,7 @@ public class SimpleAllMapperTests {
         // reparse it
         DocumentMapper builtDocMapper = MapperTests.newParser().parse(builtMapping);
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/mapper/all/test1.json");
-        Document doc = builtDocMapper.parse(json).rootDoc();
+        Document doc = builtDocMapper.parse(new BytesArray(json)).rootDoc();
 
         AllField field = (AllField) doc.getFieldable("_all");
         AllEntries allEntries = ((AllTokenStream) field.tokenStreamValue()).allEntries();
@@ -76,7 +77,7 @@ public class SimpleAllMapperTests {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/mapper/all/store-mapping.json");
         DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/mapper/all/test1.json");
-        Document doc = docMapper.parse(json).rootDoc();
+        Document doc = docMapper.parse(new BytesArray(json)).rootDoc();
         AllField field = (AllField) doc.getFieldable("_all");
         AllEntries allEntries = ((AllTokenStream) field.tokenStreamValue()).allEntries();
         assertThat(allEntries.fields().size(), equalTo(2));
@@ -96,7 +97,7 @@ public class SimpleAllMapperTests {
         // reparse it
         DocumentMapper builtDocMapper = MapperTests.newParser().parse(builtMapping);
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/mapper/all/test1.json");
-        Document doc = builtDocMapper.parse(json).rootDoc();
+        Document doc = builtDocMapper.parse(new BytesArray(json)).rootDoc();
 
         AllField field = (AllField) doc.getFieldable("_all");
         AllEntries allEntries = ((AllTokenStream) field.tokenStreamValue()).allEntries();

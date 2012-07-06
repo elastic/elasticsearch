@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.cache.id.simple;
 
-import org.elasticsearch.common.BytesWrap;
+import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.trove.ExtTObjectIntHasMap;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
 
@@ -30,14 +30,14 @@ public class SimpleIdReaderTypeCache implements IdReaderTypeCache {
 
     private final String type;
 
-    private final ExtTObjectIntHasMap<BytesWrap> idToDoc;
+    private final ExtTObjectIntHasMap<HashedBytesArray> idToDoc;
 
-    private final BytesWrap[] parentIdsValues;
+    private final HashedBytesArray[] parentIdsValues;
 
     private final int[] parentIdsOrdinals;
 
-    public SimpleIdReaderTypeCache(String type, ExtTObjectIntHasMap<BytesWrap> idToDoc,
-                                   BytesWrap[] parentIdsValues, int[] parentIdsOrdinals) {
+    public SimpleIdReaderTypeCache(String type, ExtTObjectIntHasMap<HashedBytesArray> idToDoc,
+                                   HashedBytesArray[] parentIdsValues, int[] parentIdsOrdinals) {
         this.type = type;
         this.idToDoc = idToDoc;
         this.idToDoc.trimToSize();
@@ -49,18 +49,18 @@ public class SimpleIdReaderTypeCache implements IdReaderTypeCache {
         return this.type;
     }
 
-    public BytesWrap parentIdByDoc(int docId) {
+    public HashedBytesArray parentIdByDoc(int docId) {
         return parentIdsValues[parentIdsOrdinals[docId]];
     }
 
-    public int docById(BytesWrap id) {
+    public int docById(HashedBytesArray id) {
         return idToDoc.get(id);
     }
 
     /**
      * Returns an already stored instance if exists, if not, returns null;
      */
-    public BytesWrap canReuse(BytesWrap id) {
+    public HashedBytesArray canReuse(HashedBytesArray id) {
         return idToDoc.key(id);
     }
 }

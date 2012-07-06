@@ -39,7 +39,7 @@ public class MappingMetaDataParserTests {
                 new MappingMetaData.Routing(true, "routing"),
                 new MappingMetaData.Timestamp(true, "timestamp", "dateOptionalTime"));
         byte[] bytes = jsonBuilder().startObject().field("field1", "value1").field("field2", "value2")
-                .field("id", "id").field("routing", "routing_value").field("timestamp", "1").endObject().copiedBytes();
+                .field("id", "id").field("routing", "routing_value").field("timestamp", "1").endObject().bytes().toBytes();
         MappingMetaData.ParseContext parseContext = md.createParseContext(null, "routing_value", "1");
         md.parse(XContentFactory.xContent(bytes).createParser(bytes), parseContext);
         assertThat(parseContext.id(), equalTo("id"));
@@ -57,7 +57,7 @@ public class MappingMetaDataParserTests {
                 new MappingMetaData.Routing(true, "routing"),
                 new MappingMetaData.Timestamp(true, "timestamp", "dateOptionalTime"));
         byte[] bytes = jsonBuilder().startObject().field("field1", "value1").field("field2", "value2")
-                .field("id", "id").field("routing", "routing_value").field("timestamp", "1").endObject().copiedBytes();
+                .field("id", "id").field("routing", "routing_value").field("timestamp", "1").endObject().bytes().toBytes();
         MappingMetaData.ParseContext parseContext = md.createParseContext("id", null, "1");
         md.parse(XContentFactory.xContent(bytes).createParser(bytes), parseContext);
         assertThat(parseContext.id(), nullValue());
@@ -75,7 +75,7 @@ public class MappingMetaDataParserTests {
                 new MappingMetaData.Routing(true, "routing"),
                 new MappingMetaData.Timestamp(true, "timestamp", "dateOptionalTime"));
         byte[] bytes = jsonBuilder().startObject().field("field1", "value1").field("field2", "value2")
-                .field("id", "id").field("routing", "routing_value").field("timestamp", "1").endObject().copiedBytes();
+                .field("id", "id").field("routing", "routing_value").field("timestamp", "1").endObject().bytes().toBytes();
         MappingMetaData.ParseContext parseContext = md.createParseContext("id", "routing_value1", null);
         md.parse(XContentFactory.xContent(bytes).createParser(bytes), parseContext);
         assertThat(parseContext.id(), nullValue());
@@ -93,7 +93,7 @@ public class MappingMetaDataParserTests {
                 new MappingMetaData.Routing(true, "routing"),
                 new MappingMetaData.Timestamp(true, "timestamp", "dateOptionalTime"));
         byte[] bytes = jsonBuilder().startObject().field("field1", "value1").field("field2", "value2")
-                .field("id", "id").field("routing", "routing_value").field("timestamp", "1").endObject().copiedBytes();
+                .field("id", "id").field("routing", "routing_value").field("timestamp", "1").endObject().bytes().toBytes();
         MappingMetaData.ParseContext parseContext = md.createParseContext(null, null, null);
         md.parse(XContentFactory.xContent(bytes).createParser(bytes), parseContext);
         assertThat(parseContext.id(), equalTo("id"));
@@ -111,7 +111,7 @@ public class MappingMetaDataParserTests {
                 .startObject("obj0").field("field1", "value1").field("field2", "value2").endObject()
                 .startObject("obj1").field("id", "id").field("routing", "routing_value").endObject()
                 .startObject("obj2").field("timestamp", "1").endObject()
-                .endObject().copiedBytes();
+                .endObject().bytes().toBytes();
         MappingMetaData.ParseContext parseContext = md.createParseContext(null, null, null);
         md.parse(XContentFactory.xContent(bytes).createParser(bytes), parseContext);
         assertThat(parseContext.id(), equalTo("id"));
@@ -129,7 +129,7 @@ public class MappingMetaDataParserTests {
                 .startObject("obj0").field("field1", "value1").field("field2", "value2").endObject()
                 .startObject("obj1").field("id", "id").field("routing", "routing_value").endObject()
                 .startObject("obj2").field("timestamp", "1").endObject()
-                .endObject().copiedBytes();
+                .endObject().bytes().toBytes();
         MappingMetaData.ParseContext parseContext = md.createParseContext(null, "routing_value", "2");
         md.parse(XContentFactory.xContent(bytes).createParser(bytes), parseContext);
         assertThat(parseContext.id(), equalTo("id"));
@@ -150,7 +150,7 @@ public class MappingMetaDataParserTests {
                 .startObject("obj0").field("field1", "value1").field("field2", "value2").endObject()
                 .startObject("obj1").field("id", "id").field("routing", "routing_value").endObject()
                 .startObject("obj2").field("timestamp", "1").endObject()
-                .endObject().copiedBytes();
+                .endObject().bytes().toBytes();
         MappingMetaData.ParseContext parseContext = md.createParseContext("id", null, "2");
         md.parse(XContentFactory.xContent(bytes).createParser(bytes), parseContext);
         assertThat(parseContext.id(), nullValue());
@@ -171,7 +171,7 @@ public class MappingMetaDataParserTests {
                 .startObject("obj0").field("field1", "value1").field("field2", "value2").endObject()
                 .startObject("obj1").field("routing", "routing_value").endObject()
                 .startObject("obj2").field("timestamp", "1").endObject()
-                .endObject().copiedBytes();
+                .endObject().bytes().toBytes();
         MappingMetaData.ParseContext parseContext = md.createParseContext(null, "routing_value1", null);
         md.parse(XContentFactory.xContent(bytes).createParser(bytes), parseContext);
         assertThat(parseContext.id(), nullValue());
@@ -192,7 +192,7 @@ public class MappingMetaDataParserTests {
                 .startObject("obj0").field("field1", "value1").field("field2", "value2").endObject()
                 .startObject("obj1").field("id", "id").field("routing", "routing_value").field("timestamp", "1").endObject()
                 .startObject("obj2").field("field1", "value1").endObject()
-                .endObject().copiedBytes();
+                .endObject().bytes().toBytes();
         MappingMetaData.ParseContext parseContext = md.createParseContext(null, null, null);
         md.parse(XContentFactory.xContent(bytes).createParser(bytes), parseContext);
         assertThat(parseContext.id(), equalTo("id"));
@@ -220,7 +220,7 @@ public class MappingMetaDataParserTests {
                 .endObject()
                 .endObject()
                 .startObject("obj2").field("field1", "value1").endObject()
-                .endObject().copiedBytes();
+                .endObject().bytes().toBytes();
         MappingMetaData.ParseContext parseContext = md.createParseContext(null, null, null);
         md.parse(XContentFactory.xContent(bytes).createParser(bytes), parseContext);
         assertThat(parseContext.id(), equalTo("id"));
@@ -240,7 +240,7 @@ public class MappingMetaDataParserTests {
                 .startObject("obj1").field("id", "id").endObject()
                 .startObject("obj1").field("routing", "routing_value").endObject()
                 .startObject("obj1").field("timestamp", "1").endObject()
-                .endObject().copiedBytes();
+                .endObject().bytes().toBytes();
         MappingMetaData.ParseContext parseContext = md.createParseContext(null, null, null);
         md.parse(XContentFactory.xContent(bytes).createParser(bytes), parseContext);
         assertThat(parseContext.id(), equalTo("id"));
@@ -263,7 +263,7 @@ public class MappingMetaDataParserTests {
                 .field("field1", "bar")
                 .field("test", "value")
                 .field("zzz", "wr")
-                .endObject().copiedBytes();
+                .endObject().bytes().toBytes();
 
         MappingMetaData.ParseContext parseContext = md.createParseContext(null, null, null);
         md.parse(XContentFactory.xContent(bytes).createParser(bytes), parseContext);
@@ -286,7 +286,7 @@ public class MappingMetaDataParserTests {
                 .startObject("field1").field("field2", "bar").endObject()
                 .field("test", "value")
                 .field("zzz", "wr")
-                .endObject().copiedBytes();
+                .endObject().bytes().toBytes();
 
         MappingMetaData.ParseContext parseContext = md.createParseContext(null, null, null);
         md.parse(XContentFactory.xContent(bytes).createParser(bytes), parseContext);
@@ -309,7 +309,7 @@ public class MappingMetaDataParserTests {
                 .startObject("field1").field("field2", "bar").endObject()
                 .field("test", "value")
                 .field("zzz", "wr")
-                .endObject().copiedBytes();
+                .endObject().bytes().toBytes();
 
         MappingMetaData.ParseContext parseContext = md.createParseContext(null, null, null);
         md.parse(XContentFactory.xContent(bytes).createParser(bytes), parseContext);

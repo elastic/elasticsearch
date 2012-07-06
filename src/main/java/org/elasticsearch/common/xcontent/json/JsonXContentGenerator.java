@@ -20,6 +20,7 @@
 package org.elasticsearch.common.xcontent.json;
 
 import org.codehaus.jackson.JsonGenerator;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.*;
 
@@ -263,6 +264,15 @@ public class JsonXContentGenerator implements XContentGenerator {
         generator.writeRaw("\" : ");
         flush();
         Streams.copy(content, bos);
+    }
+
+    @Override
+    public void writeRawField(String fieldName, BytesReference content, OutputStream bos) throws IOException {
+        generator.writeRaw(", \"");
+        generator.writeRaw(fieldName);
+        generator.writeRaw("\" : ");
+        flush();
+        content.writeTo(bos);
     }
 
     @Override

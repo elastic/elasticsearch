@@ -19,14 +19,14 @@
 
 package org.elasticsearch.index.cache.id;
 
-import org.elasticsearch.common.BytesWrap;
+import org.elasticsearch.common.bytes.HashedBytesArray;
 
 /**
  *
  */
 public interface IdReaderTypeCache {
 
-    BytesWrap parentIdByDoc(int docId);
+    HashedBytesArray parentIdByDoc(int docId);
 
-    int docById(BytesWrap id);
+    int docById(HashedBytesArray id);
 }

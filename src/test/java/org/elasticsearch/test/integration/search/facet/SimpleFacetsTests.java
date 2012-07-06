@@ -126,7 +126,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                             .field("field", "tag")
                             .endObject()
                             .endObject()
-                            .endObject().copiedBytes())
+                            .endObject().bytes())
                     .execute().actionGet();
 
             assertThat(searchResponse.hits().totalHits(), equalTo(2l));

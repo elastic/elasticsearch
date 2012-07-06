@@ -29,6 +29,7 @@ import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.settings.Settings;
@@ -425,11 +426,11 @@ public class DocumentMapper implements ToXContent {
         return this.objectMappers;
     }
 
-    public ParsedDocument parse(byte[] source) throws MapperParsingException {
+    public ParsedDocument parse(BytesReference source) throws MapperParsingException {
         return parse(SourceToParse.source(source));
     }
 
-    public ParsedDocument parse(String type, String id, byte[] source) throws MapperParsingException {
+    public ParsedDocument parse(String type, String id, BytesReference source) throws MapperParsingException {
         return parse(SourceToParse.source(source).type(type).id(id));
     }
 
@@ -448,7 +449,7 @@ public class DocumentMapper implements ToXContent {
         XContentParser parser = source.parser();
         try {
             if (parser == null) {
-                parser = XContentHelper.createParser(source.source(), source.sourceOffset(), source.sourceLength());
+                parser = XContentHelper.createParser(source.source());
             }
             context.reset(parser, new Document(), source, listener);
             // on a newly created instance of document mapper, we always consider it as new mappers that have been added
@@ -517,7 +518,7 @@ public class DocumentMapper implements ToXContent {
             Collections.reverse(context.docs());
         }
         ParsedDocument doc = new ParsedDocument(context.uid(), context.id(), context.type(), source.routing(), source.timestamp(), source.ttl(), context.docs(), context.analyzer(),
-                context.source(), context.sourceOffset(), context.sourceLength(), context.mappersAdded()).parent(source.parent());
+                context.source(), context.mappersAdded()).parent(source.parent());
         // reset the context to free up memory
         context.reset(null, null, null, null);
         return doc;
@@ -593,7 +594,7 @@ public class DocumentMapper implements ToXContent {
             builder.startObject();
             toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
-            this.mappingSource = new CompressedString(builder.underlyingBytes(), 0, builder.underlyingBytesLength());
+            this.mappingSource = new CompressedString(builder.bytes());
         } catch (Exception e) {
             throw new FailedToGenerateSourceMapperException(e.getMessage(), e);
         }

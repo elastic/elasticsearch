@@ -25,6 +25,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.StopWatch;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.VoidStreamable;
@@ -610,7 +611,11 @@ public class RecoveryTarget extends AbstractComponent {
                     if (recoverySettings.rateLimiter() != null) {
                         recoverySettings.rateLimiter().pause(request.content().length());
                     }
-                    indexOutput.writeBytes(request.content().bytes(), request.content().offset(), request.content().length());
+                    BytesReference content = request.content();
+                    if (!content.hasArray()) {
+                        content = content.toBytesArray();
+                    }
+                    indexOutput.writeBytes(content.array(), content.arrayOffset(), content.length());
                     onGoingRecovery.currentFilesSize.addAndGet(request.length());
                     if (indexOutput.getFilePointer() == request.length()) {
                         // we are done

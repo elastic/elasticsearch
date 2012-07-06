@@ -23,7 +23,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.common.BytesWrap;
+import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
 import org.elasticsearch.search.internal.SearchContext;
@@ -71,7 +71,7 @@ public class ChildCollector extends Collector {
 
     @Override
     public void collect(int doc) throws IOException {
-        BytesWrap parentId = typeCache.parentIdByDoc(doc);
+        HashedBytesArray parentId = typeCache.parentIdByDoc(doc);
         if (parentId == null) {
             return;
         }

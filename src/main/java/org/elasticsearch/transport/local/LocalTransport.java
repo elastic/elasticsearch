@@ -176,7 +176,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
                 throw new NodeNotConnectedException(node, "Node not connected");
             }
 
-            final byte[] data = cachedEntry.bytes().copiedByteArray();
+            final byte[] data = cachedEntry.bytes().bytes().copyBytesArray().toBytes();
 
             transportServiceAdapter.sent(data.length);
 

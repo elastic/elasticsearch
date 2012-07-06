@@ -19,7 +19,8 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.elasticsearch.common.BytesHolder;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -37,6 +38,16 @@ public class BytesStreamInput extends StreamInput {
 
     private final boolean unsafe;
 
+    public BytesStreamInput(BytesReference bytes) {
+        if (!bytes.hasArray()) {
+            bytes = bytes.toBytesArray();
+        }
+        this.buf = bytes.array();
+        this.pos = bytes.arrayOffset();
+        this.count = bytes.length();
+        this.unsafe = false;
+    }
+
     public BytesStreamInput(byte buf[], boolean unsafe) {
         this(buf, 0, buf.length, unsafe);
     }
@@ -49,13 +60,12 @@ public class BytesStreamInput extends StreamInput {
     }
 
     @Override
-    public BytesHolder readBytesReference() throws IOException {
+    public BytesReference readBytesReference(int length) throws IOException {
         if (unsafe) {
-            return readBytesHolder();
+            return super.readBytesReference(length);
         }
-        int size = readVInt();
-        BytesHolder bytes = new BytesHolder(buf, pos, size);
-        pos += size;
+        BytesArray bytes = new BytesArray(buf, pos, length);
+        pos += length;
         return bytes;
     }
 

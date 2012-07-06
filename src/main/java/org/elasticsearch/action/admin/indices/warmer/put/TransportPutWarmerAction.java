@@ -30,7 +30,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.BytesHolder;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -108,11 +108,11 @@ public class TransportPutWarmerAction extends TransportMasterNodeOperationAction
                 String[] concreteIndices = metaData.concreteIndices(request.searchRequest().indices());
 
 
-                BytesHolder source = null;
-                if (request.searchRequest().source() != null && request.searchRequest().source().length > 0) {
-                    source = new BytesHolder(request.searchRequest().source(), request.searchRequest().sourceOffset(), request.searchRequest().sourceLength());
-                } else if (request.searchRequest().extraSource() != null && request.searchRequest().extraSource().length > 0) {
-                    source = new BytesHolder(request.searchRequest().extraSource(), request.searchRequest().extraSourceOffset(), request.searchRequest().extraSourceLength());
+                BytesReference source = null;
+                if (request.searchRequest().source() != null && request.searchRequest().source().length() > 0) {
+                    source = request.searchRequest().source();
+                } else if (request.searchRequest().extraSource() != null && request.searchRequest().extraSource().length() > 0) {
+                    source = request.searchRequest().extraSource();
                 }
 
                 // now replace it on the metadata

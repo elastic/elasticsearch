@@ -39,8 +39,8 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -179,7 +179,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                     .replicationType(request.replicationType()).consistencyLevel(request.consistencyLevel());
             indexRequest.operationThreaded(false);
             // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
-            final BytesHolder updateSourceBytes = indexRequest.underlyingSourceBytes();
+            final BytesReference updateSourceBytes = indexRequest.source();
             indexAction.execute(indexRequest, new ActionListener<IndexResponse>() {
                 @Override
                 public void onResponse(IndexResponse response) {
@@ -216,7 +216,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
             return;
         }
 
-        Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(getResult.internalSourceRef().bytes(), getResult.internalSourceRef().offset(), getResult.internalSourceRef().length(), true);
+        Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(getResult.internalSourceRef(), true);
         String operation = null;
         String timestamp = null;
         Long ttl = null;
@@ -239,7 +239,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
             if (indexRequest.parent() != null) {
                 parent = indexRequest.parent();
             }
-            XContentHelper.update(updatedSourceAsMap, indexRequest.underlyingSourceAsMap());
+            XContentHelper.update(updatedSourceAsMap, indexRequest.sourceAsMap());
         } else {
             Map<String, Object> ctx = new HashMap<String, Object>(2);
             ctx.put("_source", sourceAndContent.v2());
@@ -288,7 +288,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                     .refresh(request.refresh());
             indexRequest.operationThreaded(false);
             // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
-            final BytesHolder updateSourceBytes = indexRequest.underlyingSourceBytes();
+            final BytesReference updateSourceBytes = indexRequest.source();
             indexAction.execute(indexRequest, new ActionListener<IndexResponse>() {
                 @Override
                 public void onResponse(IndexResponse response) {
@@ -355,7 +355,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     }
 
     @Nullable
-    protected GetResult extractGetResult(final UpdateRequest request, long version, final Map<String, Object> source, XContentType sourceContentType, @Nullable final BytesHolder sourceAsBytes) {
+    protected GetResult extractGetResult(final UpdateRequest request, long version, final Map<String, Object> source, XContentType sourceContentType, @Nullable final BytesReference sourceAsBytes) {
         if (request.fields() == null || request.fields().length == 0) {
             return null;
         }

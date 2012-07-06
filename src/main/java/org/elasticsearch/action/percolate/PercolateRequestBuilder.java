@@ -22,6 +22,7 @@ package org.elasticsearch.action.percolate;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.BaseRequestBuilder;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 
@@ -92,6 +93,22 @@ public class PercolateRequestBuilder extends BaseRequestBuilder<PercolateRequest
      */
     public PercolateRequestBuilder setSource(XContentBuilder sourceBuilder) {
         request.source(sourceBuilder);
+        return this;
+    }
+
+    /**
+     * Sets the document to index in bytes form.
+     */
+    public PercolateRequestBuilder setSource(BytesReference source) {
+        request.source(source, false);
+        return this;
+    }
+
+    /**
+     * Sets the document to index in bytes form.
+     */
+    public PercolateRequestBuilder setSource(BytesReference source, boolean unsafe) {
+        request.source(source, unsafe);
         return this;
     }
 

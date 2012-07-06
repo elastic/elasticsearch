@@ -23,7 +23,7 @@ import org.codehaus.jackson.JsonEncoding;
 import org.codehaus.jackson.JsonFactory;
 import org.codehaus.jackson.JsonGenerator;
 import org.codehaus.jackson.JsonParser;
-import org.elasticsearch.common.BytesHolder;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.xcontent.*;
 
@@ -92,8 +92,11 @@ public class JsonXContent implements XContent {
     }
 
     @Override
-    public XContentParser createParser(BytesHolder bytes) throws IOException {
-        return createParser(bytes.bytes(), bytes.offset(), bytes.length());
+    public XContentParser createParser(BytesReference bytes) throws IOException {
+        if (bytes.hasArray()) {
+            return createParser(bytes.array(), bytes.arrayOffset(), bytes.length());
+        }
+        return createParser(bytes.streamInput());
     }
 
     @Override

@@ -117,7 +117,7 @@ public class CachedStreamOutput {
 
     public static void pushEntry(Entry entry) {
         entry.reset();
-        if (entry.bytes().underlyingBytes().length > BYTES_LIMIT) {
+        if (entry.bytes().bytes().length() > BYTES_LIMIT) {
             return;
         }
         Queue<Entry> ref = cache.get();

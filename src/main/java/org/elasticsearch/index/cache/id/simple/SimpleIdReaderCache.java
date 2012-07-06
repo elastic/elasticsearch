@@ -20,7 +20,7 @@
 package org.elasticsearch.index.cache.id.simple;
 
 import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.common.BytesWrap;
+import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.index.cache.id.IdReaderCache;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
 
@@ -49,7 +49,7 @@ public class SimpleIdReaderCache implements IdReaderCache {
     }
 
     @Override
-    public BytesWrap parentIdByDoc(String type, int docId) {
+    public HashedBytesArray parentIdByDoc(String type, int docId) {
         SimpleIdReaderTypeCache typeCache = types.get(type);
         if (typeCache != null) {
             return typeCache.parentIdByDoc(docId);
@@ -58,7 +58,7 @@ public class SimpleIdReaderCache implements IdReaderCache {
     }
 
     @Override
-    public int docById(String type, BytesWrap id) {
+    public int docById(String type, HashedBytesArray id) {
         SimpleIdReaderTypeCache typeCache = types.get(type);
         if (typeCache != null) {
             return typeCache.docById(id);
@@ -69,9 +69,9 @@ public class SimpleIdReaderCache implements IdReaderCache {
     /**
      * Returns an already stored instance if exists, if not, returns null;
      */
-    public BytesWrap canReuse(BytesWrap id) {
+    public HashedBytesArray canReuse(HashedBytesArray id) {
         for (SimpleIdReaderTypeCache typeCache : types.values()) {
-            BytesWrap wrap = typeCache.canReuse(id);
+            HashedBytesArray wrap = typeCache.canReuse(id);
             if (wrap != null) {
                 return wrap;
             }

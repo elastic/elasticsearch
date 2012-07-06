@@ -31,8 +31,8 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.BytesStream;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
@@ -73,35 +73,19 @@ public class PercolatorExecutor extends AbstractIndexComponent {
 
     public static class SourceRequest {
         private final String type;
-        private final byte[] source;
-        private final int offset;
-        private final int length;
+        private final BytesReference source;
 
-        public SourceRequest(String type, byte[] source) {
-            this(type, source, 0, source.length);
-        }
-
-        public SourceRequest(String type, byte[] source, int offset, int length) {
+        public SourceRequest(String type, BytesReference source) {
             this.type = type;
             this.source = source;
-            this.offset = offset;
-            this.length = length;
         }
 
         public String type() {
             return this.type;
         }
 
-        public byte[] source() {
+        public BytesReference source() {
             return source;
-        }
-
-        public int offset() {
-            return this.offset;
-        }
-
-        public int length() {
-            return this.length;
         }
     }
 
@@ -197,25 +181,20 @@ public class PercolatorExecutor extends AbstractIndexComponent {
         try {
             XContentBuilder builder = XContentFactory.smileBuilder()
                     .startObject().field("query", queryBuilder).endObject();
-            BytesStream unsafeBytes = builder.underlyingStream();
-            addQuery(name, unsafeBytes.underlyingBytes(), 0, unsafeBytes.size());
+            addQuery(name, builder.bytes());
         } catch (IOException e) {
             throw new ElasticSearchException("Failed to add query [" + name + "]", e);
         }
     }
 
-    public void addQuery(String name, byte[] source) throws ElasticSearchException {
-        addQuery(name, source, 0, source.length);
+    public void addQuery(String name, BytesReference source) throws ElasticSearchException {
+        addQuery(name, parseQuery(name, source));
     }
 
-    public void addQuery(String name, byte[] source, int sourceOffset, int sourceLength) throws ElasticSearchException {
-        addQuery(name, parseQuery(name, source, sourceOffset, sourceLength));
-    }
-
-    public Query parseQuery(String name, byte[] source, int sourceOffset, int sourceLength) throws ElasticSearchException {
+    public Query parseQuery(String name, BytesReference source) throws ElasticSearchException {
         XContentParser parser = null;
         try {
-            parser = XContentHelper.createParser(source, sourceOffset, sourceLength);
+            parser = XContentHelper.createParser(source);
             Query query = null;
             String currentFieldName = null;
             XContentParser.Token token = parser.nextToken(); // move the START_OBJECT
@@ -265,7 +244,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
         XContentParser parser = null;
         try {
 
-            parser = XContentFactory.xContent(request.source(), request.offset(), request.length()).createParser(request.source(), request.offset(), request.length());
+            parser = XContentFactory.xContent(request.source()).createParser(request.source());
             String currentFieldName = null;
             XContentParser.Token token;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {

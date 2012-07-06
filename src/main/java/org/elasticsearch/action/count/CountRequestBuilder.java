@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.BaseRequestBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.query.QueryBuilder;
 
 /**
@@ -90,6 +91,26 @@ public class CountRequestBuilder extends BaseRequestBuilder<CountRequest, CountR
      */
     public CountRequestBuilder setQuery(QueryBuilder queryBuilder) {
         request.query(queryBuilder);
+        return this;
+    }
+
+    /**
+     * The query source to execute.
+     *
+     * @see org.elasticsearch.index.query.QueryBuilders
+     */
+    public CountRequestBuilder setQuery(BytesReference querySource) {
+        request.query(querySource, false);
+        return this;
+    }
+
+    /**
+     * The query source to execute.
+     *
+     * @see org.elasticsearch.index.query.QueryBuilders
+     */
+    public CountRequestBuilder setQuery(BytesReference querySource, boolean unsafe) {
+        request.query(querySource, unsafe);
         return this;
     }
 

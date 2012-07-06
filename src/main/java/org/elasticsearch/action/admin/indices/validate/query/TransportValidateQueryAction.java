@@ -136,8 +136,8 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
             } else {
                 ShardValidateQueryResponse validateQueryResponse = (ShardValidateQueryResponse) shardResponse;
                 valid = valid && validateQueryResponse.valid();
-                if(request.explain()) {
-                    if(queryExplanations == null) {
+                if (request.explain()) {
+                    if (queryExplanations == null) {
                         queryExplanations = newArrayList();
                     }
                     queryExplanations.add(new QueryExplanation(
@@ -170,9 +170,9 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
                     null, indexShard.searcher(), indexService, indexShard,
                     scriptService));
             try {
-                ParsedQuery parsedQuery = queryParserService.parse(request.querySource().bytes(), request.querySource().offset(), request.querySource().length());
+                ParsedQuery parsedQuery = queryParserService.parse(request.querySource());
                 valid = true;
-                if(request.explain()) {
+                if (request.explain()) {
                     explanation = parsedQuery.query().toString();
                 }
             } catch (QueryParsingException e) {

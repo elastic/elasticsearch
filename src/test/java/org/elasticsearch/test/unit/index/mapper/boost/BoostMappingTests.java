@@ -21,8 +21,8 @@ package org.elasticsearch.test.unit.index.mapper.boost;
 
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -41,7 +41,7 @@ public class BoostMappingTests {
 
         ParsedDocument doc = mapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("_boost", 2.0f)
-                .endObject().copiedBytes());
+                .endObject().bytes());
         assertThat(doc.rootDoc().getBoost(), equalTo(2.0f));
     }
 
@@ -55,12 +55,12 @@ public class BoostMappingTests {
 
         ParsedDocument doc = mapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("_boost", 2.0f)
-                .endObject().copiedBytes());
+                .endObject().bytes());
         assertThat(doc.rootDoc().getBoost(), equalTo(1.0f));
 
         doc = mapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("custom_boost", 2.0f)
-                .endObject().copiedBytes());
+                .endObject().bytes());
         assertThat(doc.rootDoc().getBoost(), equalTo(2.0f));
     }
 }

@@ -19,10 +19,10 @@
 
 package org.elasticsearch.rest.action.support;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedStreamInput;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.CachedStreamOutput;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.rest.RestRequest;
@@ -62,14 +62,10 @@ public class RestXContentBuilder {
         return builder;
     }
 
-    public static void restDocumentSource(byte[] source, XContentBuilder builder, ToXContent.Params params) throws IOException {
-        restDocumentSource(source, 0, source.length, builder, params);
-    }
-
-    public static void restDocumentSource(byte[] source, int offset, int length, XContentBuilder builder, ToXContent.Params params) throws IOException {
-        Compressor compressor = CompressorFactory.compressor(source, offset, length);
+    public static void restDocumentSource(BytesReference source, XContentBuilder builder, ToXContent.Params params) throws IOException {
+        Compressor compressor = CompressorFactory.compressor(source);
         if (compressor != null) {
-            CompressedStreamInput compressedStreamInput = compressor.streamInput(new BytesStreamInput(source, offset, length, false));
+            CompressedStreamInput compressedStreamInput = compressor.streamInput(source.streamInput());
             XContentType contentType = XContentFactory.xContentType(compressedStreamInput);
             compressedStreamInput.resetToBufferStart();
             if (contentType == builder.contentType()) {
@@ -85,11 +81,11 @@ public class RestXContentBuilder {
                 }
             }
         } else {
-            XContentType contentType = XContentFactory.xContentType(source, offset, length);
+            XContentType contentType = XContentFactory.xContentType(source);
             if (contentType == builder.contentType()) {
-                builder.rawField("_source", source, offset, length);
+                builder.rawField("_source", source);
             } else {
-                XContentParser parser = XContentFactory.xContent(contentType).createParser(source, offset, length);
+                XContentParser parser = XContentFactory.xContent(contentType).createParser(source);
                 try {
                     parser.nextToken();
                     builder.field("_source");

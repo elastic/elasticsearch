@@ -26,6 +26,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.*;
 import org.elasticsearch.common.network.NetworkService;
@@ -275,7 +276,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                 clusterName.writeTo(out);
                 nodesProvider.nodes().localNode().writeTo(out);
                 out.close();
-                datagramPacketSend.setData(cachedEntry.bytes().copiedByteArray());
+                datagramPacketSend.setData(cachedEntry.bytes().bytes().copyBytesArray().toBytes());
                 multicastSocket.send(datagramPacketSend);
                 if (logger.isTraceEnabled()) {
                     logger.trace("[{}] sending ping request", id);
@@ -479,7 +480,8 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
 
                 builder.endObject().endObject();
                 synchronized (sendMutex) {
-                    datagramPacketSend.setData(builder.underlyingBytes(), 0, builder.underlyingBytesLength());
+                    BytesReference bytes = builder.bytes();
+                    datagramPacketSend.setData(bytes.array(), bytes.arrayOffset(), bytes.length());
                     multicastSocket.send(datagramPacketSend);
                     if (logger.isTraceEnabled()) {
                         logger.trace("sending external ping response {}", builder.string());

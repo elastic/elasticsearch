@@ -61,10 +61,10 @@ public class PureCompressionBenchmark {
                 XContentBuilder builder = XContentFactory.jsonBuilder();
                 testData.current(builder);
 
-                rawJson.write(builder.underlyingBytes(), 0, builder.underlyingBytesLength());
-                compressedJson.write(builder.underlyingBytes(), 0, builder.underlyingBytesLength());
+                rawJson.write(builder.bytes().array(), builder.bytes().arrayOffset(), builder.bytes().length());
+                compressedJson.write(builder.bytes().array(), builder.bytes().arrayOffset(), builder.bytes().length());
 
-                byte[] compressed = compressor.compress(builder.underlyingBytes(), 0, builder.underlyingBytesLength());
+                byte[] compressed = compressor.compress(builder.bytes().array(), builder.bytes().arrayOffset(), builder.bytes().length());
                 compressedByDocJson.write(compressed);
                 builder.close();
             }
@@ -74,10 +74,10 @@ public class PureCompressionBenchmark {
                 XContentBuilder builder = XContentFactory.smileBuilder();
                 testData.current(builder);
 
-                rawSmile.write(builder.underlyingBytes(), 0, builder.underlyingBytesLength());
-                compressedSmile.write(builder.underlyingBytes(), 0, builder.underlyingBytesLength());
+                rawSmile.write(builder.bytes().array(), builder.bytes().arrayOffset(), builder.bytes().length());
+                compressedSmile.write(builder.bytes().array(), builder.bytes().arrayOffset(), builder.bytes().length());
 
-                byte[] compressed = compressor.compress(builder.underlyingBytes(), 0, builder.underlyingBytesLength());
+                byte[] compressed = compressor.compress(builder.bytes().array(), builder.bytes().arrayOffset(), builder.bytes().length());
                 compressedByDocSmile.write(compressed);
                 builder.close();
             }

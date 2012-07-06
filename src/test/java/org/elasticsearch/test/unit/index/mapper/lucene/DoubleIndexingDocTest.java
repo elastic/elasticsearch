@@ -9,8 +9,8 @@ import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -39,7 +39,7 @@ public class DoubleIndexingDocTest {
                 .field("field4", "2010-01-01")
                 .startArray("field5").value(1).value(2).value(3).endArray()
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         writer.addDocument(doc.rootDoc(), doc.analyzer());
         writer.addDocument(doc.rootDoc(), doc.analyzer());

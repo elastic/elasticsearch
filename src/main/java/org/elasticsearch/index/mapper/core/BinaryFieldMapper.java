@@ -23,8 +23,8 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.Base64;
-import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.CachedStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -131,7 +131,7 @@ public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
             return value;
         }
         try {
-            return CompressorFactory.uncompressIfNeeded(new BytesHolder(value)).bytes();
+            return CompressorFactory.uncompressIfNeeded(new BytesArray(value)).toBytes();
         } catch (IOException e) {
             throw new ElasticSearchParseException("failed to decompress source", e);
         }
@@ -175,7 +175,7 @@ public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
                     streamOutput.close();
                     // we copy over the byte array, since we need to push back the cached entry
                     // TODO, we we had a handle into when we are done with parsing, then we push back then and not copy over bytes
-                    value = cachedEntry.bytes().copiedByteArray();
+                    value = cachedEntry.bytes().bytes().copyBytesArray().toBytes();
                     CachedStreamOutput.pushEntry(cachedEntry);
                 }
             }

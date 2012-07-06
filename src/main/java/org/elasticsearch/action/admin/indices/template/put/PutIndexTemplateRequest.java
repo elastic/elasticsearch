@@ -25,6 +25,7 @@ import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -247,7 +248,7 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest {
      */
     public PutIndexTemplateRequest source(XContentBuilder templateBuilder) {
         try {
-            return source(templateBuilder.underlyingBytes(), 0, templateBuilder.underlyingBytesLength());
+            return source(templateBuilder.bytes());
         } catch (Exception e) {
             throw new ElasticSearchIllegalArgumentException("Failed to build json for template request", e);
         }
@@ -321,6 +322,16 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest {
         }
     }
 
+    /**
+     * The template source definition.
+     */
+    public PutIndexTemplateRequest source(BytesReference source) {
+        try {
+            return source(XContentFactory.xContent(source).createParser(source).mapOrderedAndClose());
+        } catch (IOException e) {
+            throw new ElasticSearchIllegalArgumentException("failed to parse template source", e);
+        }
+    }
 
     public PutIndexTemplateRequest custom(IndexMetaData.Custom custom) {
         customs.put(custom.type(), custom);

@@ -27,8 +27,8 @@ import org.elasticsearch.action.deletebyquery.IndexDeleteByQueryResponse;
 import org.elasticsearch.action.deletebyquery.ShardDeleteByQueryRequest;
 import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.BytesStream;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
@@ -67,8 +67,8 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
                 if (source != null) {
                     deleteByQueryRequest.query(source);
                 } else {
-                    BytesStream bytes = RestActions.parseQuerySource(request);
-                    deleteByQueryRequest.query(bytes.underlyingBytes(), 0, bytes.size(), false);
+                    BytesReference bytes = RestActions.parseQuerySource(request);
+                    deleteByQueryRequest.query(bytes, false);
                 }
             }
             deleteByQueryRequest.types(splitTypes(request.param("type")));

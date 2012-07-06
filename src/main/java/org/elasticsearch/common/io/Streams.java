@@ -164,7 +164,7 @@ public abstract class Streams {
         try {
             BytesStreamOutput out = cachedEntry.bytes();
             copy(in, out);
-            return out.copiedByteArray();
+            return out.bytes().copyBytesArray().toBytes();
         } finally {
             CachedStreamOutput.pushEntry(cachedEntry);
         }

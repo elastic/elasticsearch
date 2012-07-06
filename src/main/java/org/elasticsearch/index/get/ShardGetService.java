@@ -22,7 +22,7 @@ package org.elasticsearch.index.get;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Fieldable;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.common.BytesHolder;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.document.ResetFieldSelector;
 import org.elasticsearch.common.lucene.uid.UidField;
@@ -233,7 +233,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
                     }
                 }
 
-                return new GetResult(shardId.index().name(), type, id, get.version(), get.exists(), source == null ? null : new BytesHolder(source), fields);
+                return new GetResult(shardId.index().name(), type, id, get.version(), get.exists(), source == null ? null : new BytesArray(source), fields);
             } else {
                 Translog.Source source = get.source();
 
@@ -274,7 +274,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
                                     searchLookup = new SearchLookup(mapperService, indexCache.fieldData(), new String[]{type});
                                 }
                                 if (sourceAsMap == null) {
-                                    sourceAsMap = SourceLookup.sourceAsMap(source.source.bytes(), source.source.offset(), source.source.length());
+                                    sourceAsMap = SourceLookup.sourceAsMap(source.source);
                                 }
                                 SearchScript searchScript = scriptService.search(searchLookup, "mvel", field, null);
                                 // we can't do this, only allow to run scripts against the source
@@ -295,7 +295,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
                             } else {
                                 if (searchLookup == null) {
                                     searchLookup = new SearchLookup(mapperService, indexCache.fieldData(), new String[]{type});
-                                    searchLookup.source().setNextSource(source.source.bytes(), source.source.offset(), source.source.length());
+                                    searchLookup.source().setNextSource(source.source);
                                 }
 
                                 FieldMapper<?> x = docMapper.mappers().smartNameFieldMapper(field);

@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.template.put;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.support.BaseIndicesRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -159,6 +160,14 @@ public class PutIndexTemplateRequestBuilder extends BaseIndicesRequestBuilder<Pu
      * The template source definition.
      */
     public PutIndexTemplateRequestBuilder setSource(String templateSource) {
+        request.source(templateSource);
+        return this;
+    }
+
+    /**
+     * The template source definition.
+     */
+    public PutIndexTemplateRequestBuilder setSource(BytesReference templateSource) {
         request.source(templateSource);
         return this;
     }

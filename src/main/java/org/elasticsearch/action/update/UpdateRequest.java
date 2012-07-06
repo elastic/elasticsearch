@@ -26,6 +26,8 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequest;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -485,7 +487,7 @@ public class UpdateRequest extends InstanceShardOperationRequest {
     }
 
     public UpdateRequest source(XContentBuilder source) throws Exception {
-        return source(source.underlyingBytes(), 0, source.underlyingBytesLength());
+        return source(source.bytes());
     }
 
     public UpdateRequest source(byte[] source) throws Exception {
@@ -493,8 +495,12 @@ public class UpdateRequest extends InstanceShardOperationRequest {
     }
 
     public UpdateRequest source(byte[] source, int offset, int length) throws Exception {
-        XContentType xContentType = XContentFactory.xContentType(source, offset, length);
-        XContentParser parser = XContentFactory.xContent(xContentType).createParser(source, offset, length);
+        return source(new BytesArray(source, offset, length));
+    }
+
+    public UpdateRequest source(BytesReference source) throws Exception {
+        XContentType xContentType = XContentFactory.xContentType(source);
+        XContentParser parser = XContentFactory.xContent(xContentType).createParser(source);
         XContentParser.Token t = parser.nextToken();
         if (t == null) {
             return this;

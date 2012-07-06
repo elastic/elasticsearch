@@ -74,12 +74,12 @@ public class XContentRestResponse extends AbstractRestResponse {
 
     @Override
     public byte[] content() throws IOException {
-        return builder.underlyingBytes();
+        return builder.bytes().array();
     }
 
     @Override
     public int contentLength() throws IOException {
-        return builder.underlyingBytesLength();
+        return builder.bytes().length();
     }
 
     @Override

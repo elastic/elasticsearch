@@ -21,9 +21,9 @@ package org.elasticsearch.test.unit.index.mapper.geopoint;
 
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.search.geo.GeoHashUtils;
+import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -47,7 +47,7 @@ public class LatLonAndGeohashMappingGeoPointTests {
                 .startObject()
                 .startObject("point").field("lat", 1.2).field("lon", 1.3).endObject()
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.rootDoc().getFieldable("point.lat"), notNullValue());
         assertThat(doc.rootDoc().getFieldable("point.lon"), notNullValue());
@@ -66,7 +66,7 @@ public class LatLonAndGeohashMappingGeoPointTests {
                 .startObject()
                 .field("point", "1.2,1.3")
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.rootDoc().getFieldable("point.lat"), notNullValue());
         assertThat(doc.rootDoc().getFieldable("point.lon"), notNullValue());
@@ -85,7 +85,7 @@ public class LatLonAndGeohashMappingGeoPointTests {
                 .startObject()
                 .field("point", GeoHashUtils.encode(1.2, 1.3))
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.rootDoc().getFieldable("point.lat"), notNullValue());
         assertThat(doc.rootDoc().getFieldable("point.lon"), notNullValue());

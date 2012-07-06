@@ -25,6 +25,7 @@ import org.elasticsearch.action.support.BaseRequestBuilder;
 import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -85,6 +86,22 @@ public class IndexRequestBuilder extends BaseRequestBuilder<IndexRequest, IndexR
      */
     public IndexRequestBuilder setParent(String parent) {
         request.parent(parent);
+        return this;
+    }
+
+    /**
+     * Sets the source.
+     */
+    public IndexRequestBuilder setSource(BytesReference source, boolean unsafe) {
+        request.source(source, unsafe);
+        return this;
+    }
+
+    /**
+     * Sets the source.
+     */
+    public IndexRequestBuilder setSource(BytesReference source) {
+        request.source(source, false);
         return this;
     }
 

@@ -23,7 +23,8 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.common.BytesHolder;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.VersionType;
@@ -140,9 +141,9 @@ public abstract class AbstractSimpleEngineTests {
 
     protected abstract Engine createEngine(Store store, Translog translog);
 
-    protected static final byte[] B_1 = new byte[]{1};
-    protected static final byte[] B_2 = new byte[]{2};
-    protected static final byte[] B_3 = new byte[]{3};
+    protected static final BytesReference B_1 = new BytesArray(new byte[]{1});
+    protected static final BytesReference B_2 = new BytesArray(new byte[]{2});
+    protected static final BytesReference B_3 = new BytesArray(new byte[]{3});
 
     @Test
     public void testSegments() throws Exception {
@@ -150,7 +151,7 @@ public abstract class AbstractSimpleEngineTests {
         assertThat(segments.isEmpty(), equalTo(true));
 
         // create a doc and refresh
-        ParsedDocument doc = new ParsedDocument("1", "1", "test", null, -1, -1, doc().add(uidField("1")).add(field("value", "test")).add(field(SourceFieldMapper.NAME, B_1, Field.Store.YES)).build(), Lucene.STANDARD_ANALYZER, B_1, false);
+        ParsedDocument doc = new ParsedDocument("1", "1", "test", null, -1, -1, doc().add(uidField("1")).add(field("value", "test")).add(field(SourceFieldMapper.NAME, B_1.toBytes(), Field.Store.YES)).build(), Lucene.STANDARD_ANALYZER, B_1, false);
         engine.create(new Engine.Create(null, newUid("1"), doc));
 
         ParsedDocument doc2 = new ParsedDocument("2", "2", "test", null, -1, -1, doc().add(uidField("2")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, B_2, false);
@@ -215,7 +216,7 @@ public abstract class AbstractSimpleEngineTests {
         searchResult.release();
 
         // create a document
-        ParsedDocument doc = new ParsedDocument("1", "1", "test", null, -1, -1, doc().add(uidField("1")).add(field("value", "test")).add(field(SourceFieldMapper.NAME, B_1, Field.Store.YES)).build(), Lucene.STANDARD_ANALYZER, B_1, false);
+        ParsedDocument doc = new ParsedDocument("1", "1", "test", null, -1, -1, doc().add(uidField("1")).add(field("value", "test")).add(field(SourceFieldMapper.NAME, B_1.toBytes(), Field.Store.YES)).build(), Lucene.STANDARD_ANALYZER, B_1, false);
         engine.create(new Engine.Create(null, newUid("1"), doc));
 
         // its not there...
@@ -227,7 +228,7 @@ public abstract class AbstractSimpleEngineTests {
         // but, we can still get it (in realtime)
         Engine.GetResult getResult = engine.get(new Engine.Get(true, newUid("1")));
         assertThat(getResult.exists(), equalTo(true));
-        assertThat(getResult.source().source, equalTo(new BytesHolder(B_1)));
+        assertThat(getResult.source().source.toBytesArray(), equalTo(B_1.toBytesArray()));
         assertThat(getResult.docIdAndVersion(), nullValue());
 
         // but, not there non realtime
@@ -249,7 +250,7 @@ public abstract class AbstractSimpleEngineTests {
         assertThat(getResult.docIdAndVersion(), notNullValue());
 
         // now do an update
-        doc = new ParsedDocument("1", "1", "test", null, -1, -1, doc().add(uidField("1")).add(field("value", "test1")).add(field(SourceFieldMapper.NAME, B_2, Field.Store.YES)).build(), Lucene.STANDARD_ANALYZER, B_2, false);
+        doc = new ParsedDocument("1", "1", "test", null, -1, -1, doc().add(uidField("1")).add(field("value", "test1")).add(field(SourceFieldMapper.NAME, B_2.toBytes(), Field.Store.YES)).build(), Lucene.STANDARD_ANALYZER, B_2, false);
         engine.index(new Engine.Index(null, newUid("1"), doc));
 
         // its not updated yet...
@@ -262,7 +263,7 @@ public abstract class AbstractSimpleEngineTests {
         // but, we can still get it (in realtime)
         getResult = engine.get(new Engine.Get(true, newUid("1")));
         assertThat(getResult.exists(), equalTo(true));
-        assertThat(getResult.source().source, equalTo(new BytesHolder(B_2)));
+        assertThat(getResult.source().source.toBytesArray(), equalTo(B_2.toBytesArray()));
         assertThat(getResult.docIdAndVersion(), nullValue());
 
         // refresh and it should be updated
@@ -298,7 +299,7 @@ public abstract class AbstractSimpleEngineTests {
         searchResult.release();
 
         // add it back
-        doc = new ParsedDocument("1", "1", "test", null, -1, -1, doc().add(uidField("1")).add(field("value", "test")).add(field(SourceFieldMapper.NAME, B_1, Field.Store.YES)).build(), Lucene.STANDARD_ANALYZER, B_1, false);
+        doc = new ParsedDocument("1", "1", "test", null, -1, -1, doc().add(uidField("1")).add(field("value", "test")).add(field(SourceFieldMapper.NAME, B_1.toBytes(), Field.Store.YES)).build(), Lucene.STANDARD_ANALYZER, B_1, false);
         engine.create(new Engine.Create(null, newUid("1"), doc));
 
         // its not there...
@@ -404,7 +405,7 @@ public abstract class AbstractSimpleEngineTests {
                 MatcherAssert.assertThat(snapshotIndexCommit1, SnapshotIndexCommitExistsMatcher.snapshotIndexCommitExists());
                 assertThat(translogSnapshot1.hasNext(), equalTo(true));
                 Translog.Create create1 = (Translog.Create) translogSnapshot1.next();
-                assertThat(create1.source().copyBytes(), equalTo(B_1));
+                assertThat(create1.source().toBytesArray(), equalTo(B_1.toBytesArray()));
                 assertThat(translogSnapshot1.hasNext(), equalTo(false));
 
                 Future<Object> future = executorService.submit(new Callable<Object>() {
@@ -437,7 +438,7 @@ public abstract class AbstractSimpleEngineTests {
                         assertThat(snapshotIndexCommit2.getSegmentsFileName(), not(equalTo(snapshotIndexCommit1.getSegmentsFileName())));
                         assertThat(translogSnapshot2.hasNext(), equalTo(true));
                         Translog.Create create3 = (Translog.Create) translogSnapshot2.next();
-                        assertThat(create3.source().copyBytes(), equalTo(B_3));
+                        assertThat(create3.source().toBytesArray(), equalTo(B_3.toBytesArray()));
                         assertThat(translogSnapshot2.hasNext(), equalTo(false));
                         return null;
                     }
@@ -511,7 +512,7 @@ public abstract class AbstractSimpleEngineTests {
             public void phase2(Translog.Snapshot snapshot) throws EngineException {
                 assertThat(snapshot.hasNext(), equalTo(true));
                 Translog.Create create = (Translog.Create) snapshot.next();
-                assertThat(create.source().copyBytes(), equalTo(B_2));
+                assertThat(create.source().toBytesArray(), equalTo(B_2));
                 assertThat(snapshot.hasNext(), equalTo(false));
             }
 
@@ -543,7 +544,7 @@ public abstract class AbstractSimpleEngineTests {
                 assertThat(snapshot.hasNext(), equalTo(true));
                 Translog.Create create = (Translog.Create) snapshot.next();
                 assertThat(snapshot.hasNext(), equalTo(false));
-                assertThat(create.source().copyBytes(), equalTo(B_2));
+                assertThat(create.source().toBytesArray(), equalTo(B_2));
 
                 // add for phase3
                 ParsedDocument doc3 = new ParsedDocument("3", "3", "test", null, -1, -1, doc().add(uidField("3")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, B_3, false);
@@ -555,7 +556,7 @@ public abstract class AbstractSimpleEngineTests {
                 assertThat(snapshot.hasNext(), equalTo(true));
                 Translog.Create create = (Translog.Create) snapshot.next();
                 assertThat(snapshot.hasNext(), equalTo(false));
-                assertThat(create.source().copyBytes(), equalTo(B_3));
+                assertThat(create.source().toBytesArray(), equalTo(B_3));
             }
         });
 

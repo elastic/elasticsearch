@@ -49,7 +49,7 @@ public class LatLonMappingGeoPointTests {
                 .startObject()
                 .startObject("point").field("lat", 91).field("lon", 181).endObject()
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.rootDoc().get("point"), equalTo("89.0,1.0"));
 
@@ -57,7 +57,7 @@ public class LatLonMappingGeoPointTests {
                 .startObject()
                 .startObject("point").field("lat", -91).field("lon", -181).endObject()
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.rootDoc().get("point"), equalTo("-89.0,-1.0"));
 
@@ -65,7 +65,7 @@ public class LatLonMappingGeoPointTests {
                 .startObject()
                 .startObject("point").field("lat", 181).field("lon", 361).endObject()
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.rootDoc().get("point"), equalTo("-1.0,-179.0"));
     }
@@ -83,14 +83,14 @@ public class LatLonMappingGeoPointTests {
                 .startObject()
                 .startObject("point").field("lat", 90).field("lon", 1.3).endObject()
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         try {
             defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                     .startObject()
                     .startObject("point").field("lat", -91).field("lon", 1.3).endObject()
                     .endObject()
-                    .copiedBytes());
+                    .bytes());
             assert false;
         } catch (ElasticSearchIllegalArgumentException e) {
 
@@ -101,7 +101,7 @@ public class LatLonMappingGeoPointTests {
                     .startObject()
                     .startObject("point").field("lat", 91).field("lon", 1.3).endObject()
                     .endObject()
-                    .copiedBytes());
+                    .bytes());
             assert false;
         } catch (ElasticSearchIllegalArgumentException e) {
 
@@ -112,7 +112,7 @@ public class LatLonMappingGeoPointTests {
                     .startObject()
                     .startObject("point").field("lat", 1.2).field("lon", -181).endObject()
                     .endObject()
-                    .copiedBytes());
+                    .bytes());
             assert false;
         } catch (ElasticSearchIllegalArgumentException e) {
 
@@ -123,7 +123,7 @@ public class LatLonMappingGeoPointTests {
                     .startObject()
                     .startObject("point").field("lat", 1.2).field("lon", 181).endObject()
                     .endObject()
-                    .copiedBytes());
+                    .bytes());
             assert false;
         } catch (ElasticSearchIllegalArgumentException e) {
 
@@ -144,31 +144,31 @@ public class LatLonMappingGeoPointTests {
                 .startObject()
                 .startObject("point").field("lat", 90).field("lon", 1.3).endObject()
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("point").field("lat", -91).field("lon", 1.3).endObject()
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("point").field("lat", 91).field("lon", 1.3).endObject()
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("point").field("lat", 1.2).field("lon", -181).endObject()
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("point").field("lat", 1.2).field("lon", 181).endObject()
                 .endObject()
-                .copiedBytes());
+                .bytes());
     }
 
     @Test
@@ -183,7 +183,7 @@ public class LatLonMappingGeoPointTests {
                 .startObject()
                 .startObject("point").field("lat", 1.2).field("lon", 1.3).endObject()
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.rootDoc().getFieldable("point.lat"), notNullValue());
         assertThat(doc.rootDoc().getFieldable("point.lat").getBinaryValue(), nullValue());
@@ -205,7 +205,7 @@ public class LatLonMappingGeoPointTests {
                 .startObject()
                 .startObject("point").field("lat", 1.2).field("lon", 1.3).endObject()
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.rootDoc().getFieldable("point.lat"), notNullValue());
         assertThat(doc.rootDoc().getFieldable("point.lat").getBinaryValue(), equalTo(Numbers.doubleToBytes(1.2)));
@@ -230,7 +230,7 @@ public class LatLonMappingGeoPointTests {
                 .startObject().field("lat", 1.4).field("lon", 1.5).endObject()
                 .endArray()
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.rootDoc().getFieldables("point.lat").length, equalTo(2));
         assertThat(doc.rootDoc().getFieldables("point.lon").length, equalTo(2));
@@ -254,7 +254,7 @@ public class LatLonMappingGeoPointTests {
                 .startObject()
                 .field("point", "1.2,1.3")
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.rootDoc().getFieldable("point.lat"), notNullValue());
         assertThat(doc.rootDoc().getFieldable("point.lon"), notNullValue());
@@ -273,7 +273,7 @@ public class LatLonMappingGeoPointTests {
                 .startObject()
                 .field("point", "1.2,1.3")
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.rootDoc().getFieldable("point.lat"), notNullValue());
         assertThat(doc.rootDoc().getFieldable("point.lat").getBinaryValue(), equalTo(Numbers.doubleToBytes(1.2)));
@@ -297,7 +297,7 @@ public class LatLonMappingGeoPointTests {
                 .value("1.4,1.5")
                 .endArray()
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.rootDoc().getFieldables("point.lat").length, equalTo(2));
         assertThat(doc.rootDoc().getFieldables("point.lon").length, equalTo(2));
@@ -321,7 +321,7 @@ public class LatLonMappingGeoPointTests {
                 .startObject()
                 .field("point", GeoHashUtils.encode(1.2, 1.3))
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.rootDoc().getFieldable("point.lat"), notNullValue());
         assertThat(doc.rootDoc().getFieldable("point.lon"), notNullValue());
@@ -340,7 +340,7 @@ public class LatLonMappingGeoPointTests {
                 .startObject()
                 .startArray("point").value(1.3).value(1.2).endArray()
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.rootDoc().getFieldable("point.lat"), notNullValue());
         assertThat(doc.rootDoc().getFieldable("point.lat").getBinaryValue(), nullValue());
@@ -361,7 +361,7 @@ public class LatLonMappingGeoPointTests {
                 .startObject()
                 .startArray("point").value(1.3).value(1.2).endArray()
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.rootDoc().getFieldable("point.lat"), notNullValue());
         assertThat(doc.rootDoc().getFieldable("point.lat").getBinaryValue(), equalTo(Numbers.doubleToBytes(1.2)));
@@ -385,7 +385,7 @@ public class LatLonMappingGeoPointTests {
                 .startArray().value(1.5).value(1.4).endArray()
                 .endArray()
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.rootDoc().getFieldables("point.lat").length, equalTo(2));
         assertThat(doc.rootDoc().getFieldables("point.lon").length, equalTo(2));

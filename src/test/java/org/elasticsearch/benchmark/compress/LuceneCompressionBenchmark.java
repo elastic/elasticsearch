@@ -66,7 +66,7 @@ public class LuceneCompressionBenchmark {
             testData.current(builder);
             builder.close();
             Document doc = new Document();
-            doc.add(new Field("_source", builder.underlyingBytes(), 0, builder.underlyingBytesLength()));
+            doc.add(new Field("_source", builder.bytes().array(), builder.bytes().arrayOffset(), builder.bytes().length()));
             if (WITH_TV) {
                 Field field = new Field("text", builder.string(), Field.Store.NO, Field.Index.ANALYZED, Field.TermVector.WITH_POSITIONS_OFFSETS);
                 doc.add(field);

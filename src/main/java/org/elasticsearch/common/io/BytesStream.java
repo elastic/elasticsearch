@@ -19,11 +19,9 @@
 
 package org.elasticsearch.common.io;
 
+import org.elasticsearch.common.bytes.BytesReference;
+
 public interface BytesStream {
 
-    byte[] underlyingBytes();
-
-    int size();
-
-    byte[] copiedByteArray();
+    BytesReference bytes();
 }

@@ -19,8 +19,9 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.joda.time.DateTime;
 
 import java.io.IOException;
@@ -47,24 +48,24 @@ public abstract class StreamInput extends InputStream {
     public abstract void readBytes(byte[] b, int offset, int len) throws IOException;
 
     /**
-     * Reads a fresh copy of the bytes.
+     * Reads a bytes reference from this stream, might hold an actual reference to the underlying
+     * bytes of the stream.
      */
-    public BytesHolder readBytesHolder() throws IOException {
-        int size = readVInt();
-        if (size == 0) {
-            return BytesHolder.EMPTY;
-        }
-        byte[] bytes = new byte[size];
-        readBytes(bytes, 0, size);
-        return new BytesHolder(bytes, 0, size);
+    public BytesReference readBytesReference() throws IOException {
+        return readBytesReference(readVInt());
     }
 
     /**
      * Reads a bytes reference from this stream, might hold an actual reference to the underlying
      * bytes of the stream.
      */
-    public BytesHolder readBytesReference() throws IOException {
-        return readBytesHolder();
+    public BytesReference readBytesReference(int length) throws IOException {
+        if (length == 0) {
+            return BytesArray.EMPTY;
+        }
+        byte[] bytes = new byte[length];
+        readBytes(bytes, 0, length);
+        return new BytesArray(bytes, 0, length);
     }
 
     public void readFully(byte[] b) throws IOException {

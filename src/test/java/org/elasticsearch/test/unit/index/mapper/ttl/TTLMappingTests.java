@@ -21,12 +21,13 @@
 package org.elasticsearch.test.unit.index.mapper.ttl;
 
 import org.apache.lucene.document.Field;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
+import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -38,11 +39,11 @@ public class TTLMappingTests {
     public void testSimpleDisabled() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().string();
         DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
-        byte[] source = XContentFactory.jsonBuilder()
+        BytesReference source = XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", "value")
                 .endObject()
-                .copiedBytes();
+                .bytes();
         ParsedDocument doc = docMapper.parse(SourceToParse.source(source).type("type").id("1").ttl(Long.MAX_VALUE));
 
         assertThat(doc.rootDoc().getFieldable("_ttl"), equalTo(null));
@@ -54,11 +55,11 @@ public class TTLMappingTests {
                 .startObject("_ttl").field("enabled", "yes").endObject()
                 .endObject().endObject().string();
         DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
-        byte[] source = XContentFactory.jsonBuilder()
+        BytesReference source = XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", "value")
                 .endObject()
-                .copiedBytes();
+                .bytes();
         ParsedDocument doc = docMapper.parse(SourceToParse.source(source).type("type").id("1").ttl(Long.MAX_VALUE));
 
         assertThat(doc.rootDoc().getFieldable("_ttl").isStored(), equalTo(true));

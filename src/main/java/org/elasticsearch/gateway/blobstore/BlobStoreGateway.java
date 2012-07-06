@@ -41,7 +41,6 @@ import org.elasticsearch.index.gateway.CommitPoints;
 import org.elasticsearch.index.gateway.blobstore.BlobStoreIndexGateway;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.List;
 
@@ -164,7 +163,7 @@ public abstract class BlobStoreGateway extends SharedStorageGateway {
             MetaData.Builder.toXContent(metaData, builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
             builder.close();
-            metaDataBlobContainer.writeBlob(newMetaData, new ByteArrayInputStream(cachedEntry.bytes().underlyingBytes(), 0, cachedEntry.bytes().size()), cachedEntry.bytes().size());
+            metaDataBlobContainer.writeBlob(newMetaData, cachedEntry.bytes().bytes().streamInput(), cachedEntry.bytes().size());
         } catch (IOException e) {
             throw new GatewayException("Failed to write metadata [" + newMetaData + "]", e);
         } finally {

@@ -22,13 +22,17 @@ package org.elasticsearch.common.compress;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import org.apache.lucene.store.IndexInput;
-import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.lzf.LZFCompressor;
 import org.elasticsearch.common.compress.snappy.UnavailableSnappyCompressor;
 import org.elasticsearch.common.compress.snappy.xerial.XerialSnappy;
 import org.elasticsearch.common.compress.snappy.xerial.XerialSnappyCompressor;
+import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.io.stream.CachedStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.jboss.netty.buffer.ChannelBuffer;
@@ -98,6 +102,10 @@ public class CompressorFactory {
         return defaultCompressor;
     }
 
+    public static boolean isCompressed(BytesReference bytes) {
+        return compressor(bytes) != null;
+    }
+
     public static boolean isCompressed(byte[] data) {
         return compressor(data, 0, data.length) != null;
     }
@@ -111,8 +119,13 @@ public class CompressorFactory {
     }
 
     @Nullable
-    public static Compressor compressor(BytesHolder bytes) {
-        return compressor(bytes.bytes(), bytes.offset(), bytes.length());
+    public static Compressor compressor(BytesReference bytes) {
+        for (Compressor compressor : compressors) {
+            if (compressor.isCompressed(bytes)) {
+                return compressor;
+            }
+        }
+        return null;
     }
 
     @Nullable
@@ -157,10 +170,21 @@ public class CompressorFactory {
     /**
      * Uncompress the provided data, data can be detected as compressed using {@link #isCompressed(byte[], int, int)}.
      */
-    public static BytesHolder uncompressIfNeeded(BytesHolder bytes) throws IOException {
+    public static BytesReference uncompressIfNeeded(BytesReference bytes) throws IOException {
         Compressor compressor = compressor(bytes);
         if (compressor != null) {
-            return new BytesHolder(compressor.uncompress(bytes.bytes(), bytes.offset(), bytes.length()));
+            if (bytes.hasArray()) {
+                return new BytesArray(compressor.uncompress(bytes.array(), bytes.arrayOffset(), bytes.length()));
+            }
+            StreamInput compressed = compressor.streamInput(bytes.streamInput());
+            CachedStreamOutput.Entry entry = CachedStreamOutput.popEntry();
+            try {
+                Streams.copy(compressed, entry.bytes());
+                compressed.close();
+                return new BytesArray(entry.bytes().bytes().toBytes());
+            } finally {
+                CachedStreamOutput.pushEntry(entry);
+            }
         }
         return bytes;
     }

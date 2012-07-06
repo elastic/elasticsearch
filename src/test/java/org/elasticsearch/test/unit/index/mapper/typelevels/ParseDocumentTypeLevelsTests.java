@@ -21,8 +21,8 @@ package org.elasticsearch.test.unit.index.mapper.typelevels;
 
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -46,7 +46,7 @@ public class ParseDocumentTypeLevelsTests {
                 .field("test2", "value2")
                 .startObject("inner").field("inner_field", "inner_value").endObject()
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.rootDoc().get("test1"), equalTo("value1"));
         assertThat(doc.rootDoc().get("test2"), equalTo("value2"));
@@ -65,7 +65,7 @@ public class ParseDocumentTypeLevelsTests {
                 .field("test2", "value2")
                 .startObject("inner").field("inner_field", "inner_value").endObject()
                 .endObject().endObject()
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.rootDoc().get("test1"), equalTo("value1"));
         assertThat(doc.rootDoc().get("test2"), equalTo("value2"));
@@ -85,7 +85,7 @@ public class ParseDocumentTypeLevelsTests {
                 .field("test2", "value2")
                 .startObject("inner").field("inner_field", "inner_value").endObject()
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.rootDoc().get("type"), equalTo("value_type"));
         assertThat(doc.rootDoc().get("test1"), equalTo("value1"));
@@ -106,7 +106,7 @@ public class ParseDocumentTypeLevelsTests {
                 .field("test2", "value2")
                 .startObject("inner").field("inner_field", "inner_value").endObject()
                 .endObject().endObject()
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.rootDoc().get("type"), equalTo("value_type"));
         assertThat(doc.rootDoc().get("test1"), equalTo("value1"));
@@ -127,7 +127,7 @@ public class ParseDocumentTypeLevelsTests {
                 .field("test2", "value2")
                 .startObject("inner").field("inner_field", "inner_value").endObject()
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         // in this case, we analyze the type object as the actual document, and ignore the other same level fields
         assertThat(doc.rootDoc().get("type_field"), equalTo("type_value"));
@@ -148,7 +148,7 @@ public class ParseDocumentTypeLevelsTests {
                 .field("test2", "value2")
                 .startObject("inner").field("inner_field", "inner_value").endObject()
                 .endObject().endObject()
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.rootDoc().get("type.type_field"), equalTo("type_value"));
         assertThat(doc.rootDoc().get("test1"), equalTo("value1"));
@@ -169,7 +169,7 @@ public class ParseDocumentTypeLevelsTests {
                 .field("type", "value_type")
                 .startObject("inner").field("inner_field", "inner_value").endObject()
                 .endObject().endObject()
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.rootDoc().get("type"), equalTo("value_type"));
         assertThat(doc.rootDoc().get("test1"), equalTo("value1"));
@@ -190,7 +190,7 @@ public class ParseDocumentTypeLevelsTests {
                 .field("test2", "value2")
                 .startObject("inner").field("inner_field", "inner_value").endObject()
                 .endObject().endObject()
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.rootDoc().get("type"), equalTo("value_type"));
         assertThat(doc.rootDoc().get("test1"), equalTo("value1"));
@@ -211,7 +211,7 @@ public class ParseDocumentTypeLevelsTests {
                 .field("test2", "value2")
                 .startObject("inner").field("inner_field", "inner_value").endObject()
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         // when the type is not the first one, we don't confuse it...
         assertThat(doc.rootDoc().get("type.type_field"), equalTo("type_value"));
@@ -233,7 +233,7 @@ public class ParseDocumentTypeLevelsTests {
                 .field("test2", "value2")
                 .startObject("inner").field("inner_field", "inner_value").endObject()
                 .endObject().endObject()
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.rootDoc().get("type.type_field"), equalTo("type_value"));
         assertThat(doc.rootDoc().get("test1"), equalTo("value1"));

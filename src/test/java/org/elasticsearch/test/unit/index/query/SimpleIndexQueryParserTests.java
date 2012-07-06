@@ -24,6 +24,7 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.search.spans.*;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
@@ -108,7 +109,7 @@ public class SimpleIndexQueryParserTests {
 
         String mapping = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/query/mapping.json");
         injector.getInstance(MapperService.class).add("person", mapping);
-        injector.getInstance(MapperService.class).documentMapper("person").parse(copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/query/data.json"));
+        injector.getInstance(MapperService.class).documentMapper("person").parse(new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/query/data.json")));
         this.queryParser = injector.getInstance(IndexQueryParserService.class);
     }
 
@@ -306,7 +307,7 @@ public class SimpleIndexQueryParserTests {
     @Test
     public void testTermQueryBuilder() throws IOException {
         IndexQueryParserService queryParser = queryParser();
-        Query parsedQuery = queryParser.parse(termQuery("age", 34).buildAsBytes().copiedByteArray()).query();
+        Query parsedQuery = queryParser.parse(termQuery("age", 34).buildAsBytes()).query();
         assertThat(parsedQuery, instanceOf(NumericRangeQuery.class));
         NumericRangeQuery fieldQuery = (NumericRangeQuery) parsedQuery;
         assertThat(fieldQuery.getMin().intValue(), equalTo(34));
@@ -331,7 +332,7 @@ public class SimpleIndexQueryParserTests {
     @Test
     public void testFuzzyQueryBuilder() throws IOException {
         IndexQueryParserService queryParser = queryParser();
-        Query parsedQuery = queryParser.parse(fuzzyQuery("name.first", "sh").buildAsBytes().copiedByteArray()).query();
+        Query parsedQuery = queryParser.parse(fuzzyQuery("name.first", "sh").buildAsBytes()).query();
         assertThat(parsedQuery, instanceOf(FuzzyQuery.class));
         FuzzyQuery fuzzyQuery = (FuzzyQuery) parsedQuery;
         assertThat(fuzzyQuery.getTerm(), equalTo(new Term("name.first", "sh")));
@@ -350,7 +351,7 @@ public class SimpleIndexQueryParserTests {
     @Test
     public void testFuzzyQueryWithFieldsBuilder() throws IOException {
         IndexQueryParserService queryParser = queryParser();
-        Query parsedQuery = queryParser.parse(fuzzyQuery("name.first", "sh").minSimilarity(0.1f).prefixLength(1).boost(2.0f).buildAsBytes().copiedByteArray()).query();
+        Query parsedQuery = queryParser.parse(fuzzyQuery("name.first", "sh").minSimilarity(0.1f).prefixLength(1).boost(2.0f).buildAsBytes()).query();
         assertThat(parsedQuery, instanceOf(FuzzyQuery.class));
         FuzzyQuery fuzzyQuery = (FuzzyQuery) parsedQuery;
         assertThat(fuzzyQuery.getTerm(), equalTo(new Term("name.first", "sh")));
@@ -386,7 +387,7 @@ public class SimpleIndexQueryParserTests {
     @Test
     public void testFieldQueryBuilder1() throws IOException {
         IndexQueryParserService queryParser = queryParser();
-        Query parsedQuery = queryParser.parse(fieldQuery("age", 34).buildAsBytes().copiedByteArray()).query();
+        Query parsedQuery = queryParser.parse(fieldQuery("age", 34).buildAsBytes()).query();
         assertThat(parsedQuery, instanceOf(NumericRangeQuery.class));
         NumericRangeQuery fieldQuery = (NumericRangeQuery) parsedQuery;
         assertThat(fieldQuery.getMin().intValue(), equalTo(34));

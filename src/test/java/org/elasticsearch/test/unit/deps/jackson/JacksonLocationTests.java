@@ -56,7 +56,7 @@ public class JacksonLocationTests {
 
         gen.close();
 
-        byte[] data = os.copiedByteArray();
+        byte[] data = os.bytes().toBytes();
         JsonParser parser = new JsonFactory().createJsonParser(data);
 
         assertThat(parser.nextToken(), equalTo(JsonToken.START_OBJECT));

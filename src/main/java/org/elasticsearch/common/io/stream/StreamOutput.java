@@ -19,8 +19,8 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.joda.time.ReadableInstant;
 
 import java.io.IOException;
@@ -68,18 +68,14 @@ public abstract class StreamOutput extends OutputStream {
      */
     public abstract void writeBytes(byte[] b, int offset, int length) throws IOException;
 
-    public void writeBytesHolder(byte[] bytes, int offset, int length) throws IOException {
-        writeVInt(length);
-        writeBytes(bytes, offset, length);
-    }
-
-    public void writeBytesHolder(@Nullable BytesHolder bytes) throws IOException {
+    public void writeBytesReference(@Nullable BytesReference bytes, boolean withLength) throws IOException {
         if (bytes == null) {
-            writeVInt(0);
-        } else {
-            writeVInt(bytes.length());
-            writeBytes(bytes.bytes(), bytes.offset(), bytes.length());
+            if (withLength) {
+                writeVInt(0);
+            }
+            return;
         }
+        bytes.writeTo(this, withLength);
     }
 
     public final void writeShort(short v) throws IOException {

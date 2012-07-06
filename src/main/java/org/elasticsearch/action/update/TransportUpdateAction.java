@@ -168,7 +168,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
             return;
         }
 
-        Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(getResult.internalSourceRef().bytes(), getResult.internalSourceRef().offset(), getResult.internalSourceRef().length(), true);
+        Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(getResult.internalSourceRef(), true);
         Map<String, Object> source = sourceAndContent.v2();
         Map<String, Object> ctx = new HashMap<String, Object>(2);
         ctx.put("_source", source);

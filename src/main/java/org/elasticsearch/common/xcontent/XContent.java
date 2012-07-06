@@ -19,12 +19,12 @@
 
 package org.elasticsearch.common.xcontent;
 
+import org.elasticsearch.common.bytes.BytesReference;
+
 import java.io.*;
 
 /**
  * A generic abstraction on top of handling content, inspired by JSON and pull parsing.
- *
- *
  */
 public interface XContent {
 
@@ -66,6 +66,14 @@ public interface XContent {
     XContentParser createParser(byte[] data, int offset, int length) throws IOException;
 
     /**
+     * <<<<<<< HEAD
+     * =======
+     * Creates a parser over the provided bytes.
+     */
+    XContentParser createParser(BytesReference bytes) throws IOException;
+
+    /**
+     * >>>>>>> 3523356... buffer management refactoring
      * Creates a parser over the provided reader.
      */
     XContentParser createParser(Reader reader) throws IOException;

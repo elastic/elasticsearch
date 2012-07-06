@@ -22,11 +22,11 @@ package org.elasticsearch.test.unit.index.mapper.numeric;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -49,7 +49,7 @@ public class SimpleNumericTests {
                 .field("s_long", "100")
                 .field("s_double", "100.0")
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         FieldMapper mapper = defaultMapper.mappers().smartNameFieldMapper("s_long");
         assertThat(mapper, instanceOf(LongFieldMapper.class));
@@ -69,7 +69,7 @@ public class SimpleNumericTests {
                 .field("s_long", "100")
                 .field("s_double", "100.0")
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         FieldMapper mapper = defaultMapper.mappers().smartNameFieldMapper("s_long");
         assertThat(mapper, instanceOf(StringFieldMapper.class));

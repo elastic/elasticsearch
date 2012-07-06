@@ -21,9 +21,9 @@ package org.elasticsearch.test.unit.index.mapper.routing;
 
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -44,7 +44,7 @@ public class RoutingTypeMapperTests {
                 .startObject()
                 .field("field", "value")
                 .endObject()
-                .copiedBytes()).type("type").id("1").routing("routing_value"));
+                .bytes()).type("type").id("1").routing("routing_value"));
 
         assertThat(doc.rootDoc().get("_routing"), equalTo("routing_value"));
         assertThat(doc.rootDoc().get("field"), equalTo("value"));

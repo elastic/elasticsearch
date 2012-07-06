@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.BaseRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.FilterBuilder;
@@ -203,6 +204,14 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
     /**
      * Constructs a new search source builder with a raw search query.
      */
+    public SearchRequestBuilder setQuery(BytesReference queryBinary) {
+        sourceBuilder().query(queryBinary);
+        return this;
+    }
+
+    /**
+     * Constructs a new search source builder with a raw search query.
+     */
     public SearchRequestBuilder setQuery(byte[] queryBinary) {
         sourceBuilder().query(queryBinary);
         return this;
@@ -246,6 +255,15 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
      * (and not facets for example).
      */
     public SearchRequestBuilder setFilter(String filter) {
+        sourceBuilder().filter(filter);
+        return this;
+    }
+
+    /**
+     * Sets a filter on the query executed that only applies to the search query
+     * (and not facets for example).
+     */
+    public SearchRequestBuilder setFilter(BytesReference filter) {
         sourceBuilder().filter(filter);
         return this;
     }
@@ -479,6 +497,14 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
     /**
      * Sets a raw (xcontent) binary representation of facets to use.
      */
+    public SearchRequestBuilder setFacets(BytesReference facets) {
+        sourceBuilder().facets(facets);
+        return this;
+    }
+
+    /**
+     * Sets a raw (xcontent) binary representation of facets to use.
+     */
     public SearchRequestBuilder setFacets(byte[] facets) {
         sourceBuilder().facets(facets);
         return this;
@@ -639,10 +665,47 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
     /**
      * Sets the source of the request as a json string. Note, settings anything other
      * than the search type will cause this source to be overridden, consider using
+     * {@link #setExtraSource(BytesReference)}.
+     */
+    public SearchRequestBuilder setSource(BytesReference source) {
+        request.source(source, false);
+        return this;
+    }
+
+    /**
+     * Sets the source of the request as a json string. Note, settings anything other
+     * than the search type will cause this source to be overridden, consider using
+     * {@link #setExtraSource(BytesReference)}.
+     */
+    public SearchRequestBuilder setSource(BytesReference source, boolean unsafe) {
+        request.source(source, unsafe);
+        return this;
+    }
+
+
+    /**
+     * Sets the source of the request as a json string. Note, settings anything other
+     * than the search type will cause this source to be overridden, consider using
      * {@link #setExtraSource(byte[])}.
      */
     public SearchRequestBuilder setSource(byte[] source) {
         request.source(source);
+        return this;
+    }
+
+    /**
+     * Sets the source of the request as a json string. Allows to set other parameters.
+     */
+    public SearchRequestBuilder setExtraSource(BytesReference source) {
+        request.extraSource(source, false);
+        return this;
+    }
+
+    /**
+     * Sets the source of the request as a json string. Allows to set other parameters.
+     */
+    public SearchRequestBuilder setExtraSource(BytesReference source, boolean unsafe) {
+        request.extraSource(source, unsafe);
         return this;
     }
 

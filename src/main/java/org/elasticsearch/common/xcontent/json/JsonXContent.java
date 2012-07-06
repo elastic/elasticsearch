@@ -23,6 +23,7 @@ import org.codehaus.jackson.JsonEncoding;
 import org.codehaus.jackson.JsonFactory;
 import org.codehaus.jackson.JsonGenerator;
 import org.codehaus.jackson.JsonParser;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.xcontent.*;
 
@@ -30,8 +31,6 @@ import java.io.*;
 
 /**
  * A JSON based content implementation using Jackson.
- *
- *
  */
 public class JsonXContent implements XContent {
 
@@ -90,6 +89,14 @@ public class JsonXContent implements XContent {
     @Override
     public XContentParser createParser(byte[] data, int offset, int length) throws IOException {
         return new JsonXContentParser(jsonFactory.createJsonParser(data, offset, length));
+    }
+
+    @Override
+    public XContentParser createParser(BytesReference bytes) throws IOException {
+        if (bytes.hasArray()) {
+            return createParser(bytes.array(), bytes.arrayOffset(), bytes.length());
+        }
+        return createParser(bytes.streamInput());
     }
 
     @Override

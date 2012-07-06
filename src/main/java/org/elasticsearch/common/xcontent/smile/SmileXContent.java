@@ -22,6 +22,7 @@ package org.elasticsearch.common.xcontent.smile;
 import org.codehaus.jackson.JsonEncoding;
 import org.codehaus.jackson.smile.SmileFactory;
 import org.codehaus.jackson.smile.SmileGenerator;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.common.xcontent.json.JsonXContentParser;
@@ -30,8 +31,6 @@ import java.io.*;
 
 /**
  * A JSON based content implementation using Jackson.
- *
- *
  */
 public class SmileXContent implements XContent {
 
@@ -89,6 +88,13 @@ public class SmileXContent implements XContent {
     @Override
     public XContentParser createParser(byte[] data, int offset, int length) throws IOException {
         return new SmileXContentParser(smileFactory.createJsonParser(data, offset, length));
+    }
+
+    public XContentParser createParser(BytesReference bytes) throws IOException {
+        if (bytes.hasArray()) {
+            return createParser(bytes.array(), bytes.arrayOffset(), bytes.length());
+        }
+        return createParser(bytes.streamInput());
     }
 
     @Override

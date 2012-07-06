@@ -22,7 +22,8 @@ package org.elasticsearch.common.xcontent;
 import com.google.common.base.Charsets;
 import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticSearchParseException;
-import org.elasticsearch.common.BytesHolder;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedStreamInput;
 import org.elasticsearch.common.compress.Compressor;
@@ -40,6 +41,22 @@ import java.util.Map;
  */
 public class XContentHelper {
 
+    public static XContentParser createParser(BytesReference bytes) throws IOException {
+        if (bytes.hasArray()) {
+            return createParser(bytes.array(), bytes.arrayOffset(), bytes.length());
+        }
+        Compressor compressor = CompressorFactory.compressor(bytes);
+        if (compressor != null) {
+            CompressedStreamInput compressedInput = compressor.streamInput(bytes.streamInput());
+            XContentType contentType = XContentFactory.xContentType(compressedInput);
+            compressedInput.resetToBufferStart();
+            return XContentFactory.xContent(contentType).createParser(compressedInput);
+        } else {
+            return XContentFactory.xContent(bytes).createParser(bytes.streamInput());
+        }
+    }
+
+
     public static XContentParser createParser(byte[] data, int offset, int length) throws IOException {
         Compressor compressor = CompressorFactory.compressor(data, offset, length);
         if (compressor != null) {
@@ -50,6 +67,37 @@ public class XContentHelper {
         } else {
             return XContentFactory.xContent(data, offset, length).createParser(data, offset, length);
         }
+    }
+
+    public static Tuple<XContentType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered) throws ElasticSearchParseException {
+        if (bytes.hasArray()) {
+            return convertToMap(bytes.array(), bytes.arrayOffset(), bytes.length(), ordered);
+        }
+        try {
+            XContentParser parser;
+            XContentType contentType;
+            Compressor compressor = CompressorFactory.compressor(bytes);
+            if (compressor != null) {
+                CompressedStreamInput compressedStreamInput = compressor.streamInput(bytes.streamInput());
+                contentType = XContentFactory.xContentType(compressedStreamInput);
+                compressedStreamInput.resetToBufferStart();
+                parser = XContentFactory.xContent(contentType).createParser(compressedStreamInput);
+            } else {
+                contentType = XContentFactory.xContentType(bytes);
+                parser = XContentFactory.xContent(contentType).createParser(bytes.streamInput());
+            }
+            if (ordered) {
+                return Tuple.tuple(contentType, parser.mapOrderedAndClose());
+            } else {
+                return Tuple.tuple(contentType, parser.mapAndClose());
+            }
+        } catch (IOException e) {
+            throw new ElasticSearchParseException("Failed to parse content to map", e);
+        }
+    }
+
+    public static Tuple<XContentType, Map<String, Object>> convertToMap(byte[] data, boolean ordered) throws ElasticSearchParseException {
+        return convertToMap(data, 0, data.length, ordered);
     }
 
     public static Tuple<XContentType, Map<String, Object>> convertToMap(byte[] data, int offset, int length, boolean ordered) throws ElasticSearchParseException {
@@ -76,12 +124,34 @@ public class XContentHelper {
         }
     }
 
-    public static String convertToJson(BytesHolder bytes, boolean reformatJson) throws IOException {
-        return convertToJson(bytes.bytes(), bytes.offset(), bytes.length(), reformatJson);
+    public static String convertToJson(BytesReference bytes, boolean reformatJson) throws IOException {
+        return convertToJson(bytes, reformatJson, false);
     }
 
-    public static String convertToJson(BytesHolder bytes, boolean reformatJson, boolean prettyPrint) throws IOException {
-        return convertToJson(bytes.bytes(), bytes.offset(), bytes.length(), reformatJson, prettyPrint);
+    public static String convertToJson(BytesReference bytes, boolean reformatJson, boolean prettyPrint) throws IOException {
+        if (bytes.hasArray()) {
+            return convertToJson(bytes.array(), bytes.arrayOffset(), bytes.length(), reformatJson, prettyPrint);
+        }
+        XContentType xContentType = XContentFactory.xContentType(bytes);
+        if (xContentType == XContentType.JSON && !reformatJson) {
+            BytesArray bytesArray = bytes.toBytesArray();
+            return new String(bytesArray.array(), bytesArray.arrayOffset(), bytesArray.length(), Charsets.UTF_8);
+        }
+        XContentParser parser = null;
+        try {
+            parser = XContentFactory.xContent(xContentType).createParser(bytes.streamInput());
+            parser.nextToken();
+            XContentBuilder builder = XContentFactory.jsonBuilder();
+            if (prettyPrint) {
+                builder.prettyPrint();
+            }
+            builder.copyCurrentStructure(parser);
+            return builder.string();
+        } finally {
+            if (parser != null) {
+                parser.close();
+            }
+        }
     }
 
     public static String convertToJson(byte[] data, int offset, int length, boolean reformatJson) throws IOException {

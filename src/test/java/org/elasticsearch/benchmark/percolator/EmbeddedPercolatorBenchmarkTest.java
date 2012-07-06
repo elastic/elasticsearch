@@ -20,6 +20,7 @@
 package org.elasticsearch.benchmark.percolator;
 
 import org.elasticsearch.common.StopWatch;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
@@ -88,9 +89,9 @@ public class EmbeddedPercolatorBenchmarkTest {
                 .field("field2", "value")
                 .field("field3", "the quick brown fox jumped over the lazy dog")
                 .endObject().endObject();
-        final byte[] source = doc.copiedBytes();
+        final byte[] source = doc.bytes().toBytes();
 
-        PercolatorExecutor.Response percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest("type1", source));
+        PercolatorExecutor.Response percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest("type1", new BytesArray(source)));
 
         for (int i = 0; i < NUMBER_OF_QUERIES; i++) {
             percolatorExecutor.addQuery("test" + i, termQuery("field3", "quick"));
@@ -101,7 +102,7 @@ public class EmbeddedPercolatorBenchmarkTest {
         StopWatch stopWatch = new StopWatch().start();
         System.out.println("Running " + 1000);
         for (long i = 0; i < 1000; i++) {
-            percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest("type1", source));
+            percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest("type1", new BytesArray(source)));
         }
         System.out.println("[Warmup] Percolated in " + stopWatch.stop().totalTime() + " TP Millis " + (NUMBER_OF_ITERATIONS / stopWatch.totalTime().millisFrac()));
 
@@ -113,7 +114,7 @@ public class EmbeddedPercolatorBenchmarkTest {
                 @Override
                 public void run() {
                     for (long i = 0; i < NUMBER_OF_ITERATIONS; i++) {
-                        PercolatorExecutor.Response percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest("type1", source));
+                        PercolatorExecutor.Response percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest("type1", new BytesArray(source)));
                     }
                     latch.countDown();
                 }

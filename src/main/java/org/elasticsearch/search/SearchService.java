@@ -26,6 +26,7 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -466,8 +467,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         try {
             context.scroll(request.scroll());
 
-            parseSource(context, request.source(), request.sourceOffset(), request.sourceLength());
-            parseSource(context, request.extraSource(), request.extraSourceOffset(), request.extraSourceLength());
+            parseSource(context, request.source());
+            parseSource(context, request.extraSource());
 
             // if the from and size are still not set, default them
             if (context.from() == -1) {
@@ -525,14 +526,14 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         SearchContext.removeCurrent();
     }
 
-    private void parseSource(SearchContext context, byte[] source, int offset, int length) throws SearchParseException {
+    private void parseSource(SearchContext context, BytesReference source) throws SearchParseException {
         // nothing to parse...
-        if (source == null || length == 0) {
+        if (source == null || source.length() == 0) {
             return;
         }
         XContentParser parser = null;
         try {
-            parser = XContentFactory.xContent(source, offset, length).createParser(source, offset, length);
+            parser = XContentFactory.xContent(source).createParser(source);
             XContentParser.Token token;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
@@ -550,7 +551,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         } catch (Exception e) {
             String sSource = "_na_";
             try {
-                sSource = XContentHelper.convertToJson(source, offset, length, false);
+                sSource = XContentHelper.convertToJson(source, false);
             } catch (Throwable e1) {
                 // ignore
             }

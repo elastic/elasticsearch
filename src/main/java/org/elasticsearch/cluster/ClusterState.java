@@ -226,7 +226,7 @@ public class ClusterState {
             try {
                 BytesStreamOutput os = cachedEntry.bytes();
                 writeTo(state, os);
-                return os.copiedByteArray();
+                return os.bytes().copyBytesArray().toBytes();
             } finally {
                 CachedStreamOutput.pushEntry(cachedEntry);
             }

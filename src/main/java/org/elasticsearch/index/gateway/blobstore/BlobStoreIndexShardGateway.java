@@ -467,7 +467,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                     if (bos.size() < 4) {
                         return;
                     }
-                    BytesStreamInput si = new BytesStreamInput(bos.underlyingBytes(), 0, bos.size(), false);
+                    BytesStreamInput si = new BytesStreamInput(bos.bytes());
                     int position;
                     while (true) {
                         try {
@@ -502,7 +502,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
 
                     int leftOver = bos.size() - position;
                     if (leftOver > 0) {
-                        newBos.write(bos.underlyingBytes(), position, leftOver);
+                        newBos.write(bos.bytes().array(), position, leftOver);
                     }
 
                     bos = newBos;

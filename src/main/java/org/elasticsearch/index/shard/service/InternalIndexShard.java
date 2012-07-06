@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.shard.service;
 
+import com.google.common.base.Charsets;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Filter;
@@ -31,9 +32,9 @@ import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FastByteArrayOutputStream;
 import org.elasticsearch.common.lucene.Lucene;
@@ -355,12 +356,12 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     }
 
     @Override
-    public Engine.DeleteByQuery prepareDeleteByQuery(BytesHolder querySource, @Nullable String[] filteringAliases, String... types) throws ElasticSearchException {
+    public Engine.DeleteByQuery prepareDeleteByQuery(BytesReference querySource, @Nullable String[] filteringAliases, String... types) throws ElasticSearchException {
         long startTime = System.nanoTime();
         if (types == null) {
             types = Strings.EMPTY_ARRAY;
         }
-        Query query = queryParserService.parse(querySource.bytes(), querySource.offset(), querySource.length()).query();
+        Query query = queryParserService.parse(querySource).query();
         query = filterQueryIfNeeded(query, types);
 
         Filter aliasFilter = indexAliasesService.aliasFilter(filteringAliases);
@@ -392,21 +393,15 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     }
 
     @Override
-    public long count(float minScore, byte[] querySource, @Nullable String[] filteringAliases, String... types) throws ElasticSearchException {
-        return count(minScore, querySource, 0, querySource.length, filteringAliases, types);
-    }
-
-    @Override
-    public long count(float minScore, byte[] querySource, int querySourceOffset, int querySourceLength,
-                      @Nullable String[] filteringAliases, String... types) throws ElasticSearchException {
+    public long count(float minScore, BytesReference querySource, @Nullable String[] filteringAliases, String... types) throws ElasticSearchException {
         readAllowed();
         Query query;
-        if (querySourceLength == 0) {
+        if (querySource == null || querySource.length() == 0) {
             query = Queries.MATCH_ALL_QUERY;
         } else {
             try {
                 QueryParseContext.setTypes(types);
-                query = queryParserService.parse(querySource, querySourceOffset, querySourceLength).query();
+                query = queryParserService.parse(querySource).query();
             } finally {
                 QueryParseContext.removeTypes();
             }
@@ -615,13 +610,13 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             switch (operation.opType()) {
                 case CREATE:
                     Translog.Create create = (Translog.Create) operation;
-                    engine.create(prepareCreate(source(create.source().bytes(), create.source().offset(), create.source().length()).type(create.type()).id(create.id())
+                    engine.create(prepareCreate(source(create.source()).type(create.type()).id(create.id())
                             .routing(create.routing()).parent(create.parent()).timestamp(create.timestamp()).ttl(create.ttl())).version(create.version())
                             .origin(Engine.Operation.Origin.RECOVERY));
                     break;
                 case SAVE:
                     Translog.Index index = (Translog.Index) operation;
-                    engine.index(prepareIndex(source(index.source().bytes(), index.source().offset(), index.source().length()).type(index.type()).id(index.id())
+                    engine.index(prepareIndex(source(index.source()).type(index.type()).id(index.id())
                             .routing(index.routing()).parent(index.parent()).timestamp(index.timestamp()).ttl(index.ttl())).version(index.version())
                             .origin(Engine.Operation.Origin.RECOVERY));
                     break;
@@ -858,7 +853,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                     // ignore if closed....
                     return;
                 }
-                logger.warn("check index [failure]\n{}", new String(os.underlyingBytes(), 0, os.size()));
+                logger.warn("check index [failure]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
                 if ("fix".equalsIgnoreCase(checkIndexOnStartup)) {
                     if (logger.isDebugEnabled()) {
                         logger.debug("fixing index, writing new segments file ...");
@@ -875,7 +870,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                 }
             } else {
                 if (logger.isDebugEnabled()) {
-                    logger.debug("check index [success]\n{}", new String(os.underlyingBytes(), 0, os.size()));
+                    logger.debug("check index [success]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
                 }
             }
             checkIndexTook = System.currentTimeMillis() - time;

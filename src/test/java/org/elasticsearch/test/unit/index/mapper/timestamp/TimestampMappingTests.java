@@ -20,12 +20,13 @@
 package org.elasticsearch.test.unit.index.mapper.timestamp;
 
 import org.apache.lucene.document.Field;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
+import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -40,11 +41,11 @@ public class TimestampMappingTests {
     public void testSimpleDisabled() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().string();
         DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
-        byte[] source = XContentFactory.jsonBuilder()
+        BytesReference source = XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", "value")
                 .endObject()
-                .copiedBytes();
+                .bytes();
         ParsedDocument doc = docMapper.parse(SourceToParse.source(source).type("type").id("1").timestamp(1));
 
         assertThat(doc.rootDoc().getFieldable("_timestamp"), equalTo(null));
@@ -56,11 +57,11 @@ public class TimestampMappingTests {
                 .startObject("_timestamp").field("enabled", "yes").field("store", "yes").endObject()
                 .endObject().endObject().string();
         DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
-        byte[] source = XContentFactory.jsonBuilder()
+        BytesReference source = XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", "value")
                 .endObject()
-                .copiedBytes();
+                .bytes();
         ParsedDocument doc = docMapper.parse(SourceToParse.source(source).type("type").id("1").timestamp(1));
 
         assertThat(doc.rootDoc().getFieldable("_timestamp").isStored(), equalTo(true));

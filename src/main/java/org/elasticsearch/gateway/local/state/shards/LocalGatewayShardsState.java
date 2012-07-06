@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
@@ -289,7 +290,8 @@ public class LocalGatewayShardsState extends AbstractComponent implements Cluste
                 FileOutputStream fos = null;
                 try {
                     fos = new FileOutputStream(stateFile);
-                    fos.write(cachedEntry.bytes().underlyingBytes(), 0, cachedEntry.bytes().size());
+                    BytesReference bytes = cachedEntry.bytes().bytes();
+                    fos.write(bytes.array(), bytes.arrayOffset(), bytes.length());
                     fos.getChannel().force(true);
                     Closeables.closeQuietly(fos);
                     wroteAtLeastOnce = true;

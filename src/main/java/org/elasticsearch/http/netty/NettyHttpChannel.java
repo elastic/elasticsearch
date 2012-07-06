@@ -19,6 +19,7 @@
 
 package org.elasticsearch.http.netty;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.CachedStreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.http.HttpChannel;
@@ -98,7 +99,8 @@ public class NettyHttpChannel implements HttpChannel {
                 XContentBuilder builder = ((XContentRestResponse) response).builder();
                 if (builder.payload() instanceof CachedStreamOutput.Entry) {
                     releaseContentListener = new NettyTransport.CacheFutureListener((CachedStreamOutput.Entry) builder.payload());
-                    buf = ChannelBuffers.wrappedBuffer(builder.underlyingBytes(), 0, builder.underlyingBytesLength());
+                    BytesReference bytes = builder.bytes();
+                    buf = ChannelBuffers.wrappedBuffer(bytes.array(), bytes.arrayOffset(), bytes.length());
                 } else if (response.contentThreadSafe()) {
                     buf = ChannelBuffers.wrappedBuffer(response.content(), 0, response.contentLength());
                 } else {

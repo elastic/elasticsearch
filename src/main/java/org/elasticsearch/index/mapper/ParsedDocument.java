@@ -21,14 +21,13 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Document;
+import org.elasticsearch.common.bytes.BytesReference;
 
 import java.util.Arrays;
 import java.util.List;
 
 /**
  * The result of parsing a document.
- *
- *
  */
 public class ParsedDocument {
 
@@ -48,19 +47,17 @@ public class ParsedDocument {
 
     private final Analyzer analyzer;
 
-    private final byte[] source;
-    private final int sourceOffset;
-    private final int sourceLength;
+    private final BytesReference source;
 
     private boolean mappersAdded;
 
     private String parent;
 
-    public ParsedDocument(String uid, String id, String type, String routing, long timestamp, long ttl, Document document, Analyzer analyzer, byte[] source, boolean mappersAdded) {
-        this(uid, id, type, routing, timestamp, ttl, Arrays.asList(document), analyzer, source, 0, source.length, mappersAdded);
+    public ParsedDocument(String uid, String id, String type, String routing, long timestamp, long ttl, Document document, Analyzer analyzer, BytesReference source, boolean mappersAdded) {
+        this(uid, id, type, routing, timestamp, ttl, Arrays.asList(document), analyzer, source, mappersAdded);
     }
 
-    public ParsedDocument(String uid, String id, String type, String routing, long timestamp, long ttl, List<Document> documents, Analyzer analyzer, byte[] source, int sourceOffset, int sourceLength, boolean mappersAdded) {
+    public ParsedDocument(String uid, String id, String type, String routing, long timestamp, long ttl, List<Document> documents, Analyzer analyzer, BytesReference source, boolean mappersAdded) {
         this.uid = uid;
         this.id = id;
         this.type = type;
@@ -69,8 +66,6 @@ public class ParsedDocument {
         this.ttl = ttl;
         this.documents = documents;
         this.source = source;
-        this.sourceOffset = sourceOffset;
-        this.sourceLength = sourceLength;
         this.analyzer = analyzer;
         this.mappersAdded = mappersAdded;
     }
@@ -111,16 +106,8 @@ public class ParsedDocument {
         return this.analyzer;
     }
 
-    public byte[] source() {
+    public BytesReference source() {
         return this.source;
-    }
-
-    public int sourceOffset() {
-        return this.sourceOffset;
-    }
-
-    public int sourceLength() {
-        return this.sourceLength;
     }
 
     public ParsedDocument parent(String parent) {

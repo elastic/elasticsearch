@@ -21,6 +21,7 @@ package org.elasticsearch.test.unit.index.mapper.dynamictemplate.pathmatch;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Fieldable;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.test.unit.index.mapper.MapperTests;
@@ -41,7 +42,7 @@ public class PathMatchDynamicTempalteTests {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/mapper/dynamictemplate/pathmatch/test-mapping.json");
         DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/mapper/dynamictemplate/pathmatch/test-data.json");
-        Document doc = docMapper.parse(json).rootDoc();
+        Document doc = docMapper.parse(new BytesArray(json)).rootDoc();
 
         Fieldable f = doc.getFieldable("name");
         assertThat(f.name(), equalTo("name"));

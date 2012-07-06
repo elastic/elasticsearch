@@ -85,7 +85,7 @@ public class ClusterSerializationTests {
 
         BytesStreamOutput outStream = new BytesStreamOutput();
         RoutingTable.Builder.writeTo(source, outStream);
-        BytesStreamInput inStream = new BytesStreamInput(outStream.copiedByteArray(), false);
+        BytesStreamInput inStream = new BytesStreamInput(outStream.bytes().toBytes(), false);
         RoutingTable target = RoutingTable.Builder.readFrom(inStream);
 
         assertThat(target.prettyPrint(), equalTo(source.prettyPrint()));

@@ -20,6 +20,7 @@
 package org.elasticsearch.common.compress.snappy;
 
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
@@ -70,6 +71,19 @@ public abstract class SnappyCompressor implements Compressor {
     }
 
     @Override
+    public boolean isCompressed(BytesReference bytes) {
+        if (bytes.length() < HEADER.length) {
+            return false;
+        }
+        for (int i = 0; i < HEADER.length; i++) {
+            if (bytes.get(i) != HEADER[i]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @Override
     public boolean isCompressed(ChannelBuffer buffer) {
         if (buffer.readableBytes() < HEADER.length) {
             return false;
@@ -108,7 +122,7 @@ public abstract class SnappyCompressor implements Compressor {
             StreamOutput compressed = entry.bytes(this);
             compressed.writeBytes(data, offset, length);
             compressed.close();
-            return entry.bytes().copiedByteArray();
+            return entry.bytes().bytes().copyBytesArray().toBytes();
         } finally {
             CachedStreamOutput.pushEntry(entry);
         }
@@ -120,7 +134,7 @@ public abstract class SnappyCompressor implements Compressor {
         CachedStreamOutput.Entry entry = CachedStreamOutput.popEntry();
         try {
             Streams.copy(compressed, entry.bytes());
-            return entry.bytes().copiedByteArray();
+            return entry.bytes().bytes().copyBytesArray().toBytes();
         } finally {
             CachedStreamOutput.pushEntry(entry);
         }

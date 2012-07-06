@@ -75,7 +75,7 @@ public class JsonVsSmileTests {
         xsonGen.close();
         jsonGen.close();
 
-        verifySameTokens(XContentFactory.xContent(XContentType.JSON).createParser(jsonOs.copiedByteArray()), XContentFactory.xContent(XContentType.SMILE).createParser(xsonOs.copiedByteArray()));
+        verifySameTokens(XContentFactory.xContent(XContentType.JSON).createParser(jsonOs.bytes().toBytes()), XContentFactory.xContent(XContentType.SMILE).createParser(xsonOs.bytes().toBytes()));
     }
 
     private void verifySameTokens(XContentParser parser1, XContentParser parser2) throws IOException {

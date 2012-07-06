@@ -22,9 +22,9 @@ package org.elasticsearch.test.unit.index.mapper.date;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
+import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -48,7 +48,7 @@ public class SimpleDateMappingTests {
 //                .field("date_field3", "2011/01/22 +02")
 //                .field("date_field4", "2011/01/22 00:00:00 +02:00")
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         FieldMapper fieldMapper = defaultMapper.mappers().smartNameFieldMapper("date_field1");
         assertThat(fieldMapper, instanceOf(DateFieldMapper.class));
@@ -73,7 +73,7 @@ public class SimpleDateMappingTests {
                 .startObject()
                 .field("date_field", value)
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.rootDoc().getFieldable("date_field").tokenStreamValue(), notNullValue());
     }
@@ -92,7 +92,7 @@ public class SimpleDateMappingTests {
                 .field("date_field", "2010-01-01")
                 .field("date_field_x", "2010-01-01")
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.rootDoc().get("date_field"), nullValue());
         assertThat(doc.rootDoc().get("date_field_x"), equalTo("2010-01-01"));

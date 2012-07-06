@@ -674,6 +674,36 @@ public class SimpleFacetsTests extends AbstractNodesTests {
             assertThat(facet.entries().get(0).term().string(), equalTo("zzz"));
             assertThat(facet.entries().get(0).count(), equalTo(1));
 
+            searchResponse = client.prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addFacet(termsFacet("facet1").field("tag").size(10).order(TermsFacet.ComparatorType.COUNT).executionHint(executionHint))
+                    .execute().actionGet();
+
+            facet = searchResponse.facets().facet("facet1");
+            assertThat(facet.name(), equalTo("facet1"));
+            assertThat(facet.entries().size(), equalTo(3));
+            assertThat(facet.entries().get(0).term(), equalTo("yyy"));
+            assertThat(facet.entries().get(0).count(), equalTo(2));
+            assertThat(facet.entries().get(1).term(), equalTo("xxx"));
+            assertThat(facet.entries().get(1).count(), equalTo(1));
+            assertThat(facet.entries().get(2).term(), equalTo("zzz"));
+            assertThat(facet.entries().get(2).count(), equalTo(1));
+
+            searchResponse = client.prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addFacet(termsFacet("facet1").field("tag").size(10).order(TermsFacet.ComparatorType.REVERSE_COUNT).executionHint(executionHint))
+                    .execute().actionGet();
+
+            facet = searchResponse.facets().facet("facet1");
+            assertThat(facet.name(), equalTo("facet1"));
+            assertThat(facet.entries().size(), equalTo(3));
+            assertThat(facet.entries().get(2).term(), equalTo("yyy"));
+            assertThat(facet.entries().get(2).count(), equalTo(2));
+            assertThat(facet.entries().get(1).term(), equalTo("xxx"));
+            assertThat(facet.entries().get(1).count(), equalTo(1));
+            assertThat(facet.entries().get(0).term(), equalTo("zzz"));
+            assertThat(facet.entries().get(0).count(), equalTo(1));
+
             // Script
 
             searchResponse = client.prepareSearch()

@@ -606,7 +606,7 @@ public class InternalSearchHit implements SearchHit {
         out.writeUTF(id);
         out.writeUTF(type);
         out.writeLong(version);
-        out.writeBytesReference(source, true);
+        out.writeBytesReference(source);
         if (explanation == null) {
             out.writeBoolean(false);
         } else {

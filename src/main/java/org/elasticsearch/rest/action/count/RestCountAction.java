@@ -70,7 +70,7 @@ public class RestCountAction extends BaseRestHandler {
             }
             countRequest.operationThreading(operationThreading);
             if (request.hasContent()) {
-                countRequest.query(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength(), true);
+                countRequest.query(request.content(), request.contentUnsafe());
             } else {
                 String source = request.param("source");
                 if (source != null) {

@@ -20,7 +20,6 @@
 package org.elasticsearch.common.bytes;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -51,10 +50,8 @@ public interface BytesReference {
     StreamInput streamInput();
 
     /**
-     * Writes the bytes into the output, with an optional length header (variable encoded).
+     * Writes the bytes directly to the output stream.
      */
-    void writeTo(StreamOutput out, boolean withLength) throws IOException;
-
     void writeTo(OutputStream os) throws IOException;
 
     /**
@@ -86,4 +83,9 @@ public interface BytesReference {
      * The offset into the underlying byte array.
      */
     int arrayOffset();
+
+    /**
+     * Converts to a string based on utf8.
+     */
+    String toUtf8();
 }

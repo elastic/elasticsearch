@@ -197,8 +197,8 @@ public class InternalSearchRequest implements Streamable {
             out.writeBoolean(true);
             scroll.writeTo(out);
         }
-        out.writeBytesReference(source, true);
-        out.writeBytesReference(extraSource, true);
+        out.writeBytesReference(source);
+        out.writeBytesReference(extraSource);
         out.writeVInt(types.length);
         for (String type : types) {
             out.writeUTF(type);

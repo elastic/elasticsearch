@@ -114,7 +114,7 @@ public class IndexWarmersMetaData implements IndexMetaData.Custom {
                     out.writeBoolean(false);
                 } else {
                     out.writeBoolean(true);
-                    out.writeBytesReference(entry.source(), true);
+                    out.writeBytesReference(entry.source());
                 }
             }
         }

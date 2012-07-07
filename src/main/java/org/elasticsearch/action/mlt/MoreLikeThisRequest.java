@@ -661,7 +661,7 @@ public class MoreLikeThisRequest implements ActionRequest {
             out.writeBoolean(true);
             searchScroll.writeTo(out);
         }
-        out.writeBytesReference(searchSource, true);
+        out.writeBytesReference(searchSource);
 
         out.writeVInt(searchSize);
         out.writeVInt(searchFrom);

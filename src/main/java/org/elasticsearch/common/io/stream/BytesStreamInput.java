@@ -60,9 +60,13 @@ public class BytesStreamInput extends StreamInput {
     }
 
     @Override
-    public BytesReference readBytesReference(int length) throws IOException {
+    public BytesReference readBytesReference() throws IOException {
         if (unsafe) {
-            return super.readBytesReference(length);
+            return super.readBytesReference();
+        }
+        int length = readVInt();
+        if (length == 0) {
+            return BytesArray.EMPTY;
         }
         BytesArray bytes = new BytesArray(buf, pos, length);
         pos += length;

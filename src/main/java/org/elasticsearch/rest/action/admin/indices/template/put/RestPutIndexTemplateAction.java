@@ -67,7 +67,7 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
             putRequest.create(request.paramAsBoolean("create", false));
             putRequest.cause(request.param("cause", ""));
             putRequest.timeout(request.paramAsTime("timeout", timeValueSeconds(10)));
-            putRequest.source(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength());
+            putRequest.source(request.content());
         } catch (Exception e) {
             try {
                 channel.sendResponse(new XContentThrowableRestResponse(request, e));

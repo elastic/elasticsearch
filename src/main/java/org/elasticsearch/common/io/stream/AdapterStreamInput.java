@@ -37,11 +37,6 @@ public abstract class AdapterStreamInput extends StreamInput {
     }
 
     @Override
-    public BytesReference readBytesReference(int length) throws IOException {
-        return in.readBytesReference(length);
-    }
-
-    @Override
     public void reset() throws IOException {
         in.reset();
     }

@@ -19,8 +19,8 @@
 
 package org.elasticsearch.common.bytes;
 
+import com.google.common.base.Charsets;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.transport.netty.ChannelBufferStreamInputFactory;
 import org.jboss.netty.buffer.ChannelBuffer;
 
@@ -55,14 +55,6 @@ public class ChannelBufferBytesReference implements BytesReference {
     @Override
     public StreamInput streamInput() {
         return ChannelBufferStreamInputFactory.create(buffer.duplicate());
-    }
-
-    @Override
-    public void writeTo(StreamOutput out, boolean withLength) throws IOException {
-        if (withLength) {
-            out.writeVInt(buffer.readableBytes());
-        }
-        buffer.getBytes(buffer.readerIndex(), out, length());
     }
 
     @Override
@@ -103,5 +95,10 @@ public class ChannelBufferBytesReference implements BytesReference {
     @Override
     public int arrayOffset() {
         return buffer.arrayOffset() + buffer.readerIndex();
+    }
+
+    @Override
+    public String toUtf8() {
+        return buffer.toString(Charsets.UTF_8);
     }
 }

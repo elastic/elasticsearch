@@ -345,7 +345,7 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
         out.writeLong(version);
         out.writeBoolean(exists);
         if (exists) {
-            out.writeBytesReference(source, true);
+            out.writeBytesReference(source);
             if (fields == null) {
                 out.writeVInt(0);
             } else {

@@ -19,7 +19,9 @@
 
 package org.elasticsearch.http.netty;
 
-import com.google.common.base.Charsets;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ChannelBufferBytesReference;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.rest.support.AbstractRestRequest;
 import org.elasticsearch.rest.support.RestUtils;
@@ -39,14 +41,16 @@ public class NettyHttpRequest extends AbstractRestRequest implements HttpRequest
 
     private final String rawPath;
 
-    private final int contentLength;
-
-    private byte[] contentAsBytes;
+    private final BytesReference content;
 
     public NettyHttpRequest(org.jboss.netty.handler.codec.http.HttpRequest request) {
         this.request = request;
         this.params = new HashMap<String, String>();
-        this.contentLength = request.getContent().readableBytes();
+        if (request.getContent().readable()) {
+            this.content = new ChannelBufferBytesReference(request.getContent());
+        } else {
+            this.content = BytesArray.EMPTY;
+        }
 
         String uri = request.getUri();
         int pathEndPos = uri.indexOf('?');
@@ -101,58 +105,18 @@ public class NettyHttpRequest extends AbstractRestRequest implements HttpRequest
 
     @Override
     public boolean hasContent() {
-        return contentLength > 0;
-    }
-
-    @Override
-    public int contentLength() {
-        return contentLength;
+        return content.length() > 0;
     }
 
     @Override
     public boolean contentUnsafe() {
-        // if its a copy, then its not unsafe...
-        if (contentAsBytes != null) {
-            return false;
-        }
-        // HttpMessageDecoder#content is sliced but out of freshly created buffers for each read
+        // Netty http decoder always copies over the http content
         return false;
-        //return request.getContent().hasArray();
     }
 
     @Override
-    public byte[] contentByteArray() {
-        if (contentAsBytes != null) {
-            return contentAsBytes;
-        }
-        if (request.getContent().hasArray()) {
-            return request.getContent().array();
-        }
-        contentAsBytes = new byte[request.getContent().readableBytes()];
-        request.getContent().getBytes(request.getContent().readerIndex(), contentAsBytes);
-        // clear the content, so it can be GC'ed, we make sure to work from contentAsBytes from here on
-        request.setContent(null);
-        return contentAsBytes;
-    }
-
-    @Override
-    public int contentByteArrayOffset() {
-        if (contentAsBytes != null) {
-            return 0;
-        }
-        if (request.getContent().hasArray()) {
-            // get the array offset, and the reader index offset within it
-            return request.getContent().arrayOffset() + request.getContent().readerIndex();
-        }
-        return 0;
-    }
-
-    @Override
-    public String contentAsString() {
-        if (contentAsBytes != null) {
-            return new String(contentAsBytes, Charsets.UTF_8);
-        }
-        return request.getContent().toString(Charsets.UTF_8);
+    public BytesReference content() {
+        return content;
     }
 
     @Override

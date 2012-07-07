@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -58,13 +59,7 @@ public interface RestRequest extends ToXContent.Params {
      */
     boolean contentUnsafe();
 
-    byte[] contentByteArray();
-
-    int contentByteArrayOffset();
-
-    int contentLength();
-
-    String contentAsString();
+    BytesReference content();
 
     String header(String name);
 

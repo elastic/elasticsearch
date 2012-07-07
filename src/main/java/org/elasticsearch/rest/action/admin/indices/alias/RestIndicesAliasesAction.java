@@ -56,6 +56,7 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
         indicesAliasesRequest.listenerThreaded(false);
+        XContentParser parser = null;
         try {
             // {
             //     actions : [
@@ -64,8 +65,7 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
             //     ]
             // }
             indicesAliasesRequest.timeout(request.paramAsTime("timeout", timeValueSeconds(10)));
-            XContentParser parser = XContentFactory.xContent(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength())
-                    .createParser(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength());
+            parser = XContentFactory.xContent(request.content()).createParser(request.content());
             XContentParser.Token token = parser.nextToken();
             if (token == null) {
                 throw new ElasticSearchIllegalArgumentException("No action is specified");
@@ -149,6 +149,8 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
                 logger.warn("Failed to send response", e1);
             }
             return;
+        } finally {
+            parser.close();
         }
         client.admin().indices().aliases(indicesAliasesRequest, new ActionListener<IndicesAliasesResponse>() {
             @Override

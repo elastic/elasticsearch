@@ -186,6 +186,6 @@ public class PercolateRequest extends SingleCustomOperationRequest {
         super.writeTo(out);
         out.writeUTF(index);
         out.writeUTF(type);
-        out.writeBytesReference(source, true);
+        out.writeBytesReference(source);
     }
 }

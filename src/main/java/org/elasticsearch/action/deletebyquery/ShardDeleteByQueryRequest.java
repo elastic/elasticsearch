@@ -123,7 +123,7 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBytesReference(querySource, true);
+        out.writeBytesReference(querySource);
         out.writeVInt(shardId);
         out.writeVInt(types.length);
         for (String type : types) {

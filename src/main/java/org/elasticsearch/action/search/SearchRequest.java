@@ -533,8 +533,8 @@ public class SearchRequest implements ActionRequest {
             out.writeBoolean(true);
             scroll.writeTo(out);
         }
-        out.writeBytesReference(source, true);
-        out.writeBytesReference(extraSource, true);
+        out.writeBytesReference(source);
+        out.writeBytesReference(extraSource);
         out.writeVInt(types.length);
         for (String type : types) {
             out.writeUTF(type);

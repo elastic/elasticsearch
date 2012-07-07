@@ -57,7 +57,7 @@ public class RestSearchScrollAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         String scrollId = request.param("scroll_id");
         if (scrollId == null && request.hasContent()) {
-            scrollId = request.contentAsString();
+            scrollId = request.content().toUtf8();
         }
         SearchScrollRequest searchScrollRequest = new SearchScrollRequest(scrollId);
         searchScrollRequest.listenerThreaded(false);

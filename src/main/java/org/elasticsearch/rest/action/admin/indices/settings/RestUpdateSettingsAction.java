@@ -58,7 +58,7 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
         updateSettingsRequest.listenerThreaded(false);
 
         ImmutableSettings.Builder updateSettings = ImmutableSettings.settingsBuilder();
-        String bodySettings = request.contentAsString();
+        String bodySettings = request.content().toUtf8();
         if (Strings.hasText(bodySettings)) {
             try {
                 updateSettings.put(ImmutableSettings.settingsBuilder().loadFromSource(bodySettings).build());

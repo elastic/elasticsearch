@@ -117,7 +117,7 @@ public class PublishClusterStateAction extends AbstractComponent {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeBytesReference(clusterStateInBytes, true);
+            out.writeBytesReference(clusterStateInBytes);
         }
     }
 

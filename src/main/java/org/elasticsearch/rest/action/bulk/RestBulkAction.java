@@ -82,7 +82,7 @@ public class RestBulkAction extends BaseRestHandler {
         }
         bulkRequest.refresh(request.paramAsBoolean("refresh", bulkRequest.refresh()));
         try {
-            bulkRequest.add(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength(), request.contentUnsafe(), defaultIndex, defaultType);
+            bulkRequest.add(request.content(), request.contentUnsafe(), defaultIndex, defaultType);
         } catch (Exception e) {
             try {
                 XContentBuilder builder = restContentBuilder(request);

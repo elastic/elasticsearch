@@ -301,7 +301,7 @@ public class CountRequest extends BroadcastOperationRequest {
             out.writeUTF(routing);
         }
 
-        out.writeBytesReference(querySource, true);
+        out.writeBytesReference(querySource);
 
         out.writeVInt(types.length);
         for (String type : types) {

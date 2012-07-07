@@ -89,7 +89,7 @@ public class RestUpdateAction extends BaseRestHandler {
         // see if we have it in the body
         if (request.hasContent()) {
             try {
-                updateRequest.source(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength());
+                updateRequest.source(request.content());
                 IndexRequest upsertRequest = updateRequest.upsertRequest();
                 if (upsertRequest != null) {
                     upsertRequest.routing(request.param("routing"));

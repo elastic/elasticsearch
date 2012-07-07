@@ -24,7 +24,6 @@ import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Bytes;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -78,14 +77,6 @@ public class BytesArray implements BytesReference {
     }
 
     @Override
-    public void writeTo(StreamOutput out, boolean withLength) throws IOException {
-        if (withLength) {
-            out.writeVInt(length);
-        }
-        out.writeBytes(bytes, offset, length);
-    }
-
-    @Override
     public void writeTo(OutputStream os) throws IOException {
         os.write(bytes, offset, length);
     }
@@ -121,6 +112,14 @@ public class BytesArray implements BytesReference {
     @Override
     public int arrayOffset() {
         return offset;
+    }
+
+    @Override
+    public String toUtf8() {
+        if (length == 0) {
+            return "";
+        }
+        return new String(bytes, offset, length, Charsets.UTF_8);
     }
 
     @Override

@@ -58,7 +58,7 @@ public class RestPutMappingAction extends BaseRestHandler {
         PutMappingRequest putMappingRequest = putMappingRequest(splitIndices(request.param("index")));
         putMappingRequest.listenerThreaded(false);
         putMappingRequest.type(request.param("type"));
-        putMappingRequest.source(request.contentAsString());
+        putMappingRequest.source(request.content().toUtf8());
         putMappingRequest.timeout(request.paramAsTime("timeout", timeValueSeconds(10)));
         putMappingRequest.ignoreConflicts(request.paramAsBoolean("ignore_conflicts", putMappingRequest.ignoreConflicts()));
         client.admin().indices().putMapping(putMappingRequest, new ActionListener<PutMappingResponse>() {

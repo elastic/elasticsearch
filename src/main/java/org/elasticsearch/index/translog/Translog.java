@@ -350,7 +350,7 @@ public interface Translog extends IndexShardComponent {
             out.writeVInt(5); // version
             out.writeUTF(id);
             out.writeUTF(type);
-            out.writeBytesReference(source, true);
+            out.writeBytesReference(source);
             if (routing == null) {
                 out.writeBoolean(false);
             } else {
@@ -479,7 +479,7 @@ public interface Translog extends IndexShardComponent {
             out.writeVInt(5); // version
             out.writeUTF(id);
             out.writeUTF(type);
-            out.writeBytesReference(source, true);
+            out.writeBytesReference(source);
             if (routing == null) {
                 out.writeBoolean(false);
             } else {
@@ -632,7 +632,7 @@ public interface Translog extends IndexShardComponent {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(2); // version
-            out.writeBytesReference(source, true);
+            out.writeBytesReference(source);
             out.writeVInt(types.length);
             for (String type : types) {
                 out.writeUTF(type);

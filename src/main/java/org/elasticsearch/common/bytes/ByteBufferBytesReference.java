@@ -19,14 +19,19 @@
 
 package org.elasticsearch.common.bytes;
 
+import com.google.common.base.Charsets;
 import org.elasticsearch.common.Bytes;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.jboss.netty.util.CharsetUtil;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.CoderResult;
 
 /**
  */
@@ -59,14 +64,6 @@ public class ByteBufferBytesReference implements BytesReference {
     @Override
     public StreamInput streamInput() {
         return new ByteBufferStreamInput(buffer);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out, boolean withLength) throws IOException {
-        if (withLength) {
-            out.writeVInt(length());
-        }
-        writeTo(out);
     }
 
     @Override
@@ -119,5 +116,28 @@ public class ByteBufferBytesReference implements BytesReference {
     @Override
     public int arrayOffset() {
         return buffer.arrayOffset() + buffer.position();
+    }
+
+    @Override
+    public String toUtf8() {
+        if (!buffer.hasRemaining()) {
+            return "";
+        }
+        final CharsetDecoder decoder = CharsetUtil.getDecoder(Charsets.UTF_8);
+        final CharBuffer dst = CharBuffer.allocate(
+                (int) ((double) buffer.remaining() * decoder.maxCharsPerByte()));
+        try {
+            CoderResult cr = decoder.decode(buffer, dst, true);
+            if (!cr.isUnderflow()) {
+                cr.throwException();
+            }
+            cr = decoder.flush(dst);
+            if (!cr.isUnderflow()) {
+                cr.throwException();
+            }
+        } catch (CharacterCodingException x) {
+            throw new IllegalStateException(x);
+        }
+        return dst.flip().toString();
     }
 }

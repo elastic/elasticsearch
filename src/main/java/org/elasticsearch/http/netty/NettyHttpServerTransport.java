@@ -91,7 +91,6 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
     private final Boolean reuseAddress;
 
     private final ByteSizeValue tcpSendBufferSize;
-
     private final ByteSizeValue tcpReceiveBufferSize;
 
     final ByteSizeValue maxCumulationBufferCapacity;
@@ -173,10 +172,10 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         if (tcpKeepAlive != null) {
             serverBootstrap.setOption("child.keepAlive", tcpKeepAlive);
         }
-        if (tcpSendBufferSize != null) {
+        if (tcpSendBufferSize != null && tcpSendBufferSize.bytes() > 0) {
             serverBootstrap.setOption("child.sendBufferSize", tcpSendBufferSize.bytes());
         }
-        if (tcpReceiveBufferSize != null) {
+        if (tcpReceiveBufferSize != null && tcpReceiveBufferSize.bytes() > 0) {
             serverBootstrap.setOption("child.receiveBufferSize", tcpReceiveBufferSize.bytes());
         }
         if (reuseAddress != null) {

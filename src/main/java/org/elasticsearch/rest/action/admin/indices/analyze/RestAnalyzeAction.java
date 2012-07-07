@@ -54,7 +54,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         String text = request.param("text");
         if (text == null && request.hasContent()) {
-            text = request.contentAsString();
+            text = request.content().toUtf8();
         }
         if (text == null) {
             try {

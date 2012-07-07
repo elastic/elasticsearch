@@ -19,11 +19,11 @@
 
 package org.elasticsearch.common.bytes;
 
+import com.google.common.base.Charsets;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -72,14 +72,6 @@ public class HashedBytesArray implements BytesReference {
     }
 
     @Override
-    public void writeTo(StreamOutput out, boolean withLength) throws IOException {
-        if (withLength) {
-            out.writeVInt(bytes.length);
-        }
-        out.writeBytes(bytes);
-    }
-
-    @Override
     public void writeTo(OutputStream os) throws IOException {
         os.write(bytes);
     }
@@ -114,6 +106,14 @@ public class HashedBytesArray implements BytesReference {
     @Override
     public int arrayOffset() {
         return 0;
+    }
+
+    @Override
+    public String toUtf8() {
+        if (bytes.length == 0) {
+            return "";
+        }
+        return new String(bytes, Charsets.UTF_8);
     }
 
     @Override

@@ -100,7 +100,7 @@ class ShardCountRequest extends BroadcastShardOperationRequest {
         super.writeTo(out);
         out.writeFloat(minScore);
 
-        out.writeBytesReference(querySource, true);
+        out.writeBytesReference(querySource);
 
         out.writeVInt(types.length);
         for (String type : types) {

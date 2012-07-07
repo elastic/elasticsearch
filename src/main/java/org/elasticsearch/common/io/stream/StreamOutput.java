@@ -68,14 +68,16 @@ public abstract class StreamOutput extends OutputStream {
      */
     public abstract void writeBytes(byte[] b, int offset, int length) throws IOException;
 
-    public void writeBytesReference(@Nullable BytesReference bytes, boolean withLength) throws IOException {
+    /**
+     * Writes the bytes reference, including a length header.
+     */
+    public void writeBytesReference(@Nullable BytesReference bytes) throws IOException {
         if (bytes == null) {
-            if (withLength) {
-                writeVInt(0);
-            }
+            writeVInt(0);
             return;
         }
-        bytes.writeTo(this, withLength);
+        writeVInt(bytes.length());
+        bytes.writeTo(this);
     }
 
     public final void writeShort(short v) throws IOException {

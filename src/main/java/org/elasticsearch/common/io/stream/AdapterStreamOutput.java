@@ -78,8 +78,8 @@ public class AdapterStreamOutput extends StreamOutput {
     }
 
     @Override
-    public void writeBytesReference(@Nullable BytesReference bytes, boolean withLength) throws IOException {
-        out.writeBytesReference(bytes, withLength);
+    public void writeBytesReference(@Nullable BytesReference bytes) throws IOException {
+        out.writeBytesReference(bytes);
     }
 
     @Override

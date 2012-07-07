@@ -79,11 +79,11 @@ public class RestUpdateAction extends BaseRestHandler {
 
         // see if we have it in the body
         if (request.hasContent()) {
-            XContentType xContentType = XContentFactory.xContentType(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength());
+            XContentType xContentType = XContentFactory.xContentType(request.content());
             if (xContentType != null) {
                 try {
                     Map<String, Object> content = XContentFactory.xContent(xContentType)
-                            .createParser(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength()).mapAndClose();
+                            .createParser(request.content()).mapAndClose();
                     if (content.containsKey("script")) {
                         updateRequest.script(content.get("script").toString());
                     }

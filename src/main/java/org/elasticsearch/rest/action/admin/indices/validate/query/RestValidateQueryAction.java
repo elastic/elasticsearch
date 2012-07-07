@@ -70,7 +70,7 @@ public class RestValidateQueryAction extends BaseRestHandler {
             }
             validateQueryRequest.operationThreading(operationThreading);
             if (request.hasContent()) {
-                validateQueryRequest.query(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength(), true);
+                validateQueryRequest.query(request.content(), request.contentUnsafe());
             } else {
                 String source = request.param("source");
                 if (source != null) {

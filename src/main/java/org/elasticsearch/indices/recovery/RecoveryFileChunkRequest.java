@@ -108,7 +108,7 @@ class RecoveryFileChunkRequest implements Streamable {
             out.writeBoolean(true);
             out.writeUTF(checksum);
         }
-        out.writeBytesReference(content, true);
+        out.writeBytesReference(content);
     }
 
     @Override

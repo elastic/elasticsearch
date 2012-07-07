@@ -283,7 +283,7 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
 
-        out.writeBytesReference(querySource, true);
+        out.writeBytesReference(querySource);
 
         if (routing == null) {
             out.writeBoolean(false);

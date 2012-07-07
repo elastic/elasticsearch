@@ -718,7 +718,7 @@ public class IndexRequest extends ShardReplicationOperationRequest {
             out.writeUTF(timestamp);
         }
         out.writeLong(ttl);
-        out.writeBytesReference(source, true);
+        out.writeBytesReference(source);
         out.writeByte(opType.id());
         out.writeBoolean(refresh);
         out.writeLong(version);

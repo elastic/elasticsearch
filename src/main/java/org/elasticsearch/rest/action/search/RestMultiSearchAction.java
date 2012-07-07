@@ -62,8 +62,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
         String[] types = RestActions.splitTypes(request.param("type"));
 
         try {
-            multiSearchRequest.add(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength(), request.contentUnsafe(),
-                    indices, types, request.param("search_type"));
+            multiSearchRequest.add(request.content(), request.contentUnsafe(), indices, types, request.param("search_type"));
         } catch (Exception e) {
             try {
                 XContentBuilder builder = restContentBuilder(request);

@@ -52,14 +52,7 @@ public abstract class StreamInput extends InputStream {
      * bytes of the stream.
      */
     public BytesReference readBytesReference() throws IOException {
-        return readBytesReference(readVInt());
-    }
-
-    /**
-     * Reads a bytes reference from this stream, might hold an actual reference to the underlying
-     * bytes of the stream.
-     */
-    public BytesReference readBytesReference(int length) throws IOException {
+        int length = readVInt();
         if (length == 0) {
             return BytesArray.EMPTY;
         }

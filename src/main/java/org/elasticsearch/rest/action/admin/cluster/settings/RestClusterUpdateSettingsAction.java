@@ -27,7 +27,6 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.*;
 
 import java.io.IOException;
@@ -48,10 +47,7 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
         final ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = Requests.clusterUpdateSettingsRequest();
         clusterUpdateSettingsRequest.listenerThreaded(false);
         try {
-            XContentType xContentType = XContentFactory.xContentType(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength());
-            Map<String, Object> source = XContentFactory.xContent(xContentType)
-                    .createParser(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength()).mapAndClose();
-
+            Map<String, Object> source = XContentFactory.xContent(request.content()).createParser(request.content()).mapAndClose();
             if (source.containsKey("transient")) {
                 clusterUpdateSettingsRequest.transientSettings((Map) source.get("transient"));
             }

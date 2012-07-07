@@ -278,7 +278,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
                         builder.close();
                     } else {
                         StreamOutput streamOutput = cachedEntry.bytes(CompressorFactory.defaultCompressor());
-                        streamOutput.writeBytesReference(source, false);
+                        source.writeTo(streamOutput);
                         streamOutput.close();
                     }
                     // we copy over the byte array, since we need to push back the cached entry

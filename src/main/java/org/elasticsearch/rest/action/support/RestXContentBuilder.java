@@ -39,7 +39,7 @@ public class RestXContentBuilder {
         if (contentType == null) {
             // try and guess it from the body, if exists
             if (request.hasContent()) {
-                contentType = XContentFactory.xContentType(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength());
+                contentType = XContentFactory.xContentType(request.content());
             }
         }
         if (contentType == null) {

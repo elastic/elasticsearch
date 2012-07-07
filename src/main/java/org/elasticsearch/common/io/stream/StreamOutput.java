@@ -268,6 +268,9 @@ public abstract class StreamOutput extends OutputStream {
         } else if (value instanceof ReadableInstant) {
             writeByte((byte) 13);
             writeLong(((ReadableInstant) value).getMillis());
+        } else if (value instanceof BytesReference) {
+            writeByte((byte) 14);
+            writeBytesReference((BytesReference) value);
         } else {
             throw new IOException("Can't write type [" + type + "]");
         }

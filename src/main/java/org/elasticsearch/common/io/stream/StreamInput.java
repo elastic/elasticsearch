@@ -228,59 +228,64 @@ public abstract class StreamInput extends InputStream {
     @Nullable
     public Object readGenericValue() throws IOException {
         byte type = readByte();
-        if (type == -1) {
-            return null;
-        } else if (type == 0) {
-            return readUTF();
-        } else if (type == 1) {
-            return readInt();
-        } else if (type == 2) {
-            return readLong();
-        } else if (type == 3) {
-            return readFloat();
-        } else if (type == 4) {
-            return readDouble();
-        } else if (type == 5) {
-            return readBoolean();
-        } else if (type == 6) {
-            int bytesSize = readVInt();
-            byte[] value = new byte[bytesSize];
-            readFully(value);
-            return value;
-        } else if (type == 7) {
-            int size = readVInt();
-            List list = new ArrayList(size);
-            for (int i = 0; i < size; i++) {
-                list.add(readGenericValue());
-            }
-            return list;
-        } else if (type == 8) {
-            int size = readVInt();
-            Object[] list = new Object[size];
-            for (int i = 0; i < size; i++) {
-                list[i] = readGenericValue();
-            }
-            return list;
-        } else if (type == 9 || type == 10) {
-            int size = readVInt();
-            Map map;
-            if (type == 9) {
-                map = new LinkedHashMap(size);
-            } else {
-                map = new HashMap(size);
-            }
-            for (int i = 0; i < size; i++) {
-                map.put(readUTF(), readGenericValue());
-            }
-            return map;
-        } else if (type == 11) {
-            return readByte();
-        } else if (type == 12) {
-            return new Date(readLong());
-        } else if (type == 13) {
-            return new DateTime(readLong());
-        } else {
-            throw new IOException("Can't read unknown type [" + type + "]");
+        switch (type) {
+            case -1:
+                return null;
+            case 0:
+                return readUTF();
+            case 1:
+                return readInt();
+            case 2:
+                return readLong();
+            case 3:
+                return readFloat();
+            case 4:
+                return readDouble();
+            case 5:
+                return readBoolean();
+            case 6:
+                int bytesSize = readVInt();
+                byte[] value = new byte[bytesSize];
+                readBytes(value, 0, bytesSize);
+                return value;
+            case 7:
+                int size = readVInt();
+                List list = new ArrayList(size);
+                for (int i = 0; i < size; i++) {
+                    list.add(readGenericValue());
+                }
+                return list;
+            case 8:
+                int size8 = readVInt();
+                Object[] list8 = new Object[size8];
+                for (int i = 0; i < size8; i++) {
+                    list8[i] = readGenericValue();
+                }
+                return list8;
+            case 9:
+                int size9 = readVInt();
+                Map map9 = new LinkedHashMap(size9);
+                for (int i = 0; i < size9; i++) {
+                    map9.put(readUTF(), readGenericValue());
+                }
+                return map9;
+            case 10:
+                int size10 = readVInt();
+                Map map10 = new HashMap(size10);
+                for (int i = 0; i < size10; i++) {
+                    map10.put(readUTF(), readGenericValue());
+                }
+                return map10;
+            case 11:
+                return readByte();
+            case 12:
+                return new Date(readLong());
+            case 13:
+                return new DateTime(readLong());
+            case 14:
+                return readBytesReference();
+            default:
+                throw new IOException("Can't read unknown type [" + type + "]");
         }
     }
 }

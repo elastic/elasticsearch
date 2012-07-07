@@ -28,18 +28,13 @@ import org.elasticsearch.common.io.stream.CachedStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 import org.elasticsearch.transport.support.TransportStreams;
 import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.channel.*;
-import org.jboss.netty.handler.codec.frame.TooLongFrameException;
 
 import java.io.IOException;
-import java.io.StreamCorruptedException;
 
 /**
  * A handler (must be the last one!) that does size based frame decoding and forwards the actual message
@@ -55,11 +50,6 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
 
     private final NettyTransport transport;
 
-    // from FrameDecoder
-    private ChannelBuffer cumulation;
-
-    private static final long NINETY_PER_HEAP_SIZE = (long) (JvmInfo.jvmInfo().mem().heapMax().bytes() * 0.9);
-
     public MessageChannelHandler(NettyTransport transport, ESLogger logger) {
         this.threadPool = transport.threadPool();
         this.transportServiceAdapter = transport.transportServiceAdapter();
@@ -73,138 +63,16 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         super.writeComplete(ctx, e);
     }
 
-    // similar logic to FrameDecoder, we don't use FrameDecoder because we can use the data len header value
-    // to guess the size of the cumulation buffer to allocate, and because we make a fresh copy of the cumulation
-    // buffer so we can readBytesReference from it without other request writing into the same one in case
-    // two one message and a partial next message exists within the same input
-
-    // we can readBytesReference because NioWorker always copies the input buffer into a fresh buffer, and we
-    // don't reuse cumumlation buffer
     @Override
     public void messageReceived(ChannelHandlerContext ctx, MessageEvent e) throws Exception {
-
         Object m = e.getMessage();
         if (!(m instanceof ChannelBuffer)) {
             ctx.sendUpstream(e);
             return;
         }
+        ChannelBuffer buffer = (ChannelBuffer) m;
+        int size = buffer.getInt(buffer.readerIndex() - 4);
 
-        ChannelBuffer input = (ChannelBuffer) m;
-        if (!input.readable()) {
-            return;
-        }
-
-        ChannelBuffer cumulation = this.cumulation;
-        if (cumulation != null && cumulation.readable()) {
-            cumulation.discardReadBytes();
-            cumulation.writeBytes(input);
-            callDecode(ctx, e.getChannel(), cumulation, true);
-        } else {
-            int actualSize = callDecode(ctx, e.getChannel(), input, false);
-            if (input.readable()) {
-                if (actualSize > 0) {
-                    cumulation = ChannelBuffers.dynamicBuffer(actualSize, ctx.getChannel().getConfig().getBufferFactory());
-                } else {
-                    cumulation = ChannelBuffers.dynamicBuffer(ctx.getChannel().getConfig().getBufferFactory());
-                }
-                cumulation.writeBytes(input);
-                this.cumulation = cumulation;
-            }
-        }
-    }
-
-    @Override
-    public void channelDisconnected(
-            ChannelHandlerContext ctx, ChannelStateEvent e) throws Exception {
-        cleanup(ctx, e);
-    }
-
-    @Override
-    public void channelClosed(
-            ChannelHandlerContext ctx, ChannelStateEvent e) throws Exception {
-        cleanup(ctx, e);
-    }
-
-    private int callDecode(ChannelHandlerContext ctx, Channel channel, ChannelBuffer buffer, boolean cumulationBuffer) throws Exception {
-        int actualSize = 0;
-        while (buffer.readable()) {
-            actualSize = 0;
-            // Changes from Frame Decoder, to combine SizeHeader and this decoder into one...
-            if (buffer.readableBytes() < 4) {
-                break; // we need more data
-            }
-
-            int dataLen = buffer.getInt(buffer.readerIndex());
-            if (dataLen <= 0) {
-                throw new StreamCorruptedException("invalid data length: " + dataLen);
-            }
-            // safety against too large frames being sent
-            if (dataLen > NINETY_PER_HEAP_SIZE) {
-                throw new TooLongFrameException(
-                        "transport content length received [" + new ByteSizeValue(dataLen) + "] exceeded [" + new ByteSizeValue(NINETY_PER_HEAP_SIZE) + "]");
-            }
-
-            actualSize = dataLen + 4;
-            if (buffer.readableBytes() < actualSize) {
-                break;
-            }
-
-            buffer.skipBytes(4);
-
-            process(ctx, channel, buffer, dataLen);
-        }
-
-        if (cumulationBuffer) {
-            if (!buffer.readable()) {
-                this.cumulation = null;
-            } else if (buffer.readerIndex() > 0) {
-                // make a fresh copy of the cumalation buffer, so we
-                // can readBytesReference from it, and also, don't keep it around
-
-                // its not that big of an overhead since discardReadBytes in the next round messageReceived will
-                // copy over the bytes to the start again
-                if (actualSize > 0) {
-                    this.cumulation = ChannelBuffers.dynamicBuffer(actualSize, ctx.getChannel().getConfig().getBufferFactory());
-                } else {
-                    this.cumulation = ChannelBuffers.dynamicBuffer(ctx.getChannel().getConfig().getBufferFactory());
-                }
-                this.cumulation.writeBytes(buffer);
-            }
-        }
-
-        return actualSize;
-    }
-
-
-    private void cleanup(ChannelHandlerContext ctx, ChannelStateEvent e) throws Exception {
-        try {
-            ChannelBuffer cumulation = this.cumulation;
-            if (cumulation == null) {
-                return;
-            } else {
-                this.cumulation = null;
-            }
-
-            if (cumulation.readable()) {
-                // Make sure all frames are read before notifying a closed channel.
-                callDecode(ctx, ctx.getChannel(), cumulation, true);
-            }
-
-            // Call decodeLast() finally.  Please note that decodeLast() is
-            // called even if there's nothing more to read from the buffer to
-            // notify a user that the connection was closed explicitly.
-
-            // Change from FrameDecoder: we don't need it...
-//            Object partialFrame = decodeLast(ctx, ctx.getChannel(), cumulation);
-//            if (partialFrame != null) {
-//                unfoldAndFireMessageReceived(ctx, null, partialFrame);
-//            }
-        } finally {
-            ctx.sendUpstream(e);
-        }
-    }
-
-    private void process(ChannelHandlerContext ctx, Channel channel, ChannelBuffer buffer, int size) throws Exception {
         transportServiceAdapter.received(size + 4);
 
         int markedReaderIndex = buffer.readerIndex();
@@ -240,7 +108,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         }
 
         if (isRequest) {
-            String action = handleRequest(channel, wrappedStream, requestId);
+            String action = handleRequest(ctx.getChannel(), wrappedStream, requestId);
             if (buffer.readerIndex() != expectedIndexReader) {
                 if (buffer.readerIndex() < expectedIndexReader) {
                     logger.warn("Message not fully read (request) for [{}] and action [{}], resetting", requestId, action);

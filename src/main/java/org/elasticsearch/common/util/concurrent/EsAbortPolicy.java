@@ -30,6 +30,6 @@ public class EsAbortPolicy implements RejectedExecutionHandler {
 
     @Override
     public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
-        throw new EsRejectedExecutionException();
+        throw new EsRejectedExecutionException("rejected execution of [" + r.getClass().getName() + "]");
     }
 }

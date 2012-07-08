@@ -26,6 +26,10 @@ import org.elasticsearch.rest.RestStatus;
  */
 public class EsRejectedExecutionException extends ElasticSearchException {
 
+    public EsRejectedExecutionException(String message) {
+        super(message);
+    }
+
     public EsRejectedExecutionException() {
         super(null);
     }

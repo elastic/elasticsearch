@@ -90,6 +90,11 @@ public abstract class AdapterStreamInput extends StreamInput {
     }
 
     @Override
+    public String readString() throws IOException {
+        return in.readString();
+    }
+
+    @Override
     public int read(byte[] b) throws IOException {
         return in.read(b);
     }

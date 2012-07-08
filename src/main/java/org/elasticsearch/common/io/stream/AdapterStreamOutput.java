@@ -108,6 +108,11 @@ public class AdapterStreamOutput extends StreamOutput {
     }
 
     @Override
+    public void writeString(String str) throws IOException {
+        out.writeString(str);
+    }
+
+    @Override
     public void writeFloat(float v) throws IOException {
         out.writeFloat(v);
     }

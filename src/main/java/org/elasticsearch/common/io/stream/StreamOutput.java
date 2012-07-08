@@ -129,6 +129,7 @@ public abstract class StreamOutput extends OutputStream {
         writeByte((byte) i);
     }
 
+    @Deprecated
     public void writeOptionalUTF(@Nullable String str) throws IOException {
         if (str == null) {
             writeBoolean(false);
@@ -138,10 +139,16 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    /**
-     * Writes a string.
-     */
-    public void writeUTF(String str) throws IOException {
+    public void writeOptionalString(@Nullable String str) throws IOException {
+        if (str == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeString(str);
+        }
+    }
+
+    public void writeString(String str) throws IOException {
         int charCount = str.length();
         writeVInt(charCount);
         int c;
@@ -158,6 +165,16 @@ public abstract class StreamOutput extends OutputStream {
                 writeByte((byte) (0x80 | c >> 0 & 0x3F));
             }
         }
+    }
+
+    /**
+     * Writes a string.
+     *
+     * @deprecated use {@link #writeString(String)}
+     */
+    @Deprecated
+    public void writeUTF(String str) throws IOException {
+        writeString(str);
     }
 
     public void writeFloat(float v) throws IOException {
@@ -201,6 +218,13 @@ public abstract class StreamOutput extends OutputStream {
         writeBytes(b, off, len);
     }
 
+    public void writeStringArray(String[] array) throws IOException {
+        writeVInt(array.length);
+        for (String s : array) {
+            writeString(s);
+        }
+    }
+
     public void writeMap(@Nullable Map<String, Object> map) throws IOException {
         writeGenericValue(map);
     }
@@ -213,7 +237,7 @@ public abstract class StreamOutput extends OutputStream {
         Class type = value.getClass();
         if (type == String.class) {
             writeByte((byte) 0);
-            writeUTF((String) value);
+            writeString((String) value);
         } else if (type == Integer.class) {
             writeByte((byte) 1);
             writeInt((Integer) value);

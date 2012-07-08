@@ -143,7 +143,11 @@ public abstract class StreamInput extends InputStream {
         return i | ((b & 0x7FL) << 56);
     }
 
+    /**
+     * @deprecated use {@link #readOptionalString()}
+     */
     @Nullable
+    @Deprecated
     public String readOptionalUTF() throws IOException {
         if (readBoolean()) {
             return readUTF();
@@ -151,7 +155,15 @@ public abstract class StreamInput extends InputStream {
         return null;
     }
 
-    public String readUTF() throws IOException {
+    @Nullable
+    public String readOptionalString() throws IOException {
+        if (readBoolean()) {
+            return readString();
+        }
+        return null;
+    }
+
+    public String readString() throws IOException {
         int charCount = readVInt();
         char[] chars = CachedStreamInput.getCharArray(charCount);
         int c, charIndex = 0;
@@ -178,6 +190,14 @@ public abstract class StreamInput extends InputStream {
             }
         }
         return new String(chars, 0, charCount);
+    }
+
+    /**
+     * @deprecated use {@link #readString()}
+     */
+    @Deprecated
+    public String readUTF() throws IOException {
+        return readString();
     }
 
 
@@ -227,7 +247,7 @@ public abstract class StreamInput extends InputStream {
         }
         String[] ret = new String[size];
         for (int i = 0; i < size; i++) {
-            ret[i] = readUTF();
+            ret[i] = readString();
         }
         return ret;
     }
@@ -245,7 +265,7 @@ public abstract class StreamInput extends InputStream {
             case -1:
                 return null;
             case 0:
-                return readUTF();
+                return readString();
             case 1:
                 return readInt();
             case 2:
@@ -279,14 +299,14 @@ public abstract class StreamInput extends InputStream {
                 int size9 = readVInt();
                 Map map9 = new LinkedHashMap(size9);
                 for (int i = 0; i < size9; i++) {
-                    map9.put(readUTF(), readGenericValue());
+                    map9.put(readString(), readGenericValue());
                 }
                 return map9;
             case 10:
                 int size10 = readVInt();
                 Map map10 = new HashMap(size10);
                 for (int i = 0; i < size10; i++) {
-                    map10.put(readUTF(), readGenericValue());
+                    map10.put(readString(), readGenericValue());
                 }
                 return map10;
             case 11:

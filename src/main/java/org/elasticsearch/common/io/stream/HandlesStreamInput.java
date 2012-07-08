@@ -41,6 +41,7 @@ public class HandlesStreamInput extends AdapterStreamInput {
     }
 
     @Override
+    @Deprecated
     public String readUTF() throws IOException {
         byte b = in.readByte();
         if (b == 0) {
@@ -55,6 +56,30 @@ public class HandlesStreamInput extends AdapterStreamInput {
             // full string with handle
             int handle = in.readVInt();
             String s = in.readUTF();
+            identityHandles.put(handle, s);
+            return s;
+        } else if (b == 3) {
+            return identityHandles.get(in.readVInt());
+        } else {
+            throw new IOException("Expected handle header, got [" + b + "]");
+        }
+    }
+
+    @Override
+    public String readString() throws IOException {
+        byte b = in.readByte();
+        if (b == 0) {
+            // full string with handle
+            int handle = in.readVInt();
+            String s = in.readString();
+            handles.put(handle, s);
+            return s;
+        } else if (b == 1) {
+            return handles.get(in.readVInt());
+        } else if (b == 2) {
+            // full string with handle
+            int handle = in.readVInt();
+            String s = in.readString();
             identityHandles.put(handle, s);
             return s;
         } else if (b == 3) {

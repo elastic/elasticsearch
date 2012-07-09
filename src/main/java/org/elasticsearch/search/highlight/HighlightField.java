@@ -19,29 +19,28 @@
 
 package org.elasticsearch.search.highlight;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.text.StringText;
+import org.elasticsearch.common.text.Text;
 
 import java.io.IOException;
 import java.util.Arrays;
 
 /**
  * A field highlighted with its highlighted fragments.
- *
- *
  */
 public class HighlightField implements Streamable {
 
     private String name;
 
-    private String[] fragments;
+    private Text[] fragments;
 
     HighlightField() {
     }
 
-    public HighlightField(String name, String[] fragments) {
+    public HighlightField(String name, Text[] fragments) {
         this.name = name;
         this.fragments = fragments;
     }
@@ -63,14 +62,14 @@ public class HighlightField implements Streamable {
     /**
      * The highlighted fragments. <tt>null</tt> if failed to highlight (for example, the field is not stored).
      */
-    public String[] fragments() {
+    public Text[] fragments() {
         return fragments;
     }
 
     /**
      * The highlighted fragments. <tt>null</tt> if failed to highlight (for example, the field is not stored).
      */
-    public String[] getFragments() {
+    public Text[] getFragments() {
         return fragments();
     }
 
@@ -91,11 +90,11 @@ public class HighlightField implements Streamable {
         if (in.readBoolean()) {
             int size = in.readVInt();
             if (size == 0) {
-                fragments = Strings.EMPTY_ARRAY;
+                fragments = StringText.EMPTY_ARRAY;
             } else {
-                fragments = new String[size];
+                fragments = new Text[size];
                 for (int i = 0; i < size; i++) {
-                    fragments[i] = in.readUTF();
+                    fragments[i] = in.readText();
                 }
             }
         }
@@ -109,8 +108,8 @@ public class HighlightField implements Streamable {
         } else {
             out.writeBoolean(true);
             out.writeVInt(fragments.length);
-            for (String fragment : fragments) {
-                out.writeUTF(fragment);
+            for (Text fragment : fragments) {
+                out.writeText(fragment);
             }
         }
     }

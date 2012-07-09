@@ -29,6 +29,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -412,7 +413,7 @@ public class InternalSearchHit implements SearchHit {
                     builder.nullValue();
                 } else {
                     builder.startArray();
-                    for (String fragment : field.fragments()) {
+                    for (Text fragment : field.fragments()) {
                         builder.value(fragment);
                     }
                     builder.endArray();

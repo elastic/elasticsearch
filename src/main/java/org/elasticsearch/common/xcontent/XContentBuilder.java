@@ -26,6 +26,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.BytesStream;
 import org.elasticsearch.common.io.FastByteArrayOutputStream;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.support.XContentMapConverter;
 import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableInstant;
@@ -478,6 +479,22 @@ public final class XContentBuilder implements BytesStream {
         return this;
     }
 
+    public XContentBuilder field(String name, Text value) throws IOException {
+        field(name);
+        if (value.hasBytes() && value.bytes().hasArray()) {
+            generator.writeUTF8String(value.bytes().array(), value.bytes().arrayOffset(), value.bytes().length());
+            return this;
+        }
+        if (value.hasString()) {
+            generator.writeString(value.string());
+            return this;
+        }
+        // TODO: TextBytesOptimization we can use a buffer here to convert it? maybe add a request to jackson to support InputStream as well?
+        BytesArray bytesArray = value.bytes().toBytesArray();
+        generator.writeUTF8String(bytesArray.array(), bytesArray.arrayOffset(), bytesArray.length());
+        return this;
+    }
+
 
     public XContentBuilder field(String name, byte[] value, int offset, int length) throws IOException {
         field(name);
@@ -720,6 +737,8 @@ public final class XContentBuilder implements BytesStream {
             field(name, (double[]) value);
         } else if (value instanceof BytesReference) {
             field(name, (BytesReference) value);
+        } else if (value instanceof Text) {
+            field(name, (Text) value);
         } else {
             field(name, value.toString());
         }
@@ -755,6 +774,8 @@ public final class XContentBuilder implements BytesStream {
             value((ReadableInstant) value);
         } else if (value instanceof BytesReference) {
             value((BytesReference) value);
+        } else if (value instanceof Text) {
+            value((Text) value);
         } else if (value instanceof Map) {
             //noinspection unchecked
             value((Map<String, Object>) value);
@@ -983,6 +1004,23 @@ public final class XContentBuilder implements BytesStream {
             value = value.toBytesArray();
         }
         generator.writeBinary(value.array(), value.arrayOffset(), value.length());
+        return this;
+    }
+
+    public XContentBuilder value(Text value) throws IOException {
+        if (value == null) {
+            return nullValue();
+        }
+        if (value.hasBytes() && value.bytes().hasArray()) {
+            generator.writeUTF8String(value.bytes().array(), value.bytes().arrayOffset(), value.bytes().length());
+            return this;
+        }
+        if (value.hasString()) {
+            generator.writeString(value.string());
+            return this;
+        }
+        BytesArray bytesArray = value.bytes().toBytesArray();
+        generator.writeUTF8String(bytesArray.array(), bytesArray.arrayOffset(), bytesArray.length());
         return this;
     }
 

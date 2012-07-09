@@ -21,6 +21,7 @@ package org.elasticsearch.common.io.stream;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.text.Text;
 
 import java.io.IOException;
 
@@ -110,6 +111,11 @@ public class AdapterStreamOutput extends StreamOutput {
     @Override
     public void writeString(String str) throws IOException {
         out.writeString(str);
+    }
+
+    @Override
+    public void writeText(Text text) throws IOException {
+        out.writeText(text);
     }
 
     @Override

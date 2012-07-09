@@ -90,6 +90,11 @@ public class JsonXContentGenerator implements XContentGenerator {
     }
 
     @Override
+    public void writeUTF8String(byte[] text, int offset, int length) throws IOException {
+        generator.writeUTF8String(text, offset, length);
+    }
+
+    @Override
     public void writeBinary(byte[] data, int offset, int len) throws IOException {
         generator.writeBinary(data, offset, len);
     }

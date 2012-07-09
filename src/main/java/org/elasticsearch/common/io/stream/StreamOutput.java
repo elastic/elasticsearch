@@ -21,6 +21,7 @@ package org.elasticsearch.common.io.stream;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.text.Text;
 import org.joda.time.ReadableInstant;
 
 import java.io.IOException;
@@ -146,6 +147,12 @@ public abstract class StreamOutput extends OutputStream {
             writeBoolean(true);
             writeString(str);
         }
+    }
+
+    public void writeText(Text text) throws IOException {
+        // always write the bytes...
+        // TODO: TextBytesOptimization we could potentially optimize this, and write the bytes directly to the output stream converting to UTF8 in case its a string
+        writeBytesReference(text.bytes());
     }
 
     public void writeString(String str) throws IOException {

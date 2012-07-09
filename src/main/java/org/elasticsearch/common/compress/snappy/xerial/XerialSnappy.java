@@ -21,6 +21,8 @@ package org.elasticsearch.common.compress.snappy.xerial;
 
 import org.xerial.snappy.Snappy;
 
+import java.io.PrintStream;
+
 /**
  */
 public class XerialSnappy {
@@ -31,13 +33,19 @@ public class XerialSnappy {
     static {
         Throwable failureX = null;
         boolean availableX;
+        // Yuck!, we need to do this since snappy 1.0.4.1 does e.printStackTrace
+        // when failing to load the snappy library, and we don't want it displayed...
+        PrintStream err = System.err;
         try {
+            System.setErr(null);
             byte[] tests = Snappy.compress("test");
             Snappy.uncompressString(tests);
             availableX = true;
         } catch (Throwable e) {
             availableX = false;
             failureX = e;
+        } finally {
+            System.setErr(err);
         }
         available = availableX;
         failure = failureX;

@@ -50,6 +50,8 @@ public interface XContentGenerator {
 
     void writeString(char[] text, int offset, int len) throws IOException;
 
+    void writeUTF8String(byte[] text, int offset, int length) throws IOException;
+
     void writeBinary(byte[] data, int offset, int len) throws IOException;
 
     void writeBinary(byte[] data) throws IOException;

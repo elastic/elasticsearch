@@ -1,6 +1,7 @@
 package org.elasticsearch.common.io.stream;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.text.Text;
 
 import java.io.IOException;
 
@@ -92,6 +93,11 @@ public abstract class AdapterStreamInput extends StreamInput {
     @Override
     public String readString() throws IOException {
         return in.readString();
+    }
+
+    @Override
+    public Text readText() throws IOException {
+        return in.readText();
     }
 
     @Override

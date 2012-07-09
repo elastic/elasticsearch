@@ -23,6 +23,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.text.StringAndBytesText;
+import org.elasticsearch.common.text.Text;
 import org.joda.time.DateTime;
 
 import java.io.IOException;
@@ -153,6 +155,11 @@ public abstract class StreamInput extends InputStream {
             return readUTF();
         }
         return null;
+    }
+
+    public Text readText() throws IOException {
+        // use StringAndBytes so we can cache the string if its ever converted to it
+        return new StringAndBytesText(readBytesReference());
     }
 
     @Nullable

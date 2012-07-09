@@ -41,6 +41,7 @@ import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.vectorhighlight.SimpleBoundaryScanner2;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -245,7 +246,7 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                 }
 
                 if (fragments != null && fragments.length > 0) {
-                    HighlightField highlightField = new HighlightField(field.field(), fragments);
+                    HighlightField highlightField = new HighlightField(field.field(), StringText.convertFromStringArray(fragments));
                     highlightFields.put(highlightField.name(), highlightField);
                 }
             } else {
@@ -325,7 +326,7 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                             entry.fragListBuilder, entry.fragmentsBuilder, field.preTags(), field.postTags(), encoder);
 
                     if (fragments != null && fragments.length > 0) {
-                        HighlightField highlightField = new HighlightField(field.field(), fragments);
+                        HighlightField highlightField = new HighlightField(field.field(), StringText.convertFromStringArray(fragments));
                         highlightFields.put(highlightField.name(), highlightField);
                     }
                 } catch (Exception e) {

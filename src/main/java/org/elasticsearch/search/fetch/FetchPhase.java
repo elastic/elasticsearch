@@ -197,7 +197,7 @@ public class FetchPhase implements SearchPhase {
                 }
                 if (value == null) {
                     if (field.isBinary()) {
-                        value = field.getBinaryValue();
+                        value = new BytesArray(field.getBinaryValue(), field.getBinaryOffset(), field.getBinaryLength());
                     } else {
                         value = field.stringValue();
                     }

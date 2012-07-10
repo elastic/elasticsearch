@@ -48,6 +48,7 @@ import static org.elasticsearch.rest.action.support.RestXContentBuilder.restCont
  * { "type1" : { "field1" : "value1" } }
  * { "delete" : { "_index" : "test", "_type" : "type1", "_id" : "2" } }
  * { "create" : { "_index" : "test", "_type" : "type1", "_id" : "1" }
+ * { "replace" : { "_index" : "test", "_type" : "type1", "_id" : "1" }
  * { "type1" : { "field1" : "value1" } }
  * </pre>
  */

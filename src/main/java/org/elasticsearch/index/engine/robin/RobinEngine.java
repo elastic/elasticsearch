@@ -488,6 +488,121 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
     }
 
     @Override
+    public void replace(Replace replace) throws EngineException {
+        rwl.readLock().lock();
+        try {
+            IndexWriter writer = this.indexWriter;
+            if (writer == null) {
+                throw new EngineClosedException(shardId, failedEngine);
+            }
+            innerReplace(replace, writer);
+            dirty = true;
+            possibleMergeNeeded = true;
+            flushNeeded = true;
+        } catch (IOException e) {
+            throw new ReplaceFailedEngineException(shardId, replace, e);
+        } catch (OutOfMemoryError e) {
+            failEngine(e);
+            throw new ReplaceFailedEngineException(shardId, replace, e);
+        } catch (IllegalStateException e) {
+            if (e.getMessage().contains("OutOfMemoryError")) {
+                failEngine(e);
+            }
+            throw new ReplaceFailedEngineException(shardId, replace, e);
+        } finally {
+            rwl.readLock().unlock();
+        }
+    }
+
+    private void innerReplace(Replace replace, IndexWriter writer) throws IOException {
+        synchronized (dirtyLock(replace.uid())) {
+            UidField uidField = replace.uidField();
+            final long currentVersion;
+            VersionValue versionValue = versionMap.get(replace.uid().text());
+            if (versionValue == null) {
+                currentVersion = loadCurrentVersionFromIndex(replace.uid());
+            } else {
+                if (enableGcDeletes && versionValue.delete() && (threadPool.estimatedTimeInMillis() - versionValue.time()) > gcDeletesInMillis) {
+                    currentVersion = -1; // deleted, and GC
+                } else {
+                    currentVersion = versionValue.version();
+                }
+            }
+
+            // same logic as index
+            long updatedVersion;
+            if (replace.origin() == Operation.Origin.PRIMARY) {
+                if (replace.versionType() == VersionType.INTERNAL) { // internal version type
+                    long expectedVersion = replace.version();
+                    if (expectedVersion != 0 && currentVersion != -2) { // -2 means we don't have a version, so ignore...
+                        // an explicit version is provided, see if there is a conflict
+                        // if the current version is -1, means we did not find anything, and
+                        // a version is provided, so we do expect to find a doc under that version
+                        // this is important, since we don't allow to preset a version in order to handle deletes
+                        if (currentVersion == -1) {
+                            throw new VersionConflictEngineException(shardId, replace.type(), replace.id(), -1, expectedVersion);
+                        } else if (expectedVersion != currentVersion) {
+                            throw new VersionConflictEngineException(shardId, replace.type(), replace.id(), currentVersion, expectedVersion);
+                        }
+                    }
+                    updatedVersion = currentVersion < 0 ? 1 : currentVersion + 1;
+                } else { // external version type
+                    // an external version is provided, just check, if a local version exists, that its higher than it
+                    // the actual version checking is one in an external system, and we just want to not index older versions
+                    if (currentVersion >= 0) { // we can check!, its there
+                        if (currentVersion >= replace.version()) {
+                            throw new VersionConflictEngineException(shardId, replace.type(), replace.id(), currentVersion, replace.version());
+                        }
+                    }
+                    updatedVersion = replace.version();
+                }
+            } else { // if (index.origin() == Operation.Origin.REPLICA || index.origin() == Operation.Origin.RECOVERY) {
+                long expectedVersion = replace.version();
+                if (currentVersion != -2) { // -2 means we don't have a version, so ignore...
+                    // if it does not exists, and its considered the first index operation (replicas/recovery are 1 of)
+                    // then nothing to check
+                    if (!(currentVersion == -1 && replace.version() == 1)) {
+                        // with replicas/recovery, we only check for previous version, we allow to set a future version
+                        if (expectedVersion <= currentVersion) {
+                            if (replace.origin() == Operation.Origin.RECOVERY) {
+                                return;
+                            } else {
+                                throw new VersionConflictEngineException(shardId, replace.type(), replace.id(), currentVersion, expectedVersion);
+                            }
+                        }
+                    }
+                }
+                // replicas already hold the "future" version
+                updatedVersion = replace.version();
+            }
+
+            // Make sure the doc already exists
+            if (currentVersion == -1 || (versionValue != null && versionValue.delete())) {
+                if (replace.origin() == Operation.Origin.RECOVERY) {
+                    return;
+                } else {
+                    throw new DocumentMissingException(shardId, replace.type(), replace.id());
+                }
+            }
+
+            uidField.version(updatedVersion);
+            replace.version(updatedVersion);
+
+            if (replace.docs().size() > 1) {
+                writer.updateDocuments(replace.uid(), replace.docs(), replace.analyzer());
+            } else {
+                writer.updateDocument(replace.uid(), replace.docs().get(0), replace.analyzer());
+            }
+
+            Translog.Location translogLocation = translog.add(new Translog.Replace(replace));
+
+            versionMap.put(replace.uid().text(), new VersionValue(updatedVersion, false, threadPool.estimatedTimeInMillis(), translogLocation));
+
+            indexingService.postReplaceUnderLock(replace);
+        }
+    }
+
+    @Override
     public void index(Index index) throws EngineException {
         rwl.readLock().lock();
         try {

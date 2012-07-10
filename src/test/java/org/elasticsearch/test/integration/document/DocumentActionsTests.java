@@ -282,10 +282,13 @@ public class DocumentActionsTests extends AbstractNodesTests {
                 .add(client1.prepareIndex().setIndex("test").setType("type1").setSource(source("3", "test")))
                 .add(client1.prepareDelete().setIndex("test").setType("type1").setId("1"))
                 .add(client1.prepareIndex().setIndex("test").setType("type1").setSource("{ xxx }")) // failure
+                .add(client1.prepareIndex().setIndex("test").setType("type1").setId("foo").setSource(source("foo", "test")).setReplace(true)) // failure
+                .add(client1.prepareIndex().setIndex("test").setType("type1").setId("foo").setSource(source("foo", "test")).setCreate(true))
+                .add(client1.prepareIndex().setIndex("test").setType("type1").setId("foo").setSource(source("foo", "test")).setReplace(true))
                 .execute().actionGet();
 
         assertThat(bulkResponse.hasFailures(), equalTo(true));
-        assertThat(bulkResponse.items().length, equalTo(5));
+        assertThat(bulkResponse.items().length, equalTo(8));
 
         assertThat(bulkResponse.items()[0].isFailed(), equalTo(false));
         assertThat(bulkResponse.items()[0].opType(), equalTo("index"));
@@ -316,6 +319,11 @@ public class DocumentActionsTests extends AbstractNodesTests {
         assertThat(bulkResponse.items()[4].index(), equalTo(getConcreteIndexName()));
         assertThat(bulkResponse.items()[4].type(), equalTo("type1"));
 
+        assertThat(bulkResponse.items()[5].isFailed(), equalTo(true));
+        assertThat(bulkResponse.items()[5].opType(), equalTo("replace"));
+        assertThat(bulkResponse.items()[5].index(), equalTo(getConcreteIndexName()));
+        assertThat(bulkResponse.items()[5].type(), equalTo("type1"));
+
         RefreshResponse refreshResponse = client1.admin().indices().prepareRefresh("test").execute().actionGet();
         assertThat(refreshResponse.successfulShards(), equalTo(10));
         assertThat(refreshResponse.failedShards(), equalTo(0));
@@ -332,6 +340,10 @@ public class DocumentActionsTests extends AbstractNodesTests {
 
             getResult = client1.get(getRequest("test").type("type1").id(generatedId3)).actionGet();
             assertThat("cycle #" + i, getResult.sourceAsString(), equalTo(source("3", "test").string()));
+            assertThat(getResult.index(), equalTo(getConcreteIndexName()));
+
+            getResult = client1.get(getRequest("test").type("type1").id("foo")).actionGet();
+            assertThat("cycle #" + i, getResult.sourceAsString(), equalTo(source("foo", "test").string()));
             assertThat(getResult.index(), equalTo(getConcreteIndexName()));
         }
     }

@@ -73,7 +73,7 @@ public class IndexRequest extends ShardReplicationOperationRequest {
      */
     public static enum OpType {
         /**
-         * Index the source. If there an existing document with the id, it will
+         * Index the source. If there is an existing document with the id, it will
          * be replaced.
          */
         INDEX((byte) 0),
@@ -81,7 +81,14 @@ public class IndexRequest extends ShardReplicationOperationRequest {
          * Creates the resource. Simply adds it to the index, if there is an existing
          * document with the id, then it won't be removed.
          */
-        CREATE((byte) 1);
+        CREATE((byte) 1),
+
+        /**
+         * Replaces the resource. If there is an existing document with the id, it will
+         * be replaced, otherwise it won't be created.
+         */
+        REPLACE((byte) 2);
+
 
         private byte id;
 
@@ -104,6 +111,8 @@ public class IndexRequest extends ShardReplicationOperationRequest {
                 return INDEX;
             } else if (id == 1) {
                 return CREATE;
+            } else if (id == 2) {
+                return REPLACE;
             } else {
                 throw new ElasticSearchIllegalArgumentException("No type match for [" + id + "]");
             }
@@ -493,13 +502,15 @@ public class IndexRequest extends ShardReplicationOperationRequest {
 
     /**
      * Sets a string representation of the {@link #opType(org.elasticsearch.action.index.IndexRequest.OpType)}. Can
-     * be either "index" or "create".
+     * be either "index" or "create" or "replace".
      */
     public IndexRequest opType(String opType) throws ElasticSearchIllegalArgumentException {
         if ("create".equals(opType)) {
             return opType(OpType.CREATE);
         } else if ("index".equals(opType)) {
             return opType(OpType.INDEX);
+        } else if ("replace".equals(opType)) {
+            return opType(OpType.REPLACE);
         } else {
             throw new ElasticSearchIllegalArgumentException("No index opType matching [" + opType + "]");
         }
@@ -537,6 +548,17 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     public IndexRequest create(boolean create) {
         if (create) {
             return opType(OpType.CREATE);
+        } else {
+            return opType(OpType.INDEX);
+        }
+    }
+
+    /**
+     * Set to <tt>true</tt> to force this index to use {@link OpType#REPLACE}.
+     */
+    public IndexRequest replace(boolean replace) {
+        if (replace) {
+            return opType(OpType.REPLACE);
         } else {
             return opType(OpType.INDEX);
         }

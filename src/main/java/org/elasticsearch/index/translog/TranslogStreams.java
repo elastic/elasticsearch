@@ -37,6 +37,9 @@ public class TranslogStreams {
             case CREATE:
                 operation = new Translog.Create();
                 break;
+            case REPLACE:
+                operation = new Translog.Replace();
+                break;
             case DELETE:
                 operation = new Translog.Delete();
                 break;
@@ -61,6 +64,9 @@ public class TranslogStreams {
         switch (type) {
             case CREATE:
                 operation = new Translog.Create();
+                break;
+            case REPLACE:
+                operation = new Translog.Replace();
                 break;
             case DELETE:
                 operation = new Translog.Delete();

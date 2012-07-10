@@ -158,11 +158,16 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                         indexShard.index(index);
                         version = index.version();
                         op = index;
-                    } else {
+                    } else if (indexRequest.opType() == IndexRequest.OpType.CREATE) {
                         Engine.Create create = indexShard.prepareCreate(sourceToParse).version(indexRequest.version()).versionType(indexRequest.versionType()).origin(Engine.Operation.Origin.PRIMARY);
                         indexShard.create(create);
                         version = create.version();
                         op = create;
+                    } else {
+                        Engine.Replace replace = indexShard.prepareReplace(sourceToParse).version(indexRequest.version()).versionType(indexRequest.versionType()).origin(Engine.Operation.Origin.PRIMARY);
+                        indexShard.replace(replace);
+                        version = replace.version();
+                        op = replace;
                     }
                     // update the version on request so it will happen on the replicas
                     indexRequest.version(version);
@@ -298,9 +303,12 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                     if (indexRequest.opType() == IndexRequest.OpType.INDEX) {
                         Engine.Index index = indexShard.prepareIndex(sourceToParse).version(indexRequest.version()).origin(Engine.Operation.Origin.REPLICA);
                         indexShard.index(index);
-                    } else {
+                    } else if (indexRequest.opType() == IndexRequest.OpType.CREATE) {
                         Engine.Create create = indexShard.prepareCreate(sourceToParse).version(indexRequest.version()).origin(Engine.Operation.Origin.REPLICA);
                         indexShard.create(create);
+                    } else {
+                        Engine.Replace replace = indexShard.prepareReplace(sourceToParse).version(indexRequest.version()).origin(Engine.Operation.Origin.REPLICA);
+                        indexShard.replace(replace);
                     }
                 } catch (Exception e) {
                     // ignore, we are on backup

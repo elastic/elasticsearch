@@ -194,15 +194,25 @@ public class BulkRequest implements ActionRequest {
                             internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).timestamp(timestamp).ttl(ttl).version(version).versionType(versionType)
                                     .source(data.slice(from, nextMarker - from), contentUnsafe)
                                     .percolate(percolate));
+                        } else if ("create".equals(opType)) {
+                            internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).timestamp(timestamp).ttl(ttl).version(version).versionType(versionType)
+                                    .create(true)
+                                    .source(data.slice(from, nextMarker - from), contentUnsafe)
+                                    .percolate(percolate));
                         } else {
                             internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).timestamp(timestamp).ttl(ttl).version(version).versionType(versionType)
-                                    .create("create".equals(opType))
+                                    .replace("replace".equals(opType))
                                     .source(data.slice(from, nextMarker - from), contentUnsafe)
                                     .percolate(percolate));
                         }
                     } else if ("create".equals(action)) {
                         internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).timestamp(timestamp).ttl(ttl).version(version).versionType(versionType)
                                 .create(true)
+                                .source(data.slice(from, nextMarker - from), contentUnsafe)
+                                .percolate(percolate));
+                    } else if ("replace".equals(action)) {
+                        internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).timestamp(timestamp).ttl(ttl).version(version).versionType(versionType)
+                                .replace(true)
                                 .source(data.slice(from, nextMarker - from), contentUnsafe)
                                 .percolate(percolate));
                     }

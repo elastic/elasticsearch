@@ -74,6 +74,8 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
     void create(Create create) throws EngineException;
 
+    void replace(Replace replace) throws EngineException;
+
     void index(Index index) throws EngineException;
 
     void delete(Delete delete) throws EngineException;
@@ -325,7 +327,8 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         static enum Type {
             CREATE,
             INDEX,
-            DELETE
+            DELETE,
+            REPLACE
         }
 
         static enum Origin {
@@ -464,6 +467,134 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         }
 
         public Create endTime(long endTime) {
+            this.endTime = endTime;
+            return this;
+        }
+
+        /**
+         * Returns operation end time in nanoseconds.
+         */
+        public long endTime() {
+            return this.endTime;
+        }
+    }
+
+    static class Replace implements IndexingOperation {
+        private final DocumentMapper docMapper;
+        private final Term uid;
+        private final ParsedDocument doc;
+        private long version;
+        private VersionType versionType = VersionType.INTERNAL;
+        private Origin origin = Origin.PRIMARY;
+
+        private long startTime;
+        private long endTime;
+
+        public Replace(DocumentMapper docMapper, Term uid, ParsedDocument doc) {
+            this.docMapper = docMapper;
+            this.uid = uid;
+            this.doc = doc;
+        }
+
+        public DocumentMapper docMapper() {
+            return this.docMapper;
+        }
+
+        @Override
+        public Type opType() {
+            return Type.REPLACE;
+        }
+
+        public Replace origin(Origin origin) {
+            this.origin = origin;
+            return this;
+        }
+
+        @Override
+        public Origin origin() {
+            return this.origin;
+        }
+
+        public ParsedDocument parsedDoc() {
+            return this.doc;
+        }
+
+        public Term uid() {
+            return this.uid;
+        }
+
+        public String type() {
+            return this.doc.type();
+        }
+
+        public String id() {
+            return this.doc.id();
+        }
+
+        public String routing() {
+            return this.doc.routing();
+        }
+
+        public long timestamp() {
+            return this.doc.timestamp();
+        }
+
+        public long ttl() {
+            return this.doc.ttl();
+        }
+
+        public long version() {
+            return this.version;
+        }
+
+        public Replace version(long version) {
+            this.version = version;
+            return this;
+        }
+
+        public VersionType versionType() {
+            return this.versionType;
+        }
+
+        public Replace versionType(VersionType versionType) {
+            this.versionType = versionType;
+            return this;
+        }
+
+        public String parent() {
+            return this.doc.parent();
+        }
+
+        public List<Document> docs() {
+            return this.doc.docs();
+        }
+
+        public Analyzer analyzer() {
+            return this.doc.analyzer();
+        }
+
+        public BytesReference source() {
+            return this.doc.source();
+        }
+
+        public UidField uidField() {
+            return (UidField) doc.rootDoc().getFieldable(UidFieldMapper.NAME);
+        }
+
+
+        public Replace startTime(long startTime) {
+            this.startTime = startTime;
+            return this;
+        }
+
+        /**
+         * Returns operation start time in nanoseconds.
+         */
+        public long startTime() {
+            return this.startTime;
+        }
+
+        public Replace endTime(long endTime) {
             this.endTime = endTime;
             return this;
         }

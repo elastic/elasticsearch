@@ -130,6 +130,42 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
         }
     }
 
+    public Engine.Replace preReplace(Engine.Replace replace) {
+        if (listeners != null) {
+            for (IndexingOperationListener listener : listeners) {
+                replace = listener.preReplace(replace);
+            }
+        }
+        return replace;
+    }
+
+    public void postReplaceUnderLock(Engine.Replace replace) {
+        if (listeners != null) {
+            for (IndexingOperationListener listener : listeners) {
+                try {
+                    listener.postReplaceUnderLock(replace);
+                } catch (Exception e) {
+                    logger.warn("post listener [{}] failed", e, listener);
+                }
+            }
+        }
+    }
+
+    public void postReplace(Engine.Replace replace) {
+        long took = replace.endTime() - replace.startTime();
+        totalStats.indexMetric.inc(took);
+        typeStats(replace.type()).indexMetric.inc(took);
+        if (listeners != null) {
+            for (IndexingOperationListener listener : listeners) {
+                try {
+                    listener.postReplace(replace);
+                } catch (Exception e) {
+                    logger.warn("post listener [{}] failed", e, listener);
+                }
+            }
+        }
+    }
+
     public Engine.Index preIndex(Engine.Index index) {
         totalStats.indexCurrent.inc();
         typeStats(index.type()).indexCurrent.inc();

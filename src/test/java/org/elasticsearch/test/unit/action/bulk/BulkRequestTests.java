@@ -37,10 +37,11 @@ public class BulkRequestTests {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/test/unit/action/bulk/simple-bulk.json");
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(bulkAction.getBytes(), 0, bulkAction.length(), true, null, null);
-        assertThat(bulkRequest.numberOfActions(), equalTo(3));
+        assertThat(bulkRequest.numberOfActions(), equalTo(4));
         assertThat(((IndexRequest) bulkRequest.requests().get(0)).source().toBytes(), equalTo(new BytesArray("{ \"field1\" : \"value1\" }").toBytes()));
         assertThat(bulkRequest.requests().get(1), instanceOf(DeleteRequest.class));
         assertThat(((IndexRequest) bulkRequest.requests().get(2)).source().toBytes(), equalTo(new BytesArray("{ \"field1\" : \"value3\" }").toBytes()));
+        assertThat(((IndexRequest) bulkRequest.requests().get(3)).source().toBytes(), equalTo(new BytesArray("{ \"field1\" : \"value4\" }").toBytes()));
     }
 
     @Test

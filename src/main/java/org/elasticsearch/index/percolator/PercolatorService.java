@@ -274,6 +274,23 @@ public class PercolatorService extends AbstractIndexComponent {
         }
 
         @Override
+        public Engine.Replace preReplace(Engine.Replace replace) {
+            // validate the query here, before we index
+            if (replace.type().equals(index().name())) {
+                percolator.parseQuery(replace.id(), replace.source());
+            }
+            return replace;
+        }
+
+        @Override
+        public void postReplaceUnderLock(Engine.Replace replace) {
+            // add the query under a doc lock
+            if (replace.type().equals(index().name())) {
+                percolator.addQuery(replace.id(), replace.source());
+            }
+        }
+
+        @Override
         public Engine.Index preIndex(Engine.Index index) {
             // validate the query here, before we index
             if (index.type().equals(index().name())) {

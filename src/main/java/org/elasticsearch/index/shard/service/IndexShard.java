@@ -82,6 +82,10 @@ public interface IndexShard extends IndexShardComponent {
 
     ParsedDocument create(Engine.Create create) throws ElasticSearchException;
 
+    Engine.Replace prepareReplace(SourceToParse source) throws ElasticSearchException;
+
+    ParsedDocument replace(Engine.Replace replace) throws ElasticSearchException;
+
     Engine.Index prepareIndex(SourceToParse source) throws ElasticSearchException;
 
     ParsedDocument index(Engine.Index index) throws ElasticSearchException;

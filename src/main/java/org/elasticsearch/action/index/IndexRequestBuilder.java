@@ -244,7 +244,7 @@ public class IndexRequestBuilder extends BaseRequestBuilder<IndexRequest, IndexR
 
     /**
      * Sets a string representation of the {@link #setOpType(org.elasticsearch.action.index.IndexRequest.OpType)}. Can
-     * be either "index" or "create".
+     * be either "index" or "create" or "replace".
      */
     public IndexRequestBuilder setOpType(String opType) {
         request.opType(opType);
@@ -256,6 +256,14 @@ public class IndexRequestBuilder extends BaseRequestBuilder<IndexRequest, IndexR
      */
     public IndexRequestBuilder setCreate(boolean create) {
         request.create(create);
+        return this;
+    }
+
+    /**
+     * Set to <tt>true</tt> to force this index to use {@link org.elasticsearch.action.index.IndexRequest.OpType#REPLACE}.
+     */
+    public IndexRequestBuilder setReplace(boolean replace) {
+        request.replace(replace);
         return this;
     }
 

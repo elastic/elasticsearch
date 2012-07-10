@@ -206,7 +206,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
             indexShard.index(index);
             version = index.version();
             op = index;
-        } else {
+        } else if (request.opType() == IndexRequest.OpType.CREATE) {
             Engine.Create create = indexShard.prepareCreate(sourceToParse)
                     .version(request.version())
                     .versionType(request.versionType())
@@ -214,6 +214,14 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
             indexShard.create(create);
             version = create.version();
             op = create;
+        } else {
+            Engine.Replace replace = indexShard.prepareReplace(sourceToParse)
+                    .version(request.version())
+                    .versionType(request.versionType())
+                    .origin(Engine.Operation.Origin.PRIMARY);
+            indexShard.replace(replace);
+            version = replace.version();
+            op = replace;
         }
         if (request.refresh()) {
             try {
@@ -258,11 +266,16 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
                     .version(request.version())
                     .origin(Engine.Operation.Origin.REPLICA);
             indexShard.index(index);
-        } else {
+        } else if (request.opType() == IndexRequest.OpType.CREATE) {
             Engine.Create create = indexShard.prepareCreate(sourceToParse)
                     .version(request.version())
                     .origin(Engine.Operation.Origin.REPLICA);
             indexShard.create(create);
+        } else {
+            Engine.Replace replace = indexShard.prepareReplace(sourceToParse)
+                    .version(request.version())
+                    .origin(Engine.Operation.Origin.REPLICA);
+            indexShard.replace(replace);
         }
         if (request.refresh()) {
             try {

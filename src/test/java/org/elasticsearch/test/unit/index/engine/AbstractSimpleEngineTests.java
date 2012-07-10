@@ -275,14 +275,40 @@ public abstract class AbstractSimpleEngineTests {
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test1")), 1));
         searchResult.release();
 
+        // now do a replace
+        doc = new ParsedDocument("1", "1", "test", null, -1, -1, doc().add(uidField("1")).add(field("value", "test2")).add(field(SourceFieldMapper.NAME, B_3.toBytes(), Field.Store.YES)).build(), Lucene.STANDARD_ANALYZER, B_3, false);
+        engine.replace(new Engine.Replace(null, newUid("1"), doc));
+
+        // its not updated yet...
+        searchResult = engine.searcher();
+        MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
+        MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test1")), 1));
+        MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test2")), 0));
+        searchResult.release();
+
+        // but, we can still get it (in realtime)
+        getResult = engine.get(new Engine.Get(true, newUid("1")));
+        assertThat(getResult.exists(), equalTo(true));
+        assertThat(getResult.source().source.toBytesArray(), equalTo(B_3.toBytesArray()));
+        assertThat(getResult.docIdAndVersion(), nullValue());
+
+        // refresh and it should be updated
+        engine.refresh(new Engine.Refresh(true));
+
+        searchResult = engine.searcher();
+        MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
+        MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test1")), 0));
+        MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test2")), 1));
+        searchResult.release();
+
         // now delete
         engine.delete(new Engine.Delete("test", "1", newUid("1")));
 
         // its not deleted yet
         searchResult = engine.searcher();
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
-        MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 0));
-        MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test1")), 1));
+        MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test1")), 0));
+        MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test2")), 1));
         searchResult.release();
 
         // but, get should not see it (in realtime)
@@ -294,8 +320,8 @@ public abstract class AbstractSimpleEngineTests {
 
         searchResult = engine.searcher();
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(0));
-        MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 0));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test1")), 0));
+        MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test2")), 0));
         searchResult.release();
 
         // add it back
@@ -589,6 +615,46 @@ public abstract class AbstractSimpleEngineTests {
     }
 
     @Test
+    public void testVersioningNewReplace() {
+        ParsedDocument doc = new ParsedDocument("1", "1", "test", null, -1, -1, doc().add(uidField("1")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
+        Engine.Index index = new Engine.Index(null, newUid("1"), doc);
+        engine.index(index);
+        assertThat(index.version(), equalTo(1l));
+
+        index = new Engine.Index(null, newUid("1"), doc).version(index.version()).origin(REPLICA);
+        replicaEngine.index(index);
+        assertThat(index.version(), equalTo(1l));
+
+        Engine.Replace replace = new Engine.Replace(null, newUid("1"), doc);
+        engine.replace(replace);
+        assertThat(replace.version(), equalTo(2l));
+
+        replace = new Engine.Replace(null, newUid("1"), doc).version(replace.version()).origin(REPLICA);
+        replicaEngine.replace(replace);
+        assertThat(replace.version(), equalTo(2l));
+    }
+
+    @Test
+    public void testExternalVersioningNewReplace() {
+        ParsedDocument doc = new ParsedDocument("1", "1", "test", null, -1, -1, doc().add(uidField("1")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
+        Engine.Create create = new Engine.Create(null, newUid("1"), doc).versionType(VersionType.EXTERNAL).version(12);
+        engine.create(create);
+        assertThat(create.version(), equalTo(12l));
+
+        create = new Engine.Create(null, newUid("1"), doc).version(create.version()).origin(REPLICA);
+        replicaEngine.create(create);
+        assertThat(create.version(), equalTo(12l));
+
+        Engine.Replace replace = new Engine.Replace(null, newUid("1"), doc).versionType(VersionType.EXTERNAL).version(13);
+        engine.replace(replace);
+        assertThat(replace.version(), equalTo(13l));
+
+        replace = new Engine.Replace(null, newUid("1"), doc).version(replace.version()).origin(REPLICA);
+        replicaEngine.replace(replace);
+        assertThat(replace.version(), equalTo(13l));
+    }
+
+    @Test
     public void testVersioningNewIndex() {
         ParsedDocument doc = new ParsedDocument("1", "1", "test", null, -1, -1, doc().add(uidField("1")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
         Engine.Index index = new Engine.Index(null, newUid("1"), doc);
@@ -852,6 +918,40 @@ public abstract class AbstractSimpleEngineTests {
             engine.create(create);
             assert false;
         } catch (DocumentAlreadyExistsException e) {
+            // all is well
+        }
+    }
+
+    @Test
+    public void testReplaceMissingException() {
+        ParsedDocument doc = new ParsedDocument("1", "1", "test", null, -1, -1, doc().add(uidField("1")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
+        Engine.Replace replace = new Engine.Replace(null, newUid("1"), doc);
+
+        try {
+            engine.replace(replace);
+            assert false;
+        } catch (DocumentMissingException e) {
+            // all is well
+        }
+    }
+
+    @Test
+    public void testReplaceAfterDelete() {
+        // create
+        ParsedDocument doc = new ParsedDocument("1", "1", "test", null, -1, -1, doc().add(uidField("1")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
+        Engine.Create create = new Engine.Create(null, newUid("1"), doc);
+        engine.create(create);
+        assertThat(create.version(), equalTo(1l));
+
+        // delete
+        engine.delete(new Engine.Delete("test", "1", newUid("1")));
+
+        // try a replace that should fail
+        Engine.Replace replace = new Engine.Replace(null, newUid("1"), doc);
+        try {
+            engine.replace(replace);
+            assert false;
+        } catch (DocumentMissingException e) {
             // all is well
         }
     }

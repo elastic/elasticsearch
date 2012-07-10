@@ -53,12 +53,22 @@ public class RestIndexAction extends BaseRestHandler {
         controller.registerHandler(POST, "/{index}/{type}/{id}", this);
         controller.registerHandler(PUT, "/{index}/{type}/{id}/_create", new CreateHandler());
         controller.registerHandler(POST, "/{index}/{type}/{id}/_create", new CreateHandler());
+        controller.registerHandler(PUT, "/{index}/{type}/{id}/_replace", new ReplaceHandler());
+        controller.registerHandler(POST, "/{index}/{type}/{id}/_replace", new ReplaceHandler());
     }
 
     final class CreateHandler implements RestHandler {
         @Override
         public void handleRequest(RestRequest request, RestChannel channel) {
             request.params().put("op_type", "create");
+            RestIndexAction.this.handleRequest(request, channel);
+        }
+    }
+
+    final class ReplaceHandler implements RestHandler {
+        @Override
+        public void handleRequest(RestRequest request, RestChannel channel) {
+            request.params().put("op_type", "replace");
             RestIndexAction.this.handleRequest(request, channel);
         }
     }
@@ -86,10 +96,12 @@ public class RestIndexAction extends BaseRestHandler {
                 indexRequest.opType(IndexRequest.OpType.INDEX);
             } else if ("create".equals(sOpType)) {
                 indexRequest.opType(IndexRequest.OpType.CREATE);
+            } else if ("replace".equals(sOpType)) {
+                indexRequest.opType(IndexRequest.OpType.REPLACE);
             } else {
                 try {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-                    channel.sendResponse(new XContentRestResponse(request, BAD_REQUEST, builder.startObject().field("error", "opType [" + sOpType + "] not allowed, either [index] or [create] are allowed").endObject()));
+                    channel.sendResponse(new XContentRestResponse(request, BAD_REQUEST, builder.startObject().field("error", "opType [" + sOpType + "] not allowed, either [index] or [create] or [replace] are allowed").endObject()));
                 } catch (IOException e1) {
                     logger.warn("Failed to send response", e1);
                     return;

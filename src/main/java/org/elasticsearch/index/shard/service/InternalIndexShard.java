@@ -316,6 +316,27 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     }
 
     @Override
+    public Engine.Replace prepareReplace(SourceToParse source) throws ElasticSearchException {
+        long startTime = System.nanoTime();
+        DocumentMapper docMapper = mapperService.documentMapperWithAutoCreate(source.type());
+        ParsedDocument doc = docMapper.parse(source);
+        return new Engine.Replace(docMapper, docMapper.uidMapper().term(doc.uid()), doc).startTime(startTime);
+    }
+
+    @Override
+    public ParsedDocument replace(Engine.Replace replace) throws ElasticSearchException {
+        writeAllowed();
+        replace = indexingService.preReplace(replace);
+        if (logger.isTraceEnabled()) {
+            logger.trace("index {}", replace.docs());
+        }
+        engine.replace(replace);
+        replace.endTime(System.nanoTime());
+        indexingService.postReplace(replace);
+        return replace.parsedDoc();
+    }
+
+    @Override
     public Engine.Index prepareIndex(SourceToParse source) throws ElasticSearchException {
         long startTime = System.nanoTime();
         DocumentMapper docMapper = mapperService.documentMapperWithAutoCreate(source.type());
@@ -627,6 +648,12 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                     Translog.Create create = (Translog.Create) operation;
                     engine.create(prepareCreate(source(create.source()).type(create.type()).id(create.id())
                             .routing(create.routing()).parent(create.parent()).timestamp(create.timestamp()).ttl(create.ttl())).version(create.version())
+                            .origin(Engine.Operation.Origin.RECOVERY));
+                    break;
+                case REPLACE:
+                    Translog.Replace replace = (Translog.Replace) operation;
+                    engine.replace(prepareReplace(source(replace.source()).type(replace.type()).id(replace.id())
+                            .routing(replace.routing()).parent(replace.parent()).timestamp(replace.timestamp()).ttl(replace.ttl())).version(replace.version())
                             .origin(Engine.Operation.Origin.RECOVERY));
                     break;
                 case SAVE:

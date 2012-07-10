@@ -31,8 +31,6 @@ import java.io.IOException;
 /**
  * Represents a single item response for an action executed as part of the bulk API. Holds the index/type/id
  * of the relevant action, and if it has failed or not (with the failure message incase it failed).
- *
- *
  */
 public class BulkItemResponse implements Streamable {
 
@@ -141,7 +139,7 @@ public class BulkItemResponse implements Streamable {
     }
 
     /**
-     * The operation type ("index", "create" or "delete").
+     * The operation type ("index", "create", "replace" or "delete").
      */
     public String opType() {
         return this.opType;

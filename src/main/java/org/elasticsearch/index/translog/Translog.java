@@ -189,7 +189,8 @@ public interface Translog extends IndexShardComponent {
             CREATE((byte) 1),
             SAVE((byte) 2),
             DELETE((byte) 3),
-            DELETE_BY_QUERY((byte) 4);
+            DELETE_BY_QUERY((byte) 4),
+            REPLACE((byte) 5);
 
             private final byte id;
 
@@ -211,6 +212,8 @@ public interface Translog extends IndexShardComponent {
                         return DELETE;
                     case 4:
                         return DELETE_BY_QUERY;
+                    case 5:
+                        return REPLACE;
                     default:
                         throw new IllegalArgumentException("No type mapped for [" + id + "]");
                 }
@@ -273,6 +276,135 @@ public interface Translog extends IndexShardComponent {
         @Override
         public Type opType() {
             return Type.CREATE;
+        }
+
+        @Override
+        public long estimateSize() {
+            return ((id.length() + type.length()) * 2) + source.length() + 12;
+        }
+
+        public String id() {
+            return this.id;
+        }
+
+        public BytesReference source() {
+            return this.source;
+        }
+
+        public String type() {
+            return this.type;
+        }
+
+        public String routing() {
+            return this.routing;
+        }
+
+        public String parent() {
+            return this.parent;
+        }
+
+        public long timestamp() {
+            return this.timestamp;
+        }
+
+        public long ttl() {
+            return this.ttl;
+        }
+
+        public long version() {
+            return this.version;
+        }
+
+        @Override
+        public Source readSource(StreamInput in) throws IOException {
+            readFrom(in);
+            return new Source(source, routing, parent, timestamp, ttl);
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            int version = in.readVInt(); // version
+            id = in.readUTF();
+            type = in.readUTF();
+            source = in.readBytesReference();
+            if (version >= 1) {
+                if (in.readBoolean()) {
+                    routing = in.readUTF();
+                }
+            }
+            if (version >= 2) {
+                if (in.readBoolean()) {
+                    parent = in.readUTF();
+                }
+            }
+            if (version >= 3) {
+                this.version = in.readLong();
+            }
+            if (version >= 4) {
+                this.timestamp = in.readLong();
+            }
+            if (version >= 5) {
+                this.ttl = in.readLong();
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(5); // version
+            out.writeUTF(id);
+            out.writeUTF(type);
+            out.writeBytesReference(source);
+            if (routing == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                out.writeUTF(routing);
+            }
+            if (parent == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                out.writeUTF(parent);
+            }
+            out.writeLong(version);
+            out.writeLong(timestamp);
+            out.writeLong(ttl);
+        }
+    }
+
+    static class Replace implements Operation {
+        private String id;
+        private String type;
+        private BytesReference source;
+        private String routing;
+        private String parent;
+        private long timestamp;
+        private long ttl;
+        private long version;
+
+        public Replace() {
+        }
+
+        public Replace(Engine.Replace replace) {
+            this.id = replace.id();
+            this.type = replace.type();
+            this.source = replace.source();
+            this.routing = replace.routing();
+            this.parent = replace.parent();
+            this.timestamp = replace.timestamp();
+            this.ttl = replace.ttl();
+            this.version = replace.version();
+        }
+
+        public Replace(String type, String id, byte[] source) {
+            this.id = id;
+            this.type = type;
+            this.source = new BytesArray(source);
+        }
+
+        @Override
+        public Type opType() {
+            return Type.REPLACE;
         }
 
         @Override

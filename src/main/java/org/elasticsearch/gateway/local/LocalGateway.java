@@ -100,6 +100,7 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
     public void performStateRecovery(final GatewayStateRecoveredListener listener) throws GatewayException {
         Set<String> nodesIds = Sets.newHashSet();
         nodesIds.addAll(clusterService.state().nodes().masterNodes().keySet());
+        logger.trace("performing state recovery from {}", nodesIds);
         TransportNodesListGatewayMetaState.NodesLocalGatewayMetaState nodesState = listGatewayMetaState.list(nodesIds, null).actionGet();
 
 

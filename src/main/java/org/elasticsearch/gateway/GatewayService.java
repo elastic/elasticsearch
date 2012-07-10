@@ -212,6 +212,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                     @Override
                     public void run() {
                         if (recovered.compareAndSet(false, true)) {
+                            logger.trace("performing state recovery...");
                             gateway.performStateRecovery(recoveryListener);
                         }
                     }
@@ -219,6 +220,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
             }
         } else {
             if (recovered.compareAndSet(false, true)) {
+                logger.trace("performing state recovery...");
                 gateway.performStateRecovery(recoveryListener);
             }
         }
@@ -234,6 +236,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
 
         @Override
         public void onSuccess(final ClusterState recoveredState) {
+            logger.trace("successful state recovery, importing cluster state...");
             clusterService.submitStateUpdateTask("local-gateway-elected-state", new ProcessedClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {

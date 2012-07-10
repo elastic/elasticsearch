@@ -117,7 +117,9 @@ public class BoolFilterParser implements FilterParser {
             }
         }
 
-        if (boolFilter.getMustFilters().isEmpty() && boolFilter.getNotFilters().isEmpty() && boolFilter.getShouldFilters().isEmpty()) {
+        if ((boolFilter.getMustFilters() != null && boolFilter.getMustFilters().isEmpty())
+                && (boolFilter.getNotFilters() != null && boolFilter.getNotFilters().isEmpty())
+                && (boolFilter.getShouldFilters() != null && boolFilter.getShouldFilters().isEmpty())) {
             return null;
         }
 

@@ -317,8 +317,8 @@
                             <include>com.google.guava:guava</include>
                             <include>net.sf.trove4j:trove4j</include>
                             <include>org.mvel:mvel2</include>
-                            <include>org.codehaus.jackson:jackson-core-asl</include>
-                            <include>org.codehaus.jackson:jackson-smile</include>
+                            <include>com.fasterxml.jackson.core:jackson-core</include>
+                            <include>com.fasterxml.jackson.dataformat:jackson-dataformat-smile</include>
                             <include>org.yaml:snakeyaml</include>
                             <include>joda-time:joda-time</include>
                             <include>io.netty:netty</include>
@@ -347,7 +347,7 @@
                             <shadedPattern>org.elasticsearch.common.mvel2</shadedPattern>
                         </relocation>
                         <relocation>
-                            <pattern>org.codehaus.jackson</pattern>
+                            <pattern>com.fasterxml.jackson</pattern>
                             <shadedPattern>org.elasticsearch.common.jackson</shadedPattern>
                         </relocation>
                         <relocation>

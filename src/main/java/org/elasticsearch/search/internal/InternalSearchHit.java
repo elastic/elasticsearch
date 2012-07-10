@@ -89,11 +89,10 @@ public class InternalSearchHit implements SearchHit {
 
     }
 
-    public InternalSearchHit(int docId, String id, String type, byte[] source, Map<String, SearchHitField> fields) {
+    public InternalSearchHit(int docId, String id, String type, Map<String, SearchHitField> fields) {
         this.docId = docId;
         this.id = id;
         this.type = type;
-        this.source = source == null ? null : new BytesArray(source);
         this.fields = fields;
     }
 
@@ -225,6 +224,18 @@ public class InternalSearchHit implements SearchHit {
     @Override
     public String getSourceAsString() {
         return sourceAsString();
+    }
+
+    public void source(byte[] sourceAsBytes) {
+        this.source = new BytesArray(sourceAsBytes);
+        this.sourceAsBytes = null;
+        this.sourceAsMap = null;
+    }
+
+    public void source(BytesArray source) {
+        this.source = source;
+        this.sourceAsBytes = null;
+        this.sourceAsMap = null;
     }
 
     @SuppressWarnings({"unchecked"})

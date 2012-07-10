@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.fetch.script;
+package org.elasticsearch.search.fetch.extractfields;
 
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticSearchException;
@@ -36,18 +36,14 @@ import java.util.Map;
 /**
  *
  */
-public class ScriptFieldsFetchSubPhase implements FetchSubPhase {
-
+public class ExtractFieldsFetchSubPhase implements FetchSubPhase {
     @Inject
-    public ScriptFieldsFetchSubPhase() {
+    public ExtractFieldsFetchSubPhase() {
     }
 
     @Override
     public Map<String, ? extends SearchParseElement> parseElements() {
-        ImmutableMap.Builder<String, SearchParseElement> parseElements = ImmutableMap.builder();
-        parseElements.put("script_fields", new ScriptFieldsParseElement())
-                .put("scriptFields", new ScriptFieldsParseElement());
-        return parseElements.build();
+        return ImmutableMap.of();
     }
 
     @Override
@@ -61,37 +57,28 @@ public class ScriptFieldsFetchSubPhase implements FetchSubPhase {
 
     @Override
     public boolean hitExecutionNeeded(SearchContext context) {
-        return context.hasScriptFields();
+        return context.hasExtractFieldNames();
     }
 
     @Override
-    public void hitExecute(SearchContext context, HitContext hitContext) throws ElasticSearchException {
-        for (ScriptFieldsContext.ScriptField scriptField : context.scriptFields().fields()) {
-            scriptField.script().setNextReader(hitContext.reader());
-            scriptField.script().setNextDocId(hitContext.docId());
-            scriptField.script().setNextSource(hitContext.sourceAsMap());
-
-            Object value;
-            try {
-                value = scriptField.script().run();
-                value = scriptField.script().unwrap(value);
-            } catch (RuntimeException e) {
-                if (scriptField.ignoreException()) {
-                    continue;
+    public void hitExecute(SearchContext context, FetchSubPhase.HitContext hitContext) throws ElasticSearchException {
+        context.lookup().setNextReader(hitContext.reader());
+        context.lookup().setNextDocId(hitContext.docId());
+        context.lookup().source().setNextSource(hitContext.sourceAsMap());
+        for (String extractFieldName : context.extractFieldNames()) {
+            Object value = context.lookup().source().extractValue(extractFieldName);
+            if (value != null) {
+                if (hitContext.hit().fieldsOrNull() == null) {
+                    hitContext.hit().fields(new HashMap<String, SearchHitField>(2));
                 }
-                throw e;
-            }
 
-            if (hitContext.hit().fieldsOrNull() == null) {
-                hitContext.hit().fields(new HashMap<String, SearchHitField>(2));
+                SearchHitField hitField = hitContext.hit().fields().get(extractFieldName);
+                if (hitField == null) {
+                    hitField = new InternalSearchHitField(extractFieldName, new ArrayList<Object>(2));
+                    hitContext.hit().fields().put(extractFieldName, hitField);
+                }
+                hitField.values().add(value);
             }
-
-            SearchHitField hitField = hitContext.hit().fields().get(scriptField.name());
-            if (hitField == null) {
-                hitField = new InternalSearchHitField(scriptField.name(), new ArrayList<Object>(2));
-                hitContext.hit().fields().put(scriptField.name(), hitField);
-            }
-            hitField.values().add(value);
         }
     }
 }

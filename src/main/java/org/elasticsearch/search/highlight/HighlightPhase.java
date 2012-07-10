@@ -201,6 +201,7 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                     SearchLookup lookup = context.lookup();
                     lookup.setNextReader(hitContext.reader());
                     lookup.setNextDocId(hitContext.docId());
+                    lookup.source().setNextSource(hitContext.sourceAsMap());
                     textsToHighlight = lookup.source().extractRawValues(mapper.names().sourcePath());
                 }
 

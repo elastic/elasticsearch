@@ -95,6 +95,7 @@ public class SearchSourceBuilder implements ToXContent {
 
     private List<String> fieldNames;
     private List<ScriptField> scriptFields;
+    private ScriptSource scriptSource;
     private List<PartialField> partialFields;
 
     private List<AbstractFacetBuilder> facets;
@@ -482,6 +483,38 @@ public class SearchSourceBuilder implements ToXContent {
     }
 
     /**
+     * Sets a script source.
+     *
+     * @param script The script
+     */
+    public SearchSourceBuilder scriptSource(String script) {
+        return scriptSource(null, script, null);
+    }
+
+    /**
+     * Sets a script source.
+     *
+     * @param script The script to execute
+     * @param params The script parameters
+     */
+    public SearchSourceBuilder scriptSource(String script, Map<String, Object> params) {
+        return scriptSource(null, script, params);
+    }
+
+    /**
+     * Sets a script source.
+     *
+     * @param lang   The language of the script
+     * @param script The script to execute
+     * @param params The script parameters (can be <tt>null</tt>)
+     * @return
+     */
+    public SearchSourceBuilder scriptSource(String lang, String script, Map<String, Object> params) {
+        scriptSource = new ScriptSource(lang, script, params);
+        return this;
+    }
+
+    /**
      * Adds a partial field based on _source, with an "include" and/or "exclude" set which can include simple wildcard
      * elements.
      *
@@ -666,6 +699,19 @@ public class SearchSourceBuilder implements ToXContent {
             builder.endObject();
         }
 
+        if (scriptSource != null) {
+            builder.startObject("script_source");
+            builder.field("script", scriptSource.script());
+            if (scriptSource.lang() != null) {
+                builder.field("lang", scriptSource.lang());
+            }
+            if (scriptSource.params() != null) {
+                builder.field("params");
+                builder.map(scriptSource.params());
+            }
+            builder.endObject();
+        }
+
         if (sorts != null) {
             builder.startArray("sort");
             for (SortBuilder sort : sorts) {
@@ -778,6 +824,30 @@ public class SearchSourceBuilder implements ToXContent {
 
         public String[] excludes() {
             return excludes;
+        }
+    }
+
+    private static class ScriptSource {
+        private final String script;
+        private final String lang;
+        private final Map<String, Object> params;
+
+        private ScriptSource(String lang, String script, Map<String, Object> params) {
+            this.lang = lang;
+            this.script = script;
+            this.params = params;
+        }
+
+        public String script() {
+            return script;
+        }
+
+        public String lang() {
+            return this.lang;
+        }
+
+        public Map<String, Object> params() {
+            return params;
         }
     }
 }

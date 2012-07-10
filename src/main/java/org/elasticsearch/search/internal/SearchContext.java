@@ -51,6 +51,7 @@ import org.elasticsearch.search.facet.SearchContextFacets;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.partial.PartialFieldsContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
+import org.elasticsearch.search.fetch.scriptsource.ScriptSourceContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -126,6 +127,10 @@ public class SearchContext implements Releasable {
     private List<String> fieldNames;
     private ScriptFieldsContext scriptFields;
     private PartialFieldsContext partialFields;
+
+    private ScriptSourceContext scriptSource;
+
+    private List<String> extractFieldNames;
 
     private int from = -1;
 
@@ -286,6 +291,18 @@ public class SearchContext implements Releasable {
             scriptFields = new ScriptFieldsContext();
         }
         return this.scriptFields;
+    }
+
+    public void scriptSource(ScriptSourceContext scriptSourceContext) {
+        this.scriptSource = scriptSourceContext;
+    }
+
+    public ScriptSourceContext scriptSource() {
+        return scriptSource;
+    }
+
+    public boolean hasScriptSource() {
+        return scriptSource != null;
     }
 
     public boolean hasPartialFields() {
@@ -457,6 +474,18 @@ public class SearchContext implements Releasable {
 
     public void emptyFieldNames() {
         this.fieldNames = ImmutableList.of();
+    }
+
+
+    public boolean hasExtractFieldNames() {
+        return extractFieldNames != null;
+    }
+
+    public List<String> extractFieldNames() {
+        if (extractFieldNames == null) {
+            extractFieldNames = Lists.newArrayList();
+        }
+        return extractFieldNames;
     }
 
     public boolean explain() {

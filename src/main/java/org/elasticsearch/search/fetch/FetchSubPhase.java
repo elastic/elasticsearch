@@ -23,10 +23,16 @@ import com.google.common.collect.Maps;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.CachedStreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.lookup.SourceLookup;
 
+import java.io.IOException;
 import java.util.Map;
 
 /**
@@ -42,6 +48,13 @@ public interface FetchSubPhase {
         private int docId;
         private Document doc;
         private Map<String, Object> cache;
+        private byte[] source;
+        private Map<String, Object> sourceAsMap;
+
+        public HitContext(byte[] source) {
+            this.source = source;
+            this.sourceAsMap = null;
+        }
 
         public void reset(InternalSearchHit hit, IndexReader reader, int docId, IndexReader topLevelReader, int topLevelDocId, Document doc) {
             this.hit = hit;
@@ -81,6 +94,49 @@ public interface FetchSubPhase {
                 cache = Maps.newHashMap();
             }
             return cache;
+        }
+
+        public byte[] source() {
+            if (source != null) {
+                return source;
+            }
+            if (sourceAsMap != null) {
+                CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
+                try {
+                    BytesStreamOutput streamOutput = cachedEntry.bytes();
+                    // TODO: Is there a better way to figure out Content Type?
+                    XContentBuilder builder = XContentFactory.jsonBuilder(streamOutput).map(sourceAsMap);
+                    builder.close();
+                    source = streamOutput.bytes().copyBytesArray().toBytes();
+                    return source;
+                } catch (IOException ex) {
+                    throw new ElasticSearchException("Cannot serialize map " + sourceAsMap, ex);
+                } finally {
+                    CachedStreamOutput.pushEntry(cachedEntry);
+                }
+            }
+            return null;
+        }
+
+        public Map<String, Object> sourceAsMap() {
+            if (sourceAsMap != null) {
+                return sourceAsMap;
+            }
+            if (source != null) {
+                sourceAsMap = SourceLookup.sourceAsMap(source, 0, source.length);
+                return sourceAsMap;
+            }
+            return null;
+        }
+
+        public void source(byte[] source) {
+            this.source = source;
+            this.sourceAsMap = null;
+        }
+
+        public void sourceAsMap(Map<String, Object>  sourceAsMap) {
+            this.source = null;
+            this.sourceAsMap = sourceAsMap;
         }
     }
 

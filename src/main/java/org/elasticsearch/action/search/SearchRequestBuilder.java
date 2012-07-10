@@ -448,6 +448,40 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
     }
 
     /**
+     * Sets a script based source to load.
+     *
+     * @param script The script to use
+     */
+    public SearchRequestBuilder setScriptSource(String script) {
+        sourceBuilder().scriptSource(script);
+        return this;
+    }
+
+    /**
+     * Sets a script based source to load.
+     *
+     * @param script The script to use
+     * @param params Parameters that the script can use.
+     */
+    public SearchRequestBuilder setScriptSource(String script, Map<String, Object> params) {
+        sourceBuilder().scriptSource(script, params);
+        return this;
+    }
+
+    /**
+     * Sets a script based source to load.
+     *
+     * @param lang   The language of the script
+     * @param script The script to use
+     * @param params Parameters that the script can use (can be <tt>null</tt>).
+     */
+    public SearchRequestBuilder setScriptSource(String lang, String script, Map<String, Object> params) {
+        sourceBuilder().scriptSource(lang, script, params);
+        return this;
+    }
+
+
+    /**
      * Adds a sort against the given field name and the sort ordering.
      *
      * @param field The name of the field

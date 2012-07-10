@@ -20,7 +20,6 @@
 package org.elasticsearch.search.fetch;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.IndexReader;
@@ -44,9 +43,11 @@ import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.fetch.explain.ExplainFetchSubPhase;
+import org.elasticsearch.search.fetch.extractfields.ExtractFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.matchedfilters.MatchedFiltersFetchSubPhase;
 import org.elasticsearch.search.fetch.partial.PartialFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.script.ScriptFieldsFetchSubPhase;
+import org.elasticsearch.search.fetch.scriptsource.ScriptSourceFetchSubPhase;
 import org.elasticsearch.search.fetch.version.VersionFetchSubPhase;
 import org.elasticsearch.search.highlight.HighlightPhase;
 import org.elasticsearch.search.internal.InternalSearchHit;
@@ -68,9 +69,10 @@ public class FetchPhase implements SearchPhase {
     private final FetchSubPhase[] fetchSubPhases;
 
     @Inject
-    public FetchPhase(HighlightPhase highlightPhase, ScriptFieldsFetchSubPhase scriptFieldsPhase, PartialFieldsFetchSubPhase partialFieldsPhase,
+    public FetchPhase(HighlightPhase highlightPhase, ScriptSourceFetchSubPhase scriptSourcePhase, ScriptFieldsFetchSubPhase scriptFieldsPhase,
+                      ExtractFieldsFetchSubPhase extractFieldsPhase, PartialFieldsFetchSubPhase partialFieldsPhase,
                       MatchedFiltersFetchSubPhase matchFiltersPhase, ExplainFetchSubPhase explainPhase, VersionFetchSubPhase versionPhase) {
-        this.fetchSubPhases = new FetchSubPhase[]{scriptFieldsPhase, partialFieldsPhase, matchFiltersPhase, explainPhase, highlightPhase, versionPhase};
+        this.fetchSubPhases = new FetchSubPhase[]{scriptSourcePhase, extractFieldsPhase, scriptFieldsPhase, partialFieldsPhase, matchFiltersPhase, explainPhase, highlightPhase, versionPhase};
     }
 
     @Override
@@ -89,7 +91,6 @@ public class FetchPhase implements SearchPhase {
 
     public void execute(SearchContext context) {
         ResetFieldSelector fieldSelector;
-        List<String> extractFieldNames = null;
         boolean sourceRequested = false;
         if (!context.hasFieldNames()) {
             if (context.hasPartialFields()) {
@@ -126,15 +127,12 @@ public class FetchPhase implements SearchPhase {
                     }
                     fieldSelectorMapper.add(x);
                 } else {
-                    if (extractFieldNames == null) {
-                        extractFieldNames = Lists.newArrayList();
-                    }
-                    extractFieldNames.add(fieldName);
+                    context.extractFieldNames().add(fieldName);
                 }
             }
 
             if (loadAllStored) {
-                if (sourceRequested || extractFieldNames != null) {
+                if (sourceRequested || context.hasExtractFieldNames()) {
                     fieldSelector = null; // load everything, including _source
                 } else {
                     fieldSelector = AllButSourceFieldSelector.INSTANCE;
@@ -142,11 +140,11 @@ public class FetchPhase implements SearchPhase {
             } else if (fieldSelectorMapper != null) {
                 // we are asking specific stored fields, just add the UID and be done
                 fieldSelectorMapper.add(UidFieldMapper.NAME);
-                if (extractFieldNames != null || sourceRequested) {
+                if (context.hasExtractFieldNames() || sourceRequested) {
                     fieldSelectorMapper.add(SourceFieldMapper.NAME);
                 }
                 fieldSelector = fieldSelectorMapper;
-            } else if (extractFieldNames != null || sourceRequested) {
+            } else if (context.hasExtractFieldNames() || sourceRequested) {
                 fieldSelector = new UidAndSourceFieldSelector();
             } else {
                 fieldSelector = UidFieldSelector.INSTANCE;
@@ -169,7 +167,7 @@ public class FetchPhase implements SearchPhase {
 
             // get the version
 
-            InternalSearchHit searchHit = new InternalSearchHit(docId, uid.id(), uid.type(), sourceRequested ? source : null, null);
+            InternalSearchHit searchHit = new InternalSearchHit(docId, uid.id(), uid.type(), null);
             hits[index] = searchHit;
 
             for (Object oField : doc.getFields()) {
@@ -219,36 +217,23 @@ public class FetchPhase implements SearchPhase {
             IndexReader subReader = context.searcher().subReaders()[readerIndex];
             int subDoc = docId - context.searcher().docStarts()[readerIndex];
 
-            // go over and extract fields that are not mapped / stored
             context.lookup().setNextReader(subReader);
             context.lookup().setNextDocId(subDoc);
             if (source != null) {
                 context.lookup().source().setNextSource(new BytesArray(source));
             }
-            if (extractFieldNames != null) {
-                for (String extractFieldName : extractFieldNames) {
-                    Object value = context.lookup().source().extractValue(extractFieldName);
-                    if (value != null) {
-                        if (searchHit.fieldsOrNull() == null) {
-                            searchHit.fields(new HashMap<String, SearchHitField>(2));
-                        }
 
-                        SearchHitField hitField = searchHit.fields().get(extractFieldName);
-                        if (hitField == null) {
-                            hitField = new InternalSearchHitField(extractFieldName, new ArrayList<Object>(2));
-                            searchHit.fields().put(extractFieldName, hitField);
-                        }
-                        hitField.values().add(value);
-                    }
-                }
-            }
-
+            FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext(source);
             for (FetchSubPhase fetchSubPhase : fetchSubPhases) {
-                FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext();
                 if (fetchSubPhase.hitExecutionNeeded(context)) {
                     hitContext.reset(searchHit, subReader, subDoc, context.searcher().getIndexReader(), docId, doc);
                     fetchSubPhase.hitExecute(context, hitContext);
                 }
+            }
+
+            // Store source if needed
+            if (sourceRequested && hitContext.source() != null) {
+                searchHit.source(hitContext.source());
             }
         }
 

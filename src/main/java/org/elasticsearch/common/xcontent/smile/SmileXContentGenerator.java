@@ -19,8 +19,8 @@
 
 package org.elasticsearch.common.xcontent.smile;
 
-import org.codehaus.jackson.JsonGenerator;
-import org.codehaus.jackson.smile.SmileParser;
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.dataformat.smile.SmileParser;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContentGenerator;

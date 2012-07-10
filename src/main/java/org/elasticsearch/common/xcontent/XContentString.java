@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.codehaus.jackson.io.SerializedString;
+import com.fasterxml.jackson.core.io.SerializedString;
 
 /**
  *

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.codehaus.jackson.smile.SmileConstants;
+import com.fasterxml.jackson.dataformat.smile.SmileConstants;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;

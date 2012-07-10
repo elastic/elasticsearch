@@ -200,10 +200,6 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
 
     @Override
     public void clusterChanged(final ClusterChangedEvent event) {
-        // nothing to do until we actually recover from the gateway or any other block indicates we need to disable persistency
-        if (event.state().blocks().disableStatePersistence()) {
-            return;
-        }
         // order is important, first metaState, and then shardsState
         // so dangling indices will be recorded
         metaState.clusterChanged(event);

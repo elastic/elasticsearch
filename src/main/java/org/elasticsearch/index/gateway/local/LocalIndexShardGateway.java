@@ -23,6 +23,7 @@ import com.google.common.io.Closeables;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.lucene.Lucene;
@@ -41,6 +42,7 @@ import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStreams;
 import org.elasticsearch.index.translog.fs.FsTranslog;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.EOFException;
@@ -207,8 +209,17 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
                     // ignore, not properly written last op
                     break;
                 }
-                recoveryStatus.translog().addTranslogOperations(1);
-                indexShard.performRecoveryOperation(operation);
+                try {
+                    indexShard.performRecoveryOperation(operation);
+                    recoveryStatus.translog().addTranslogOperations(1);
+                } catch (ElasticSearchException e) {
+                    if (e.status() == RestStatus.BAD_REQUEST) {
+                        // mainly for MapperParsingException and Failure to detect xcontent
+                        logger.info("ignoring recovery of a corrupt translog entry", e);
+                    } else {
+                        throw e;
+                    }
+                }
             }
         } catch (Throwable e) {
             // we failed to recovery, make sure to delete the translog file (and keep the recovering one)

@@ -41,16 +41,18 @@ public class ThreadPoolStats implements Streamable, ToXContent, Iterable<ThreadP
         private int threads;
         private int queue;
         private int active;
+        private long rejected;
 
         Stats() {
 
         }
 
-        public Stats(String name, int threads, int queue, int active) {
+        public Stats(String name, int threads, int queue, int active, long rejected) {
             this.name = name;
             this.threads = threads;
             this.queue = queue;
             this.active = active;
+            this.rejected = rejected;
         }
 
         public String name() {
@@ -85,12 +87,21 @@ public class ThreadPoolStats implements Streamable, ToXContent, Iterable<ThreadP
             return this.active;
         }
 
+        public long rejected() {
+            return rejected;
+        }
+
+        public long getRejected() {
+            return rejected;
+        }
+
         @Override
         public void readFrom(StreamInput in) throws IOException {
             name = in.readUTF();
             threads = in.readInt();
             queue = in.readInt();
             active = in.readInt();
+            rejected = in.readLong();
         }
 
         @Override
@@ -99,6 +110,7 @@ public class ThreadPoolStats implements Streamable, ToXContent, Iterable<ThreadP
             out.writeInt(threads);
             out.writeInt(queue);
             out.writeInt(active);
+            out.writeLong(rejected);
         }
 
         @Override
@@ -112,6 +124,9 @@ public class ThreadPoolStats implements Streamable, ToXContent, Iterable<ThreadP
             }
             if (active != -1) {
                 builder.field(Fields.ACTIVE, active);
+            }
+            if (rejected != -1) {
+                builder.field(Fields.REJECTED, rejected);
             }
             builder.endObject();
             return builder;
@@ -163,6 +178,7 @@ public class ThreadPoolStats implements Streamable, ToXContent, Iterable<ThreadP
         static final XContentBuilderString THREADS = new XContentBuilderString("threads");
         static final XContentBuilderString QUEUE = new XContentBuilderString("queue");
         static final XContentBuilderString ACTIVE = new XContentBuilderString("active");
+        static final XContentBuilderString REJECTED = new XContentBuilderString("rejected");
     }
 
     @Override

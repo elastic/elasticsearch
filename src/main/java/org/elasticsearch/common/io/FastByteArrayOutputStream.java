@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.io;
 
+import org.elasticsearch.common.Bytes;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 
@@ -76,7 +77,7 @@ public class FastByteArrayOutputStream extends OutputStream implements BytesStre
     public void write(int b) {
         int newcount = count + 1;
         if (newcount > buf.length) {
-            buf = Arrays.copyOf(buf, Math.max(buf.length << 1, newcount));
+            buf = Arrays.copyOf(buf, Bytes.oversize(newcount, 1));
         }
         buf[count] = (byte) b;
         count = newcount;
@@ -98,7 +99,7 @@ public class FastByteArrayOutputStream extends OutputStream implements BytesStre
         }
         int newcount = count + len;
         if (newcount > buf.length) {
-            buf = Arrays.copyOf(buf, Math.max(buf.length << 1, newcount));
+            buf = Arrays.copyOf(buf, Bytes.oversize(newcount, 1));
         }
         System.arraycopy(b, off, buf, count, len);
         count = newcount;

@@ -19,17 +19,24 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import java.util.concurrent.RejectedExecutionHandler;
+import org.elasticsearch.common.metrics.CounterMetric;
+
 import java.util.concurrent.ThreadPoolExecutor;
 
 /**
  */
-public class EsAbortPolicy implements RejectedExecutionHandler {
+public class EsAbortPolicy implements XRejectedExecutionHandler {
 
-    public static final EsAbortPolicy INSTANCE = new EsAbortPolicy();
+    private final CounterMetric rejected = new CounterMetric();
 
     @Override
     public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
+        rejected.inc();
         throw new EsRejectedExecutionException("rejected execution of [" + r.getClass().getName() + "]");
+    }
+
+    @Override
+    public long rejected() {
+        return rejected.count();
     }
 }

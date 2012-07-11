@@ -38,6 +38,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsAbortPolicy;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.XRejectedExecutionHandler;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
@@ -141,13 +142,18 @@ public class ThreadPool extends AbstractComponent {
             int threads = -1;
             int queue = -1;
             int active = -1;
+            long rejected = -1;
             if (holder.executor instanceof ThreadPoolExecutor) {
                 ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) holder.executor;
                 threads = threadPoolExecutor.getPoolSize();
                 queue = threadPoolExecutor.getQueue().size();
                 active = threadPoolExecutor.getActiveCount();
+                RejectedExecutionHandler rejectedExecutionHandler = threadPoolExecutor.getRejectedExecutionHandler();
+                if (rejectedExecutionHandler instanceof XRejectedExecutionHandler) {
+                    rejected = ((XRejectedExecutionHandler) rejectedExecutionHandler).rejected();
+                }
             }
-            stats.add(new ThreadPoolStats.Stats(name, threads, queue, active));
+            stats.add(new ThreadPoolStats.Stats(name, threads, queue, active, rejected));
         }
         return new ThreadPoolStats(stats);
     }
@@ -234,7 +240,7 @@ public class ThreadPool extends AbstractComponent {
             RejectedExecutionHandler rejectedExecutionHandler;
             String rejectSetting = settings.get("reject_policy", defaultSettings.get("reject_policy", "abort"));
             if ("abort".equals(rejectSetting)) {
-                rejectedExecutionHandler = EsAbortPolicy.INSTANCE;
+                rejectedExecutionHandler = new EsAbortPolicy();
             } else if ("caller".equals(rejectSetting)) {
                 rejectedExecutionHandler = new ThreadPoolExecutor.CallerRunsPolicy();
             } else {

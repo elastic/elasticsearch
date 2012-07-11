@@ -20,6 +20,7 @@
 package org.elasticsearch.common.util.concurrent;
 
 import jsr166y.LinkedTransferQueue;
+import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.concurrent.*;
@@ -154,7 +155,9 @@ public class EsExecutors {
      * queue, waiting if necessary up to the specified wait time for space to become
      * available.
      */
-    static class TimedBlockingPolicy implements RejectedExecutionHandler {
+    static class TimedBlockingPolicy implements XRejectedExecutionHandler {
+
+        private final CounterMetric rejected = new CounterMetric();
         private final long waitTime;
 
         /**
@@ -167,11 +170,18 @@ public class EsExecutors {
         public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
             try {
                 boolean successful = executor.getQueue().offer(r, waitTime, TimeUnit.MILLISECONDS);
-                if (!successful)
+                if (!successful) {
+                    rejected.inc();
                     throw new EsRejectedExecutionException();
+                }
             } catch (InterruptedException e) {
                 throw new EsRejectedExecutionException(e);
             }
+        }
+
+        @Override
+        public long rejected() {
+            return rejected.count();
         }
     }
 }

@@ -160,7 +160,9 @@ public class MappingMetaData {
         public static String parseStringTimestamp(String timestampAsString, FormatDateTimeFormatter dateTimeFormatter) throws TimestampParsingException {
             long ts;
             try {
+                // if we manage to parse it, its a millisecond timestamp, just return the string as is
                 ts = Long.parseLong(timestampAsString);
+                return timestampAsString;
             } catch (NumberFormatException e) {
                 try {
                     ts = dateTimeFormatter.parser().parseMillis(timestampAsString);
@@ -168,7 +170,7 @@ public class MappingMetaData {
                     throw new TimestampParsingException(timestampAsString);
                 }
             }
-            return String.valueOf(ts);
+            return Long.toString(ts);
         }
 
 

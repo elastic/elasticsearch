@@ -656,7 +656,7 @@ public class IndexRequest extends ShardReplicationOperationRequest {
 
         // generate timestamp if not provided, we always have one post this stage...
         if (timestamp == null) {
-            timestamp = String.valueOf(System.currentTimeMillis());
+            timestamp = Long.toString(System.currentTimeMillis());
         }
     }
 

@@ -212,17 +212,22 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         } finally {
             rwl.readLock().unlock();
         }
-        // its inactive, make sure we do a full flush in this case, since the memory
-        // changes only after a "data" change has happened to the writer
-        if (indexingBufferSize == Engine.INACTIVE_SHARD_INDEXING_BUFFER && preValue != Engine.INACTIVE_SHARD_INDEXING_BUFFER) {
-            try {
-                flush(new Flush().full(true));
-            } catch (EngineClosedException e) {
-                // ignore
-            } catch (FlushNotAllowedEngineException e) {
-                // ignore
-            } catch (Exception e) {
-                logger.warn("failed to flush after setting shard to inactive", e);
+        if (preValue.bytes() != indexingBufferSize.bytes()) {
+            // its inactive, make sure we do a full flush in this case, since the memory
+            // changes only after a "data" change has happened to the writer
+            if (indexingBufferSize == Engine.INACTIVE_SHARD_INDEXING_BUFFER && preValue != Engine.INACTIVE_SHARD_INDEXING_BUFFER) {
+                logger.debug("updating index_buffer_size from [{}] to (inactive) [{}]", preValue, indexingBufferSize);
+                try {
+                    flush(new Flush().full(true));
+                } catch (EngineClosedException e) {
+                    // ignore
+                } catch (FlushNotAllowedEngineException e) {
+                    // ignore
+                } catch (Exception e) {
+                    logger.warn("failed to flush after setting shard to inactive", e);
+                }
+            } else {
+                logger.debug("updating index_buffer_size from [{}] to [{}]", preValue, indexingBufferSize);
             }
         }
     }

@@ -155,6 +155,8 @@ public class FieldQueryParser implements QueryParser {
             qpSettings.queryString(org.apache.lucene.queryParser.QueryParser.escape(qpSettings.queryString()));
         }
 
+        qpSettings.queryTypes(parseContext.queryTypes());
+
         Query query = parseContext.indexCache().queryParserCache().get(qpSettings);
         if (query != null) {
             return query;

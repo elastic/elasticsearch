@@ -19,7 +19,8 @@ package org.apache.lucene.store.bytebuffer;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  * The caching byte buffer allocator allows to define a global size for both the small and large buffers
@@ -27,8 +28,8 @@ import java.util.concurrent.ArrayBlockingQueue;
  */
 public class CachingByteBufferAllocator extends PlainByteBufferAllocator {
 
-    private final ArrayBlockingQueue<ByteBuffer> smallCache;
-    private final ArrayBlockingQueue<ByteBuffer> largeCache;
+    private final BlockingQueue<ByteBuffer> smallCache;
+    private final BlockingQueue<ByteBuffer> largeCache;
 
     /**
      * @param direct                 If set to true, will allocate direct buffers (off heap).
@@ -40,8 +41,8 @@ public class CachingByteBufferAllocator extends PlainByteBufferAllocator {
     public CachingByteBufferAllocator(boolean direct, int smallBufferSizeInBytes, int largeBufferSizeInBytes,
                                       int smallCacheSizeInBytes, int largeCacheSizeInBytes) {
         super(direct, smallBufferSizeInBytes, largeBufferSizeInBytes);
-        this.smallCache = new ArrayBlockingQueue<ByteBuffer>(smallCacheSizeInBytes / smallBufferSizeInBytes);
-        this.largeCache = new ArrayBlockingQueue<ByteBuffer>(largeCacheSizeInBytes / largeBufferSizeInBytes);
+        this.smallCache = new LinkedBlockingQueue<ByteBuffer>(smallCacheSizeInBytes / smallBufferSizeInBytes);
+        this.largeCache = new LinkedBlockingQueue<ByteBuffer>(largeCacheSizeInBytes / largeBufferSizeInBytes);
     }
 
 

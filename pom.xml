@@ -84,7 +84,7 @@
         <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
-            <version>12.0</version>
+            <version>12.0.1</version>
             <scope>compile</scope>
             <exclusions>
                 <exclusion>

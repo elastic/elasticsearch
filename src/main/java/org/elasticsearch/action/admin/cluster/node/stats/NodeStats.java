@@ -37,7 +37,7 @@ import org.elasticsearch.transport.TransportStats;
 import java.io.IOException;
 
 /**
- * Node statistics (static, does not change over time).
+ * Node statistics (dynamic, changes depending on when created).
  */
 public class NodeStats extends NodeOperationResponse {
 

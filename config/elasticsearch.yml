@@ -217,6 +217,20 @@
 #
 # transport.tcp.compress: true
 
+# Enable SSL/TLS encryption for all communication between nodes (disabled by default):
+#
+# transport.tcp.ssl: true
+
+# Settings for SSL/TLS encryption, used when transport.tcp.ssl is set to true
+#
+# transport.tcp.ssl.keystore: /path/to/the/keystore
+# transport.tcp.ssl.keystore_password: password
+# transport.tcp.ssl.keystore_algorithm: SunX509
+#
+# transport.tcp.ssl.truststore: /path/to/the/truststore
+# transport.tcp.ssl.truststore_password: password
+# transport.tcp.ssl.truststore_algorithm: PKIX
+
 # Set a custom port to listen for HTTP traffic:
 #
 # http.port: 9200

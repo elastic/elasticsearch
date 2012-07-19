@@ -20,6 +20,7 @@
 package org.elasticsearch.common.bloom;
 
 import org.apache.lucene.util.OpenBitSet;
+import org.elasticsearch.common.MurmurHash;
 import org.elasticsearch.common.RamUsage;
 
 public class ObsBloomFilter implements BloomFilter {
@@ -53,17 +54,11 @@ public class ObsBloomFilter implements BloomFilter {
         return getHashBuckets(key, offset, length, hashCount, buckets());
     }
 
-    // Murmur is faster than an SHA-based approach and provides as-good collision
-    // resistance.  The combinatorial generation approach described in
-    // http://www.eecs.harvard.edu/~kirsch/pubs/bbbf/esa06.pdf
-    // does prove to work in actual tests, and is obviously faster
-    // than performing further iterations of murmur.
     static long[] getHashBuckets(byte[] b, int offset, int length, int hashCount, long max) {
         long[] result = new long[hashCount];
-        long hash1 = MurmurHash.hash64(b, offset, length, 0L);
-        long hash2 = MurmurHash.hash64(b, offset, length, hash1);
+        long[] hash = MurmurHash.hash3_x64_128(b, offset, length, 0L);
         for (int i = 0; i < hashCount; ++i) {
-            result[i] = Math.abs((hash1 + (long) i * hash2) % max);
+            result[i] = Math.abs((hash[0] + (long) i * hash[1]) % max);
         }
         return result;
     }
@@ -71,10 +66,9 @@ public class ObsBloomFilter implements BloomFilter {
     @Override
     public void add(byte[] key, int offset, int length) {
         // inline the hash buckets so we don't have to create the int[] each time...
-        long hash1 = MurmurHash.hash64(key, offset, length, 0L);
-        long hash2 = MurmurHash.hash64(key, offset, length, hash1);
+        long[] hash = MurmurHash.hash3_x64_128(key, offset, length, 0L);
         for (int i = 0; i < hashCount; ++i) {
-            long bucketIndex = Math.abs((hash1 + (long) i * hash2) % size);
+            long bucketIndex = Math.abs((hash[0] + (long) i * hash[1]) % size);
             bitset.fastSet(bucketIndex);
         }
     }
@@ -82,10 +76,9 @@ public class ObsBloomFilter implements BloomFilter {
     @Override
     public boolean isPresent(byte[] key, int offset, int length) {
         // inline the hash buckets so we don't have to create the int[] each time...
-        long hash1 = MurmurHash.hash64(key, offset, length, 0L);
-        long hash2 = MurmurHash.hash64(key, offset, length, hash1);
+        long[] hash = MurmurHash.hash3_x64_128(key, offset, length, 0L);
         for (int i = 0; i < hashCount; ++i) {
-            long bucketIndex = Math.abs((hash1 + (long) i * hash2) % size);
+            long bucketIndex = Math.abs((hash[0] + (long) i * hash[1]) % size);
             if (!bitset.fastGet(bucketIndex)) {
                 return false;
             }

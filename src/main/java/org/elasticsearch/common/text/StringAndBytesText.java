@@ -73,11 +73,12 @@ public class StringAndBytesText implements Text {
 
     @Override
     public String string() {
+        // TODO: we can optimize the conversion based on the bytes reference API similar to UnicodeUtil
         if (text == null) {
             if (!bytes.hasArray()) {
                 bytes = bytes.toBytesArray();
             }
-            text = new String(bytes.array(), bytes.arrayOffset(), bytes.length());
+            text = new String(bytes.array(), bytes.arrayOffset(), bytes.length(), Charsets.UTF_8);
         }
         return text;
     }

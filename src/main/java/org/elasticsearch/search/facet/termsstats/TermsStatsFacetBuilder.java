@@ -20,9 +20,12 @@
 package org.elasticsearch.search.facet.termsstats;
 
 import com.google.common.collect.Maps;
+
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilderException;
 import org.elasticsearch.search.facet.AbstractFacetBuilder;
+import org.elasticsearch.search.facet.terms.TermsFacetBuilder;
 
 import java.io.IOException;
 import java.util.Map;
@@ -35,6 +38,8 @@ public class TermsStatsFacetBuilder extends AbstractFacetBuilder {
     private String keyField;
     private String valueField;
     private int size = -1;
+    private String regex;
+    private int regexFlags = 0;
     private TermsStatsFacet.ComparatorType comparatorType;
 
     private String script;
@@ -55,6 +60,22 @@ public class TermsStatsFacetBuilder extends AbstractFacetBuilder {
 
     public TermsStatsFacetBuilder valueField(String valueField) {
         this.valueField = valueField;
+        return this;
+    }
+
+    /**
+     * A regular expression to use in order to further filter terms.
+     */
+    public TermsStatsFacetBuilder regex(String regex) {
+        return regex(regex, 0);
+    }
+
+    /**
+     * A regular expression (with flags) to use in order to further filter terms.
+     */
+    public TermsStatsFacetBuilder regex(String regex, int flags) {
+        this.regex = regex;
+        this.regexFlags = flags;
         return this;
     }
 
@@ -138,6 +159,12 @@ public class TermsStatsFacetBuilder extends AbstractFacetBuilder {
             }
         }
 
+        if (regex != null) {
+            builder.field("regex", regex);
+            if (regexFlags != 0) {
+                builder.field("regex_flags", Regex.flagsToString(regexFlags));
+            }
+        }
         if (comparatorType != null) {
             builder.field("order", comparatorType.name().toLowerCase());
         }

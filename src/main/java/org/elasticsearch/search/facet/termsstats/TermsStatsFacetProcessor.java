@@ -21,6 +21,7 @@ package org.elasticsearch.search.facet.termsstats;
 
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.field.data.FieldDataType;
@@ -37,6 +38,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 public class TermsStatsFacetProcessor extends AbstractComponent implements FacetProcessor {
 
@@ -56,6 +58,8 @@ public class TermsStatsFacetProcessor extends AbstractComponent implements Facet
         String keyField = null;
         String valueField = null;
         int size = 10;
+        String regex = null;
+        String regexFlags = null;
         TermsStatsFacet.ComparatorType comparatorType = TermsStatsFacet.ComparatorType.COUNT;
         String scriptLang = null;
         String script = null;
@@ -85,6 +89,10 @@ public class TermsStatsFacetProcessor extends AbstractComponent implements Facet
                     if (parser.booleanValue()) {
                         size = 0; // indicates all terms
                     }
+                } else if ("regex".equals(currentFieldName)) {
+                    regex = parser.text();
+                } else if ("regex_flags".equals(currentFieldName) || "regexFlags".equals(currentFieldName)) {
+                    regexFlags = parser.text();
                 } else if ("order".equals(currentFieldName) || "comparator".equals(currentFieldName)) {
                     comparatorType = TermsStatsFacet.ComparatorType.fromString(parser.text());
                 } else if ("value_script".equals(currentFieldName)) {
@@ -95,6 +103,10 @@ public class TermsStatsFacetProcessor extends AbstractComponent implements Facet
             }
         }
 
+        Pattern pattern = null;
+        if (regex != null) {
+            pattern = Regex.compile(regex, regexFlags);
+        }
         if (keyField == null) {
             throw new FacetPhaseExecutionException(facetName, "[key_field] is required to be set for terms stats facet");
         }
@@ -119,7 +131,7 @@ public class TermsStatsFacetProcessor extends AbstractComponent implements Facet
             }
         }
 
-        return new TermsStatsStringFacetCollector(facetName, keyField, valueField, size, comparatorType, context, scriptLang, script, params);
+        return new TermsStatsStringFacetCollector(facetName, keyField, valueField, size, comparatorType, context, pattern, scriptLang, script, params);
     }
 
     @Override

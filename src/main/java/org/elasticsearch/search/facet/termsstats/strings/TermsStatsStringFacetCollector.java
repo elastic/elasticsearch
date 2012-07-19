@@ -34,6 +34,8 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
+import org.elasticsearch.search.facet.terms.strings.TermsStringFacetCollector.AggregatorValueProc;
+import org.elasticsearch.search.facet.terms.strings.TermsStringFacetCollector.StaticAggregatorValueProc;
 import org.elasticsearch.search.facet.termsstats.TermsStatsFacet;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -42,6 +44,8 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class TermsStatsStringFacetCollector extends AbstractFacetCollector {
 
@@ -68,7 +72,7 @@ public class TermsStatsStringFacetCollector extends AbstractFacetCollector {
     private final Aggregator aggregator;
 
     public TermsStatsStringFacetCollector(String facetName, String keyFieldName, String valueFieldName, int size, TermsStatsFacet.ComparatorType comparatorType,
-                                          SearchContext context, String scriptLang, String script, Map<String, Object> params) {
+                                          SearchContext context, Pattern pattern, String scriptLang, String script, Map<String, Object> params) {
         super(facetName);
         this.fieldDataCache = context.fieldDataCache();
         this.size = size;
@@ -94,10 +98,11 @@ public class TermsStatsStringFacetCollector extends AbstractFacetCollector {
             if (smartMappers == null || !smartMappers.hasMapper()) {
                 throw new ElasticSearchIllegalArgumentException("failed to find mappings for [" + valueFieldName + "]");
             }
+            
             this.valueFieldName = smartMappers.mapper().names().indexName();
             this.valueFieldDataType = smartMappers.mapper().fieldDataType();
             this.script = null;
-            this.aggregator = new Aggregator();
+            this.aggregator = new Aggregator(pattern);
         } else {
             this.valueFieldName = null;
             this.valueFieldDataType = null;
@@ -158,14 +163,27 @@ public class TermsStatsStringFacetCollector extends AbstractFacetCollector {
 
         final ExtTHashMap<String, InternalTermsStatsStringFacet.StringEntry> entries = CacheRecycler.popHashMap();
 
+        private final Matcher matcher;
+
         int missing = 0;
 
         NumericFieldData valueFieldData;
 
         ValueAggregator valueAggregator = new ValueAggregator();
 
-        @Override
+        public Aggregator() {
+            this.matcher = null;
+		}
+
+        public Aggregator(Pattern pattern) {
+            this.matcher = pattern != null ? pattern.matcher("") : null;
+		}
+
+		@Override
         public void onValue(int docId, String value) {
+            if (matcher != null && !matcher.reset(value).matches()) {
+                return;
+            }
             InternalTermsStatsStringFacet.StringEntry stringEntry = entries.get(value);
             if (stringEntry == null) {
                 stringEntry = new InternalTermsStatsStringFacet.StringEntry(value, 0, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);

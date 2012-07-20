@@ -26,6 +26,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.facet.datehistogram.DateHistogramFacet;
 import org.elasticsearch.search.facet.filter.FilterFacet;
@@ -1769,6 +1770,46 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
             facet = searchResponse.facets().facet("stats2");
             assertThat(facet.entries().size(), equalTo(10));
+        }
+    }
+
+    @Test
+    public void testTermsStatsFacetsWithRegex() throws Exception {
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().indices().prepareCreate("test").execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        for (int i = 0; i < 20; i++) {
+        	String value = (i < 10 ? "0" : "") + i % 2 + "" + i % 3 + "" + i;
+        	
+        	XContentBuilder xcb = XContentFactory.jsonBuilder();
+        	xcb.startObject().field("lat", 46.20715933).field("path", value).endObject();
+        	
+        	client.prepareIndex("test", "type1", Integer.toString(i)).setSource(xcb).execute().actionGet();
+        }
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        for (int i = 0; i < numberOfRuns(); i++) {
+            SearchResponse searchResponse = client.prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addFacet(termsStatsFacet("stats").regex("^00.*").keyField("path").valueField("lat"))
+                    .execute().actionGet();
+
+            if (searchResponse.failedShards() > 0) {
+                logger.warn("Failed shards:");
+                for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
+                    logger.warn("-> {}", shardSearchFailure);
+                }
+            }
+            assertThat(searchResponse.failedShards(), equalTo(0));
+            TermsStatsFacet facet = searchResponse.facets().facet("stats");
+            assertThat(facet.entries().size(), equalTo(7));
         }
     }
 

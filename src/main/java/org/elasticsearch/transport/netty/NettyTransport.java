@@ -31,6 +31,7 @@ import org.elasticsearch.common.io.stream.CachedStreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.netty.NettyStaticSetup;
 import org.elasticsearch.common.netty.OpenChannelsHandler;
+import org.elasticsearch.common.netty.PipelineFactories;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
@@ -119,13 +120,14 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
     private volatile OpenChannelsHandler serverOpenChannels;
 
+    private PipelineFactories pipelineFactories;
+
     private volatile ClientBootstrap clientBootstrap;
 
     private volatile ServerBootstrap serverBootstrap;
 
     // node id to actual channel
     final ConcurrentMap<DiscoveryNode, NodeChannels> connectedNodes = newConcurrentMap();
-
 
     private volatile Channel serverChannel;
 
@@ -136,18 +138,19 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     private final Object[] connectMutex;
 
     public NettyTransport(ThreadPool threadPool) {
-        this(EMPTY_SETTINGS, threadPool, new NetworkService(EMPTY_SETTINGS));
+        this(EMPTY_SETTINGS, threadPool, new NetworkService(EMPTY_SETTINGS), new PipelineFactories());
     }
 
     public NettyTransport(Settings settings, ThreadPool threadPool) {
-        this(settings, threadPool, new NetworkService(settings));
+        this(settings, threadPool, new NetworkService(settings), new PipelineFactories());
     }
 
     @Inject
-    public NettyTransport(Settings settings, ThreadPool threadPool, NetworkService networkService) {
+    public NettyTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, PipelineFactories pipelineFactories) {
         super(settings);
         this.threadPool = threadPool;
         this.networkService = networkService;
+        this.pipelineFactories = pipelineFactories;
 
         this.connectMutex = new Object[500];
         for (int i = 0; i < connectMutex.length; i++) {
@@ -202,14 +205,8 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                     Executors.newCachedThreadPool(daemonThreadFactory(settings, "transport_client_worker")),
                     workerCount));
         }
-        ChannelPipelineFactory clientPipelineFactory = new ChannelPipelineFactory() {
-            @Override
-            public ChannelPipeline getPipeline() throws Exception {
-                ChannelPipeline pipeline = Channels.pipeline();
-                pipeline.addLast("dispatcher", new MessageChannelHandler(NettyTransport.this, logger));
-                return pipeline;
-            }
-        };
+        ChannelPipelineFactory clientPipelineFactory = pipelineFactories.clientPipelineFactory(this, logger);
+
         clientBootstrap.setPipelineFactory(clientPipelineFactory);
         clientBootstrap.setOption("connectTimeoutMillis", connectTimeout.millis());
         if (tcpNoDelay != null) {
@@ -244,15 +241,8 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                     Executors.newCachedThreadPool(daemonThreadFactory(settings, "transport_server_worker")),
                     workerCount));
         }
-        ChannelPipelineFactory serverPipelineFactory = new ChannelPipelineFactory() {
-            @Override
-            public ChannelPipeline getPipeline() throws Exception {
-                ChannelPipeline pipeline = Channels.pipeline();
-                pipeline.addLast("openChannels", serverOpenChannels);
-                pipeline.addLast("dispatcher", new MessageChannelHandler(NettyTransport.this, logger));
-                return pipeline;
-            }
-        };
+        ChannelPipelineFactory serverPipelineFactory = pipelineFactories.serverPipelineFactory(this, serverOpenChannels, logger);
+
         serverBootstrap.setPipelineFactory(serverPipelineFactory);
         if (tcpNoDelay != null) {
             serverBootstrap.setOption("child.tcpNoDelay", tcpNoDelay);

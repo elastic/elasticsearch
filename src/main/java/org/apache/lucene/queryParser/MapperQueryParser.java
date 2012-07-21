@@ -31,7 +31,6 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 
@@ -548,7 +547,7 @@ public class MapperQueryParser extends QueryParser {
 
     @Override
     protected Query getWildcardQuery(String field, String termStr) throws ParseException {
-        if (AllFieldMapper.NAME.equals(field) && termStr.equals("*")) {
+        if ("*".equals(field) && termStr.equals("*")) {
             return newMatchAllDocsQuery();
         }
         Collection<String> fields = extractMultiFields(field);

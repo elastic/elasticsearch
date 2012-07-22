@@ -149,7 +149,7 @@ public class IncludeAllChildrenQuery extends Query {
         }
 
         @Override
-        protected void visitSubScorers(Query parent, BooleanClause.Occur relationship, ScorerVisitor<Query, Query, Scorer> visitor) {
+        public void visitSubScorers(Query parent, BooleanClause.Occur relationship, ScorerVisitor<Query, Query, Scorer> visitor) {
             super.visitSubScorers(parent, relationship, visitor);
             parentScorer.visitScorers(visitor);
         }

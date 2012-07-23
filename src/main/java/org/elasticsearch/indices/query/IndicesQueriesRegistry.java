@@ -57,6 +57,7 @@ public class IndicesQueriesRegistry {
         addQueryParser(queryParsers, new RangeQueryParser());
         addQueryParser(queryParsers, new PrefixQueryParser());
         addQueryParser(queryParsers, new WildcardQueryParser());
+        addQueryParser(queryParsers, new RegexQueryParser());
         addQueryParser(queryParsers, new FilteredQueryParser());
         addQueryParser(queryParsers, new ConstantScoreQueryParser());
         addQueryParser(queryParsers, new CustomBoostFactorQueryParser());

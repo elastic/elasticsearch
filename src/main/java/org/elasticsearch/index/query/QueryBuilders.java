@@ -312,6 +312,18 @@ public abstract class QueryBuilders {
     }
 
     /**
+     * Implements the regex search query. Note this query is extremely slow, as it
+     * needs to iterate over many terms. Use it only on percolation or on very small indices
+     *
+     * @param name  The field name
+     * @param query The regex query string
+     *
+    */
+    public static RegexQueryBuilder regexQuery(String name, String query) {
+      return new RegexQueryBuilder(name, query);
+    }
+
+    /**
      * A query that parses a query string and runs it. There are two modes that this operates. The first,
      * when no field is added (using {@link QueryStringQueryBuilder#field(String)}, will run the query once and non prefixed fields
      * will use the {@link QueryStringQueryBuilder#defaultField(String)} set. The second, when one or more fields are added

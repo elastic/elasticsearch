@@ -221,7 +221,9 @@ public class InternalIntTermsFacet extends InternalTermsFacet {
             missing += mFacet.missingCount();
             total += mFacet.totalCount();
             for (IntEntry entry : mFacet.entries) {
-                aggregated.adjustOrPutValue(entry.term, entry.count(), entry.count());
+                if (aggregated.adjustOrPutValue(entry.term, entry.count(), entry.count()) < 0) {
+                    aggregated.put(entry.term, Integer.MAX_VALUE);
+                }
             }
         }
 

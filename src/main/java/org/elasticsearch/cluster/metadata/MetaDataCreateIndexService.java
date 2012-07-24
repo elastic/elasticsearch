@@ -393,7 +393,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             if (mappingFile.isHidden()) {
                 continue;
             }
-            String mappingType = mappingFile.getName().substring(0, mappingFile.getName().lastIndexOf('.'));
+            int lastDotIndex = mappingFile.getName().lastIndexOf('.');
+            String mappingType = lastDotIndex != -1 ? mappingFile.getName().substring(0, lastDotIndex) : mappingFile.getName();
             try {
                 String mappingSource = Streams.copyToString(new FileReader(mappingFile));
                 if (mappings.containsKey(mappingType)) {

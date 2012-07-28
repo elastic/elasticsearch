@@ -19,7 +19,6 @@
 
 package org.elasticsearch.transport.netty;
 
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ChannelBufferBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -52,11 +51,7 @@ public class ChannelBufferStreamInput extends StreamInput {
     }
 
     @Override
-    public BytesReference readBytesReference() throws IOException {
-        int length = readVInt();
-        if (length == 0) {
-            return BytesArray.EMPTY;
-        }
+    public BytesReference readBytesReference(int length) throws IOException {
         ChannelBufferBytesReference ref = new ChannelBufferBytesReference(buffer.slice(buffer.readerIndex(), length));
         buffer.skipBytes(length);
         return ref;

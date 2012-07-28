@@ -19,6 +19,9 @@
 
 package org.elasticsearch.common.xcontent.support;
 
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentGenerator;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -175,6 +178,22 @@ public class XContentMapConverter {
             gen.writeBinary((byte[]) value);
         } else if (value instanceof Date) {
             gen.writeString(XContentBuilder.defaultDatePrinter.print(((Date) value).getTime()));
+        } else if (value instanceof BytesReference) {
+            BytesReference bytes = (BytesReference) value;
+            if (!bytes.hasArray()) {
+                bytes = bytes.toBytesArray();
+            }
+            gen.writeBinary(bytes.array(), bytes.arrayOffset(), bytes.length());
+        } else if (value instanceof Text) {
+            Text text = (Text) value;
+            if (text.hasBytes() && text.bytes().hasArray()) {
+                gen.writeUTF8String(text.bytes().array(), text.bytes().arrayOffset(), text.bytes().length());
+            } else if (text.hasString()) {
+                gen.writeString(text.string());
+            } else {
+                BytesArray bytesArray = text.bytes().toBytesArray();
+                gen.writeUTF8String(bytesArray.array(), bytesArray.arrayOffset(), bytesArray.length());
+            }
         } else {
             gen.writeString(value.toString());
         }

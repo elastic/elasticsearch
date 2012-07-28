@@ -21,6 +21,7 @@ package org.elasticsearch.common.io.stream;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.UTF8StreamWriter;
 import org.elasticsearch.common.text.Text;
 import org.joda.time.ReadableInstant;
 
@@ -35,6 +36,18 @@ import java.util.Map;
  *
  */
 public abstract class StreamOutput extends OutputStream {
+
+    public boolean seekPositionSupported() {
+        return false;
+    }
+
+    public long position() throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    public void seek(long position) throws IOException {
+        throw new UnsupportedOperationException();
+    }
 
     /**
      * Writes a single byte.
@@ -150,9 +163,23 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     public void writeText(Text text) throws IOException {
-        // always write the bytes...
-        // TODO: TextBytesOptimization we could potentially optimize this, and write the bytes directly to the output stream converting to UTF8 in case its a string
-        writeBytesReference(text.bytes());
+        if (!text.hasBytes() && seekPositionSupported()) {
+            long pos1 = position();
+            // make room for the size
+            seek(pos1 + 4);
+            UTF8StreamWriter utf8StreamWriter = CachedStreamOutput.utf8StreamWriter();
+            utf8StreamWriter.setOutput(this);
+            utf8StreamWriter.write(text.string());
+            utf8StreamWriter.close();
+            long pos2 = position();
+            seek(pos1);
+            writeInt((int) (pos2 - pos1 - 4));
+            seek(pos2);
+        } else {
+            BytesReference bytes = text.bytes();
+            writeInt(bytes.length());
+            bytes.writeTo(this);
+        }
     }
 
     public void writeString(String str) throws IOException {

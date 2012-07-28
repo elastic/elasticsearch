@@ -56,6 +56,14 @@ public abstract class StreamInput extends InputStream {
      */
     public BytesReference readBytesReference() throws IOException {
         int length = readVInt();
+        return readBytesReference(length);
+    }
+
+    /**
+     * Reads a bytes reference from this stream, might hold an actual reference to the underlying
+     * bytes of the stream.
+     */
+    public BytesReference readBytesReference(int length) throws IOException {
         if (length == 0) {
             return BytesArray.EMPTY;
         }
@@ -159,7 +167,8 @@ public abstract class StreamInput extends InputStream {
 
     public Text readText() throws IOException {
         // use StringAndBytes so we can cache the string if its ever converted to it
-        return new StringAndBytesText(readBytesReference());
+        int length = readInt();
+        return new StringAndBytesText(readBytesReference(length));
     }
 
     @Nullable

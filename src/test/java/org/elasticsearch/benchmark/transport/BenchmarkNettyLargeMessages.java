@@ -112,7 +112,7 @@ public class BenchmarkNettyLargeMessages {
         new Thread(new Runnable() {
             @Override
             public void run() {
-                for (int i = 0; i < NUMBER_OF_ITERATIONS; i++) {
+                for (int i = 0; i < 1; i++) {
                     BenchmarkMessage message = new BenchmarkMessage(2, Bytes.EMPTY_ARRAY);
                     long start = System.currentTimeMillis();
                     transportServiceClient.submitRequest(smallNode, "benchmark", message, options().withHighType(), new BaseTransportResponseHandler<BenchmarkMessage>() {

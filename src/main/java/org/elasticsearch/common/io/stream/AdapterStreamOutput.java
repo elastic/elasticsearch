@@ -44,6 +44,21 @@ public class AdapterStreamOutput extends StreamOutput {
     }
 
     @Override
+    public boolean seekPositionSupported() {
+        return out.seekPositionSupported();
+    }
+
+    @Override
+    public long position() throws IOException {
+        return out.position();
+    }
+
+    @Override
+    public void seek(long position) throws IOException {
+        out.seek(position);
+    }
+
+    @Override
     public void writeByte(byte b) throws IOException {
         out.writeByte(b);
     }

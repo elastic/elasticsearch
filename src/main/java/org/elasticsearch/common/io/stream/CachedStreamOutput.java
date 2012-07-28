@@ -21,6 +21,7 @@ package org.elasticsearch.common.io.stream;
 
 import jsr166y.LinkedTransferQueue;
 import org.elasticsearch.common.compress.Compressor;
+import org.elasticsearch.common.io.UTF8StreamWriter;
 
 import java.io.IOException;
 import java.lang.ref.SoftReference;
@@ -131,5 +132,18 @@ public class CachedStreamOutput {
         } else {
             ref.add(entry);
         }
+    }
+
+    private static ThreadLocal<SoftReference<UTF8StreamWriter>> utf8StreamWriter = new ThreadLocal<SoftReference<UTF8StreamWriter>>();
+
+    public static UTF8StreamWriter utf8StreamWriter() {
+        SoftReference<UTF8StreamWriter> ref = utf8StreamWriter.get();
+        UTF8StreamWriter writer = (ref == null) ? null : ref.get();
+        if (writer == null) {
+            writer = new UTF8StreamWriter(1024 * 4);
+            utf8StreamWriter.set(new SoftReference<UTF8StreamWriter>(writer));
+        }
+        writer.reset();
+        return writer;
     }
 }

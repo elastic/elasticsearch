@@ -34,6 +34,7 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.lang.management.*;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -54,6 +55,8 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
     private final static MemoryMXBean memoryMXBean;
     private final static ThreadMXBean threadMXBean;
 
+    private static Method managementFactoryPlatformMXBeansMethod;
+
     private static Method getLastGcInfoMethod;
     private static Method getMemoryUsageBeforeGcMethod;
     private static Method getMemoryUsageAfterGcMethod;
@@ -61,10 +64,35 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
     private static Method getEndTimeMethod;
     private static Method getDurationMethod;
 
+    private static boolean bufferPoolsEnabled;
+    private static Class bufferPoolMXBeanClass;
+    private static Method bufferPoolMXBeanNameMethod;
+    private static Method bufferPoolMXBeanCountMethod;
+    private static Method bufferPoolMXBeanTotalCapacityMethod;
+    private static Method bufferPoolMXBeanMemoryUsedMethod;
+
     static {
         runtimeMXBean = ManagementFactory.getRuntimeMXBean();
         memoryMXBean = ManagementFactory.getMemoryMXBean();
         threadMXBean = ManagementFactory.getThreadMXBean();
+
+        try {
+            managementFactoryPlatformMXBeansMethod = ManagementFactory.class.getMethod("getPlatformMXBeans", Class.class);
+        } catch (Throwable e) {
+            managementFactoryPlatformMXBeansMethod = null;
+        }
+
+
+        try {
+            bufferPoolMXBeanClass = Class.forName("java.lang.management.BufferPoolMXBean");
+            bufferPoolMXBeanNameMethod = bufferPoolMXBeanClass.getMethod("getName");
+            bufferPoolMXBeanCountMethod = bufferPoolMXBeanClass.getMethod("getCount");
+            bufferPoolMXBeanTotalCapacityMethod = bufferPoolMXBeanClass.getMethod("getTotalCapacity");
+            bufferPoolMXBeanMemoryUsedMethod = bufferPoolMXBeanClass.getMethod("getMemoryUsed");
+            bufferPoolsEnabled = true;
+        } catch (Throwable t) {
+            bufferPoolsEnabled = false;
+        }
 
         JvmInfo info = JvmInfo.jvmInfo();
         boolean defaultEnableLastGc = false;
@@ -171,6 +199,23 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
             }
         }
 
+
+        if (bufferPoolsEnabled) {
+            try {
+                List bufferPools = (List) managementFactoryPlatformMXBeansMethod.invoke(null, bufferPoolMXBeanClass);
+                stats.bufferPools = new ArrayList<BufferPool>(bufferPools.size());
+                for (Object bufferPool : bufferPools) {
+                    String name = (String) bufferPoolMXBeanNameMethod.invoke(bufferPool);
+                    Long count = (Long) bufferPoolMXBeanCountMethod.invoke(bufferPool);
+                    Long totalCapacity = (Long) bufferPoolMXBeanTotalCapacityMethod.invoke(bufferPool);
+                    Long memoryUsed = (Long) bufferPoolMXBeanMemoryUsedMethod.invoke(bufferPool);
+                    stats.bufferPools.add(new BufferPool(name, count, totalCapacity, memoryUsed));
+                }
+            } catch (Throwable t) {
+                //t.printStackTrace();
+            }
+        }
+
         return stats;
     }
 
@@ -183,6 +228,8 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
     Threads threads;
 
     GarbageCollectors gc;
+
+    List<BufferPool> bufferPools;
 
     private JvmStats() {
     }
@@ -252,7 +299,7 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
 
             builder.startObject(Fields.POOLS);
             for (MemoryPool pool : mem) {
-                builder.startObject(pool.name());
+                builder.startObject(pool.name(), XContentBuilder.FieldCaseConversion.NONE);
                 builder.field(Fields.USED, pool.used().toString());
                 builder.field(Fields.USED_IN_BYTES, pool.used);
                 builder.field(Fields.MAX, pool.max().toString());
@@ -283,7 +330,7 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
 
             builder.startObject(Fields.COLLECTORS);
             for (GarbageCollector collector : gc) {
-                builder.startObject(collector.name());
+                builder.startObject(collector.name(), XContentBuilder.FieldCaseConversion.NONE);
                 builder.field(Fields.COLLECTION_COUNT, collector.collectionCount());
                 builder.field(Fields.COLLECTION_TIME, collector.collectionTime().format());
                 builder.field(Fields.COLLECTION_TIME_IN_MILLIS, collector.collectionTime().millis());
@@ -293,6 +340,21 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
 
             builder.endObject();
         }
+
+        if (bufferPools != null) {
+            builder.startObject(Fields.BUFFER_POOLS);
+            for (BufferPool bufferPool : bufferPools) {
+                builder.startObject(bufferPool.name(), XContentBuilder.FieldCaseConversion.NONE);
+                builder.field(Fields.COUNT, bufferPool.count());
+                builder.field(Fields.USED, bufferPool.used().toString());
+                builder.field(Fields.USED_IN_BYTES, bufferPool.used);
+                builder.field(Fields.TOTAL_CAPACITY, bufferPool.totalCapacity().toString());
+                builder.field(Fields.TOTAL_CAPACITY_IN_BYTES, bufferPool.totalCapacity);
+                builder.endObject();
+            }
+            builder.endObject();
+        }
+
         builder.endObject();
         return builder;
     }
@@ -333,6 +395,11 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
         static final XContentBuilderString COLLECTION_COUNT = new XContentBuilderString("collection_count");
         static final XContentBuilderString COLLECTION_TIME = new XContentBuilderString("collection_time");
         static final XContentBuilderString COLLECTION_TIME_IN_MILLIS = new XContentBuilderString("collection_time_in_millis");
+
+        static final XContentBuilderString BUFFER_POOLS = new XContentBuilderString("buffer_pools");
+        static final XContentBuilderString NAME = new XContentBuilderString("name");
+        static final XContentBuilderString TOTAL_CAPACITY = new XContentBuilderString("total_capacity");
+        static final XContentBuilderString TOTAL_CAPACITY_IN_BYTES = new XContentBuilderString("total_capacity_in_bytes");
     }
 
 
@@ -350,6 +417,16 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
         mem = Mem.readMem(in);
         threads = Threads.readThreads(in);
         gc = GarbageCollectors.readGarbageCollectors(in);
+
+        if (in.readBoolean()) {
+            int size = in.readVInt();
+            bufferPools = new ArrayList<BufferPool>(size);
+            for (int i = 0; i < size; i++) {
+                BufferPool bufferPool = new BufferPool();
+                bufferPool.readFrom(in);
+                bufferPools.add(bufferPool);
+            }
+        }
     }
 
     @Override
@@ -360,6 +437,16 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
         mem.writeTo(out);
         threads.writeTo(out);
         gc.writeTo(out);
+
+        if (bufferPools == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeVInt(bufferPools.size());
+            for (BufferPool bufferPool : bufferPools) {
+                bufferPool.writeTo(out);
+            }
+        }
     }
 
     public static class GarbageCollectors implements Streamable, Serializable, Iterable<GarbageCollector> {
@@ -801,6 +888,72 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
 
         public ByteSizeValue getNonHeapUsed() {
             return nonHeapUsed();
+        }
+    }
+
+    public static class BufferPool implements Streamable {
+
+        String name;
+        long count;
+        long totalCapacity;
+        long used;
+
+        BufferPool() {
+        }
+
+        public BufferPool(String name, long count, long totalCapacity, long used) {
+            this.name = name;
+            this.count = count;
+            this.totalCapacity = totalCapacity;
+            this.used = used;
+        }
+
+        public String name() {
+            return this.name;
+        }
+
+        public String getName() {
+            return this.name;
+        }
+
+        public long count() {
+            return this.count;
+        }
+
+        public long getCount() {
+            return this.count;
+        }
+
+        public ByteSizeValue totalCapacity() {
+            return new ByteSizeValue(totalCapacity);
+        }
+
+        public ByteSizeValue getTotalCapacity() {
+            return totalCapacity();
+        }
+
+        public ByteSizeValue used() {
+            return new ByteSizeValue(used);
+        }
+
+        public ByteSizeValue getUsed() {
+            return used();
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            name = in.readString();
+            count = in.readLong();
+            totalCapacity = in.readLong();
+            used = in.readLong();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(name);
+            out.writeLong(count);
+            out.writeLong(totalCapacity);
+            out.writeLong(used);
         }
     }
 }

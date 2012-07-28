@@ -22,6 +22,8 @@ package org.elasticsearch.common.io.stream;
 import jsr166y.LinkedTransferQueue;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.io.UTF8StreamWriter;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.io.IOException;
 import java.lang.ref.SoftReference;
@@ -96,7 +98,28 @@ public class CachedStreamOutput {
     private static final SoftWrapper<Queue<Entry>> cache = new SoftWrapper<Queue<Entry>>();
     private static final AtomicInteger counter = new AtomicInteger();
     public static int BYTES_LIMIT = 1 * 1024 * 1024; // don't cache entries that are bigger than that...
-    public static int COUNT_LIMIT = 100;
+    public static int COUNT_LIMIT = 100; // number of concurrent entries cached
+
+    static {
+        // guess the maximum size per entry and the maximum number of entries based on the heap size
+        long maxHeap = JvmInfo.jvmInfo().mem().heapMax().bytes();
+        if (maxHeap < ByteSizeValue.parseBytesSizeValue("500mb").bytes()) {
+            BYTES_LIMIT = (int) ByteSizeValue.parseBytesSizeValue("500kb").bytes();
+            COUNT_LIMIT = 10;
+        } else if (maxHeap < ByteSizeValue.parseBytesSizeValue("1gb").bytes()) {
+            BYTES_LIMIT = (int) ByteSizeValue.parseBytesSizeValue("1mb").bytes();
+            COUNT_LIMIT = 20;
+        } else if (maxHeap < ByteSizeValue.parseBytesSizeValue("4gb").bytes()) {
+            BYTES_LIMIT = (int) ByteSizeValue.parseBytesSizeValue("2mb").bytes();
+            COUNT_LIMIT = 50;
+        } else if (maxHeap < ByteSizeValue.parseBytesSizeValue("10gb").bytes()) {
+            BYTES_LIMIT = (int) ByteSizeValue.parseBytesSizeValue("5mb").bytes();
+            COUNT_LIMIT = 50;
+        } else {
+            BYTES_LIMIT = (int) ByteSizeValue.parseBytesSizeValue("10mb").bytes();
+            COUNT_LIMIT = 100;
+        }
+    }
 
     public static void clear() {
         cache.clear();

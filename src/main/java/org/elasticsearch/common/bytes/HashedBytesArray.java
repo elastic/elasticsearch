@@ -24,6 +24,8 @@ import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.jboss.netty.buffer.ChannelBuffer;
+import org.jboss.netty.buffer.ChannelBuffers;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -91,6 +93,11 @@ public class HashedBytesArray implements BytesReference {
         byte[] copy = new byte[bytes.length];
         System.arraycopy(bytes, 0, copy, 0, bytes.length);
         return new BytesArray(copy);
+    }
+
+    @Override
+    public ChannelBuffer toChannelBuffer() {
+        return ChannelBuffers.wrappedBuffer(bytes, 0, bytes.length);
     }
 
     @Override

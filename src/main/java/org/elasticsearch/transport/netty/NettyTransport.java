@@ -25,7 +25,6 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.CachedStreamOutput;
@@ -47,7 +46,6 @@ import org.elasticsearch.transport.support.TransportStreams;
 import org.jboss.netty.bootstrap.ClientBootstrap;
 import org.jboss.netty.bootstrap.ServerBootstrap;
 import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.channel.*;
 import org.jboss.netty.channel.socket.nio.NioClientSocketChannelFactory;
 import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
@@ -481,8 +479,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
         CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
         TransportStreams.buildRequest(cachedEntry, requestId, action, message, options);
-        BytesReference bytes = cachedEntry.bytes().bytes();
-        ChannelBuffer buffer = ChannelBuffers.wrappedBuffer(bytes.array(), bytes.arrayOffset(), bytes.length());
+        ChannelBuffer buffer = cachedEntry.bytes().bytes().toChannelBuffer();
         ChannelFuture future = targetChannel.write(buffer);
         future.addListener(new CacheFutureListener(cachedEntry));
         // We handle close connection exception in the #exceptionCaught method, which is the main reason we want to add this future

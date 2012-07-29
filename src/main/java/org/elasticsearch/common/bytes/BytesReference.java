@@ -20,6 +20,7 @@
 package org.elasticsearch.common.bytes;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.jboss.netty.buffer.ChannelBuffer;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -68,6 +69,11 @@ public interface BytesReference {
      * Returns the bytes copied over as a byte array.
      */
     BytesArray copyBytesArray();
+
+    /**
+     * Returns the bytes as a channel buffer.
+     */
+    ChannelBuffer toChannelBuffer();
 
     /**
      * Is there an underlying byte array for this bytes reference.

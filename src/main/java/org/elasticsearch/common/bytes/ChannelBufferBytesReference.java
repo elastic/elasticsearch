@@ -83,6 +83,11 @@ public class ChannelBufferBytesReference implements BytesReference {
     }
 
     @Override
+    public ChannelBuffer toChannelBuffer() {
+        return buffer.duplicate();
+    }
+
+    @Override
     public boolean hasArray() {
         return buffer.hasArray();
     }

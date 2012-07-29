@@ -19,7 +19,6 @@
 
 package org.elasticsearch.transport.netty;
 
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.ThrowableObjectOutputStream;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.CachedStreamOutput;
@@ -30,7 +29,6 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponseOptions;
 import org.elasticsearch.transport.support.TransportStreams;
 import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelFuture;
 
@@ -76,8 +74,7 @@ public class NettyTransportChannel implements TransportChannel {
         }
         CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
         TransportStreams.buildResponse(cachedEntry, requestId, message, options);
-        BytesReference bytes = cachedEntry.bytes().bytes();
-        ChannelBuffer buffer = ChannelBuffers.wrappedBuffer(bytes.array(), bytes.arrayOffset(), bytes.length());
+        ChannelBuffer buffer = cachedEntry.bytes().bytes().toChannelBuffer();
         ChannelFuture future = channel.write(buffer);
         future.addListener(new NettyTransport.CacheFutureListener(cachedEntry));
     }
@@ -102,8 +99,7 @@ public class NettyTransportChannel implements TransportChannel {
             too.writeObject(tx);
             too.close();
         }
-        BytesReference bytes = stream.bytes();
-        ChannelBuffer buffer = ChannelBuffers.wrappedBuffer(bytes.array(), bytes.arrayOffset(), bytes.length());
+        ChannelBuffer buffer = stream.bytes().toChannelBuffer();
         buffer.setInt(0, buffer.writerIndex() - 4); // update real size.
         ChannelFuture future = channel.write(buffer);
         future.addListener(new NettyTransport.CacheFutureListener(cachedEntry));

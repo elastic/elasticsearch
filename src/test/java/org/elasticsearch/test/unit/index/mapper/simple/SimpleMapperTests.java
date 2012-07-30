@@ -120,4 +120,19 @@ public class SimpleMapperTests {
         DocumentMapper builtDocMapper = MapperTests.newParser().parse(builtMapping);
         assertThat((String) builtDocMapper.meta().get("param1"), equalTo("value1"));
     }
+
+    @Test
+    public void testLimit() throws Exception {
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/mapper/simple/test-mapping.json");
+        DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
+        String builtMapping = docMapper.mappingSource().string();
+
+        // reparse it
+        DocumentMapper builtDocMapper = MapperTests.newParser().parse(builtMapping);
+        BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/mapper/simple/test1.json"));
+        Document doc = builtDocMapper.parse(json).rootDoc();
+        assertThat(doc.get(docMapper.uidMapper().names().indexName()), equalTo(Uid.createUid("person", "1")));
+        assertThat(doc.getValues("cats").length, equalTo(1));
+        assertThat(doc.getValues("cats")[0], equalTo("felix"));
+    }
 }

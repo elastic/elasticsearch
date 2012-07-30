@@ -18,6 +18,7 @@
         birthDate:"1977-11-15",
         nerd:true,
         dogs:["buck", "mia"],
+        cats:["name to long for a cat", "felix"],
         complex:[
             {
                 value1:"value1"

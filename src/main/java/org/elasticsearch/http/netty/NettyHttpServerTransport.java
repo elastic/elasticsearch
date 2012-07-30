@@ -92,6 +92,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
 
     private final ByteSizeValue tcpSendBufferSize;
     private final ByteSizeValue tcpReceiveBufferSize;
+    private final ReceiveBufferSizePredictorFactory receiveBufferSizePredictorFactory;
 
     final ByteSizeValue maxCumulationBufferCapacity;
     final int maxCompositeBufferComponents;
@@ -129,6 +130,15 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         this.reuseAddress = componentSettings.getAsBoolean("reuse_address", settings.getAsBoolean(TCP_REUSE_ADDRESS, NetworkUtils.defaultReuseAddress()));
         this.tcpSendBufferSize = componentSettings.getAsBytesSize("tcp_send_buffer_size", settings.getAsBytesSize(TCP_SEND_BUFFER_SIZE, TCP_DEFAULT_SEND_BUFFER_SIZE));
         this.tcpReceiveBufferSize = componentSettings.getAsBytesSize("tcp_receive_buffer_size", settings.getAsBytesSize(TCP_RECEIVE_BUFFER_SIZE, TCP_DEFAULT_RECEIVE_BUFFER_SIZE));
+
+        // See AdaptiveReceiveBufferSizePredictor#DEFAULT_XXX for default values in netty..., we can use higher ones for us, even fixed one
+        ByteSizeValue receivePredictorMin = componentSettings.getAsBytesSize("receive_predictor_min", componentSettings.getAsBytesSize("receive_predictor_size", ByteSizeValue.parseBytesSizeValue("512k")));
+        ByteSizeValue receivePredictorMax = componentSettings.getAsBytesSize("receive_predictor_max", componentSettings.getAsBytesSize("receive_predictor_size", ByteSizeValue.parseBytesSizeValue("512k")));
+        if (receivePredictorMax.bytes() == receivePredictorMin.bytes()) {
+            receiveBufferSizePredictorFactory = new FixedReceiveBufferSizePredictorFactory((int) receivePredictorMax.bytes());
+        } else {
+            receiveBufferSizePredictorFactory = new AdaptiveReceiveBufferSizePredictorFactory((int) receivePredictorMin.bytes(), (int) receivePredictorMin.bytes(), (int) receivePredictorMax.bytes());
+        }
 
         this.compression = settings.getAsBoolean("http.compression", false);
         this.compressionLevel = settings.getAsInt("http.compression_level", 6);
@@ -178,6 +188,8 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         if (tcpReceiveBufferSize != null && tcpReceiveBufferSize.bytes() > 0) {
             serverBootstrap.setOption("child.receiveBufferSize", tcpReceiveBufferSize.bytes());
         }
+        serverBootstrap.setOption("receiveBufferSizePredictorFactory", receiveBufferSizePredictorFactory);
+        serverBootstrap.setOption("child.receiveBufferSizePredictorFactory", receiveBufferSizePredictorFactory);
         if (reuseAddress != null) {
             serverBootstrap.setOption("reuseAddress", reuseAddress);
             serverBootstrap.setOption("child.reuseAddress", reuseAddress);

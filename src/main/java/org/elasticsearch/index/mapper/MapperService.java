@@ -114,6 +114,9 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             } catch (FailedToResolveConfigException e) {
                 // not there, default to the built in one
                 defaultMappingUrl = indexSettings.getClassLoader().getResource("org/elasticsearch/index/mapper/default-mapping.json");
+                if (defaultMappingUrl == null) {
+                    defaultMappingUrl = MapperService.class.getClassLoader().getResource("org/elasticsearch/index/mapper/default-mapping.json");
+                }
             }
         } else {
             try {
@@ -128,10 +131,18 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             }
         }
 
-        try {
-            defaultMappingSource = Streams.copyToString(new InputStreamReader(defaultMappingUrl.openStream(), Charsets.UTF_8));
-        } catch (IOException e) {
-            throw new MapperException("Failed to load default mapping source from [" + defaultMappingLocation + "]", e);
+        if (defaultMappingUrl == null) {
+            logger.info("failed to find default-mapping.json in the classpath, using the default template");
+            defaultMappingSource = "{\n" +
+                    "    \"_default_\":{\n" +
+                    "    }\n" +
+                    "}";
+        } else {
+            try {
+                defaultMappingSource = Streams.copyToString(new InputStreamReader(defaultMappingUrl.openStream(), Charsets.UTF_8));
+            } catch (IOException e) {
+                throw new MapperException("Failed to load default mapping source from [" + defaultMappingLocation + "]", e);
+            }
         }
 
         logger.debug("using dynamic[{}], default mapping: default_mapping_location[{}], loaded_from[{}] and source[{}]", dynamic, defaultMappingLocation, defaultMappingUrl, defaultMappingSource);

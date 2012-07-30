@@ -108,6 +108,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
     final ByteSizeValue tcpSendBufferSize;
     final ByteSizeValue tcpReceiveBufferSize;
+    final ReceiveBufferSizePredictorFactory receiveBufferSizePredictorFactory;
 
     final int connectionsPerNodeLow;
     final int connectionsPerNodeMed;
@@ -175,6 +176,15 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         this.maxCumulationBufferCapacity = componentSettings.getAsBytesSize("max_cumulation_buffer_capacity", null);
         this.maxCompositeBufferComponents = componentSettings.getAsInt("max_composite_buffer_components", -1);
 
+        // See AdaptiveReceiveBufferSizePredictor#DEFAULT_XXX for default values in netty..., we can use higher ones for us, even fixed one
+        ByteSizeValue receivePredictorMin = componentSettings.getAsBytesSize("receive_predictor_min", componentSettings.getAsBytesSize("receive_predictor_size", ByteSizeValue.parseBytesSizeValue("512k")));
+        ByteSizeValue receivePredictorMax = componentSettings.getAsBytesSize("receive_predictor_max", componentSettings.getAsBytesSize("receive_predictor_size", ByteSizeValue.parseBytesSizeValue("512k")));
+        if (receivePredictorMax.bytes() == receivePredictorMin.bytes()) {
+            receiveBufferSizePredictorFactory = new FixedReceiveBufferSizePredictorFactory((int) receivePredictorMax.bytes());
+        } else {
+            receiveBufferSizePredictorFactory = new AdaptiveReceiveBufferSizePredictorFactory((int) receivePredictorMin.bytes(), (int) receivePredictorMin.bytes(), (int) receivePredictorMax.bytes());
+        }
+
         logger.debug("using worker_count[{}], port[{}], bind_host[{}], publish_host[{}], compress[{}], connect_timeout[{}], connections_per_node[{}/{}/{}]",
                 workerCount, port, bindHost, publishHost, compress, connectTimeout, connectionsPerNodeLow, connectionsPerNodeMed, connectionsPerNodeHigh);
     }
@@ -240,6 +250,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         if (tcpReceiveBufferSize != null && tcpReceiveBufferSize.bytes() > 0) {
             clientBootstrap.setOption("receiveBufferSize", tcpReceiveBufferSize.bytes());
         }
+        clientBootstrap.setOption("receiveBufferSizePredictorFactory", receiveBufferSizePredictorFactory);
         if (reuseAddress != null) {
             clientBootstrap.setOption("reuseAddress", reuseAddress);
         }
@@ -294,6 +305,8 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         if (tcpReceiveBufferSize != null && tcpReceiveBufferSize.bytes() > 0) {
             serverBootstrap.setOption("child.receiveBufferSize", tcpReceiveBufferSize.bytes());
         }
+        serverBootstrap.setOption("receiveBufferSizePredictorFactory", receiveBufferSizePredictorFactory);
+        serverBootstrap.setOption("child.receiveBufferSizePredictorFactory", receiveBufferSizePredictorFactory);
         if (reuseAddress != null) {
             serverBootstrap.setOption("reuseAddress", reuseAddress);
             serverBootstrap.setOption("child.reuseAddress", reuseAddress);

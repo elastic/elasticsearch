@@ -71,11 +71,6 @@
                 type:"string",
                 index_name:"dog"
             },
-            cats:{
-                type:"string",
-                index_name:"cats",
-                limit:10
-            },
             complex:{
                 type:"object",
                 properties:{

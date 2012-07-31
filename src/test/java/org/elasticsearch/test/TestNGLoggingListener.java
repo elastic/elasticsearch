@@ -54,7 +54,7 @@ public class TestNGLoggingListener implements ITestListener {
 
     @Override
     public void onTestFailure(ITestResult result) {
-        logger.error("==> Test Success [{}]", extractTestName(result));
+        logger.error("==> Test Failure [{}]", extractTestName(result));
     }
 
     @Override

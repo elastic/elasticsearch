@@ -36,17 +36,28 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final boolean outputUnigrams;
 
+    private Boolean outputUnigramsIfNoShingles;
+
+    private String tokenSeparator;
+
+    private int minShingleSize;
+
     @Inject
     public ShingleTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
         maxShingleSize = settings.getAsInt("max_shingle_size", ShingleFilter.DEFAULT_MAX_SHINGLE_SIZE);
+        minShingleSize = settings.getAsInt("min_shingle_size", ShingleFilter.DEFAULT_MIN_SHINGLE_SIZE);
         outputUnigrams = settings.getAsBoolean("output_unigrams", true);
+        outputUnigramsIfNoShingles = settings.getAsBoolean("output_unigrams_if_no_shingles", false);
+        tokenSeparator = settings.get("token_separator", ShingleFilter.TOKEN_SEPARATOR);
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        ShingleFilter filter = new ShingleFilter(tokenStream, maxShingleSize);
+        ShingleFilter filter = new ShingleFilter(tokenStream, maxShingleSize, minShingleSize);
         filter.setOutputUnigrams(outputUnigrams);
+        filter.setOutputUnigramsIfNoShingles(outputUnigramsIfNoShingles);
+        filter.setTokenSeparator(tokenSeparator);
         return filter;
     }
 }

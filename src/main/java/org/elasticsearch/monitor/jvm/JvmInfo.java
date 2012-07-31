@@ -67,6 +67,12 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
         info.mem.heapMax = memoryMXBean.getHeapMemoryUsage().getMax() < 0 ? 0 : memoryMXBean.getHeapMemoryUsage().getMax();
         info.mem.nonHeapInit = memoryMXBean.getNonHeapMemoryUsage().getInit() < 0 ? 0 : memoryMXBean.getNonHeapMemoryUsage().getInit();
         info.mem.nonHeapMax = memoryMXBean.getNonHeapMemoryUsage().getMax() < 0 ? 0 : memoryMXBean.getNonHeapMemoryUsage().getMax();
+        try {
+            Class<?> vmClass = Class.forName("sun.misc.VM");
+            info.mem.directMemoryMax = (Long) vmClass.getMethod("maxDirectMemory").invoke(null);
+        } catch (Throwable t) {
+            // ignore
+        }
         info.inputArguments = runtimeMXBean.getInputArguments().toArray(new String[runtimeMXBean.getInputArguments().size()]);
         info.bootClassPath = runtimeMXBean.getBootClassPath();
         info.classPath = runtimeMXBean.getClassPath();
@@ -276,6 +282,8 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
         builder.field(Fields.NON_HEAP_INIT_IN_BYTES, mem.nonHeapInit);
         builder.field(Fields.NON_HEAP_MAX, mem.nonHeapMax().toString());
         builder.field(Fields.NON_HEAP_MAX_IN_BYTES, mem.nonHeapMax);
+        builder.field(Fields.DIRECT_MAX, mem.directMemoryMax().toString());
+        builder.field(Fields.DIRECT_MAX_IN_BYTES, mem.directMemoryMax().bytes());
         builder.endObject();
 
         builder.endObject();
@@ -300,6 +308,8 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
         static final XContentBuilderString NON_HEAP_INIT_IN_BYTES = new XContentBuilderString("non_heap_init_in_bytes");
         static final XContentBuilderString NON_HEAP_MAX = new XContentBuilderString("non_heap_max");
         static final XContentBuilderString NON_HEAP_MAX_IN_BYTES = new XContentBuilderString("non_heap_max_in_bytes");
+        static final XContentBuilderString DIRECT_MAX = new XContentBuilderString("direct_max");
+        static final XContentBuilderString DIRECT_MAX_IN_BYTES = new XContentBuilderString("direct_max_in_bytes");
     }
 
     public static JvmInfo readJvmInfo(StreamInput in) throws IOException {
@@ -359,6 +369,7 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
         long heapMax = 0;
         long nonHeapInit = 0;
         long nonHeapMax = 0;
+        long directMemoryMax = 0;
 
         Mem() {
         }
@@ -395,6 +406,14 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
             return nonHeapMax();
         }
 
+        public ByteSizeValue directMemoryMax() {
+            return new ByteSizeValue(directMemoryMax);
+        }
+
+        public ByteSizeValue getDirectMemoryMax() {
+            return directMemoryMax();
+        }
+
         public static Mem readMem(StreamInput in) throws IOException {
             Mem mem = new Mem();
             mem.readFrom(in);
@@ -407,6 +426,7 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
             heapMax = in.readVLong();
             nonHeapInit = in.readVLong();
             nonHeapMax = in.readVLong();
+            directMemoryMax = in.readVLong();
         }
 
         @Override
@@ -415,6 +435,7 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
             out.writeVLong(heapMax);
             out.writeVLong(nonHeapInit);
             out.writeVLong(nonHeapMax);
+            out.writeVLong(directMemoryMax);
         }
     }
 }

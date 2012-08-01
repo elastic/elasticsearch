@@ -264,6 +264,7 @@ public class UpdateTests extends AbstractNodesTests {
 
         // check TTL update
         client.prepareUpdate("test", "type1", "2").setScript("ctx._ttl = 3600000").execute().actionGet();
+        Thread.sleep(1);
         getResponse = client.prepareGet("test", "type1", "2").setFields("_ttl").execute().actionGet();
         ttl = ((Number) getResponse.field("_ttl").value()).longValue();
         assertThat(ttl, greaterThan(0L));

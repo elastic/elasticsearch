@@ -19,8 +19,6 @@
 
 package org.elasticsearch.test.unit.index.analysis;
 
-import java.io.IOException;
-
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.common.inject.Injector;
@@ -39,7 +37,10 @@ import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.testng.Assert;
 
-public class AnalysisHelper {
+import java.io.IOException;
+
+public class AnalysisTestsHelper {
+
     public static AnalysisService createAnalysisServiceFromClassPath(String resource) {
         Settings settings = ImmutableSettings.settingsBuilder()
                 .loadFromClasspath(resource).build();

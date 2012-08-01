@@ -19,12 +19,6 @@
 
 package org.elasticsearch.test.unit.index.analysis;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.instanceOf;
-
-import java.io.IOException;
-import java.io.StringReader;
-
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.WhitespaceTokenizer;
 import org.apache.lucene.util.Version;
@@ -33,39 +27,46 @@ import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.testng.annotations.Test;
 
-public class ShingleTokenFilterFactoryTest {
+import java.io.IOException;
+import java.io.StringReader;
+
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.instanceOf;
+
+public class ShingleTokenFilterFactoryTests {
+
     private static final String RESOURCE = "org/elasticsearch/test/unit/index/analysis/shingle_analysis.json";
 
     @Test
     public void testDefault() throws IOException {
-        AnalysisService analysisService = AnalysisHelper.createAnalysisServiceFromClassPath(RESOURCE);
+        AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromClassPath(RESOURCE);
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("shingle");
         String source = "the quick brown fox";
-        String[] expected = new String[] { "the", "the quick", "quick", "quick brown", "brown", "brown fox", "fox" };
+        String[] expected = new String[]{"the", "the quick", "quick", "quick brown", "brown", "brown fox", "fox"};
         Tokenizer tokenizer = new WhitespaceTokenizer(Version.LUCENE_36, new StringReader(source));
-        AnalysisHelper.assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);
+        AnalysisTestsHelper.assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);
     }
 
     @Test
     public void testInverseMapping() throws IOException {
-        AnalysisService analysisService = AnalysisHelper.createAnalysisServiceFromClassPath(RESOURCE);
+        AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromClassPath(RESOURCE);
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("shingle_inverse");
         assertThat(tokenFilter, instanceOf(ShingleTokenFilterFactory.class));
         String source = "the quick brown fox";
-        String[] expected = new String[] { "the_quick_brown", "quick_brown_fox" };
+        String[] expected = new String[]{"the_quick_brown", "quick_brown_fox"};
         Tokenizer tokenizer = new WhitespaceTokenizer(Version.LUCENE_36, new StringReader(source));
-        AnalysisHelper.assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);
+        AnalysisTestsHelper.assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);
     }
 
     @Test
     public void testInverseMappingNoShingles() throws IOException {
-        AnalysisService analysisService = AnalysisHelper.createAnalysisServiceFromClassPath(RESOURCE);
+        AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromClassPath(RESOURCE);
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("shingle_inverse");
         assertThat(tokenFilter, instanceOf(ShingleTokenFilterFactory.class));
         String source = "the quick";
-        String[] expected = new String[] { "the", "quick" };
+        String[] expected = new String[]{"the", "quick"};
         Tokenizer tokenizer = new WhitespaceTokenizer(Version.LUCENE_36, new StringReader(source));
-        AnalysisHelper.assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);
+        AnalysisTestsHelper.assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);
     }
 
 }

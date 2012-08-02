@@ -161,7 +161,7 @@ public class UpdateTests extends AbstractNodesTests {
         getResponse = client.prepareGet("test", "type1", "2").setFields("_ttl").execute().actionGet();
         ttl = ((Number) getResponse.field("_ttl").value()).longValue();
         assertThat(ttl, greaterThan(0L));
-        assertThat(ttl, lessThan(3600000L));
+        assertThat(ttl, lessThanOrEqualTo(3600000L));
 
         // check timestamp update
         client.prepareIndex("test", "type1", "3").setSource("field", 1).setRefresh(true).execute().actionGet();

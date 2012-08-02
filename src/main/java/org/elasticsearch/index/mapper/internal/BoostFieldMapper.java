@@ -117,7 +117,7 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
                                float boost, boolean omitNorms, boolean omitTermFreqAndPositions,
                                Float nullValue) {
         super(new Names(name, indexName, indexName, name), precisionStep, null, index, store, boost, omitNorms, omitTermFreqAndPositions,
-                new NamedAnalyzer("_float/" + precisionStep, new NumericFloatAnalyzer(precisionStep)),
+                false, new NamedAnalyzer("_float/" + precisionStep, new NumericFloatAnalyzer(precisionStep)),
                 new NamedAnalyzer("_float/max", new NumericFloatAnalyzer(Integer.MAX_VALUE)));
         this.nullValue = nullValue;
     }
@@ -229,7 +229,7 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
     }
 
     @Override
-    protected Fieldable parseCreateField(ParseContext context) throws IOException {
+    protected Fieldable innerParseCreateField(ParseContext context) throws IOException {
         final float value = parseFloatValue(context);
         if (Float.isNaN(value)) {
             return null;

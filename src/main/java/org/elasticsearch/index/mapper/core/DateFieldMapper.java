@@ -102,7 +102,8 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
                 parseUpperInclusive = context.indexSettings().getAsBoolean("index.mapping.date.parse_upper_inclusive", Defaults.PARSE_UPPER_INCLUSIVE);
             }
             DateFieldMapper fieldMapper = new DateFieldMapper(buildNames(context), dateTimeFormatter,
-                    precisionStep, fuzzyFactor, index, store, boost, omitNorms, omitTermFreqAndPositions, nullValue, timeUnit, parseUpperInclusive);
+                    precisionStep, fuzzyFactor, index, store, boost, omitNorms, omitTermFreqAndPositions, nullValue,
+                    timeUnit, parseUpperInclusive, ignoreMalformed);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -141,9 +142,10 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     protected DateFieldMapper(Names names, FormatDateTimeFormatter dateTimeFormatter, int precisionStep, String fuzzyFactor,
                               Field.Index index, Field.Store store,
                               float boost, boolean omitNorms, boolean omitTermFreqAndPositions,
-                              String nullValue, TimeUnit timeUnit, boolean parseUpperInclusive) {
+                              String nullValue, TimeUnit timeUnit, boolean parseUpperInclusive, boolean ignoreMalformed) {
         super(names, precisionStep, fuzzyFactor, index, store, boost, omitNorms, omitTermFreqAndPositions,
-                new NamedAnalyzer("_date/" + precisionStep, new NumericDateAnalyzer(precisionStep, dateTimeFormatter.parser())),
+                ignoreMalformed, new NamedAnalyzer("_date/" + precisionStep,
+                new NumericDateAnalyzer(precisionStep, dateTimeFormatter.parser())),
                 new NamedAnalyzer("_date/max", new NumericDateAnalyzer(Integer.MAX_VALUE, dateTimeFormatter.parser())));
         this.dateTimeFormatter = dateTimeFormatter;
         this.nullValue = nullValue;
@@ -293,7 +295,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
-    protected Fieldable parseCreateField(ParseContext context) throws IOException {
+    protected Fieldable innerParseCreateField(ParseContext context) throws IOException {
         String dateAsString = null;
         Long value = null;
         float boost = this.boost;

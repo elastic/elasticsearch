@@ -24,6 +24,9 @@ import org.elasticsearch.action.admin.cluster.ClusterAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
+import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequestBuilder;
+import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -180,6 +183,12 @@ public interface ClusterAdminClient {
      * Nodes stats of the cluster.
      */
     NodesStatsRequestBuilder prepareNodesStats(String... nodesIds);
+
+    ActionFuture<NodesHotThreadsResponse> nodesHotThreads(NodesHotThreadsRequest request);
+
+    void nodesHotThreads(NodesHotThreadsRequest request, ActionListener<NodesHotThreadsResponse> listener);
+
+    NodesHotThreadsRequestBuilder prepareNodesHotThreads(String... nodesIds);
 
     /**
      * Shutdown nodes in the cluster.

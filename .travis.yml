@@ -8,3 +8,6 @@ env:
   - ES_TEST_LOCAL=true
   - ES_TEST_LOCAL=false
   - ES_TEST_LOCAL=false ES_TEST_COMPRESS=true
+
+notifications:
+  email: false

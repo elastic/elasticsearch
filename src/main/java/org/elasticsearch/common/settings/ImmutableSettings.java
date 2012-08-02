@@ -389,7 +389,7 @@ public class ImmutableSettings implements Settings {
         }
 
         /**
-         * Removes the provided setting.
+         * Removes the provided setting from the internal map holding the current list of settings.
          */
         public String remove(String key) {
             return map.remove(key);

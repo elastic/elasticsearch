@@ -22,6 +22,7 @@ package org.elasticsearch.test.unit.index.mapper.numeric;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
@@ -30,7 +31,7 @@ import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.*;
 
 /**
  */
@@ -77,4 +78,47 @@ public class SimpleNumericTests {
         mapper = defaultMapper.mappers().smartNameFieldMapper("s_double");
         assertThat(mapper, instanceOf(StringFieldMapper.class));
     }
+
+    public void testIgnoreMalformedEnabled() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                    .startObject("field1").field("type", "integer").field("ignore_malformed", true).endObject()
+                    .startObject("field2").field("type", "integer").field("ignore_malformed", false).endObject()
+                    .startObject("field3").field("type", "integer").endObject()
+                .endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
+
+        ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("field1", "a")
+                .field("field2", "1")
+                .endObject()
+                .bytes());
+        assertThat(doc.rootDoc().getFieldable("field1"), nullValue());
+        assertThat(doc.rootDoc().getFieldable("field2"), notNullValue());
+
+        try {
+            defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("field2", "a")
+                    .endObject()
+                    .bytes());
+        } catch (MapperParsingException e) {
+            assertThat(e.getCause(), instanceOf(NumberFormatException.class));
+        }
+
+        // Verify that the default is false
+        try {
+            defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("field3", "a")
+                    .endObject()
+                    .bytes());
+        } catch (MapperParsingException e) {
+            assertThat(e.getCause(), instanceOf(NumberFormatException.class));
+        }
+    }
+
 }

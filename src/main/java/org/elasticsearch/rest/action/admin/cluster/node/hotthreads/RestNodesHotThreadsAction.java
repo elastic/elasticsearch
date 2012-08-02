@@ -58,6 +58,7 @@ public class RestNodesHotThreadsAction extends BaseRestHandler {
         nodesHotThreadsRequest.threads(request.paramAsInt("threads", nodesHotThreadsRequest.threads()));
         nodesHotThreadsRequest.type(request.param("type", nodesHotThreadsRequest.type()));
         nodesHotThreadsRequest.interval(TimeValue.parseTimeValue(request.param("interval"), nodesHotThreadsRequest.interval()));
+        nodesHotThreadsRequest.snapshots(request.paramAsInt("snapshots", nodesHotThreadsRequest.snapshots()));
         client.admin().cluster().nodesHotThreads(nodesHotThreadsRequest, new ActionListener<NodesHotThreadsResponse>() {
             @Override
             public void onResponse(NodesHotThreadsResponse response) {

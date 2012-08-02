@@ -34,6 +34,7 @@ public class NodesHotThreadsRequest extends NodesOperationRequest {
     int threads = 3;
     String type = "cpu";
     TimeValue interval = new TimeValue(500, TimeUnit.MILLISECONDS);
+    int snapshots = 10;
 
     /**
      * Get hot threads from nodes based on the nodes ids specified. If none are passed, hot
@@ -70,12 +71,22 @@ public class NodesHotThreadsRequest extends NodesOperationRequest {
         return this.interval;
     }
 
+    public int snapshots() {
+        return this.snapshots;
+    }
+
+    public NodesHotThreadsRequest snapshots(int snapshots) {
+        this.snapshots = snapshots;
+        return this;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         threads = in.readInt();
         type = in.readString();
         interval = TimeValue.readTimeValue(in);
+        snapshots = in.readInt();
     }
 
     @Override
@@ -84,5 +95,6 @@ public class NodesHotThreadsRequest extends NodesOperationRequest {
         out.writeInt(threads);
         out.writeString(type);
         interval.writeTo(out);
+        out.writeInt(snapshots);
     }
 }

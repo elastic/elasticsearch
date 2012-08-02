@@ -298,6 +298,7 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
         if (!mergeContext.mergeFlags().simulate()) {
             this.includeInAll = ((StringFieldMapper) mergeWith).includeInAll;
             this.nullValue = ((StringFieldMapper) mergeWith).nullValue;
+            this.ignoreAbove = ((StringFieldMapper) mergeWith).ignoreAbove;
         }
     }
 

@@ -22,6 +22,8 @@ package org.elasticsearch.action;
 import com.google.common.collect.Maps;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
+import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsAction;
+import org.elasticsearch.action.admin.cluster.node.hotthreads.TransportNodesHotThreadsAction;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
 import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
 import org.elasticsearch.action.admin.cluster.node.restart.NodesRestartAction;
@@ -155,6 +157,7 @@ public class ActionModule extends AbstractModule {
         registerAction(NodesStatsAction.INSTANCE, TransportNodesStatsAction.class);
         registerAction(NodesShutdownAction.INSTANCE, TransportNodesShutdownAction.class);
         registerAction(NodesRestartAction.INSTANCE, TransportNodesRestartAction.class);
+        registerAction(NodesHotThreadsAction.INSTANCE, TransportNodesHotThreadsAction.class);
 
         registerAction(ClusterStateAction.INSTANCE, TransportClusterStateAction.class);
         registerAction(ClusterHealthAction.INSTANCE, TransportClusterHealthAction.class);

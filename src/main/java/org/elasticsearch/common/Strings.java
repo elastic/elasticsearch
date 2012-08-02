@@ -22,7 +22,9 @@ package org.elasticsearch.common;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import gnu.trove.set.hash.THashSet;
+import org.elasticsearch.common.io.FastStringReader;
 
+import java.io.BufferedReader;
 import java.util.*;
 
 /**
@@ -42,6 +44,27 @@ public class Strings {
 
     private static final char EXTENSION_SEPARATOR = '.';
 
+    public static void tabify(int tabs, String from, StringBuilder to) throws Exception {
+        BufferedReader reader = new BufferedReader(new FastStringReader(from));
+        String line;
+        while ((line = reader.readLine()) != null) {
+            for (int i = 0; i < tabs; i++) {
+                to.append('\t');
+            }
+            to.append(line).append('\n');
+        }
+    }
+
+    public static void spaceify(int spaces, String from, StringBuilder to) throws Exception {
+        BufferedReader reader = new BufferedReader(new FastStringReader(from));
+        String line;
+        while ((line = reader.readLine()) != null) {
+            for (int i = 0; i < spaces; i++) {
+                to.append(' ');
+            }
+            to.append(line).append('\n');
+        }
+    }
 
     /**
      * Splits a backslash escaped string on the separator.

@@ -23,6 +23,7 @@ import com.google.common.collect.Lists;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.action.admin.cluster.health.RestClusterHealthAction;
+import org.elasticsearch.rest.action.admin.cluster.node.hotthreads.RestNodesHotThreadsAction;
 import org.elasticsearch.rest.action.admin.cluster.node.info.RestNodesInfoAction;
 import org.elasticsearch.rest.action.admin.cluster.node.restart.RestNodesRestartAction;
 import org.elasticsearch.rest.action.admin.cluster.node.shutdown.RestNodesShutdownAction;
@@ -94,6 +95,7 @@ public class RestActionModule extends AbstractModule {
 
         bind(RestNodesInfoAction.class).asEagerSingleton();
         bind(RestNodesStatsAction.class).asEagerSingleton();
+        bind(RestNodesHotThreadsAction.class).asEagerSingleton();
         bind(RestNodesShutdownAction.class).asEagerSingleton();
         bind(RestNodesRestartAction.class).asEagerSingleton();
         bind(RestClusterStateAction.class).asEagerSingleton();

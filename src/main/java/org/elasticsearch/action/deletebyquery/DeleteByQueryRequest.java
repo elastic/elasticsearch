@@ -19,20 +19,24 @@
 
 package org.elasticsearch.action.deletebyquery;
 
-import org.apache.lucene.util.UnicodeUtil;
+import com.google.common.base.Charsets;
 import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.support.replication.IndicesReplicationOperationRequest;
 import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.*;
-import org.elasticsearch.common.io.BytesStream;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Required;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
 
@@ -57,9 +61,7 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
 
     private static final XContentType contentType = Requests.CONTENT_TYPE;
 
-    private byte[] querySource;
-    private int querySourceOffset;
-    private int querySourceLength;
+    private BytesReference querySource;
     private boolean querySourceUnsafe;
 
     private String[] types = Strings.EMPTY_ARRAY;
@@ -106,13 +108,11 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
     /**
      * The query source to execute.
      */
-    BytesHolder querySource() {
+    BytesReference querySource() {
         if (querySourceUnsafe) {
-            querySource = Arrays.copyOfRange(querySource, querySourceOffset, querySourceOffset + querySourceLength);
-            querySourceOffset = 0;
-            querySourceUnsafe = false;
+            querySource = querySource.copyBytesArray();
         }
-        return new BytesHolder(querySource, querySourceOffset, querySourceLength);
+        return querySource;
     }
 
     /**
@@ -122,10 +122,7 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
      */
     @Required
     public DeleteByQueryRequest query(QueryBuilder queryBuilder) {
-        BytesStream bos = queryBuilder.buildAsBytes();
-        this.querySource = bos.underlyingBytes();
-        this.querySourceOffset = 0;
-        this.querySourceLength = bos.size();
+        this.querySource = queryBuilder.buildAsBytes();
         this.querySourceUnsafe = false;
         return this;
     }
@@ -136,11 +133,8 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
      */
     @Required
     public DeleteByQueryRequest query(String querySource) {
-        UnicodeUtil.UTF8Result result = Unicode.fromStringAsUtf8(querySource);
-        this.querySource = result.result;
-        this.querySourceOffset = 0;
-        this.querySourceLength = result.length;
-        this.querySourceUnsafe = true;
+        this.querySource = new BytesArray(querySource.getBytes(Charsets.UTF_8));
+        this.querySourceUnsafe = false;
         return this;
     }
 
@@ -160,15 +154,9 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
 
     @Required
     public DeleteByQueryRequest query(XContentBuilder builder) {
-        try {
-            this.querySource = builder.underlyingBytes();
-            this.querySourceOffset = 0;
-            this.querySourceLength = builder.underlyingBytesLength();
-            this.querySourceUnsafe = false;
-            return this;
-        } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate [" + builder + "]", e);
-        }
+        this.querySource = builder.bytes();
+        this.querySourceUnsafe = false;
+        return this;
     }
 
     /**
@@ -184,9 +172,13 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
      */
     @Required
     public DeleteByQueryRequest query(byte[] querySource, int offset, int length, boolean unsafe) {
-        this.querySource = querySource;
-        this.querySourceOffset = offset;
-        this.querySourceLength = length;
+        this.querySource = new BytesArray(querySource, offset, length);
+        this.querySourceUnsafe = unsafe;
+        return this;
+    }
+
+    public DeleteByQueryRequest query(BytesReference source, boolean unsafe) {
+        this.querySource = source;
         this.querySourceUnsafe = unsafe;
         return this;
     }
@@ -270,11 +262,8 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
 
-        BytesHolder bytes = in.readBytesReference();
         querySourceUnsafe = false;
-        querySource = bytes.bytes();
-        querySourceOffset = bytes.offset();
-        querySourceLength = bytes.length();
+        querySource = in.readBytesReference();
 
         if (in.readBoolean()) {
             routing = in.readUTF();
@@ -294,7 +283,7 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
 
-        out.writeBytesHolder(querySource, querySourceOffset, querySourceLength);
+        out.writeBytesReference(querySource);
 
         if (routing == null) {
             out.writeBoolean(false);
@@ -311,6 +300,12 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
 
     @Override
     public String toString() {
-        return "[" + Arrays.toString(indices) + "][" + Arrays.toString(types) + "], querySource[" + Unicode.fromBytes(querySource) + "]";
+        String sSource = "_na_";
+        try {
+            sSource = XContentHelper.convertToJson(querySource, false);
+        } catch (Exception e) {
+            // ignore
+        }
+        return "[" + Arrays.toString(indices) + "][" + Arrays.toString(types) + "], querySource[" + sSource + "]";
     }
 }

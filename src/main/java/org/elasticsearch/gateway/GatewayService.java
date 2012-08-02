@@ -26,9 +26,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.MetaDataStateIndexService;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -214,6 +212,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                     @Override
                     public void run() {
                         if (recovered.compareAndSet(false, true)) {
+                            logger.trace("performing state recovery...");
                             gateway.performStateRecovery(recoveryListener);
                         }
                     }
@@ -221,6 +220,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
             }
         } else {
             if (recovered.compareAndSet(false, true)) {
+                logger.trace("performing state recovery...");
                 gateway.performStateRecovery(recoveryListener);
             }
         }
@@ -236,6 +236,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
 
         @Override
         public void onSuccess(final ClusterState recoveredState) {
+            logger.trace("successful state recovery, importing cluster state...");
             clusterService.submitStateUpdateTask("local-gateway-elected-state", new ProcessedClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
@@ -256,21 +257,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
 
                     for (IndexMetaData indexMetaData : recoveredState.metaData()) {
                         metaDataBuilder.put(indexMetaData, false);
-                        if (indexMetaData.state() == IndexMetaData.State.CLOSE) {
-                            blocks.addIndexBlock(indexMetaData.index(), MetaDataStateIndexService.INDEX_CLOSED_BLOCK);
-                        }
-                        if (indexMetaData.settings().getAsBoolean(IndexMetaData.SETTING_READ_ONLY, false)) {
-                            blocks.addIndexBlock(indexMetaData.index(), IndexMetaData.INDEX_READ_ONLY_BLOCK);
-                        }
-                        if (indexMetaData.settings().getAsBoolean(IndexMetaData.SETTING_BLOCKS_READ, false)) {
-                            blocks.addIndexBlock(indexMetaData.index(), IndexMetaData.INDEX_READ_BLOCK);
-                        }
-                        if (indexMetaData.settings().getAsBoolean(IndexMetaData.SETTING_BLOCKS_WRITE, false)) {
-                            blocks.addIndexBlock(indexMetaData.index(), IndexMetaData.INDEX_WRITE_BLOCK);
-                        }
-                        if (indexMetaData.settings().getAsBoolean(IndexMetaData.SETTING_BLOCKS_METADATA, false)) {
-                            blocks.addIndexBlock(indexMetaData.index(), IndexMetaData.INDEX_METADATA_BLOCK);
-                        }
+                        blocks.addBlocks(indexMetaData);
                     }
 
                     // update the state to reflect the new metadata and routing
@@ -282,11 +269,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                     // initialize all index routing tables as empty
                     RoutingTable.Builder routingTableBuilder = RoutingTable.builder().routingTable(updatedState.routingTable());
                     for (IndexMetaData indexMetaData : updatedState.metaData().indices().values()) {
-                        if (indexMetaData.state() == IndexMetaData.State.OPEN) {
-                            IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(indexMetaData.index())
-                                    .initializeEmpty(updatedState.metaData().index(indexMetaData.index()), false /*not from API*/);
-                            routingTableBuilder.add(indexRoutingBuilder);
-                        }
+                        routingTableBuilder.add(indexMetaData, false /* not from API */);
                     }
                     // start with 0 based versions for routing table
                     routingTableBuilder.version(0);

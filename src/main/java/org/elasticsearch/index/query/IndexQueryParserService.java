@@ -24,8 +24,9 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.BytesStream;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -174,8 +175,8 @@ public class IndexQueryParserService extends AbstractIndexComponent {
     public ParsedQuery parse(QueryBuilder queryBuilder) throws ElasticSearchException {
         XContentParser parser = null;
         try {
-            BytesStream bytes = queryBuilder.buildAsBytes();
-            parser = XContentFactory.xContent(bytes.underlyingBytes(), 0, bytes.size()).createParser(bytes.underlyingBytes(), 0, bytes.size());
+            BytesReference bytes = queryBuilder.buildAsBytes();
+            parser = XContentFactory.xContent(bytes).createParser(bytes);
             return parse(cache.get(), parser);
         } catch (QueryParsingException e) {
             throw e;
@@ -196,6 +197,22 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         XContentParser parser = null;
         try {
             parser = XContentFactory.xContent(source, offset, length).createParser(source, offset, length);
+            return parse(cache.get(), parser);
+        } catch (QueryParsingException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new QueryParsingException(index, "Failed to parse", e);
+        } finally {
+            if (parser != null) {
+                parser.close();
+            }
+        }
+    }
+
+    public ParsedQuery parse(BytesReference source) throws ElasticSearchException {
+        XContentParser parser = null;
+        try {
+            parser = XContentFactory.xContent(source).createParser(source);
             return parse(cache.get(), parser);
         } catch (QueryParsingException e) {
             throw e;
@@ -232,12 +249,14 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         }
     }
 
+    @Nullable
     public Filter parseInnerFilter(XContentParser parser) throws IOException {
         QueryParseContext context = cache.get();
         context.reset(parser);
         return context.parseInnerFilter();
     }
 
+    @Nullable
     public Query parseInnerQuery(XContentParser parser) throws IOException {
         QueryParseContext context = cache.get();
         context.reset(parser);
@@ -247,6 +266,9 @@ public class IndexQueryParserService extends AbstractIndexComponent {
     private ParsedQuery parse(QueryParseContext parseContext, XContentParser parser) throws IOException, QueryParsingException {
         parseContext.reset(parser);
         Query query = parseContext.parseInnerQuery();
+        if (query == null) {
+            query = Queries.NO_MATCH_QUERY;
+        }
         return new ParsedQuery(query, parseContext.copyNamedFilters());
     }
 

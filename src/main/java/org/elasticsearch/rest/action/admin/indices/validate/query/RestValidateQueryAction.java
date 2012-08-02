@@ -25,8 +25,8 @@ import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryReques
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.BytesStream;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
@@ -61,7 +61,6 @@ public class RestValidateQueryAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         ValidateQueryRequest validateQueryRequest = new ValidateQueryRequest(RestActions.splitIndices(request.param("index")));
-        // we just send back a response, no need to fork a listener
         validateQueryRequest.listenerThreaded(false);
         try {
             BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operation_threading"), BroadcastOperationThreading.SINGLE_THREAD);
@@ -71,15 +70,15 @@ public class RestValidateQueryAction extends BaseRestHandler {
             }
             validateQueryRequest.operationThreading(operationThreading);
             if (request.hasContent()) {
-                validateQueryRequest.query(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength(), true);
+                validateQueryRequest.query(request.content(), request.contentUnsafe());
             } else {
                 String source = request.param("source");
                 if (source != null) {
                     validateQueryRequest.query(source);
                 } else {
-                    BytesStream querySource = RestActions.parseQuerySource(request);
+                    BytesReference querySource = RestActions.parseQuerySource(request);
                     if (querySource != null) {
-                        validateQueryRequest.query(querySource.underlyingBytes(), 0, querySource.size(), false);
+                        validateQueryRequest.query(querySource, false);
                     }
                 }
             }
@@ -109,7 +108,7 @@ public class RestValidateQueryAction extends BaseRestHandler {
 
                     buildBroadcastShardsHeader(builder, response);
 
-                    if(response.queryExplanations() != null && !response.queryExplanations().isEmpty()) {
+                    if (response.queryExplanations() != null && !response.queryExplanations().isEmpty()) {
                         builder.startArray("explanations");
                         for (QueryExplanation explanation : response.queryExplanations()) {
                             builder.startObject();

@@ -84,6 +84,10 @@ public class AliasMetaData {
         return indexRouting;
     }
 
+    public static Builder builder(String alias) {
+        return new Builder(alias);
+    }
+
     public static Builder newAliasMetaDataBuilder(String alias) {
         return new Builder(alias);
     }
@@ -169,7 +173,7 @@ public class AliasMetaData {
             }
             try {
                 XContentBuilder builder = XContentFactory.jsonBuilder().map(filter);
-                this.filter = new CompressedString(builder.underlyingBytes(), 0, builder.underlyingBytesLength());
+                this.filter = new CompressedString(builder.bytes());
                 return this;
             } catch (IOException e) {
                 throw new ElasticSearchGenerationException("Failed to build json for alias request", e);

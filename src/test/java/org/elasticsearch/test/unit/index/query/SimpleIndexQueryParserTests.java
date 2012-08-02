@@ -24,6 +24,7 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.search.spans.*;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
@@ -52,7 +53,9 @@ import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
 import org.elasticsearch.indices.query.IndicesQueriesModule;
 import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
+import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
@@ -73,6 +76,8 @@ import static org.hamcrest.Matchers.*;
 @Test
 public class SimpleIndexQueryParserTests {
 
+    private Injector injector;
+
     private IndexQueryParserService queryParser;
 
     @BeforeClass
@@ -81,7 +86,7 @@ public class SimpleIndexQueryParserTests {
                 .put("index.cache.filter.type", "none")
                 .build();
         Index index = new Index("test");
-        Injector injector = new ModulesBuilder().add(
+        injector = new ModulesBuilder().add(
                 new SettingsModule(settings),
                 new ThreadPoolModule(settings),
                 new IndicesQueriesModule(),
@@ -104,8 +109,13 @@ public class SimpleIndexQueryParserTests {
 
         String mapping = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/query/mapping.json");
         injector.getInstance(MapperService.class).add("person", mapping);
-        injector.getInstance(MapperService.class).documentMapper("person").parse(copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/query/data.json"));
+        injector.getInstance(MapperService.class).documentMapper("person").parse(new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/query/data.json")));
         this.queryParser = injector.getInstance(IndexQueryParserService.class);
+    }
+
+    @AfterClass
+    public void close() {
+        injector.getInstance(ThreadPool.class).shutdownNow();
     }
 
     private IndexQueryParserService queryParser() throws IOException {
@@ -297,7 +307,7 @@ public class SimpleIndexQueryParserTests {
     @Test
     public void testTermQueryBuilder() throws IOException {
         IndexQueryParserService queryParser = queryParser();
-        Query parsedQuery = queryParser.parse(termQuery("age", 34).buildAsBytes().copiedByteArray()).query();
+        Query parsedQuery = queryParser.parse(termQuery("age", 34).buildAsBytes()).query();
         assertThat(parsedQuery, instanceOf(NumericRangeQuery.class));
         NumericRangeQuery fieldQuery = (NumericRangeQuery) parsedQuery;
         assertThat(fieldQuery.getMin().intValue(), equalTo(34));
@@ -322,7 +332,7 @@ public class SimpleIndexQueryParserTests {
     @Test
     public void testFuzzyQueryBuilder() throws IOException {
         IndexQueryParserService queryParser = queryParser();
-        Query parsedQuery = queryParser.parse(fuzzyQuery("name.first", "sh").buildAsBytes().copiedByteArray()).query();
+        Query parsedQuery = queryParser.parse(fuzzyQuery("name.first", "sh").buildAsBytes()).query();
         assertThat(parsedQuery, instanceOf(FuzzyQuery.class));
         FuzzyQuery fuzzyQuery = (FuzzyQuery) parsedQuery;
         assertThat(fuzzyQuery.getTerm(), equalTo(new Term("name.first", "sh")));
@@ -341,7 +351,7 @@ public class SimpleIndexQueryParserTests {
     @Test
     public void testFuzzyQueryWithFieldsBuilder() throws IOException {
         IndexQueryParserService queryParser = queryParser();
-        Query parsedQuery = queryParser.parse(fuzzyQuery("name.first", "sh").minSimilarity(0.1f).prefixLength(1).boost(2.0f).buildAsBytes().copiedByteArray()).query();
+        Query parsedQuery = queryParser.parse(fuzzyQuery("name.first", "sh").minSimilarity(0.1f).prefixLength(1).boost(2.0f).buildAsBytes()).query();
         assertThat(parsedQuery, instanceOf(FuzzyQuery.class));
         FuzzyQuery fuzzyQuery = (FuzzyQuery) parsedQuery;
         assertThat(fuzzyQuery.getTerm(), equalTo(new Term("name.first", "sh")));
@@ -377,7 +387,7 @@ public class SimpleIndexQueryParserTests {
     @Test
     public void testFieldQueryBuilder1() throws IOException {
         IndexQueryParserService queryParser = queryParser();
-        Query parsedQuery = queryParser.parse(fieldQuery("age", 34).buildAsBytes().copiedByteArray()).query();
+        Query parsedQuery = queryParser.parse(fieldQuery("age", 34).buildAsBytes()).query();
         assertThat(parsedQuery, instanceOf(NumericRangeQuery.class));
         NumericRangeQuery fieldQuery = (NumericRangeQuery) parsedQuery;
         assertThat(fieldQuery.getMin().intValue(), equalTo(34));
@@ -1114,10 +1124,10 @@ public class SimpleIndexQueryParserTests {
         Query parsedQuery = queryParser.parse(filteredQuery(termQuery("name.first", "shay"), termsFilter("name.last", "banon", "kimchy"))).query();
         assertThat(parsedQuery, instanceOf(FilteredQuery.class));
         FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        assertThat(filteredQuery.getFilter(), instanceOf(PublicTermsFilter.class));
-        PublicTermsFilter termsFilter = (PublicTermsFilter) filteredQuery.getFilter();
-        assertThat(termsFilter.getTerms().size(), equalTo(2));
-        assertThat(termsFilter.getTerms().iterator().next().text(), equalTo("banon"));
+        assertThat(filteredQuery.getFilter(), instanceOf(XTermsFilter.class));
+        XTermsFilter termsFilter = (XTermsFilter) filteredQuery.getFilter();
+        assertThat(termsFilter.getTerms().length, equalTo(2));
+        assertThat(termsFilter.getTerms()[0].text(), equalTo("banon"));
     }
 
 
@@ -1128,10 +1138,10 @@ public class SimpleIndexQueryParserTests {
         Query parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(FilteredQuery.class));
         FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        assertThat(filteredQuery.getFilter(), instanceOf(PublicTermsFilter.class));
-        PublicTermsFilter termsFilter = (PublicTermsFilter) filteredQuery.getFilter();
-        assertThat(termsFilter.getTerms().size(), equalTo(2));
-        assertThat(termsFilter.getTerms().iterator().next().text(), equalTo("banon"));
+        assertThat(filteredQuery.getFilter(), instanceOf(XTermsFilter.class));
+        XTermsFilter termsFilter = (XTermsFilter) filteredQuery.getFilter();
+        assertThat(termsFilter.getTerms().length, equalTo(2));
+        assertThat(termsFilter.getTerms()[0].text(), equalTo("banon"));
     }
 
     @Test
@@ -1142,10 +1152,10 @@ public class SimpleIndexQueryParserTests {
         assertThat(parsedQuery.namedFilters().containsKey("test"), equalTo(true));
         assertThat(parsedQuery.query(), instanceOf(FilteredQuery.class));
         FilteredQuery filteredQuery = (FilteredQuery) parsedQuery.query();
-        assertThat(filteredQuery.getFilter(), instanceOf(PublicTermsFilter.class));
-        PublicTermsFilter termsFilter = (PublicTermsFilter) filteredQuery.getFilter();
-        assertThat(termsFilter.getTerms().size(), equalTo(2));
-        assertThat(termsFilter.getTerms().iterator().next().text(), equalTo("banon"));
+        assertThat(filteredQuery.getFilter(), instanceOf(XTermsFilter.class));
+        XTermsFilter termsFilter = (XTermsFilter) filteredQuery.getFilter();
+        assertThat(termsFilter.getTerms().length, equalTo(2));
+        assertThat(termsFilter.getTerms()[0].text(), equalTo("banon"));
     }
 
     @Test

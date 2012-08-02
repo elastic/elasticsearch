@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Filter;
+import org.elasticsearch.common.Nullable;
 
 import java.io.IOException;
 
@@ -37,5 +38,6 @@ public interface FilterParser {
      * Parses the into a filter from the current parser location. Will be at "START_OBJECT" location,
      * and should end when the token is at the matching "END_OBJECT".
      */
+    @Nullable
     Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException;
 }

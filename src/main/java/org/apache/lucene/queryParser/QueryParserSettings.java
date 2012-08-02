@@ -24,6 +24,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -45,6 +46,8 @@ public class QueryParserSettings {
     private int phraseSlop = 0;
     private float fuzzyMinSim = FuzzyQuery.defaultMinSimilarity;
     private int fuzzyPrefixLength = FuzzyQuery.defaultPrefixLength;
+    private int fuzzyMaxExpansions = FuzzyQuery.defaultMaxExpansions;
+    private MultiTermQuery.RewriteMethod fuzzyRewriteMethod = null;
     private boolean analyzeWildcard = DEFAULT_ANALYZE_WILDCARD;
     private boolean escape = false;
     private Analyzer defaultAnalyzer = null;
@@ -58,6 +61,7 @@ public class QueryParserSettings {
 
 
     List<String> fields = null;
+    Collection<String> queryTypes = null;
     TObjectFloatHashMap<String> boosts = null;
     float tieBreaker = 0.0f;
     boolean useDisMax = true;
@@ -150,6 +154,22 @@ public class QueryParserSettings {
         this.fuzzyPrefixLength = fuzzyPrefixLength;
     }
 
+    public int fuzzyMaxExpansions() {
+        return fuzzyMaxExpansions;
+    }
+
+    public void fuzzyMaxExpansions(int fuzzyMaxExpansions) {
+        this.fuzzyMaxExpansions = fuzzyMaxExpansions;
+    }
+
+    public MultiTermQuery.RewriteMethod fuzzyRewriteMethod() {
+        return fuzzyRewriteMethod;
+    }
+
+    public void fuzzyRewriteMethod(MultiTermQuery.RewriteMethod fuzzyRewriteMethod) {
+        this.fuzzyRewriteMethod = fuzzyRewriteMethod;
+    }
+
     public boolean escape() {
         return escape;
     }
@@ -238,6 +258,14 @@ public class QueryParserSettings {
         this.fields = fields;
     }
 
+    public Collection<String> queryTypes() {
+        return queryTypes;
+    }
+
+    public void queryTypes(Collection<String> queryTypes) {
+        this.queryTypes = queryTypes;
+    }
+
     public TObjectFloatHashMap<String> boosts() {
         return boosts;
     }
@@ -277,6 +305,9 @@ public class QueryParserSettings {
         if (analyzeWildcard != that.analyzeWildcard) return false;
         if (Float.compare(that.fuzzyMinSim, fuzzyMinSim) != 0) return false;
         if (fuzzyPrefixLength != that.fuzzyPrefixLength) return false;
+        if (fuzzyMaxExpansions != that.fuzzyMaxExpansions) return false;
+        if (fuzzyRewriteMethod != null ? !fuzzyRewriteMethod.equals(that.fuzzyRewriteMethod) : that.fuzzyRewriteMethod != null)
+            return false;
         if (lowercaseExpandedTerms != that.lowercaseExpandedTerms) return false;
         if (phraseSlop != that.phraseSlop) return false;
         if (defaultAnalyzer != null ? !defaultAnalyzer.equals(that.defaultAnalyzer) : that.defaultAnalyzer != null)
@@ -304,6 +335,7 @@ public class QueryParserSettings {
         if (useDisMax != that.useDisMax) return false;
         if (boosts != null ? !boosts.equals(that.boosts) : that.boosts != null) return false;
         if (fields != null ? !fields.equals(that.fields) : that.fields != null) return false;
+        if (queryTypes != null ? !queryTypes.equals(that.queryTypes) : that.queryTypes != null) return false;
 
         return true;
     }
@@ -329,6 +361,7 @@ public class QueryParserSettings {
         result = 31 * result + (analyzeWildcard ? 1 : 0);
 
         result = 31 * result + (fields != null ? fields.hashCode() : 0);
+        result = 31 * result + (queryTypes != null ? queryTypes.hashCode() : 0);
         result = 31 * result + (boosts != null ? boosts.hashCode() : 0);
         result = 31 * result + (tieBreaker != +0.0f ? Float.floatToIntBits(tieBreaker) : 0);
         result = 31 * result + (useDisMax ? 1 : 0);

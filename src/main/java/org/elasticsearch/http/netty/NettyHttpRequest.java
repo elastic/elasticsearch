@@ -19,7 +19,9 @@
 
 package org.elasticsearch.http.netty;
 
-import com.google.common.base.Charsets;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ChannelBufferBytesReference;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.rest.support.AbstractRestRequest;
 import org.elasticsearch.rest.support.RestUtils;
@@ -39,11 +41,16 @@ public class NettyHttpRequest extends AbstractRestRequest implements HttpRequest
 
     private final String rawPath;
 
-    private byte[] cachedData;
+    private final BytesReference content;
 
     public NettyHttpRequest(org.jboss.netty.handler.codec.http.HttpRequest request) {
         this.request = request;
         this.params = new HashMap<String, String>();
+        if (request.getContent().readable()) {
+            this.content = new ChannelBufferBytesReference(request.getContent());
+        } else {
+            this.content = BytesArray.EMPTY;
+        }
 
         String uri = request.getUri();
         int pathEndPos = uri.indexOf('?');
@@ -98,47 +105,18 @@ public class NettyHttpRequest extends AbstractRestRequest implements HttpRequest
 
     @Override
     public boolean hasContent() {
-        return request.getContent().readableBytes() > 0;
-    }
-
-    @Override
-    public int contentLength() {
-        return request.getContent().readableBytes();
+        return content.length() > 0;
     }
 
     @Override
     public boolean contentUnsafe() {
-        // HttpMessageDecoder#content variable gets freshly created for each request and not reused across
-        // requests
+        // Netty http decoder always copies over the http content
         return false;
-        //return request.getContent().hasArray();
     }
 
     @Override
-    public byte[] contentByteArray() {
-        if (request.getContent().hasArray()) {
-            return request.getContent().array();
-        }
-        if (cachedData != null) {
-            return cachedData;
-        }
-        cachedData = new byte[request.getContent().readableBytes()];
-        request.getContent().getBytes(request.getContent().readerIndex(), cachedData);
-        return cachedData;
-    }
-
-    @Override
-    public int contentByteArrayOffset() {
-        if (request.getContent().hasArray()) {
-            // get the array offset, and the reader index offset within it
-            return request.getContent().arrayOffset() + request.getContent().readerIndex();
-        }
-        return 0;
-    }
-
-    @Override
-    public String contentAsString() {
-        return request.getContent().toString(Charsets.UTF_8);
+    public BytesReference content() {
+        return content;
     }
 
     @Override

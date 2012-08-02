@@ -49,6 +49,7 @@ public class CustomBoostFactorQueryParser implements QueryParser {
         XContentParser parser = parseContext.parser();
 
         Query query = null;
+        boolean queryFound = false;
         float boost = 1.0f;
         float boostFactor = 1.0f;
 
@@ -60,6 +61,7 @@ public class CustomBoostFactorQueryParser implements QueryParser {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("query".equals(currentFieldName)) {
                     query = parseContext.parseInnerQuery();
+                    queryFound = true;
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[custom_boost_factor] query does not support [" + currentFieldName + "]");
                 }
@@ -73,8 +75,11 @@ public class CustomBoostFactorQueryParser implements QueryParser {
                 }
             }
         }
-        if (query == null) {
+        if (!queryFound) {
             throw new QueryParsingException(parseContext.index(), "[constant_factor_query] requires 'query' element");
+        }
+        if (query == null) {
+            return null;
         }
         FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(query, new BoostScoreFunction(boostFactor));
         functionScoreQuery.setBoost(boost);

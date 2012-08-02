@@ -19,11 +19,12 @@
 
 package org.elasticsearch.test.unit.index.mapper.size;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -39,11 +40,11 @@ public class SizeMappingTests {
                 .endObject().endObject().string();
         DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
 
-        byte[] source = XContentFactory.jsonBuilder()
+        BytesReference source = XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", "value")
                 .endObject()
-                .copiedBytes();
+                .bytes();
         ParsedDocument doc = docMapper.parse(SourceToParse.source(source).type("type").id("1"));
 
         assertThat(doc.rootDoc().getFieldable("_size").isStored(), equalTo(false));
@@ -57,11 +58,11 @@ public class SizeMappingTests {
                 .endObject().endObject().string();
         DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
 
-        byte[] source = XContentFactory.jsonBuilder()
+        BytesReference source = XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", "value")
                 .endObject()
-                .copiedBytes();
+                .bytes();
         ParsedDocument doc = docMapper.parse(SourceToParse.source(source).type("type").id("1"));
 
         assertThat(doc.rootDoc().getFieldable("_size").isStored(), equalTo(true));
@@ -75,11 +76,11 @@ public class SizeMappingTests {
                 .endObject().endObject().string();
         DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
 
-        byte[] source = XContentFactory.jsonBuilder()
+        BytesReference source = XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", "value")
                 .endObject()
-                .copiedBytes();
+                .bytes();
         ParsedDocument doc = docMapper.parse(SourceToParse.source(source).type("type").id("1"));
 
         assertThat(doc.rootDoc().getFieldable("_size"), nullValue());
@@ -91,11 +92,11 @@ public class SizeMappingTests {
                 .endObject().endObject().string();
         DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
 
-        byte[] source = XContentFactory.jsonBuilder()
+        BytesReference source = XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", "value")
                 .endObject()
-                .copiedBytes();
+                .bytes();
         ParsedDocument doc = docMapper.parse(SourceToParse.source(source).type("type").id("1"));
 
         assertThat(doc.rootDoc().getFieldable("_size"), nullValue());

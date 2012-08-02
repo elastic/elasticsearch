@@ -22,7 +22,7 @@ package org.elasticsearch.transport.local;
 import org.elasticsearch.common.io.ThrowableObjectOutputStream;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.CachedStreamOutput;
-import org.elasticsearch.common.io.stream.HandlesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.transport.NotSerializableTransportException;
 import org.elasticsearch.transport.RemoteTransportException;
@@ -68,13 +68,14 @@ public class LocalTransportChannel implements TransportChannel {
     public void sendResponse(Streamable message, TransportResponseOptions options) throws IOException {
         CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
         try {
-            HandlesStreamOutput stream = cachedEntry.cachedHandlesBytes();
+            StreamOutput stream = cachedEntry.handles();
             stream.writeLong(requestId);
             byte status = 0;
             status = TransportStreams.statusSetResponse(status);
             stream.writeByte(status); // 0 for request, 1 for response.
             message.writeTo(stream);
-            final byte[] data = cachedEntry.bytes().copiedByteArray();
+            stream.close();
+            final byte[] data = cachedEntry.bytes().bytes().copyBytesArray().toBytes();
             targetTransport.threadPool().generic().execute(new Runnable() {
                 @Override
                 public void run() {
@@ -92,21 +93,22 @@ public class LocalTransportChannel implements TransportChannel {
         try {
             BytesStreamOutput stream;
             try {
-                stream = cachedEntry.cachedBytes();
+                stream = cachedEntry.bytes();
                 writeResponseExceptionHeader(stream);
                 RemoteTransportException tx = new RemoteTransportException(targetTransport.nodeName(), targetTransport.boundAddress().boundAddress(), action, error);
                 ThrowableObjectOutputStream too = new ThrowableObjectOutputStream(stream);
                 too.writeObject(tx);
                 too.close();
             } catch (NotSerializableException e) {
-                stream = cachedEntry.cachedBytes();
+                cachedEntry.reset();
+                stream = cachedEntry.bytes();
                 writeResponseExceptionHeader(stream);
                 RemoteTransportException tx = new RemoteTransportException(targetTransport.nodeName(), targetTransport.boundAddress().boundAddress(), action, new NotSerializableTransportException(error));
                 ThrowableObjectOutputStream too = new ThrowableObjectOutputStream(stream);
                 too.writeObject(tx);
                 too.close();
             }
-            final byte[] data = stream.copiedByteArray();
+            final byte[] data = stream.bytes().copyBytesArray().toBytes();
             targetTransport.threadPool().generic().execute(new Runnable() {
                 @Override
                 public void run() {

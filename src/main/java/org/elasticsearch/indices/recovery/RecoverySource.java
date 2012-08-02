@@ -23,9 +23,10 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.StopWatch;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -134,7 +135,12 @@ public class RecoverySource extends AbstractComponent {
                                     final int BUFFER_SIZE = (int) recoverySettings.fileChunkSize().bytes();
                                     byte[] buf = new byte[BUFFER_SIZE];
                                     StoreFileMetaData md = shard.store().metaData(name);
-                                    indexInput = snapshot.getDirectory().openInput(name);
+                                    indexInput = shard.store().openInputRaw(name);
+                                    boolean shouldCompressRequest = recoverySettings.compress();
+                                    if (CompressorFactory.isCompressed(indexInput)) {
+                                        shouldCompressRequest = false;
+                                    }
+
                                     long len = indexInput.length();
                                     long readCount = 0;
                                     while (readCount < len) {
@@ -149,9 +155,9 @@ public class RecoverySource extends AbstractComponent {
                                         }
 
                                         indexInput.readBytes(buf, 0, toRead, false);
-                                        BytesHolder content = new BytesHolder(buf, 0, toRead);
+                                        BytesArray content = new BytesArray(buf, 0, toRead);
                                         transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.FILE_CHUNK, new RecoveryFileChunkRequest(request.shardId(), name, position, len, md.checksum(), content),
-                                                TransportRequestOptions.options().withCompress(recoverySettings.compress()).withLowType(), VoidTransportResponseHandler.INSTANCE_SAME).txGet();
+                                                TransportRequestOptions.options().withCompress(shouldCompressRequest).withLowType(), VoidTransportResponseHandler.INSTANCE_SAME).txGet();
                                         readCount += toRead;
                                     }
                                     indexInput.close();

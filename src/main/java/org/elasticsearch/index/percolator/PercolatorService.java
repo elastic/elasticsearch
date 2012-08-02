@@ -24,6 +24,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.*;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.settings.Settings;
@@ -175,7 +176,7 @@ public class PercolatorService extends AbstractIndexComponent {
             String id = Uid.createUid(document.get(UidFieldMapper.NAME)).id();
             try {
                 Fieldable sourceField = document.getFieldable(SourceFieldMapper.NAME);
-                queries.put(id, percolator.parseQuery(id, sourceField.getBinaryValue(), sourceField.getBinaryOffset(), sourceField.getBinaryLength()));
+                queries.put(id, percolator.parseQuery(id, new BytesArray(sourceField.getBinaryValue(), sourceField.getBinaryOffset(), sourceField.getBinaryLength())));
             } catch (Exception e) {
                 logger.warn("failed to add query [{}]", e, id);
             }
@@ -257,26 +258,44 @@ public class PercolatorService extends AbstractIndexComponent {
 
         @Override
         public Engine.Create preCreate(Engine.Create create) {
+            // validate the query here, before we index
             if (create.type().equals(index().name())) {
-                percolator.addQuery(create.id(), create.source(), create.sourceOffset(), create.sourceLength());
+                percolator.parseQuery(create.id(), create.source());
             }
             return create;
         }
 
         @Override
+        public void postCreateUnderLock(Engine.Create create) {
+            // add the query under a doc lock
+            if (create.type().equals(index().name())) {
+                percolator.addQuery(create.id(), create.source());
+            }
+        }
+
+        @Override
         public Engine.Index preIndex(Engine.Index index) {
+            // validate the query here, before we index
             if (index.type().equals(index().name())) {
-                percolator.addQuery(index.id(), index.source(), index.sourceOffset(), index.sourceLength());
+                percolator.parseQuery(index.id(), index.source());
             }
             return index;
         }
 
         @Override
-        public Engine.Delete preDelete(Engine.Delete delete) {
+        public void postIndexUnderLock(Engine.Index index) {
+            // add the query under a doc lock
+            if (index.type().equals(index().name())) {
+                percolator.addQuery(index.id(), index.source());
+            }
+        }
+
+        @Override
+        public void postDeleteUnderLock(Engine.Delete delete) {
+            // remove the query under a lock
             if (delete.type().equals(index().name())) {
                 percolator.removeQuery(delete.id());
             }
-            return delete;
         }
     }
 }

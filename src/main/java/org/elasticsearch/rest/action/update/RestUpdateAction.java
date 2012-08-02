@@ -21,6 +21,7 @@ package org.elasticsearch.rest.action.update;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.WriteConsistencyLevel;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -30,9 +31,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
@@ -55,6 +56,7 @@ public class RestUpdateAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         UpdateRequest updateRequest = new UpdateRequest(request.param("index"), request.param("type"), request.param("id"));
+        updateRequest.listenerThreaded(false);
         updateRequest.routing(request.param("routing"));
         updateRequest.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing
         updateRequest.timeout(request.paramAsTime("timeout", updateRequest.timeout()));
@@ -68,8 +70,6 @@ public class RestUpdateAction extends BaseRestHandler {
             updateRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
         }
         updateRequest.percolate(request.param("percolate", null));
-        // we just send a response, no need to fork
-        updateRequest.listenerThreaded(false);
         updateRequest.script(request.param("script"));
         updateRequest.scriptLang(request.param("lang"));
         for (Map.Entry<String, String> entry : request.params().entrySet()) {
@@ -88,28 +88,37 @@ public class RestUpdateAction extends BaseRestHandler {
 
         // see if we have it in the body
         if (request.hasContent()) {
-            XContentType xContentType = XContentFactory.xContentType(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength());
-            if (xContentType != null) {
-                try {
-                    Map<String, Object> content = XContentFactory.xContent(xContentType)
-                            .createParser(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength()).mapAndClose();
-                    if (content.containsKey("script")) {
-                        updateRequest.script(content.get("script").toString());
+            try {
+                updateRequest.source(request.content());
+                IndexRequest upsertRequest = updateRequest.upsertRequest();
+                if (upsertRequest != null) {
+                    upsertRequest.routing(request.param("routing"));
+                    upsertRequest.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing
+                    upsertRequest.timestamp(request.param("timestamp"));
+                    if (request.hasParam("ttl")) {
+                        upsertRequest.ttl(request.paramAsTime("ttl", null).millis());
                     }
-                    if (content.containsKey("lang")) {
-                        updateRequest.scriptLang(content.get("lang").toString());
-                    }
-                    if (content.containsKey("params")) {
-                        updateRequest.scriptParams((Map<String, Object>) content.get("params"));
-                    }
-                } catch (Exception e) {
-                    try {
-                        channel.sendResponse(new XContentThrowableRestResponse(request, e));
-                    } catch (IOException e1) {
-                        logger.warn("Failed to send response", e1);
-                    }
-                    return;
+                    upsertRequest.version(RestActions.parseVersion(request));
+                    upsertRequest.versionType(VersionType.fromString(request.param("version_type"), upsertRequest.versionType()));
                 }
+                IndexRequest doc = updateRequest.doc();
+                if (doc != null) {
+                    doc.routing(request.param("routing"));
+                    doc.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing
+                    doc.timestamp(request.param("timestamp"));
+                    if (request.hasParam("ttl")) {
+                        doc.ttl(request.paramAsTime("ttl", null).millis());
+                    }
+                    doc.version(RestActions.parseVersion(request));
+                    doc.versionType(VersionType.fromString(request.param("version_type"), doc.versionType()));
+                }
+            } catch (Exception e) {
+                try {
+                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                } catch (IOException e1) {
+                    logger.warn("Failed to send response", e1);
+                }
+                return;
             }
         }
 

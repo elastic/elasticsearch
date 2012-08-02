@@ -65,11 +65,15 @@ class ShardValidateQueryResponse extends BroadcastShardOperationResponse {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         valid = in.readBoolean();
+        explanation = in.readOptionalUTF();
+        error = in.readOptionalUTF();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeBoolean(valid);
+        out.writeOptionalUTF(explanation);
+        out.writeOptionalUTF(error);
     }
 }

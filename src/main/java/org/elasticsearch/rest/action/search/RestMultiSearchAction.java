@@ -56,12 +56,13 @@ public class RestMultiSearchAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
+        multiSearchRequest.listenerThreaded(false);
 
         String[] indices = RestActions.splitIndices(request.param("index"));
         String[] types = RestActions.splitTypes(request.param("type"));
 
         try {
-            multiSearchRequest.add(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength(), request.contentUnsafe(), indices, types);
+            multiSearchRequest.add(request.content(), request.contentUnsafe(), indices, types, request.param("search_type"));
         } catch (Exception e) {
             try {
                 XContentBuilder builder = restContentBuilder(request);

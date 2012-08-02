@@ -19,33 +19,63 @@
 
 package org.elasticsearch.indices.store;
 
+import org.apache.lucene.store.StoreRateLimiting;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.File;
-import java.util.Map;
-import java.util.concurrent.ScheduledFuture;
 
 /**
  *
  */
 public class IndicesStore extends AbstractComponent implements ClusterStateListener {
 
+    static {
+        MetaData.addDynamicSettings(
+                "indices.store.throttle.type",
+                "indices.store.throttle.max_bytes_per_sec"
+        );
+    }
+
+    class ApplySettings implements NodeSettingsService.Listener {
+        @Override
+        public void onRefreshSettings(Settings settings) {
+            String rateLimitingType = settings.get("indices.store.throttle.type", IndicesStore.this.rateLimitingType);
+            // try and parse the type
+            StoreRateLimiting.Type.fromString(rateLimitingType);
+            if (!rateLimitingType.equals(IndicesStore.this.rateLimitingType)) {
+                logger.info("updating indices.store.throttle.type from [{}] to [{}]", IndicesStore.this.rateLimitingType, rateLimitingType);
+                IndicesStore.this.rateLimitingType = rateLimitingType;
+                IndicesStore.this.rateLimiting.setType(rateLimitingType);
+            }
+
+            ByteSizeValue rateLimitingThrottle = settings.getAsBytesSize("indices.store.throttle.max_bytes_per_sec", IndicesStore.this.rateLimitingThrottle);
+            if (!rateLimitingThrottle.equals(IndicesStore.this.rateLimitingThrottle)) {
+                logger.info("updating indices.store.throttle.max_bytes_per_sec from [{}] to [{}], note, type is [{}]", IndicesStore.this.rateLimitingThrottle, rateLimitingThrottle, IndicesStore.this.rateLimitingType);
+                IndicesStore.this.rateLimitingThrottle = rateLimitingThrottle;
+                IndicesStore.this.rateLimiting.setMaxRate(rateLimitingThrottle);
+            }
+        }
+    }
+
+
     private final NodeEnvironment nodeEnv;
+
+    private final NodeSettingsService nodeSettingsService;
 
     private final IndicesService indicesService;
 
@@ -53,36 +83,38 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
 
     private final ThreadPool threadPool;
 
-    private final TimeValue danglingTimeout;
+    private volatile String rateLimitingType;
+    private volatile ByteSizeValue rateLimitingThrottle;
+    private final StoreRateLimiting rateLimiting = new StoreRateLimiting();
 
-    private final Map<String, DanglingIndex> danglingIndices = ConcurrentCollections.newConcurrentMap();
-
-    private final Object danglingMutex = new Object();
-
-    static class DanglingIndex {
-        public final String index;
-        public final ScheduledFuture future;
-
-        DanglingIndex(String index, ScheduledFuture future) {
-            this.index = index;
-            this.future = future;
-        }
-    }
+    private final ApplySettings applySettings = new ApplySettings();
 
     @Inject
-    public IndicesStore(Settings settings, NodeEnvironment nodeEnv, IndicesService indicesService, ClusterService clusterService, ThreadPool threadPool) {
+    public IndicesStore(Settings settings, NodeEnvironment nodeEnv, NodeSettingsService nodeSettingsService, IndicesService indicesService, ClusterService clusterService, ThreadPool threadPool) {
         super(settings);
         this.nodeEnv = nodeEnv;
+        this.nodeSettingsService = nodeSettingsService;
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
 
-        this.danglingTimeout = componentSettings.getAsTime("dangling_timeout", TimeValue.timeValueHours(2));
+        this.rateLimitingType = componentSettings.get("throttle.type", "none");
+        rateLimiting.setType(rateLimitingType);
+        this.rateLimitingThrottle = componentSettings.getAsBytesSize("throttle.max_bytes_per_sec", new ByteSizeValue(0));
+        rateLimiting.setMaxRate(rateLimitingThrottle);
 
+        logger.debug("using indices.store.throttle.type [{}], with index.store.throttle.max_bytes_per_sec [{}]", rateLimitingType, rateLimitingThrottle);
+
+        nodeSettingsService.addListener(applySettings);
         clusterService.addLast(this);
     }
 
+    public StoreRateLimiting rateLimiting() {
+        return this.rateLimiting;
+    }
+
     public void close() {
+        nodeSettingsService.removeListener(applySettings);
         clusterService.remove(this);
     }
 
@@ -117,7 +149,8 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                     continue;
                 }
                 // only delete an unallocated shard if all (other shards) are started
-                if (indexShardRoutingTable.countWithState(ShardRoutingState.STARTED) == indexShardRoutingTable.size()) {
+                int startedShardsCount = indexShardRoutingTable.countWithState(ShardRoutingState.STARTED);
+                if (startedShardsCount > 0 && startedShardsCount == indexShardRoutingTable.size()) {
                     if (logger.isDebugEnabled()) {
                         logger.debug("[{}][{}] deleting unallocated shard", indexShardRoutingTable.shardId().index().name(), indexShardRoutingTable.shardId().id());
                     }
@@ -130,8 +163,8 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
             }
         }
 
-        // do the reverse, and delete dangling indices / shards that might remain on that node
-        // this can happen when deleting a closed index, or when a node joins and it has deleted indices / shards
+        // do the reverse, and delete dangling shards that might remain on that node
+        // but are allocated on other nodes
         if (nodeEnv.hasNodeFile()) {
             // delete unused shards for existing indices
             for (IndexRoutingTable indexRoutingTable : routingTable) {
@@ -165,62 +198,6 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                         }
                     }
                 }
-            }
-
-            if (danglingTimeout.millis() >= 0) {
-                synchronized (danglingMutex) {
-                    for (String danglingIndex : danglingIndices.keySet()) {
-                        if (event.state().metaData().hasIndex(danglingIndex)) {
-                            logger.debug("[{}] no longer dangling (created), removing", danglingIndex);
-                            DanglingIndex removed = danglingIndices.remove(danglingIndex);
-                            removed.future.cancel(false);
-                        }
-                    }
-                    // delete indices that are no longer part of the metadata
-                    try {
-                        for (String indexName : nodeEnv.findAllIndices()) {
-                            // if we have the index on the metadata, don't delete it
-                            if (event.state().metaData().hasIndex(indexName)) {
-                                continue;
-                            }
-                            if (danglingIndices.containsKey(indexName)) {
-                                // already dangling, continue
-                                continue;
-                            }
-                            if (danglingTimeout.millis() == 0) {
-                                logger.info("[{}] dangling index, exists on local file system, but not in cluster metadata, timeout set to 0, deleting now", indexName);
-                                FileSystemUtils.deleteRecursively(nodeEnv.indexLocations(new Index(indexName)));
-                            } else {
-                                logger.info("[{}] dangling index, exists on local file system, but not in cluster metadata, scheduling to delete in [{}]", indexName, danglingTimeout);
-                                danglingIndices.put(indexName, new DanglingIndex(indexName, threadPool.schedule(danglingTimeout, ThreadPool.Names.SAME, new RemoveDanglingIndex(indexName))));
-                            }
-                        }
-                    } catch (Exception e) {
-                        logger.warn("failed to find dangling indices", e);
-                    }
-                }
-            }
-        }
-    }
-
-    class RemoveDanglingIndex implements Runnable {
-
-        private final String index;
-
-        RemoveDanglingIndex(String index) {
-            this.index = index;
-        }
-
-        @Override
-        public void run() {
-            synchronized (danglingMutex) {
-                DanglingIndex remove = danglingIndices.remove(index);
-                // no longer there...
-                if (remove == null) {
-                    return;
-                }
-                logger.info("[{}] deleting dangling index", index);
-                FileSystemUtils.deleteRecursively(nodeEnv.indexLocations(new Index(index)));
             }
         }
     }

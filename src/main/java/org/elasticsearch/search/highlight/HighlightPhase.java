@@ -33,11 +33,15 @@ import org.apache.lucene.search.highlight.*;
 import org.apache.lucene.search.highlight.Formatter;
 import org.apache.lucene.search.vectorhighlight.*;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.lucene.document.SingleFieldSelector;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.vectorhighlight.SimpleBoundaryScanner2;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -57,11 +61,19 @@ import static com.google.common.collect.Maps.newHashMap;
 /**
  *
  */
-public class HighlightPhase implements FetchSubPhase {
+public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
 
     public static class Encoders {
         public static Encoder DEFAULT = new DefaultEncoder();
         public static Encoder HTML = new SimpleHTMLEncoder();
+    }
+
+    private final boolean termVectorMultiValue;
+
+    @Inject
+    public HighlightPhase(Settings settings) {
+        super(settings);
+        this.termVectorMultiValue = componentSettings.getAsBoolean("term_vector_multi_value", true);
     }
 
     @Override
@@ -220,9 +232,9 @@ public class HighlightPhase implements FetchSubPhase {
                 String[] fragments = null;
                 // number_of_fragments is set to 0 but we have a multivalued field
                 if (field.numberOfFragments() == 0 && textsToHighlight.size() > 1 && fragsList.size() > 0) {
-                    fragments = new String[1];
+                    fragments = new String[fragsList.size()];
                     for (int i = 0; i < fragsList.size(); i++) {
-                        fragments[0] = (fragments[0] != null ? (fragments[0] + " ") : "") + fragsList.get(i).toString();
+                        fragments[i] = fragsList.get(i).toString();
                     }
                 } else {
                     // refine numberOfFragments if needed
@@ -234,7 +246,7 @@ public class HighlightPhase implements FetchSubPhase {
                 }
 
                 if (fragments != null && fragments.length > 0) {
-                    HighlightField highlightField = new HighlightField(field.field(), fragments);
+                    HighlightField highlightField = new HighlightField(field.field(), StringText.convertFromStringArray(fragments));
                     highlightFields.put(highlightField.name(), highlightField);
                 }
             } else {
@@ -243,7 +255,7 @@ public class HighlightPhase implements FetchSubPhase {
                     FieldQuery fieldQuery = null;
                     if (entry == null) {
                         FragListBuilder fragListBuilder;
-                        FragmentsBuilder fragmentsBuilder;
+                        AbstractFragmentsBuilder fragmentsBuilder;
 
                         BoundaryScanner boundaryScanner = SimpleBoundaryScanner2.DEFAULT;
                         if (field.boundaryMaxScan() != SimpleBoundaryScanner2.DEFAULT_MAX_SCAN || field.boundaryChars() != SimpleBoundaryScanner2.DEFAULT_BOUNDARY_CHARS) {
@@ -254,7 +266,7 @@ public class HighlightPhase implements FetchSubPhase {
                             fragListBuilder = new SingleFragListBuilder();
 
                             if (mapper.stored()) {
-                                fragmentsBuilder = new SimpleFragmentsBuilder(field.preTags(), field.postTags(), boundaryScanner);
+                                fragmentsBuilder = new XSimpleFragmentsBuilder(field.preTags(), field.postTags(), boundaryScanner);
                             } else {
                                 fragmentsBuilder = new SourceSimpleFragmentsBuilder(mapper, context, field.preTags(), field.postTags(), boundaryScanner);
                             }
@@ -266,18 +278,19 @@ public class HighlightPhase implements FetchSubPhase {
 
                             if (field.scoreOrdered()) {
                                 if (mapper.stored()) {
-                                    fragmentsBuilder = new ScoreOrderFragmentsBuilder(field.preTags(), field.postTags(), boundaryScanner);
+                                    fragmentsBuilder = new XScoreOrderFragmentsBuilder(field.preTags(), field.postTags(), boundaryScanner);
                                 } else {
                                     fragmentsBuilder = new SourceScoreOrderFragmentsBuilder(mapper, context, field.preTags(), field.postTags(), boundaryScanner);
                                 }
                             } else {
                                 if (mapper.stored()) {
-                                    fragmentsBuilder = new SimpleFragmentsBuilder(field.preTags(), field.postTags(), boundaryScanner);
+                                    fragmentsBuilder = new XSimpleFragmentsBuilder(field.preTags(), field.postTags(), boundaryScanner);
                                 } else {
                                     fragmentsBuilder = new SourceSimpleFragmentsBuilder(mapper, context, field.preTags(), field.postTags(), boundaryScanner);
                                 }
                             }
                         }
+                        fragmentsBuilder.setDiscreteMultiValueHighlighting(termVectorMultiValue);
                         entry = new MapperHighlightEntry();
                         entry.fragListBuilder = fragListBuilder;
                         entry.fragmentsBuilder = fragmentsBuilder;
@@ -313,7 +326,7 @@ public class HighlightPhase implements FetchSubPhase {
                             entry.fragListBuilder, entry.fragmentsBuilder, field.preTags(), field.postTags(), encoder);
 
                     if (fragments != null && fragments.length > 0) {
-                        HighlightField highlightField = new HighlightField(field.field(), fragments);
+                        HighlightField highlightField = new HighlightField(field.field(), StringText.convertFromStringArray(fragments));
                         highlightFields.put(highlightField.name(), highlightField);
                     }
                 } catch (Exception e) {

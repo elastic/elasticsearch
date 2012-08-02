@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import com.google.common.collect.Lists;
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.*;
@@ -229,6 +230,20 @@ public class AllocationService extends AbstractComponent {
                             changed = true;
                             shardEntry.moveFromPrimary();
                             shardEntry2.moveToPrimary();
+
+                            if (shardEntry2.relocatingNodeId() != null) {
+                                // its also relocating, make sure to move the other routing to primary
+                                RoutingNode node = routingNodes.node(shardEntry2.relocatingNodeId());
+                                if (node != null) {
+                                    for (MutableShardRouting shardRouting : node) {
+                                        if (shardRouting.shardId().equals(shardEntry2.shardId()) && !shardRouting.primary()) {
+                                            shardRouting.moveToPrimary();
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+
                             elected = true;
                             break;
                         }
@@ -268,48 +283,87 @@ public class AllocationService extends AbstractComponent {
         for (RoutingNode routingNode : routingNodes) {
             for (Iterator<MutableShardRouting> shardsIterator = routingNode.shards().iterator(); shardsIterator.hasNext(); ) {
                 MutableShardRouting shardRoutingEntry = shardsIterator.next();
-                if (shardRoutingEntry.assignedToNode()) {
-                    // we store the relocation state here since when we call de-assign node
-                    // later on, we will loose this state
-                    boolean relocating = shardRoutingEntry.relocating();
-                    String relocatingNodeId = shardRoutingEntry.relocatingNodeId();
-                    // is this the destination shard that we are relocating an existing shard to?
-                    // we know this since it has a relocating node id (the node we relocate from) and our state is INITIALIZING (and not RELOCATING)
-                    boolean isRelocationDestinationShard = relocatingNodeId != null && shardRoutingEntry.initializing();
+                if (!shardRoutingEntry.assignedToNode()) {
+                    throw new ElasticSearchIllegalStateException(shardRoutingEntry.shardId() + " is not assigned to a node, but listed on as existing on node [" + routingNode.nodeId() + "]");
+                }
+                // we store the relocation state here since when we call de-assign node
+                // later on, we will loose this state
+                boolean relocating = shardRoutingEntry.relocating();
+                String relocatingNodeId = shardRoutingEntry.relocatingNodeId();
+                // is this the destination shard that we are relocating an existing shard to?
+                // we know this since it has a relocating node id (the node we relocate from) and our state is INITIALIZING (and not RELOCATING)
+                boolean isRelocationDestinationShard = relocatingNodeId != null && shardRoutingEntry.initializing();
 
-                    boolean currentNodeIsDead = false;
-                    if (!liveNodeIds.contains(shardRoutingEntry.currentNodeId())) {
+                boolean remove = false;
+                boolean currentNodeIsDead = false;
+                if (!liveNodeIds.contains(shardRoutingEntry.currentNodeId())) {
+                    changed = true;
+                    nodeIdsToRemove.add(shardRoutingEntry.currentNodeId());
+
+                    if (!isRelocationDestinationShard) {
+                        routingNodes.unassigned().add(shardRoutingEntry);
+                    }
+
+                    shardRoutingEntry.deassignNode();
+                    currentNodeIsDead = true;
+                    remove = true;
+                }
+
+                // move source shard back to active state and cancel relocation mode.
+                if (relocating && !liveNodeIds.contains(relocatingNodeId)) {
+                    nodeIdsToRemove.add(relocatingNodeId);
+                    if (!currentNodeIsDead) {
                         changed = true;
-                        nodeIdsToRemove.add(shardRoutingEntry.currentNodeId());
-
-                        if (!isRelocationDestinationShard) {
-                            routingNodes.unassigned().add(shardRoutingEntry);
-                        }
-
-                        shardRoutingEntry.deassignNode();
-                        currentNodeIsDead = true;
-                        shardsIterator.remove();
+                        shardRoutingEntry.cancelRelocation();
                     }
+                }
 
-                    // move source shard back to active state and cancel relocation mode.
-                    if (relocating && !liveNodeIds.contains(relocatingNodeId)) {
-                        nodeIdsToRemove.add(relocatingNodeId);
-                        if (!currentNodeIsDead) {
-                            changed = true;
-                            shardRoutingEntry.cancelRelocation();
-                        }
-                    }
+                if (isRelocationDestinationShard && !liveNodeIds.contains(relocatingNodeId)) {
+                    changed = true;
+                    remove = true;
+                }
 
-                    if (isRelocationDestinationShard && !liveNodeIds.contains(relocatingNodeId)) {
-                        changed = true;
-                        shardsIterator.remove();
-                    }
+                if (remove) {
+                    shardsIterator.remove();
                 }
             }
         }
         for (String nodeIdToRemove : nodeIdsToRemove) {
             routingNodes.nodesToShards().remove(nodeIdToRemove);
         }
+
+        // now, go over shards that are initializing and recovering from primary shards that are now down...
+        for (RoutingNode routingNode : routingNodes) {
+            for (Iterator<MutableShardRouting> shardsIterator = routingNode.shards().iterator(); shardsIterator.hasNext(); ) {
+                MutableShardRouting shardRoutingEntry = shardsIterator.next();
+                if (!shardRoutingEntry.assignedToNode()) {
+                    throw new ElasticSearchIllegalStateException(shardRoutingEntry.shardId() + " is not assigned to a node, but listed on as existing on node [" + routingNode.nodeId() + "]");
+                }
+                // we always recover from primaries, so we care about replicas that are not primaries
+                if (shardRoutingEntry.primary()) {
+                    continue;
+                }
+                // if its not initializing, then its not recovering from the primary
+                if (!shardRoutingEntry.initializing()) {
+                    continue;
+                }
+                // its initializing because its relocating from another node (its replica recovering from another replica)
+                if (shardRoutingEntry.relocatingNodeId() != null) {
+                    continue;
+                }
+                for (MutableShardRouting unassignedShardRouting : routingNodes.unassigned()) {
+                    // double check on the unassignedShardRouting.primary(), but it has to be a primary... (well, we double checked actually before...)
+                    if (unassignedShardRouting.shardId().equals(shardRoutingEntry.shardId()) && unassignedShardRouting.primary()) {
+                        // remove it...
+                        routingNodes.unassigned().add(shardRoutingEntry);
+                        shardRoutingEntry.deassignNode();
+                        shardsIterator.remove();
+                        break;
+                    }
+                }
+            }
+        }
+
         return changed;
     }
 

@@ -160,7 +160,9 @@ public class MappingMetaData {
         public static String parseStringTimestamp(String timestampAsString, FormatDateTimeFormatter dateTimeFormatter) throws TimestampParsingException {
             long ts;
             try {
+                // if we manage to parse it, its a millisecond timestamp, just return the string as is
                 ts = Long.parseLong(timestampAsString);
+                return timestampAsString;
             } catch (NumberFormatException e) {
                 try {
                     ts = dateTimeFormatter.parser().parseMillis(timestampAsString);
@@ -168,7 +170,7 @@ public class MappingMetaData {
                     throw new TimestampParsingException(timestampAsString);
                 }
             }
-            return String.valueOf(ts);
+            return Long.toString(ts);
         }
 
 
@@ -281,7 +283,7 @@ public class MappingMetaData {
     public MappingMetaData(String type, Map<String, Object> mapping) throws IOException {
         this.type = type;
         XContentBuilder mappingBuilder = XContentFactory.jsonBuilder().map(mapping);
-        this.source = new CompressedString(mappingBuilder.underlyingBytes(), 0, mappingBuilder.underlyingBytesLength());
+        this.source = new CompressedString(mappingBuilder.bytes());
         Map<String, Object> withoutType = mapping;
         if (mapping.size() == 1 && mapping.containsKey(type)) {
             withoutType = (Map<String, Object>) mapping.get(type);
@@ -349,6 +351,18 @@ public class MappingMetaData {
         this.id = id;
         this.routing = routing;
         this.timestamp = timestamp;
+    }
+
+    void updateDefaultMapping(MappingMetaData defaultMapping) {
+        if (id == Id.EMPTY) {
+            id = defaultMapping.id();
+        }
+        if (routing == Routing.EMPTY) {
+            routing = defaultMapping.routing();
+        }
+        if (timestamp == Timestamp.EMPTY) {
+            timestamp = defaultMapping.timestamp();
+        }
     }
 
     public String type() {

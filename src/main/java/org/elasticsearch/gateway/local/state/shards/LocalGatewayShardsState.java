@@ -26,19 +26,17 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.compress.lzf.LZF;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
-import org.elasticsearch.common.io.stream.CachedStreamInput;
 import org.elasticsearch.common.io.stream.CachedStreamOutput;
-import org.elasticsearch.common.io.stream.LZFStreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.gateway.local.state.meta.LocalGatewayMetaState;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.File;
@@ -54,20 +52,22 @@ import java.util.Set;
 public class LocalGatewayShardsState extends AbstractComponent implements ClusterStateListener {
 
     private final NodeEnvironment nodeEnv;
+    private final LocalGatewayMetaState metaState;
 
     private volatile Map<ShardId, ShardStateInfo> currentState = Maps.newHashMap();
 
     @Inject
-    public LocalGatewayShardsState(Settings settings, NodeEnvironment nodeEnv, TransportNodesListGatewayStartedShards listGatewayStartedShards) throws Exception {
+    public LocalGatewayShardsState(Settings settings, NodeEnvironment nodeEnv, TransportNodesListGatewayStartedShards listGatewayStartedShards, LocalGatewayMetaState metaState) throws Exception {
         super(settings);
         this.nodeEnv = nodeEnv;
+        this.metaState = metaState;
         listGatewayStartedShards.initGateway(this);
 
         if (DiscoveryNode.dataNode(settings)) {
             try {
                 pre019Upgrade();
                 long start = System.currentTimeMillis();
-                loadStartedShards();
+                currentState = loadShardsStateInfo();
                 logger.debug("took {} to load started shards state", TimeValue.timeValueMillis(System.currentTimeMillis() - start));
             } catch (Exception e) {
                 logger.error("failed to read local state (started shards), exiting...", e);
@@ -78,6 +78,10 @@ public class LocalGatewayShardsState extends AbstractComponent implements Cluste
 
     public Map<ShardId, ShardStateInfo> currentStartedShards() {
         return this.currentState;
+    }
+
+    public ShardStateInfo loadShardInfo(ShardId shardId) throws Exception {
+        return loadShardStateInfo(shardId);
     }
 
     @Override
@@ -154,76 +158,80 @@ public class LocalGatewayShardsState extends AbstractComponent implements Cluste
             }
         }
 
+        // REMOVED: don't delete shard state, rely on IndicesStore to delete the shard location
+        //          only once all shards are allocated on another node
         // now, go over the current ones and delete ones that are not in the new one
-        for (Map.Entry<ShardId, ShardStateInfo> entry : currentState.entrySet()) {
-            ShardId shardId = entry.getKey();
-            if (!newState.containsKey(shardId)) {
-                deleteShardState(shardId);
-            }
-        }
+//        for (Map.Entry<ShardId, ShardStateInfo> entry : currentState.entrySet()) {
+//            ShardId shardId = entry.getKey();
+//            if (!newState.containsKey(shardId)) {
+//                if (!metaState.isDangling(shardId.index().name())) {
+//                    deleteShardState(shardId);
+//                }
+//            }
+//        }
 
         this.currentState = newState;
     }
 
-    private void loadStartedShards() throws Exception {
+    private Map<ShardId, ShardStateInfo> loadShardsStateInfo() throws Exception {
         Set<ShardId> shardIds = nodeEnv.findAllShardIds();
         long highestVersion = -1;
         Map<ShardId, ShardStateInfo> shardsState = Maps.newHashMap();
         for (ShardId shardId : shardIds) {
-            long highestShardVersion = -1;
-            ShardStateInfo highestShardState = null;
-            for (File shardLocation : nodeEnv.shardLocations(shardId)) {
-                File shardStateDir = new File(shardLocation, "_state");
-                if (!shardStateDir.exists() || !shardStateDir.isDirectory()) {
-                    continue;
-                }
-                // now, iterate over the current versions, and find latest one
-                File[] stateFiles = shardStateDir.listFiles();
-                if (stateFiles == null) {
-                    continue;
-                }
-                for (File stateFile : stateFiles) {
-                    if (!stateFile.getName().startsWith("state-")) {
-                        continue;
-                    }
-                    try {
-                        long version = Long.parseLong(stateFile.getName().substring("state-".length()));
-                        if (version > highestShardVersion) {
-                            byte[] data = Streams.copyToByteArray(new FileInputStream(stateFile));
-                            if (data.length == 0) {
-                                logger.debug("[{}][{}]: not data for [" + stateFile.getAbsolutePath() + "], ignoring...", shardId.index().name(), shardId.id());
-                                continue;
-                            }
-                            ShardStateInfo readState = readShardState(data);
-                            if (readState == null) {
-                                logger.debug("[{}][{}]: not data for [" + stateFile.getAbsolutePath() + "], ignoring...", shardId.index().name(), shardId.id());
-                                continue;
-                            }
-                            assert readState.version == version;
-                            highestShardState = readState;
-                            highestShardVersion = version;
-                        }
-                    } catch (Exception e) {
-                        logger.debug("[{}][{}]: failed to read [" + stateFile.getAbsolutePath() + "], ignoring...", e, shardId.index().name(), shardId.id());
-                    }
-                }
-            }
-            // did we find a state file?
-            if (highestShardState == null) {
+            ShardStateInfo shardStateInfo = loadShardStateInfo(shardId);
+            if (shardStateInfo == null) {
                 continue;
             }
-
-            shardsState.put(shardId, highestShardState);
+            shardsState.put(shardId, shardStateInfo);
 
             // update the global version
-            if (highestShardVersion > highestVersion) {
-                highestVersion = highestShardVersion;
+            if (shardStateInfo.version > highestVersion) {
+                highestVersion = shardStateInfo.version;
             }
         }
-        // update the current started shards only if there is data there...
-        if (highestVersion != -1) {
-            currentState = shardsState;
+        return shardsState;
+    }
+
+    private ShardStateInfo loadShardStateInfo(ShardId shardId) {
+        long highestShardVersion = -1;
+        ShardStateInfo highestShardState = null;
+        for (File shardLocation : nodeEnv.shardLocations(shardId)) {
+            File shardStateDir = new File(shardLocation, "_state");
+            if (!shardStateDir.exists() || !shardStateDir.isDirectory()) {
+                continue;
+            }
+            // now, iterate over the current versions, and find latest one
+            File[] stateFiles = shardStateDir.listFiles();
+            if (stateFiles == null) {
+                continue;
+            }
+            for (File stateFile : stateFiles) {
+                if (!stateFile.getName().startsWith("state-")) {
+                    continue;
+                }
+                try {
+                    long version = Long.parseLong(stateFile.getName().substring("state-".length()));
+                    if (version > highestShardVersion) {
+                        byte[] data = Streams.copyToByteArray(new FileInputStream(stateFile));
+                        if (data.length == 0) {
+                            logger.debug("[{}][{}]: not data for [" + stateFile.getAbsolutePath() + "], ignoring...", shardId.index().name(), shardId.id());
+                            continue;
+                        }
+                        ShardStateInfo readState = readShardState(data);
+                        if (readState == null) {
+                            logger.debug("[{}][{}]: not data for [" + stateFile.getAbsolutePath() + "], ignoring...", shardId.index().name(), shardId.id());
+                            continue;
+                        }
+                        assert readState.version == version;
+                        highestShardState = readState;
+                        highestShardVersion = version;
+                    }
+                } catch (Exception e) {
+                    logger.debug("[{}][{}]: failed to read [" + stateFile.getAbsolutePath() + "], ignoring...", e, shardId.index().name(), shardId.id());
+                }
+            }
         }
+        return highestShardState;
     }
 
     @Nullable
@@ -261,7 +269,7 @@ public class LocalGatewayShardsState extends AbstractComponent implements Cluste
         logger.trace("[{}][{}] writing shard state, reason [{}]", shardId.index().name(), shardId.id(), reason);
         CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
         try {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, cachedEntry.cachedBytes());
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, cachedEntry.bytes());
             builder.prettyPrint();
             builder.startObject();
             builder.field("version", shardStateInfo.version);
@@ -282,7 +290,8 @@ public class LocalGatewayShardsState extends AbstractComponent implements Cluste
                 FileOutputStream fos = null;
                 try {
                     fos = new FileOutputStream(stateFile);
-                    fos.write(cachedEntry.bytes().underlyingBytes(), 0, cachedEntry.bytes().size());
+                    BytesReference bytes = cachedEntry.bytes().bytes();
+                    fos.write(bytes.array(), bytes.arrayOffset(), bytes.length());
                     fos.getChannel().force(true);
                     Closeables.closeQuietly(fos);
                     wroteAtLeastOnce = true;
@@ -402,13 +411,7 @@ public class LocalGatewayShardsState extends AbstractComponent implements Cluste
         try {
             Map<ShardId, ShardStateInfo> shardsState = Maps.newHashMap();
 
-            if (LZF.isCompressed(data)) {
-                BytesStreamInput siBytes = new BytesStreamInput(data, false);
-                LZFStreamInput siLzf = CachedStreamInput.cachedLzf(siBytes);
-                parser = XContentFactory.xContent(XContentType.JSON).createParser(siLzf);
-            } else {
-                parser = XContentFactory.xContent(XContentType.JSON).createParser(data);
-            }
+            parser = XContentHelper.createParser(data, 0, data.length);
 
             String currentFieldName = null;
             XContentParser.Token token = parser.nextToken();

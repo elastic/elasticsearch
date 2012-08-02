@@ -19,6 +19,10 @@
 
 package org.elasticsearch.common.io;
 
+import org.elasticsearch.common.Bytes;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
@@ -26,8 +30,6 @@ import java.util.Arrays;
 
 /**
  * Similar to {@link java.io.ByteArrayOutputStream} just not synced.
- *
- *
  */
 public class FastByteArrayOutputStream extends OutputStream implements BytesStream {
 
@@ -75,7 +77,7 @@ public class FastByteArrayOutputStream extends OutputStream implements BytesStre
     public void write(int b) {
         int newcount = count + 1;
         if (newcount > buf.length) {
-            buf = Arrays.copyOf(buf, Math.max(buf.length << 1, newcount));
+            buf = Arrays.copyOf(buf, Bytes.oversize(newcount, 1));
         }
         buf[count] = (byte) b;
         count = newcount;
@@ -97,7 +99,7 @@ public class FastByteArrayOutputStream extends OutputStream implements BytesStre
         }
         int newcount = count + len;
         if (newcount > buf.length) {
-            buf = Arrays.copyOf(buf, Math.max(buf.length << 1, newcount));
+            buf = Arrays.copyOf(buf, Bytes.oversize(newcount, 1));
         }
         System.arraycopy(b, off, buf, count, len);
         count = newcount;
@@ -128,23 +130,12 @@ public class FastByteArrayOutputStream extends OutputStream implements BytesStre
     }
 
     /**
-     * Creates a newly allocated byte array. Its size is the current
-     * size of this output stream and the valid contents of the buffer
-     * have been copied into it.
-     *
-     * @return the current contents of this output stream, as a byte array.
-     * @see java.io.ByteArrayOutputStream#size()
-     */
-    public byte copiedByteArray()[] {
-        return Arrays.copyOf(buf, count);
-    }
-
-    /**
      * Returns the underlying byte array. Note, use {@link #size()} in order to know
      * the length of it.
      */
-    public byte[] underlyingBytes() {
-        return buf;
+    @Override
+    public BytesReference bytes() {
+        return new BytesArray(buf, 0, count);
     }
 
     /**

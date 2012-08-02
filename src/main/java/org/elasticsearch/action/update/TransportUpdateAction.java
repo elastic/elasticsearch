@@ -39,8 +39,8 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -165,7 +165,48 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
 
         // no doc, what to do, what to do...
         if (!getResult.exists()) {
-            listener.onFailure(new DocumentMissingException(new ShardId(request.index(), request.shardId()), request.type(), request.id()));
+            if (request.upsertRequest() == null) {
+                listener.onFailure(new DocumentMissingException(new ShardId(request.index(), request.shardId()), request.type(), request.id()));
+                return;
+            }
+            IndexRequest indexRequest = request.upsertRequest();
+            indexRequest.index(request.index()).type(request.type()).id(request.id())
+                    // it has to be a "create!"
+                    .create(true)
+                    .routing(request.routing())
+                    .percolate(request.percolate())
+                    .refresh(request.refresh())
+                    .replicationType(request.replicationType()).consistencyLevel(request.consistencyLevel());
+            indexRequest.operationThreaded(false);
+            // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
+            final BytesReference updateSourceBytes = indexRequest.source();
+            indexAction.execute(indexRequest, new ActionListener<IndexResponse>() {
+                @Override
+                public void onResponse(IndexResponse response) {
+                    UpdateResponse update = new UpdateResponse(response.index(), response.type(), response.id(), response.version());
+                    update.matches(response.matches());
+                    // TODO: we can parse the index _source and extractGetResult if applicable
+                    update.getResult(null);
+                    listener.onResponse(update);
+                }
+
+                @Override
+                public void onFailure(Throwable e) {
+                    e = ExceptionsHelper.unwrapCause(e);
+                    if (e instanceof VersionConflictEngineException) {
+                        if (retryCount < request.retryOnConflict()) {
+                            threadPool.executor(executor()).execute(new Runnable() {
+                                @Override
+                                public void run() {
+                                    shardOperation(request, listener, retryCount + 1);
+                                }
+                            });
+                            return;
+                        }
+                    }
+                    listener.onFailure(e);
+                }
+            });
             return;
         }
 
@@ -175,37 +216,59 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
             return;
         }
 
-        Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(getResult.internalSourceRef().bytes(), getResult.internalSourceRef().offset(), getResult.internalSourceRef().length(), true);
-        Map<String, Object> ctx = new HashMap<String, Object>(2);
-        ctx.put("_source", sourceAndContent.v2());
-
-        try {
-            ExecutableScript script = scriptService.executable(request.scriptLang, request.script, request.scriptParams);
-            script.setNextVar("ctx", ctx);
-            script.run();
-            // we need to unwrap the ctx...
-            ctx = (Map<String, Object>) script.unwrap(ctx);
-        } catch (Exception e) {
-            throw new ElasticSearchIllegalArgumentException("failed to execute script", e);
-        }
-
-        String operation = (String) ctx.get("op");
-        String timestamp = (String) ctx.get("_timestamp");
+        Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(getResult.internalSourceRef(), true);
+        String operation = null;
+        String timestamp = null;
         Long ttl = null;
-        Object fetchedTTL = ctx.get("_ttl");
-        if (fetchedTTL != null) {
-            if (fetchedTTL instanceof Number) {
-                ttl = ((Number) fetchedTTL).longValue();
-            } else {
-                ttl = TimeValue.parseTimeValue((String) fetchedTTL, null).millis();
-            }
-        }
-        final Map<String, Object> updatedSourceAsMap = (Map<String, Object>) ctx.get("_source");
+        Object fetchedTTL = null;
+        final Map<String, Object> updatedSourceAsMap;
         final XContentType updateSourceContentType = sourceAndContent.v1();
-
-        // apply script to update the source
         String routing = getResult.fields().containsKey(RoutingFieldMapper.NAME) ? getResult.field(RoutingFieldMapper.NAME).value().toString() : null;
         String parent = getResult.fields().containsKey(ParentFieldMapper.NAME) ? getResult.field(ParentFieldMapper.NAME).value().toString() : null;
+
+        if (request.script() == null && request.doc() != null) {
+            IndexRequest indexRequest = request.doc();
+            updatedSourceAsMap = sourceAndContent.v2();
+            if (indexRequest.ttl() > 0) {
+                ttl = indexRequest.ttl();
+            }
+            timestamp = indexRequest.timestamp();
+            if (indexRequest.routing() != null) {
+                routing = indexRequest.routing();
+            }
+            if (indexRequest.parent() != null) {
+                parent = indexRequest.parent();
+            }
+            XContentHelper.update(updatedSourceAsMap, indexRequest.sourceAsMap());
+        } else {
+            Map<String, Object> ctx = new HashMap<String, Object>(2);
+            ctx.put("_source", sourceAndContent.v2());
+
+            try {
+                ExecutableScript script = scriptService.executable(request.scriptLang, request.script, request.scriptParams);
+                script.setNextVar("ctx", ctx);
+                script.run();
+                // we need to unwrap the ctx...
+                ctx = (Map<String, Object>) script.unwrap(ctx);
+            } catch (Exception e) {
+                throw new ElasticSearchIllegalArgumentException("failed to execute script", e);
+            }
+
+            operation = (String) ctx.get("op");
+            timestamp = (String) ctx.get("_timestamp");
+            fetchedTTL = ctx.get("_ttl");
+            if (fetchedTTL != null) {
+                if (fetchedTTL instanceof Number) {
+                    ttl = ((Number) fetchedTTL).longValue();
+                } else {
+                    ttl = TimeValue.parseTimeValue((String) fetchedTTL, null).millis();
+                }
+            }
+
+            updatedSourceAsMap = (Map<String, Object>) ctx.get("_source");
+        }
+
+        // apply script to update the source
         // No TTL has been given in the update script so we keep previous TTL value if there is one
         if (ttl == null) {
             ttl = getResult.fields().containsKey(TTLFieldMapper.NAME) ? (Long) getResult.field(TTLFieldMapper.NAME).value() : null;
@@ -225,7 +288,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                     .refresh(request.refresh());
             indexRequest.operationThreaded(false);
             // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
-            final BytesHolder updateSourceBytes = indexRequest.underlyingSourceBytes();
+            final BytesReference updateSourceBytes = indexRequest.source();
             indexAction.execute(indexRequest, new ActionListener<IndexResponse>() {
                 @Override
                 public void onResponse(IndexResponse response) {
@@ -292,7 +355,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     }
 
     @Nullable
-    protected GetResult extractGetResult(final UpdateRequest request, long version, final Map<String, Object> source, XContentType sourceContentType, @Nullable final BytesHolder sourceAsBytes) {
+    protected GetResult extractGetResult(final UpdateRequest request, long version, final Map<String, Object> source, XContentType sourceContentType, @Nullable final BytesReference sourceAsBytes) {
         if (request.fields() == null || request.fields().length == 0) {
             return null;
         }

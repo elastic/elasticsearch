@@ -125,7 +125,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         request.index(metaData.concreteIndex(request.index()));
         MappingMetaData mappingMd = null;
         if (metaData.hasIndex(request.index())) {
-            mappingMd = metaData.index(request.index()).mapping(request.type());
+            mappingMd = metaData.index(request.index()).mappingOrDefault(request.type());
         }
         request.process(metaData, aliasOrIndex, mappingMd, allowIdGeneration);
         return true;
@@ -186,7 +186,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         final IndexRequest request = shardRequest.request;
 
         // validate, if routing is required, that we got routing
-        MappingMetaData mappingMd = clusterState.metaData().index(request.index()).mapping(request.type());
+        MappingMetaData mappingMd = clusterState.metaData().index(request.index()).mappingOrDefault(request.type());
         if (mappingMd != null && mappingMd.routing().required()) {
             if (request.routing() == null) {
                 throw new RoutingMissingException(request.index(), request.type(), request.id());
@@ -194,7 +194,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         }
 
         IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.index()).shardSafe(shardRequest.shardId);
-        SourceToParse sourceToParse = SourceToParse.source(request.underlyingSource(), request.underlyingSourceOffset(), request.underlyingSourceLength()).type(request.type()).id(request.id())
+        SourceToParse sourceToParse = SourceToParse.source(request.source()).type(request.type()).id(request.id())
                 .routing(request.routing()).parent(request.parent()).timestamp(request.timestamp()).ttl(request.ttl());
         long version;
         Engine.IndexingOperation op;
@@ -251,7 +251,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
     protected void shardOperationOnReplica(ReplicaOperationRequest shardRequest) {
         IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.index()).shardSafe(shardRequest.shardId);
         IndexRequest request = shardRequest.request;
-        SourceToParse sourceToParse = SourceToParse.source(request.underlyingSource(), request.underlyingSourceOffset(), request.underlyingSourceLength()).type(request.type()).id(request.id())
+        SourceToParse sourceToParse = SourceToParse.source(request.source()).type(request.type()).id(request.id())
                 .routing(request.routing()).parent(request.parent()).timestamp(request.timestamp()).ttl(request.ttl());
         if (request.opType() == IndexRequest.OpType.INDEX) {
             Engine.Index index = indexShard.prepareIndex(sourceToParse)

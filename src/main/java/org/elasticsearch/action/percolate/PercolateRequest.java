@@ -19,13 +19,12 @@
 
 package org.elasticsearch.action.percolate;
 
-import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.single.custom.SingleCustomOperationRequest;
-import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Required;
-import org.elasticsearch.common.Unicode;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -33,7 +32,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -46,9 +44,7 @@ public class PercolateRequest extends SingleCustomOperationRequest {
     private String index;
     private String type;
 
-    private byte[] source;
-    private int sourceOffset;
-    private int sourceLength;
+    private BytesReference source;
     private boolean sourceUnsafe;
 
     public PercolateRequest() {
@@ -90,38 +86,13 @@ public class PercolateRequest extends SingleCustomOperationRequest {
     @Override
     public void beforeLocalFork() {
         if (sourceUnsafe) {
-            source();
-        }
-    }
-
-    public byte[] source() {
-        if (sourceUnsafe || sourceOffset > 0 || source.length != sourceLength) {
-            source = Arrays.copyOfRange(source, sourceOffset, sourceOffset + sourceLength);
-            sourceOffset = 0;
+            source = source.copyBytesArray();
             sourceUnsafe = false;
         }
+    }
+
+    public BytesReference source() {
         return source;
-    }
-
-    public byte[] underlyingSource() {
-        if (sourceUnsafe) {
-            source();
-        }
-        return this.source;
-    }
-
-    public int underlyingSourceOffset() {
-        if (sourceUnsafe) {
-            source();
-        }
-        return this.sourceOffset;
-    }
-
-    public int underlyingSourceLength() {
-        if (sourceUnsafe) {
-            source();
-        }
-        return this.sourceLength;
     }
 
     @Required
@@ -142,24 +113,15 @@ public class PercolateRequest extends SingleCustomOperationRequest {
 
     @Required
     public PercolateRequest source(String source) {
-        UnicodeUtil.UTF8Result result = Unicode.fromStringAsUtf8(source);
-        this.source = result.result;
-        this.sourceOffset = 0;
-        this.sourceLength = result.length;
-        this.sourceUnsafe = true;
+        this.source = new BytesArray(source);
+        this.sourceUnsafe = false;
         return this;
     }
 
     @Required
     public PercolateRequest source(XContentBuilder sourceBuilder) {
-        try {
-            source = sourceBuilder.underlyingBytes();
-            sourceOffset = 0;
-            sourceLength = sourceBuilder.underlyingBytesLength();
-            sourceUnsafe = false;
-        } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate [" + sourceBuilder + "]", e);
-        }
+        source = sourceBuilder.bytes();
+        sourceUnsafe = false;
         return this;
     }
 
@@ -174,9 +136,12 @@ public class PercolateRequest extends SingleCustomOperationRequest {
 
     @Required
     public PercolateRequest source(byte[] source, int offset, int length, boolean unsafe) {
+        return source(new BytesArray(source, offset, length), unsafe);
+    }
+
+    @Required
+    public PercolateRequest source(BytesReference source, boolean unsafe) {
         this.source = source;
-        this.sourceOffset = offset;
-        this.sourceLength = length;
         this.sourceUnsafe = unsafe;
         return this;
     }
@@ -212,11 +177,8 @@ public class PercolateRequest extends SingleCustomOperationRequest {
         index = in.readUTF();
         type = in.readUTF();
 
-        BytesHolder bytes = in.readBytesReference();
         sourceUnsafe = false;
-        source = bytes.bytes();
-        sourceOffset = bytes.offset();
-        sourceLength = bytes.length();
+        source = in.readBytesReference();
     }
 
     @Override
@@ -224,6 +186,6 @@ public class PercolateRequest extends SingleCustomOperationRequest {
         super.writeTo(out);
         out.writeUTF(index);
         out.writeUTF(type);
-        out.writeBytesHolder(source, sourceOffset, sourceLength);
+        out.writeBytesReference(source);
     }
 }

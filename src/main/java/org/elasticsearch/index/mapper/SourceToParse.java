@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 /**
@@ -26,21 +27,15 @@ import org.elasticsearch.common.xcontent.XContentParser;
  */
 public class SourceToParse {
 
-    public static SourceToParse source(byte[] source) {
-        return new SourceToParse(source);
-    }
-
-    public static SourceToParse source(byte[] source, int offset, int length) {
-        return new SourceToParse(source, offset, length);
-    }
-
     public static SourceToParse source(XContentParser parser) {
         return new SourceToParse(parser);
     }
 
-    private final byte[] source;
-    private final int sourceOffset;
-    private final int sourceLength;
+    public static SourceToParse source(BytesReference source) {
+        return new SourceToParse(source);
+    }
+
+    private final BytesReference source;
 
     private final XContentParser parser;
 
@@ -61,21 +56,12 @@ public class SourceToParse {
     public SourceToParse(XContentParser parser) {
         this.parser = parser;
         this.source = null;
-        this.sourceOffset = 0;
-        this.sourceLength = 0;
     }
 
-    public SourceToParse(byte[] source) {
-        this.source = source;
-        this.sourceOffset = 0;
-        this.sourceLength = source.length;
-        this.parser = null;
-    }
-
-    public SourceToParse(byte[] source, int offset, int length) {
-        this.source = source;
-        this.sourceOffset = offset;
-        this.sourceLength = length;
+    public SourceToParse(BytesReference source) {
+        // we always convert back to byte array, since we store it and Field only supports bytes..
+        // so, we might as well do it here, and improve the performance of working with direct byte arrays
+        this.source = source.toBytesArray();
         this.parser = null;
     }
 
@@ -83,16 +69,8 @@ public class SourceToParse {
         return this.parser;
     }
 
-    public byte[] source() {
+    public BytesReference source() {
         return this.source;
-    }
-
-    public int sourceOffset() {
-        return this.sourceOffset;
-    }
-
-    public int sourceLength() {
-        return this.sourceLength;
     }
 
     public String type() {

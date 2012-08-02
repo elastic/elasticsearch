@@ -55,7 +55,7 @@ public interface Plugin {
      *
      * @param settings The node level settings.
      */
-    Collection<Module> modules(Settings settings);
+    Collection<? extends Module> modules(Settings settings);
 
     /**
      * Node level services that will be automatically started/stopped/closed.
@@ -70,7 +70,7 @@ public interface Plugin {
     /**
      * Per index modules.
      */
-    Collection<Module> indexModules(Settings settings);
+    Collection<? extends Module> indexModules(Settings settings);
 
     /**
      * Per index services that will be automatically closed.
@@ -85,7 +85,7 @@ public interface Plugin {
     /**
      * Per index shard module.
      */
-    Collection<Module> shardModules(Settings settings);
+    Collection<? extends Module> shardModules(Settings settings);
 
     /**
      * Per index shard service that will be automatically closed.

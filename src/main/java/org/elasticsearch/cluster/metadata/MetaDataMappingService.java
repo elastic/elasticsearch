@@ -41,6 +41,7 @@ import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidTypeNameException;
+import org.elasticsearch.indices.TypeMissingException;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -227,38 +228,52 @@ public class MetaDataMappingService extends AbstractComponent {
         });
     }
 
-    public void removeMapping(final RemoveRequest request) {
+    public void removeMapping(final RemoveRequest request, final Listener listener) {
+        final AtomicBoolean notifyOnPostProcess = new AtomicBoolean();
         clusterService.submitStateUpdateTask("remove-mapping [" + request.mappingType + "]", new ProcessedClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 if (request.indices.length == 0) {
-                    throw new IndexMissingException(new Index("_all"));
-                }
-
-                MetaData.Builder builder = newMetaDataBuilder().metaData(currentState.metaData());
-                boolean changed = false;
-                for (String indexName : request.indices) {
-                    IndexMetaData indexMetaData = currentState.metaData().index(indexName);
-                    if (indexMetaData != null) {
-                        if (indexMetaData.mappings().containsKey(request.mappingType)) {
-                            builder.put(newIndexMetaDataBuilder(indexMetaData).removeMapping(request.mappingType));
-                            changed = true;
-                        }
-                    }
-                }
-
-                if (!changed) {
+                    listener.onFailure(new IndexMissingException(new Index("_all")));
                     return currentState;
                 }
 
-                logger.info("[{}] remove_mapping [{}]", request.indices, request.mappingType);
+                try {
+                    MetaData.Builder builder = newMetaDataBuilder().metaData(currentState.metaData());
+                    boolean changed = false;
+                    String latestIndexWithout = null;
+                    for (String indexName : request.indices) {
+                        IndexMetaData indexMetaData = currentState.metaData().index(indexName);
+                        if (indexMetaData != null) {
+                            if (indexMetaData.mappings().containsKey(request.mappingType)) {
+                                builder.put(newIndexMetaDataBuilder(indexMetaData).removeMapping(request.mappingType));
+                                changed = true;
+                            } else {
+                                latestIndexWithout = indexMetaData.index();
+                            }
+                        }
+                    }
 
-                return ClusterState.builder().state(currentState).metaData(builder).build();
+                    if (!changed) {
+                        listener.onFailure(new TypeMissingException(new Index(latestIndexWithout), request.mappingType));
+                        return currentState;
+                    }
+
+                    logger.info("[{}] remove_mapping [{}]", request.indices, request.mappingType);
+
+                    notifyOnPostProcess.set(true);
+                    return ClusterState.builder().state(currentState).metaData(builder).build();
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                    return currentState;
+                }
             }
 
             @Override
             public void clusterStateProcessed(ClusterState clusterState) {
-                // TODO add a listener here!
+                if (notifyOnPostProcess.get()) {
+                    listener.onResponse(new Response(true));
+                }
             }
         });
     }

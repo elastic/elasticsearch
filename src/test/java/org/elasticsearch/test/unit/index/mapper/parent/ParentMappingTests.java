@@ -20,7 +20,10 @@
 package org.elasticsearch.test.unit.index.mapper.parent;
 
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.testng.annotations.Test;
 
@@ -43,7 +46,7 @@ public class ParentMappingTests {
                 .field("_parent", "1122")
                 .field("x_field", "x_value")
                 .endObject()
-                .copiedBytes()).type("type").id("1"));
+                .bytes()).type("type").id("1"));
 
         // no _parent mapping, used as a simple field
         assertThat(doc.parent(), equalTo(null));
@@ -62,7 +65,7 @@ public class ParentMappingTests {
                 .field("_parent", "1122")
                 .field("x_field", "x_value")
                 .endObject()
-                .copiedBytes()).type("type").id("1"));
+                .bytes()).type("type").id("1"));
 
         assertThat(doc.parent(), equalTo("1122"));
         assertThat(doc.rootDoc().get("_parent"), equalTo(Uid.createUid("p_type", "1122")));
@@ -79,7 +82,7 @@ public class ParentMappingTests {
                 .startObject()
                 .field("x_field", "x_value")
                 .endObject()
-                .copiedBytes()).type("type").id("1").parent("1122"));
+                .bytes()).type("type").id("1").parent("1122"));
 
         assertThat(doc.rootDoc().get("_parent"), equalTo(Uid.createUid("p_type", "1122")));
     }
@@ -96,7 +99,7 @@ public class ParentMappingTests {
                 .field("_parent", "1122")
                 .field("x_field", "x_value")
                 .endObject()
-                .copiedBytes()).type("type").id("1").parent("1122"));
+                .bytes()).type("type").id("1").parent("1122"));
 
         assertThat(doc.rootDoc().get("_parent"), equalTo(Uid.createUid("p_type", "1122")));
     }

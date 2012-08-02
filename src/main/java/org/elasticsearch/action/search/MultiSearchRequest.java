@@ -24,6 +24,8 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContent;
@@ -62,8 +64,16 @@ public class MultiSearchRequest implements ActionRequest {
         return this;
     }
 
-    public MultiSearchRequest add(byte[] data, int from, int length, boolean contentUnsafe, @Nullable String[] indices, @Nullable String[] types) throws Exception {
-        XContent xContent = XContentFactory.xContent(data, from, length);
+    public MultiSearchRequest add(byte[] data, int from, int length, boolean contentUnsafe,
+                                  @Nullable String[] indices, @Nullable String[] types, @Nullable String searchType) throws Exception {
+        return add(new BytesArray(data, from, length), contentUnsafe, indices, types, searchType);
+    }
+
+    public MultiSearchRequest add(BytesReference data, boolean contentUnsafe,
+                                  @Nullable String[] indices, @Nullable String[] types, @Nullable String searchType) throws Exception {
+        XContent xContent = XContentFactory.xContent(data);
+        int from = 0;
+        int length = data.length();
         byte marker = xContent.streamSeparator();
         while (true) {
             int nextMarker = findNextMarker(marker, from, data, length);
@@ -80,10 +90,11 @@ public class MultiSearchRequest implements ActionRequest {
             if (types != null && types.length > 0) {
                 searchRequest.types(types);
             }
+            searchRequest.searchType(searchType);
 
             // now parse the action
             if (nextMarker - from > 0) {
-                XContentParser parser = xContent.createParser(data, from, nextMarker - from);
+                XContentParser parser = xContent.createParser(data.slice(from, nextMarker - from));
                 try {
                     // Move to START_OBJECT, if token is null, its an empty data
                     XContentParser.Token token = parser.nextToken();
@@ -123,7 +134,7 @@ public class MultiSearchRequest implements ActionRequest {
                 break;
             }
 
-            searchRequest.source(data, from, nextMarker - from, contentUnsafe);
+            searchRequest.source(data.slice(from, nextMarker - from), contentUnsafe);
             // move pointers
             from = nextMarker + 1;
 
@@ -133,9 +144,9 @@ public class MultiSearchRequest implements ActionRequest {
         return this;
     }
 
-    private int findNextMarker(byte marker, int from, byte[] data, int length) {
+    private int findNextMarker(byte marker, int from, BytesReference data, int length) {
         for (int i = from; i < length; i++) {
-            if (data[i] == marker) {
+            if (data.get(i) == marker) {
                 return i;
             }
         }

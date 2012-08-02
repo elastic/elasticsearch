@@ -20,7 +20,7 @@
 package org.elasticsearch.common;
 
 import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.common.thread.ThreadLocals;
+import org.elasticsearch.common.util.concurrent.ThreadLocals;
 
 import java.util.Arrays;
 
@@ -58,6 +58,14 @@ public class Unicode {
         UnicodeUtil.UTF8Result result = new UnicodeUtil.UTF8Result();
         UnicodeUtil.UTF16toUTF8(source, 0, source.length(), result);
         return result;
+    }
+
+    public static void fromStringAsUtf8(String source, UnicodeUtil.UTF8Result result) {
+        if (source == null) {
+            result.length = 0;
+            return;
+        }
+        UnicodeUtil.UTF16toUTF8(source, 0, source.length(), result);
     }
 
     public static UnicodeUtil.UTF8Result unsafeFromStringAsUtf8(String source) {

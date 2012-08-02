@@ -19,10 +19,10 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.codehaus.jackson.smile.SmileConstants;
+import com.fasterxml.jackson.dataformat.smile.SmileConstants;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchParseException;
-import org.elasticsearch.common.BytesHolder;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.smile.SmileXContent;
 
@@ -140,13 +140,6 @@ public class XContentFactory {
     /**
      * Guesses the content type based on the provided bytes.
      */
-    public static XContent xContent(BytesHolder bytes) {
-        return xContent(bytes.bytes(), bytes.offset(), bytes.length());
-    }
-
-    /**
-     * Guesses the content type based on the provided bytes.
-     */
     public static XContent xContent(byte[] data, int offset, int length) {
         XContentType type = xContentType(data, offset, length);
         if (type == null) {
@@ -206,6 +199,30 @@ public class XContentFactory {
         int size = offset + length;
         for (int i = offset; i < size; i++) {
             if (data[i] == '{') {
+                return XContentType.JSON;
+            }
+        }
+        return null;
+    }
+
+    public static XContent xContent(BytesReference bytes) {
+        XContentType type = xContentType(bytes);
+        if (type == null) {
+            throw new ElasticSearchParseException("Failed to derive xcontent from " + bytes);
+        }
+        return xContent(type);
+    }
+
+    /**
+     * Guesses the content type based on the provided bytes.
+     */
+    public static XContentType xContentType(BytesReference bytes) {
+        int length = bytes.length() < GUESS_HEADER_LENGTH ? bytes.length() : GUESS_HEADER_LENGTH;
+        if (length > 2 && bytes.get(0) == SmileConstants.HEADER_BYTE_1 && bytes.get(1) == SmileConstants.HEADER_BYTE_2 && bytes.get(2) == SmileConstants.HEADER_BYTE_3) {
+            return XContentType.SMILE;
+        }
+        for (int i = 0; i < length; i++) {
+            if (bytes.get(i) == '{') {
                 return XContentType.JSON;
             }
         }

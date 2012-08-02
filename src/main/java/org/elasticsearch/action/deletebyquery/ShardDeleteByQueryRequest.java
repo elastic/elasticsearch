@@ -22,12 +22,12 @@ package org.elasticsearch.action.deletebyquery;
 import gnu.trove.set.hash.THashSet;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.replication.ShardReplicationOperationRequest;
-import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.Unicode;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentHelper;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -41,7 +41,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest {
 
     private int shardId;
-    private BytesHolder querySource;
+    private BytesReference querySource;
     private String[] types = Strings.EMPTY_ARRAY;
     @Nullable
     private Set<String> routing;
@@ -76,7 +76,7 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest 
         return this.shardId;
     }
 
-    BytesHolder querySource() {
+    BytesReference querySource() {
         return querySource;
     }
 
@@ -123,7 +123,7 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBytesHolder(querySource);
+        out.writeBytesReference(querySource);
         out.writeVInt(shardId);
         out.writeVInt(types.length);
         for (String type : types) {
@@ -151,7 +151,7 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest 
     public String toString() {
         String sSource = "_na_";
         try {
-            sSource = Unicode.fromBytes(querySource.bytes(), querySource.offset(), querySource.length());
+            sSource = XContentHelper.convertToJson(querySource, false);
         } catch (Exception e) {
             // ignore
         }

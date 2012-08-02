@@ -23,8 +23,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.analysis.FieldNameAnalyzer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -52,7 +52,7 @@ public class AnalyzerMapperTests {
                 .field("field_analyzer", "whitespace")
                 .field("field1", "value1")
                 .field("field2", "value2")
-                .endObject().copiedBytes());
+                .endObject().bytes());
 
         FieldNameAnalyzer analyzer = (FieldNameAnalyzer) doc.analyzer();
         assertThat(((NamedAnalyzer) analyzer.defaultAnalyzer()).name(), equalTo("whitespace"));
@@ -67,7 +67,7 @@ public class AnalyzerMapperTests {
                 .field("field_analyzer", "whitespace")
                 .field("field1", "value1")
                 .field("field2", "value2")
-                .endObject().copiedBytes());
+                .endObject().bytes());
 
         analyzer = (FieldNameAnalyzer) doc.analyzer();
         assertThat(((NamedAnalyzer) analyzer.defaultAnalyzer()).name(), equalTo("whitespace"));
@@ -93,7 +93,7 @@ public class AnalyzerMapperTests {
                 .field("field_analyzer", "whitespace")
                 .field("field1", "value1")
                 .field("field2", "value2")
-                .endObject().copiedBytes());
+                .endObject().bytes());
 
         FieldNameAnalyzer analyzer = (FieldNameAnalyzer) doc.analyzer();
         assertThat(((NamedAnalyzer) analyzer.defaultAnalyzer()).name(), equalTo("whitespace"));
@@ -108,7 +108,7 @@ public class AnalyzerMapperTests {
                 .field("field_analyzer", "whitespace")
                 .field("field1", "value1")
                 .field("field2", "value2")
-                .endObject().copiedBytes());
+                .endObject().bytes());
 
         analyzer = (FieldNameAnalyzer) doc.analyzer();
         assertThat(((NamedAnalyzer) analyzer.defaultAnalyzer()).name(), equalTo("whitespace"));
@@ -133,7 +133,7 @@ public class AnalyzerMapperTests {
                 .field("field_analyzer", "whitespace")
                 .field("field1", "value1")
                 .field("field2", "value2")
-                .endObject().copiedBytes());
+                .endObject().bytes());
 
         FieldNameAnalyzer analyzer = (FieldNameAnalyzer) doc.analyzer();
         assertThat(((NamedAnalyzer) analyzer.defaultAnalyzer()).name(), equalTo("whitespace"));
@@ -148,7 +148,7 @@ public class AnalyzerMapperTests {
                 .field("field_analyzer", "whitespace")
                 .field("field1", "value1")
                 .field("field2", "value2")
-                .endObject().copiedBytes());
+                .endObject().bytes());
 
         analyzer = (FieldNameAnalyzer) doc.analyzer();
         assertThat(((NamedAnalyzer) analyzer.defaultAnalyzer()).name(), equalTo("whitespace"));

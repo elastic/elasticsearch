@@ -31,8 +31,8 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -394,7 +394,7 @@ public class MapperQueryParser extends QueryParser {
             currentMapper = fieldMappers.fieldMappers().mapper();
             if (currentMapper != null) {
                 try {
-                    Query fuzzyQuery = currentMapper.fuzzyQuery(termStr, minSimilarity, fuzzyPrefixLength, FuzzyQuery.defaultMaxExpansions);
+                    Query fuzzyQuery = currentMapper.fuzzyQuery(termStr, minSimilarity, fuzzyPrefixLength, settings.fuzzyMaxExpansions());
                     return wrapSmartNameQuery(fuzzyQuery, fieldMappers, parseContext);
                 } catch (RuntimeException e) {
                     if (settings.lenient()) {
@@ -405,6 +405,13 @@ public class MapperQueryParser extends QueryParser {
             }
         }
         return super.getFuzzyQuery(field, termStr, minSimilarity);
+    }
+
+    @Override
+    protected Query newFuzzyQuery(Term term, float minimumSimilarity, int prefixLength) {
+        FuzzyQuery query = new FuzzyQuery(term, minimumSimilarity, prefixLength, settings.fuzzyMaxExpansions());
+        QueryParsers.setRewriteMethod(query, settings.fuzzyRewriteMethod());
+        return query;
     }
 
     @Override
@@ -540,7 +547,7 @@ public class MapperQueryParser extends QueryParser {
 
     @Override
     protected Query getWildcardQuery(String field, String termStr) throws ParseException {
-        if (AllFieldMapper.NAME.equals(field) && termStr.equals("*")) {
+        if ("*".equals(field) && termStr.equals("*")) {
             return newMatchAllDocsQuery();
         }
         Collection<String> fields = extractMultiFields(field);

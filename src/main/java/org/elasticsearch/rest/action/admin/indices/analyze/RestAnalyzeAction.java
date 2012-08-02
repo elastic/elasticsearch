@@ -54,7 +54,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         String text = request.param("text");
         if (text == null && request.hasContent()) {
-            text = request.contentAsString();
+            text = request.content().toUtf8();
         }
         if (text == null) {
             try {
@@ -66,6 +66,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
         }
 
         AnalyzeRequest analyzeRequest = new AnalyzeRequest(request.param("index"), text);
+        analyzeRequest.listenerThreaded(false);
         analyzeRequest.preferLocal(request.paramAsBoolean("prefer_local", analyzeRequest.preferLocalShard()));
         analyzeRequest.analyzer(request.param("analyzer"));
         analyzeRequest.field(request.param("field"));

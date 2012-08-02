@@ -1,6 +1,7 @@
 package org.elasticsearch.common.io.stream;
 
-import org.elasticsearch.common.BytesHolder;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.text.Text;
 
 import java.io.IOException;
 
@@ -32,8 +33,13 @@ public abstract class AdapterStreamInput extends StreamInput {
     }
 
     @Override
-    public BytesHolder readBytesReference() throws IOException {
+    public BytesReference readBytesReference() throws IOException {
         return in.readBytesReference();
+    }
+
+    @Override
+    public BytesReference readBytesReference(int length) throws IOException {
+        return in.readBytesReference(length);
     }
 
     @Override
@@ -87,6 +93,16 @@ public abstract class AdapterStreamInput extends StreamInput {
     @Override
     public String readUTF() throws IOException {
         return in.readUTF();
+    }
+
+    @Override
+    public String readString() throws IOException {
+        return in.readString();
+    }
+
+    @Override
+    public Text readText() throws IOException {
+        return in.readText();
     }
 
     @Override

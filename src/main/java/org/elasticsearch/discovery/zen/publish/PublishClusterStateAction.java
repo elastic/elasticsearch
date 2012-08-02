@@ -21,8 +21,11 @@ package org.elasticsearch.discovery.zen.publish;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.BytesHolder;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.compress.Compressor;
+import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.*;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
@@ -67,10 +70,10 @@ public class PublishClusterStateAction extends AbstractComponent {
         CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
         byte[] clusterStateInBytes;
         try {
-            HandlesStreamOutput stream = cachedEntry.cachedHandlesLzfBytes();
+            StreamOutput stream = cachedEntry.handles(CompressorFactory.defaultCompressor());
             ClusterState.Builder.writeTo(clusterState, stream);
-            stream.flush();
-            clusterStateInBytes = cachedEntry.bytes().copiedByteArray();
+            stream.close();
+            clusterStateInBytes = cachedEntry.bytes().bytes().copyBytesArray().toBytes();
         } catch (Exception e) {
             logger.warn("failed to serialize cluster_state before publishing it to nodes", e);
             return;
@@ -98,13 +101,13 @@ public class PublishClusterStateAction extends AbstractComponent {
 
     class PublishClusterStateRequest implements Streamable {
 
-        BytesHolder clusterStateInBytes;
+        BytesReference clusterStateInBytes;
 
         private PublishClusterStateRequest() {
         }
 
         private PublishClusterStateRequest(byte[] clusterStateInBytes) {
-            this.clusterStateInBytes = new BytesHolder(clusterStateInBytes);
+            this.clusterStateInBytes = new BytesArray(clusterStateInBytes);
         }
 
         @Override
@@ -114,7 +117,7 @@ public class PublishClusterStateAction extends AbstractComponent {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeBytesHolder(clusterStateInBytes);
+            out.writeBytesReference(clusterStateInBytes);
         }
     }
 
@@ -129,7 +132,13 @@ public class PublishClusterStateAction extends AbstractComponent {
 
         @Override
         public void messageReceived(PublishClusterStateRequest request, TransportChannel channel) throws Exception {
-            StreamInput in = CachedStreamInput.cachedHandlesLzf(new BytesStreamInput(request.clusterStateInBytes.bytes(), request.clusterStateInBytes.offset(), request.clusterStateInBytes.length(), false));
+            Compressor compressor = CompressorFactory.compressor(request.clusterStateInBytes);
+            StreamInput in;
+            if (compressor != null) {
+                in = CachedStreamInput.cachedHandlesCompressed(compressor, request.clusterStateInBytes.streamInput());
+            } else {
+                in = CachedStreamInput.cachedHandles(request.clusterStateInBytes.streamInput());
+            }
             ClusterState clusterState = ClusterState.Builder.readFrom(in, nodesProvider.nodes().localNode());
             listener.onNewClusterState(clusterState);
             channel.sendResponse(VoidStreamable.INSTANCE);

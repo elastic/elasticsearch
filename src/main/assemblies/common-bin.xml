@@ -7,6 +7,7 @@
                 <include>org.apache.lucene:lucene*</include>
                 <include>log4j:log4j</include>
                 <include>net.java.dev.jna:jna</include>
+                <include>org.xerial.snappy:snappy-java</include>
             </includes>
         </dependencySet>
         <dependencySet>

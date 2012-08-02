@@ -55,8 +55,10 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         UpdateSettingsRequest updateSettingsRequest = updateSettingsRequest(splitIndices(request.param("index")));
+        updateSettingsRequest.listenerThreaded(false);
+
         ImmutableSettings.Builder updateSettings = ImmutableSettings.settingsBuilder();
-        String bodySettings = request.contentAsString();
+        String bodySettings = request.content().toUtf8();
         if (Strings.hasText(bodySettings)) {
             try {
                 updateSettings.put(ImmutableSettings.settingsBuilder().loadFromSource(bodySettings).build());

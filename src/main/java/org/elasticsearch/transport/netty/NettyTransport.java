@@ -29,6 +29,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.CachedStreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.netty.NettyStaticSetup;
 import org.elasticsearch.common.netty.OpenChannelsHandler;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
@@ -39,20 +40,18 @@ import org.elasticsearch.common.transport.PortsRange;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 import org.elasticsearch.transport.support.TransportStreams;
 import org.jboss.netty.bootstrap.ClientBootstrap;
 import org.jboss.netty.bootstrap.ServerBootstrap;
 import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.channel.*;
 import org.jboss.netty.channel.socket.nio.NioClientSocketChannelFactory;
 import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
 import org.jboss.netty.channel.socket.oio.OioClientSocketChannelFactory;
 import org.jboss.netty.channel.socket.oio.OioServerSocketChannelFactory;
-import org.jboss.netty.logging.InternalLogger;
-import org.jboss.netty.logging.InternalLoggerFactory;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -81,12 +80,7 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
 public class NettyTransport extends AbstractLifecycleComponent<Transport> implements Transport {
 
     static {
-        InternalLoggerFactory.setDefaultFactory(new NettyInternalESLoggerFactory() {
-            @Override
-            public InternalLogger newInstance(String name) {
-                return super.newInstance(name.replace("org.jboss.netty.", "netty.").replace("org.jboss.netty.", "netty."));
-            }
-        });
+        NettyStaticSetup.setup();
     }
 
     private final NetworkService networkService;
@@ -114,12 +108,15 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     final Boolean reuseAddress;
 
     final ByteSizeValue tcpSendBufferSize;
-
     final ByteSizeValue tcpReceiveBufferSize;
+    final ReceiveBufferSizePredictorFactory receiveBufferSizePredictorFactory;
 
     final int connectionsPerNodeLow;
     final int connectionsPerNodeMed;
     final int connectionsPerNodeHigh;
+
+    final ByteSizeValue maxCumulationBufferCapacity;
+    final int maxCompositeBufferComponents;
 
     private final ThreadPool threadPool;
 
@@ -177,8 +174,27 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         this.connectionsPerNodeMed = componentSettings.getAsInt("connections_per_node.med", settings.getAsInt("transport.connections_per_node.med", 6));
         this.connectionsPerNodeHigh = componentSettings.getAsInt("connections_per_node.high", settings.getAsInt("transport.connections_per_node.high", 1));
 
-        logger.debug("using worker_count[{}], port[{}], bind_host[{}], publish_host[{}], compress[{}], connect_timeout[{}], connections_per_node[{}/{}/{}]",
-                workerCount, port, bindHost, publishHost, compress, connectTimeout, connectionsPerNodeLow, connectionsPerNodeMed, connectionsPerNodeHigh);
+        this.maxCumulationBufferCapacity = componentSettings.getAsBytesSize("max_cumulation_buffer_capacity", null);
+        this.maxCompositeBufferComponents = componentSettings.getAsInt("max_composite_buffer_components", -1);
+
+        long defaultReceiverPredictor = 512 * 1024;
+        if (JvmInfo.jvmInfo().mem().directMemoryMax().bytes() > 0) {
+            // we can guess a better default...
+            long l = (long) ((0.3 * JvmInfo.jvmInfo().mem().directMemoryMax().bytes()) / workerCount);
+            defaultReceiverPredictor = Math.min(defaultReceiverPredictor, Math.max(l, 64 * 1024));
+        }
+
+        // See AdaptiveReceiveBufferSizePredictor#DEFAULT_XXX for default values in netty..., we can use higher ones for us, even fixed one
+        ByteSizeValue receivePredictorMin = componentSettings.getAsBytesSize("receive_predictor_min", componentSettings.getAsBytesSize("receive_predictor_size", new ByteSizeValue(defaultReceiverPredictor)));
+        ByteSizeValue receivePredictorMax = componentSettings.getAsBytesSize("receive_predictor_max", componentSettings.getAsBytesSize("receive_predictor_size", new ByteSizeValue(defaultReceiverPredictor)));
+        if (receivePredictorMax.bytes() == receivePredictorMin.bytes()) {
+            receiveBufferSizePredictorFactory = new FixedReceiveBufferSizePredictorFactory((int) receivePredictorMax.bytes());
+        } else {
+            receiveBufferSizePredictorFactory = new AdaptiveReceiveBufferSizePredictorFactory((int) receivePredictorMin.bytes(), (int) receivePredictorMin.bytes(), (int) receivePredictorMax.bytes());
+        }
+
+        logger.debug("using worker_count[{}], port[{}], bind_host[{}], publish_host[{}], compress[{}], connect_timeout[{}], connections_per_node[{}/{}/{}], receive_predictor[{}->{}]",
+                workerCount, port, bindHost, publishHost, compress, connectTimeout, connectionsPerNodeLow, connectionsPerNodeMed, connectionsPerNodeHigh, receivePredictorMin, receivePredictorMax);
     }
 
     public Settings settings() {
@@ -212,6 +228,18 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             @Override
             public ChannelPipeline getPipeline() throws Exception {
                 ChannelPipeline pipeline = Channels.pipeline();
+                SizeHeaderFrameDecoder sizeHeader = new SizeHeaderFrameDecoder();
+                if (maxCumulationBufferCapacity != null) {
+                    if (maxCumulationBufferCapacity.bytes() > Integer.MAX_VALUE) {
+                        sizeHeader.setMaxCumulationBufferCapacity(Integer.MAX_VALUE);
+                    } else {
+                        sizeHeader.setMaxCumulationBufferCapacity((int) maxCumulationBufferCapacity.bytes());
+                    }
+                }
+                if (maxCompositeBufferComponents != -1) {
+                    sizeHeader.setMaxCumulationBufferComponents(maxCompositeBufferComponents);
+                }
+                pipeline.addLast("size", sizeHeader);
                 pipeline.addLast("dispatcher", new MessageChannelHandler(NettyTransport.this, logger));
                 return pipeline;
             }
@@ -224,12 +252,13 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         if (tcpKeepAlive != null) {
             clientBootstrap.setOption("keepAlive", tcpKeepAlive);
         }
-        if (tcpSendBufferSize != null) {
+        if (tcpSendBufferSize != null && tcpSendBufferSize.bytes() > 0) {
             clientBootstrap.setOption("sendBufferSize", tcpSendBufferSize.bytes());
         }
-        if (tcpReceiveBufferSize != null) {
+        if (tcpReceiveBufferSize != null && tcpReceiveBufferSize.bytes() > 0) {
             clientBootstrap.setOption("receiveBufferSize", tcpReceiveBufferSize.bytes());
         }
+        clientBootstrap.setOption("receiveBufferSizePredictorFactory", receiveBufferSizePredictorFactory);
         if (reuseAddress != null) {
             clientBootstrap.setOption("reuseAddress", reuseAddress);
         }
@@ -255,6 +284,18 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             public ChannelPipeline getPipeline() throws Exception {
                 ChannelPipeline pipeline = Channels.pipeline();
                 pipeline.addLast("openChannels", serverOpenChannels);
+                SizeHeaderFrameDecoder sizeHeader = new SizeHeaderFrameDecoder();
+                if (maxCumulationBufferCapacity != null) {
+                    if (maxCumulationBufferCapacity.bytes() > Integer.MAX_VALUE) {
+                        sizeHeader.setMaxCumulationBufferCapacity(Integer.MAX_VALUE);
+                    } else {
+                        sizeHeader.setMaxCumulationBufferCapacity((int) maxCumulationBufferCapacity.bytes());
+                    }
+                }
+                if (maxCompositeBufferComponents != -1) {
+                    sizeHeader.setMaxCumulationBufferComponents(maxCompositeBufferComponents);
+                }
+                pipeline.addLast("size", sizeHeader);
                 pipeline.addLast("dispatcher", new MessageChannelHandler(NettyTransport.this, logger));
                 return pipeline;
             }
@@ -266,12 +307,14 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         if (tcpKeepAlive != null) {
             serverBootstrap.setOption("child.keepAlive", tcpKeepAlive);
         }
-        if (tcpSendBufferSize != null) {
+        if (tcpSendBufferSize != null && tcpSendBufferSize.bytes() > 0) {
             serverBootstrap.setOption("child.sendBufferSize", tcpSendBufferSize.bytes());
         }
-        if (tcpReceiveBufferSize != null) {
+        if (tcpReceiveBufferSize != null && tcpReceiveBufferSize.bytes() > 0) {
             serverBootstrap.setOption("child.receiveBufferSize", tcpReceiveBufferSize.bytes());
         }
+        serverBootstrap.setOption("receiveBufferSizePredictorFactory", receiveBufferSizePredictorFactory);
+        serverBootstrap.setOption("child.receiveBufferSizePredictorFactory", receiveBufferSizePredictorFactory);
         if (reuseAddress != null) {
             serverBootstrap.setOption("reuseAddress", reuseAddress);
             serverBootstrap.setOption("child.reuseAddress", reuseAddress);
@@ -457,7 +500,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
         CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
         TransportStreams.buildRequest(cachedEntry, requestId, action, message, options);
-        ChannelBuffer buffer = ChannelBuffers.wrappedBuffer(cachedEntry.bytes().underlyingBytes(), 0, cachedEntry.bytes().size());
+        ChannelBuffer buffer = cachedEntry.bytes().bytes().toChannelBuffer();
         ChannelFuture future = targetChannel.write(buffer);
         future.addListener(new CacheFutureListener(cachedEntry));
         // We handle close connection exception in the #exceptionCaught method, which is the main reason we want to add this future

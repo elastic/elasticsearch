@@ -21,8 +21,8 @@ package org.elasticsearch.test.unit.index.mapper.object;
 
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
@@ -48,7 +48,7 @@ public class NullValueObjectMappingTests {
                 .startObject("obj1").endObject()
                 .field("value1", "test1")
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.rootDoc().get("value1"), equalTo("test1"));
 
@@ -57,7 +57,7 @@ public class NullValueObjectMappingTests {
                 .nullField("obj1")
                 .field("value1", "test1")
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.rootDoc().get("value1"), equalTo("test1"));
 
@@ -66,7 +66,7 @@ public class NullValueObjectMappingTests {
                 .startObject("obj1").field("field", "value").endObject()
                 .field("value1", "test1")
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.rootDoc().get("obj1.field"), equalTo("value"));
         assertThat(doc.rootDoc().get("value1"), equalTo("test1"));

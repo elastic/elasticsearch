@@ -29,6 +29,7 @@ import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.support.AbstractIndexStore;
+import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.jvm.JvmStats;
 
@@ -41,8 +42,8 @@ public class ByteBufferIndexStore extends AbstractIndexStore {
 
     @Inject
     public ByteBufferIndexStore(Index index, @IndexSettings Settings indexSettings, IndexService indexService,
-                                ByteBufferCache byteBufferCache) {
-        super(index, indexSettings, indexService);
+                                ByteBufferCache byteBufferCache, IndicesStore indicesStore) {
+        super(index, indexSettings, indexService, indicesStore);
         this.direct = byteBufferCache.direct();
     }
 

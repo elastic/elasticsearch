@@ -21,7 +21,6 @@ package org.elasticsearch.common;
 
 import gnu.trove.map.hash.*;
 import jsr166y.LinkedTransferQueue;
-import org.elasticsearch.common.compress.lzf.BufferRecycler;
 import org.elasticsearch.common.trove.ExtTDoubleObjectHashMap;
 import org.elasticsearch.common.trove.ExtTHashMap;
 import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
@@ -33,7 +32,6 @@ import java.util.Queue;
 public class CacheRecycler {
 
     public static void clear() {
-        BufferRecycler.clean();
         hashMap.clear();
         doubleObjectHashMap.clear();
         longObjectHashMap.clear();

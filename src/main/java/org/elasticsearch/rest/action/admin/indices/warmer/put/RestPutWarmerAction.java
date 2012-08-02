@@ -50,9 +50,10 @@ public class RestPutWarmerAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         PutWarmerRequest putWarmerRequest = new PutWarmerRequest(request.param("name"));
+        putWarmerRequest.listenerThreaded(false);
         SearchRequest searchRequest = new SearchRequest(RestActions.splitIndices(request.param("index")))
                 .types(RestActions.splitTypes(request.param("type")))
-                .source(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength(), request.contentUnsafe());
+                .source(request.content(), request.contentUnsafe());
         putWarmerRequest.searchRequest(searchRequest);
         client.admin().indices().putWarmer(putWarmerRequest, new ActionListener<PutWarmerResponse>() {
             @Override

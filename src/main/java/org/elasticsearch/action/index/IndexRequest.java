@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.index;
 
-import org.apache.lucene.util.UnicodeUtil;
+import com.google.common.base.Charsets;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
@@ -32,19 +32,19 @@ import org.elasticsearch.action.support.replication.ShardReplicationOperationReq
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.*;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Required;
+import org.elasticsearch.common.UUID;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -120,9 +120,7 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     private String timestamp;
     private long ttl = -1;
 
-    private byte[] source;
-    private int sourceOffset;
-    private int sourceLength;
+    private BytesReference source;
     private boolean sourceUnsafe;
 
     private OpType opType = OpType.INDEX;
@@ -176,9 +174,7 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     @Override
     public void beforeLocalFork() {
         // only fork if copy over if source is unsafe
-        if (sourceUnsafe) {
-            source();
-        }
+        safeSource();
     }
 
     /**
@@ -318,40 +314,21 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     }
 
     /**
-     * The source of the document to index, recopied to a new array if it has an offset or unsafe.
+     * The source of the document to index, recopied to a new array if it is unsage.
      */
-    public byte[] source() {
-        if (sourceUnsafe || sourceOffset > 0 || source.length != sourceLength) {
-            source = Arrays.copyOfRange(source, sourceOffset, sourceOffset + sourceLength);
-            sourceOffset = 0;
-            sourceUnsafe = false;
+    public BytesReference source() {
+        return source;
+    }
+
+    public BytesReference safeSource() {
+        if (sourceUnsafe) {
+            source = source.copyBytesArray();
         }
         return source;
     }
 
-    public BytesHolder underlyingSourceBytes() {
-        return new BytesHolder(underlyingSource(), underlyingSourceOffset(), underlyingSourceLength());
-    }
-
-    public byte[] underlyingSource() {
-        if (sourceUnsafe) {
-            source();
-        }
-        return this.source;
-    }
-
-    public int underlyingSourceOffset() {
-        if (sourceUnsafe) {
-            source();
-        }
-        return this.sourceOffset;
-    }
-
-    public int underlyingSourceLength() {
-        if (sourceUnsafe) {
-            source();
-        }
-        return this.sourceLength;
+    public Map<String, Object> sourceAsMap() {
+        return XContentHelper.convertToMap(source, false).v2();
     }
 
     /**
@@ -388,11 +365,8 @@ public class IndexRequest extends ShardReplicationOperationRequest {
      */
     @Required
     public IndexRequest source(String source) {
-        UnicodeUtil.UTF8Result result = Unicode.fromStringAsUtf8(source);
-        this.source = result.result;
-        this.sourceOffset = 0;
-        this.sourceLength = result.length;
-        this.sourceUnsafe = true;
+        this.source = new BytesArray(source.getBytes(Charsets.UTF_8));
+        this.sourceUnsafe = false;
         return this;
     }
 
@@ -401,14 +375,8 @@ public class IndexRequest extends ShardReplicationOperationRequest {
      */
     @Required
     public IndexRequest source(XContentBuilder sourceBuilder) {
-        try {
-            source = sourceBuilder.underlyingBytes();
-            sourceOffset = 0;
-            sourceLength = sourceBuilder.underlyingBytesLength();
-            sourceUnsafe = false;
-        } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate [" + sourceBuilder + "]", e);
-        }
+        source = sourceBuilder.bytes();
+        sourceUnsafe = false;
         return this;
     }
 
@@ -459,6 +427,15 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     /**
      * Sets the document to index in bytes form.
      */
+    public IndexRequest source(BytesReference source, boolean unsafe) {
+        this.source = source;
+        this.sourceUnsafe = unsafe;
+        return this;
+    }
+
+    /**
+     * Sets the document to index in bytes form.
+     */
     public IndexRequest source(byte[] source) {
         return source(source, 0, source.length);
     }
@@ -486,9 +463,7 @@ public class IndexRequest extends ShardReplicationOperationRequest {
      */
     @Required
     public IndexRequest source(byte[] source, int offset, int length, boolean unsafe) {
-        this.source = source;
-        this.sourceOffset = offset;
-        this.sourceLength = length;
+        this.source = new BytesArray(source, offset, length);
         this.sourceUnsafe = unsafe;
         return this;
     }
@@ -642,7 +617,7 @@ public class IndexRequest extends ShardReplicationOperationRequest {
             if (parseContext.shouldParse()) {
                 XContentParser parser = null;
                 try {
-                    parser = XContentFactory.xContent(source, sourceOffset, sourceLength).createParser(source, sourceOffset, sourceLength);
+                    parser = XContentHelper.createParser(source);
                     mappingMd.parse(parser, parseContext);
                     if (parseContext.shouldParseId()) {
                         id = parseContext.id();
@@ -680,7 +655,7 @@ public class IndexRequest extends ShardReplicationOperationRequest {
 
         // generate timestamp if not provided, we always have one post this stage...
         if (timestamp == null) {
-            timestamp = String.valueOf(System.currentTimeMillis());
+            timestamp = Long.toString(System.currentTimeMillis());
         }
     }
 
@@ -701,11 +676,8 @@ public class IndexRequest extends ShardReplicationOperationRequest {
             timestamp = in.readUTF();
         }
         ttl = in.readLong();
-        BytesHolder bytes = in.readBytesReference();
+        source = in.readBytesReference();
         sourceUnsafe = false;
-        source = bytes.bytes();
-        sourceOffset = bytes.offset();
-        sourceLength = bytes.length();
 
         opType = OpType.fromId(in.readByte());
         refresh = in.readBoolean();
@@ -745,7 +717,7 @@ public class IndexRequest extends ShardReplicationOperationRequest {
             out.writeUTF(timestamp);
         }
         out.writeLong(ttl);
-        out.writeBytesHolder(source, sourceOffset, sourceLength);
+        out.writeBytesReference(source);
         out.writeByte(opType.id());
         out.writeBoolean(refresh);
         out.writeLong(version);
@@ -762,7 +734,7 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     public String toString() {
         String sSource = "_na_";
         try {
-            sSource = Unicode.fromBytes(source, sourceOffset, sourceLength);
+            sSource = XContentHelper.convertToJson(source, false);
         } catch (Exception e) {
             // ignore
         }

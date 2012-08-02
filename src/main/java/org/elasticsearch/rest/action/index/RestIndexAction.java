@@ -66,13 +66,15 @@ public class RestIndexAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         IndexRequest indexRequest = new IndexRequest(request.param("index"), request.param("type"), request.param("id"));
+        indexRequest.listenerThreaded(false);
+        indexRequest.operationThreaded(true);
         indexRequest.routing(request.param("routing"));
         indexRequest.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing
         indexRequest.timestamp(request.param("timestamp"));
         if (request.hasParam("ttl")) {
             indexRequest.ttl(request.paramAsTime("ttl", null).millis());
         }
-        indexRequest.source(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength(), request.contentUnsafe());
+        indexRequest.source(request.content(), request.contentUnsafe());
         indexRequest.timeout(request.paramAsTime("timeout", IndexRequest.DEFAULT_TIMEOUT));
         indexRequest.refresh(request.paramAsBoolean("refresh", indexRequest.refresh()));
         indexRequest.version(RestActions.parseVersion(request));
@@ -102,10 +104,6 @@ public class RestIndexAction extends BaseRestHandler {
         if (consistencyLevel != null) {
             indexRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
         }
-        // we just send a response, no need to fork
-        indexRequest.listenerThreaded(false);
-        // we don't spawn, then fork if local
-        indexRequest.operationThreaded(true);
         client.index(indexRequest, new ActionListener<IndexResponse>() {
             @Override
             public void onResponse(IndexResponse response) {

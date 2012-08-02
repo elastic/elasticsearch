@@ -20,7 +20,7 @@
 package org.elasticsearch.index.mapper.geo;
 
 import org.elasticsearch.common.RamUsage;
-import org.elasticsearch.common.thread.ThreadLocals;
+import org.elasticsearch.common.util.concurrent.ThreadLocals;
 import org.elasticsearch.index.field.data.doubles.DoubleFieldData;
 import org.elasticsearch.index.search.geo.GeoHashUtils;
 

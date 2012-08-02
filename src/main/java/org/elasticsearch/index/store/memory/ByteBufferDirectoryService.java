@@ -48,6 +48,11 @@ public class ByteBufferDirectoryService extends AbstractIndexShardComponent impl
     }
 
     @Override
+    public long throttleTimeInNanos() {
+        return 0;
+    }
+
+    @Override
     public Directory[] build() {
         return new Directory[]{new CustomByteBufferDirectory(byteBufferCache)};
     }

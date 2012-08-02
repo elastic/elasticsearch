@@ -22,12 +22,13 @@ package org.elasticsearch.index.query;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Locale;
 
 /**
  * Text query is a query that analyzes the text and constructs a query as the result of the analysis. It
  * can construct different queries based on the type provided.
  */
-public class TextQueryBuilder extends BaseQueryBuilder {
+public class TextQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<TextQueryBuilder> {
 
     public static enum Operator {
         OR,
@@ -68,6 +69,11 @@ public class TextQueryBuilder extends BaseQueryBuilder {
     private Integer prefixLength;
 
     private Integer maxExpansions;
+
+    private String minimumShouldMatch;
+
+    private String rewrite = null;
+    private String fuzzyRewrite = null;
 
     /**
      * Constructs a new text query.
@@ -140,6 +146,21 @@ public class TextQueryBuilder extends BaseQueryBuilder {
         return this;
     }
 
+    public TextQueryBuilder minimumShouldMatch(String minimumShouldMatch) {
+        this.minimumShouldMatch = minimumShouldMatch;
+        return this;
+    }
+
+    public TextQueryBuilder rewrite(String rewrite) {
+        this.rewrite = rewrite;
+        return this;
+    }
+
+    public TextQueryBuilder fuzzyRewrite(String fuzzyRewrite) {
+        this.fuzzyRewrite = fuzzyRewrite;
+        return this;
+    }
+
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(TextQueryParser.NAME);
@@ -147,7 +168,7 @@ public class TextQueryBuilder extends BaseQueryBuilder {
 
         builder.field("query", text);
         if (type != null) {
-            builder.field("type", type.toString().toLowerCase());
+            builder.field("type", type.toString().toLowerCase(Locale.ENGLISH));
         }
         if (operator != null) {
             builder.field("operator", operator.toString());
@@ -169,6 +190,15 @@ public class TextQueryBuilder extends BaseQueryBuilder {
         }
         if (maxExpansions != null) {
             builder.field("max_expansions", maxExpansions);
+        }
+        if (minimumShouldMatch != null) {
+            builder.field("minimum_should_match", minimumShouldMatch);
+        }
+        if (rewrite != null) {
+            builder.field("rewrite", rewrite);
+        }
+        if (fuzzyRewrite != null) {
+            builder.field("fuzzy_rewrite", fuzzyRewrite);
         }
 
         builder.endObject();

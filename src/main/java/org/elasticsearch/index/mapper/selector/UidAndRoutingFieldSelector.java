@@ -52,4 +52,9 @@ public class UidAndRoutingFieldSelector implements ResetFieldSelector {
     public void reset() {
         match = 0;
     }
+
+    @Override
+    public String toString() {
+        return "uid_and_routing";
+    }
 }

@@ -36,6 +36,7 @@ public class StoreFileMetaData implements Streamable {
 
     private long lastModified;
 
+    // the actual file size on "disk", if compressed, the compressed size
     private long length;
 
     private String checksum;
@@ -69,6 +70,9 @@ public class StoreFileMetaData implements Streamable {
         return this.lastModified;
     }
 
+    /**
+     * the actual file size on "disk", if compressed, the compressed size
+     */
     public long length() {
         return length;
     }

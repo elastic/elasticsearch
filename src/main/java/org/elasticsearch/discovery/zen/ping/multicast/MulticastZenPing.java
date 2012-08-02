@@ -26,11 +26,13 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.*;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -42,7 +44,6 @@ import org.elasticsearch.transport.*;
 import java.io.IOException;
 import java.net.*;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -238,7 +239,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
             return;
         }
         final int id = pingIdGenerator.incrementAndGet();
-        receivedResponses.put(id, new ConcurrentHashMap<DiscoveryNode, PingResponse>());
+        receivedResponses.put(id, ConcurrentCollections.<DiscoveryNode, PingResponse>newConcurrentMap());
         sendPingRequest(id);
         // try and send another ping request halfway through (just in case someone woke up during it...)
         // this can be a good trade-off to nailing the initial lookup or un-delivered messages
@@ -268,13 +269,14 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
         synchronized (sendMutex) {
             CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
             try {
-                HandlesStreamOutput out = cachedEntry.cachedHandlesBytes();
+                StreamOutput out = cachedEntry.handles();
                 out.writeBytes(INTERNAL_HEADER);
                 Version.writeVersion(Version.CURRENT, out);
                 out.writeInt(id);
                 clusterName.writeTo(out);
                 nodesProvider.nodes().localNode().writeTo(out);
-                datagramPacketSend.setData(cachedEntry.bytes().copiedByteArray());
+                out.close();
+                datagramPacketSend.setData(cachedEntry.bytes().bytes().copyBytesArray().toBytes());
                 multicastSocket.send(datagramPacketSend);
                 if (logger.isTraceEnabled()) {
                     logger.trace("[{}] sending ping request", id);
@@ -478,7 +480,8 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
 
                 builder.endObject().endObject();
                 synchronized (sendMutex) {
-                    datagramPacketSend.setData(builder.underlyingBytes(), 0, builder.underlyingBytesLength());
+                    BytesReference bytes = builder.bytes();
+                    datagramPacketSend.setData(bytes.array(), bytes.arrayOffset(), bytes.length());
                     multicastSocket.send(datagramPacketSend);
                     if (logger.isTraceEnabled()) {
                         logger.trace("sending external ping response {}", builder.string());

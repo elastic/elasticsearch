@@ -20,6 +20,7 @@
 package org.elasticsearch.test.unit.index.percolator;
 
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
@@ -42,7 +43,9 @@ import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
 import org.elasticsearch.indices.query.IndicesQueriesModule;
 import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
+import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
@@ -57,6 +60,8 @@ import static org.hamcrest.Matchers.*;
 @Test
 public class PercolatorExecutorTests {
 
+    private Injector injector;
+
     private PercolatorExecutor percolatorExecutor;
 
     @BeforeClass
@@ -65,7 +70,7 @@ public class PercolatorExecutorTests {
                 //.put("index.cache.filter.type", "none")
                 .build();
         Index index = new Index("test");
-        Injector injector = new ModulesBuilder().add(
+        injector = new ModulesBuilder().add(
                 new SettingsModule(settings),
                 new ThreadPoolModule(settings),
                 new ScriptModule(settings),
@@ -90,6 +95,11 @@ public class PercolatorExecutorTests {
         percolatorExecutor = injector.getInstance(PercolatorExecutor.class);
     }
 
+    @AfterClass
+    public void close() {
+        injector.getInstance(ThreadPool.class).shutdownNow();
+    }
+
     @Test
     public void testSimplePercolator() throws Exception {
         // introduce the doc
@@ -97,13 +107,13 @@ public class PercolatorExecutorTests {
                 .field("field1", 1)
                 .field("field2", "value")
                 .endObject().endObject();
-        byte[] source = doc.copiedBytes();
+        BytesReference source = doc.bytes();
 
         XContentBuilder docWithType = XContentFactory.jsonBuilder().startObject().startObject("doc").startObject("type1")
                 .field("field1", 1)
                 .field("field2", "value")
                 .endObject().endObject().endObject();
-        byte[] sourceWithType = docWithType.copiedBytes();
+        BytesReference sourceWithType = docWithType.bytes();
 
         PercolatorExecutor.Response percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest("type1", source));
         assertThat(percolate.matches(), hasSize(0));

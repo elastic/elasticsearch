@@ -21,10 +21,14 @@ package org.elasticsearch.action.update;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.WriteConsistencyLevel;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.BaseRequestBuilder;
 import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.util.Map;
 
@@ -177,6 +181,139 @@ public class UpdateRequestBuilder extends BaseRequestBuilder<UpdateRequest, Upda
      */
     public UpdateRequestBuilder setPercolate(String percolate) {
         request.percolate(percolate);
+        return this;
+    }
+
+    /**
+     * Sets the doc to use for updates when a script is not specified.
+     */
+    public UpdateRequestBuilder setDoc(IndexRequest indexRequest) {
+        request.doc(indexRequest);
+        return this;
+    }
+
+    /**
+     * Sets the doc to use for updates when a script is not specified.
+     */
+    public UpdateRequestBuilder setDoc(XContentBuilder source) {
+        request.doc(source);
+        return this;
+    }
+
+    /**
+     * Sets the doc to use for updates when a script is not specified.
+     */
+    public UpdateRequestBuilder setDoc(Map source) {
+        request.doc(source);
+        return this;
+    }
+
+    /**
+     * Sets the doc to use for updates when a script is not specified.
+     */
+    public UpdateRequestBuilder setDoc(Map source, XContentType contentType) {
+        request.doc(source, contentType);
+        return this;
+    }
+
+    /**
+     * Sets the doc to use for updates when a script is not specified.
+     */
+    public UpdateRequestBuilder setDoc(String source) {
+        request.doc(source);
+        return this;
+    }
+
+    /**
+     * Sets the doc to use for updates when a script is not specified.
+     */
+    public UpdateRequestBuilder setDoc(byte[] source) {
+        request.doc(source);
+        return this;
+    }
+
+    /**
+     * Sets the doc to use for updates when a script is not specified.
+     */
+    public UpdateRequestBuilder setDoc(byte[] source, int offset, int length) {
+        request.doc(source, offset, length);
+        return this;
+    }
+
+    /**
+     * Sets the index request to be used if the document does not exists. Otherwise, a {@link org.elasticsearch.index.engine.DocumentMissingException}
+     * is thrown.
+     */
+    public UpdateRequestBuilder setUpsert(IndexRequest indexRequest) {
+        request.upsert(indexRequest);
+        return this;
+    }
+
+    /**
+     * Sets the doc source of the update request to be used when the document does not exists.
+     */
+    public UpdateRequestBuilder setUpsert(XContentBuilder source) {
+        request.upsert(source);
+        return this;
+    }
+
+    /**
+     * Sets the doc source of the update request to be used when the document does not exists.
+     */
+    public UpdateRequestBuilder setUpsert(Map source) {
+        request.upsert(source);
+        return this;
+    }
+
+    /**
+     * Sets the doc source of the update request to be used when the document does not exists.
+     */
+    public UpdateRequestBuilder setUpsert(Map source, XContentType contentType) {
+        request.upsert(source, contentType);
+        return this;
+    }
+
+    /**
+     * Sets the doc source of the update request to be used when the document does not exists.
+     */
+    public UpdateRequestBuilder setUpsert(String source) {
+        request.upsert(source);
+        return this;
+    }
+
+    /**
+     * Sets the doc source of the update request to be used when the document does not exists.
+     */
+    public UpdateRequestBuilder setUpsert(byte[] source) {
+        request.upsert(source);
+        return this;
+    }
+
+    /**
+     * Sets the doc source of the update request to be used when the document does not exists.
+     */
+    public UpdateRequestBuilder setUpsert(byte[] source, int offset, int length) {
+        request.upsert(source, offset, length);
+        return this;
+    }
+
+    public UpdateRequestBuilder setSource(XContentBuilder source) throws Exception {
+        request.source(source);
+        return this;
+    }
+
+    public UpdateRequestBuilder setSource(byte[] source) throws Exception {
+        request.source(source);
+        return this;
+    }
+
+    public UpdateRequestBuilder setSource(byte[] source, int offset, int length) throws Exception {
+        request.source(source, offset, length);
+        return this;
+    }
+
+    public UpdateRequestBuilder setSource(BytesReference source) throws Exception {
+        request.source(source);
         return this;
     }
 

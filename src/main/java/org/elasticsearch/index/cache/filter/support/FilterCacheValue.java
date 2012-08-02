@@ -19,14 +19,6 @@
 
 package org.elasticsearch.index.cache.filter.support;
 
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.DocIdSet;
-import org.apache.lucene.search.DocIdSetIterator;
-import org.elasticsearch.common.lucene.docset.DocSet;
-import org.elasticsearch.common.lucene.docset.DocSets;
-
-import java.io.IOException;
-
 public class FilterCacheValue<T> {
 
     private final T value;
@@ -37,25 +29,5 @@ public class FilterCacheValue<T> {
 
     public T value() {
         return value;
-    }
-
-
-    public static DocSet cacheable(IndexReader reader, DocIdSet set) throws IOException {
-        if (set == null) {
-            return DocSet.EMPTY_DOC_SET;
-        }
-        if (set == DocIdSet.EMPTY_DOCIDSET) {
-            return DocSet.EMPTY_DOC_SET;
-        }
-
-        DocIdSetIterator it = set.iterator();
-        if (it == null) {
-            return DocSet.EMPTY_DOC_SET;
-        }
-        int doc = it.nextDoc();
-        if (doc == DocIdSetIterator.NO_MORE_DOCS) {
-            return DocSet.EMPTY_DOC_SET;
-        }
-        return DocSets.cacheable(reader, set);
     }
 }

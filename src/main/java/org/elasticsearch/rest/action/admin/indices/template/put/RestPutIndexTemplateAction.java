@@ -59,7 +59,7 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest(request.param("name"));
-
+        putRequest.listenerThreaded(false);
         putRequest.template(request.param("template", putRequest.template()));
         putRequest.order(request.paramAsInt("order", putRequest.order()));
 
@@ -67,7 +67,7 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
             putRequest.create(request.paramAsBoolean("create", false));
             putRequest.cause(request.param("cause", ""));
             putRequest.timeout(request.paramAsTime("timeout", timeValueSeconds(10)));
-            putRequest.source(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength());
+            putRequest.source(request.content());
         } catch (Exception e) {
             try {
                 channel.sendResponse(new XContentThrowableRestResponse(request, e));

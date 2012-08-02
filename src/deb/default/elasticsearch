@@ -1,24 +1,38 @@
 # Run ElasticSearch as this user ID and group ID
-ES_USER=elasticsearch
-ES_GROUP=elasticsearch
+#ES_USER=elasticsearch
+#ES_GROUP=elasticsearch
 
-# Minimum Heap memory to run ElasticSearch
-ES_MIN_MEM=256m
+# Heap Size (defaults to 256m min, 1g max)
+#ES_HEAP_SIZE=2g
 
-# Maximum Heap memory to run ElasticSearch
-ES_MAX_MEM=1g
+# Heap new generation
+#ES_HEAP_NEWSIZE=
+
+# max direct memory
+#ES_DIRECT_SIZE=
+
+# Maximum number of open files, defaults to 65535.
+#MAX_OPEN_FILES=65535
+
+# Maximum locked memory size. Set to "unlimited" if you use the
+# bootstrap.mlockall option in elasticsearch.yml. You must also set
+# ES_HEAP_SIZE.
+#MAX_LOCKED_MEMORY=unlimited
 
 # ElasticSearch log directory
-LOG_DIR=/var/log/elasticsearch
+#LOG_DIR=/var/log/elasticsearch
 
 # ElasticSearch data directory
-DATA_DIR=/var/lib/elasticsearch
+#DATA_DIR=/var/lib/elasticsearch
 
 # ElasticSearch work directory
-WORK_DIR=/tmp/elasticsearch
+#WORK_DIR=/tmp/elasticsearch
 
 # ElasticSearch configuration directory
-CONF_DIR=/etc/elasticsearch
+#CONF_DIR=/etc/elasticsearch
 
 # ElasticSearch configuration file (elasticsearch.yml)
-CONF_FILE=/etc/elasticsearch/elasticsearch.yml
+#CONF_FILE=/etc/elasticsearch/elasticsearch.yml
+
+# Additional Java OPTS
+#ES_JAVA_OPTS=

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.admin.indices.exists;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.exists.IndicesExistsRequest;
 import org.elasticsearch.action.admin.indices.exists.IndicesExistsResponse;
@@ -29,7 +30,8 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.rest.*;
 
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
-import static org.elasticsearch.rest.RestStatus.*;
+import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
+import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.action.support.RestActions.splitIndices;
 
 /**
@@ -51,7 +53,6 @@ public class RestIndicesExistsAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         IndicesExistsRequest indicesExistsRequest = new IndicesExistsRequest(splitIndices(request.param("index")));
-        // we just send back a response, no need to fork a listener
         indicesExistsRequest.listenerThreaded(false);
         client.admin().indices().exists(indicesExistsRequest, new ActionListener<IndicesExistsResponse>() {
             @Override
@@ -70,7 +71,7 @@ public class RestIndicesExistsAction extends BaseRestHandler {
             @Override
             public void onFailure(Throwable e) {
                 try {
-                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                    channel.sendResponse(new StringRestResponse(ExceptionsHelper.status(e)));
                 } catch (Exception e1) {
                     logger.error("Failed to send failure response", e1);
                 }

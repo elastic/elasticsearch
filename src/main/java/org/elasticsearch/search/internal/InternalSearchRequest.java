@@ -21,8 +21,8 @@ package org.elasticsearch.search.internal;
 
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -65,13 +65,8 @@ public class InternalSearchRequest implements Streamable {
 
     private String[] filteringAliases;
 
-    private byte[] source;
-    private int sourceOffset;
-    private int sourceLength;
-
-    private byte[] extraSource;
-    private int extraSourceOffset;
-    private int extraSourceLength;
+    private BytesReference source;
+    private BytesReference extraSource;
 
     private long nowInMillis;
 
@@ -105,45 +100,21 @@ public class InternalSearchRequest implements Streamable {
         return numberOfShards;
     }
 
-    public byte[] source() {
+    public BytesReference source() {
         return this.source;
     }
 
-    public int sourceOffset() {
-        return sourceOffset;
-    }
-
-    public int sourceLength() {
-        return sourceLength;
-    }
-
-    public byte[] extraSource() {
+    public BytesReference extraSource() {
         return this.extraSource;
     }
 
-    public int extraSourceOffset() {
-        return extraSourceOffset;
-    }
-
-    public int extraSourceLength() {
-        return extraSourceLength;
-    }
-
-    public InternalSearchRequest source(byte[] source) {
-        return source(source, 0, source.length);
-    }
-
-    public InternalSearchRequest source(byte[] source, int offset, int length) {
+    public InternalSearchRequest source(BytesReference source) {
         this.source = source;
-        this.sourceOffset = offset;
-        this.sourceLength = length;
         return this;
     }
 
-    public InternalSearchRequest extraSource(byte[] extraSource, int offset, int length) {
+    public InternalSearchRequest extraSource(BytesReference extraSource) {
         this.extraSource = extraSource;
-        this.extraSourceOffset = offset;
-        this.extraSourceLength = length;
         return this;
     }
 
@@ -192,15 +163,8 @@ public class InternalSearchRequest implements Streamable {
             scroll = readScroll(in);
         }
 
-        BytesHolder bytes = in.readBytesReference();
-        source = bytes.bytes();
-        sourceOffset = bytes.offset();
-        sourceLength = bytes.length();
-
-        bytes = in.readBytesReference();
-        extraSource = bytes.bytes();
-        extraSourceOffset = bytes.offset();
-        extraSourceLength = bytes.length();
+        source = in.readBytesReference();
+        extraSource = in.readBytesReference();
 
         int typesSize = in.readVInt();
         if (typesSize > 0) {
@@ -233,8 +197,8 @@ public class InternalSearchRequest implements Streamable {
             out.writeBoolean(true);
             scroll.writeTo(out);
         }
-        out.writeBytesHolder(source, sourceOffset, sourceLength);
-        out.writeBytesHolder(extraSource, extraSourceOffset, extraSourceLength);
+        out.writeBytesReference(source);
+        out.writeBytesReference(extraSource);
         out.writeVInt(types.length);
         for (String type : types) {
             out.writeUTF(type);

@@ -53,7 +53,7 @@ public class RateLimiter {
      * might exceed the target).  It's best to call this
      * with a biggish count, not one byte at a time.
      */
-    public void pause(long bytes) {
+    public long pause(long bytes) {
 
         // TODO: this is purely instantenous rate; maybe we
         // should also offer decayed recent history one?
@@ -65,11 +65,13 @@ public class RateLimiter {
 
         // While loop because Thread.sleep doesn't alway sleep
         // enough:
+        long totalPauseTime = 0;
         while (true) {
             final long pauseNS = targetNS - curNS;
             if (pauseNS > 0) {
                 try {
                     Thread.sleep((int) (pauseNS / 1000000), (int) (pauseNS % 1000000));
+                    totalPauseTime += pauseNS;
                 } catch (InterruptedException ie) {
                     throw new ElasticSearchInterruptedException("interrupted while rate limiting", ie);
                 }
@@ -78,5 +80,6 @@ public class RateLimiter {
             }
             break;
         }
+        return totalPauseTime;
     }
 }

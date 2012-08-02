@@ -24,6 +24,7 @@ import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.support.BaseRequestBuilder;
 import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -112,6 +113,22 @@ public class DeleteByQueryRequestBuilder extends BaseRequestBuilder<DeleteByQuer
      */
     public DeleteByQueryRequestBuilder setQuery(byte[] querySource) {
         request.query(querySource);
+        return this;
+    }
+
+    /**
+     * The query source to execute.
+     */
+    public DeleteByQueryRequestBuilder setQuery(BytesReference querySource) {
+        request.query(querySource, false);
+        return this;
+    }
+
+    /**
+     * The query source to execute.
+     */
+    public DeleteByQueryRequestBuilder setQuery(BytesReference querySource, boolean unsafe) {
+        request.query(querySource, unsafe);
         return this;
     }
 

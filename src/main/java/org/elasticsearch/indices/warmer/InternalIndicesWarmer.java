@@ -25,9 +25,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.service.IndexService;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -66,24 +64,24 @@ public class InternalIndicesWarmer extends AbstractComponent implements IndicesW
         listeners.remove(listener);
     }
 
-    public void warm(final ShardId shardId, final Engine.Searcher searcher) {
-        final IndexMetaData indexMetaData = clusterService.state().metaData().index(shardId.index().name());
+    public void warm(final WarmerContext context) {
+        final IndexMetaData indexMetaData = clusterService.state().metaData().index(context.shardId().index().name());
         if (indexMetaData == null) {
             return;
         }
         if (!indexMetaData.settings().getAsBoolean("index.warmer.enabled", settings.getAsBoolean("index.warmer.enabled", true))) {
             return;
         }
-        IndexService indexService = indicesService.indexService(shardId.index().name());
+        IndexService indexService = indicesService.indexService(context.shardId().index().name());
         if (indexService == null) {
             return;
         }
-        final IndexShard indexShard = indexService.shard(shardId.id());
+        final IndexShard indexShard = indexService.shard(context.shardId().id());
         if (indexShard == null) {
             return;
         }
         if (logger.isTraceEnabled()) {
-            logger.trace("[{}][{}] warming [{}]", shardId.index().name(), shardId.id(), searcher.reader());
+            logger.trace("[{}][{}] warming [{}], new [{}]", context.shardId().index().name(), context.shardId().id(), context.fullSearcher().reader(), context.newSearcher().reader());
         }
         indexShard.warmerService().onPreWarm();
         long time = System.nanoTime();
@@ -93,7 +91,7 @@ public class InternalIndicesWarmer extends AbstractComponent implements IndicesW
                 @Override
                 public void run() {
                     try {
-                        listener.warm(indexShard, indexMetaData, searcher);
+                        listener.warm(indexShard, indexMetaData, context);
                     } catch (Throwable e) {
                         indexShard.warmerService().logger().warn("failed to warm [{}]", e, listener);
                     } finally {

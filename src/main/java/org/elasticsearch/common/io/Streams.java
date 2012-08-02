@@ -32,8 +32,6 @@ import java.io.*;
  * <p/>
  * <p>Mainly for use within the framework,
  * but also useful for application code.
- *
- *
  */
 public abstract class Streams {
 
@@ -164,9 +162,9 @@ public abstract class Streams {
     public static byte[] copyToByteArray(InputStream in) throws IOException {
         CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
         try {
-            BytesStreamOutput out = cachedEntry.cachedBytes();
+            BytesStreamOutput out = cachedEntry.bytes();
             copy(in, out);
-            return out.copiedByteArray();
+            return out.bytes().copyBytesArray().toBytes();
         } finally {
             CachedStreamOutput.pushEntry(cachedEntry);
         }

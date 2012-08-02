@@ -20,7 +20,7 @@
 package org.elasticsearch.test.unit.index.translog;
 
 import org.apache.lucene.index.Term;
-import org.elasticsearch.common.BytesHolder;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
@@ -62,15 +62,15 @@ public abstract class AbstractSimpleTranslogTests {
     public void testRead() throws IOException {
         Translog.Location loc1 = translog.add(new Translog.Create("test", "1", new byte[]{1}));
         Translog.Location loc2 = translog.add(new Translog.Create("test", "2", new byte[]{2}));
-        assertThat(TranslogStreams.readSource(translog.read(loc1)).source, equalTo(new BytesHolder(new byte[]{1})));
-        assertThat(TranslogStreams.readSource(translog.read(loc2)).source, equalTo(new BytesHolder(new byte[]{2})));
+        assertThat(TranslogStreams.readSource(translog.read(loc1)).source.toBytesArray(), equalTo(new BytesArray(new byte[]{1})));
+        assertThat(TranslogStreams.readSource(translog.read(loc2)).source.toBytesArray(), equalTo(new BytesArray(new byte[]{2})));
         translog.sync();
-        assertThat(TranslogStreams.readSource(translog.read(loc1)).source, equalTo(new BytesHolder(new byte[]{1})));
-        assertThat(TranslogStreams.readSource(translog.read(loc2)).source, equalTo(new BytesHolder(new byte[]{2})));
+        assertThat(TranslogStreams.readSource(translog.read(loc1)).source.toBytesArray(), equalTo(new BytesArray(new byte[]{1})));
+        assertThat(TranslogStreams.readSource(translog.read(loc2)).source.toBytesArray(), equalTo(new BytesArray(new byte[]{2})));
         Translog.Location loc3 = translog.add(new Translog.Create("test", "2", new byte[]{3}));
-        assertThat(TranslogStreams.readSource(translog.read(loc3)).source, equalTo(new BytesHolder(new byte[]{3})));
+        assertThat(TranslogStreams.readSource(translog.read(loc3)).source.toBytesArray(), equalTo(new BytesArray(new byte[]{3})));
         translog.sync();
-        assertThat(TranslogStreams.readSource(translog.read(loc3)).source, equalTo(new BytesHolder(new byte[]{3})));
+        assertThat(TranslogStreams.readSource(translog.read(loc3)).source.toBytesArray(), equalTo(new BytesArray(new byte[]{3})));
     }
 
     @Test
@@ -130,7 +130,7 @@ public abstract class AbstractSimpleTranslogTests {
         assertThat(snapshot.estimatedTotalOperations(), equalTo(3));
         snapshot.release();
 
-        translog.add(new Translog.DeleteByQuery(new BytesHolder(new byte[]{4}), null));
+        translog.add(new Translog.DeleteByQuery(new BytesArray(new byte[]{4}), null));
         snapshot = translog.snapshot();
         MatcherAssert.assertThat(snapshot, TranslogSizeMatcher.translogSize(4));
         assertThat(snapshot.estimatedTotalOperations(), equalTo(4));
@@ -140,11 +140,11 @@ public abstract class AbstractSimpleTranslogTests {
 
         assertThat(snapshot.hasNext(), equalTo(true));
         Translog.Create create = (Translog.Create) snapshot.next();
-        assertThat(create.source().copyBytes(), equalTo(new byte[]{1}));
+        assertThat(create.source().toBytes(), equalTo(new byte[]{1}));
 
         assertThat(snapshot.hasNext(), equalTo(true));
         Translog.Index index = (Translog.Index) snapshot.next();
-        assertThat(index.source().copyBytes(), equalTo(new byte[]{2}));
+        assertThat(index.source().toBytes(), equalTo(new byte[]{2}));
 
         assertThat(snapshot.hasNext(), equalTo(true));
         Translog.Delete delete = (Translog.Delete) snapshot.next();
@@ -152,7 +152,7 @@ public abstract class AbstractSimpleTranslogTests {
 
         assertThat(snapshot.hasNext(), equalTo(true));
         Translog.DeleteByQuery deleteByQuery = (Translog.DeleteByQuery) snapshot.next();
-        assertThat(deleteByQuery.source().copyBytes(), equalTo(new byte[]{4}));
+        assertThat(deleteByQuery.source().toBytes(), equalTo(new byte[]{4}));
 
         assertThat(snapshot.hasNext(), equalTo(false));
 
@@ -183,7 +183,7 @@ public abstract class AbstractSimpleTranslogTests {
         snapshot = translog.snapshot();
         assertThat(snapshot.hasNext(), equalTo(true));
         Translog.Create create = (Translog.Create) snapshot.next();
-        assertThat(create.source().copyBytes(), equalTo(new byte[]{1}));
+        assertThat(create.source().toBytes(), equalTo(new byte[]{1}));
         snapshot.release();
 
         Translog.Snapshot snapshot1 = translog.snapshot();
@@ -201,7 +201,7 @@ public abstract class AbstractSimpleTranslogTests {
         snapshot = translog.snapshot(snapshot1);
         assertThat(snapshot.hasNext(), equalTo(true));
         Translog.Index index = (Translog.Index) snapshot.next();
-        assertThat(index.source().copyBytes(), equalTo(new byte[]{2}));
+        assertThat(index.source().toBytes(), equalTo(new byte[]{2}));
         assertThat(snapshot.hasNext(), equalTo(false));
         assertThat(snapshot.estimatedTotalOperations(), equalTo(2));
         snapshot.release();
@@ -230,7 +230,7 @@ public abstract class AbstractSimpleTranslogTests {
         snapshot = translog.snapshot(actualSnapshot);
         assertThat(snapshot.hasNext(), equalTo(true));
         Translog.Index index = (Translog.Index) snapshot.next();
-        assertThat(index.source().copyBytes(), equalTo(new byte[]{3}));
+        assertThat(index.source().toBytes(), equalTo(new byte[]{3}));
         assertThat(snapshot.hasNext(), equalTo(false));
 
         actualSnapshot.release();

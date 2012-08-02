@@ -26,6 +26,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.store.DirectoryService;
+import org.elasticsearch.indices.store.IndicesStore;
 
 /**
  *
@@ -33,8 +34,8 @@ import org.elasticsearch.index.store.DirectoryService;
 public class MmapFsIndexStore extends FsIndexStore {
 
     @Inject
-    public MmapFsIndexStore(Index index, @IndexSettings Settings indexSettings, IndexService indexService, NodeEnvironment nodeEnv) {
-        super(index, indexSettings, indexService, nodeEnv);
+    public MmapFsIndexStore(Index index, @IndexSettings Settings indexSettings, IndexService indexService, IndicesStore indicesStore, NodeEnvironment nodeEnv) {
+        super(index, indexSettings, indexService, indicesStore, nodeEnv);
     }
 
     @Override

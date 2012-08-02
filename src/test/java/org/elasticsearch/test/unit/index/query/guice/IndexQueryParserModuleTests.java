@@ -37,6 +37,7 @@ import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
 import org.elasticsearch.indices.query.IndicesQueriesModule;
 import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.testng.annotations.Test;
 
@@ -90,5 +91,7 @@ public class IndexQueryParserModuleTests {
         MyJsonFilterParser myJsonFilterParser = (MyJsonFilterParser) indexQueryParserService.filterParser("my");
         assertThat(myJsonFilterParser.names()[0], equalTo("my"));
         assertThat(myJsonFilterParser.settings().get("param2"), equalTo("value2"));
+
+        injector.getInstance(ThreadPool.class).shutdownNow();
     }
 }

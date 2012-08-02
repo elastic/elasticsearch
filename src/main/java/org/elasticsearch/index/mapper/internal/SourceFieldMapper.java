@@ -25,10 +25,14 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.compress.lzf.LZF;
-import org.elasticsearch.common.compress.lzf.LZFDecoder;
-import org.elasticsearch.common.io.stream.*;
+import org.elasticsearch.common.compress.CompressedStreamInput;
+import org.elasticsearch.common.compress.Compressor;
+import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.io.stream.CachedStreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.document.ResetFieldSelector;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -238,22 +242,20 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
         if (context.flyweight()) {
             return null;
         }
-        byte[] data = context.source();
-        int dataOffset = context.sourceOffset();
-        int dataLength = context.sourceLength();
+        BytesReference source = context.source();
 
         boolean filtered = includes.length > 0 || excludes.length > 0;
         if (filtered) {
             // we don't update the context source if we filter, we want to keep it as is...
 
-            Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(data, dataOffset, dataLength, true);
+            Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(source, true);
             Map<String, Object> filteredSource = XContentMapValues.filter(mapTuple.v2(), includes, excludes);
             CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
             StreamOutput streamOutput;
-            if (compress != null && compress && (compressThreshold == -1 || dataLength > compressThreshold)) {
-                streamOutput = cachedEntry.cachedLZFBytes();
+            if (compress != null && compress && (compressThreshold == -1 || source.length() > compressThreshold)) {
+                streamOutput = cachedEntry.bytes(CompressorFactory.defaultCompressor());
             } else {
-                streamOutput = cachedEntry.cachedBytes();
+                streamOutput = cachedEntry.bytes();
             }
             XContentType contentType = formatContentType;
             if (contentType == null) {
@@ -262,82 +264,77 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
             XContentBuilder builder = XContentFactory.contentBuilder(contentType, streamOutput).map(filteredSource);
             builder.close();
 
-            data = cachedEntry.bytes().copiedByteArray();
-            dataOffset = 0;
-            dataLength = data.length;
+            source = cachedEntry.bytes().bytes().copyBytesArray();
 
             CachedStreamOutput.pushEntry(cachedEntry);
-        } else if (compress != null && compress && !LZF.isCompressed(data, dataOffset, dataLength)) {
-            if (compressThreshold == -1 || dataLength > compressThreshold) {
+        } else if (compress != null && compress && !CompressorFactory.isCompressed(source)) {
+            if (compressThreshold == -1 || source.length() > compressThreshold) {
                 CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
                 try {
-                    XContentType contentType = XContentFactory.xContentType(data, dataOffset, dataLength);
+                    XContentType contentType = XContentFactory.xContentType(source);
                     if (formatContentType != null && formatContentType != contentType) {
-                        XContentBuilder builder = XContentFactory.contentBuilder(formatContentType, cachedEntry.cachedLZFBytes());
-                        builder.copyCurrentStructure(XContentFactory.xContent(contentType).createParser(data, dataOffset, dataLength));
+                        XContentBuilder builder = XContentFactory.contentBuilder(formatContentType, cachedEntry.bytes(CompressorFactory.defaultCompressor()));
+                        builder.copyCurrentStructure(XContentFactory.xContent(contentType).createParser(source));
                         builder.close();
                     } else {
-                        LZFStreamOutput streamOutput = cachedEntry.cachedLZFBytes();
-                        streamOutput.writeBytes(data, dataOffset, dataLength);
-                        streamOutput.flush();
+                        StreamOutput streamOutput = cachedEntry.bytes(CompressorFactory.defaultCompressor());
+                        source.writeTo(streamOutput);
+                        streamOutput.close();
                     }
                     // we copy over the byte array, since we need to push back the cached entry
                     // TODO, we we had a handle into when we are done with parsing, then we push back then and not copy over bytes
-                    data = cachedEntry.bytes().copiedByteArray();
-                    dataOffset = 0;
-                    dataLength = data.length;
+                    source = cachedEntry.bytes().bytes().copyBytesArray();
                     // update the data in the context, so it can be compressed and stored compressed outside...
-                    context.source(data, dataOffset, dataLength);
+                    context.source(source);
                 } finally {
                     CachedStreamOutput.pushEntry(cachedEntry);
                 }
             }
         } else if (formatContentType != null) {
             // see if we need to convert the content type
-            if (LZF.isCompressed(data, dataOffset, dataLength)) {
-                BytesStreamInput siBytes = new BytesStreamInput(data, dataOffset, dataLength, false);
-                LZFStreamInput siLzf = CachedStreamInput.cachedLzf(siBytes);
-                XContentType contentType = XContentFactory.xContentType(siLzf);
-                siLzf.resetToBufferStart();
+            Compressor compressor = CompressorFactory.compressor(source);
+            if (compressor != null) {
+                CompressedStreamInput compressedStreamInput = compressor.streamInput(source.streamInput());
+                XContentType contentType = XContentFactory.xContentType(compressedStreamInput);
+                compressedStreamInput.resetToBufferStart();
                 if (contentType != formatContentType) {
                     // we need to reread and store back, compressed....
                     CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
                     try {
-                        LZFStreamOutput streamOutput = cachedEntry.cachedLZFBytes();
+                        StreamOutput streamOutput = cachedEntry.bytes(CompressorFactory.defaultCompressor());
                         XContentBuilder builder = XContentFactory.contentBuilder(formatContentType, streamOutput);
-                        builder.copyCurrentStructure(XContentFactory.xContent(contentType).createParser(siLzf));
+                        builder.copyCurrentStructure(XContentFactory.xContent(contentType).createParser(compressedStreamInput));
                         builder.close();
-                        data = cachedEntry.bytes().copiedByteArray();
-                        dataOffset = 0;
-                        dataLength = data.length;
+                        source = cachedEntry.bytes().bytes().copyBytesArray();
                         // update the data in the context, so we store it in the translog in this format
-                        context.source(data, dataOffset, dataLength);
+                        context.source(source);
                     } finally {
                         CachedStreamOutput.pushEntry(cachedEntry);
                     }
+                } else {
+                    compressedStreamInput.close();
                 }
             } else {
-                XContentType contentType = XContentFactory.xContentType(data, dataOffset, dataLength);
+                XContentType contentType = XContentFactory.xContentType(source);
                 if (contentType != formatContentType) {
                     // we need to reread and store back
                     // we need to reread and store back, compressed....
                     CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
                     try {
-                        XContentBuilder builder = XContentFactory.contentBuilder(formatContentType, cachedEntry.cachedBytes());
-                        builder.copyCurrentStructure(XContentFactory.xContent(contentType).createParser(data, dataOffset, dataLength));
+                        XContentBuilder builder = XContentFactory.contentBuilder(formatContentType, cachedEntry.bytes());
+                        builder.copyCurrentStructure(XContentFactory.xContent(contentType).createParser(source));
                         builder.close();
-                        data = cachedEntry.bytes().copiedByteArray();
-                        dataOffset = 0;
-                        dataLength = data.length;
+                        source = cachedEntry.bytes().bytes().copyBytesArray();
                         // update the data in the context, so we store it in the translog in this format
-                        context.source(data, dataOffset, dataLength);
+                        context.source(source);
                     } finally {
                         CachedStreamOutput.pushEntry(cachedEntry);
                     }
                 }
             }
         }
-        return new Field(names().indexName(), data, dataOffset, dataLength);
+        assert source.hasArray();
+        return new Field(names().indexName(), source.array(), source.arrayOffset(), source.length());
     }
 
     public byte[] value(Document document) {
@@ -355,14 +352,11 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
         if (value == null) {
             return value;
         }
-        if (LZF.isCompressed(value)) {
-            try {
-                return LZFDecoder.decode(value);
-            } catch (IOException e) {
-                throw new ElasticSearchParseException("failed to decompress source", e);
-            }
+        try {
+            return CompressorFactory.uncompressIfNeeded(new BytesArray(value)).toBytes();
+        } catch (IOException e) {
+            throw new ElasticSearchParseException("failed to decompress source", e);
         }
-        return value;
     }
 
     @Override

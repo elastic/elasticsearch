@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.BytesHolder;
+import org.elasticsearch.common.bytes.BytesReference;
 
 import java.io.*;
 
@@ -68,7 +68,7 @@ public interface XContent {
     /**
      * Creates a parser over the provided bytes.
      */
-    XContentParser createParser(BytesHolder bytes) throws IOException;
+    XContentParser createParser(BytesReference bytes) throws IOException;
 
     /**
      * Creates a parser over the provided reader.

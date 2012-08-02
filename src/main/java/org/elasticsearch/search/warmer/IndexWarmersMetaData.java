@@ -22,9 +22,10 @@ package org.elasticsearch.search.warmer;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.*;
@@ -49,9 +50,9 @@ public class IndexWarmersMetaData implements IndexMetaData.Custom {
     public static class Entry {
         private final String name;
         private final String[] types;
-        private final BytesHolder source;
+        private final BytesReference source;
 
-        public Entry(String name, String[] types, BytesHolder source) {
+        public Entry(String name, String[] types, BytesReference source) {
             this.name = name;
             this.types = types == null ? Strings.EMPTY_ARRAY : types;
             this.source = source;
@@ -66,7 +67,7 @@ public class IndexWarmersMetaData implements IndexMetaData.Custom {
         }
 
         @Nullable
-        public BytesHolder source() {
+        public BytesReference source() {
             return this.source;
         }
     }
@@ -98,7 +99,7 @@ public class IndexWarmersMetaData implements IndexMetaData.Custom {
         public IndexWarmersMetaData readFrom(StreamInput in) throws IOException {
             Entry[] entries = new Entry[in.readVInt()];
             for (int i = 0; i < entries.length; i++) {
-                entries[i] = new Entry(in.readUTF(), in.readStringArray(), in.readBoolean() ? in.readBytesHolder() : null);
+                entries[i] = new Entry(in.readUTF(), in.readStringArray(), in.readBoolean() ? in.readBytesReference() : null);
             }
             return new IndexWarmersMetaData(entries);
         }
@@ -113,7 +114,7 @@ public class IndexWarmersMetaData implements IndexMetaData.Custom {
                     out.writeBoolean(false);
                 } else {
                     out.writeBoolean(true);
-                    out.writeBytesHolder(entry.source());
+                    out.writeBytesReference(entry.source());
                 }
             }
         }
@@ -125,7 +126,7 @@ public class IndexWarmersMetaData implements IndexMetaData.Custom {
                 map = (Map<String, Object>) map.values().iterator().next();
             }
             XContentBuilder builder = XContentFactory.smileBuilder().map(map);
-            XContentParser parser = XContentFactory.xContent(XContentType.SMILE).createParser(builder.underlyingBytes(), 0, builder.underlyingBytesLength());
+            XContentParser parser = XContentFactory.xContent(XContentType.SMILE).createParser(builder.bytes());
             try {
                 // move to START_OBJECT
                 parser.nextToken();
@@ -147,7 +148,7 @@ public class IndexWarmersMetaData implements IndexMetaData.Custom {
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     String name = currentFieldName;
                     List<String> types = new ArrayList<String>(2);
-                    BytesHolder source = null;
+                    BytesReference source = null;
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();
@@ -160,11 +161,11 @@ public class IndexWarmersMetaData implements IndexMetaData.Custom {
                         } else if (token == XContentParser.Token.START_OBJECT) {
                             if ("source".equals(currentFieldName)) {
                                 XContentBuilder builder = XContentFactory.jsonBuilder().map(parser.mapOrdered());
-                                source = new BytesHolder(builder.underlyingBytes(), 0, builder.underlyingBytesLength());
+                                source = builder.bytes();
                             }
                         } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
                             if ("source".equals(currentFieldName)) {
-                                source = new BytesHolder(parser.binaryValue());
+                                source = new BytesArray(parser.binaryValue());
                             }
                         }
                     }
@@ -191,7 +192,7 @@ public class IndexWarmersMetaData implements IndexMetaData.Custom {
             builder.field("types", entry.types());
             builder.field("source");
             if (binary) {
-                builder.value(entry.source().bytes(), entry.source().offset(), entry.source().length());
+                builder.value(entry.source());
             } else {
                 Map<String, Object> mapping = XContentFactory.xContent(entry.source()).createParser(entry.source()).mapOrderedAndClose();
                 builder.map(mapping);

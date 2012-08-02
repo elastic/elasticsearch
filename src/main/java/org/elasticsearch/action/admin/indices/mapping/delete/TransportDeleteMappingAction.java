@@ -21,6 +21,8 @@ package org.elasticsearch.action.admin.indices.mapping.delete;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.flush.FlushResponse;
+import org.elasticsearch.action.admin.indices.flush.TransportFlushAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.refresh.TransportRefreshAction;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
@@ -49,6 +51,8 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
 
     private final MetaDataMappingService metaDataMappingService;
 
+    private final TransportFlushAction flushAction;
+
     private final TransportDeleteByQueryAction deleteByQueryAction;
 
     private final TransportRefreshAction refreshAction;
@@ -56,11 +60,12 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
     @Inject
     public TransportDeleteMappingAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                         ThreadPool threadPool, MetaDataMappingService metaDataMappingService,
-                                        TransportDeleteByQueryAction deleteByQueryAction, TransportRefreshAction refreshAction) {
+                                        TransportDeleteByQueryAction deleteByQueryAction, TransportRefreshAction refreshAction, TransportFlushAction flushAction) {
         super(settings, transportService, clusterService, threadPool);
         this.metaDataMappingService = metaDataMappingService;
         this.deleteByQueryAction = deleteByQueryAction;
         this.refreshAction = refreshAction;
+        this.flushAction = flushAction;
     }
 
     @Override
@@ -100,19 +105,50 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
 
         final AtomicReference<Throwable> failureRef = new AtomicReference<Throwable>();
         final CountDownLatch latch = new CountDownLatch(1);
-        deleteByQueryAction.execute(Requests.deleteByQueryRequest(request.indices()).query(QueryBuilders.filteredQuery(QueryBuilders.matchAllQuery(), FilterBuilders.typeFilter(request.type()))), new ActionListener<DeleteByQueryResponse>() {
+        flushAction.execute(Requests.flushRequest(request.indices()), new ActionListener<FlushResponse>() {
             @Override
-            public void onResponse(DeleteByQueryResponse deleteByQueryResponse) {
-                refreshAction.execute(Requests.refreshRequest(request.indices()), new ActionListener<RefreshResponse>() {
+            public void onResponse(FlushResponse flushResponse) {
+                deleteByQueryAction.execute(Requests.deleteByQueryRequest(request.indices()).query(QueryBuilders.filteredQuery(QueryBuilders.matchAllQuery(), FilterBuilders.typeFilter(request.type()))), new ActionListener<DeleteByQueryResponse>() {
                     @Override
-                    public void onResponse(RefreshResponse refreshResponse) {
-                        metaDataMappingService.removeMapping(new MetaDataMappingService.RemoveRequest(request.indices(), request.type()));
-                        latch.countDown();
+                    public void onResponse(DeleteByQueryResponse deleteByQueryResponse) {
+                        refreshAction.execute(Requests.refreshRequest(request.indices()), new ActionListener<RefreshResponse>() {
+                            @Override
+                            public void onResponse(RefreshResponse refreshResponse) {
+                                metaDataMappingService.removeMapping(new MetaDataMappingService.RemoveRequest(request.indices(), request.type()), new MetaDataMappingService.Listener() {
+                                    @Override
+                                    public void onResponse(MetaDataMappingService.Response response) {
+                                        latch.countDown();
+                                    }
+
+                                    @Override
+                                    public void onFailure(Throwable t) {
+                                        failureRef.set(t);
+                                        latch.countDown();
+                                    }
+                                });
+                            }
+
+                            @Override
+                            public void onFailure(Throwable e) {
+                                metaDataMappingService.removeMapping(new MetaDataMappingService.RemoveRequest(request.indices(), request.type()), new MetaDataMappingService.Listener() {
+                                    @Override
+                                    public void onResponse(MetaDataMappingService.Response response) {
+                                        latch.countDown();
+                                    }
+
+                                    @Override
+                                    public void onFailure(Throwable t) {
+                                        failureRef.set(t);
+                                        latch.countDown();
+                                    }
+                                });
+                            }
+                        });
                     }
 
                     @Override
                     public void onFailure(Throwable e) {
-                        metaDataMappingService.removeMapping(new MetaDataMappingService.RemoveRequest(request.indices(), request.type()));
+                        failureRef.set(e);
                         latch.countDown();
                     }
                 });

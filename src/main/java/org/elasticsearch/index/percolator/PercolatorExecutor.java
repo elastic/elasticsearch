@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.percolator;
 
-import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.IndexReader;
@@ -32,13 +31,13 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.BytesStream;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -74,35 +73,19 @@ public class PercolatorExecutor extends AbstractIndexComponent {
 
     public static class SourceRequest {
         private final String type;
-        private final byte[] source;
-        private final int offset;
-        private final int length;
+        private final BytesReference source;
 
-        public SourceRequest(String type, byte[] source) {
-            this(type, source, 0, source.length);
-        }
-
-        public SourceRequest(String type, byte[] source, int offset, int length) {
+        public SourceRequest(String type, BytesReference source) {
             this.type = type;
             this.source = source;
-            this.offset = offset;
-            this.length = length;
         }
 
         public String type() {
             return this.type;
         }
 
-        public byte[] source() {
+        public BytesReference source() {
             return source;
-        }
-
-        public int offset() {
-            return this.offset;
-        }
-
-        public int length() {
-            return this.length;
         }
     }
 
@@ -171,7 +154,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
 
     private final IndexCache indexCache;
 
-    private volatile ImmutableMap<String, Query> queries = ImmutableMap.of();
+    private final Map<String, Query> queries = ConcurrentCollections.newConcurrentMap();
 
 
     private IndicesService indicesService;
@@ -190,40 +173,33 @@ public class PercolatorExecutor extends AbstractIndexComponent {
         this.indicesService = indicesService;
     }
 
-    public synchronized void close() {
-        ImmutableMap<String, Query> old = queries;
-        queries = ImmutableMap.of();
-        old.clear();
+    public void close() {
+        this.queries.clear();
     }
 
     public void addQuery(String name, QueryBuilder queryBuilder) throws ElasticSearchException {
         try {
             XContentBuilder builder = XContentFactory.smileBuilder()
                     .startObject().field("query", queryBuilder).endObject();
-            BytesStream unsafeBytes = builder.underlyingStream();
-            addQuery(name, unsafeBytes.underlyingBytes(), 0, unsafeBytes.size());
+            addQuery(name, builder.bytes());
         } catch (IOException e) {
             throw new ElasticSearchException("Failed to add query [" + name + "]", e);
         }
     }
 
-    public void addQuery(String name, byte[] source) throws ElasticSearchException {
-        addQuery(name, source, 0, source.length);
+    public void addQuery(String name, BytesReference source) throws ElasticSearchException {
+        addQuery(name, parseQuery(name, source));
     }
 
-    public void addQuery(String name, byte[] source, int sourceOffset, int sourceLength) throws ElasticSearchException {
-        addQuery(name, parseQuery(name, source, sourceOffset, sourceLength));
-    }
-
-    public Query parseQuery(String name, byte[] source, int sourceOffset, int sourceLength) throws ElasticSearchException {
+    public Query parseQuery(String name, BytesReference source) throws ElasticSearchException {
         XContentParser parser = null;
         try {
-            parser = XContentHelper.createParser(source, sourceOffset, sourceLength);
+            parser = XContentHelper.createParser(source);
             Query query = null;
             String currentFieldName = null;
             XContentParser.Token token = parser.nextToken(); // move the START_OBJECT
             if (token != XContentParser.Token.START_OBJECT) {
-                throw new ElasticSearchException("Failed to add query [" + name + "], not starting with OBJECT");
+                throw new ElasticSearchException("failed to parse query [" + name + "], not starting with OBJECT");
             }
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
@@ -240,8 +216,8 @@ public class PercolatorExecutor extends AbstractIndexComponent {
                 }
             }
             return query;
-        } catch (IOException e) {
-            throw new ElasticSearchException("Failed to add query [" + name + "]", e);
+        } catch (Exception e) {
+            throw new ElasticSearchException("failed to parse query [" + name + "]", e);
         } finally {
             if (parser != null) {
                 parser.close();
@@ -249,17 +225,17 @@ public class PercolatorExecutor extends AbstractIndexComponent {
         }
     }
 
-    private synchronized void addQuery(String name, Query query) {
+    private void addQuery(String name, Query query) {
         Preconditions.checkArgument(query != null, "query must be provided for percolate request");
-        this.queries = MapBuilder.newMapBuilder(queries).put(name, query).immutableMap();
+        this.queries.put(name, query);
     }
 
-    public synchronized void removeQuery(String name) {
-        this.queries = MapBuilder.newMapBuilder(queries).remove(name).immutableMap();
+    public void removeQuery(String name) {
+        this.queries.remove(name);
     }
 
-    public synchronized void addQueries(Map<String, Query> queries) {
-        this.queries = MapBuilder.newMapBuilder(this.queries).putAll(queries).immutableMap();
+    public void addQueries(Map<String, Query> queries) {
+        this.queries.putAll(queries);
     }
 
     public Response percolate(final SourceRequest request) throws ElasticSearchException {
@@ -268,7 +244,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
         XContentParser parser = null;
         try {
 
-            parser = XContentFactory.xContent(request.source(), request.offset(), request.length()).createParser(request.source(), request.offset(), request.length());
+            parser = XContentFactory.xContent(request.source()).createParser(request.source());
             String currentFieldName = null;
             XContentParser.Token token;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -401,14 +377,14 @@ public class PercolatorExecutor extends AbstractIndexComponent {
         private final IndexSearcher searcher;
         private final IndexService percolatorIndex;
         private final List<String> matches;
-        private final ImmutableMap<String, Query> queries;
+        private final Map<String, Query> queries;
         private final ESLogger logger;
 
         private final Lucene.ExistsCollector collector = new Lucene.ExistsCollector();
 
         private FieldData fieldData;
 
-        QueryCollector(ESLogger logger, ImmutableMap<String, Query> queries, IndexSearcher searcher, IndexService percolatorIndex, List<String> matches) {
+        QueryCollector(ESLogger logger, Map<String, Query> queries, IndexSearcher searcher, IndexService percolatorIndex, List<String> matches) {
             this.logger = logger;
             this.queries = queries;
             this.searcher = searcher;

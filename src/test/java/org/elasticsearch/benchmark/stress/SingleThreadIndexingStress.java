@@ -65,11 +65,12 @@ public class SingleThreadIndexingStress {
 
         StopWatch stopWatch = new StopWatch().start();
         int COUNT = 200000;
+        int ID_RANGE = 100;
         System.out.println("Indexing [" + COUNT + "] ...");
         int i = 1;
         for (; i <= COUNT; i++) {
 //            client1.admin().cluster().preparePingSingle("test", "type1", Integer.toString(i)).execute().actionGet();
-            client1.prepareIndex("test", "type1").setId(Integer.toString(i)).setSource(source(Integer.toString(i), "test" + i))
+            client1.prepareIndex("test", "type1").setId(Integer.toString(i % ID_RANGE)).setSource(source(Integer.toString(i), "test" + i))
                     .setCreate(false).execute().actionGet();
             if ((i % 10000) == 0) {
                 System.out.println("Indexed " + i + " took " + stopWatch.stop().lastTaskTime());

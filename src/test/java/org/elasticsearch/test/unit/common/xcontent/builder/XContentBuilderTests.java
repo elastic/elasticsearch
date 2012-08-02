@@ -91,7 +91,7 @@ public class XContentBuilderTests {
         gen.writeEndObject();
         gen.close();
 
-        byte[] data = bos.copiedByteArray();
+        byte[] data = bos.bytes().toBytes();
         String sData = new String(data, "UTF8");
         System.out.println("DATA: " + sData);
     }

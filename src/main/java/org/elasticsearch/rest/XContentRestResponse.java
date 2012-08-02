@@ -20,7 +20,7 @@
 package org.elasticsearch.rest;
 
 import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.common.thread.ThreadLocals;
+import org.elasticsearch.common.util.concurrent.ThreadLocals;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -74,12 +74,12 @@ public class XContentRestResponse extends AbstractRestResponse {
 
     @Override
     public byte[] content() throws IOException {
-        return builder.underlyingBytes();
+        return builder.bytes().array();
     }
 
     @Override
     public int contentLength() throws IOException {
-        return builder.underlyingBytesLength();
+        return builder.bytes().length();
     }
 
     @Override

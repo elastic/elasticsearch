@@ -55,6 +55,7 @@ public class RestMoreLikeThisAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         MoreLikeThisRequest mltRequest = moreLikeThisRequest(request.param("index")).type(request.param("type")).id(request.param("id"));
+        mltRequest.listenerThreaded(false);
         try {
             mltRequest.fields(request.paramAsStringArray("mlt_fields", null));
             mltRequest.percentTermsToMatch(request.paramAsFloat("percent_terms_to_match", -1));
@@ -78,7 +79,7 @@ public class RestMoreLikeThisAction extends BaseRestHandler {
                 mltRequest.searchScroll(new Scroll(parseTimeValue(searchScroll, null)));
             }
             if (request.hasContent()) {
-                mltRequest.searchSource(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength(), request.contentUnsafe());
+                mltRequest.searchSource(request.content(), request.contentUnsafe());
             } else {
                 String searchSource = request.param("search_source");
                 if (searchSource != null) {

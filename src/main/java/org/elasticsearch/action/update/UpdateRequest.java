@@ -22,12 +22,19 @@ package org.elasticsearch.action.update;
 import com.google.common.collect.Maps;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.WriteConsistencyLevel;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequest;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Map;
@@ -43,6 +50,7 @@ public class UpdateRequest extends InstanceShardOperationRequest {
     @Nullable
     private String routing;
 
+    @Nullable
     String script;
     @Nullable
     String scriptLang;
@@ -59,6 +67,11 @@ public class UpdateRequest extends InstanceShardOperationRequest {
 
     private ReplicationType replicationType = ReplicationType.DEFAULT;
     private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
+
+    private IndexRequest upsertRequest;
+
+    @Nullable
+    private IndexRequest doc;
 
     UpdateRequest() {
 
@@ -79,8 +92,8 @@ public class UpdateRequest extends InstanceShardOperationRequest {
         if (id == null) {
             validationException = addValidationError("id is missing", validationException);
         }
-        if (script == null) {
-            validationException = addValidationError("script is missing", validationException);
+        if (script == null && doc == null) {
+            validationException = addValidationError("script or doc is missing", validationException);
         }
         return validationException;
     }
@@ -157,6 +170,14 @@ public class UpdateRequest extends InstanceShardOperationRequest {
 
     int shardId() {
         return this.shardId;
+    }
+
+    public String script() {
+        return this.script;
+    }
+
+    public Map<String, Object> scriptParams() {
+        return this.scriptParams;
     }
 
     /**
@@ -330,6 +351,183 @@ public class UpdateRequest extends InstanceShardOperationRequest {
         return this;
     }
 
+    /**
+     * Sets the doc to use for updates when a script is not specified.
+     */
+    public UpdateRequest doc(IndexRequest doc) {
+        this.doc = doc;
+        return this;
+    }
+
+    /**
+     * Sets the doc to use for updates when a script is not specified.
+     */
+    public UpdateRequest doc(XContentBuilder source) {
+        safeDoc().source(source);
+        return this;
+    }
+
+    /**
+     * Sets the doc to use for updates when a script is not specified.
+     */
+    public UpdateRequest doc(Map source) {
+        safeDoc().source(source);
+        return this;
+    }
+
+    /**
+     * Sets the doc to use for updates when a script is not specified.
+     */
+    public UpdateRequest doc(Map source, XContentType contentType) {
+        safeDoc().source(source, contentType);
+        return this;
+    }
+
+    /**
+     * Sets the doc to use for updates when a script is not specified.
+     */
+    public UpdateRequest doc(String source) {
+        safeDoc().source(source);
+        return this;
+    }
+
+    /**
+     * Sets the doc to use for updates when a script is not specified.
+     */
+    public UpdateRequest doc(byte[] source) {
+        safeDoc().source(source);
+        return this;
+    }
+
+    /**
+     * Sets the doc to use for updates when a script is not specified.
+     */
+    public UpdateRequest doc(byte[] source, int offset, int length) {
+        safeDoc().source(source, offset, length);
+        return this;
+    }
+
+    public IndexRequest doc() {
+        return this.doc;
+    }
+
+    private IndexRequest safeDoc() {
+        if (doc == null) {
+            doc = new IndexRequest();
+        }
+        return doc;
+    }
+
+    /**
+     * Sets the index request to be used if the document does not exists. Otherwise, a {@link org.elasticsearch.index.engine.DocumentMissingException}
+     * is thrown.
+     */
+    public UpdateRequest upsert(IndexRequest upsertRequest) {
+        this.upsertRequest = upsertRequest;
+        return this;
+    }
+
+    /**
+     * Sets the doc source of the update request to be used when the document does not exists.
+     */
+    public UpdateRequest upsert(XContentBuilder source) {
+        safeUpsertRequest().source(source);
+        return this;
+    }
+
+    /**
+     * Sets the doc source of the update request to be used when the document does not exists.
+     */
+    public UpdateRequest upsert(Map source) {
+        safeUpsertRequest().source(source);
+        return this;
+    }
+
+    /**
+     * Sets the doc source of the update request to be used when the document does not exists.
+     */
+    public UpdateRequest upsert(Map source, XContentType contentType) {
+        safeUpsertRequest().source(source, contentType);
+        return this;
+    }
+
+    /**
+     * Sets the doc source of the update request to be used when the document does not exists.
+     */
+    public UpdateRequest upsert(String source) {
+        safeUpsertRequest().source(source);
+        return this;
+    }
+
+    /**
+     * Sets the doc source of the update request to be used when the document does not exists.
+     */
+    public UpdateRequest upsert(byte[] source) {
+        safeUpsertRequest().source(source);
+        return this;
+    }
+
+    /**
+     * Sets the doc source of the update request to be used when the document does not exists.
+     */
+    public UpdateRequest upsert(byte[] source, int offset, int length) {
+        safeUpsertRequest().source(source, offset, length);
+        return this;
+    }
+
+    public IndexRequest upsertRequest() {
+        return this.upsertRequest;
+    }
+
+    private IndexRequest safeUpsertRequest() {
+        if (upsertRequest == null) {
+            upsertRequest = new IndexRequest();
+        }
+        return upsertRequest;
+    }
+
+    public UpdateRequest source(XContentBuilder source) throws Exception {
+        return source(source.bytes());
+    }
+
+    public UpdateRequest source(byte[] source) throws Exception {
+        return source(source, 0, source.length);
+    }
+
+    public UpdateRequest source(byte[] source, int offset, int length) throws Exception {
+        return source(new BytesArray(source, offset, length));
+    }
+
+    public UpdateRequest source(BytesReference source) throws Exception {
+        XContentType xContentType = XContentFactory.xContentType(source);
+        XContentParser parser = XContentFactory.xContent(xContentType).createParser(source);
+        XContentParser.Token t = parser.nextToken();
+        if (t == null) {
+            return this;
+        }
+        String currentFieldName = null;
+        while ((t = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (t == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if ("script".equals(currentFieldName)) {
+                script = parser.textOrNull();
+            } else if ("params".equals(currentFieldName)) {
+                scriptParams = parser.map();
+            } else if ("lang".equals(currentFieldName)) {
+                scriptLang = parser.text();
+            } else if ("upsert".equals(currentFieldName)) {
+                XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
+                builder.copyCurrentStructure(parser);
+                safeUpsertRequest().source(builder);
+            } else if ("doc".equals(currentFieldName)) {
+                XContentBuilder docBuilder = XContentFactory.contentBuilder(xContentType);
+                docBuilder.copyCurrentStructure(parser);
+                safeDoc().source(docBuilder);
+            }
+        }
+        return this;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -337,25 +535,27 @@ public class UpdateRequest extends InstanceShardOperationRequest {
         consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
         type = in.readUTF();
         id = in.readUTF();
-        if (in.readBoolean()) {
-            routing = in.readUTF();
-        }
-        script = in.readUTF();
-        if (in.readBoolean()) {
-            scriptLang = in.readUTF();
-        }
+        routing = in.readOptionalUTF();
+        script = in.readOptionalUTF();
+        scriptLang = in.readOptionalUTF();
         scriptParams = in.readMap();
         retryOnConflict = in.readVInt();
-        if (in.readBoolean()) {
-            percolate = in.readUTF();
-        }
+        percolate = in.readOptionalUTF();
         refresh = in.readBoolean();
+        if (in.readBoolean()) {
+            doc = new IndexRequest();
+            doc.readFrom(in);
+        }
         int size = in.readInt();
         if (size >= 0) {
             fields = new String[size];
             for (int i = 0; i < size; i++) {
                 fields[i] = in.readUTF();
             }
+        }
+        if (in.readBoolean()) {
+            upsertRequest = new IndexRequest();
+            upsertRequest.readFrom(in);
         }
     }
 
@@ -366,28 +566,23 @@ public class UpdateRequest extends InstanceShardOperationRequest {
         out.writeByte(consistencyLevel.id());
         out.writeUTF(type);
         out.writeUTF(id);
-        if (routing == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeUTF(routing);
-        }
-        out.writeUTF(script);
-        if (scriptLang == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeUTF(scriptLang);
-        }
+        out.writeOptionalUTF(routing);
+        out.writeOptionalUTF(script);
+        out.writeOptionalUTF(scriptLang);
         out.writeMap(scriptParams);
         out.writeVInt(retryOnConflict);
-        if (percolate == null) {
+        out.writeOptionalUTF(percolate);
+        out.writeBoolean(refresh);
+        if (doc == null) {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeUTF(percolate);
+            // make sure the basics are set
+            doc.index(index);
+            doc.type(type);
+            doc.id(id);
+            doc.writeTo(out);
         }
-        out.writeBoolean(refresh);
         if (fields == null) {
             out.writeInt(-1);
         } else {
@@ -395,6 +590,16 @@ public class UpdateRequest extends InstanceShardOperationRequest {
             for (String field : fields) {
                 out.writeUTF(field);
             }
+        }
+        if (upsertRequest == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            // make sure the basics are set
+            upsertRequest.index(index);
+            upsertRequest.type(type);
+            upsertRequest.id(id);
+            upsertRequest.writeTo(out);
         }
     }
 }

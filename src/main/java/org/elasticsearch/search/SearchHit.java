@@ -21,7 +21,7 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticSearchParseException;
-import org.elasticsearch.common.BytesHolder;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.highlight.HighlightField;
@@ -88,7 +88,12 @@ public interface SearchHit extends Streamable, ToXContent, Iterable<SearchHitFie
     /**
      * Returns bytes reference, also un compress the source if needed.
      */
-    BytesHolder sourceRef();
+    BytesReference sourceRef();
+
+    /**
+     * Returns bytes reference, also un compress the source if needed.
+     */
+    BytesReference getSourceRef();
 
     /**
      * The source of the document (can be <tt>null</tt>). Note, its a copy of the source
@@ -110,6 +115,11 @@ public interface SearchHit extends Streamable, ToXContent, Iterable<SearchHitFie
      * The source of the document as string (can be <tt>null</tt>).
      */
     String sourceAsString();
+
+    /**
+     * The source of the document as string (can be <tt>null</tt>).
+     */
+    String getSourceAsString();
 
     /**
      * The source of the document as a map (can be <tt>null</tt>).

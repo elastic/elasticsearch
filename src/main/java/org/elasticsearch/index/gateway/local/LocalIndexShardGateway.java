@@ -21,8 +21,12 @@ package org.elasticsearch.index.gateway.local;
 
 import com.google.common.io.Closeables;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.gateway.IndexShardGateway;
@@ -38,6 +42,7 @@ import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStreams;
 import org.elasticsearch.index.translog.fs.FsTranslog;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.EOFException;
@@ -97,14 +102,23 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
         long translogId = -1;
         try {
             if (IndexReader.indexExists(indexShard.store().directory())) {
-                version = IndexReader.getCurrentVersion(indexShard.store().directory());
-                Map<String, String> commitUserData = IndexReader.getCommitUserData(indexShard.store().directory());
-                if (commitUserData.containsKey(Translog.TRANSLOG_ID_KEY)) {
-                    translogId = Long.parseLong(commitUserData.get(Translog.TRANSLOG_ID_KEY));
+                if (indexShouldExists) {
+                    version = IndexReader.getCurrentVersion(indexShard.store().directory());
+                    Map<String, String> commitUserData = IndexReader.getCommitUserData(indexShard.store().directory());
+                    if (commitUserData.containsKey(Translog.TRANSLOG_ID_KEY)) {
+                        translogId = Long.parseLong(commitUserData.get(Translog.TRANSLOG_ID_KEY));
+                    } else {
+                        translogId = version;
+                    }
+                    logger.trace("using existing shard data, translog id [{}]", translogId);
                 } else {
-                    translogId = version;
+                    // it exists on the directory, but shouldn't exist on the FS, its a leftover (possibly dangling)
+                    // its a "new index create" API, we have to do something, so better to clean it than use same data
+                    logger.trace("cleaning existing shard, shouldn't exists");
+                    IndexWriter writer = new IndexWriter(indexShard.store().directory(), new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER).setOpenMode(IndexWriterConfig.OpenMode.CREATE));
+                    writer.close();
                 }
-            } else if (indexShouldExists) {
+            } else if (indexShouldExists && indexShard.store().indexStore().persistent()) {
                 throw new IndexShardGatewayRecoveryException(shardId(), "shard allocated for local recovery (post api), should exists, but doesn't");
             }
         } catch (IOException e) {
@@ -195,8 +209,17 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
                     // ignore, not properly written last op
                     break;
                 }
-                recoveryStatus.translog().addTranslogOperations(1);
-                indexShard.performRecoveryOperation(operation);
+                try {
+                    indexShard.performRecoveryOperation(operation);
+                    recoveryStatus.translog().addTranslogOperations(1);
+                } catch (ElasticSearchException e) {
+                    if (e.status() == RestStatus.BAD_REQUEST) {
+                        // mainly for MapperParsingException and Failure to detect xcontent
+                        logger.info("ignoring recovery of a corrupt translog entry", e);
+                    } else {
+                        throw e;
+                    }
+                }
             }
         } catch (Throwable e) {
             // we failed to recovery, make sure to delete the translog file (and keep the recovering one)

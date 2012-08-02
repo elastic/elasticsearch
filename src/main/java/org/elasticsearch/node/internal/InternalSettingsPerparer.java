@@ -36,26 +36,36 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 public class InternalSettingsPerparer {
 
     public static Tuple<Settings, Environment> prepareSettings(Settings pSettings, boolean loadConfigSettings) {
+        // ignore this prefixes when getting properties from es. and elasticsearch.
+        String[] ignorePrefixes = new String[]{"es.default.", "elasticsearch.default."};
         // just create enough settings to build the environment
         ImmutableSettings.Builder settingsBuilder = settingsBuilder()
                 .put(pSettings)
-                .putProperties("elasticsearch.", System.getProperties())
-                .putProperties("es.", System.getProperties())
+                .putProperties("elasticsearch.default.", System.getProperties())
+                .putProperties("es.default.", System.getProperties())
+                .putProperties("elasticsearch.", System.getProperties(), ignorePrefixes)
+                .putProperties("es.", System.getProperties(), ignorePrefixes)
                 .replacePropertyPlaceholders();
 
         Environment environment = new Environment(settingsBuilder.build());
 
         if (loadConfigSettings) {
-            boolean explicitSettingsProvided = false;
+            boolean loadFromEnv = true;
+            // if its default, then load it, but also load form env
+            if (System.getProperty("es.default.config") != null) {
+                loadFromEnv = true;
+                settingsBuilder.loadFromUrl(environment.resolveConfig(System.getProperty("es.default.config")));
+            }
+            // if explicit, just load it and don't load from env
             if (System.getProperty("es.config") != null) {
-                explicitSettingsProvided = true;
+                loadFromEnv = false;
                 settingsBuilder.loadFromUrl(environment.resolveConfig(System.getProperty("es.config")));
             }
             if (System.getProperty("elasticsearch.config") != null) {
-                explicitSettingsProvided = true;
+                loadFromEnv = false;
                 settingsBuilder.loadFromUrl(environment.resolveConfig(System.getProperty("elasticsearch.config")));
             }
-            if (!explicitSettingsProvided) {
+            if (loadFromEnv) {
                 try {
                     settingsBuilder.loadFromUrl(environment.resolveConfig("elasticsearch.yml"));
                 } catch (FailedToResolveConfigException e) {
@@ -77,8 +87,8 @@ public class InternalSettingsPerparer {
         }
 
         settingsBuilder.put(pSettings)
-                .putProperties("elasticsearch.", System.getProperties())
-                .putProperties("es.", System.getProperties())
+                .putProperties("elasticsearch.", System.getProperties(), ignorePrefixes)
+                .putProperties("es.", System.getProperties(), ignorePrefixes)
                 .replacePropertyPlaceholders();
 
         // generate the name

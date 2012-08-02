@@ -19,17 +19,15 @@
 
 package org.elasticsearch.action.search;
 
-import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.Unicode;
-import org.elasticsearch.common.io.BytesStream;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -40,7 +38,6 @@ import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Map;
 
 import static org.elasticsearch.search.Scroll.readScroll;
@@ -73,14 +70,10 @@ public class SearchRequest implements ActionRequest {
     @Nullable
     private String preference;
 
-    private byte[] source;
-    private int sourceOffset;
-    private int sourceLength;
+    private BytesReference source;
     private boolean sourceUnsafe;
 
-    private byte[] extraSource;
-    private int extraSourceOffset;
-    private int extraSourceLength;
+    private BytesReference extraSource;
     private boolean extraSourceUnsafe;
 
     private Scroll scroll;
@@ -106,7 +99,7 @@ public class SearchRequest implements ActionRequest {
      */
     public SearchRequest(String[] indices, byte[] source) {
         this.indices = indices;
-        this.source = source;
+        this.source = new BytesArray(source);
     }
 
     @Override
@@ -123,13 +116,11 @@ public class SearchRequest implements ActionRequest {
         // we always copy over if needed, the reason is that a request might fail while being search remotely
         // and then we need to keep the buffer around
         if (source != null && sourceUnsafe) {
-            source = Arrays.copyOfRange(source, sourceOffset, sourceOffset + sourceLength);
-            sourceOffset = 0;
+            source = source.copyBytesArray();
             sourceUnsafe = false;
         }
         if (extraSource != null && extraSourceUnsafe) {
-            extraSource = Arrays.copyOfRange(extraSource, extraSourceOffset, extraSourceOffset + extraSourceLength);
-            extraSourceOffset = 0;
+            extraSource = extraSource.copyBytesArray();
             extraSourceUnsafe = false;
         }
     }
@@ -263,10 +254,7 @@ public class SearchRequest implements ActionRequest {
      * The source of the search request.
      */
     public SearchRequest source(SearchSourceBuilder sourceBuilder) {
-        BytesStream bos = sourceBuilder.buildAsBytesStream(Requests.CONTENT_TYPE);
-        this.source = bos.underlyingBytes();
-        this.sourceOffset = 0;
-        this.sourceLength = bos.size();
+        this.source = sourceBuilder.buildAsBytes(contentType);
         this.sourceUnsafe = false;
         return this;
     }
@@ -276,11 +264,8 @@ public class SearchRequest implements ActionRequest {
      * {@link #source(org.elasticsearch.search.builder.SearchSourceBuilder)}.
      */
     public SearchRequest source(String source) {
-        UnicodeUtil.UTF8Result result = Unicode.fromStringAsUtf8(source);
-        this.source = result.result;
-        this.sourceOffset = 0;
-        this.sourceLength = result.length;
-        this.sourceUnsafe = true;
+        this.source = new BytesArray(source);
+        this.sourceUnsafe = false;
         return this;
     }
 
@@ -298,15 +283,9 @@ public class SearchRequest implements ActionRequest {
     }
 
     public SearchRequest source(XContentBuilder builder) {
-        try {
-            this.source = builder.underlyingBytes();
-            this.sourceOffset = 0;
-            this.sourceLength = builder.underlyingBytesLength();
-            this.sourceUnsafe = false;
-            return this;
-        } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate [" + builder + "]", e);
-        }
+        this.source = builder.bytes();
+        this.sourceUnsafe = false;
+        return this;
     }
 
     /**
@@ -328,9 +307,14 @@ public class SearchRequest implements ActionRequest {
      * The search source to execute.
      */
     public SearchRequest source(byte[] source, int offset, int length, boolean unsafe) {
+        return source(new BytesArray(source, offset, length), unsafe);
+    }
+
+    /**
+     * The search source to execute.
+     */
+    public SearchRequest source(BytesReference source, boolean unsafe) {
         this.source = source;
-        this.sourceOffset = offset;
-        this.sourceLength = length;
         this.sourceUnsafe = unsafe;
         return this;
     }
@@ -338,16 +322,8 @@ public class SearchRequest implements ActionRequest {
     /**
      * The search source to execute.
      */
-    public byte[] source() {
+    public BytesReference source() {
         return source;
-    }
-
-    public int sourceOffset() {
-        return sourceOffset;
-    }
-
-    public int sourceLength() {
-        return sourceLength;
     }
 
     /**
@@ -358,10 +334,7 @@ public class SearchRequest implements ActionRequest {
             extraSource = null;
             return this;
         }
-        BytesStream bos = sourceBuilder.buildAsBytesStream(Requests.CONTENT_TYPE);
-        this.extraSource = bos.underlyingBytes();
-        this.extraSourceOffset = 0;
-        this.extraSourceLength = bos.size();
+        this.extraSource = sourceBuilder.buildAsBytes(contentType);
         this.extraSourceUnsafe = false;
         return this;
     }
@@ -377,26 +350,17 @@ public class SearchRequest implements ActionRequest {
     }
 
     public SearchRequest extraSource(XContentBuilder builder) {
-        try {
-            this.extraSource = builder.underlyingBytes();
-            this.extraSourceOffset = 0;
-            this.extraSourceLength = builder.underlyingBytesLength();
-            this.extraSourceUnsafe = false;
-            return this;
-        } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate [" + builder + "]", e);
-        }
+        this.extraSource = builder.bytes();
+        this.extraSourceUnsafe = false;
+        return this;
     }
 
     /**
      * Allows to provide additional source that will use used as well.
      */
     public SearchRequest extraSource(String source) {
-        UnicodeUtil.UTF8Result result = Unicode.fromStringAsUtf8(source);
-        this.extraSource = result.result;
-        this.extraSourceOffset = 0;
-        this.extraSourceLength = result.length;
-        this.extraSourceUnsafe = true;
+        this.extraSource = new BytesArray(source);
+        this.extraSourceUnsafe = false;
         return this;
     }
 
@@ -418,9 +382,14 @@ public class SearchRequest implements ActionRequest {
      * Allows to provide additional source that will be used as well.
      */
     public SearchRequest extraSource(byte[] source, int offset, int length, boolean unsafe) {
+        return extraSource(new BytesArray(source, offset, length), unsafe);
+    }
+
+    /**
+     * Allows to provide additional source that will be used as well.
+     */
+    public SearchRequest extraSource(BytesReference source, boolean unsafe) {
         this.extraSource = source;
-        this.extraSourceOffset = offset;
-        this.extraSourceLength = length;
         this.extraSourceUnsafe = unsafe;
         return this;
     }
@@ -428,16 +397,8 @@ public class SearchRequest implements ActionRequest {
     /**
      * Additional search source to execute.
      */
-    public byte[] extraSource() {
+    public BytesReference extraSource() {
         return this.extraSource;
-    }
-
-    public int extraSourceOffset() {
-        return extraSourceOffset;
-    }
-
-    public int extraSourceLength() {
-        return extraSourceLength;
     }
 
     /**
@@ -522,17 +483,11 @@ public class SearchRequest implements ActionRequest {
             scroll = readScroll(in);
         }
 
-        BytesHolder bytes = in.readBytesReference();
         sourceUnsafe = false;
-        source = bytes.bytes();
-        sourceOffset = bytes.offset();
-        sourceLength = bytes.length();
+        source = in.readBytesReference();
 
-        bytes = in.readBytesReference();
         extraSourceUnsafe = false;
-        extraSource = bytes.bytes();
-        extraSourceOffset = bytes.offset();
-        extraSourceLength = bytes.length();
+        extraSource = in.readBytesReference();
 
         int typesSize = in.readVInt();
         if (typesSize > 0) {
@@ -578,8 +533,8 @@ public class SearchRequest implements ActionRequest {
             out.writeBoolean(true);
             scroll.writeTo(out);
         }
-        out.writeBytesHolder(source, sourceOffset, sourceLength);
-        out.writeBytesHolder(extraSource, extraSourceOffset, extraSourceLength);
+        out.writeBytesReference(source);
+        out.writeBytesReference(extraSource);
         out.writeVInt(types.length);
         for (String type : types) {
             out.writeUTF(type);

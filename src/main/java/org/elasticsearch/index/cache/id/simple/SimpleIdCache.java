@@ -23,7 +23,7 @@ import gnu.trove.impl.Constants;
 import org.apache.lucene.index.*;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.common.BytesWrap;
+import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -132,7 +132,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
                                 readerBuilder.put(StringHelper.intern(uid.type()), typeBuilder);
                             }
 
-                            BytesWrap idAsBytes = checkIfCanReuse(builders, new BytesWrap(uid.id()));
+                            HashedBytesArray idAsBytes = checkIfCanReuse(builders, new HashedBytesArray(uid.id()));
                             termDocs.seek(termEnum);
                             while (termDocs.next()) {
                                 // when traversing, make sure to ignore deleted docs, so the key->docId will be correct
@@ -174,7 +174,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
                                 readerBuilder.put(StringHelper.intern(uid.type()), typeBuilder);
                             }
 
-                            BytesWrap idAsBytes = checkIfCanReuse(builders, new BytesWrap(uid.id()));
+                            HashedBytesArray idAsBytes = checkIfCanReuse(builders, new HashedBytesArray(uid.id()));
                             boolean added = false; // optimize for when all the docs are deleted for this id
 
                             termDocs.seek(termEnum);
@@ -205,7 +205,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
                     for (Map.Entry<String, TypeBuilder> typeBuilderEntry : entry.getValue().entrySet()) {
                         types.put(typeBuilderEntry.getKey(), new SimpleIdReaderTypeCache(typeBuilderEntry.getKey(),
                                 typeBuilderEntry.getValue().idToDoc,
-                                typeBuilderEntry.getValue().parentIdsValues.toArray(new BytesWrap[typeBuilderEntry.getValue().parentIdsValues.size()]),
+                                typeBuilderEntry.getValue().parentIdsValues.toArray(new HashedBytesArray[typeBuilderEntry.getValue().parentIdsValues.size()]),
                                 typeBuilderEntry.getValue().parentIdsOrdinals));
                     }
                     SimpleIdReaderCache readerCache = new SimpleIdReaderCache(entry.getKey(), types.immutableMap());
@@ -215,8 +215,8 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
         }
     }
 
-    private BytesWrap checkIfCanReuse(Map<Object, Map<String, TypeBuilder>> builders, BytesWrap idAsBytes) {
-        BytesWrap finalIdAsBytes;
+    private HashedBytesArray checkIfCanReuse(Map<Object, Map<String, TypeBuilder>> builders, HashedBytesArray idAsBytes) {
+        HashedBytesArray finalIdAsBytes;
         // go over and see if we can reuse this id
         for (SimpleIdReaderCache idReaderCache : idReaders.values()) {
             finalIdAsBytes = idReaderCache.canReuse(idAsBytes);
@@ -245,8 +245,8 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
     }
 
     static class TypeBuilder {
-        final ExtTObjectIntHasMap<BytesWrap> idToDoc = new ExtTObjectIntHasMap<BytesWrap>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, -1);
-        final ArrayList<BytesWrap> parentIdsValues = new ArrayList<BytesWrap>();
+        final ExtTObjectIntHasMap<HashedBytesArray> idToDoc = new ExtTObjectIntHasMap<HashedBytesArray>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, -1);
+        final ArrayList<HashedBytesArray> parentIdsValues = new ArrayList<HashedBytesArray>();
         final int[] parentIdsOrdinals;
         int t = 1;  // current term number (0 indicated null value)
 
@@ -259,7 +259,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
         /**
          * Returns an already stored instance if exists, if not, returns null;
          */
-        public BytesWrap canReuse(BytesWrap id) {
+        public HashedBytesArray canReuse(HashedBytesArray id) {
             return idToDoc.key(id);
         }
     }

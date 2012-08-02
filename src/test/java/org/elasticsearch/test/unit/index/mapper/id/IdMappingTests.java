@@ -24,10 +24,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.IdFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -47,7 +47,7 @@ public class IdMappingTests {
         ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.rootDoc().get(UidFieldMapper.NAME), notNullValue());
         assertThat(doc.rootDoc().get(IdFieldMapper.NAME), nullValue());
@@ -56,7 +56,7 @@ public class IdMappingTests {
             docMapper.parse("type", null, XContentFactory.jsonBuilder()
                     .startObject()
                     .endObject()
-                    .copiedBytes());
+                    .bytes());
             assert false;
         } catch (MapperParsingException e) {
         }
@@ -65,7 +65,7 @@ public class IdMappingTests {
                 .startObject()
                 .field("_id", 1)
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.rootDoc().get(UidFieldMapper.NAME), notNullValue());
         assertThat(doc.rootDoc().get(IdFieldMapper.NAME), nullValue());
@@ -81,7 +81,7 @@ public class IdMappingTests {
         ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.rootDoc().get(UidFieldMapper.NAME), notNullValue());
         assertThat(doc.rootDoc().get(IdFieldMapper.NAME), notNullValue());
@@ -90,7 +90,7 @@ public class IdMappingTests {
                 .startObject()
                 .field("_id", 1)
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.rootDoc().get(UidFieldMapper.NAME), notNullValue());
         assertThat(doc.rootDoc().get(IdFieldMapper.NAME), notNullValue());

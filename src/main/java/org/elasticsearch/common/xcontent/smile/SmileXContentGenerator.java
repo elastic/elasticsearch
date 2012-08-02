@@ -19,8 +19,9 @@
 
 package org.elasticsearch.common.xcontent.smile;
 
-import org.codehaus.jackson.JsonGenerator;
-import org.codehaus.jackson.smile.SmileParser;
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.dataformat.smile.SmileParser;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContentGenerator;
 
@@ -58,6 +59,23 @@ public class SmileXContentGenerator extends JsonXContentGenerator {
     public void writeRawField(String fieldName, byte[] content, OutputStream bos) throws IOException {
         writeFieldName(fieldName);
         SmileParser parser = SmileXContent.smileFactory.createJsonParser(content);
+        try {
+            parser.nextToken();
+            generator.copyCurrentStructure(parser);
+        } finally {
+            parser.close();
+        }
+    }
+
+    @Override
+    public void writeRawField(String fieldName, BytesReference content, OutputStream bos) throws IOException {
+        writeFieldName(fieldName);
+        SmileParser parser;
+        if (content.hasArray()) {
+            parser = SmileXContent.smileFactory.createJsonParser(content.array(), content.arrayOffset(), content.length());
+        } else {
+            parser = SmileXContent.smileFactory.createJsonParser(content.streamInput());
+        }
         try {
             parser.nextToken();
             generator.copyCurrentStructure(parser);

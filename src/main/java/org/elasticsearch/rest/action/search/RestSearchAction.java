@@ -120,7 +120,7 @@ public class RestSearchAction extends BaseRestHandler {
         SearchRequest searchRequest = new SearchRequest(indices);
         // get the content, and put it in the body
         if (request.hasContent()) {
-            searchRequest.source(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength(), request.contentUnsafe());
+            searchRequest.source(request.content(), request.contentUnsafe());
         } else {
             String source = request.param("source");
             if (source != null) {

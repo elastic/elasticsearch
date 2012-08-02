@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.routing;
 
 import com.google.common.collect.*;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -336,6 +337,15 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
                     }
                 }
                 indicesRouting.put(index, builder.build());
+            }
+            return this;
+        }
+
+        public Builder add(IndexMetaData indexMetaData, boolean fromApi) {
+            if (indexMetaData.state() == IndexMetaData.State.OPEN) {
+                IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(indexMetaData.index())
+                        .initializeEmpty(indexMetaData, fromApi);
+                add(indexRoutingBuilder);
             }
             return this;
         }

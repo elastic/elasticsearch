@@ -21,9 +21,9 @@ package org.elasticsearch.test.unit.index.mapper.dynamic;
 
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.StrictDynamicMappingException;
+import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
@@ -50,7 +50,7 @@ public class DynamicMappingTests {
                 .startObject()
                 .field("field1", "value1")
                 .field("field2", "value2")
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.rootDoc().get("field1"), equalTo("value1"));
         assertThat(doc.rootDoc().get("field2"), equalTo("value2"));
@@ -71,7 +71,7 @@ public class DynamicMappingTests {
                 .startObject()
                 .field("field1", "value1")
                 .field("field2", "value2")
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.rootDoc().get("field1"), equalTo("value1"));
         assertThat(doc.rootDoc().get("field2"), nullValue());
@@ -94,7 +94,7 @@ public class DynamicMappingTests {
                     .startObject()
                     .field("field1", "value1")
                     .field("field2", "value2")
-                    .copiedBytes());
+                    .bytes());
             assert false;
         } catch (StrictDynamicMappingException e) {
             // all is well
@@ -119,7 +119,7 @@ public class DynamicMappingTests {
                 .field("field1", "value1")
                 .field("field2", "value2")
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.rootDoc().get("obj1.field1"), equalTo("value1"));
         assertThat(doc.rootDoc().get("obj1.field2"), nullValue());
@@ -144,7 +144,7 @@ public class DynamicMappingTests {
                     .field("field1", "value1")
                     .field("field2", "value2")
                     .endObject()
-                    .copiedBytes());
+                    .bytes());
             assert false;
         } catch (StrictDynamicMappingException e) {
             // all is well

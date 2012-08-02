@@ -19,10 +19,10 @@
 
 package org.elasticsearch.common.xcontent.smile;
 
-import org.codehaus.jackson.JsonEncoding;
-import org.codehaus.jackson.smile.SmileFactory;
-import org.codehaus.jackson.smile.SmileGenerator;
-import org.elasticsearch.common.BytesHolder;
+import com.fasterxml.jackson.core.JsonEncoding;
+import com.fasterxml.jackson.dataformat.smile.SmileFactory;
+import com.fasterxml.jackson.dataformat.smile.SmileGenerator;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.common.xcontent.json.JsonXContentParser;
@@ -91,8 +91,11 @@ public class SmileXContent implements XContent {
     }
 
     @Override
-    public XContentParser createParser(BytesHolder bytes) throws IOException {
-        return createParser(bytes.bytes(), bytes.offset(), bytes.length());
+    public XContentParser createParser(BytesReference bytes) throws IOException {
+        if (bytes.hasArray()) {
+            return createParser(bytes.array(), bytes.arrayOffset(), bytes.length());
+        }
+        return createParser(bytes.streamInput());
     }
 
     @Override

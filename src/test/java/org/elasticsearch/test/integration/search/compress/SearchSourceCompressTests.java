@@ -22,6 +22,10 @@ package org.elasticsearch.test.integration.search.compress;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.compress.lzf.LZFCompressor;
+import org.elasticsearch.common.compress.snappy.xerial.XerialSnappy;
+import org.elasticsearch.common.compress.snappy.xerial.XerialSnappyCompressor;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -60,18 +64,29 @@ public class SearchSourceCompressTests extends AbstractNodesTests {
     }
 
     @Test
-    public void testSourceFieldCompressed() throws IOException {
+    public void testSourceCompressionLZF() throws IOException {
+        CompressorFactory.setDefaultCompressor(new LZFCompressor());
         verifySource(true);
-    }
-
-    @Test
-    public void testSourceFieldPlainExplicit() throws IOException {
         verifySource(false);
+        verifySource(null);
     }
 
     @Test
-    public void testSourceFieldPlain() throws IOException {
-        verifySource(null);
+    public void testSourceCompressionXerialSnappy() throws IOException {
+        if (XerialSnappy.available) {
+            CompressorFactory.setDefaultCompressor(new XerialSnappyCompressor());
+            verifySource(true);
+            verifySource(false);
+            verifySource(null);
+        }
+    }
+
+    @Test
+    public void testAll() throws IOException {
+        testSourceCompressionLZF();
+        testSourceCompressionXerialSnappy();
+        testSourceCompressionLZF();
+        testSourceCompressionXerialSnappy();
     }
 
     private void verifySource(Boolean compress) throws IOException {
@@ -98,15 +113,15 @@ public class SearchSourceCompressTests extends AbstractNodesTests {
 
         for (int i = 1; i < 100; i++) {
             GetResponse getResponse = client.prepareGet("test", "type1", Integer.toString(i)).execute().actionGet();
-            assertThat(getResponse.source(), equalTo(buildSource(i).copiedBytes()));
+            assertThat(getResponse.source(), equalTo(buildSource(i).bytes().toBytes()));
         }
         GetResponse getResponse = client.prepareGet("test", "type1", Integer.toString(10000)).execute().actionGet();
-        assertThat(getResponse.source(), equalTo(buildSource(10000).copiedBytes()));
+        assertThat(getResponse.source(), equalTo(buildSource(10000).bytes().toBytes()));
 
         for (int i = 1; i < 100; i++) {
             SearchResponse searchResponse = client.prepareSearch().setQuery(QueryBuilders.idsQuery("type1").ids(Integer.toString(i))).execute().actionGet();
             assertThat(searchResponse.hits().getTotalHits(), equalTo(1l));
-            assertThat(searchResponse.hits().getAt(0).source(), equalTo(buildSource(i).copiedBytes()));
+            assertThat(searchResponse.hits().getAt(0).source(), equalTo(buildSource(i).bytes().toBytes()));
         }
     }
 

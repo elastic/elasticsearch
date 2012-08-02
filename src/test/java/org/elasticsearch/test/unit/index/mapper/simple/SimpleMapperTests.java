@@ -21,10 +21,12 @@ package org.elasticsearch.test.unit.index.mapper.simple;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.testng.annotations.Test;
 
 import static org.apache.lucene.document.Field.Store.YES;
@@ -48,7 +50,7 @@ public class SimpleMapperTests {
                         .add(object("name").add(stringField("first").store(YES).index(Field.Index.NO)))
         ).build(mapperParser);
 
-        byte[] json = copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/mapper/simple/test1.json");
+        BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/mapper/simple/test1.json"));
         Document doc = docMapper.parse("person", "1", json).rootDoc();
 
         assertThat((double) doc.getBoost(), closeTo(3.7, 0.01));
@@ -69,7 +71,7 @@ public class SimpleMapperTests {
 //        System.out.println(builtMapping);
         // reparse it
         DocumentMapper builtDocMapper = MapperTests.newParser().parse(builtMapping);
-        byte[] json = copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/mapper/simple/test1.json");
+        BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/mapper/simple/test1.json"));
         Document doc = builtDocMapper.parse(json).rootDoc();
         assertThat(doc.get(docMapper.uidMapper().names().indexName()), equalTo(Uid.createUid("person", "1")));
         assertThat((double) doc.getBoost(), closeTo(3.7, 0.01));
@@ -85,7 +87,7 @@ public class SimpleMapperTests {
 
         assertThat((String) docMapper.meta().get("param1"), equalTo("value1"));
 
-        byte[] json = copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/mapper/simple/test1.json");
+        BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/mapper/simple/test1.json"));
         Document doc = docMapper.parse(json).rootDoc();
         assertThat(doc.get(docMapper.uidMapper().names().indexName()), equalTo(Uid.createUid("person", "1")));
         assertThat((double) doc.getBoost(), closeTo(3.7, 0.01));
@@ -98,7 +100,7 @@ public class SimpleMapperTests {
     public void testSimpleParserNoTypeNoId() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/mapper/simple/test-mapping.json");
         DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
-        byte[] json = copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/mapper/simple/test1-notype-noid.json");
+        BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/mapper/simple/test1-notype-noid.json"));
         Document doc = docMapper.parse("person", "1", json).rootDoc();
         assertThat(doc.get(docMapper.uidMapper().names().indexName()), equalTo(Uid.createUid("person", "1")));
         assertThat((double) doc.getBoost(), closeTo(3.7, 0.01));

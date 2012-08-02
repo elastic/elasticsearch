@@ -20,10 +20,10 @@
 package org.elasticsearch.test.unit.common.util.concurrent;
 
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadBarrier;
 import org.testng.annotations.Test;
 
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
@@ -161,7 +161,7 @@ public class EsExecutorsTests {
                 }
             });
             assertThat("Should have thrown RejectedExecutionException", false, equalTo(true));
-        } catch (RejectedExecutionException e) {
+        } catch (EsRejectedExecutionException e) {
             //caught expected exception
         }
 

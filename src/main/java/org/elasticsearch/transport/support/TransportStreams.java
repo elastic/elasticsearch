@@ -19,8 +19,10 @@
 
 package org.elasticsearch.transport.support;
 
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.CachedStreamOutput;
-import org.elasticsearch.common.io.stream.HandlesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponseOptions;
@@ -35,10 +37,10 @@ public class TransportStreams {
     public static final int HEADER_SIZE = 4 + 8 + 1;
     public static final byte[] HEADER_PLACEHOLDER = new byte[HEADER_SIZE];
 
-    public static void writeHeader(byte[] data, int dataLength, long requestId, byte status) {
-        writeInt(data, 0, dataLength - 4);  // no need for the header, already there
-        writeLong(data, 4, requestId);
-        data[12] = status;
+    public static void writeHeader(byte[] data, int dataOffset, int dataLength, long requestId, byte status) {
+        writeInt(data, dataOffset, dataLength - 4);  // no need for the header, already there
+        writeLong(data, dataOffset + 4, requestId);
+        data[dataOffset + 12] = status;
     }
 
     // same as writeLong in StreamOutput
@@ -105,19 +107,20 @@ public class TransportStreams {
 
         if (options.compress()) {
             status = TransportStreams.statusSetCompress(status);
-            HandlesStreamOutput stream = cachedEntry.cachedHandlesLzfBytes();
             cachedEntry.bytes().write(HEADER_PLACEHOLDER);
+            StreamOutput stream = cachedEntry.handles(CompressorFactory.defaultCompressor());
             stream.writeUTF(action);
             message.writeTo(stream);
-            stream.flush();
+            stream.close();
         } else {
-            HandlesStreamOutput stream = cachedEntry.cachedHandlesBytes();
+            StreamOutput stream = cachedEntry.handles();
             cachedEntry.bytes().write(HEADER_PLACEHOLDER);
             stream.writeUTF(action);
             message.writeTo(stream);
-            stream.flush();
+            stream.close();
         }
-        TransportStreams.writeHeader(cachedEntry.bytes().underlyingBytes(), cachedEntry.bytes().size(), requestId, status);
+        BytesReference bytes = cachedEntry.bytes().bytes();
+        TransportStreams.writeHeader(bytes.array(), bytes.arrayOffset(), bytes.length(), requestId, status);
     }
 
     public static void buildResponse(CachedStreamOutput.Entry cachedEntry, final long requestId, Streamable message, TransportResponseOptions options) throws IOException {
@@ -126,16 +129,17 @@ public class TransportStreams {
 
         if (options.compress()) {
             status = TransportStreams.statusSetCompress(status);
-            HandlesStreamOutput stream = cachedEntry.cachedHandlesLzfBytes();
             cachedEntry.bytes().write(HEADER_PLACEHOLDER);
+            StreamOutput stream = cachedEntry.handles(CompressorFactory.defaultCompressor());
             message.writeTo(stream);
-            stream.flush();
+            stream.close();
         } else {
-            HandlesStreamOutput stream = cachedEntry.cachedHandlesBytes();
+            StreamOutput stream = cachedEntry.handles();
             cachedEntry.bytes().write(HEADER_PLACEHOLDER);
             message.writeTo(stream);
-            stream.flush();
+            stream.close();
         }
-        TransportStreams.writeHeader(cachedEntry.bytes().underlyingBytes(), cachedEntry.bytes().size(), requestId, status);
+        BytesReference bytes = cachedEntry.bytes().bytes();
+        TransportStreams.writeHeader(bytes.array(), bytes.arrayOffset(), bytes.length(), requestId, status);
     }
 }

@@ -49,7 +49,36 @@ public class HandlesStreamOutput extends AdapterStreamOutput {
     }
 
     @Override
+    @Deprecated
     public void writeUTF(String s) throws IOException {
+        if (s.length() < identityThreshold) {
+            int handle = handles.get(s);
+            if (handle == -1) {
+                handle = handles.size();
+                handles.put(s, handle);
+                out.writeByte((byte) 0);
+                out.writeVInt(handle);
+                out.writeUTF(s);
+            } else {
+                out.writeByte((byte) 1);
+                out.writeVInt(handle);
+            }
+        } else {
+            int handle = identityHandles.lookup(s);
+            if (handle == -1) {
+                handle = identityHandles.assign(s);
+                out.writeByte((byte) 2);
+                out.writeVInt(handle);
+                out.writeUTF(s);
+            } else {
+                out.writeByte((byte) 3);
+                out.writeVInt(handle);
+            }
+        }
+    }
+
+    @Override
+    public void writeString(String s) throws IOException {
         if (s.length() < identityThreshold) {
             int handle = handles.get(s);
             if (handle == -1) {
@@ -80,12 +109,14 @@ public class HandlesStreamOutput extends AdapterStreamOutput {
     public void reset() throws IOException {
         handles.clear();
         identityHandles.clear();
-        out.reset();
+        if (out != null) {
+            out.reset();
+        }
     }
 
-    public void reset(StreamOutput out) throws IOException {
-        super.reset(out);
-        reset();
+    public void clear() {
+        handles.clear();
+        identityHandles.clear();
     }
 
     /**

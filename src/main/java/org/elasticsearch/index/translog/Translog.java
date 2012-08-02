@@ -21,9 +21,10 @@ package org.elasticsearch.index.translog;
 
 import org.apache.lucene.index.Term;
 import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -224,13 +225,13 @@ public interface Translog extends IndexShardComponent {
     }
 
     static class Source {
-        public final BytesHolder source;
+        public final BytesReference source;
         public final String routing;
         public final String parent;
         public final long timestamp;
         public final long ttl;
 
-        public Source(BytesHolder source, String routing, String parent, long timestamp, long ttl) {
+        public Source(BytesReference source, String routing, String parent, long timestamp, long ttl) {
             this.source = source;
             this.routing = routing;
             this.parent = parent;
@@ -242,7 +243,7 @@ public interface Translog extends IndexShardComponent {
     static class Create implements Operation {
         private String id;
         private String type;
-        private BytesHolder source;
+        private BytesReference source;
         private String routing;
         private String parent;
         private long timestamp;
@@ -255,7 +256,7 @@ public interface Translog extends IndexShardComponent {
         public Create(Engine.Create create) {
             this.id = create.id();
             this.type = create.type();
-            this.source = new BytesHolder(create.source(), create.sourceOffset(), create.sourceLength());
+            this.source = create.source();
             this.routing = create.routing();
             this.parent = create.parent();
             this.timestamp = create.timestamp();
@@ -266,7 +267,7 @@ public interface Translog extends IndexShardComponent {
         public Create(String type, String id, byte[] source) {
             this.id = id;
             this.type = type;
-            this.source = new BytesHolder(source);
+            this.source = new BytesArray(source);
         }
 
         @Override
@@ -283,7 +284,7 @@ public interface Translog extends IndexShardComponent {
             return this.id;
         }
 
-        public BytesHolder source() {
+        public BytesReference source() {
             return this.source;
         }
 
@@ -349,7 +350,7 @@ public interface Translog extends IndexShardComponent {
             out.writeVInt(5); // version
             out.writeUTF(id);
             out.writeUTF(type);
-            out.writeBytesHolder(source);
+            out.writeBytesReference(source);
             if (routing == null) {
                 out.writeBoolean(false);
             } else {
@@ -372,7 +373,7 @@ public interface Translog extends IndexShardComponent {
         private String id;
         private String type;
         private long version;
-        private BytesHolder source;
+        private BytesReference source;
         private String routing;
         private String parent;
         private long timestamp;
@@ -384,7 +385,7 @@ public interface Translog extends IndexShardComponent {
         public Index(Engine.Index index) {
             this.id = index.id();
             this.type = index.type();
-            this.source = new BytesHolder(index.source(), index.sourceOffset(), index.sourceLength());
+            this.source = index.source();
             this.routing = index.routing();
             this.parent = index.parent();
             this.version = index.version();
@@ -395,7 +396,7 @@ public interface Translog extends IndexShardComponent {
         public Index(String type, String id, byte[] source) {
             this.type = type;
             this.id = id;
-            this.source = new BytesHolder(source);
+            this.source = new BytesArray(source);
         }
 
         @Override
@@ -432,7 +433,7 @@ public interface Translog extends IndexShardComponent {
             return this.ttl;
         }
 
-        public BytesHolder source() {
+        public BytesReference source() {
             return this.source;
         }
 
@@ -478,7 +479,7 @@ public interface Translog extends IndexShardComponent {
             out.writeVInt(5); // version
             out.writeUTF(id);
             out.writeUTF(type);
-            out.writeBytesHolder(source);
+            out.writeBytesReference(source);
             if (routing == null) {
                 out.writeBoolean(false);
             } else {
@@ -555,7 +556,7 @@ public interface Translog extends IndexShardComponent {
     }
 
     static class DeleteByQuery implements Operation {
-        private BytesHolder source;
+        private BytesReference source;
         @Nullable
         private String[] filteringAliases;
         private String[] types = Strings.EMPTY_ARRAY;
@@ -567,7 +568,7 @@ public interface Translog extends IndexShardComponent {
             this(deleteByQuery.source(), deleteByQuery.filteringAliases(), deleteByQuery.types());
         }
 
-        public DeleteByQuery(BytesHolder source, String[] filteringAliases, String... types) {
+        public DeleteByQuery(BytesReference source, String[] filteringAliases, String... types) {
             this.source = source;
             this.types = types == null ? Strings.EMPTY_ARRAY : types;
             this.filteringAliases = filteringAliases;
@@ -583,7 +584,7 @@ public interface Translog extends IndexShardComponent {
             return source.length() + 8;
         }
 
-        public BytesHolder source() {
+        public BytesReference source() {
             return this.source;
         }
 
@@ -631,7 +632,7 @@ public interface Translog extends IndexShardComponent {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(2); // version
-            out.writeBytesHolder(source);
+            out.writeBytesReference(source);
             out.writeVInt(types.length);
             for (String type : types) {
                 out.writeUTF(type);

@@ -19,21 +19,20 @@
 
 package org.elasticsearch.action.admin.indices.validate.query;
 
-import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Required;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.Unicode;
-import org.elasticsearch.common.io.BytesStream;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
 
@@ -51,11 +50,9 @@ public class ValidateQueryRequest extends BroadcastOperationRequest {
 
     private static final XContentType contentType = Requests.CONTENT_TYPE;
 
-    private byte[] querySource;
-    private int querySourceOffset;
-    private int querySourceLength;
+    private BytesReference querySource;
     private boolean querySourceUnsafe;
-    
+
     private boolean explain;
 
     private String[] types = Strings.EMPTY_ARRAY;
@@ -89,8 +86,7 @@ public class ValidateQueryRequest extends BroadcastOperationRequest {
     @Override
     protected void beforeStart() {
         if (querySourceUnsafe) {
-            querySource = Arrays.copyOfRange(querySource, querySourceOffset, querySourceOffset + querySourceLength);
-            querySourceOffset = 0;
+            querySource = querySource.copyBytesArray();
             querySourceUnsafe = false;
         }
     }
@@ -112,8 +108,8 @@ public class ValidateQueryRequest extends BroadcastOperationRequest {
     /**
      * The query source to execute.
      */
-    BytesHolder querySource() {
-        return new BytesHolder(querySource, querySourceOffset, querySourceLength);
+    BytesReference querySource() {
+        return querySource;
     }
 
     /**
@@ -123,10 +119,7 @@ public class ValidateQueryRequest extends BroadcastOperationRequest {
      */
     @Required
     public ValidateQueryRequest query(QueryBuilder queryBuilder) {
-        BytesStream bos = queryBuilder.buildAsBytes();
-        this.querySource = bos.underlyingBytes();
-        this.querySourceOffset = 0;
-        this.querySourceLength = bos.size();
+        this.querySource = queryBuilder.buildAsBytes();
         this.querySourceUnsafe = false;
         return this;
     }
@@ -147,15 +140,9 @@ public class ValidateQueryRequest extends BroadcastOperationRequest {
 
     @Required
     public ValidateQueryRequest query(XContentBuilder builder) {
-        try {
-            this.querySource = builder.underlyingBytes();
-            this.querySourceOffset = 0;
-            this.querySourceLength = builder.underlyingBytesLength();
-            this.querySourceUnsafe = false;
-            return this;
-        } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate [" + builder + "]", e);
-        }
+        this.querySource = builder.bytes();
+        this.querySourceUnsafe = false;
+        return this;
     }
 
     /**
@@ -164,11 +151,9 @@ public class ValidateQueryRequest extends BroadcastOperationRequest {
      */
     @Required
     public ValidateQueryRequest query(String querySource) {
-        UnicodeUtil.UTF8Result result = Unicode.fromStringAsUtf8(querySource);
-        this.querySource = result.result;
-        this.querySourceOffset = 0;
-        this.querySourceLength = result.length;
-        this.querySourceUnsafe = true;
+        this.querySource = new BytesArray(querySource);
+        ;
+        this.querySourceUnsafe = false;
         return this;
     }
 
@@ -185,9 +170,15 @@ public class ValidateQueryRequest extends BroadcastOperationRequest {
      */
     @Required
     public ValidateQueryRequest query(byte[] querySource, int offset, int length, boolean unsafe) {
+        return query(new BytesArray(querySource, offset, length), unsafe);
+    }
+
+    /**
+     * The query source to validate.
+     */
+    @Required
+    public ValidateQueryRequest query(BytesReference querySource, boolean unsafe) {
         this.querySource = querySource;
-        this.querySourceOffset = offset;
-        this.querySourceLength = length;
         this.querySourceUnsafe = unsafe;
         return this;
     }
@@ -225,11 +216,8 @@ public class ValidateQueryRequest extends BroadcastOperationRequest {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
 
-        BytesHolder bytes = in.readBytesReference();
         querySourceUnsafe = false;
-        querySource = bytes.bytes();
-        querySourceOffset = bytes.offset();
-        querySourceLength = bytes.length();
+        querySource = in.readBytesReference();
 
         int typesSize = in.readVInt();
         if (typesSize > 0) {
@@ -240,25 +228,31 @@ public class ValidateQueryRequest extends BroadcastOperationRequest {
         }
 
         explain = in.readBoolean();
-        
+
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
 
-        out.writeBytesHolder(querySource, querySourceOffset, querySourceLength);
+        out.writeBytesReference(querySource);
 
         out.writeVInt(types.length);
         for (String type : types) {
             out.writeUTF(type);
         }
-        
+
         out.writeBoolean(explain);
     }
 
     @Override
     public String toString() {
-        return "[" + Arrays.toString(indices) + "]" + Arrays.toString(types) + ", querySource[" + Unicode.fromBytes(querySource, querySourceOffset, querySourceLength) + "], explain:" + explain;
+        String sSource = "_na_";
+        try {
+            sSource = XContentHelper.convertToJson(querySource, false);
+        } catch (Exception e) {
+            // ignore
+        }
+        return "[" + Arrays.toString(indices) + "]" + Arrays.toString(types) + ", querySource[" + sSource + "], explain:" + explain;
     }
 }

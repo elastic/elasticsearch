@@ -21,9 +21,8 @@ package org.elasticsearch.common.compress;
 
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.Unicode;
-import org.elasticsearch.common.compress.lzf.LZF;
-import org.elasticsearch.common.compress.lzf.LZFDecoder;
-import org.elasticsearch.common.compress.lzf.LZFEncoder;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -49,6 +48,17 @@ public class CompressedString implements Streamable {
         this.bytes = compressed;
     }
 
+    public CompressedString(BytesReference data) throws IOException {
+        Compressor compressor = CompressorFactory.compressor(data);
+        if (compressor != null) {
+            // already compressed...
+            this.bytes = data.toBytes();
+        } else {
+            BytesArray bytesArray = data.toBytesArray();
+            this.bytes = CompressorFactory.defaultCompressor().compress(bytesArray.array(), bytesArray.arrayOffset(), bytesArray.length());
+        }
+    }
+
     /**
      * Constructs a new compressed string, assuming the bytes are UTF8, by copying it over.
      *
@@ -58,16 +68,19 @@ public class CompressedString implements Streamable {
      * @throws IOException
      */
     public CompressedString(byte[] data, int offset, int length) throws IOException {
-        if (LZF.isCompressed(data, offset, length)) {
+        Compressor compressor = CompressorFactory.compressor(data, offset, length);
+        if (compressor != null) {
+            // already compressed...
             this.bytes = Arrays.copyOfRange(data, offset, offset + length);
         } else {
-            this.bytes = LZFEncoder.encode(data, offset, length);
+            // default to LZF
+            this.bytes = CompressorFactory.defaultCompressor().compress(data, offset, length);
         }
     }
 
     public CompressedString(String str) throws IOException {
         UnicodeUtil.UTF8Result result = Unicode.unsafeFromStringAsUtf8(str);
-        this.bytes = LZFEncoder.encode(result.result, result.length);
+        this.bytes = CompressorFactory.defaultCompressor().compress(result.result, 0, result.length);
     }
 
     public byte[] compressed() {
@@ -75,11 +88,12 @@ public class CompressedString implements Streamable {
     }
 
     public byte[] uncompressed() throws IOException {
-        return LZFDecoder.decode(bytes);
+        Compressor compressor = CompressorFactory.compressor(bytes);
+        return compressor.uncompress(bytes, 0, bytes.length);
     }
 
     public String string() throws IOException {
-        return Unicode.fromBytes(LZFDecoder.decode(bytes));
+        return Unicode.fromBytes(uncompressed());
     }
 
     public static CompressedString readCompressedString(StreamInput in) throws IOException {

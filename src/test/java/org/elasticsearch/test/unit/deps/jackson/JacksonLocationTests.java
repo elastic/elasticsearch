@@ -19,7 +19,7 @@
 
 package org.elasticsearch.test.unit.deps.jackson;
 
-import org.codehaus.jackson.*;
+import com.fasterxml.jackson.core.*;
 import org.elasticsearch.common.io.FastByteArrayOutputStream;
 import org.testng.annotations.Test;
 
@@ -56,7 +56,7 @@ public class JacksonLocationTests {
 
         gen.close();
 
-        byte[] data = os.copiedByteArray();
+        byte[] data = os.bytes().toBytes();
         JsonParser parser = new JsonFactory().createJsonParser(data);
 
         assertThat(parser.nextToken(), equalTo(JsonToken.START_OBJECT));

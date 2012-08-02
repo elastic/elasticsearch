@@ -127,7 +127,7 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
 
         private void onFailure(ShardRouting shardRouting, Exception e) {
             if (logger.isTraceEnabled() && e != null) {
-                logger.trace(shardRouting.shortSummary() + ": Failed to execute [{}]", e, request);
+                logger.trace("{}: failed to execute [{}]", e, shardRouting, request);
             }
             perform(e);
         }
@@ -140,7 +140,7 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
                     failure = new NoShardAvailableActionException(shardIt.shardId(), "No shard available for [" + request + "]");
                 } else {
                     if (logger.isDebugEnabled()) {
-                        logger.debug(shardIt.shardId() + ": Failed to execute [{}]", failure, request);
+                        logger.debug("{}: failed to execute [{}]", failure, shardIt.shardId(), request);
                     }
                 }
                 listener.onFailure(failure);
@@ -229,7 +229,7 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
                     try {
                         channel.sendResponse(e);
                     } catch (Exception e1) {
-                        logger.warn("Failed to send response for get", e1);
+                        logger.warn("failed to send response for get", e1);
                     }
                 }
             });

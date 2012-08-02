@@ -35,8 +35,10 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsAbortPolicy;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.XRejectedExecutionHandler;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
@@ -103,7 +105,7 @@ public class ThreadPool extends AbstractComponent {
         executors.put(Names.SNAPSHOT, build(Names.SNAPSHOT, "scaling", groupSettings.get(Names.SNAPSHOT), settingsBuilder().put("keep_alive", "5m").put("size", 5).build()));
         executors.put(Names.SAME, new ExecutorHolder(MoreExecutors.sameThreadExecutor(), new Info(Names.SAME, "same")));
         this.executors = ImmutableMap.copyOf(executors);
-        this.scheduler = (ScheduledThreadPoolExecutor) Executors.newScheduledThreadPool(1, EsExecutors.daemonThreadFactory(settings, "[scheduler]"));
+        this.scheduler = (ScheduledThreadPoolExecutor) Executors.newScheduledThreadPool(1, EsExecutors.daemonThreadFactory(settings, "scheduler"));
         this.scheduler.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
         this.scheduler.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
 
@@ -140,13 +142,18 @@ public class ThreadPool extends AbstractComponent {
             int threads = -1;
             int queue = -1;
             int active = -1;
+            long rejected = -1;
             if (holder.executor instanceof ThreadPoolExecutor) {
                 ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) holder.executor;
                 threads = threadPoolExecutor.getPoolSize();
                 queue = threadPoolExecutor.getQueue().size();
                 active = threadPoolExecutor.getActiveCount();
+                RejectedExecutionHandler rejectedExecutionHandler = threadPoolExecutor.getRejectedExecutionHandler();
+                if (rejectedExecutionHandler instanceof XRejectedExecutionHandler) {
+                    rejected = ((XRejectedExecutionHandler) rejectedExecutionHandler).rejected();
+                }
             }
-            stats.add(new ThreadPoolStats.Stats(name, threads, queue, active));
+            stats.add(new ThreadPoolStats.Stats(name, threads, queue, active, rejected));
         }
         return new ThreadPoolStats(stats);
     }
@@ -215,7 +222,7 @@ public class ThreadPool extends AbstractComponent {
             settings = ImmutableSettings.Builder.EMPTY_SETTINGS;
         }
         String type = settings.get("type", defaultType);
-        ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(settings, "[" + name + "]");
+        ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(this.settings, name);
         if ("same".equals(type)) {
             logger.debug("creating thread_pool [{}], type [{}]", name, type);
             return new ExecutorHolder(MoreExecutors.sameThreadExecutor(), new Info(name, type));
@@ -229,20 +236,35 @@ public class ThreadPool extends AbstractComponent {
             return new ExecutorHolder(executor, new Info(name, type, -1, -1, keepAlive, null));
         } else if ("fixed".equals(type)) {
             int size = settings.getAsInt("size", defaultSettings.getAsInt("size", Runtime.getRuntime().availableProcessors() * 5));
-            SizeValue capacity = settings.getAsSize("capacity", settings.getAsSize("queue_size", defaultSettings.getAsSize("queue_size", null)));
+            SizeValue capacity = settings.getAsSize("capacity", settings.getAsSize("queue", settings.getAsSize("queue_size", defaultSettings.getAsSize("queue", defaultSettings.getAsSize("queue_size", null)))));
             RejectedExecutionHandler rejectedExecutionHandler;
             String rejectSetting = settings.get("reject_policy", defaultSettings.get("reject_policy", "abort"));
             if ("abort".equals(rejectSetting)) {
-                rejectedExecutionHandler = new AbortPolicy();
+                rejectedExecutionHandler = new EsAbortPolicy();
             } else if ("caller".equals(rejectSetting)) {
                 rejectedExecutionHandler = new ThreadPoolExecutor.CallerRunsPolicy();
             } else {
                 throw new ElasticSearchIllegalArgumentException("reject_policy [" + rejectSetting + "] not valid for [" + name + "] thread pool");
             }
-            logger.debug("creating thread_pool [{}], type [{}], size [{}], queue_size [{}], reject_policy [{}]", name, type, size, capacity, rejectSetting);
+            String queueType = settings.get("queue_type", "linked");
+            BlockingQueue<Runnable> workQueue;
+            if (capacity == null) {
+                workQueue = new LinkedTransferQueue<Runnable>();
+            } else if ((int) capacity.singles() > 0) {
+                if ("linked".equals(queueType)) {
+                    workQueue = new LinkedBlockingQueue<Runnable>((int) capacity.singles());
+                } else if ("array".equals(queueType)) {
+                    workQueue = new ArrayBlockingQueue<Runnable>((int) capacity.singles());
+                } else {
+                    throw new ElasticSearchIllegalArgumentException("illegal queue_type set to [" + queueType + "], should be either linked or array");
+                }
+            } else {
+                workQueue = new SynchronousQueue<Runnable>();
+            }
+            logger.debug("creating thread_pool [{}], type [{}], size [{}], queue_size [{}], reject_policy [{}], queue_type [{}]", name, type, size, capacity, rejectSetting, queueType);
             Executor executor = new EsThreadPoolExecutor(size, size,
                     0L, TimeUnit.MILLISECONDS,
-                    capacity == null ? new LinkedTransferQueue<Runnable>() : new ArrayBlockingQueue<Runnable>((int) capacity.singles()),
+                    workQueue,
                     threadFactory, rejectedExecutionHandler);
             return new ExecutorHolder(executor, new Info(name, type, size, size, null, capacity));
         } else if ("scaling".equals(type)) {
@@ -364,29 +386,6 @@ public class ThreadPool extends AbstractComponent {
                     // ignore
                 }
             }
-        }
-    }
-
-    /**
-     * A handler for rejected tasks that throws a
-     * <tt>RejectedExecutionException</tt>.
-     */
-    public static class AbortPolicy implements RejectedExecutionHandler {
-        /**
-         * Creates an <tt>AbortPolicy</tt>.
-         */
-        public AbortPolicy() {
-        }
-
-        /**
-         * Always throws RejectedExecutionException.
-         *
-         * @param r the runnable task requested to be executed
-         * @param e the executor attempting to execute this task
-         * @throws RejectedExecutionException always.
-         */
-        public void rejectedExecution(Runnable r, ThreadPoolExecutor e) {
-            throw new ThreadPoolRejectedException();
         }
     }
 

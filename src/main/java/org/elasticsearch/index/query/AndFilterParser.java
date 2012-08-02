@@ -51,6 +51,7 @@ public class AndFilterParser implements FilterParser {
         XContentParser parser = parseContext.parser();
 
         ArrayList<Filter> filters = newArrayList();
+        boolean filtersFound = false;
 
         boolean cache = false;
         CacheKeyFilter.Key cacheKey = null;
@@ -60,7 +61,11 @@ public class AndFilterParser implements FilterParser {
         XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.START_ARRAY) {
             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                filters.add(parseContext.parseInnerFilter());
+                filtersFound = true;
+                Filter filter = parseContext.parseInnerFilter();
+                if (filter != null) {
+                    filters.add(filter);
+                }
             }
         } else {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -68,12 +73,20 @@ public class AndFilterParser implements FilterParser {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_ARRAY) {
                     if ("filters".equals(currentFieldName)) {
+                        filtersFound = true;
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                            filters.add(parseContext.parseInnerFilter());
+                            Filter filter = parseContext.parseInnerFilter();
+                            if (filter != null) {
+                                filters.add(filter);
+                            }
                         }
                     } else {
+                        filtersFound = true;
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                            filters.add(parseContext.parseInnerFilter());
+                            Filter filter = parseContext.parseInnerFilter();
+                            if (filter != null) {
+                                filters.add(filter);
+                            }
                         }
                     }
                 } else if (token.isValue()) {
@@ -90,8 +103,12 @@ public class AndFilterParser implements FilterParser {
             }
         }
 
-        if (filters.isEmpty()) {
+        if (!filtersFound) {
             throw new QueryParsingException(parseContext.index(), "[and] filter requires 'filters' to be set on it'");
+        }
+
+        if (filters.isEmpty()) {
+            return null;
         }
 
         // no need to cache this one

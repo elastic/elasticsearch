@@ -20,20 +20,19 @@
 package org.elasticsearch.common.util.concurrent;
 
 import java.util.Collection;
-import java.util.Enumeration;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  *
  */
 public class ConcurrentHashMapLong<T> implements ConcurrentMapLong<T> {
 
-    private final ConcurrentHashMap<Long, T> map;
+    private final ConcurrentMap<Long, T> map;
 
     public ConcurrentHashMapLong() {
-        this.map = new ConcurrentHashMap<Long, T>();
+        this.map = ConcurrentCollections.newConcurrentMap();
     }
 
     @Override
@@ -81,10 +80,6 @@ public class ConcurrentHashMapLong<T> implements ConcurrentMapLong<T> {
     @Override
     public boolean containsValue(Object value) {
         return map.containsValue(value);
-    }
-
-    public boolean contains(Object value) {
-        return map.contains(value);
     }
 
     public T put(Long key, T value) {
@@ -135,14 +130,6 @@ public class ConcurrentHashMapLong<T> implements ConcurrentMapLong<T> {
     @Override
     public Set<Entry<Long, T>> entrySet() {
         return map.entrySet();
-    }
-
-    public Enumeration<Long> keys() {
-        return map.keys();
-    }
-
-    public Enumeration<T> elements() {
-        return map.elements();
     }
 
     @Override

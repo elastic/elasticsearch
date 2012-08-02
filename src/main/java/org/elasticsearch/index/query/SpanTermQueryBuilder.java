@@ -26,7 +26,7 @@ import java.io.IOException;
 /**
  *
  */
-public class SpanTermQueryBuilder extends BaseQueryBuilder implements SpanQueryBuilder {
+public class SpanTermQueryBuilder extends BaseQueryBuilder implements SpanQueryBuilder, BoostableQueryBuilder<SpanTermQueryBuilder> {
 
     private final String name;
 

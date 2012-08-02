@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.common.io.BytesStream;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -44,16 +44,16 @@ public abstract class BaseQueryBuilder implements QueryBuilder {
     }
 
     @Override
-    public BytesStream buildAsBytes() throws QueryBuilderException {
+    public BytesReference buildAsBytes() throws QueryBuilderException {
         return buildAsBytes(XContentType.JSON);
     }
 
     @Override
-    public BytesStream buildAsBytes(XContentType contentType) throws QueryBuilderException {
+    public BytesReference buildAsBytes(XContentType contentType) throws QueryBuilderException {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             toXContent(builder, EMPTY_PARAMS);
-            return builder.underlyingStream();
+            return builder.bytes();
         } catch (Exception e) {
             throw new QueryBuilderException("Failed to build query", e);
         }

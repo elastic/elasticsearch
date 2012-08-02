@@ -27,6 +27,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.script.ExplainableSearchScript;
 import org.elasticsearch.script.SearchScript;
 
 import java.io.IOException;
@@ -53,6 +54,7 @@ public class CustomScoreQueryParser implements QueryParser {
         XContentParser parser = parseContext.parser();
 
         Query query = null;
+        boolean queryFound = false;
         float boost = 1.0f;
         String script = null;
         String scriptLang = null;
@@ -66,6 +68,7 @@ public class CustomScoreQueryParser implements QueryParser {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("query".equals(currentFieldName)) {
                     query = parseContext.parseInnerQuery();
+                    queryFound = true;
                 } else if ("params".equals(currentFieldName)) {
                     vars = parser.map();
                 } else {
@@ -83,14 +86,22 @@ public class CustomScoreQueryParser implements QueryParser {
                 }
             }
         }
-        if (query == null) {
+        if (!queryFound) {
             throw new QueryParsingException(parseContext.index(), "[custom_score] requires 'query' field");
         }
         if (script == null) {
             throw new QueryParsingException(parseContext.index(), "[custom_score] requires 'script' field");
         }
+        if (query == null) {
+            return null;
+        }
 
-        SearchScript searchScript = parseContext.scriptService().search(parseContext.lookup(), scriptLang, script, vars);
+        SearchScript searchScript;
+        try {
+            searchScript = parseContext.scriptService().search(parseContext.lookup(), scriptLang, script, vars);
+        } catch (Exception e) {
+            throw new QueryParsingException(parseContext.index(), "[custom_score] the script could not be loaded", e);
+        }
         FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(query, new ScriptScoreFunction(script, vars, searchScript));
         functionScoreQuery.setBoost(boost);
         return functionScoreQuery;
@@ -131,9 +142,16 @@ public class CustomScoreQueryParser implements QueryParser {
 
         @Override
         public Explanation explainScore(int docId, Explanation subQueryExpl) {
-            float score = score(docId, subQueryExpl.getValue());
-            Explanation exp = new Explanation(score, "script score function: product of:");
-            exp.addDetail(subQueryExpl);
+            Explanation exp;
+            if (script instanceof ExplainableSearchScript) {
+                script.setNextDocId(docId);
+                script.setNextScore(subQueryExpl.getValue());
+                exp = ((ExplainableSearchScript) script).explain(subQueryExpl);
+            } else {
+                float score = score(docId, subQueryExpl.getValue());
+                exp = new Explanation(score, "script score function: composed of:");
+                exp.addDetail(subQueryExpl);
+            }
             return exp;
         }
 

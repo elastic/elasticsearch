@@ -25,6 +25,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.StopWatch;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.VoidStreamable;
@@ -117,6 +118,34 @@ public class RecoveryTarget extends AbstractComponent {
         return peerRecoveryStatus;
     }
 
+    public void cancelRecovery(ShardId shardId) {
+        RecoveryStatus recoveryStatus = onGoingRecoveries.get(shardId);
+        // it might be if the recovery source got canceled first
+        if (recoveryStatus == null) {
+            return;
+        }
+        if (recoveryStatus.sentCanceledToSource) {
+            return;
+        }
+        recoveryStatus.canceled = true;
+        if (recoveryStatus.recoveryThread != null) {
+            recoveryStatus.recoveryThread.interrupt();
+        }
+        long time = System.currentTimeMillis();
+        // give it a grace period of actually getting the sent ack part
+        while (!recoveryStatus.sentCanceledToSource) {
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                // ignore
+            }
+            if (System.currentTimeMillis() - time > 10000) {
+                break;
+            }
+        }
+        removeAndCleanOnGoingRecovery(shardId);
+    }
+
     public void startRecovery(final StartRecoveryRequest request, final boolean fromRetry, final RecoveryListener listener) {
         if (request.sourceNode() == null) {
             listener.onIgnoreRecovery(false, "No node to recover from, retry on next cluster state update");
@@ -170,6 +199,7 @@ public class RecoveryTarget extends AbstractComponent {
             recovery = new RecoveryStatus();
             onGoingRecoveries.put(request.shardId(), recovery);
         }
+        recovery.recoveryThread = Thread.currentThread();
 
         try {
             logger.trace("[{}][{}] starting recovery from {}", request.shardId().index().name(), request.shardId().id(), request.sourceNode());
@@ -207,6 +237,11 @@ public class RecoveryTarget extends AbstractComponent {
             listener.onRecoveryDone();
         } catch (Exception e) {
 //            logger.trace("[{}][{}] Got exception on recovery", e, request.shardId().index().name(), request.shardId().id());
+            if (recovery.canceled) {
+                // don't remove it, the cancellation code will remove it...
+                listener.onIgnoreRecovery(false, "canceled recovery");
+                return;
+            }
             if (shard.state() == IndexShardState.CLOSED) {
                 removeAndCleanOnGoingRecovery(request.shardId());
                 listener.onIgnoreRecovery(false, "local shard closed, stop recovery");
@@ -274,12 +309,15 @@ public class RecoveryTarget extends AbstractComponent {
         // clean it from the on going recoveries since it is being closed
         RecoveryStatus peerRecoveryStatus = onGoingRecoveries.remove(shardId);
         if (peerRecoveryStatus != null) {
+            // just mark it as canceled as well, just in case there are in flight requests
+            // coming from the recovery target
+            peerRecoveryStatus.canceled = true;
             // clean open index outputs
             for (Map.Entry<String, IndexOutput> entry : peerRecoveryStatus.openIndexOutputs.entrySet()) {
                 synchronized (entry.getValue()) {
                     try {
                         entry.getValue().close();
-                    } catch (IOException e) {
+                    } catch (Exception e) {
                         // ignore
                     }
                 }
@@ -310,6 +348,10 @@ public class RecoveryTarget extends AbstractComponent {
                 // shard is getting closed on us
                 throw new IndexShardClosedException(shard.shardId());
             }
+            if (onGoingRecovery.canceled) {
+                onGoingRecovery.sentCanceledToSource = true;
+                throw new IndexShardClosedException(shard.shardId());
+            }
             onGoingRecovery.stage = RecoveryStatus.Stage.TRANSLOG;
 
             shard.performRecoveryPrepareForTranslog();
@@ -332,15 +374,19 @@ public class RecoveryTarget extends AbstractComponent {
         @Override
         public void messageReceived(RecoveryFinalizeRecoveryRequest request, TransportChannel channel) throws Exception {
             InternalIndexShard shard = (InternalIndexShard) indicesService.indexServiceSafe(request.shardId().index().name()).shardSafe(request.shardId().id());
-            RecoveryStatus peerRecoveryStatus = onGoingRecoveries.get(shard.shardId());
-            if (peerRecoveryStatus == null) {
+            RecoveryStatus onGoingRecovery = onGoingRecoveries.get(shard.shardId());
+            if (onGoingRecovery == null) {
                 // shard is getting closed on us
                 throw new IndexShardClosedException(shard.shardId());
             }
-            peerRecoveryStatus.stage = RecoveryStatus.Stage.FINALIZE;
-            shard.performRecoveryFinalization(false, peerRecoveryStatus);
-            peerRecoveryStatus.time = System.currentTimeMillis() - peerRecoveryStatus.startTime;
-            peerRecoveryStatus.stage = RecoveryStatus.Stage.DONE;
+            if (onGoingRecovery.canceled) {
+                onGoingRecovery.sentCanceledToSource = true;
+                throw new IndexShardClosedException(shard.shardId());
+            }
+            onGoingRecovery.stage = RecoveryStatus.Stage.FINALIZE;
+            shard.performRecoveryFinalization(false, onGoingRecovery);
+            onGoingRecovery.time = System.currentTimeMillis() - onGoingRecovery.startTime;
+            onGoingRecovery.stage = RecoveryStatus.Stage.DONE;
             channel.sendResponse(VoidStreamable.INSTANCE);
         }
     }
@@ -360,17 +406,35 @@ public class RecoveryTarget extends AbstractComponent {
 
         @Override
         public void messageReceived(RecoveryTranslogOperationsRequest request, TransportChannel channel) throws Exception {
-            InternalIndexShard shard = (InternalIndexShard) indicesService.indexServiceSafe(request.shardId().index().name()).shardSafe(request.shardId().id());
-            for (Translog.Operation operation : request.operations()) {
-                shard.performRecoveryOperation(operation);
-            }
-
-            RecoveryStatus onGoingRecovery = onGoingRecoveries.get(shard.shardId());
+            RecoveryStatus onGoingRecovery = onGoingRecoveries.get(request.shardId());
             if (onGoingRecovery == null) {
                 // shard is getting closed on us
-                throw new IndexShardClosedException(shard.shardId());
+                throw new IndexShardClosedException(request.shardId());
             }
-            onGoingRecovery.currentTranslogOperations += request.operations().size();
+            if (onGoingRecovery.canceled) {
+                onGoingRecovery.sentCanceledToSource = true;
+                throw new IndexShardClosedException(request.shardId());
+            }
+
+            InternalIndexShard shard = (InternalIndexShard) indicesService.indexServiceSafe(request.shardId().index().name()).shardSafe(request.shardId().id());
+            for (Translog.Operation operation : request.operations()) {
+                if (onGoingRecovery.canceled) {
+                    onGoingRecovery.sentCanceledToSource = true;
+                    throw new IndexShardClosedException(request.shardId());
+                }
+                shard.performRecoveryOperation(operation);
+                onGoingRecovery.currentTranslogOperations++;
+            }
+
+            onGoingRecovery = onGoingRecoveries.get(request.shardId());
+            if (onGoingRecovery == null) {
+                // shard is getting closed on us
+                throw new IndexShardClosedException(request.shardId());
+            }
+            if (onGoingRecovery.canceled) {
+                onGoingRecovery.sentCanceledToSource = true;
+                throw new IndexShardClosedException(request.shardId());
+            }
 
             channel.sendResponse(VoidStreamable.INSTANCE);
         }
@@ -394,6 +458,10 @@ public class RecoveryTarget extends AbstractComponent {
             RecoveryStatus onGoingRecovery = onGoingRecoveries.get(shard.shardId());
             if (onGoingRecovery == null) {
                 // shard is getting closed on us
+                throw new IndexShardClosedException(shard.shardId());
+            }
+            if (onGoingRecovery.canceled) {
+                onGoingRecovery.sentCanceledToSource = true;
                 throw new IndexShardClosedException(shard.shardId());
             }
             onGoingRecovery.phase1FileNames = request.phase1FileNames;
@@ -427,15 +495,19 @@ public class RecoveryTarget extends AbstractComponent {
                 // shard is getting closed on us
                 throw new IndexShardClosedException(shard.shardId());
             }
+            if (onGoingRecovery.canceled) {
+                onGoingRecovery.sentCanceledToSource = true;
+                throw new IndexShardClosedException(shard.shardId());
+            }
 
             // first, we go and move files that were created with the recovery id suffix to
             // the actual names, its ok if we have a corrupted index here, since we have replicas
             // to recover from in case of a full cluster shutdown just when this code executes...
-            String suffix = "." + onGoingRecovery.startTime;
+            String prefix = "recovery." + onGoingRecovery.startTime + ".";
             Set<String> filesToRename = Sets.newHashSet();
             for (String existingFile : shard.store().directory().listAll()) {
-                if (existingFile.endsWith(suffix)) {
-                    filesToRename.add(existingFile.substring(0, existingFile.length() - suffix.length()));
+                if (existingFile.startsWith(prefix)) {
+                    filesToRename.add(existingFile.substring(prefix.length(), existingFile.length()));
                 }
             }
             Exception failureToRename = null;
@@ -447,7 +519,7 @@ public class RecoveryTarget extends AbstractComponent {
                 for (String fileToRename : filesToRename) {
                     // now, rename the files...
                     try {
-                        shard.store().renameFile(fileToRename + suffix, fileToRename);
+                        shard.store().renameFile(prefix + fileToRename, fileToRename);
                     } catch (Exception e) {
                         failureToRename = e;
                         break;
@@ -495,6 +567,10 @@ public class RecoveryTarget extends AbstractComponent {
                 // shard is getting closed on us
                 throw new IndexShardClosedException(shard.shardId());
             }
+            if (onGoingRecovery.canceled) {
+                onGoingRecovery.sentCanceledToSource = true;
+                throw new IndexShardClosedException(shard.shardId());
+            }
             IndexOutput indexOutput;
             if (request.position() == 0) {
                 // first request
@@ -517,10 +593,10 @@ public class RecoveryTarget extends AbstractComponent {
 
                 String name = request.name();
                 if (shard.store().directory().fileExists(name)) {
-                    name = name + "." + onGoingRecovery.startTime;
+                    name = "recovery." + onGoingRecovery.startTime + "." + name;
                 }
 
-                indexOutput = shard.store().createOutputWithNoChecksum(name);
+                indexOutput = shard.store().createOutputRaw(name);
 
                 onGoingRecovery.openIndexOutputs.put(request.name(), indexOutput);
             } else {
@@ -535,7 +611,11 @@ public class RecoveryTarget extends AbstractComponent {
                     if (recoverySettings.rateLimiter() != null) {
                         recoverySettings.rateLimiter().pause(request.content().length());
                     }
-                    indexOutput.writeBytes(request.content().bytes(), request.content().offset(), request.content().length());
+                    BytesReference content = request.content();
+                    if (!content.hasArray()) {
+                        content = content.toBytesArray();
+                    }
+                    indexOutput.writeBytes(content.array(), content.arrayOffset(), content.length());
                     onGoingRecovery.currentFilesSize.addAndGet(request.length());
                     if (indexOutput.getFilePointer() == request.length()) {
                         // we are done

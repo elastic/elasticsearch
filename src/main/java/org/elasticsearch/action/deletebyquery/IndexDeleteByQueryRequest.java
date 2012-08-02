@@ -22,9 +22,9 @@ package org.elasticsearch.action.deletebyquery;
 import gnu.trove.set.hash.THashSet;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.replication.IndexReplicationOperationRequest;
-import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -39,7 +39,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest {
 
-    private BytesHolder querySource;
+    private BytesReference querySource;
     private String[] types = Strings.EMPTY_ARRAY;
     @Nullable
     private Set<String> routing;
@@ -60,7 +60,7 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest 
     IndexDeleteByQueryRequest() {
     }
 
-    BytesHolder querySource() {
+    BytesReference querySource() {
         return querySource;
     }
 
@@ -118,7 +118,7 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest 
 
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBytesHolder(querySource);
+        out.writeBytesReference(querySource);
         out.writeVInt(types.length);
         for (String type : types) {
             out.writeUTF(type);

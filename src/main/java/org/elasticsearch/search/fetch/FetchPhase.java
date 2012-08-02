@@ -25,6 +25,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.document.ResetFieldSelector;
 import org.elasticsearch.index.Index;
@@ -156,7 +157,7 @@ public class FetchPhase implements SearchPhase {
         for (int index = 0; index < context.docIdsToLoadSize(); index++) {
             int docId = context.docIdsToLoad()[context.docIdsToLoadFrom() + index];
             Document doc = loadDocument(context, fieldSelector, docId);
-            Uid uid = extractUid(context, doc);
+            Uid uid = extractUid(context, doc, fieldSelector);
 
             DocumentMapper documentMapper = context.mapperService().documentMapper(uid.type());
 
@@ -196,7 +197,7 @@ public class FetchPhase implements SearchPhase {
                 }
                 if (value == null) {
                     if (field.isBinary()) {
-                        value = field.getBinaryValue();
+                        value = new BytesArray(field.getBinaryValue(), field.getBinaryOffset(), field.getBinaryLength());
                     } else {
                         value = field.stringValue();
                     }
@@ -222,7 +223,7 @@ public class FetchPhase implements SearchPhase {
             context.lookup().setNextReader(subReader);
             context.lookup().setNextDocId(subDoc);
             if (source != null) {
-                context.lookup().source().setNextSource(source, 0, source.length);
+                context.lookup().source().setNextSource(new BytesArray(source));
             }
             if (extractFieldNames != null) {
                 for (String extractFieldName : extractFieldNames) {
@@ -268,8 +269,7 @@ public class FetchPhase implements SearchPhase {
         return null;
     }
 
-    private Uid extractUid(SearchContext context, Document doc) {
-        // TODO we might want to use FieldData here to speed things up, so we don't have to load it at all...
+    private Uid extractUid(SearchContext context, Document doc, @Nullable ResetFieldSelector fieldSelector) {
         String sUid = doc.get(UidFieldMapper.NAME);
         if (sUid != null) {
             return Uid.createUid(sUid);
@@ -279,7 +279,7 @@ public class FetchPhase implements SearchPhase {
         for (Fieldable field : doc.getFields()) {
             fieldNames.add(field.name());
         }
-        throw new FetchPhaseExecutionException(context, "Failed to load uid from the index, missing internal _uid field, current fields in the doc [" + fieldNames + "]");
+        throw new FetchPhaseExecutionException(context, "Failed to load uid from the index, missing internal _uid field, current fields in the doc [" + fieldNames + "], selector [" + fieldSelector + "]");
     }
 
     private Document loadDocument(SearchContext context, @Nullable ResetFieldSelector fieldSelector, int docId) {

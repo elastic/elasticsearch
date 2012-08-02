@@ -19,11 +19,11 @@
 
 package org.elasticsearch.rest.action.support;
 
-import org.elasticsearch.common.compress.lzf.LZF;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
-import org.elasticsearch.common.io.stream.CachedStreamInput;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedStreamInput;
+import org.elasticsearch.common.compress.Compressor;
+import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.CachedStreamOutput;
-import org.elasticsearch.common.io.stream.LZFStreamInput;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.rest.RestRequest;
 
@@ -39,7 +39,7 @@ public class RestXContentBuilder {
         if (contentType == null) {
             // try and guess it from the body, if exists
             if (request.hasContent()) {
-                contentType = XContentFactory.xContentType(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength());
+                contentType = XContentFactory.xContentType(request.content());
             }
         }
         if (contentType == null) {
@@ -47,7 +47,7 @@ public class RestXContentBuilder {
             contentType = XContentType.JSON;
         }
         CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
-        XContentBuilder builder = new XContentBuilder(XContentFactory.xContent(contentType), cachedEntry.cachedBytes(), cachedEntry);
+        XContentBuilder builder = new XContentBuilder(XContentFactory.xContent(contentType), cachedEntry.bytes(), cachedEntry);
         if (request.paramAsBoolean("pretty", false)) {
             builder.prettyPrint();
         }
@@ -62,20 +62,16 @@ public class RestXContentBuilder {
         return builder;
     }
 
-    public static void restDocumentSource(byte[] source, XContentBuilder builder, ToXContent.Params params) throws IOException {
-        restDocumentSource(source, 0, source.length, builder, params);
-    }
-
-    public static void restDocumentSource(byte[] source, int offset, int length, XContentBuilder builder, ToXContent.Params params) throws IOException {
-        if (LZF.isCompressed(source, offset, length)) {
-            BytesStreamInput siBytes = new BytesStreamInput(source, offset, length, false);
-            LZFStreamInput siLzf = CachedStreamInput.cachedLzf(siBytes);
-            XContentType contentType = XContentFactory.xContentType(siLzf);
-            siLzf.resetToBufferStart();
+    public static void restDocumentSource(BytesReference source, XContentBuilder builder, ToXContent.Params params) throws IOException {
+        Compressor compressor = CompressorFactory.compressor(source);
+        if (compressor != null) {
+            CompressedStreamInput compressedStreamInput = compressor.streamInput(source.streamInput());
+            XContentType contentType = XContentFactory.xContentType(compressedStreamInput);
+            compressedStreamInput.resetToBufferStart();
             if (contentType == builder.contentType()) {
-                builder.rawField("_source", siLzf);
+                builder.rawField("_source", compressedStreamInput);
             } else {
-                XContentParser parser = XContentFactory.xContent(contentType).createParser(siLzf);
+                XContentParser parser = XContentFactory.xContent(contentType).createParser(compressedStreamInput);
                 try {
                     parser.nextToken();
                     builder.field("_source");
@@ -85,11 +81,11 @@ public class RestXContentBuilder {
                 }
             }
         } else {
-            XContentType contentType = XContentFactory.xContentType(source, offset, length);
+            XContentType contentType = XContentFactory.xContentType(source);
             if (contentType == builder.contentType()) {
-                builder.rawField("_source", source, offset, length);
+                builder.rawField("_source", source);
             } else {
-                XContentParser parser = XContentFactory.xContent(contentType).createParser(source, offset, length);
+                XContentParser parser = XContentFactory.xContent(contentType).createParser(source);
                 try {
                     parser.nextToken();
                     builder.field("_source");

@@ -21,7 +21,7 @@ package org.elasticsearch.action.get;
 
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.BytesHolder;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -36,7 +36,6 @@ import java.util.Map;
 
 /**
  * The response of a get action.
- *
  *
  * @see GetRequest
  * @see org.elasticsearch.client.Client#get(GetRequest)
@@ -130,10 +129,24 @@ public class GetResponse implements ActionResponse, Streamable, Iterable<GetFiel
     }
 
     /**
+     * The source of the document if exists.
+     */
+    public byte[] getSourceAsBytes() {
+        return source();
+    }
+
+    /**
      * Returns bytes reference, also un compress the source if needed.
      */
-    public BytesHolder sourceRef() {
+    public BytesReference sourceRef() {
         return getResult.sourceRef();
+    }
+
+    /**
+     * Returns bytes reference, also un compress the source if needed.
+     */
+    public BytesReference getSourceAsBytesRef() {
+        return sourceRef();
     }
 
     /**
@@ -148,6 +161,10 @@ public class GetResponse implements ActionResponse, Streamable, Iterable<GetFiel
      */
     public String sourceAsString() {
         return getResult.sourceAsString();
+    }
+
+    public String getSourceAsString() {
+        return sourceAsString();
     }
 
     /**

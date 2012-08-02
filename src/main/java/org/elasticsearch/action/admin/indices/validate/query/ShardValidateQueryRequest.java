@@ -20,9 +20,9 @@
 package org.elasticsearch.action.admin.indices.validate.query;
 
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
-import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -33,10 +33,10 @@ import java.io.IOException;
  */
 class ShardValidateQueryRequest extends BroadcastShardOperationRequest {
 
-    private BytesHolder querySource;
+    private BytesReference querySource;
 
     private String[] types = Strings.EMPTY_ARRAY;
-    
+
     private boolean explain;
 
     @Nullable
@@ -54,14 +54,14 @@ class ShardValidateQueryRequest extends BroadcastShardOperationRequest {
         this.filteringAliases = filteringAliases;
     }
 
-    public BytesHolder querySource() {
+    public BytesReference querySource() {
         return querySource;
     }
 
     public String[] types() {
         return this.types;
     }
-    
+
     public boolean explain() {
         return this.explain;
     }
@@ -96,7 +96,7 @@ class ShardValidateQueryRequest extends BroadcastShardOperationRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBytesHolder(querySource);
+        out.writeBytesReference(querySource);
 
         out.writeVInt(types.length);
         for (String type : types) {

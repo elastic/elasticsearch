@@ -19,8 +19,9 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -38,12 +39,12 @@ class RecoveryFileChunkRequest implements Streamable {
     private long position;
     private long length;
     private String checksum;
-    private BytesHolder content;
+    private BytesReference content;
 
     RecoveryFileChunkRequest() {
     }
 
-    RecoveryFileChunkRequest(ShardId shardId, String name, long position, long length, String checksum, BytesHolder content) {
+    RecoveryFileChunkRequest(ShardId shardId, String name, long position, long length, String checksum, BytesArray content) {
         this.shardId = shardId;
         this.name = name;
         this.position = position;
@@ -73,7 +74,7 @@ class RecoveryFileChunkRequest implements Streamable {
         return length;
     }
 
-    public BytesHolder content() {
+    public BytesReference content() {
         return content;
     }
 
@@ -107,7 +108,7 @@ class RecoveryFileChunkRequest implements Streamable {
             out.writeBoolean(true);
             out.writeUTF(checksum);
         }
-        out.writeBytesHolder(content);
+        out.writeBytesReference(content);
     }
 
     @Override

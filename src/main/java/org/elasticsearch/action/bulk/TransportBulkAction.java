@@ -48,6 +48,7 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -150,7 +151,7 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
 
                 MappingMetaData mappingMd = null;
                 if (metaData.hasIndex(indexRequest.index())) {
-                    mappingMd = metaData.index(indexRequest.index()).mapping(indexRequest.type());
+                    mappingMd = metaData.index(indexRequest.index()).mappingOrDefault(indexRequest.type());
                 }
                 indexRequest.process(metaData, aliasOrIndex, mappingMd, allowIdGeneration);
             } else if (request instanceof DeleteRequest) {
@@ -177,7 +178,7 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
                 list.add(new BulkItemRequest(i, request));
             } else if (request instanceof DeleteRequest) {
                 DeleteRequest deleteRequest = (DeleteRequest) request;
-                MappingMetaData mappingMd = clusterState.metaData().index(deleteRequest.index()).mapping(deleteRequest.type());
+                MappingMetaData mappingMd = clusterState.metaData().index(deleteRequest.index()).mappingOrDefault(deleteRequest.type());
                 if (mappingMd != null && mappingMd.routing().required() && deleteRequest.routing() == null) {
                     // if routing is required, and no routing on the delete request, we need to broadcast it....
                     GroupShardsIterator groupShards = clusterService.operationRouting().broadcastDeleteShards(clusterState, deleteRequest.index());
@@ -234,7 +235,7 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
                         for (BulkItemRequest request : requests) {
                             if (request.request() instanceof IndexRequest) {
                                 IndexRequest indexRequest = (IndexRequest) request.request();
-                                responses[request.id()] = new BulkItemResponse(request.id(), indexRequest.opType().toString().toLowerCase(),
+                                responses[request.id()] = new BulkItemResponse(request.id(), indexRequest.opType().toString().toLowerCase(Locale.ENGLISH),
                                         new BulkItemResponse.Failure(indexRequest.index(), indexRequest.type(), indexRequest.id(), message));
                             } else if (request.request() instanceof DeleteRequest) {
                                 DeleteRequest deleteRequest = (DeleteRequest) request.request();

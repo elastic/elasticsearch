@@ -128,6 +128,12 @@ public class ClusterStateRequest extends MasterNodeOperationRequest {
     }
 
     @Override
+    public ClusterStateRequest listenerThreaded(boolean listenerThreaded) {
+        super.listenerThreaded(listenerThreaded);
+        return this;
+    }
+
+    @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         filterRoutingTable = in.readBoolean();

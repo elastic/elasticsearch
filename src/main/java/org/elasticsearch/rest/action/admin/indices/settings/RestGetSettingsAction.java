@@ -64,6 +64,7 @@ public class RestGetSettingsAction extends BaseRestHandler {
                 .filterRoutingTable(true)
                 .filterNodes(true)
                 .filteredIndices(indices);
+        clusterStateRequest.listenerThreaded(false);
 
         client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
             @Override

@@ -26,7 +26,7 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.util.ToStringUtils;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.common.BytesWrap;
+import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.lucene.search.EmptyScorer;
 import org.elasticsearch.search.internal.ScopePhase;
 import org.elasticsearch.search.internal.SearchContext;
@@ -125,7 +125,7 @@ public class TopChildrenQuery extends Query implements ScopePhase.TopDocsPhase {
             int subDoc = scoreDoc.doc - context.searcher().docStarts()[readerIndex];
 
             // find the parent id
-            BytesWrap parentId = context.idCache().reader(subReader).parentIdByDoc(parentType, subDoc);
+            HashedBytesArray parentId = context.idCache().reader(subReader).parentIdByDoc(parentType, subDoc);
             if (parentId == null) {
                 // no parent found
                 continue;

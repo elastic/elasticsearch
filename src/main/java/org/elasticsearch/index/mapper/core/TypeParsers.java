@@ -68,6 +68,13 @@ public class TypeParsers {
                 builder.omitNorms(nodeBooleanValue(propNode));
             } else if (propName.equals("omit_term_freq_and_positions")) {
                 builder.omitTermFreqAndPositions(nodeBooleanValue(propNode));
+            } else if (propName.equals("analyzer")) {
+                NamedAnalyzer analyzer = parserContext.analysisService().analyzer(propNode.toString());
+                if (analyzer == null) {
+                    throw new MapperParsingException("Analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
+                }
+                builder.indexAnalyzer(analyzer);
+                builder.searchAnalyzer(analyzer);
             } else if (propName.equals("index_analyzer")) {
                 NamedAnalyzer analyzer = parserContext.analysisService().analyzer(propNode.toString());
                 if (analyzer == null) {
@@ -79,13 +86,6 @@ public class TypeParsers {
                 if (analyzer == null) {
                     throw new MapperParsingException("Analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
                 }
-                builder.searchAnalyzer(analyzer);
-            } else if (propName.equals("analyzer")) {
-                NamedAnalyzer analyzer = parserContext.analysisService().analyzer(propNode.toString());
-                if (analyzer == null) {
-                    throw new MapperParsingException("Analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
-                }
-                builder.indexAnalyzer(analyzer);
                 builder.searchAnalyzer(analyzer);
             } else if (propName.equals("include_in_all")) {
                 builder.includeInAll(nodeBooleanValue(propNode));

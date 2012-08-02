@@ -20,12 +20,15 @@
 package org.elasticsearch.common.xcontent;
 
 import com.google.common.base.Charsets;
+import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.compress.lzf.LZF;
+import org.elasticsearch.common.compress.CompressedStreamInput;
+import org.elasticsearch.common.compress.Compressor;
+import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
-import org.elasticsearch.common.io.stream.CachedStreamInput;
-import org.elasticsearch.common.io.stream.LZFStreamInput;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -36,30 +39,78 @@ import java.util.Map;
 /**
  *
  */
+@SuppressWarnings("unchecked")
 public class XContentHelper {
 
+    public static XContentParser createParser(BytesReference bytes) throws IOException {
+        if (bytes.hasArray()) {
+            return createParser(bytes.array(), bytes.arrayOffset(), bytes.length());
+        }
+        Compressor compressor = CompressorFactory.compressor(bytes);
+        if (compressor != null) {
+            CompressedStreamInput compressedInput = compressor.streamInput(bytes.streamInput());
+            XContentType contentType = XContentFactory.xContentType(compressedInput);
+            compressedInput.resetToBufferStart();
+            return XContentFactory.xContent(contentType).createParser(compressedInput);
+        } else {
+            return XContentFactory.xContent(bytes).createParser(bytes.streamInput());
+        }
+    }
+
+
     public static XContentParser createParser(byte[] data, int offset, int length) throws IOException {
-        if (LZF.isCompressed(data, offset, length)) {
-            BytesStreamInput siBytes = new BytesStreamInput(data, offset, length, false);
-            LZFStreamInput siLzf = CachedStreamInput.cachedLzf(siBytes);
-            XContentType contentType = XContentFactory.xContentType(siLzf);
-            siLzf.resetToBufferStart();
-            return XContentFactory.xContent(contentType).createParser(siLzf);
+        Compressor compressor = CompressorFactory.compressor(data, offset, length);
+        if (compressor != null) {
+            CompressedStreamInput compressedInput = compressor.streamInput(new BytesStreamInput(data, offset, length, false));
+            XContentType contentType = XContentFactory.xContentType(compressedInput);
+            compressedInput.resetToBufferStart();
+            return XContentFactory.xContent(contentType).createParser(compressedInput);
         } else {
             return XContentFactory.xContent(data, offset, length).createParser(data, offset, length);
         }
+    }
+
+    public static Tuple<XContentType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered) throws ElasticSearchParseException {
+        if (bytes.hasArray()) {
+            return convertToMap(bytes.array(), bytes.arrayOffset(), bytes.length(), ordered);
+        }
+        try {
+            XContentParser parser;
+            XContentType contentType;
+            Compressor compressor = CompressorFactory.compressor(bytes);
+            if (compressor != null) {
+                CompressedStreamInput compressedStreamInput = compressor.streamInput(bytes.streamInput());
+                contentType = XContentFactory.xContentType(compressedStreamInput);
+                compressedStreamInput.resetToBufferStart();
+                parser = XContentFactory.xContent(contentType).createParser(compressedStreamInput);
+            } else {
+                contentType = XContentFactory.xContentType(bytes);
+                parser = XContentFactory.xContent(contentType).createParser(bytes.streamInput());
+            }
+            if (ordered) {
+                return Tuple.tuple(contentType, parser.mapOrderedAndClose());
+            } else {
+                return Tuple.tuple(contentType, parser.mapAndClose());
+            }
+        } catch (IOException e) {
+            throw new ElasticSearchParseException("Failed to parse content to map", e);
+        }
+    }
+
+    public static Tuple<XContentType, Map<String, Object>> convertToMap(byte[] data, boolean ordered) throws ElasticSearchParseException {
+        return convertToMap(data, 0, data.length, ordered);
     }
 
     public static Tuple<XContentType, Map<String, Object>> convertToMap(byte[] data, int offset, int length, boolean ordered) throws ElasticSearchParseException {
         try {
             XContentParser parser;
             XContentType contentType;
-            if (LZF.isCompressed(data, offset, length)) {
-                BytesStreamInput siBytes = new BytesStreamInput(data, offset, length, false);
-                LZFStreamInput siLzf = CachedStreamInput.cachedLzf(siBytes);
-                contentType = XContentFactory.xContentType(siLzf);
-                siLzf.resetToBufferStart();
-                parser = XContentFactory.xContent(contentType).createParser(siLzf);
+            Compressor compressor = CompressorFactory.compressor(data, offset, length);
+            if (compressor != null) {
+                CompressedStreamInput compressedStreamInput = compressor.streamInput(new BytesStreamInput(data, offset, length, false));
+                contentType = XContentFactory.xContentType(compressedStreamInput);
+                compressedStreamInput.resetToBufferStart();
+                parser = XContentFactory.xContent(contentType).createParser(compressedStreamInput);
             } else {
                 contentType = XContentFactory.xContentType(data, offset, length);
                 parser = XContentFactory.xContent(contentType).createParser(data, offset, length);
@@ -74,9 +125,43 @@ public class XContentHelper {
         }
     }
 
+    public static String convertToJson(BytesReference bytes, boolean reformatJson) throws IOException {
+        return convertToJson(bytes, reformatJson, false);
+    }
+
+    public static String convertToJson(BytesReference bytes, boolean reformatJson, boolean prettyPrint) throws IOException {
+        if (bytes.hasArray()) {
+            return convertToJson(bytes.array(), bytes.arrayOffset(), bytes.length(), reformatJson, prettyPrint);
+        }
+        XContentType xContentType = XContentFactory.xContentType(bytes);
+        if (xContentType == XContentType.JSON && !reformatJson) {
+            BytesArray bytesArray = bytes.toBytesArray();
+            return new String(bytesArray.array(), bytesArray.arrayOffset(), bytesArray.length(), Charsets.UTF_8);
+        }
+        XContentParser parser = null;
+        try {
+            parser = XContentFactory.xContent(xContentType).createParser(bytes.streamInput());
+            parser.nextToken();
+            XContentBuilder builder = XContentFactory.jsonBuilder();
+            if (prettyPrint) {
+                builder.prettyPrint();
+            }
+            builder.copyCurrentStructure(parser);
+            return builder.string();
+        } finally {
+            if (parser != null) {
+                parser.close();
+            }
+        }
+    }
+
     public static String convertToJson(byte[] data, int offset, int length, boolean reformatJson) throws IOException {
+        return convertToJson(data, offset, length, reformatJson, false);
+    }
+
+    public static String convertToJson(byte[] data, int offset, int length, boolean reformatJson, boolean prettyPrint) throws IOException {
         XContentType xContentType = XContentFactory.xContentType(data, offset, length);
-        if (xContentType == XContentType.JSON && reformatJson) {
+        if (xContentType == XContentType.JSON && !reformatJson) {
             return new String(data, offset, length, Charsets.UTF_8);
         }
         XContentParser parser = null;
@@ -84,11 +169,35 @@ public class XContentHelper {
             parser = XContentFactory.xContent(xContentType).createParser(data, offset, length);
             parser.nextToken();
             XContentBuilder builder = XContentFactory.jsonBuilder();
+            if (prettyPrint) {
+                builder.prettyPrint();
+            }
             builder.copyCurrentStructure(parser);
             return builder.string();
         } finally {
             if (parser != null) {
                 parser.close();
+            }
+        }
+    }
+
+    /**
+     * Updates the provided changes into the source. If the key exists in the changes, it overrides the one in source
+     * unless both are Maps, in which case it recuersively updated it.
+     */
+    public static void update(Map<String, Object> source, Map<String, Object> changes) {
+        for (Map.Entry<String, Object> changesEntry : changes.entrySet()) {
+            if (!source.containsKey(changesEntry.getKey())) {
+                // safe to copy, change does not exist in source
+                source.put(changesEntry.getKey(), changesEntry.getValue());
+            } else {
+                if (source.get(changesEntry.getKey()) instanceof Map && changesEntry.getValue() instanceof Map) {
+                    // recursive merge maps
+                    update((Map<String, Object>) source.get(changesEntry.getKey()), (Map<String, Object>) changesEntry.getValue());
+                } else {
+                    // update the field
+                    source.put(changesEntry.getKey(), changesEntry.getValue());
+                }
             }
         }
     }
@@ -108,14 +217,49 @@ public class XContentHelper {
                 if (content.get(defaultEntry.getKey()) instanceof Map && defaultEntry.getValue() instanceof Map) {
                     mergeDefaults((Map<String, Object>) content.get(defaultEntry.getKey()), (Map<String, Object>) defaultEntry.getValue());
                 } else if (content.get(defaultEntry.getKey()) instanceof List && defaultEntry.getValue() instanceof List) {
-                    // if both are lists, simply combine them, first the defaults, then the content
+                    List defaultList = (List) defaultEntry.getValue();
+                    List contentList = (List) content.get(defaultEntry.getKey());
+
                     List mergedList = new ArrayList();
-                    mergedList.addAll((Collection) defaultEntry.getValue());
-                    mergedList.addAll((Collection) content.get(defaultEntry.getKey()));
+                    if (allListValuesAreMapsOfOne(defaultList) && allListValuesAreMapsOfOne(contentList)) {
+                        // all are in the form of [ {"key1" : {}}, {"key2" : {}} ], merge based on keys
+                        Map<String, Map<String, Object>> processed = Maps.newLinkedHashMap();
+                        for (Object o : contentList) {
+                            Map<String, Object> map = (Map<String, Object>) o;
+                            Map.Entry<String, Object> entry = map.entrySet().iterator().next();
+                            processed.put(entry.getKey(), map);
+                        }
+                        for (Object o : defaultList) {
+                            Map<String, Object> map = (Map<String, Object>) o;
+                            Map.Entry<String, Object> entry = map.entrySet().iterator().next();
+                            if (processed.containsKey(entry.getKey())) {
+                                mergeDefaults(processed.get(entry.getKey()), map);
+                            }
+                        }
+                        for (Map<String, Object> map : processed.values()) {
+                            mergedList.add(map);
+                        }
+                    } else {
+                        // if both are lists, simply combine them, first the defaults, then the content
+                        mergedList.addAll((Collection) defaultEntry.getValue());
+                        mergedList.addAll((Collection) content.get(defaultEntry.getKey()));
+                    }
                     content.put(defaultEntry.getKey(), mergedList);
                 }
             }
         }
+    }
+
+    private static boolean allListValuesAreMapsOfOne(List list) {
+        for (Object o : list) {
+            if (!(o instanceof Map)) {
+                return false;
+            }
+            if (((Map) o).size() != 1) {
+                return false;
+            }
+        }
+        return true;
     }
 
     public static void copyCurrentStructure(XContentGenerator generator, XContentParser parser) throws IOException {

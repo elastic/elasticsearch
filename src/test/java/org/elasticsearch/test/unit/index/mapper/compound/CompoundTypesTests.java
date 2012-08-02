@@ -21,8 +21,8 @@ package org.elasticsearch.test.unit.index.mapper.compound;
 
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -46,7 +46,7 @@ public class CompoundTypesTests {
                 .startObject()
                 .field("field1", "value1")
                 .field("field2", "value2")
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.rootDoc().get("field1"), equalTo("value1"));
         assertThat((double) doc.rootDoc().getFieldable("field1").getBoost(), closeTo(1.0d, 0.000001d));
@@ -56,7 +56,7 @@ public class CompoundTypesTests {
                 .startObject()
                 .startObject("field1").field("value", "value1").field("boost", 2.0f).endObject()
                 .field("field2", "value2")
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.rootDoc().get("field1"), equalTo("value1"));
         assertThat((double) doc.rootDoc().getFieldable("field1").getBoost(), closeTo(2.0d, 0.000001d));
@@ -66,7 +66,7 @@ public class CompoundTypesTests {
                 .startObject()
                 .field("field1", "value1")
                 .field("field2", "value2")
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.rootDoc().get("field1"), equalTo("value1"));
         assertThat((double) doc.rootDoc().getFieldable("field1").getBoost(), closeTo(1.0d, 0.000001d));

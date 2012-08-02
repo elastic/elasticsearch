@@ -26,7 +26,7 @@ import java.io.IOException;
 /**
  *
  */
-public class TopChildrenQueryBuilder extends BaseQueryBuilder {
+public class TopChildrenQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<TopChildrenQueryBuilder> {
 
     private final QueryBuilder queryBuilder;
 

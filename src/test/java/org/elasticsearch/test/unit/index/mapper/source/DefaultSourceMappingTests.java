@@ -20,8 +20,7 @@
 package org.elasticsearch.test.unit.index.mapper.source;
 
 import org.apache.lucene.document.Fieldable;
-import org.elasticsearch.common.compress.lzf.LZF;
-import org.elasticsearch.common.compress.lzf.LZFDecoder;
+import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -50,16 +49,16 @@ public class DefaultSourceMappingTests {
         DocumentMapper documentMapper = MapperTests.newParser().parse(mapping);
         ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("field", "value")
-                .endObject().copiedBytes());
+                .endObject().bytes());
 
-        assertThat(XContentFactory.xContentType(doc.source(), doc.sourceOffset(), doc.sourceLength()), equalTo(XContentType.JSON));
+        assertThat(XContentFactory.xContentType(doc.source()), equalTo(XContentType.JSON));
 
         documentMapper = MapperTests.newParser().parse(mapping);
         doc = documentMapper.parse("type", "1", XContentFactory.smileBuilder().startObject()
                 .field("field", "value")
-                .endObject().copiedBytes());
+                .endObject().bytes());
 
-        assertThat(XContentFactory.xContentType(doc.source(), doc.sourceOffset(), doc.sourceLength()), equalTo(XContentType.SMILE));
+        assertThat(XContentFactory.xContentType(doc.source()), equalTo(XContentType.SMILE));
     }
 
     @Test
@@ -71,16 +70,16 @@ public class DefaultSourceMappingTests {
         DocumentMapper documentMapper = MapperTests.newParser().parse(mapping);
         ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("field", "value")
-                .endObject().copiedBytes());
+                .endObject().bytes());
 
-        assertThat(XContentFactory.xContentType(doc.source(), doc.sourceOffset(), doc.sourceLength()), equalTo(XContentType.JSON));
+        assertThat(XContentFactory.xContentType(doc.source()), equalTo(XContentType.JSON));
 
         documentMapper = MapperTests.newParser().parse(mapping);
         doc = documentMapper.parse("type", "1", XContentFactory.smileBuilder().startObject()
                 .field("field", "value")
-                .endObject().copiedBytes());
+                .endObject().bytes());
 
-        assertThat(XContentFactory.xContentType(doc.source(), doc.sourceOffset(), doc.sourceLength()), equalTo(XContentType.JSON));
+        assertThat(XContentFactory.xContentType(doc.source()), equalTo(XContentType.JSON));
     }
 
     @Test
@@ -92,19 +91,19 @@ public class DefaultSourceMappingTests {
         DocumentMapper documentMapper = MapperTests.newParser().parse(mapping);
         ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("field", "value")
-                .endObject().copiedBytes());
+                .endObject().bytes());
 
-        assertThat(LZF.isCompressed(doc.source(), doc.sourceOffset(), doc.sourceLength()), equalTo(true));
-        byte[] uncompressed = LZFDecoder.decode(doc.source(), doc.sourceOffset(), doc.sourceLength());
+        assertThat(CompressorFactory.isCompressed(doc.source()), equalTo(true));
+        byte[] uncompressed = CompressorFactory.uncompressIfNeeded(doc.source()).toBytes();
         assertThat(XContentFactory.xContentType(uncompressed), equalTo(XContentType.JSON));
 
         documentMapper = MapperTests.newParser().parse(mapping);
         doc = documentMapper.parse("type", "1", XContentFactory.smileBuilder().startObject()
                 .field("field", "value")
-                .endObject().copiedBytes());
+                .endObject().bytes());
 
-        assertThat(LZF.isCompressed(doc.source(), doc.sourceOffset(), doc.sourceLength()), equalTo(true));
-        uncompressed = LZFDecoder.decode(doc.source(), doc.sourceOffset(), doc.sourceLength());
+        assertThat(CompressorFactory.isCompressed(doc.source()), equalTo(true));
+        uncompressed = CompressorFactory.uncompressIfNeeded(doc.source()).toBytes();
         assertThat(XContentFactory.xContentType(uncompressed), equalTo(XContentType.JSON));
     }
 
@@ -119,7 +118,7 @@ public class DefaultSourceMappingTests {
         ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
                 .startObject("path1").field("field1", "value1").endObject()
                 .startObject("path2").field("field2", "value2").endObject()
-                .endObject().copiedBytes());
+                .endObject().bytes());
 
         Fieldable sourceField = doc.rootDoc().getFieldable("_source");
         Map<String, Object> sourceAsMap = XContentFactory.xContent(XContentType.JSON).createParser(sourceField.getBinaryValue(), sourceField.getBinaryOffset(), sourceField.getBinaryLength()).mapAndClose();

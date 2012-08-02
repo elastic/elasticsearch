@@ -21,10 +21,10 @@ package org.elasticsearch.test.unit.index.mapper.nested;
 
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -47,7 +47,7 @@ public class NestedMappingTests {
                 .field("field", "value")
                 .nullField("nested1")
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.docs().size(), equalTo(1));
 
@@ -56,7 +56,7 @@ public class NestedMappingTests {
                 .field("field", "value")
                 .startArray("nested").endArray()
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.docs().size(), equalTo(1));
     }
@@ -78,7 +78,7 @@ public class NestedMappingTests {
                 .field("field", "value")
                 .startObject("nested1").field("field1", "1").field("field2", "2").endObject()
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.docs().size(), equalTo(2));
         assertThat(doc.docs().get(0).get(TypeFieldMapper.NAME), equalTo(nested1Mapper.nestedTypePath()));
@@ -96,7 +96,7 @@ public class NestedMappingTests {
                 .startObject().field("field1", "3").field("field2", "4").endObject()
                 .endArray()
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.docs().size(), equalTo(3));
         assertThat(doc.docs().get(0).get(TypeFieldMapper.NAME), equalTo(nested1Mapper.nestedTypePath()));
@@ -137,7 +137,7 @@ public class NestedMappingTests {
                 .startObject().field("field1", "4").startArray("nested2").startObject().field("field2", "5").endObject().startObject().field("field2", "6").endObject().endArray().endObject()
                 .endArray()
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.docs().size(), equalTo(7));
         assertThat(doc.docs().get(0).get("nested1.nested2.field2"), equalTo("6"));
@@ -189,7 +189,7 @@ public class NestedMappingTests {
                 .startObject().field("field1", "4").startArray("nested2").startObject().field("field2", "5").endObject().startObject().field("field2", "6").endObject().endArray().endObject()
                 .endArray()
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.docs().size(), equalTo(7));
         assertThat(doc.docs().get(0).get("nested1.nested2.field2"), equalTo("6"));
@@ -241,7 +241,7 @@ public class NestedMappingTests {
                 .startObject().field("field1", "4").startArray("nested2").startObject().field("field2", "5").endObject().startObject().field("field2", "6").endObject().endArray().endObject()
                 .endArray()
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.docs().size(), equalTo(7));
         assertThat(doc.docs().get(0).get("nested1.nested2.field2"), equalTo("6"));
@@ -293,7 +293,7 @@ public class NestedMappingTests {
                 .startObject().field("field1", "4").startArray("nested2").startObject().field("field2", "5").endObject().startObject().field("field2", "6").endObject().endArray().endObject()
                 .endArray()
                 .endObject()
-                .copiedBytes());
+                .bytes());
 
         assertThat(doc.docs().size(), equalTo(7));
         assertThat(doc.docs().get(0).get("nested1.nested2.field2"), equalTo("6"));

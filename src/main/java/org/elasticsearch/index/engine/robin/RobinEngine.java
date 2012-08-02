@@ -19,12 +19,14 @@
 
 package org.elasticsearch.index.engine.robin;
 
+import com.google.common.collect.Lists;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.Unicode;
@@ -37,12 +39,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bloom.BloomCache;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.*;
+import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.merge.policy.EnableMergePolicy;
 import org.elasticsearch.index.merge.policy.MergePolicyProvider;
@@ -61,7 +65,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
@@ -94,6 +97,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
     private volatile boolean enableGcDeletes = true;
 
     private final ThreadPool threadPool;
+
+    private final ShardIndexingService indexingService;
 
     private final IndexSettingsService indexSettingsService;
 
@@ -158,7 +163,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
     @Inject
     public RobinEngine(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool,
-                       IndexSettingsService indexSettingsService, @Nullable IndicesWarmer warmer,
+                       IndexSettingsService indexSettingsService, ShardIndexingService indexingService, @Nullable IndicesWarmer warmer,
                        Store store, SnapshotDeletionPolicy deletionPolicy, Translog translog,
                        MergePolicyProvider mergePolicyProvider, MergeSchedulerProvider mergeScheduler,
                        AnalysisService analysisService, SimilarityService similarityService,
@@ -176,6 +181,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
         this.threadPool = threadPool;
         this.indexSettingsService = indexSettingsService;
+        this.indexingService = indexingService;
         this.warmer = (InternalIndicesWarmer) warmer;
         this.store = store;
         this.deletionPolicy = deletionPolicy;
@@ -187,8 +193,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         this.bloomCache = bloomCache;
 
         this.indexConcurrency = indexSettings.getAsInt("index.index_concurrency", IndexWriterConfig.DEFAULT_MAX_THREAD_STATES);
-        this.versionMap = new ConcurrentHashMap<String, VersionValue>();
-        this.dirtyLocks = new Object[indexConcurrency * 10]; // we multiply it by 10 to have enough...
+        this.versionMap = ConcurrentCollections.newConcurrentMap();
+        this.dirtyLocks = new Object[indexConcurrency * 50]; // we multiply it to have enough...
         for (int i = 0; i < dirtyLocks.length; i++) {
             dirtyLocks[i] = new Object();
         }
@@ -214,17 +220,22 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         } finally {
             rwl.readLock().unlock();
         }
-        // its inactive, make sure we do a full flush in this case, since the memory
-        // changes only after a "data" change has happened to the writer
-        if (indexingBufferSize == Engine.INACTIVE_SHARD_INDEXING_BUFFER && preValue != Engine.INACTIVE_SHARD_INDEXING_BUFFER) {
-            try {
-                flush(new Flush().full(true));
-            } catch (EngineClosedException e) {
-                // ignore
-            } catch (FlushNotAllowedEngineException e) {
-                // ignore
-            } catch (Exception e) {
-                logger.warn("failed to flush after setting shard to inactive", e);
+        if (preValue.bytes() != indexingBufferSize.bytes()) {
+            // its inactive, make sure we do a full flush in this case, since the memory
+            // changes only after a "data" change has happened to the writer
+            if (indexingBufferSize == Engine.INACTIVE_SHARD_INDEXING_BUFFER && preValue != Engine.INACTIVE_SHARD_INDEXING_BUFFER) {
+                logger.debug("updating index_buffer_size from [{}] to (inactive) [{}]", preValue, indexingBufferSize);
+                try {
+                    flush(new Flush().full(true));
+                } catch (EngineClosedException e) {
+                    // ignore
+                } catch (FlushNotAllowedEngineException e) {
+                    // ignore
+                } catch (Exception e) {
+                    logger.warn("failed to flush after setting shard to inactive", e);
+                }
+            } else {
+                logger.debug("updating index_buffer_size from [{}] to [{}]", preValue, indexingBufferSize);
             }
         }
     }
@@ -471,6 +482,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             Translog.Location translogLocation = translog.add(new Translog.Create(create));
 
             versionMap.put(create.uid().text(), new VersionValue(updatedVersion, false, threadPool.estimatedTimeInMillis(), translogLocation));
+
+            indexingService.postCreateUnderLock(create);
         }
     }
 
@@ -583,6 +596,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             Translog.Location translogLocation = translog.add(new Translog.Index(index));
 
             versionMap.put(index.uid().text(), new VersionValue(updatedVersion, false, threadPool.estimatedTimeInMillis(), translogLocation));
+
+            indexingService.postIndexUnderLock(index);
         }
     }
 
@@ -685,6 +700,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                 Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
                 versionMap.put(delete.uid().text(), new VersionValue(updatedVersion, true, threadPool.estimatedTimeInMillis(), translogLocation));
             }
+
+            indexingService.postDeleteUnderLock(delete);
         }
     }
 
@@ -1240,7 +1257,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
     }
 
     private Object dirtyLock(String id) {
-        int hash = id.hashCode();
+        int hash = DjbHashFunction.DJB_HASH(id);
         // abs returns Integer.MIN_VALUE, so we need to protect against it...
         if (hash == Integer.MIN_VALUE) {
             hash = 0;
@@ -1294,7 +1311,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             config.setReaderTermsIndexDivisor(termIndexDivisor);
             config.setMaxThreadStates(indexConcurrency);
 
-            indexWriter = new IndexWriter(store.directory(), config);
+            indexWriter = new XIndexWriter(store.directory(), config, logger, bloomCache);
         } catch (IOException e) {
             safeClose(indexWriter);
             throw e;
@@ -1428,7 +1445,68 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             ExtendedIndexSearcher searcher = new ExtendedIndexSearcher(reader);
             searcher.setSimilarity(similarityService.defaultSearchSimilarity());
             if (warmer != null) {
-                warmer.warm(shardId, new SimpleSearcher(searcher));
+                // we need to pass a custom searcher that does not release anything on Engine.Search Release,
+                // we will release explicitly
+                Searcher currentSearcher = null;
+                ExtendedIndexSearcher newSearcher = null;
+                boolean closeNewSearcher = false;
+                try {
+                    if (searcherManager == null) {
+                        // fresh index writer, just do on all of it
+                        newSearcher = searcher;
+                    } else {
+                        currentSearcher = searcher();
+                        // figure out the newSearcher, with only the new readers that are relevant for us
+                        List<IndexReader> readers = Lists.newArrayList();
+                        for (IndexReader subReader : searcher.subReaders()) {
+                            boolean found = false;
+                            for (IndexReader currentReader : currentSearcher.searcher().subReaders()) {
+                                if (currentReader.getCoreCacheKey().equals(subReader.getCoreCacheKey())) {
+                                    found = true;
+                                    break;
+                                }
+                            }
+                            if (!found) {
+                                readers.add(subReader);
+                            }
+                        }
+                        if (!readers.isEmpty()) {
+                            // we don't want to close the inner readers, just increase ref on them
+                            newSearcher = new ExtendedIndexSearcher(new MultiReader(readers.toArray(new IndexReader[readers.size()]), false));
+                            closeNewSearcher = true;
+                        }
+                    }
+
+                    if (newSearcher != null) {
+                        IndicesWarmer.WarmerContext context = new IndicesWarmer.WarmerContext(shardId,
+                                new SimpleSearcher(searcher),
+                                new SimpleSearcher(newSearcher));
+                        warmer.warm(context);
+                    }
+                } catch (Exception e) {
+                    if (!closed) {
+                        logger.warn("failed to prepare/warm", e);
+                    }
+                } finally {
+                    // no need to release the fullSearcher, nothing really is done...
+                    if (currentSearcher != null) {
+                        currentSearcher.release();
+                    }
+                    if (newSearcher != null && closeNewSearcher) {
+                        try {
+                            newSearcher.close();
+                        } catch (Exception e) {
+                            // ignore
+                        }
+                        try {
+                            // close the reader as well, since closing the searcher does nothing
+                            // and we want to decRef the inner readers
+                            newSearcher.getIndexReader().close();
+                        } catch (IOException e) {
+                            // ignore
+                        }
+                    }
+                }
             }
             return searcher;
         }

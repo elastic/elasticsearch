@@ -36,7 +36,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.internal.InternalSearchRequest;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -54,10 +59,13 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
 
     private final IndicesService indicesService;
 
+    private final ScriptService scriptService;
+
     @Inject
-    public TransportValidateQueryAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, IndicesService indicesService) {
+    public TransportValidateQueryAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, IndicesService indicesService, ScriptService scriptService) {
         super(settings, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
+        this.scriptService = scriptService;
     }
 
     @Override
@@ -128,8 +136,8 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
             } else {
                 ShardValidateQueryResponse validateQueryResponse = (ShardValidateQueryResponse) shardResponse;
                 valid = valid && validateQueryResponse.valid();
-                if(request.explain()) {
-                    if(queryExplanations == null) {
+                if (request.explain()) {
+                    if (queryExplanations == null) {
                         queryExplanations = newArrayList();
                     }
                     queryExplanations.add(new QueryExplanation(
@@ -148,16 +156,23 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
     @Override
     protected ShardValidateQueryResponse shardOperation(ShardValidateQueryRequest request) throws ElasticSearchException {
         IndexQueryParserService queryParserService = indicesService.indexServiceSafe(request.index()).queryParserService();
+        IndexService indexService = indicesService.indexServiceSafe(request.index());
+        IndexShard indexShard = indexService.shardSafe(request.shardId());
+
         boolean valid;
         String explanation = null;
         String error = null;
         if (request.querySource().length() == 0) {
             valid = true;
         } else {
+            SearchContext.setCurrent(new SearchContext(0,
+                    new InternalSearchRequest().types(request.types()),
+                    null, indexShard.searcher(), indexService, indexShard,
+                    scriptService));
             try {
-                ParsedQuery parsedQuery = queryParserService.parse(request.querySource().bytes(), request.querySource().offset(), request.querySource().length());
+                ParsedQuery parsedQuery = queryParserService.parse(request.querySource());
                 valid = true;
-                if(request.explain()) {
+                if (request.explain()) {
                     explanation = parsedQuery.query().toString();
                 }
             } catch (QueryParsingException e) {
@@ -166,6 +181,9 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
             } catch (AssertionError e) {
                 valid = false;
                 error = e.getMessage();
+            } finally {
+                SearchContext.current().release();
+                SearchContext.removeCurrent();
             }
         }
         return new ShardValidateQueryResponse(request.index(), request.shardId(), valid, explanation, error);

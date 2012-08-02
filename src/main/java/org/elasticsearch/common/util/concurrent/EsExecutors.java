@@ -20,9 +20,11 @@
 package org.elasticsearch.common.util.concurrent;
 
 import jsr166y.LinkedTransferQueue;
+import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  *
@@ -56,44 +58,37 @@ public class EsExecutors {
         } else {
             name = "elasticsearch[" + name + "]";
         }
-        return name + namePrefix;
+        return name + "[" + namePrefix + "]";
     }
 
     public static ThreadFactory daemonThreadFactory(Settings settings, String namePrefix) {
         return daemonThreadFactory(threadName(settings, namePrefix));
     }
 
-    /**
-     * A priority based thread factory, for all Thread priority constants:
-     * <tt>Thread.MIN_PRIORITY, Thread.NORM_PRIORITY, Thread.MAX_PRIORITY</tt>;
-     * <p/>
-     * This factory is used instead of Executers.DefaultThreadFactory to allow
-     * manipulation of priority and thread owner name.
-     *
-     * @param namePrefix a name prefix for this thread
-     * @return a thread factory based on given priority.
-     */
     public static ThreadFactory daemonThreadFactory(String namePrefix) {
-        final ThreadFactory f = java.util.concurrent.Executors.defaultThreadFactory();
-        final String o = namePrefix + "-";
+        return new EsThreadFactory(namePrefix);
+    }
 
-        return new ThreadFactory() {
-            public Thread newThread(Runnable r) {
-                Thread t = f.newThread(r);
+    static class EsThreadFactory implements ThreadFactory {
+        final ThreadGroup group;
+        final AtomicInteger threadNumber = new AtomicInteger(1);
+        final String namePrefix;
 
-                /*
-                 * Thread name: owner-pool-N-thread-M, where N is the sequence
-                 * number of this factory, and M is the sequence number of the
-                 * thread created by this factory.
-                 */
-                t.setName(o + t.getName());
+        public EsThreadFactory(String namePrefix) {
+            this.namePrefix = namePrefix;
+            SecurityManager s = System.getSecurityManager();
+            group = (s != null) ? s.getThreadGroup() :
+                    Thread.currentThread().getThreadGroup();
+        }
 
-                /* override default definition t.setDaemon(false); */
-                t.setDaemon(true);
-
-                return t;
-            }
-        };
+        @Override
+        public Thread newThread(Runnable r) {
+            Thread t = new Thread(group, r,
+                    namePrefix + "[T#" + threadNumber.getAndIncrement() + "]",
+                    0);
+            t.setDaemon(true);
+            return t;
+        }
     }
 
     /**
@@ -150,7 +145,7 @@ public class EsExecutors {
                 executor.getQueue().put(r);
             } catch (InterruptedException e) {
                 //should never happen since we never wait
-                throw new RejectedExecutionException(e);
+                throw new EsRejectedExecutionException(e);
             }
         }
     }
@@ -160,7 +155,9 @@ public class EsExecutors {
      * queue, waiting if necessary up to the specified wait time for space to become
      * available.
      */
-    static class TimedBlockingPolicy implements RejectedExecutionHandler {
+    static class TimedBlockingPolicy implements XRejectedExecutionHandler {
+
+        private final CounterMetric rejected = new CounterMetric();
         private final long waitTime;
 
         /**
@@ -173,12 +170,18 @@ public class EsExecutors {
         public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
             try {
                 boolean successful = executor.getQueue().offer(r, waitTime, TimeUnit.MILLISECONDS);
-                if (!successful)
-                    throw new RejectedExecutionException("Rejected execution after waiting "
-                            + waitTime + " ms for task [" + r.getClass() + "] to be executed.");
+                if (!successful) {
+                    rejected.inc();
+                    throw new EsRejectedExecutionException();
+                }
             } catch (InterruptedException e) {
-                throw new RejectedExecutionException(e);
+                throw new EsRejectedExecutionException(e);
             }
+        }
+
+        @Override
+        public long rejected() {
+            return rejected.count();
         }
     }
 }

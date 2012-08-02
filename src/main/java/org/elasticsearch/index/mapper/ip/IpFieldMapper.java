@@ -132,7 +132,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
                             float boost, boolean omitNorms, boolean omitTermFreqAndPositions,
                             String nullValue) {
         super(names, precisionStep, null, index, store, boost, omitNorms, omitTermFreqAndPositions,
-                new NamedAnalyzer("_ip/" + precisionStep, new NumericIpAnalyzer(precisionStep)),
+                false, new NamedAnalyzer("_ip/" + precisionStep, new NumericIpAnalyzer(precisionStep)),
                 new NamedAnalyzer("_ip/max", new NumericIpAnalyzer(Integer.MAX_VALUE)));
         this.nullValue = nullValue;
     }
@@ -239,7 +239,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
-    protected Fieldable parseCreateField(ParseContext context) throws IOException {
+    protected Fieldable innerParseCreateField(ParseContext context) throws IOException {
         String ipAsString;
         if (context.externalValueSet()) {
             ipAsString = (String) context.externalValue();

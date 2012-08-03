@@ -33,6 +33,7 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.FilterClause;
 import org.apache.lucene.search.XTermsFilter;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.search.TermFilter;
@@ -86,7 +87,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     private volatile Map<String, FieldMappers> nameFieldMappers = ImmutableMap.of();
     private volatile Map<String, FieldMappers> indexNameFieldMappers = ImmutableMap.of();
     private volatile Map<String, FieldMappers> fullNameFieldMappers = ImmutableMap.of();
-    private volatile Map<String, ObjectMappers> objectMappers = ImmutableMap.of();
+    private volatile Map<String, ObjectMappers> fullPathObjectMappers = ImmutableMap.of();
     private boolean hasNested = false; // updated dynamically to true when a nested object is added
 
     private final DocumentMapperParser documentParser;
@@ -206,13 +207,81 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             // since we get new instances of those, and when we remove, we remove
             // by instance equality
             DocumentMapper oldMapper = mappers.get(mapper.type());
-            mapper.addFieldMapperListener(fieldMapperListener, true);
-            mapper.addObjectMapperListener(objectMapperListener, true);
+
+            FieldMapperListener.Aggregator fieldMappersAgg = new FieldMapperListener.Aggregator();
+            mapper.traverse(fieldMappersAgg);
+            addFieldMappers(fieldMappersAgg.fieldMappers.toArray(new FieldMapper[fieldMappersAgg.fieldMappers.size()]));
+            mapper.addFieldMapperListener(fieldMapperListener, false);
+
+            ObjectMapperListener.Aggregator objectMappersAgg = new ObjectMapperListener.Aggregator();
+            mapper.traverse(objectMappersAgg);
+            addObjectMappers(objectMappersAgg.objectMappers.toArray(new ObjectMapper[objectMappersAgg.objectMappers.size()]));
+            mapper.addObjectMapperListener(objectMapperListener, false);
+
             mappers = newMapBuilder(mappers).put(mapper.type(), mapper).map();
             if (oldMapper != null) {
-                removeObjectFieldMappers(oldMapper);
+                removeObjectAndFieldMappers(oldMapper);
                 oldMapper.close();
             }
+        }
+    }
+
+    private void addObjectMappers(ObjectMapper[] objectMappers) {
+        synchronized (mutex) {
+            MapBuilder<String, ObjectMappers> fullPathObjectMappers = newMapBuilder(this.fullPathObjectMappers);
+            for (ObjectMapper objectMapper : objectMappers) {
+                ObjectMappers mappers = fullPathObjectMappers.get(objectMapper.fullPath());
+                if (mappers == null) {
+                    mappers = new ObjectMappers(objectMapper);
+                } else {
+                    mappers = mappers.concat(objectMapper);
+                }
+                fullPathObjectMappers.put(objectMapper.fullPath(), mappers);
+                // update the hasNested flag
+                if (objectMapper.nested().isNested()) {
+                    hasNested = true;
+                }
+            }
+            this.fullPathObjectMappers = fullPathObjectMappers.map();
+        }
+    }
+
+    private void addFieldMappers(FieldMapper[] fieldMappers) {
+        synchronized (mutex) {
+            MapBuilder<String, FieldMappers> nameFieldMappers = newMapBuilder(this.nameFieldMappers);
+            MapBuilder<String, FieldMappers> indexNameFieldMappers = newMapBuilder(this.indexNameFieldMappers);
+            MapBuilder<String, FieldMappers> fullNameFieldMappers = newMapBuilder(this.fullNameFieldMappers);
+            for (FieldMapper fieldMapper : fieldMappers) {
+                FieldMappers mappers = nameFieldMappers.get(fieldMapper.names().name());
+                if (mappers == null) {
+                    mappers = new FieldMappers(fieldMapper);
+                } else {
+                    mappers = mappers.concat(fieldMapper);
+                }
+                nameFieldMappers.put(fieldMapper.names().name(), mappers);
+
+
+                mappers = indexNameFieldMappers.get(fieldMapper.names().indexName());
+                if (mappers == null) {
+                    mappers = new FieldMappers(fieldMapper);
+                } else {
+                    mappers = mappers.concat(fieldMapper);
+                }
+                indexNameFieldMappers.put(fieldMapper.names().indexName(), mappers);
+
+
+                mappers = fullNameFieldMappers.get(fieldMapper.names().fullName());
+                if (mappers == null) {
+                    mappers = new FieldMappers(fieldMapper);
+                } else {
+                    mappers = mappers.concat(fieldMapper);
+                }
+                fullNameFieldMappers.put(fieldMapper.names().fullName(), mappers);
+            }
+
+            this.nameFieldMappers = nameFieldMappers.map();
+            this.indexNameFieldMappers = indexNameFieldMappers.map();
+            this.fullNameFieldMappers = fullNameFieldMappers.map();
         }
     }
 
@@ -224,11 +293,11 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             }
             docMapper.close();
             mappers = newMapBuilder(mappers).remove(type).map();
-            removeObjectFieldMappers(docMapper);
+            removeObjectAndFieldMappers(docMapper);
         }
     }
 
-    private void removeObjectFieldMappers(DocumentMapper docMapper) {
+    private void removeObjectAndFieldMappers(DocumentMapper docMapper) {
         // we need to remove those mappers
         for (FieldMapper mapper : docMapper.mappers()) {
             FieldMappers mappers = nameFieldMappers.get(mapper.names().name());
@@ -263,13 +332,13 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         }
 
         for (ObjectMapper mapper : docMapper.objectMappers().values()) {
-            ObjectMappers mappers = objectMappers.get(mapper.fullPath());
+            ObjectMappers mappers = fullPathObjectMappers.get(mapper.fullPath());
             if (mappers != null) {
                 mappers = mappers.remove(mapper);
                 if (mappers.isEmpty()) {
-                    objectMappers = newMapBuilder(objectMappers).remove(mapper.fullPath()).map();
+                    fullPathObjectMappers = newMapBuilder(fullPathObjectMappers).remove(mapper.fullPath()).map();
                 } else {
-                    objectMappers = newMapBuilder(objectMappers).put(mapper.fullPath(), mappers).map();
+                    fullPathObjectMappers = newMapBuilder(fullPathObjectMappers).put(mapper.fullPath(), mappers).map();
                 }
             }
         }
@@ -403,7 +472,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
      * Returns objects mappers based on the full path of the object.
      */
     public ObjectMappers objectMapper(String path) {
-        return objectMappers.get(path);
+        return fullPathObjectMappers.get(path);
     }
 
     public Set<String> simpleMatchToIndexNames(String pattern) {
@@ -977,49 +1046,14 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     class InternalFieldMapperListener implements FieldMapperListener {
         @Override
         public void fieldMapper(FieldMapper fieldMapper) {
-            synchronized (mutex) {
-                FieldMappers mappers = nameFieldMappers.get(fieldMapper.names().name());
-                if (mappers == null) {
-                    mappers = new FieldMappers(fieldMapper);
-                } else {
-                    mappers = mappers.concat(fieldMapper);
-                }
-
-                nameFieldMappers = newMapBuilder(nameFieldMappers).put(fieldMapper.names().name(), mappers).map();
-
-                mappers = indexNameFieldMappers.get(fieldMapper.names().indexName());
-                if (mappers == null) {
-                    mappers = new FieldMappers(fieldMapper);
-                } else {
-                    mappers = mappers.concat(fieldMapper);
-                }
-                indexNameFieldMappers = newMapBuilder(indexNameFieldMappers).put(fieldMapper.names().indexName(), mappers).map();
-
-                mappers = fullNameFieldMappers.get(fieldMapper.names().fullName());
-                if (mappers == null) {
-                    mappers = new FieldMappers(fieldMapper);
-                } else {
-                    mappers = mappers.concat(fieldMapper);
-                }
-                fullNameFieldMappers = newMapBuilder(fullNameFieldMappers).put(fieldMapper.names().fullName(), mappers).map();
-            }
+            addFieldMappers(new FieldMapper[]{fieldMapper});
         }
     }
 
     class InternalObjectMapperListener implements ObjectMapperListener {
         @Override
         public void objectMapper(ObjectMapper objectMapper) {
-            ObjectMappers mappers = objectMappers.get(objectMapper.fullPath());
-            if (mappers == null) {
-                mappers = new ObjectMappers(objectMapper);
-            } else {
-                mappers = mappers.concat(objectMapper);
-            }
-            objectMappers = newMapBuilder(objectMappers).put(objectMapper.fullPath(), mappers).map();
-            // update the hasNested flag
-            if (objectMapper.nested().isNested()) {
-                hasNested = true;
-            }
+            addObjectMappers(new ObjectMapper[]{objectMapper});
         }
     }
 }

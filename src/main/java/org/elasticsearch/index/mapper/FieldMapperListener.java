@@ -19,10 +19,23 @@
 
 package org.elasticsearch.index.mapper;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  *
  */
 public interface FieldMapperListener {
+
+    public static class Aggregator implements FieldMapperListener {
+
+        public final List<FieldMapper> fieldMappers = new ArrayList<FieldMapper>();
+
+        @Override
+        public void fieldMapper(FieldMapper fieldMapper) {
+            fieldMappers.add(fieldMapper);
+        }
+    }
 
     void fieldMapper(FieldMapper fieldMapper);
 }

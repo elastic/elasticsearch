@@ -545,7 +545,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                         }
                     }
                 } catch (Exception e) {
-                    logger.debug("");
+                    logger.debug("failed to load global state from [{}]", e, stateFile.getAbsolutePath());
                 }
             }
         }

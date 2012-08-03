@@ -536,13 +536,17 @@ public class DocumentMapper implements ToXContent {
     public void addFieldMapperListener(FieldMapperListener fieldMapperListener, boolean includeExisting) {
         fieldMapperListeners.add(fieldMapperListener);
         if (includeExisting) {
-            for (RootMapper rootMapper : rootMappersOrdered) {
-                if (!rootMapper.includeInObject() && rootMapper instanceof FieldMapper) {
-                    fieldMapperListener.fieldMapper((FieldMapper) rootMapper);
-                }
-            }
-            rootObjectMapper.traverse(fieldMapperListener);
+            traverse(fieldMapperListener);
         }
+    }
+
+    public void traverse(FieldMapperListener listener) {
+        for (RootMapper rootMapper : rootMappersOrdered) {
+            if (!rootMapper.includeInObject() && rootMapper instanceof FieldMapper) {
+                listener.fieldMapper((FieldMapper) rootMapper);
+            }
+        }
+        rootObjectMapper.traverse(listener);
     }
 
     public void addObjectMapper(ObjectMapper objectMapper) {
@@ -560,8 +564,12 @@ public class DocumentMapper implements ToXContent {
     public void addObjectMapperListener(ObjectMapperListener objectMapperListener, boolean includeExisting) {
         objectMapperListeners.add(objectMapperListener);
         if (includeExisting) {
-            rootObjectMapper.traverse(objectMapperListener);
+            traverse(objectMapperListener);
         }
+    }
+
+    public void traverse(ObjectMapperListener listener) {
+        rootObjectMapper.traverse(listener);
     }
 
     public synchronized MergeResult merge(DocumentMapper mergeWith, MergeFlags mergeFlags) {

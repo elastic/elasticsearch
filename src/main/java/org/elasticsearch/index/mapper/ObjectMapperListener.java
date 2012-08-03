@@ -21,10 +21,23 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  *
  */
 public interface ObjectMapperListener {
+
+    public static class Aggregator implements ObjectMapperListener {
+
+        public final List<ObjectMapper> objectMappers = new ArrayList<ObjectMapper>();
+
+        @Override
+        public void objectMapper(ObjectMapper objectMapper) {
+            objectMappers.add(objectMapper);
+        }
+    }
 
     void objectMapper(ObjectMapper objectMapper);
 }

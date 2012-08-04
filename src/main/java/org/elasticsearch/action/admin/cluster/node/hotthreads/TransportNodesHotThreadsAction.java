@@ -50,7 +50,7 @@ public class TransportNodesHotThreadsAction extends TransportNodesOperationActio
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.CACHE;
+        return ThreadPool.Names.GENERIC;
     }
 
     @Override

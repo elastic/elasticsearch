@@ -132,8 +132,14 @@ public class QueryPhase implements SearchPhase {
                                 break;
                             }
                             // if we did not find enough docs, check if it make sense to search further
-                            if (topDocs.totalHits <= numDocs) {
+                            if(topDocsPhase instanceof TopChildrenQuery){
+                              if (topDocsPhase.numHits() <= numDocs) {
                                 break;
+                              }
+                            }else{
+                              if (topDocs.totalHits <= numDocs) {
+                                  break;
+                              }
                             }
                             // if not, update numDocs, and search again
                             numDocs *= topDocsPhase.incrementalFactor();

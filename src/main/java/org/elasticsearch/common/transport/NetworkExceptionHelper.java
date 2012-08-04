@@ -58,4 +58,11 @@ public class NetworkExceptionHelper {
         }
         return false;
     }
+    
+    public static boolean isWrongPortException(Throwable e) {
+        if (e instanceof WrongPortException) {
+            return true;
+        }
+        return false;
+    }    
 }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport.netty;
 
+import org.elasticsearch.common.transport.WrongPortException;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticSearchException;
@@ -69,8 +70,10 @@ import static org.elasticsearch.common.network.NetworkService.TcpSettings.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.transport.NetworkExceptionHelper.isCloseConnectionException;
 import static org.elasticsearch.common.transport.NetworkExceptionHelper.isConnectException;
+import static org.elasticsearch.common.transport.NetworkExceptionHelper.isWrongPortException;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
+import org.jboss.netty.buffer.ChannelBuffers;
 
 /**
  * There are 3 types of connections per node, low/med/high. Low if for batch oriented APIs (like recovery or
@@ -475,8 +478,13 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             if (logger.isTraceEnabled()) {
                 logger.trace("(Ignoring) Exception caught on netty layer [" + ctx.getChannel() + "]", e.getCause());
             }
+        } else if (isWrongPortException(e.getCause())) {
+            // send wrong port message and close channel
+            Channel channel = ctx.getChannel();            
+            channel.write(ChannelBuffers.copiedBuffer(e.getCause().getMessage().getBytes()));
+            channel.close();        
         } else {
-            logger.warn("Exception caught on netty layer [" + ctx.getChannel() + "]", e.getCause());
+            logger.warn("Exception caught on netty layer [" + ctx.getChannel() + "]", e.getCause());            
         }
     }
 

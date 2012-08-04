@@ -95,7 +95,14 @@ public class HotThreads {
                     continue;
                 }
                 long cpu = threadBean.getThreadCpuTime(threadId);
+                if (cpu == -1) {
+                    continue;
+                }
                 ThreadInfo info = threadBean.getThreadInfo(threadId, 0);
+                System.out.println(info.getThreadName());
+                if (info == null) {
+                    continue;
+                }
                 threadInfos.put(threadId, new MyThreadInfo(cpu, info));
             }
             Thread.sleep(interval.millis());
@@ -105,10 +112,20 @@ public class HotThreads {
                     continue;
                 }
                 long cpu = threadBean.getThreadCpuTime(threadId);
+                if (cpu == -1) {
+                    threadInfos.remove(threadId);
+                    continue;
+                }
                 ThreadInfo info = threadBean.getThreadInfo(threadId, 0);
+                if (info == null) {
+                    threadInfos.remove(threadId);
+                    continue;
+                }
                 MyThreadInfo data = threadInfos.get(threadId);
                 if (data != null) {
                     data.setDelta(cpu, info);
+                } else {
+                    threadInfos.remove(threadId);
                 }
             }
             // sort by delta CPU time on thread.
@@ -126,18 +143,6 @@ public class HotThreads {
                     throw new IllegalArgumentException();
                 }
             });
-//        for(MyThreadInfo inf : hotties) {
-//            if(inf.deltaDone) {
-//                System.out.format("%5.2f %d/%d %d/%d %s%n",
-//                    inf.cpuTime/1E7,
-//                    inf.blockedCount,
-//                    inf.blockedTime,
-//                    inf.waitedCount,
-//                    inf.waitedtime,
-//                    inf.info.getThreadName()
-//                    );
-//            }
-//        }
             // analyse N stack traces for M busiest threads
             long[] ids = new long[busiestThreads];
             for (int i = 0; i < busiestThreads; i++) {
@@ -150,15 +155,16 @@ public class HotThreads {
                 Thread.sleep(threadElementsSnapshotDelay.millis());
             }
             for (int t = 0; t < busiestThreads; t++) {
-                double value = -1;
+                long time = 0;
                 if ("cpu".equals(type)) {
-                    value = hotties.get(t).cpuTime / 1E7;
+                    time = hotties.get(t).cpuTime;
                 } else if ("wait".equals(type)) {
-                    value = hotties.get(t).waitedTime / 1E7;
+                    time = hotties.get(t).waitedTime;
                 } else if ("block".equals(type)) {
-                    value = hotties.get(t).blockedTime / 1E7;
+                    time = hotties.get(t).blockedTime;
                 }
-                sb.append(String.format("%n%4.1f%% %s usage by thread '%s'%n", value, type, allInfos[0][t].getThreadName()));
+                double percent = (((double) time) / interval.nanos()) * 100;
+                sb.append(String.format("%n%4.1f%% (%s out of %s) %s usage by thread '%s'%n", percent, TimeValue.timeValueNanos(time), interval, type, allInfos[0][t].getThreadName()));
                 // for each snapshot (2nd array index) find later snapshot for same thread with max number of
                 // identical StackTraceElements (starting from end of each)
                 boolean[] done = new boolean[threadElementsSnapshotCount];
@@ -235,6 +241,7 @@ public class HotThreads {
             waitedCount = info.getWaitedCount();
             waitedTime = info.getWaitedTime();
             this.cpuTime = cpuTime;
+            this.info = info;
         }
 
         void setDelta(long cpuTime, ThreadInfo info) {

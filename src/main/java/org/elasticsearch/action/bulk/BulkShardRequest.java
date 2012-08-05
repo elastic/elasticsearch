@@ -40,7 +40,7 @@ public class BulkShardRequest extends ShardReplicationOperationRequest<BulkShard
     BulkShardRequest() {
     }
 
-    BulkShardRequest(String index, int shardId, boolean refresh, BulkItemRequest[] items) {
+    public BulkShardRequest(String index, int shardId, boolean refresh, BulkItemRequest[] items) {
         this.index = index;
         this.shardId = shardId;
         this.items = items;

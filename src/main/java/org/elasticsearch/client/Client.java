@@ -50,6 +50,7 @@ import org.elasticsearch.action.termvector.*;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.action.updatebyquery.*;
 import org.elasticsearch.common.Nullable;
 
 /**
@@ -167,6 +168,30 @@ public interface Client {
      * Updates a document based on a script.
      */
     UpdateRequestBuilder prepareUpdate(String index, String type, String id);
+
+    /**
+     * Updates documents that match a query specified in the request. The update is based on a script.
+     *
+     * @param request The update by query request.
+     * @param listener A listener that notifies the caller when the update by query operation has completed
+     */
+    void updateByQuery(UpdateByQueryRequest request, ActionListener<UpdateByQueryResponse> listener);
+
+    /**
+     * Performs the same action as in {@link #updateByQuery(org.elasticsearch.action.updatebyquery.UpdateByQueryRequest,
+     * org.elasticsearch.action.ActionListener)}, but works with an {@link ActionFuture} instead of a {@link ActionListener}.
+     *
+     * @param request The update query request
+     * @return The result future
+     */
+    ActionFuture<UpdateByQueryResponse> updateByQuery(UpdateByQueryRequest request);
+
+    /**
+     * Prepares a update for documents matching a query using a script.
+     *
+     * @return a builder instance
+     */
+    UpdateByQueryRequestBuilder prepareUpdateByQuery();
 
     /**
      * Index a document associated with a given index and type.

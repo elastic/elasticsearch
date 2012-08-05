@@ -54,6 +54,10 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.CacheRecyclerModule;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
+import org.elasticsearch.action.updatebyquery.IndexUpdateByQueryRequest;
+import org.elasticsearch.action.updatebyquery.IndexUpdateByQueryResponse;
+import org.elasticsearch.action.updatebyquery.UpdateByQueryRequest;
+import org.elasticsearch.action.updatebyquery.UpdateByQueryResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.client.transport.support.InternalTransportClient;
@@ -338,6 +342,16 @@ public class TransportClient extends AbstractClient {
     @Override
     public void update(UpdateRequest request, ActionListener<UpdateResponse> listener) {
         internalClient.update(request, listener);
+    }
+
+    @Override
+    public void updateByQuery(UpdateByQueryRequest request, ActionListener<UpdateByQueryResponse> listener) {
+        internalClient.updateByQuery(request, listener);
+    }
+
+    @Override
+    public ActionFuture<UpdateByQueryResponse> updateByQuery(UpdateByQueryRequest request) {
+        return internalClient.updateByQuery(request);
     }
 
     @Override

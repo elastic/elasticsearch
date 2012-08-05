@@ -37,7 +37,7 @@ public class BulkShardResponse extends ActionResponse {
     BulkShardResponse() {
     }
 
-    BulkShardResponse(ShardId shardId, BulkItemResponse[] responses) {
+    public BulkShardResponse(ShardId shardId, BulkItemResponse[] responses) {
         this.shardId = shardId;
         this.responses = responses;
     }

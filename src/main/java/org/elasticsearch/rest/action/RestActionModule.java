@@ -102,6 +102,7 @@ import org.elasticsearch.rest.action.suggest.RestSuggestAction;
 import org.elasticsearch.rest.action.termvector.RestMultiTermVectorsAction;
 import org.elasticsearch.rest.action.termvector.RestTermVectorAction;
 import org.elasticsearch.rest.action.update.RestUpdateAction;
+import org.elasticsearch.rest.action.updatebyquery.RestUpdateByQueryAction;
 
 import java.util.List;
 
@@ -199,6 +200,7 @@ public class RestActionModule extends AbstractModule {
         bind(RestMultiTermVectorsAction.class).asEagerSingleton();
         bind(RestBulkAction.class).asEagerSingleton();
         bind(RestUpdateAction.class).asEagerSingleton();
+        bind(RestUpdateByQueryAction.class).asEagerSingleton();
         bind(RestPercolateAction.class).asEagerSingleton();
         bind(RestMultiPercolateAction.class).asEagerSingleton();
 

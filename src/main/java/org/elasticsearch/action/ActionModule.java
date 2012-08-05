@@ -150,6 +150,9 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.termvector.*;
 import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateAction;
+import org.elasticsearch.action.updatebyquery.TransportUpdateByQueryAction;
+import org.elasticsearch.action.updatebyquery.TransportShardUpdateByQueryAction;
+import org.elasticsearch.action.updatebyquery.UpdateByQueryAction;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
 
@@ -262,6 +265,8 @@ public class ActionModule extends AbstractModule {
         registerAction(CountAction.INSTANCE, TransportCountAction.class);
         registerAction(SuggestAction.INSTANCE, TransportSuggestAction.class);
         registerAction(UpdateAction.INSTANCE, TransportUpdateAction.class);
+        registerAction(UpdateByQueryAction.INSTANCE, TransportUpdateByQueryAction.class,
+                TransportShardUpdateByQueryAction.class);
         registerAction(MultiGetAction.INSTANCE, TransportMultiGetAction.class,
                 TransportShardMultiGetAction.class);
         registerAction(BulkAction.INSTANCE, TransportBulkAction.class,

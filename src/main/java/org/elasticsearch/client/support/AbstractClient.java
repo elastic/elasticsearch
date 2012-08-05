@@ -59,6 +59,7 @@ import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.action.updatebyquery.*;
 import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.Nullable;
 
@@ -115,6 +116,21 @@ public abstract class AbstractClient implements InternalClient {
     @Override
     public UpdateRequestBuilder prepareUpdate(String index, String type, String id) {
         return new UpdateRequestBuilder(this, index, type, id);
+    }
+
+    @Override
+    public void updateByQuery(UpdateByQueryRequest request, ActionListener<UpdateByQueryResponse> listener) {
+        execute(UpdateByQueryAction.INSTANCE, request, listener);
+    }
+
+    @Override
+    public ActionFuture<UpdateByQueryResponse> updateByQuery(UpdateByQueryRequest request) {
+        return execute(UpdateByQueryAction.INSTANCE, request);
+    }
+
+    @Override
+    public UpdateByQueryRequestBuilder prepareUpdateByQuery() {
+        return new UpdateByQueryRequestBuilder(this);
     }
 
     @Override

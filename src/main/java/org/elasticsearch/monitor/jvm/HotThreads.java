@@ -99,7 +99,6 @@ public class HotThreads {
                     continue;
                 }
                 ThreadInfo info = threadBean.getThreadInfo(threadId, 0);
-                System.out.println(info.getThreadName());
                 if (info == null) {
                     continue;
                 }

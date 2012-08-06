@@ -109,7 +109,6 @@ public class QueryPhase implements SearchPhase {
             for (ScopePhase scopePhase : searchContext.scopePhases()) {
                 if (scopePhase instanceof ScopePhase.TopDocsPhase) {
                     ScopePhase.TopDocsPhase topDocsPhase = (ScopePhase.TopDocsPhase) scopePhase;
-                    topDocsPhase.clear();
                     int numDocs = (searchContext.from() + searchContext.size());
                     if (numDocs == 0) {
                         numDocs = 1;
@@ -117,6 +116,7 @@ public class QueryPhase implements SearchPhase {
                     try {
                         numDocs *= topDocsPhase.factor();
                         while (true) {
+                            topDocsPhase.clear();
                             if (topDocsPhase.scope() != null) {
                                 searchContext.searcher().processingScope(topDocsPhase.scope());
                             }

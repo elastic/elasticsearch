@@ -33,6 +33,7 @@ import java.util.Set;
  */
 class RecoveryCleanFilesRequest implements Streamable {
 
+    private long recoveryId;
     private ShardId shardId;
 
     private Set<String> snapshotFiles;
@@ -40,9 +41,14 @@ class RecoveryCleanFilesRequest implements Streamable {
     RecoveryCleanFilesRequest() {
     }
 
-    RecoveryCleanFilesRequest(ShardId shardId, Set<String> snapshotFiles) {
+    RecoveryCleanFilesRequest(long recoveryId, ShardId shardId, Set<String> snapshotFiles) {
+        this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.snapshotFiles = snapshotFiles;
+    }
+
+    public long recoveryId() {
+        return this.recoveryId;
     }
 
     public ShardId shardId() {
@@ -55,6 +61,7 @@ class RecoveryCleanFilesRequest implements Streamable {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        recoveryId = in.readLong();
         shardId = ShardId.readShardId(in);
         int size = in.readVInt();
         snapshotFiles = Sets.newHashSetWithExpectedSize(size);
@@ -65,6 +72,7 @@ class RecoveryCleanFilesRequest implements Streamable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeLong(recoveryId);
         shardId.writeTo(out);
         out.writeVInt(snapshotFiles.size());
         for (String snapshotFile : snapshotFiles) {

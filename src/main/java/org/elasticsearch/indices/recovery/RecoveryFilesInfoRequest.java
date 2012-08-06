@@ -33,7 +33,8 @@ import java.util.List;
  */
 class RecoveryFilesInfoRequest implements Streamable {
 
-    ShardId shardId;
+    private long recoveryId;
+    private ShardId shardId;
 
     List<String> phase1FileNames;
     List<Long> phase1FileSizes;
@@ -45,7 +46,8 @@ class RecoveryFilesInfoRequest implements Streamable {
     RecoveryFilesInfoRequest() {
     }
 
-    RecoveryFilesInfoRequest(ShardId shardId, List<String> phase1FileNames, List<Long> phase1FileSizes, List<String> phase1ExistingFileNames, List<Long> phase1ExistingFileSizes, long phase1TotalSize, long phase1ExistingTotalSize) {
+    RecoveryFilesInfoRequest(long recoveryId, ShardId shardId, List<String> phase1FileNames, List<Long> phase1FileSizes, List<String> phase1ExistingFileNames, List<Long> phase1ExistingFileSizes, long phase1TotalSize, long phase1ExistingTotalSize) {
+        this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.phase1FileNames = phase1FileNames;
         this.phase1FileSizes = phase1FileSizes;
@@ -55,8 +57,17 @@ class RecoveryFilesInfoRequest implements Streamable {
         this.phase1ExistingTotalSize = phase1ExistingTotalSize;
     }
 
+    public long recoveryId() {
+        return this.recoveryId;
+    }
+
+    public ShardId shardId() {
+        return shardId;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        recoveryId = in.readLong();
         shardId = ShardId.readShardId(in);
         int size = in.readVInt();
         phase1FileNames = new ArrayList<String>(size);
@@ -88,6 +99,7 @@ class RecoveryFilesInfoRequest implements Streamable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeLong(recoveryId);
         shardId.writeTo(out);
 
         out.writeVInt(phase1FileNames.size());

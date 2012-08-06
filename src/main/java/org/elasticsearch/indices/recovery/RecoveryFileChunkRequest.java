@@ -34,6 +34,7 @@ import java.io.IOException;
  */
 class RecoveryFileChunkRequest implements Streamable {
 
+    private long recoveryId;
     private ShardId shardId;
     private String name;
     private long position;
@@ -44,13 +45,18 @@ class RecoveryFileChunkRequest implements Streamable {
     RecoveryFileChunkRequest() {
     }
 
-    RecoveryFileChunkRequest(ShardId shardId, String name, long position, long length, String checksum, BytesArray content) {
+    RecoveryFileChunkRequest(long recoveryId, ShardId shardId, String name, long position, long length, String checksum, BytesArray content) {
+        this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.name = name;
         this.position = position;
         this.length = length;
         this.checksum = checksum;
         this.content = content;
+    }
+
+    public long recoveryId() {
+        return this.recoveryId;
     }
 
     public ShardId shardId() {
@@ -86,6 +92,7 @@ class RecoveryFileChunkRequest implements Streamable {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        recoveryId = in.readLong();
         shardId = ShardId.readShardId(in);
         name = in.readUTF();
         position = in.readVLong();
@@ -98,6 +105,7 @@ class RecoveryFileChunkRequest implements Streamable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeLong(recoveryId);
         shardId.writeTo(out);
         out.writeUTF(name);
         out.writeVLong(position);

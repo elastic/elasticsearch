@@ -31,13 +31,20 @@ import java.io.IOException;
  */
 class RecoveryFinalizeRecoveryRequest implements Streamable {
 
+    private long recoveryId;
+
     private ShardId shardId;
 
     RecoveryFinalizeRecoveryRequest() {
     }
 
-    RecoveryFinalizeRecoveryRequest(ShardId shardId) {
+    RecoveryFinalizeRecoveryRequest(long recoveryId, ShardId shardId) {
+        this.recoveryId = recoveryId;
         this.shardId = shardId;
+    }
+
+    public long recoveryId() {
+        return this.recoveryId;
     }
 
     public ShardId shardId() {
@@ -46,11 +53,13 @@ class RecoveryFinalizeRecoveryRequest implements Streamable {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        recoveryId = in.readLong();
         shardId = ShardId.readShardId(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeLong(recoveryId);
         shardId.writeTo(out);
     }
 }

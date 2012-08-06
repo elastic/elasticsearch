@@ -495,27 +495,15 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
 
             if (indexService.hasShard(shardId)) {
                 InternalIndexShard indexShard = (InternalIndexShard) indexService.shard(shardId);
-                if (!shardRouting.equals(indexShard.routingEntry())) {
-                    ShardRouting currentRoutingEntry = indexShard.routingEntry();
-                    boolean needToDeleteCurrentShard = false;
-                    if (currentRoutingEntry.initializing() && shardRouting.initializing()) {
-                        // both are initializing, see if they are different instanceof of the shard routing, so they got switched on us
-                        if (currentRoutingEntry.primary() && !shardRouting.primary()) {
-                            needToDeleteCurrentShard = true;
-                        }
-                        // recovering from different nodes..., restart recovery
-                        if (currentRoutingEntry.relocatingNodeId() != null && shardRouting.relocatingNodeId() != null &&
-                                !currentRoutingEntry.relocatingNodeId().equals(shardRouting.relocatingNodeId())) {
-                            needToDeleteCurrentShard = true;
-                        }
-                    }
-                    if (needToDeleteCurrentShard) {
-                        if (logger.isDebugEnabled()) {
-                            logger.debug("[{}][{}] removing shard (different instance of it allocated on this node)", shardRouting.index(), shardRouting.id());
-                        }
-                        recoveryTarget.cancelRecovery(shardRouting.shardId());
-                        indexService.removeShard(shardRouting.id(), "removing shard (different instance of it allocated on this node)");
-                    }
+                ShardRouting currentRoutingEntry = indexShard.routingEntry();
+                // if the current and global routing are initializing, but are still not the same, its a different "shard" being allocated
+                // for example: a shard that recovers from one node and now needs to recover to another node,
+                //              or a replica allocated and then allocating a primary because the primary failed on another node
+                if (currentRoutingEntry.initializing() && shardRouting.initializing() && !currentRoutingEntry.equals(shardRouting)) {
+                    logger.debug("[{}][{}] removing shard (different instance of it allocated on this node, current [{}], global [{}])", shardRouting.index(), shardRouting.id(), currentRoutingEntry, shardRouting);
+                    // cancel recovery just in case we are in recovery (its fine if we are not in recovery, it will be a noop).
+                    recoveryTarget.cancelRecovery(shardRouting.shardId());
+                    indexService.removeShard(shardRouting.id(), "removing shard (different instance of it allocated on this node)");
                 }
             }
 

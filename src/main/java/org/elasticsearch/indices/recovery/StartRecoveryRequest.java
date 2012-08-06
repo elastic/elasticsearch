@@ -29,11 +29,16 @@ import org.elasticsearch.index.store.StoreFileMetaData;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  *
  */
 public class StartRecoveryRequest implements Streamable {
+
+    private static final AtomicLong recoveryIdGenerator = new AtomicLong();
+
+    private long recoveryId;
 
     private ShardId shardId;
 
@@ -58,11 +63,16 @@ public class StartRecoveryRequest implements Streamable {
      * @param existingFiles
      */
     public StartRecoveryRequest(ShardId shardId, DiscoveryNode sourceNode, DiscoveryNode targetNode, boolean markAsRelocated, Map<String, StoreFileMetaData> existingFiles) {
+        this.recoveryId = recoveryIdGenerator.incrementAndGet();
         this.shardId = shardId;
         this.sourceNode = sourceNode;
         this.targetNode = targetNode;
         this.markAsRelocated = markAsRelocated;
         this.existingFiles = existingFiles;
+    }
+
+    public long recoveryId() {
+        return this.recoveryId;
     }
 
     public ShardId shardId() {
@@ -87,6 +97,7 @@ public class StartRecoveryRequest implements Streamable {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        recoveryId = in.readLong();
         shardId = ShardId.readShardId(in);
         sourceNode = DiscoveryNode.readNode(in);
         targetNode = DiscoveryNode.readNode(in);
@@ -101,6 +112,7 @@ public class StartRecoveryRequest implements Streamable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeLong(recoveryId);
         shardId.writeTo(out);
         sourceNode.writeTo(out);
         targetNode.writeTo(out);

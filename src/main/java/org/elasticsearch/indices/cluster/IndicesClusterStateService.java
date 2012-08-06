@@ -57,6 +57,7 @@ import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
+import org.elasticsearch.indices.recovery.RecoveryStatus;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.indices.recovery.StartRecoveryRequest;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -495,27 +496,15 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
 
             if (indexService.hasShard(shardId)) {
                 InternalIndexShard indexShard = (InternalIndexShard) indexService.shard(shardId);
-                if (!shardRouting.equals(indexShard.routingEntry())) {
-                    ShardRouting currentRoutingEntry = indexShard.routingEntry();
-                    boolean needToDeleteCurrentShard = false;
-                    if (currentRoutingEntry.initializing() && shardRouting.initializing()) {
-                        // both are initializing, see if they are different instanceof of the shard routing, so they got switched on us
-                        if (currentRoutingEntry.primary() && !shardRouting.primary()) {
-                            needToDeleteCurrentShard = true;
-                        }
-                        // recovering from different nodes..., restart recovery
-                        if (currentRoutingEntry.relocatingNodeId() != null && shardRouting.relocatingNodeId() != null &&
-                                !currentRoutingEntry.relocatingNodeId().equals(shardRouting.relocatingNodeId())) {
-                            needToDeleteCurrentShard = true;
-                        }
-                    }
-                    if (needToDeleteCurrentShard) {
-                        if (logger.isDebugEnabled()) {
-                            logger.debug("[{}][{}] removing shard (different instance of it allocated on this node)", shardRouting.index(), shardRouting.id());
-                        }
-                        recoveryTarget.cancelRecovery(shardRouting.shardId());
-                        indexService.removeShard(shardRouting.id(), "removing shard (different instance of it allocated on this node)");
-                    }
+                ShardRouting currentRoutingEntry = indexShard.routingEntry();
+                // if the current and global routing are initializing, but are still not the same, its a different "shard" being allocated
+                // for example: a shard that recovers from one node and now needs to recover to another node,
+                //              or a replica allocated and then allocating a primary because the primary failed on another node
+                if (currentRoutingEntry.initializing() && shardRouting.initializing() && !currentRoutingEntry.equals(shardRouting)) {
+                    logger.debug("[{}][{}] removing shard (different instance of it allocated on this node, current [{}], global [{}])", shardRouting.index(), shardRouting.id(), currentRoutingEntry, shardRouting);
+                    // cancel recovery just in case we are in recovery (its fine if we are not in recovery, it will be a noop).
+                    recoveryTarget.cancelRecovery(indexShard);
+                    indexService.removeShard(shardRouting.id(), "removing shard (different instance of it allocated on this node)");
                 }
             }
 
@@ -607,7 +596,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     try {
                         // we are recovering a backup from a primary, so no need to mark it as relocated
                         final StartRecoveryRequest request = new StartRecoveryRequest(indexShard.shardId(), sourceNode, nodes.localNode(), false, indexShard.store().list());
-                        recoveryTarget.startRecovery(request, false, new PeerRecoveryListener(request, shardRouting, indexService));
+                        recoveryTarget.startRecovery(request, indexShard, new PeerRecoveryListener(request, shardRouting, indexService));
                     } catch (Exception e) {
                         handleRecoveryFailure(indexService, shardRouting, true, e);
                         break;
@@ -643,7 +632,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     // we don't mark this one as relocated at the end, requests in any case are routed to both when its relocating
                     // and that way we handle the edge case where its mark as relocated, and we might need to roll it back...
                     final StartRecoveryRequest request = new StartRecoveryRequest(indexShard.shardId(), sourceNode, nodes.localNode(), false, indexShard.store().list());
-                    recoveryTarget.startRecovery(request, false, new PeerRecoveryListener(request, shardRouting, indexService));
+                    recoveryTarget.startRecovery(request, indexShard, new PeerRecoveryListener(request, shardRouting, indexService));
                 } catch (Exception e) {
                     handleRecoveryFailure(indexService, shardRouting, true, e);
                 }
@@ -671,13 +660,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         }
 
         @Override
-        public void onRetryRecovery(TimeValue retryAfter) {
-            threadPool.schedule(retryAfter, ThreadPool.Names.GENERIC, new Runnable() {
-                @Override
-                public void run() {
-                    recoveryTarget.startRecovery(request, true, PeerRecoveryListener.this);
-                }
-            });
+        public void onRetryRecovery(TimeValue retryAfter, RecoveryStatus recoveryStatus) {
+            recoveryTarget.retryRecovery(request, recoveryStatus, PeerRecoveryListener.this);
         }
 
         @Override

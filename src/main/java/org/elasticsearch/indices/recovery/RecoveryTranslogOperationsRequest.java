@@ -35,15 +35,21 @@ import java.util.List;
  */
 class RecoveryTranslogOperationsRequest implements Streamable {
 
+    private long recoveryId;
     private ShardId shardId;
     private List<Translog.Operation> operations;
 
     RecoveryTranslogOperationsRequest() {
     }
 
-    RecoveryTranslogOperationsRequest(ShardId shardId, List<Translog.Operation> operations) {
+    RecoveryTranslogOperationsRequest(long recoveryId, ShardId shardId, List<Translog.Operation> operations) {
+        this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.operations = operations;
+    }
+
+    public long recoveryId() {
+        return this.recoveryId;
     }
 
     public ShardId shardId() {
@@ -56,6 +62,7 @@ class RecoveryTranslogOperationsRequest implements Streamable {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        recoveryId = in.readLong();
         shardId = ShardId.readShardId(in);
         int size = in.readVInt();
         operations = Lists.newArrayListWithExpectedSize(size);
@@ -66,6 +73,7 @@ class RecoveryTranslogOperationsRequest implements Streamable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeLong(recoveryId);
         shardId.writeTo(out);
         out.writeVInt(operations.size());
         for (Translog.Operation operation : operations) {

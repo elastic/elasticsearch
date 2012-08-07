@@ -183,7 +183,8 @@ public class DateHistogramFacetProcessor extends AbstractComponent implements Fa
         if (offset.charAt(0) == '-') {
             return -TimeValue.parseTimeValue(offset.substring(1), null).millis();
         }
-        return TimeValue.parseTimeValue(offset, null).millis();
+        int beginIndex = offset.charAt(0) == '+' ? 1 : 0;
+        return TimeValue.parseTimeValue(offset.substring(beginIndex), null).millis();
     }
 
     private DateTimeZone parseZone(XContentParser parser, XContentParser.Token token) throws IOException {
@@ -193,9 +194,10 @@ public class DateHistogramFacetProcessor extends AbstractComponent implements Fa
             String text = parser.text();
             int index = text.indexOf(':');
             if (index != -1) {
+                int beginIndex = text.charAt(0) == '+' ? 1 : 0;
                 // format like -02:30
                 return DateTimeZone.forOffsetHoursMinutes(
-                        Integer.parseInt(text.substring(0, index)),
+                        Integer.parseInt(text.substring(beginIndex, index)),
                         Integer.parseInt(text.substring(index + 1))
                 );
             } else {

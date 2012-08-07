@@ -1479,6 +1479,73 @@ public class SimpleFacetsTests extends AbstractNodesTests {
     }
 
     @Test
+    // https://github.com/elasticsearch/elasticsearch/issues/2141
+    public void testDateHistoFacets_preZoneBug() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+        client.admin().indices().prepareCreate("test").execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+                .field("date", "2009-03-05T23:31:01")
+                .field("num", 1)
+                .endObject()).execute().actionGet();
+        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+
+        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+                .field("date", "2009-03-05T18:01:01")
+                .field("num", 2)
+                .endObject()).execute().actionGet();
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+                .field("date", "2009-03-05T22:01:01")
+                .field("num", 3)
+                .endObject()).execute().actionGet();
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+
+        for (int i = 0; i < numberOfRuns(); i++) {
+            SearchResponse searchResponse = client.prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addFacet(dateHistogramFacet("stats1").field("date").interval("day").preZone("+02:00"))
+                    .addFacet(dateHistogramFacet("stats2").field("date").valueField("num").interval("day").preZone("+01:30"))
+                    .execute().actionGet();
+
+            if (searchResponse.failedShards() > 0) {
+                logger.warn("Failed shards:");
+                for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
+                    logger.warn("-> {}", shardSearchFailure);
+                }
+            }
+            assertThat(searchResponse.failedShards(), equalTo(0));
+
+            // time zone causes the dates to shift by 2:00
+            DateHistogramFacet facet = searchResponse.facets().facet("stats1");
+            assertThat(facet.name(), equalTo("stats1"));
+            assertThat(facet.entries().size(), equalTo(2));
+            assertThat(facet.entries().get(0).time(), equalTo(utcTimeInMillis("2009-03-05")));
+            assertThat(facet.entries().get(0).count(), equalTo(1l));
+            assertThat(facet.entries().get(1).time(), equalTo(utcTimeInMillis("2009-03-06")));
+            assertThat(facet.entries().get(1).count(), equalTo(2l));
+
+            // time zone causes the dates to shift by 1:30
+            facet = searchResponse.facets().facet("stats2");
+            assertThat(facet.name(), equalTo("stats2"));
+            assertThat(facet.entries().size(), equalTo(2));
+            assertThat(facet.entries().get(0).time(), equalTo(utcTimeInMillis("2009-03-05")));
+            assertThat(facet.entries().get(0).count(), equalTo(2l));
+            assertThat(facet.entries().get(0).total(), equalTo(5d));
+            assertThat(facet.entries().get(1).time(), equalTo(utcTimeInMillis("2009-03-06")));
+            assertThat(facet.entries().get(1).count(), equalTo(1l));
+            assertThat(facet.entries().get(1).total(), equalTo(1d));
+        }
+    }
+
+    @Test
     public void testTermsStatsFacets() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();

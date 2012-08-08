@@ -51,22 +51,22 @@ public class MatchQuery {
         PHRASE_PREFIX
     }
 
-    private final QueryParseContext parseContext;
+    protected final QueryParseContext parseContext;
 
-    private String analyzer;
+    protected String analyzer;
 
-    private BooleanClause.Occur occur = BooleanClause.Occur.SHOULD;
+    protected BooleanClause.Occur occur = BooleanClause.Occur.SHOULD;
 
-    private boolean enablePositionIncrements = true;
+    protected boolean enablePositionIncrements = true;
 
-    private int phraseSlop = 0;
+    protected int phraseSlop = 0;
 
-    private String fuzziness = null;
-    private int fuzzyPrefixLength = FuzzyQuery.defaultPrefixLength;
-    private int maxExpansions = FuzzyQuery.defaultMaxExpansions;
+    protected String fuzziness = null;
+    protected int fuzzyPrefixLength = FuzzyQuery.defaultPrefixLength;
+    protected int maxExpansions = FuzzyQuery.defaultMaxExpansions;
 
-    private MultiTermQuery.RewriteMethod rewriteMethod;
-    private MultiTermQuery.RewriteMethod fuzzyRewriteMethod;
+    protected MultiTermQuery.RewriteMethod rewriteMethod;
+    protected MultiTermQuery.RewriteMethod fuzzyRewriteMethod;
 
     public MatchQuery(QueryParseContext parseContext) {
         this.parseContext = parseContext;

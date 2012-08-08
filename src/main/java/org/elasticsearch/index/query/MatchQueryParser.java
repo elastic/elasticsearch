@@ -24,39 +24,45 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.support.QueryParsers;
+import org.elasticsearch.index.search.MatchQuery;
 
 import java.io.IOException;
 
 /**
  *
  */
-public class TextQueryParser implements QueryParser {
+public class MatchQueryParser implements QueryParser {
 
-    public static final String NAME = "text";
+    public static final String NAME = "match";
 
     @Inject
-    public TextQueryParser() {
+    public MatchQueryParser() {
     }
 
     @Override
     public String[] names() {
-        return new String[]{NAME, "text_phrase", "textPhrase", "text_phrase_prefix", "textPhrasePrefix", "fuzzyText", "fuzzy_text"};
+        return new String[]{
+                NAME, "match_phrase", "matchPhrase", "match_phrase_prefix", "matchPhrasePrefix", "matchFuzzy", "match_fuzzy", "fuzzy_match",
+                "text", "text_phrase", "textPhrase", "text_phrase_prefix", "textPhrasePrefix", "fuzzyText", "fuzzy_text"
+        };
     }
 
     @Override
     public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        org.elasticsearch.index.search.TextQueryParser.Type type = org.elasticsearch.index.search.TextQueryParser.Type.BOOLEAN;
-        if ("text_phrase".equals(parser.currentName()) || "textPhrase".equals(parser.currentName())) {
-            type = org.elasticsearch.index.search.TextQueryParser.Type.PHRASE;
-        } else if ("text_phrase_prefix".equals(parser.currentName()) || "textPhrasePrefix".equals(parser.currentName())) {
-            type = org.elasticsearch.index.search.TextQueryParser.Type.PHRASE_PREFIX;
+        MatchQuery.Type type = MatchQuery.Type.BOOLEAN;
+        if ("match_phrase".equals(parser.currentName()) || "matchPhrase".equals(parser.currentName()) ||
+                "text_phrase".equals(parser.currentName()) || "textPhrase".equals(parser.currentName())) {
+            type = MatchQuery.Type.PHRASE;
+        } else if ("match_phrase_prefix".equals(parser.currentName()) || "matchPhrasePrefix".equals(parser.currentName()) ||
+                "text_phrase_prefix".equals(parser.currentName()) || "textPhrasePrefix".equals(parser.currentName())) {
+            type = MatchQuery.Type.PHRASE_PREFIX;
         }
 
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new QueryParsingException(parseContext.index(), "[text] query malformed, no field");
+            throw new QueryParsingException(parseContext.index(), "[match] query malformed, no field");
         }
         String fieldName = parser.currentName();
 
@@ -84,16 +90,16 @@ public class TextQueryParser implements QueryParser {
                     } else if ("type".equals(currentFieldName)) {
                         String tStr = parser.text();
                         if ("boolean".equals(tStr)) {
-                            type = org.elasticsearch.index.search.TextQueryParser.Type.BOOLEAN;
+                            type = MatchQuery.Type.BOOLEAN;
                         } else if ("phrase".equals(tStr)) {
-                            type = org.elasticsearch.index.search.TextQueryParser.Type.PHRASE;
+                            type = MatchQuery.Type.PHRASE;
                         } else if ("phrase_prefix".equals(tStr) || "phrasePrefix".equals(currentFieldName)) {
-                            type = org.elasticsearch.index.search.TextQueryParser.Type.PHRASE_PREFIX;
+                            type = MatchQuery.Type.PHRASE_PREFIX;
                         }
                     } else if ("analyzer".equals(currentFieldName)) {
                         analyzer = parser.text();
                         if (parseContext.analysisService().analyzer(analyzer) == null) {
-                            throw new QueryParsingException(parseContext.index(), "[text] analyzer [" + parser.text() + "] not found");
+                            throw new QueryParsingException(parseContext.index(), "[match] analyzer [" + parser.text() + "] not found");
                         }
                     } else if ("boost".equals(currentFieldName)) {
                         boost = parser.floatValue();
@@ -121,7 +127,7 @@ public class TextQueryParser implements QueryParser {
                     } else if ("fuzzy_rewrite".equals(currentFieldName) || "fuzzyRewrite".equals(currentFieldName)) {
                         fuzzyRewriteMethod = QueryParsers.parseRewriteMethod(parser.textOrNull(), null);
                     } else {
-                        throw new QueryParsingException(parseContext.index(), "[text] query does not support [" + currentFieldName + "]");
+                        throw new QueryParsingException(parseContext.index(), "[match] query does not support [" + currentFieldName + "]");
                     }
                 }
             }
@@ -136,7 +142,7 @@ public class TextQueryParser implements QueryParser {
             throw new QueryParsingException(parseContext.index(), "No text specified for text query");
         }
 
-        org.elasticsearch.index.search.TextQueryParser tQP = new org.elasticsearch.index.search.TextQueryParser(parseContext, fieldName, text);
+        MatchQuery tQP = new MatchQuery(parseContext, fieldName, text);
         tQP.setPhraseSlop(phraseSlop);
         tQP.setAnalyzer(analyzer);
         tQP.setFuzziness(fuzziness);

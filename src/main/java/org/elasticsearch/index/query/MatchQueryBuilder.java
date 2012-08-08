@@ -25,10 +25,10 @@ import java.io.IOException;
 import java.util.Locale;
 
 /**
- * Text query is a query that analyzes the text and constructs a query as the result of the analysis. It
+ * Match query is a query that analyzes the text and constructs a query as the result of the analysis. It
  * can construct different queries based on the type provided.
  */
-public class TextQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<TextQueryBuilder> {
+public class MatchQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<MatchQueryBuilder> {
 
     public static enum Operator {
         OR,
@@ -78,7 +78,7 @@ public class TextQueryBuilder extends BaseQueryBuilder implements BoostableQuery
     /**
      * Constructs a new text query.
      */
-    public TextQueryBuilder(String name, Object text) {
+    public MatchQueryBuilder(String name, Object text) {
         this.name = name;
         this.text = text;
     }
@@ -86,7 +86,7 @@ public class TextQueryBuilder extends BaseQueryBuilder implements BoostableQuery
     /**
      * Sets the type of the text query.
      */
-    public TextQueryBuilder type(Type type) {
+    public MatchQueryBuilder type(Type type) {
         this.type = type;
         return this;
     }
@@ -94,7 +94,7 @@ public class TextQueryBuilder extends BaseQueryBuilder implements BoostableQuery
     /**
      * Sets the operator to use when using a boolean query. Defaults to <tt>OR</tt>.
      */
-    public TextQueryBuilder operator(Operator operator) {
+    public MatchQueryBuilder operator(Operator operator) {
         this.operator = operator;
         return this;
     }
@@ -103,7 +103,7 @@ public class TextQueryBuilder extends BaseQueryBuilder implements BoostableQuery
      * Explicitly set the analyzer to use. Defaults to use explicit mapping config for the field, or, if not
      * set, the default search analyzer.
      */
-    public TextQueryBuilder analyzer(String analyzer) {
+    public MatchQueryBuilder analyzer(String analyzer) {
         this.analyzer = analyzer;
         return this;
     }
@@ -111,7 +111,7 @@ public class TextQueryBuilder extends BaseQueryBuilder implements BoostableQuery
     /**
      * Set the boost to apply to the query.
      */
-    public TextQueryBuilder boost(float boost) {
+    public MatchQueryBuilder boost(float boost) {
         this.boost = boost;
         return this;
     }
@@ -119,7 +119,7 @@ public class TextQueryBuilder extends BaseQueryBuilder implements BoostableQuery
     /**
      * Set the phrase slop if evaluated to a phrase query type.
      */
-    public TextQueryBuilder slop(int slop) {
+    public MatchQueryBuilder slop(int slop) {
         this.slop = slop;
         return this;
     }
@@ -127,12 +127,12 @@ public class TextQueryBuilder extends BaseQueryBuilder implements BoostableQuery
     /**
      * Sets the minimum similarity used when evaluated to a fuzzy query type. Defaults to "0.5".
      */
-    public TextQueryBuilder fuzziness(Object fuzziness) {
+    public MatchQueryBuilder fuzziness(Object fuzziness) {
         this.fuzziness = fuzziness.toString();
         return this;
     }
 
-    public TextQueryBuilder prefixLength(int prefixLength) {
+    public MatchQueryBuilder prefixLength(int prefixLength) {
         this.prefixLength = prefixLength;
         return this;
     }
@@ -141,29 +141,29 @@ public class TextQueryBuilder extends BaseQueryBuilder implements BoostableQuery
      * When using fuzzy or prefix type query, the number of term expansions to use. Defaults to unbounded
      * so its recommended to set it to a reasonable value for faster execution.
      */
-    public TextQueryBuilder maxExpansions(int maxExpansions) {
+    public MatchQueryBuilder maxExpansions(int maxExpansions) {
         this.maxExpansions = maxExpansions;
         return this;
     }
 
-    public TextQueryBuilder minimumShouldMatch(String minimumShouldMatch) {
+    public MatchQueryBuilder minimumShouldMatch(String minimumShouldMatch) {
         this.minimumShouldMatch = minimumShouldMatch;
         return this;
     }
 
-    public TextQueryBuilder rewrite(String rewrite) {
+    public MatchQueryBuilder rewrite(String rewrite) {
         this.rewrite = rewrite;
         return this;
     }
 
-    public TextQueryBuilder fuzzyRewrite(String fuzzyRewrite) {
+    public MatchQueryBuilder fuzzyRewrite(String fuzzyRewrite) {
         this.fuzzyRewrite = fuzzyRewrite;
         return this;
     }
 
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(TextQueryParser.NAME);
+        builder.startObject(MatchQueryParser.NAME);
         builder.startObject(name);
 
         builder.field("query", text);

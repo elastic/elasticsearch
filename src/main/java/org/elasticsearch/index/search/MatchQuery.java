@@ -43,7 +43,7 @@ import java.util.List;
 
 import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameQuery;
 
-public class TextQueryParser {
+public class MatchQuery {
 
     public static enum Type {
         BOOLEAN,
@@ -72,7 +72,7 @@ public class TextQueryParser {
     private MultiTermQuery.RewriteMethod rewriteMethod;
     private MultiTermQuery.RewriteMethod fuzzyRewriteMethod;
 
-    public TextQueryParser(QueryParseContext parseContext, String fieldName, String text) {
+    public MatchQuery(QueryParseContext parseContext, String fieldName, String text) {
         this.parseContext = parseContext;
         this.fieldName = fieldName;
         this.text = text;

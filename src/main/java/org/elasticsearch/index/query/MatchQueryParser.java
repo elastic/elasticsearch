@@ -19,7 +19,9 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -68,15 +70,8 @@ public class MatchQueryParser implements QueryParser {
 
         String text = null;
         float boost = 1.0f;
-        int phraseSlop = 0;
-        String analyzer = null;
-        String fuzziness = null;
-        int prefixLength = FuzzyQuery.defaultPrefixLength;
-        int maxExpansions = FuzzyQuery.defaultMaxExpansions;
-        BooleanClause.Occur occur = BooleanClause.Occur.SHOULD;
+        MatchQuery matchQuery = new MatchQuery(parseContext);
         String minimumShouldMatch = null;
-        MultiTermQuery.RewriteMethod rewriteMethod = null;
-        MultiTermQuery.RewriteMethod fuzzyRewriteMethod = null;
 
         token = parser.nextToken();
         if (token == XContentParser.Token.START_OBJECT) {
@@ -97,35 +92,36 @@ public class MatchQueryParser implements QueryParser {
                             type = MatchQuery.Type.PHRASE_PREFIX;
                         }
                     } else if ("analyzer".equals(currentFieldName)) {
-                        analyzer = parser.text();
+                        String analyzer = parser.text();
                         if (parseContext.analysisService().analyzer(analyzer) == null) {
                             throw new QueryParsingException(parseContext.index(), "[match] analyzer [" + parser.text() + "] not found");
                         }
+                        matchQuery.setAnalyzer(analyzer);
                     } else if ("boost".equals(currentFieldName)) {
                         boost = parser.floatValue();
                     } else if ("slop".equals(currentFieldName) || "phrase_slop".equals(currentFieldName) || "phraseSlop".equals(currentFieldName)) {
-                        phraseSlop = parser.intValue();
+                        matchQuery.setPhraseSlop(parser.intValue());
                     } else if ("fuzziness".equals(currentFieldName)) {
-                        fuzziness = parser.textOrNull();
+                        matchQuery.setFuzziness(parser.textOrNull());
                     } else if ("prefix_length".equals(currentFieldName) || "prefixLength".equals(currentFieldName)) {
-                        prefixLength = parser.intValue();
+                        matchQuery.setFuzzyPrefixLength(parser.intValue());
                     } else if ("max_expansions".equals(currentFieldName) || "maxExpansions".equals(currentFieldName)) {
-                        maxExpansions = parser.intValue();
+                        matchQuery.setMaxExpansions(parser.intValue());
                     } else if ("operator".equals(currentFieldName)) {
                         String op = parser.text();
                         if ("or".equalsIgnoreCase(op)) {
-                            occur = BooleanClause.Occur.SHOULD;
+                            matchQuery.setOccur(BooleanClause.Occur.SHOULD);
                         } else if ("and".equalsIgnoreCase(op)) {
-                            occur = BooleanClause.Occur.MUST;
+                            matchQuery.setOccur(BooleanClause.Occur.MUST);
                         } else {
                             throw new QueryParsingException(parseContext.index(), "text query requires operator to be either 'and' or 'or', not [" + op + "]");
                         }
                     } else if ("minimum_should_match".equals(currentFieldName) || "minimumShouldMatch".equals(currentFieldName)) {
                         minimumShouldMatch = parser.textOrNull();
                     } else if ("rewrite".equals(currentFieldName)) {
-                        rewriteMethod = QueryParsers.parseRewriteMethod(parser.textOrNull(), null);
+                        matchQuery.setRewriteMethod(QueryParsers.parseRewriteMethod(parser.textOrNull(), null));
                     } else if ("fuzzy_rewrite".equals(currentFieldName) || "fuzzyRewrite".equals(currentFieldName)) {
-                        fuzzyRewriteMethod = QueryParsers.parseRewriteMethod(parser.textOrNull(), null);
+                        matchQuery.setFuzzyRewriteMethod(QueryParsers.parseRewriteMethod(parser.textOrNull(), null));
                     } else {
                         throw new QueryParsingException(parseContext.index(), "[match] query does not support [" + currentFieldName + "]");
                     }
@@ -142,17 +138,7 @@ public class MatchQueryParser implements QueryParser {
             throw new QueryParsingException(parseContext.index(), "No text specified for text query");
         }
 
-        MatchQuery tQP = new MatchQuery(parseContext);
-        tQP.setPhraseSlop(phraseSlop);
-        tQP.setAnalyzer(analyzer);
-        tQP.setFuzziness(fuzziness);
-        tQP.setFuzzyPrefixLength(prefixLength);
-        tQP.setMaxExpansions(maxExpansions);
-        tQP.setRewriteMethod(rewriteMethod);
-        tQP.setFuzzyRewriteMethod(fuzzyRewriteMethod);
-        tQP.setOccur(occur);
-
-        Query query = tQP.parse(type, fieldName, text);
+        Query query = matchQuery.parse(type, fieldName, text);
 
         if (query instanceof BooleanQuery) {
             Queries.applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);

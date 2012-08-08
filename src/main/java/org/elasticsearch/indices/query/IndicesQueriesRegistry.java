@@ -41,6 +41,7 @@ public class IndicesQueriesRegistry {
     public IndicesQueriesRegistry(Settings settings, @Nullable ClusterService clusterService) {
         Map<String, QueryParser> queryParsers = Maps.newHashMap();
         addQueryParser(queryParsers, new MatchQueryParser());
+        addQueryParser(queryParsers, new MultiMatchQueryParser());
         addQueryParser(queryParsers, new NestedQueryParser());
         addQueryParser(queryParsers, new HasChildQueryParser());
         addQueryParser(queryParsers, new TopChildrenQueryParser());

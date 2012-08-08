@@ -22,10 +22,8 @@ package org.elasticsearch.test.integration.search.query;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.index.query.WrapperFilterBuilder;
-import org.elasticsearch.index.query.WrapperQueryBuilder;
+import org.elasticsearch.index.query.*;
+import org.elasticsearch.search.facet.FacetBuilders;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -349,4 +347,49 @@ public class SimpleQueryTests extends AbstractNodesTests {
         assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
     }
+
+    @Test
+    public void testMultiMatchQuery() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 1)).execute().actionGet();
+
+        client.prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value4").execute().actionGet();
+        client.prepareIndex("test", "type1", "2").setSource("field1", "value2", "field2", "value5").execute().actionGet();
+        client.prepareIndex("test", "type1", "3").setSource("field1", "value3", "field2", "value6").execute().actionGet();
+        client.admin().indices().prepareRefresh("test").execute().actionGet();
+
+        MultiMatchQueryBuilder builder = QueryBuilders.multiMatchQuery("value1 value2 value4", "field1", "field2");
+        SearchResponse searchResponse = client.prepareSearch()
+                .setQuery(builder)
+                .addFacet(FacetBuilders.termsFacet("field1").field("field1"))
+                .execute().actionGet();
+
+        assertThat(searchResponse.hits().totalHits(), equalTo(2l));
+        assertThat("1", equalTo(searchResponse.hits().getAt(0).id()));
+        assertThat("2", equalTo(searchResponse.hits().getAt(1).id()));
+
+        builder.useDisMax(false);
+        searchResponse = client.prepareSearch()
+                .setQuery(builder)
+                .execute().actionGet();
+
+        assertThat(searchResponse.hits().totalHits(), equalTo(2l));
+        assertThat("1", equalTo(searchResponse.hits().getAt(0).id()));
+        assertThat("2", equalTo(searchResponse.hits().getAt(1).id()));
+
+        client.admin().indices().prepareRefresh("test").execute().actionGet();
+        builder = QueryBuilders.multiMatchQuery("value1", "field1", "field2")
+                .operator(MatchQueryBuilder.Operator.AND); // Operator only applies on terms inside a field! Fields are always OR-ed together.
+        searchResponse = client.prepareSearch()
+                .setQuery(builder)
+                .execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+        assertThat("1", equalTo(searchResponse.hits().getAt(0).id()));
+    }
+
 }

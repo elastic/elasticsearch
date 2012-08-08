@@ -53,10 +53,6 @@ public class MatchQuery {
 
     private final QueryParseContext parseContext;
 
-    private final String fieldName;
-
-    private final String text;
-
     private String analyzer;
 
     private BooleanClause.Occur occur = BooleanClause.Occur.SHOULD;
@@ -72,10 +68,8 @@ public class MatchQuery {
     private MultiTermQuery.RewriteMethod rewriteMethod;
     private MultiTermQuery.RewriteMethod fuzzyRewriteMethod;
 
-    public MatchQuery(QueryParseContext parseContext, String fieldName, String text) {
+    public MatchQuery(QueryParseContext parseContext) {
         this.parseContext = parseContext;
-        this.fieldName = fieldName;
-        this.text = text;
     }
 
     public void setAnalyzer(String analyzer) {
@@ -114,7 +108,7 @@ public class MatchQuery {
         this.fuzzyRewriteMethod = fuzzyRewriteMethod;
     }
 
-    public Query parse(Type type) {
+    public Query parse(Type type, String fieldName, String text) {
         FieldMapper mapper = null;
         Term fieldTerm;
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);

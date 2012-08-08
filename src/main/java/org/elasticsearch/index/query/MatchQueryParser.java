@@ -142,7 +142,7 @@ public class MatchQueryParser implements QueryParser {
             throw new QueryParsingException(parseContext.index(), "No text specified for text query");
         }
 
-        MatchQuery tQP = new MatchQuery(parseContext, fieldName, text);
+        MatchQuery tQP = new MatchQuery(parseContext);
         tQP.setPhraseSlop(phraseSlop);
         tQP.setAnalyzer(analyzer);
         tQP.setFuzziness(fuzziness);
@@ -152,7 +152,7 @@ public class MatchQueryParser implements QueryParser {
         tQP.setFuzzyRewriteMethod(fuzzyRewriteMethod);
         tQP.setOccur(occur);
 
-        Query query = tQP.parse(type);
+        Query query = tQP.parse(type, fieldName, text);
 
         if (query instanceof BooleanQuery) {
             Queries.applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);

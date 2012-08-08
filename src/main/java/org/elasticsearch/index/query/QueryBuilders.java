@@ -66,6 +66,16 @@ public abstract class QueryBuilders {
     }
 
     /**
+     * Creates a match query with type "BOOLEAN" for the provided field name and text.
+     *
+     * @param fieldNames The field names.
+     * @param text The query text (to be analyzed).
+     */
+    public static MultiMatchQueryBuilder multiMatchQuery(Object text, String... fieldNames) {
+        return new MultiMatchQueryBuilder(text, fieldNames); // BOOLEAN is the default
+    }
+
+    /**
      * Creates a text query with type "PHRASE" for the provided field name and text.
      *
      * @param name The field name.

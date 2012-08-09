@@ -19,10 +19,13 @@
 
 package org.elasticsearch.test.integration.search.query;
 
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.query.*;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.facet.FacetBuilders;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
@@ -37,6 +40,8 @@ import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.testng.Assert.fail;
 
 /**
  *
@@ -388,6 +393,25 @@ public class SimpleQueryTests extends AbstractNodesTests {
         searchResponse = client.prepareSearch()
                 .setQuery(builder)
                 .execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+        assertThat("1", equalTo(searchResponse.hits().getAt(0).id()));
+
+        // Test lenient
+        client.prepareIndex("test", "type1", "3").setSource("field1", "value7", "field2", "value8", "field3", 5).execute().actionGet();
+        client.admin().indices().prepareRefresh("test").execute().actionGet();
+
+        builder = QueryBuilders.multiMatchQuery("value1", "field1", "field2", "field3");
+        try {
+            client.prepareSearch()
+                    .setQuery(builder)
+                    .execute().actionGet();
+            fail("Exception expected");
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(e.shardFailures()[0].status(), equalTo(RestStatus.BAD_REQUEST));
+        }
+
+        builder.lenient(true);
+        searchResponse = client.prepareSearch().setQuery(builder).execute().actionGet();
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
         assertThat("1", equalTo(searchResponse.hits().getAt(0).id()));
     }

@@ -122,6 +122,8 @@ public class MatchQueryParser implements QueryParser {
                         matchQuery.setRewriteMethod(QueryParsers.parseRewriteMethod(parser.textOrNull(), null));
                     } else if ("fuzzy_rewrite".equals(currentFieldName) || "fuzzyRewrite".equals(currentFieldName)) {
                         matchQuery.setFuzzyRewriteMethod(QueryParsers.parseRewriteMethod(parser.textOrNull(), null));
+                    } else if ("lenient".equals(currentFieldName)) {
+                        matchQuery.setLenient(parser.booleanValue());
                     } else {
                         throw new QueryParsingException(parseContext.index(), "[match] query does not support [" + currentFieldName + "]");
                     }

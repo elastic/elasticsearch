@@ -51,16 +51,24 @@ public class MultiMatchQuery extends MatchQuery {
 
         if (useDisMax) {
             DisjunctionMaxQuery disMaxQuery = new DisjunctionMaxQuery(tieBreaker);
+            boolean clauseAdded = false;
             for (String fieldName : fieldNames) {
-                disMaxQuery.add(parse(type, fieldName, text));
+                Query query = parse(type, fieldName, text);
+                if (query != null) {
+                    clauseAdded = true;
+                    disMaxQuery.add(query);
+                }
             }
-            return disMaxQuery;
+            return clauseAdded ? disMaxQuery : null;
         } else {
             BooleanQuery booleanQuery = new BooleanQuery();
             for (String fieldName : fieldNames) {
-                booleanQuery.add(parse(type, fieldName, text), BooleanClause.Occur.SHOULD);
+                Query query = parse(type, fieldName, text);
+                if (query != null) {
+                    booleanQuery.add(query, BooleanClause.Occur.SHOULD);
+                }
             }
-            return booleanQuery;
+            return !booleanQuery.clauses().isEmpty() ?  booleanQuery : null;
         }
     }
 

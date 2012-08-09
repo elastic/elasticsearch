@@ -154,6 +154,8 @@ public class MultiMatchQueryParser implements QueryParser {
                     multiMatchQuery.setUseDisMax(parser.booleanValue());
                 } else if ("tie_breaker".equals(currentFieldName) || "tieBreaker".equals(currentFieldName)) {
                     multiMatchQuery.setTieBreaker(parser.intValue());
+                } else if ("lenient".equals(currentFieldName)) {
+                    multiMatchQuery.setLenient(parser.booleanValue());
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[match] query does not support [" + currentFieldName + "]");
                 }

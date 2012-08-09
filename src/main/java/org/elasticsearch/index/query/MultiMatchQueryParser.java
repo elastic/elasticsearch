@@ -169,6 +169,9 @@ public class MultiMatchQueryParser implements QueryParser {
         }
 
         Query query = multiMatchQuery.parse(type, fieldNames, text);
+        if (query == null) {
+            return null;
+        }
 
         if (query instanceof BooleanQuery) {
             Queries.applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);

@@ -88,6 +88,17 @@ public class AliasRoutingTests extends AbstractNodesTests {
             assertThat(client.prepareGet("alias0", "type1", "1").execute().actionGet().exists(), equalTo(true));
         }
 
+        logger.info("--> updating with id [1] and routing through alias");
+        client.prepareUpdate("alias0", "type1", "1")
+                .setUpsert(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
+                .setScript("ctx._source.field = 'value2'")
+                .execute().actionGet();
+        for (int i = 0; i < 5; i++) {
+            assertThat(client.prepareGet("alias0", "type1", "1").execute().actionGet().exists(), equalTo(true));
+            assertThat(client.prepareGet("alias0", "type1", "1").execute().actionGet().sourceAsMap().get("field").toString(), equalTo("value2"));
+        }
+
+
         logger.info("--> deleting with no routing, should not delete anything");
         client.prepareDelete("test", "type1", "1").setRefresh(true).execute().actionGet();
         for (int i = 0; i < 5; i++) {

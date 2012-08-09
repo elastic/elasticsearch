@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -125,6 +126,15 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
             return true;
         }
         return false;
+    }
+
+    @Override
+    protected boolean resolveRequest(ClusterState state, UpdateRequest request, ActionListener<UpdateResponse> listener) {
+        MetaData metaData = clusterService.state().metaData();
+        String aliasOrIndex = request.index();
+        request.routing((metaData.resolveIndexRouting(request.routing(), aliasOrIndex)));
+        request.index(metaData.concreteIndex(request.index()));
+        return true;
     }
 
     @Override

@@ -85,6 +85,15 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
 
     protected abstract ClusterBlockException checkRequestBlock(ClusterState state, Request request);
 
+    /**
+     * Resolves the request, by default, simply setting the concrete index (if its aliased one). If the resolve
+     * means a different execution, then return false here to indicate not to continue and execute this request.
+     */
+    protected boolean resolveRequest(ClusterState state, Request request, ActionListener<Response> listener) {
+        request.index(state.metaData().concreteIndex(request.index()));
+        return true;
+    }
+
     protected boolean retryOnFailure(Throwable e) {
         return false;
     }
@@ -132,7 +141,10 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
                         throw blockException;
                     }
                 }
-                request.index(clusterState.metaData().concreteIndex(request.index()));
+                // check if we need to execute, and if not, return
+                if (!resolveRequest(clusterState, request, listener)) {
+                    return true;
+                }
                 blockException = checkRequestBlock(clusterState, request);
                 if (blockException != null) {
                     if (blockException.retryable()) {

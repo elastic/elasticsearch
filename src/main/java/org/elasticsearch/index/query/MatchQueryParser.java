@@ -139,6 +139,9 @@ public class MatchQueryParser implements QueryParser {
         }
 
         Query query = matchQuery.parse(type, fieldName, text);
+        if (query == null) {
+            return null;
+        }
 
         if (query instanceof BooleanQuery) {
             Queries.applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);

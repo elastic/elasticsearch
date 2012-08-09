@@ -166,6 +166,9 @@ public class FieldQueryParser implements QueryParser {
 
         try {
             query = queryParser.parse(qpSettings.queryString());
+            if (query == null) {
+                return null;
+            }
             query.setBoost(qpSettings.boost());
             query = optimizeQuery(fixNegativeQueryIfNeeded(query));
             if (query instanceof BooleanQuery) {

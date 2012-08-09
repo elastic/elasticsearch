@@ -68,6 +68,8 @@ public class MatchQuery {
     protected MultiTermQuery.RewriteMethod rewriteMethod;
     protected MultiTermQuery.RewriteMethod fuzzyRewriteMethod;
 
+    protected boolean lenient;
+
     public MatchQuery(QueryParseContext parseContext) {
         this.parseContext = parseContext;
     }
@@ -108,6 +110,10 @@ public class MatchQuery {
         this.fuzzyRewriteMethod = fuzzyRewriteMethod;
     }
 
+    public void setLenient(boolean lenient) {
+        this.lenient = lenient;
+    }
+
     public Query parse(Type type, String fieldName, String text) {
         FieldMapper mapper = null;
         Term fieldTerm;
@@ -124,11 +130,23 @@ public class MatchQuery {
                 String[] previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{smartNameFieldMappers.docMapper().type()});
                 try {
                     return wrapSmartNameQuery(mapper.fieldQuery(text, parseContext), smartNameFieldMappers, parseContext);
+                } catch (RuntimeException e) {
+                    if (lenient) {
+                        return null;
+                    }
+                    throw e;
                 } finally {
                     QueryParseContext.setTypes(previousTypes);
                 }
             } else {
-                return wrapSmartNameQuery(mapper.fieldQuery(text, parseContext), smartNameFieldMappers, parseContext);
+                try {
+                    return wrapSmartNameQuery(mapper.fieldQuery(text, parseContext), smartNameFieldMappers, parseContext);
+                } catch (RuntimeException e) {
+                    if (lenient) {
+                        return null;
+                    }
+                    throw e;
+                }
             }
         }
 

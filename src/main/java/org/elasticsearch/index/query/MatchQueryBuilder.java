@@ -73,7 +73,10 @@ public class MatchQueryBuilder extends BaseQueryBuilder implements BoostableQuer
     private String minimumShouldMatch;
 
     private String rewrite = null;
+
     private String fuzzyRewrite = null;
+
+    private Boolean lenient;
 
     /**
      * Constructs a new text query.
@@ -161,6 +164,14 @@ public class MatchQueryBuilder extends BaseQueryBuilder implements BoostableQuer
         return this;
     }
 
+    /**
+     * Sets whether format based failures will be ignored.
+     */
+    public MatchQueryBuilder setLenient(boolean lenient) {
+        this.lenient = lenient;
+        return this;
+    }
+
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(MatchQueryParser.NAME);
@@ -199,6 +210,10 @@ public class MatchQueryBuilder extends BaseQueryBuilder implements BoostableQuer
         }
         if (fuzzyRewrite != null) {
             builder.field("fuzzy_rewrite", fuzzyRewrite);
+        }
+
+        if (lenient != null) {
+            builder.field("lenient", lenient);
         }
 
         builder.endObject();

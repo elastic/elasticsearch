@@ -68,6 +68,8 @@ public class MatchQuery {
     protected MultiTermQuery.RewriteMethod rewriteMethod;
     protected MultiTermQuery.RewriteMethod fuzzyRewriteMethod;
 
+    protected boolean lenient;
+
     public MatchQuery(QueryParseContext parseContext) {
         this.parseContext = parseContext;
     }
@@ -108,6 +110,10 @@ public class MatchQuery {
         this.fuzzyRewriteMethod = fuzzyRewriteMethod;
     }
 
+    public void setLenient(boolean lenient) {
+        this.lenient = lenient;
+    }
+
     public Query parse(Type type, String fieldName, String text) {
         FieldMapper mapper = null;
         Term fieldTerm;
@@ -124,11 +130,23 @@ public class MatchQuery {
                 String[] previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{smartNameFieldMappers.docMapper().type()});
                 try {
                     return wrapSmartNameQuery(mapper.fieldQuery(text, parseContext), smartNameFieldMappers, parseContext);
+                } catch (RuntimeException e) {
+                    if (lenient) {
+                        return null;
+                    }
+                    throw e;
                 } finally {
                     QueryParseContext.setTypes(previousTypes);
                 }
             } else {
-                return wrapSmartNameQuery(mapper.fieldQuery(text, parseContext), smartNameFieldMappers, parseContext);
+                try {
+                    return wrapSmartNameQuery(mapper.fieldQuery(text, parseContext), smartNameFieldMappers, parseContext);
+                } catch (RuntimeException e) {
+                    if (lenient) {
+                        return null;
+                    }
+                    throw e;
+                }
             }
         }
 
@@ -236,9 +254,7 @@ public class MatchQuery {
                 } catch (IOException e) {
                     // safe to ignore, because we know the number of tokens
                 }
-
-                Query currentQuery = newTermQuery(mapper, fieldTerm.createTerm(term));
-                q.add(currentQuery, occur);
+                q.add(newTermQuery(mapper, fieldTerm.createTerm(term)), occur);
             }
             return wrapSmartNameQuery(q, smartNameFieldMappers, parseContext);
         } else if (type == Type.PHRASE) {
@@ -351,23 +367,34 @@ public class MatchQuery {
     }
 
     private Query newTermQuery(@Nullable FieldMapper mapper, Term term) {
-        if (fuzziness != null) {
+        try {
+            if (fuzziness != null) {
+                if (mapper != null) {
+                    Query query = mapper.fuzzyQuery(term.text(), fuzziness, fuzzyPrefixLength, maxExpansions);
+                    if (query instanceof FuzzyQuery) {
+                        QueryParsers.setRewriteMethod((FuzzyQuery) query, fuzzyRewriteMethod);
+                    }
+                }
+                FuzzyQuery query = new FuzzyQuery(term, Float.parseFloat(fuzziness), fuzzyPrefixLength, maxExpansions);
+                QueryParsers.setRewriteMethod(query, rewriteMethod);
+                return query;
+            }
             if (mapper != null) {
-                Query query = mapper.fuzzyQuery(term.text(), fuzziness, fuzzyPrefixLength, maxExpansions);
-                if (query instanceof FuzzyQuery) {
-                    QueryParsers.setRewriteMethod((FuzzyQuery) query, fuzzyRewriteMethod);
+                if (mapper.useFieldQueryWithQueryString()) {
+                    return mapper.fieldQuery(term.text(), parseContext);
+                } else {
+                    Query termQuery = mapper.queryStringTermQuery(term);
+                    if (termQuery != null) {
+                        return termQuery;
+                    }
                 }
             }
-            FuzzyQuery query = new FuzzyQuery(term, Float.parseFloat(fuzziness), fuzzyPrefixLength, maxExpansions);
-            QueryParsers.setRewriteMethod(query, rewriteMethod);
-            return query;
-        }
-        if (mapper != null) {
-            Query termQuery = mapper.queryStringTermQuery(term);
-            if (termQuery != null) {
-                return termQuery;
+            return new TermQuery(term);
+        } catch (RuntimeException e) {
+            if (lenient) {
+                return null;
             }
+            throw e;
         }
-        return new TermQuery(term);
     }
 }

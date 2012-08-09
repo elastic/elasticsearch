@@ -61,6 +61,8 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
 
     private Integer tieBreaker;
 
+    private Boolean lenient;
+
     /**
      * Constructs a new text query.
      */
@@ -152,8 +154,16 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
         return this;
     }
 
-    public MultiMatchQueryBuilder setTieBreaker(Integer tieBreaker) {
+    public MultiMatchQueryBuilder tieBreaker(Integer tieBreaker) {
         this.tieBreaker = tieBreaker;
+        return this;
+    }
+
+    /**
+     * Sets whether format based failures will be ignored.
+     */
+    public MultiMatchQueryBuilder lenient(boolean lenient) {
+        this.lenient = lenient;
         return this;
     }
 
@@ -204,6 +214,10 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
 
         if (tieBreaker != null) {
             builder.field("tie_breaker", tieBreaker);
+        }
+
+        if (lenient != null) {
+            builder.field("lenient", lenient);
         }
 
         builder.endObject();

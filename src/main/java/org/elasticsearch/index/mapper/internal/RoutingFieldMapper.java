@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -49,7 +50,7 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
         public static final Field.Index INDEX = Field.Index.NOT_ANALYZED;
         public static final Field.Store STORE = Field.Store.YES;
         public static final boolean OMIT_NORMS = true;
-        public static final boolean OMIT_TERM_FREQ_AND_POSITIONS = true;
+        public static final IndexOptions INDEX_OPTIONS = IndexOptions.DOCS_ONLY;
         public static final boolean REQUIRED = false;
         public static final String PATH = null;
     }
@@ -110,8 +111,8 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
     }
 
     protected RoutingFieldMapper(Field.Store store, Field.Index index, boolean required, String path) {
-        super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), index, store, Defaults.TERM_VECTOR, 1.0f, Defaults.OMIT_NORMS, Defaults.OMIT_TERM_FREQ_AND_POSITIONS,
-                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
+        super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), index, store, Defaults.TERM_VECTOR, 1.0f, Defaults.OMIT_NORMS, Defaults.INDEX_OPTIONS, Lucene.KEYWORD_ANALYZER,
+                Lucene.KEYWORD_ANALYZER);
         this.required = required;
         this.path = path;
     }

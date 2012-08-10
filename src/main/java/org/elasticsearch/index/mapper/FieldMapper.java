@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.MultiTermQuery;
@@ -135,7 +136,7 @@ public interface FieldMapper<T> {
 
     boolean omitNorms();
 
-    boolean omitTermFreqAndPositions();
+    IndexOptions indexOptions();
 
     /**
      * The analyzer that will be used to index the field.

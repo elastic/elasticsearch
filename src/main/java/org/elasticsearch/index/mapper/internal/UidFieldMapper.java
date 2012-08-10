@@ -48,7 +48,6 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
         public static final String NAME = UidFieldMapper.NAME;
         public static final Field.Index INDEX = Field.Index.NOT_ANALYZED;
         public static final boolean OMIT_NORMS = true;
-        public static final boolean OMIT_TERM_FREQ_AND_POSITIONS = false; // we store payload
     }
 
     public static class Builder extends Mapper.Builder<Builder, UidFieldMapper> {
@@ -90,7 +89,7 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
 
     protected UidFieldMapper(String name, String indexName) {
         super(new Names(name, indexName, indexName, name), Defaults.INDEX, Field.Store.YES, Defaults.TERM_VECTOR, Defaults.BOOST,
-                Defaults.OMIT_NORMS, Defaults.OMIT_TERM_FREQ_AND_POSITIONS, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
+                Defaults.OMIT_NORMS, Defaults.INDEX_OPTIONS, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
     }
 
     @Override

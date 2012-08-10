@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper.core;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Strings;
@@ -114,7 +115,7 @@ public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
     private long compressThreshold;
 
     protected BinaryFieldMapper(Names names, Field.Store store, Boolean compress, long compressThreshold) {
-        super(names, Field.Index.NO, store, Field.TermVector.NO, 1.0f, true, true, null, null);
+        super(names, Field.Index.NO, store, Field.TermVector.NO, 1.0f, true, IndexOptions.DOCS_ONLY, null, null);
         this.compress = compress;
         this.compressThreshold = compressThreshold;
     }

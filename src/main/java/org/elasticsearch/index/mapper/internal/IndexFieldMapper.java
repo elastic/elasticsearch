@@ -23,6 +23,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -50,7 +51,7 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
         public static final Field.Index INDEX = Field.Index.NOT_ANALYZED;
         public static final Field.Store STORE = Field.Store.NO;
         public static final boolean OMIT_NORMS = true;
-        public static final boolean OMIT_TERM_FREQ_AND_POSITIONS = true;
+        public static final IndexOptions INDEX_OPTIONS = IndexOptions.DOCS_ONLY;
         public static final boolean ENABLED = false;
     }
 
@@ -64,7 +65,7 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
             index = Defaults.INDEX;
             store = Defaults.STORE;
             omitNorms = Defaults.OMIT_NORMS;
-            omitTermFreqAndPositions = Defaults.OMIT_TERM_FREQ_AND_POSITIONS;
+            indexOptions = Defaults.INDEX_OPTIONS;
         }
 
         public Builder enabled(boolean enabled) {
@@ -74,7 +75,7 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
 
         @Override
         public IndexFieldMapper build(BuilderContext context) {
-            return new IndexFieldMapper(name, indexName, store, termVector, boost, omitNorms, omitTermFreqAndPositions, enabled);
+            return new IndexFieldMapper(name, indexName, store, termVector, boost, omitNorms, indexOptions, enabled);
         }
     }
 
@@ -103,13 +104,13 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
 
     protected IndexFieldMapper(String name, String indexName) {
         this(name, indexName, Defaults.STORE, Defaults.TERM_VECTOR, Defaults.BOOST,
-                Defaults.OMIT_NORMS, Defaults.OMIT_TERM_FREQ_AND_POSITIONS, Defaults.ENABLED);
+                Defaults.OMIT_NORMS, Defaults.INDEX_OPTIONS, Defaults.ENABLED);
     }
 
     public IndexFieldMapper(String name, String indexName, Field.Store store, Field.TermVector termVector,
-                            float boost, boolean omitNorms, boolean omitTermFreqAndPositions, boolean enabled) {
-        super(new Names(name, indexName, indexName, name), Defaults.INDEX, store, termVector, boost, omitNorms, omitTermFreqAndPositions,
-                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
+                            float boost, boolean omitNorms, IndexOptions indexOptions, boolean enabled) {
+        super(new Names(name, indexName, indexName, name), Defaults.INDEX, store, termVector, boost, omitNorms, indexOptions, Lucene.KEYWORD_ANALYZER,
+                Lucene.KEYWORD_ANALYZER);
         this.enabled = enabled;
     }
 

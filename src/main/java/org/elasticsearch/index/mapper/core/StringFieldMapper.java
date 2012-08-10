@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper.core;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -30,6 +31,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NamedCustomAnalyzer;
 import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.core.BooleanFieldMapper.Defaults;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 
 import java.io.IOException;
@@ -110,7 +112,7 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
                 searchQuotedAnalyzer = new NamedCustomAnalyzer(searchQuotedAnalyzer, positionOffsetGap);
             }
             StringFieldMapper fieldMapper = new StringFieldMapper(buildNames(context),
-                    index, store, termVector, boost, omitNorms, omitTermFreqAndPositions, nullValue,
+                    index, store, termVector, boost, omitNorms, indexOptions, nullValue,
                     indexAnalyzer, searchAnalyzer, searchQuotedAnalyzer, positionOffsetGap, ignoreAbove);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
@@ -165,17 +167,17 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
     private int ignoreAbove;
 
     protected StringFieldMapper(Names names, Field.Index index, Field.Store store, Field.TermVector termVector,
-                                float boost, boolean omitNorms, boolean omitTermFreqAndPositions,
+                                float boost, boolean omitNorms, IndexOptions indexOptions,
                                 String nullValue, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer) {
-        this(names, index, store, termVector, boost, omitNorms, omitTermFreqAndPositions, nullValue, indexAnalyzer,
+        this(names, index, store, termVector, boost, omitNorms, indexOptions, nullValue, indexAnalyzer,
                 searchAnalyzer, searchAnalyzer, Defaults.POSITION_OFFSET_GAP, Defaults.IGNORE_ABOVE);
     }
 
     protected StringFieldMapper(Names names, Field.Index index, Field.Store store, Field.TermVector termVector,
-                                float boost, boolean omitNorms, boolean omitTermFreqAndPositions,
+                                float boost, boolean omitNorms, IndexOptions indexOptions,
                                 String nullValue, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer,
                                 NamedAnalyzer searchQuotedAnalyzer, int positionOffsetGap, int ignoreAbove) {
-        super(names, index, store, termVector, boost, omitNorms, omitTermFreqAndPositions, indexAnalyzer, searchAnalyzer);
+        super(names, index, store, termVector, boost, omitNorms, indexOptions, indexAnalyzer, searchAnalyzer);
         this.nullValue = nullValue;
         this.positionOffsetGap = positionOffsetGap;
         this.searchQuotedAnalyzer = searchQuotedAnalyzer != null ? searchQuotedAnalyzer : this.searchAnalyzer;
@@ -317,8 +319,8 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
         if (omitNorms != Defaults.OMIT_NORMS) {
             builder.field("omit_norms", omitNorms);
         }
-        if (omitTermFreqAndPositions != Defaults.OMIT_TERM_FREQ_AND_POSITIONS) {
-            builder.field("omit_term_freq_and_positions", omitTermFreqAndPositions);
+        if (indexOptions != Defaults.INDEX_OPTIONS) {
+            builder.field("index_options", indexOptionToString(indexOptions));
         }
         if (nullValue != null) {
             builder.field("null_value", nullValue);

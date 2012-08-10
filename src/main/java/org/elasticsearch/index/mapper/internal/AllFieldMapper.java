@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
@@ -100,7 +101,7 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
 
         @Override
         public AllFieldMapper build(BuilderContext context) {
-            return new AllFieldMapper(name, store, termVector, omitNorms, omitTermFreqAndPositions,
+            return new AllFieldMapper(name, store, termVector, omitNorms, indexOptions,
                     indexAnalyzer, searchAnalyzer, enabled);
         }
     }
@@ -125,13 +126,13 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
     private boolean enabled;
 
     public AllFieldMapper() {
-        this(Defaults.NAME, Defaults.STORE, Defaults.TERM_VECTOR, Defaults.OMIT_NORMS, Defaults.OMIT_TERM_FREQ_AND_POSITIONS, null, null, Defaults.ENABLED);
+        this(Defaults.NAME, Defaults.STORE, Defaults.TERM_VECTOR, Defaults.OMIT_NORMS, Defaults.INDEX_OPTIONS, null, null, Defaults.ENABLED);
     }
 
-    protected AllFieldMapper(String name, Field.Store store, Field.TermVector termVector, boolean omitNorms, boolean omitTermFreqAndPositions,
+    protected AllFieldMapper(String name, Field.Store store, Field.TermVector termVector, boolean omitNorms, IndexOptions indexOptions,
                              NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer, boolean enabled) {
-        super(new Names(name, name, name, name), Field.Index.ANALYZED, store, termVector, 1.0f, omitNorms, omitTermFreqAndPositions,
-                indexAnalyzer, searchAnalyzer);
+        super(new Names(name, name, name, name), Field.Index.ANALYZED, store, termVector, 1.0f, omitNorms, indexOptions, indexAnalyzer,
+                searchAnalyzer);
         this.enabled = enabled;
     }
 

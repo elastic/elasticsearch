@@ -109,8 +109,8 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
 
     protected TTLFieldMapper(Field.Store store, Field.Index index, boolean enabled, long defaultTTL) {
         super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), Defaults.PRECISION_STEP,
-                Defaults.FUZZY_FACTOR, index, store, Defaults.BOOST, Defaults.OMIT_NORMS,
-                Defaults.OMIT_TERM_FREQ_AND_POSITIONS, Defaults.NULL_VALUE, Defaults.IGNORE_MALFORMED);
+                Defaults.FUZZY_FACTOR, index, store, Defaults.BOOST, Defaults.OMIT_NORMS, Defaults.INDEX_OPTIONS,
+                Defaults.NULL_VALUE, Defaults.IGNORE_MALFORMED);
         this.enabled = enabled;
         this.defaultTTL = defaultTTL;
     }

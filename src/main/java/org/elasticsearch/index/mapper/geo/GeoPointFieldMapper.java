@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper.geo;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -142,7 +143,7 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
             context.path().pathType(pathType);
 
             GeoStringFieldMapper geoStringMapper = new GeoStringFieldMapper.Builder(name)
-                    .index(Field.Index.NOT_ANALYZED).omitNorms(true).omitTermFreqAndPositions(true).includeInAll(false).store(store).build(context);
+                    .index(Field.Index.NOT_ANALYZED).omitNorms(true).indexOptions(IndexOptions.DOCS_ONLY).includeInAll(false).store(store).build(context);
 
 
             DoubleFieldMapper latMapper = null;
@@ -161,7 +162,7 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
             }
             StringFieldMapper geohashMapper = null;
             if (enableGeoHash) {
-                geohashMapper = stringField(Names.GEOHASH).index(Field.Index.NOT_ANALYZED).includeInAll(false).omitNorms(true).omitTermFreqAndPositions(true).build(context);
+                geohashMapper = stringField(Names.GEOHASH).index(Field.Index.NOT_ANALYZED).includeInAll(false).omitNorms(true).indexOptions(IndexOptions.DOCS_ONLY).build(context);
             }
             context.path().remove();
 
@@ -551,7 +552,7 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
             @Override
             public GeoStringFieldMapper build(BuilderContext context) {
                 GeoStringFieldMapper fieldMapper = new GeoStringFieldMapper(buildNames(context),
-                        index, store, termVector, boost, omitNorms, omitTermFreqAndPositions, nullValue,
+                        index, store, termVector, boost, omitNorms, indexOptions, nullValue,
                         indexAnalyzer, searchAnalyzer);
                 fieldMapper.includeInAll(includeInAll);
                 return fieldMapper;
@@ -560,8 +561,8 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
 
         GeoPointFieldMapper geoMapper;
 
-        public GeoStringFieldMapper(Names names, Field.Index index, Field.Store store, Field.TermVector termVector, float boost, boolean omitNorms, boolean omitTermFreqAndPositions, String nullValue, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer) {
-            super(names, index, store, termVector, boost, omitNorms, omitTermFreqAndPositions, nullValue, indexAnalyzer, searchAnalyzer);
+        public GeoStringFieldMapper(Names names, Field.Index index, Field.Store store, Field.TermVector termVector, float boost, boolean omitNorms, IndexOptions indexOptions, String nullValue, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer) {
+            super(names, index, store, termVector, boost, omitNorms, indexOptions, nullValue, indexAnalyzer, searchAnalyzer);
         }
 
         @Override

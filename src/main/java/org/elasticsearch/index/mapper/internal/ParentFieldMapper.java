@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper.internal;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
@@ -50,7 +51,7 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
         public static final String NAME = ParentFieldMapper.NAME;
         public static final Field.Index INDEX = Field.Index.NOT_ANALYZED;
         public static final boolean OMIT_NORMS = true;
-        public static final boolean OMIT_TERM_FREQ_AND_POSITIONS = true;
+        public static final IndexOptions INDEX_OPTIONS = IndexOptions.DOCS_ONLY;
     }
 
     public static class Builder extends Mapper.Builder<Builder, ParentFieldMapper> {
@@ -97,7 +98,7 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
 
     protected ParentFieldMapper(String name, String indexName, String type) {
         super(new Names(name, indexName, indexName, name), Defaults.INDEX, Field.Store.YES, Defaults.TERM_VECTOR, Defaults.BOOST,
-                Defaults.OMIT_NORMS, Defaults.OMIT_TERM_FREQ_AND_POSITIONS, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
+                Defaults.OMIT_NORMS, Defaults.INDEX_OPTIONS, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
         this.type = type;
     }
 

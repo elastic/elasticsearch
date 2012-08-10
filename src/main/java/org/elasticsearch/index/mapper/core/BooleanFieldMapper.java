@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper.core;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
@@ -92,15 +93,11 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
             return super.indexName(indexName);
         }
 
-        @Override
-        public Builder omitTermFreqAndPositions(boolean omitTermFreqAndPositions) {
-            return super.omitTermFreqAndPositions(omitTermFreqAndPositions);
-        }
 
         @Override
         public BooleanFieldMapper build(BuilderContext context) {
             return new BooleanFieldMapper(buildNames(context), index, store,
-                    termVector, boost, omitNorms, omitTermFreqAndPositions, nullValue);
+                    termVector, boost, omitNorms, indexOptions, nullValue);
         }
     }
 
@@ -123,8 +120,8 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
     private Boolean nullValue;
 
     protected BooleanFieldMapper(Names names, Field.Index index, Field.Store store, Field.TermVector termVector,
-                                 float boost, boolean omitNorms, boolean omitTermFreqAndPositions, Boolean nullValue) {
-        super(names, index, store, termVector, boost, omitNorms, omitTermFreqAndPositions, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
+                                 float boost, boolean omitNorms, IndexOptions indexOptions, Boolean nullValue) {
+        super(names, index, store, termVector, boost, omitNorms, indexOptions, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
         this.nullValue = nullValue;
     }
 
@@ -210,8 +207,8 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
         if (omitNorms != Defaults.OMIT_NORMS) {
             builder.field("omit_norms", omitNorms);
         }
-        if (omitTermFreqAndPositions != Defaults.OMIT_TERM_FREQ_AND_POSITIONS) {
-            builder.field("omit_term_freq_and_positions", omitTermFreqAndPositions);
+        if (indexOptions != Defaults.INDEX_OPTIONS) {
+            builder.field("index_options", indexOptionToString(indexOptions));
         }
         if (nullValue != null) {
             builder.field("null_value", nullValue);

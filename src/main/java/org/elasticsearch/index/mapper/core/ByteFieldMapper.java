@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper.core;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
@@ -36,6 +37,7 @@ import org.elasticsearch.index.analysis.NumericIntegerAnalyzer;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.core.BooleanFieldMapper.Defaults;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
 
@@ -74,8 +76,7 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
         @Override
         public ByteFieldMapper build(BuilderContext context) {
             ByteFieldMapper fieldMapper = new ByteFieldMapper(buildNames(context),
-                    precisionStep, fuzzyFactor, index, store, boost, omitNorms,
-                    omitTermFreqAndPositions, nullValue, ignoreMalformed);
+                    precisionStep, fuzzyFactor, index, store, boost, omitNorms, indexOptions, nullValue, ignoreMalformed);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -102,9 +103,9 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
     private String nullValueAsString;
 
     protected ByteFieldMapper(Names names, int precisionStep, String fuzzyFactor, Field.Index index, Field.Store store,
-                              float boost, boolean omitNorms, boolean omitTermFreqAndPositions,
+                              float boost, boolean omitNorms, IndexOptions indexOptions,
                               Byte nullValue, boolean ignoreMalformed) {
-        super(names, precisionStep, fuzzyFactor, index, store, boost, omitNorms, omitTermFreqAndPositions,
+        super(names, precisionStep, fuzzyFactor, index, store, boost, omitNorms, indexOptions,
                 ignoreMalformed, new NamedAnalyzer("_byte/" + precisionStep, new NumericIntegerAnalyzer(precisionStep)),
                 new NamedAnalyzer("_byte/max", new NumericIntegerAnalyzer(Integer.MAX_VALUE)));
         this.nullValue = nullValue;
@@ -323,8 +324,8 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
         if (omitNorms != Defaults.OMIT_NORMS) {
             builder.field("omit_norms", omitNorms);
         }
-        if (omitTermFreqAndPositions != Defaults.OMIT_TERM_FREQ_AND_POSITIONS) {
-            builder.field("omit_term_freq_and_positions", omitTermFreqAndPositions);
+        if (indexOptions != Defaults.INDEX_OPTIONS) {
+            builder.field("index_options", indexOptionToString(indexOptions));
         }
         if (precisionStep != Defaults.PRECISION_STEP) {
             builder.field("precision_step", precisionStep);

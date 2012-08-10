@@ -23,6 +23,7 @@ import com.google.common.base.Objects;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -69,7 +70,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
         public static final Field.Index INDEX = Field.Index.NO;
         public static final Field.Store STORE = Field.Store.YES;
         public static final boolean OMIT_NORMS = true;
-        public static final boolean OMIT_TERM_FREQ_AND_POSITIONS = true;
+        public static final IndexOptions INDEX_OPTIONS = IndexOptions.DOCS_ONLY;
         public static final String[] INCLUDES = Strings.EMPTY_ARRAY;
         public static final String[] EXCLUDES = Strings.EMPTY_ARRAY;
     }
@@ -190,7 +191,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
 
     protected SourceFieldMapper(String name, boolean enabled, String format, Boolean compress, long compressThreshold, String[] includes, String[] excludes) {
         super(new Names(name, name, name, name), Defaults.INDEX, Defaults.STORE, Defaults.TERM_VECTOR, Defaults.BOOST,
-                Defaults.OMIT_NORMS, Defaults.OMIT_TERM_FREQ_AND_POSITIONS, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
+                Defaults.OMIT_NORMS, Defaults.INDEX_OPTIONS, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
         this.enabled = enabled;
         this.compress = compress;
         this.compressThreshold = compressThreshold;

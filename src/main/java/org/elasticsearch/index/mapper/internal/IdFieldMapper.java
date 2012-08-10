@@ -24,6 +24,7 @@ import com.google.common.collect.Iterables;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.search.*;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -58,7 +59,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         public static final Field.Index INDEX = Field.Index.NO;
         public static final Field.Store STORE = Field.Store.NO;
         public static final boolean OMIT_NORMS = true;
-        public static final boolean OMIT_TERM_FREQ_AND_POSITIONS = true;
+        public static final IndexOptions INDEX_OPTIONS = IndexOptions.DOCS_ONLY;
         public static final String PATH = null;
     }
 
@@ -72,7 +73,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
             store = Defaults.STORE;
             index = Defaults.INDEX;
             omitNorms = Defaults.OMIT_NORMS;
-            omitTermFreqAndPositions = Defaults.OMIT_TERM_FREQ_AND_POSITIONS;
+            indexOptions = Defaults.INDEX_OPTIONS;
         }
 
         public Builder path(String path) {
@@ -82,7 +83,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
 
         @Override
         public IdFieldMapper build(BuilderContext context) {
-            return new IdFieldMapper(name, indexName, index, store, termVector, boost, omitNorms, omitTermFreqAndPositions, path);
+            return new IdFieldMapper(name, indexName, index, store, termVector, boost, omitNorms, indexOptions, path);
         }
     }
 
@@ -114,13 +115,13 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
 
     protected IdFieldMapper(String name, String indexName, Field.Index index) {
         this(name, indexName, index, Defaults.STORE, Defaults.TERM_VECTOR, Defaults.BOOST,
-                Defaults.OMIT_NORMS, Defaults.OMIT_TERM_FREQ_AND_POSITIONS, Defaults.PATH);
+                Defaults.OMIT_NORMS, Defaults.INDEX_OPTIONS, Defaults.PATH);
     }
 
     protected IdFieldMapper(String name, String indexName, Field.Index index, Field.Store store, Field.TermVector termVector,
-                            float boost, boolean omitNorms, boolean omitTermFreqAndPositions, String path) {
-        super(new Names(name, indexName, indexName, name), index, store, termVector, boost, omitNorms, omitTermFreqAndPositions,
-                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
+                            float boost, boolean omitNorms, IndexOptions indexOptions, String path) {
+        super(new Names(name, indexName, indexName, name), index, store, termVector, boost, omitNorms, indexOptions, Lucene.KEYWORD_ANALYZER,
+                Lucene.KEYWORD_ANALYZER);
         this.path = path;
     }
 

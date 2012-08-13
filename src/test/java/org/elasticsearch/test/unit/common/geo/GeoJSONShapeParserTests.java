@@ -37,8 +37,8 @@ public class GeoJSONShapeParserTests {
     public void testParse_lineString() throws IOException {
         String lineGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "LineString")
                 .startArray("coordinates")
-                    .startArray().value(100.0).value(0.0).endArray()
-                    .startArray().value(101.0).value(1.0).endArray()
+                .startArray().value(100.0).value(0.0).endArray()
+                .startArray().value(101.0).value(1.0).endArray()
                 .endArray()
                 .endObject().string();
 
@@ -55,13 +55,13 @@ public class GeoJSONShapeParserTests {
     public void testParse_polygonNoHoles() throws IOException {
         String polygonGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "Polygon")
                 .startArray("coordinates")
-                    .startArray()
-                        .startArray().value(100.0).value(0.0).endArray()
-                        .startArray().value(101.0).value(0.0).endArray()
-                        .startArray().value(101.0).value(1.0).endArray()
-                        .startArray().value(100.0).value(1.0).endArray()
-                        .startArray().value(100.0).value(0.0).endArray()
-                    .endArray()
+                .startArray()
+                .startArray().value(100.0).value(0.0).endArray()
+                .startArray().value(101.0).value(0.0).endArray()
+                .startArray().value(101.0).value(1.0).endArray()
+                .startArray().value(100.0).value(1.0).endArray()
+                .startArray().value(100.0).value(0.0).endArray()
+                .endArray()
                 .endArray()
                 .endObject().string();
 
@@ -82,20 +82,20 @@ public class GeoJSONShapeParserTests {
     public void testParse_polygonWithHole() throws IOException {
         String polygonGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "Polygon")
                 .startArray("coordinates")
-                    .startArray()
-                        .startArray().value(100.0).value(0.0).endArray()
-                        .startArray().value(101.0).value(0.0).endArray()
-                        .startArray().value(101.0).value(1.0).endArray()
-                        .startArray().value(100.0).value(1.0).endArray()
-                        .startArray().value(100.0).value(0.0).endArray()
-                    .endArray()
-                    .startArray()
-                        .startArray().value(100.2).value(0.2).endArray()
-                        .startArray().value(100.8).value(0.2).endArray()
-                        .startArray().value(100.8).value(0.8).endArray()
-                        .startArray().value(100.2).value(0.8).endArray()
-                        .startArray().value(100.2).value(0.2).endArray()
-                    .endArray()
+                .startArray()
+                .startArray().value(100.0).value(0.0).endArray()
+                .startArray().value(101.0).value(0.0).endArray()
+                .startArray().value(101.0).value(1.0).endArray()
+                .startArray().value(100.0).value(1.0).endArray()
+                .startArray().value(100.0).value(0.0).endArray()
+                .endArray()
+                .startArray()
+                .startArray().value(100.2).value(0.2).endArray()
+                .startArray().value(100.8).value(0.2).endArray()
+                .startArray().value(100.8).value(0.8).endArray()
+                .startArray().value(100.2).value(0.8).endArray()
+                .startArray().value(100.2).value(0.2).endArray()
+                .endArray()
                 .endArray()
                 .endObject().string();
 
@@ -126,8 +126,8 @@ public class GeoJSONShapeParserTests {
     public void testParse_multiPoint() throws IOException {
         String multiPointGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "MultiPoint")
                 .startArray("coordinates")
-                    .startArray().value(100.0).value(0.0).endArray()
-                    .startArray().value(101.0).value(1.0).endArray()
+                .startArray().value(100.0).value(0.0).endArray()
+                .startArray().value(101.0).value(1.0).endArray()
                 .endArray()
                 .endObject().string();
 
@@ -142,6 +142,7 @@ public class GeoJSONShapeParserTests {
 
     private void assertGeometryEquals(Shape expected, String geoJson) throws IOException {
         XContentParser parser = JsonXContent.jsonXContent.createParser(geoJson);
+        parser.nextToken();
         assertEquals(GeoJSONShapeParser.parse(parser), expected);
     }
 }

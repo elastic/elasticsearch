@@ -143,6 +143,9 @@ public class UpdateTests extends AbstractNodesTests {
                         .endObject())
                 .setRefresh(true)
                 .execute().actionGet();
+        clusterHealth = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        assertThat(clusterHealth.timedOut(), equalTo(false));
+        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
         updateResponse = client.prepareUpdate("test", "type1", "1").setScript("ctx._source.field += 1").setPercolate("*").execute().actionGet();
         assertThat(updateResponse.matches().size(), equalTo(1));
 

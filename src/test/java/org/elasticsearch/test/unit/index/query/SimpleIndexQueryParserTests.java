@@ -1840,6 +1840,8 @@ public class SimpleIndexQueryParserTests {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/query/geoShape-query.json");
         Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
+        parsedQuery = ((ConstantScoreQuery) parsedQuery).getQuery();
         assertThat(parsedQuery, instanceOf(BooleanQuery.class));
         BooleanQuery booleanQuery = (BooleanQuery) parsedQuery;
         TermQuery termQuery = (TermQuery) booleanQuery.getClauses()[0].getQuery();

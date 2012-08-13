@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper.internal;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.Term;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.UidField;
@@ -48,6 +49,7 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
         public static final String NAME = UidFieldMapper.NAME;
         public static final Field.Index INDEX = Field.Index.NOT_ANALYZED;
         public static final boolean OMIT_NORMS = true;
+        public static final FieldInfo.IndexOptions INDEX_OPTIONS = FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS; // we store payload (otherwise, we really need just docs)
     }
 
     public static class Builder extends Mapper.Builder<Builder, UidFieldMapper> {

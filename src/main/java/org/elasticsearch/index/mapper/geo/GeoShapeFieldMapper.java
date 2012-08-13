@@ -5,13 +5,14 @@ import com.spatial4j.core.context.jts.JtsSpatialContext;
 import com.spatial4j.core.distance.DistanceUnits;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.index.FieldInfo;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.geo.GeoJSONShapeParser;
 import org.elasticsearch.common.lucene.spatial.SpatialStrategy;
 import org.elasticsearch.common.lucene.spatial.prefix.TermQueryPrefixTreeStrategy;
 import org.elasticsearch.common.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.elasticsearch.common.lucene.spatial.prefix.tree.QuadPrefixTree;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.geo.GeoJSONShapeParser;
 import org.elasticsearch.common.lucene.spatial.prefix.tree.SpatialPrefixTree;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -25,18 +26,18 @@ import java.util.Map;
 
 /**
  * FieldMapper for indexing {@link com.spatial4j.core.shape.Shape}s.
- *
+ * <p/>
  * Currently Shapes can only be indexed and can only be queried using
  * {@link org.elasticsearch.index.query.GeoShapeFilterParser}, consequently
  * a lot of behavior in this Mapper is disabled.
- *
+ * <p/>
  * Format supported:
- *
+ * <p/>
  * "field" : {
- *     "type" : "polygon",
- *     "coordinates" : [
- *          [ [100.0, 0.0], [101.0, 0.0], [101.0, 1.0], [100.0, 1.0], [100.0, 0.0] ]
- *     ]
+ * "type" : "polygon",
+ * "coordinates" : [
+ * [ [100.0, 0.0], [101.0, 0.0], [101.0, 1.0], [100.0, 1.0], [100.0, 0.0] ]
+ * ]
  * }
  */
 public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
@@ -128,7 +129,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
     private final SpatialStrategy spatialStrategy;
 
     public GeoShapeFieldMapper(FieldMapper.Names names, SpatialPrefixTree prefixTree, double distanceErrorPct) {
-        super(names, Field.Index.NOT_ANALYZED, Field.Store.NO, Field.TermVector.NO, 1, true, true, null, null);
+        super(names, Field.Index.NOT_ANALYZED, Field.Store.NO, Field.TermVector.NO, 1, true, FieldInfo.IndexOptions.DOCS_ONLY, null, null);
         this.spatialStrategy = new TermQueryPrefixTreeStrategy(names, prefixTree, distanceErrorPct);
     }
 

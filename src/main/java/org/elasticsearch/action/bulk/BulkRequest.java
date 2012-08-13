@@ -20,6 +20,7 @@
 package org.elasticsearch.action.bulk;
 
 import com.google.common.collect.Lists;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.WriteConsistencyLevel;
@@ -50,6 +51,8 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class BulkRequest implements ActionRequest {
 
+    private static final int REQUEST_OVERHEAD = 50;
+
     final List<ActionRequest> requests = Lists.newArrayList();
 
     private boolean listenerThreaded = false;
@@ -57,6 +60,40 @@ public class BulkRequest implements ActionRequest {
     private ReplicationType replicationType = ReplicationType.DEFAULT;
     private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
     private boolean refresh = false;
+
+    private long sizeInBytes = 0;
+
+    /**
+     * Adds a list of requests to be executed. Either index or delete requests.
+     */
+    public BulkRequest add(ActionRequest... requests) {
+        for (ActionRequest request : requests) {
+            if (request instanceof IndexRequest) {
+                add((IndexRequest) request);
+            } else if (request instanceof DeleteRequest) {
+                add((DeleteRequest) request);
+            } else {
+                throw new ElasticSearchIllegalArgumentException("No support for request [" + request + "]");
+            }
+        }
+        return this;
+    }
+
+    /**
+     * Adds a list of requests to be executed. Either index or delete requests.
+     */
+    public BulkRequest add(Iterable<ActionRequest> requests) {
+        for (ActionRequest request : requests) {
+            if (request instanceof IndexRequest) {
+                add((IndexRequest) request);
+            } else if (request instanceof DeleteRequest) {
+                add((DeleteRequest) request);
+            } else {
+                throw new ElasticSearchIllegalArgumentException("No support for request [" + request + "]");
+            }
+        }
+        return this;
+    }
 
     /**
      * Adds an {@link IndexRequest} to the list of actions to execute. Follows the same behavior of {@link IndexRequest}
@@ -67,8 +104,9 @@ public class BulkRequest implements ActionRequest {
         return internalAdd(request);
     }
 
-    private BulkRequest internalAdd(IndexRequest request) {
+    BulkRequest internalAdd(IndexRequest request) {
         requests.add(request);
+        sizeInBytes += request.source().length() + REQUEST_OVERHEAD;
         return this;
     }
 
@@ -77,11 +115,20 @@ public class BulkRequest implements ActionRequest {
      */
     public BulkRequest add(DeleteRequest request) {
         requests.add(request);
+        sizeInBytes += REQUEST_OVERHEAD;
         return this;
     }
 
     public List<ActionRequest> requests() {
         return this.requests;
+    }
+
+    public int numberOfActions() {
+        return requests.size();
+    }
+
+    public long estimatedSizeInBytes() {
+        return sizeInBytes;
     }
 
     /**
@@ -261,10 +308,6 @@ public class BulkRequest implements ActionRequest {
             }
         }
         return -1;
-    }
-
-    public int numberOfActions() {
-        return requests.size();
     }
 
     @Override

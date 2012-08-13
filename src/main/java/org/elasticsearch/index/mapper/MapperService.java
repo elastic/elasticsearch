@@ -191,6 +191,9 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     // instances of field mappers to properly remove existing doc mapper
     private void add(DocumentMapper mapper) {
         synchronized (mutex) {
+            if (mapper.type().length() == 0) {
+                throw new InvalidTypeNameException("mapping type name is empty");
+            }
             if (mapper.type().charAt(0) == '_') {
                 throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] can't start with '_'");
             }

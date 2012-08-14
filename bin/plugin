@@ -1,4 +1,5 @@
 #!/bin/sh
+# For https proxies use -Dhttps.proxyHost=PROXYHOST -Dhttps.proxyPort=PROXYPORT
 
 CDPATH=""
 SCRIPT="$0"
@@ -28,4 +29,13 @@ else
     JAVA=`which java`
 fi
 
-exec $JAVA -Xmx64m -Xms16m -Delasticsearch -Des.path.home="$ES_HOME" -cp "$ES_HOME/lib/*" org.elasticsearch.plugins.PluginManager $*
+
+JAVAOPTS=""
+for opt in $*
+do
+  if test `expr "$opt" : "-D"` -ne 0 ; then
+    JAVAOPTS="$JAVAOPTS $opt"
+  fi
+done
+
+exec $JAVA $JAVAOPTS -Xmx64m -Xms16m -Delasticsearch -Des.path.home="$ES_HOME" -cp "$ES_HOME/lib/*" org.elasticsearch.plugins.PluginManager $*

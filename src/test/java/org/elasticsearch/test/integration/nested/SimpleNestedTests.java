@@ -450,4 +450,84 @@ public class SimpleNestedTests extends AbstractNodesTests {
         assertThat(termsStatsFacet.entries().get(0).count(), equalTo(3l));
         assertThat(termsStatsFacet.entries().get(0).total(), equalTo(8d));
     }
+
+    public void testNestedQueryScopedFacetingBug() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+
+        client.admin().indices().prepareCreate("test")
+                .setSettings(settingsBuilder().put("number_of_shards", 1))
+                .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")
+                        .startObject("nested")
+                        .field("type", "nested")
+                        .endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        client.prepareIndex("test", "type", "1").setSource(jsonBuilder()
+                .startObject()
+                    .field("field", "value1")
+                    .startArray("nested")
+                        .startObject()
+                            .field("field2_1", "blue")
+                            .field("field2_2", 5)
+                        .endObject()
+                        .startObject()
+                            .field("field2_1", "yellow")
+                            .field("field2_2", 3)
+                        .endObject()
+                    .endArray()
+                .endObject()).execute().actionGet();
+
+        client.prepareIndex("test", "type", "2").setSource(jsonBuilder()
+                .startObject()
+                    .field("field", "value2")
+                    .startArray("nested")
+                        .startObject()
+                            .field("field2_1", "blue")
+                            .field("field2_2", 2)
+                        .endObject()
+                        .startObject()
+                            .field("field2_1", "green")
+                            .field("field2_2", 4)
+                        .endObject()
+                    .endArray()
+                .endObject()).execute().actionGet();
+
+        client.prepareIndex("test", "type", "3").setSource(jsonBuilder()
+                .startObject()
+                    .field("field", "value1")
+                .endObject()).execute().actionGet();
+
+
+        client.admin().indices().prepareRefresh("test").execute().actionGet();
+
+        // Exposing bug: a nested scoped query inside a boolean query with a clause that forces to skip a parent doc.
+        // The source of the bug is in a Lucene query and only exposes a specific order of documents in a segment
+        // The must clause wants to skip to document 3, but the BJQ can't simply skip if scoped facets are associated
+        // with it as is in the query. The BJQ should pass the child docs of document 2 to the facet collector in this case.
+        SearchResponse searchResponse = client.prepareSearch("test")
+                .setQuery(
+                        boolQuery()
+                                .must(termQuery("field", "value1"))
+                                .should(
+                                        nestedQuery("nested", termQuery("nested.field2_1", "blue")).scope("nested")
+                                )
+                )
+                .addFacet(
+                        FacetBuilders.termsStatsFacet("facet1")
+                                .keyField("nested.field2_1").valueField("nested.field2_2")
+                                .scope("nested")
+                )
+                .execute().actionGet();
+        assertThat(Arrays.toString(searchResponse.shardFailures()), searchResponse.failedShards(), equalTo(0));
+        assertThat(searchResponse.hits().totalHits(), equalTo(2l));
+
+        TermsStatsFacet termsStatsFacet = searchResponse.facets().facet("facet1");
+        assertThat(termsStatsFacet.entries().size(), equalTo(1));
+        assertThat(termsStatsFacet.entries().get(0).term(), equalTo("blue"));
+        assertThat(termsStatsFacet.entries().get(0).count(), equalTo(2l));
+        assertThat(termsStatsFacet.entries().get(0).total(), equalTo(7d));
+    }
+
 }

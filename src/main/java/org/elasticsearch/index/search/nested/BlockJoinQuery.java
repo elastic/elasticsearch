@@ -364,7 +364,16 @@ public class BlockJoinQuery extends Query {
             //System.out.println("  rolled back to prevParentDoc=" + prevParentDoc + " vs parentDoc=" + parentDoc);
             assert prevParentDoc >= parentDoc;
             if (prevParentDoc > nextChildDoc) {
-                nextChildDoc = childScorer.advance(prevParentDoc);
+                // CHANGE:
+                if (childCollector != NoopCollector.NOOP_COLLECTOR) {
+                    do {
+                        childCollector.collect(nextChildDoc);
+                        nextChildDoc = childScorer.nextDoc();
+                    } while (nextChildDoc < prevParentDoc);
+                } else {
+                    nextChildDoc = childScorer.advance(prevParentDoc);
+                }
+                // END CHANGE
                 // System.out.println("  childScorer advanced to child docID=" + nextChildDoc);
                 //} else {
                 //System.out.println("  skip childScorer advance");

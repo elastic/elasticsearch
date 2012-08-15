@@ -110,6 +110,48 @@ public class SimpleQueryTests extends AbstractNodesTests {
     }
 
     @Test
+    public void queryRegex() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 1)).execute().actionGet();
+
+        client.prepareIndex("test", "type1", "1").setSource("field1", "value_1", "field2", "value_2").execute().actionGet();
+
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        SearchResponse searchResponse =
+                client
+                        .prepareSearch()
+                        .setQuery(regexQuery("field1", "value_[0-9]"))
+                        .execute()
+                        .actionGet();
+
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+
+        searchResponse =
+                client
+                        .prepareSearch()
+                        .setQuery(regexQuery("field1", "v[a-z]+_1"))
+                        .execute()
+                        .actionGet();
+
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+
+        searchResponse =
+                client
+                        .prepareSearch()
+                        .setQuery(regexQuery("field1", "value_2"))
+                        .execute()
+                        .actionGet();
+
+        assertThat(searchResponse.hits().totalHits(), equalTo(0L));
+    }
+
+    @Test
     public void typeFilterTypeIndexedTests() throws Exception {
         typeFilterTests("not_analyzed");
     }

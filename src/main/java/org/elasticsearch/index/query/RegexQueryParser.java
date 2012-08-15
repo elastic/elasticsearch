@@ -68,7 +68,7 @@ public class RegexQueryParser implements QueryParser {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else {
-                    if ("wildcard".equals(currentFieldName)) {
+                    if ("regex".equals(currentFieldName)) {
                         value = parser.text();
                     } else if ("value".equals(currentFieldName)) {
                         value = parser.text();
@@ -77,7 +77,7 @@ public class RegexQueryParser implements QueryParser {
                     } else if ("rewrite".equals(currentFieldName)) {
                         rewriteMethod = parser.textOrNull();
                     } else {
-                        throw new QueryParsingException(parseContext.index(), "[wildcard] query does not support [" + currentFieldName + "]");
+                        throw new QueryParsingException(parseContext.index(), "[regex] query does not support [" + currentFieldName + "]");
                     }
                 }
             }

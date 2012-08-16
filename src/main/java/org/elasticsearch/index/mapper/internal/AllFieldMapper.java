@@ -25,6 +25,7 @@ import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.all.AllField;
@@ -142,12 +143,16 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
 
     @Override
     public Query queryStringTermQuery(Term term) {
-        return new AllTermQuery(term);
+        if (indexOptions == IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) {
+            return new AllTermQuery(term);
+        } 
+        return new TermQuery(term);
     }
 
     @Override
     public Query fieldQuery(String value, QueryParseContext context) {
-        return new AllTermQuery(names().createIndexNameTerm(value));
+        return queryStringTermQuery(names().createIndexNameTerm(value));
+        
     }
 
     @Override

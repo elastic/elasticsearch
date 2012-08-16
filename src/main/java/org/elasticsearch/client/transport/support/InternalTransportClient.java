@@ -40,6 +40,7 @@ import java.util.Map;
  */
 public class InternalTransportClient extends AbstractClient implements InternalClient {
 
+    private final Settings settings;
     private final ThreadPool threadPool;
 
     private final TransportClientNodesService nodesService;
@@ -52,6 +53,7 @@ public class InternalTransportClient extends AbstractClient implements InternalC
     public InternalTransportClient(Settings settings, ThreadPool threadPool, TransportService transportService,
                                    TransportClientNodesService nodesService, InternalTransportAdminClient adminClient,
                                    Map<String, GenericAction> actions) {
+        this.settings = settings;
         this.threadPool = threadPool;
         this.nodesService = nodesService;
         this.adminClient = adminClient;
@@ -68,6 +70,11 @@ public class InternalTransportClient extends AbstractClient implements InternalC
     @Override
     public void close() {
         // nothing to do here
+    }
+
+    @Override
+    public Settings settings() {
+        return this.settings;
     }
 
     @Override

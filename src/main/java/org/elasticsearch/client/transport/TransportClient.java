@@ -272,6 +272,11 @@ public class TransportClient extends AbstractClient {
     }
 
     @Override
+    public Settings settings() {
+        return this.settings;
+    }
+
+    @Override
     public ThreadPool threadPool() {
         return internalClient.threadPool();
     }

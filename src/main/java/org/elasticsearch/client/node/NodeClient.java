@@ -37,6 +37,7 @@ import java.util.Map;
  */
 public class NodeClient extends AbstractClient implements InternalClient {
 
+    private final Settings settings;
     private final ThreadPool threadPool;
 
     private final NodeAdminClient admin;
@@ -45,6 +46,7 @@ public class NodeClient extends AbstractClient implements InternalClient {
 
     @Inject
     public NodeClient(Settings settings, ThreadPool threadPool, NodeAdminClient admin, Map<GenericAction, TransportAction> actions) {
+        this.settings = settings;
         this.threadPool = threadPool;
         this.admin = admin;
         MapBuilder<Action, TransportAction> actionsBuilder = new MapBuilder<Action, TransportAction>();
@@ -54,6 +56,11 @@ public class NodeClient extends AbstractClient implements InternalClient {
             }
         }
         this.actions = actionsBuilder.immutableMap();
+    }
+
+    @Override
+    public Settings settings() {
+        return this.settings;
     }
 
     @Override

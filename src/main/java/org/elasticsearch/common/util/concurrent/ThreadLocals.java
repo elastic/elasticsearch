@@ -79,7 +79,7 @@ public class ThreadLocals {
                 }
             }
         } catch (Exception e) {
-            logger.warn("Failed to clean thread locals", e);
+            logger.debug("failed to clean thread locals", e);
         }
     }
 

@@ -547,8 +547,11 @@ public class MapperQueryParser extends QueryParser {
 
     @Override
     protected Query getWildcardQuery(String field, String termStr) throws ParseException {
-        if ("*".equals(field) && termStr.equals("*")) {
-            return newMatchAllDocsQuery();
+        if (termStr.equals("*")) {
+            // we want to optimize for match all query for the "*:*", and "*" cases
+            if ("*".equals(field) || field.equals(this.field)) {
+                return newMatchAllDocsQuery();
+            }
         }
         Collection<String> fields = extractMultiFields(field);
         if (fields != null) {

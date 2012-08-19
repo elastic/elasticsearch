@@ -19,7 +19,6 @@
 
 package org.elasticsearch.discovery.local;
 
-import jsr166y.LinkedTransferQueue;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cluster.*;
@@ -39,7 +38,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.Queue;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -300,7 +298,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
 
     private class ClusterGroup {
 
-        private Queue<LocalDiscovery> members = new LinkedTransferQueue<LocalDiscovery>();
+        private Queue<LocalDiscovery> members = ConcurrentCollections.newQueue();
 
         Queue<LocalDiscovery> members() {
             return members;

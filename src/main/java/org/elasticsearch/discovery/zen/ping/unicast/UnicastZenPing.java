@@ -20,7 +20,6 @@
 package org.elasticsearch.discovery.zen.ping.unicast;
 
 import com.google.common.collect.Lists;
-import jsr166y.LinkedTransferQueue;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
@@ -78,7 +77,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
     private final Map<Integer, ConcurrentMap<DiscoveryNode, PingResponse>> receivedResponses = newConcurrentMap();
 
     // a list of temporal responses a node will return for a request (holds requests from other nodes)
-    private final Queue<PingResponse> temporalResponses = new LinkedTransferQueue<PingResponse>();
+    private final Queue<PingResponse> temporalResponses = ConcurrentCollections.newQueue();
 
     private final CopyOnWriteArrayList<UnicastHostsProvider> hostsProviders = new CopyOnWriteArrayList<UnicastHostsProvider>();
 

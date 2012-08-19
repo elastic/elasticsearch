@@ -19,10 +19,10 @@
 
 package org.elasticsearch.common.io.stream;
 
-import jsr166y.LinkedTransferQueue;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.io.UTF8StreamWriter;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.io.IOException;
@@ -146,7 +146,7 @@ public class CachedStreamOutput {
         }
         Queue<Entry> ref = cache.get();
         if (ref == null) {
-            ref = new LinkedTransferQueue<Entry>();
+            ref = ConcurrentCollections.newQueue();
             counter.set(0);
             cache.set(ref);
         }

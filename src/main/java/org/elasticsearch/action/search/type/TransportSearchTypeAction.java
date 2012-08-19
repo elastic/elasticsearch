@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.search.type;
 
-import jsr166y.LinkedTransferQueue;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.action.support.TransportAction;
@@ -34,6 +33,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.trove.ExtTIntArrayList;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.action.SearchServiceListener;
@@ -46,6 +46,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -92,7 +93,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
 
         private final AtomicInteger totalOps = new AtomicInteger();
 
-        private volatile LinkedTransferQueue<ShardSearchFailure> shardFailures;
+        private volatile Queue<ShardSearchFailure> shardFailures;
 
         protected volatile ShardDoc[] sortedShardList;
 
@@ -308,7 +309,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
         }
 
         protected final ShardSearchFailure[] buildShardFailures() {
-            LinkedTransferQueue<ShardSearchFailure> localFailures = shardFailures;
+            Queue<ShardSearchFailure> localFailures = shardFailures;
             if (localFailures == null) {
                 return ShardSearchFailure.EMPTY_ARRAY;
             }
@@ -319,7 +320,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
         // we simply try and return as much as possible
         protected final void addShardFailure(ShardSearchFailure failure) {
             if (shardFailures == null) {
-                shardFailures = new LinkedTransferQueue<ShardSearchFailure>();
+                shardFailures = ConcurrentCollections.newQueue();
             }
             shardFailures.add(failure);
         }

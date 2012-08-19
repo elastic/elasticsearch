@@ -19,9 +19,12 @@
 
 package org.elasticsearch.common.util.concurrent;
 
+import jsr166y.LinkedTransferQueue;
 import org.elasticsearch.common.collect.MapBackedSet;
 
+import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -53,6 +56,13 @@ public abstract class ConcurrentCollections {
         return new MapBackedSet<V>(new ConcurrentHashMap<V, Boolean>());
     }
 
+    public static <T> Queue<T> newQueue() {
+        return new LinkedTransferQueue<T>();
+    }
+
+    public static <T> BlockingQueue<T> newBlockingQueue() {
+        return new LinkedTransferQueue<T>();
+    }
 
     private ConcurrentCollections() {
 

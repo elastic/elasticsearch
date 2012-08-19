@@ -48,22 +48,22 @@ public class MultiPhrasePrefixQueryTests {
 
         MultiPhrasePrefixQuery query = new MultiPhrasePrefixQuery();
         query.add(new Term("field", "aa"));
-        assertThat(Lucene.count(searcher, query, 0), equalTo(1l));
+        assertThat(Lucene.count(searcher, query), equalTo(1l));
 
         query = new MultiPhrasePrefixQuery();
         query.add(new Term("field", "aaa"));
         query.add(new Term("field", "bb"));
-        assertThat(Lucene.count(searcher, query, 0), equalTo(1l));
+        assertThat(Lucene.count(searcher, query), equalTo(1l));
 
         query = new MultiPhrasePrefixQuery();
         query.setSlop(1);
         query.add(new Term("field", "aaa"));
         query.add(new Term("field", "cc"));
-        assertThat(Lucene.count(searcher, query, 0), equalTo(1l));
+        assertThat(Lucene.count(searcher, query), equalTo(1l));
 
         query = new MultiPhrasePrefixQuery();
         query.setSlop(1);
         query.add(new Term("field", "xxx"));
-        assertThat(Lucene.count(searcher, query, 0), equalTo(0l));
+        assertThat(Lucene.count(searcher, query), equalTo(0l));
     }
 }

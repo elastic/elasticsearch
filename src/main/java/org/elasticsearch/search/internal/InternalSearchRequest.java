@@ -140,8 +140,9 @@ public class InternalSearchRequest implements Streamable {
         return filteringAliases;
     }
 
-    public void filteringAliases(String[] filteringAliases) {
+    public InternalSearchRequest filteringAliases(String[] filteringAliases) {
         this.filteringAliases = filteringAliases;
+        return this;
     }
 
     public String[] types() {

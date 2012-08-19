@@ -96,4 +96,9 @@ public class DefaultShardOperationFailedException implements ShardOperationFaile
         out.writeVInt(shardId);
         out.writeUTF(reason);
     }
+
+    @Override
+    public String toString() {
+        return "[" + index + "][" + shardId + "] failed, reason [" + reason + "]";
+    }
 }

@@ -109,6 +109,9 @@ public class Queries {
     }
 
     public static boolean isMatchAllQuery(Query query) {
+        if (query == Queries.MATCH_ALL_QUERY) {
+            return true;
+        }
         if (query instanceof MatchAllDocsQuery) {
             return true;
         }

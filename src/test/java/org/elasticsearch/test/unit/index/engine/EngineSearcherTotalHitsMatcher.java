@@ -46,7 +46,7 @@ public final class EngineSearcherTotalHitsMatcher extends TypeSafeMatcher<Engine
     @Override
     public boolean matchesSafely(Engine.Searcher searcher) {
         try {
-            long count = Lucene.count(searcher.searcher(), query, -1f);
+            long count = Lucene.count(searcher.searcher(), query);
             return count == totalHits;
         } catch (IOException e) {
             return false;

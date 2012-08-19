@@ -52,7 +52,7 @@ public class MatchAllDocsFilterTests {
         IndexSearcher searcher = new IndexSearcher(reader);
 
         DeletionAwareConstantScoreQuery query = new DeletionAwareConstantScoreQuery(Queries.MATCH_ALL_FILTER);
-        long count = Lucene.count(searcher, query, -1);
+        long count = Lucene.count(searcher, query);
         assertThat(count, equalTo(2l));
 
         reader.close();

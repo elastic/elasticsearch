@@ -37,8 +37,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FastByteArrayOutputStream;
-import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -54,7 +52,6 @@ import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.query.IndexQueryParserService;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.nested.IncludeAllChildrenQuery;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
@@ -390,39 +387,6 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     public Engine.GetResult get(Engine.Get get) throws ElasticSearchException {
         readAllowed();
         return engine.get(get);
-    }
-
-    @Override
-    public long count(float minScore, BytesReference querySource, @Nullable String[] filteringAliases, String... types) throws ElasticSearchException {
-        readAllowed();
-        Query query;
-        if (querySource == null || querySource.length() == 0) {
-            query = Queries.MATCH_ALL_QUERY;
-        } else {
-            try {
-                QueryParseContext.setTypes(types);
-                query = queryParserService.parse(querySource).query();
-            } finally {
-                QueryParseContext.removeTypes();
-            }
-        }
-        // wrap it in filter, cache it, and constant score it
-        // Don't cache it, since it might be very different queries each time...
-//        query = new ConstantScoreQuery(filterCache.cache(new QueryWrapperFilter(query)));
-        query = filterQueryIfNeeded(query, types);
-        Filter aliasFilter = indexAliasesService.aliasFilter(filteringAliases);
-        Engine.Searcher searcher = engine.searcher();
-        try {
-            long count = Lucene.count(searcher.searcher(), query, aliasFilter, minScore);
-            if (logger.isTraceEnabled()) {
-                logger.trace("count of [{}] is [{}]", query, count);
-            }
-            return count;
-        } catch (IOException e) {
-            throw new ElasticSearchException("Failed to count query [" + query + "]", e);
-        } finally {
-            searcher.release();
-        }
     }
 
     @Override

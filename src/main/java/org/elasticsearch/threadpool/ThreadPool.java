@@ -22,7 +22,6 @@ package org.elasticsearch.threadpool;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.MoreExecutors;
-import jsr166y.LinkedTransferQueue;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -35,10 +34,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.EsAbortPolicy;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
-import org.elasticsearch.common.util.concurrent.XRejectedExecutionHandler;
+import org.elasticsearch.common.util.concurrent.*;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
@@ -249,7 +245,7 @@ public class ThreadPool extends AbstractComponent {
             String queueType = settings.get("queue_type", "linked");
             BlockingQueue<Runnable> workQueue;
             if (capacity == null) {
-                workQueue = new LinkedTransferQueue<Runnable>();
+                workQueue = ConcurrentCollections.newBlockingQueue();
             } else if ((int) capacity.singles() > 0) {
                 if ("linked".equals(queueType)) {
                     workQueue = new LinkedBlockingQueue<Runnable>((int) capacity.singles());

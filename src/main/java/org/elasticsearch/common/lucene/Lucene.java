@@ -82,14 +82,14 @@ public class Lucene {
         return defaultVersion;
     }
 
-    public static long count(IndexSearcher searcher, Query query, float minScore) throws IOException {
-        return count(searcher, query, null, minScore);
-    }
-
-    public static long count(IndexSearcher searcher, Query query, Filter filter, float minScore) throws IOException {
-        CountCollector countCollector = new CountCollector(minScore);
-        searcher.search(query, filter, countCollector);
-        return countCollector.count();
+    public static long count(IndexSearcher searcher, Query query) throws IOException {
+        TotalHitCountCollector countCollector = new TotalHitCountCollector();
+        // we don't need scores, so wrap it in a constant score query
+        if (!(query instanceof ConstantScoreQuery)) {
+            query = new ConstantScoreQuery(query);
+        }
+        searcher.search(query, countCollector);
+        return countCollector.getTotalHits();
     }
 
     public static int docId(IndexReader reader, Term term) throws IOException {
@@ -317,42 +317,6 @@ public class Lucene {
             return (SegmentInfo) segmentReaderSegmentInfoField.get(reader);
         } catch (IllegalAccessException e) {
             return null;
-        }
-    }
-
-    public static class CountCollector extends Collector {
-
-        private final float minScore;
-        private Scorer scorer;
-        private long count;
-
-        public CountCollector(float minScore) {
-            this.minScore = minScore;
-        }
-
-        public long count() {
-            return this.count;
-        }
-
-        @Override
-        public void setScorer(Scorer scorer) throws IOException {
-            this.scorer = scorer;
-        }
-
-        @Override
-        public void collect(int doc) throws IOException {
-            if (scorer.score() > minScore) {
-                count++;
-            }
-        }
-
-        @Override
-        public void setNextReader(IndexReader reader, int docBase) throws IOException {
-        }
-
-        @Override
-        public boolean acceptsDocsOutOfOrder() {
-            return true;
         }
     }
 

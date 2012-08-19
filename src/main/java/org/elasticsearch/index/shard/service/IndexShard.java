@@ -96,8 +96,6 @@ public interface IndexShard extends IndexShardComponent {
 
     Engine.GetResult get(Engine.Get get) throws ElasticSearchException;
 
-    long count(float minScore, BytesReference querySource, @Nullable String[] filteringAliases, String... types) throws ElasticSearchException;
-
     void refresh(Engine.Refresh refresh) throws ElasticSearchException;
 
     void flush(Engine.Flush flush) throws ElasticSearchException;

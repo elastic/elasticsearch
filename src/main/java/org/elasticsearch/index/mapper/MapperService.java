@@ -398,6 +398,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     /**
      * A filter for search. If a filter is required, will return it, otherwise, will return <tt>null</tt>.
      */
+    @Nullable
     public Filter searchFilter(String... types) {
         if (types == null || types.length == 0) {
             if (hasNested) {

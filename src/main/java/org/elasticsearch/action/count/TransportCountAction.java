@@ -30,10 +30,18 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.internal.InternalSearchRequest;
+import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.query.QueryPhaseExecutionException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -51,10 +59,14 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
 
     private final IndicesService indicesService;
 
+    private final ScriptService scriptService;
+
     @Inject
-    public TransportCountAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, IndicesService indicesService) {
+    public TransportCountAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
+                                IndicesService indicesService, ScriptService scriptService) {
         super(settings, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
+        this.scriptService = scriptService;
     }
 
     @Override
@@ -130,9 +142,40 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
 
     @Override
     protected ShardCountResponse shardOperation(ShardCountRequest request) throws ElasticSearchException {
-        IndexShard indexShard = indicesService.indexServiceSafe(request.index()).shardSafe(request.shardId());
-        long count = indexShard.count(request.minScore(), request.querySource(),
-                request.filteringAliases(), request.types());
-        return new ShardCountResponse(request.index(), request.shardId(), count);
+        IndexService indexService = indicesService.indexServiceSafe(request.index());
+        IndexShard indexShard = indexService.shardSafe(request.shardId());
+
+        SearchContext context = new SearchContext(0,
+                new InternalSearchRequest().types(request.types()).filteringAliases(request.filteringAliases()),
+                null, indexShard.searcher(), indexService, indexShard,
+                scriptService);
+        SearchContext.setCurrent(context);
+
+        try {
+            // TODO: min score should move to be "null" as a value that is not initialized...
+            if (request.minScore() != -1) {
+                context.minimumScore(request.minScore());
+            }
+            BytesReference querySource = request.querySource();
+            if (querySource != null && querySource.length() > 0) {
+                try {
+                    QueryParseContext.setTypes(request.types());
+                    context.parsedQuery(indexService.queryParserService().parse(querySource));
+                } finally {
+                    QueryParseContext.removeTypes();
+                }
+            }
+            context.preProcess();
+            try {
+                long count = Lucene.count(context.searcher(), context.query());
+                return new ShardCountResponse(request.index(), request.shardId(), count);
+            } catch (Exception e) {
+                throw new QueryPhaseExecutionException(context, "failed to execute count", e);
+            }
+        } finally {
+            // this will also release the index searcher
+            context.release();
+            SearchContext.removeCurrent();
+        }
     }
 }

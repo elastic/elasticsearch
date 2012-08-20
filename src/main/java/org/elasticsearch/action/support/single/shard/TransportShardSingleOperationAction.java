@@ -149,6 +149,7 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
 
             if (shardRouting.currentNodeId().equals(nodes.localNodeId())) {
                 if (request.operationThreaded()) {
+                    request.beforeLocalFork();
                     threadPool.executor(executor).execute(new Runnable() {
                         @Override
                         public void run() {

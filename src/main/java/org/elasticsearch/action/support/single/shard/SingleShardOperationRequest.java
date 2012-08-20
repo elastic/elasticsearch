@@ -91,6 +91,9 @@ public abstract class SingleShardOperationRequest implements ActionRequest {
         return this;
     }
 
+    protected void beforeLocalFork() {
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         index = in.readUTF();

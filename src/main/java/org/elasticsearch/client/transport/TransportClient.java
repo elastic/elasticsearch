@@ -30,6 +30,8 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryRequest;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
+import org.elasticsearch.action.explain.ExplainRequest;
+import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
@@ -424,5 +426,15 @@ public class TransportClient extends AbstractClient {
     @Override
     public void percolate(PercolateRequest request, ActionListener<PercolateResponse> listener) {
         internalClient.percolate(request, listener);
+    }
+
+    @Override
+    public ActionFuture<ExplainResponse> explain(ExplainRequest request) {
+        return internalClient.explain(request);
+    }
+
+    @Override
+    public void explain(ExplainRequest request, ActionListener<ExplainResponse> listener) {
+        internalClient.explain(request, listener);
     }
 }

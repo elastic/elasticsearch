@@ -19,6 +19,10 @@
 
 package org.elasticsearch.common.xcontent;
 
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.common.xcontent.smile.SmileXContent;
+import org.elasticsearch.common.xcontent.yaml.YamlXContent;
+
 /**
  * The content type of {@link org.elasticsearch.common.xcontent.XContent}.
  */
@@ -37,6 +41,11 @@ public enum XContentType {
         public String shortName() {
             return "json";
         }
+
+        @Override
+        public XContent xContent() {
+            return JsonXContent.jsonXContent;
+        }
     },
     /**
      * The jackson based smile binary format. Fast and compact binary format.
@@ -51,6 +60,30 @@ public enum XContentType {
         public String shortName() {
             return "smile";
         }
+
+        @Override
+        public XContent xContent() {
+            return SmileXContent.smileXContent;
+        }
+    },
+    /**
+     * The jackson based smile binary format. Fast and compact binary format.
+     */
+    YAML(2) {
+        @Override
+        public String restContentType() {
+            return "application/yaml";
+        }
+
+        @Override
+        public String shortName() {
+            return "yaml";
+        }
+
+        @Override
+        public XContent xContent() {
+            return YamlXContent.yamlXContent;
+        }
     };
 
     public static XContentType fromRestContentType(String contentType) {
@@ -63,6 +96,10 @@ public enum XContentType {
 
         if ("application/smile".equals(contentType) || "smile".equalsIgnoreCase(contentType)) {
             return SMILE;
+        }
+
+        if ("application/yaml".equals(contentType) || "yaml".equalsIgnoreCase(contentType)) {
+            return YAML;
         }
 
         return null;
@@ -81,4 +118,6 @@ public enum XContentType {
     public abstract String restContentType();
 
     public abstract String shortName();
+
+    public abstract XContent xContent();
 }

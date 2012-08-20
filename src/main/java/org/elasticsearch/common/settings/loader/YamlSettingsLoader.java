@@ -19,8 +19,7 @@
 
 package org.elasticsearch.common.settings.loader;
 
-import org.elasticsearch.common.io.FastByteArrayInputStream;
-import org.yaml.snakeyaml.Yaml;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Map;
@@ -29,21 +28,16 @@ import java.util.Map;
  * Settings loader that loads (parses) the settings in a yaml format by flattening them
  * into a map.
  */
-public class YamlSettingsLoader implements SettingsLoader {
+public class YamlSettingsLoader extends XContentSettingsLoader {
+
+    @Override
+    public XContentType contentType() {
+        return XContentType.YAML;
+    }
 
     @Override
     public Map<String, String> load(String source) throws IOException {
         // replace tabs with whitespace (yaml does not accept tabs, but many users might use it still...)
-        source = source.replace("\t", "  ");
-        Yaml yaml = new Yaml();
-        Map<Object, Object> yamlMap = (Map<Object, Object>) yaml.load(source);
-        return Helper.loadNestedFromMap(yamlMap);
-    }
-
-    @Override
-    public Map<String, String> load(byte[] source) throws IOException {
-        Yaml yaml = new Yaml();
-        Map<Object, Object> yamlMap = (Map<Object, Object>) yaml.load(new FastByteArrayInputStream(source));
-        return Helper.loadNestedFromMap(yamlMap);
+        return super.load(source.replace("\t", "  "));
     }
 }

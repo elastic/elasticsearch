@@ -17,18 +17,23 @@
  * under the License.
  */
 
-package org.elasticsearch.common.settings.loader;
+package org.elasticsearch.common.xcontent.yaml;
 
+import com.fasterxml.jackson.core.JsonParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContentParser;
 
 /**
- * Settings loader that loads (parses) the settings in a json format by flattening them
- * into a map.
+ *
  */
-public class JsonSettingsLoader extends XContentSettingsLoader {
+public class YamlXContentParser extends JsonXContentParser {
+
+    public YamlXContentParser(JsonParser parser) {
+        super(parser);
+    }
 
     @Override
     public XContentType contentType() {
-        return XContentType.JSON;
+        return XContentType.YAML;
     }
 }

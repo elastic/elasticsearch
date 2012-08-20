@@ -333,13 +333,15 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             Searcher searcher = searcher();
             try {
                 UnicodeUtil.UTF8Result utf8 = Unicode.fromStringAsUtf8(get.uid().text());
-                for (IndexReader reader : searcher.searcher().subReaders()) {
-                    BloomFilter filter = bloomCache.filter(reader, UidFieldMapper.NAME, asyncLoadBloomFilter);
+                for (int i = 0; i < searcher.searcher().subReaders().length; i++) {
+                    IndexReader subReader = searcher.searcher().subReaders()[i];
+                    int docStart = searcher.searcher().docStarts()[i];
+                    BloomFilter filter = bloomCache.filter(subReader, UidFieldMapper.NAME, asyncLoadBloomFilter);
                     // we know that its not there...
                     if (!filter.isPresent(utf8.result, 0, utf8.length)) {
                         continue;
                     }
-                    UidField.DocIdAndVersion docIdAndVersion = UidField.loadDocIdAndVersion(reader, get.uid());
+                    UidField.DocIdAndVersion docIdAndVersion = UidField.loadDocIdAndVersion(subReader, docStart, get.uid());
                     if (docIdAndVersion != null && docIdAndVersion.docId != Lucene.NO_DOC) {
                         return new GetResult(searcher, docIdAndVersion);
                     }

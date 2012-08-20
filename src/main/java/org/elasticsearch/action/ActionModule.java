@@ -93,6 +93,9 @@ import org.elasticsearch.action.deletebyquery.DeleteByQueryAction;
 import org.elasticsearch.action.deletebyquery.TransportDeleteByQueryAction;
 import org.elasticsearch.action.deletebyquery.TransportIndexDeleteByQueryAction;
 import org.elasticsearch.action.deletebyquery.TransportShardDeleteByQueryAction;
+import org.elasticsearch.action.explain.ExplainAction;
+import org.elasticsearch.action.explain.ExplainResponse;
+import org.elasticsearch.action.explain.TransportExplainAction;
 import org.elasticsearch.action.get.*;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.TransportIndexAction;
@@ -214,6 +217,7 @@ public class ActionModule extends AbstractModule {
         registerAction(MultiSearchAction.INSTANCE, TransportMultiSearchAction.class);
         registerAction(MoreLikeThisAction.INSTANCE, TransportMoreLikeThisAction.class);
         registerAction(PercolateAction.INSTANCE, TransportPercolateAction.class);
+        registerAction(ExplainAction.INSTANCE, TransportExplainAction.class);
 
         // register Name -> GenericAction Map that can be injected to instances.
         MapBinder<String, GenericAction> actionsBinder

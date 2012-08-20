@@ -36,6 +36,10 @@ import org.elasticsearch.action.deletebyquery.DeleteByQueryAction;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryRequest;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryRequestBuilder;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
+import org.elasticsearch.action.explain.ExplainAction;
+import org.elasticsearch.action.explain.ExplainRequest;
+import org.elasticsearch.action.explain.ExplainRequestBuilder;
+import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.get.*;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
@@ -284,5 +288,20 @@ public abstract class AbstractClient implements InternalClient {
     @Override
     public PercolateRequestBuilder preparePercolate(String index, String type) {
         return new PercolateRequestBuilder(this, index, type);
+    }
+
+    @Override
+    public ExplainRequestBuilder prepareExplain(String index, String type, String id) {
+        return new ExplainRequestBuilder(this, index, type, id);
+    }
+
+    @Override
+    public ActionFuture<ExplainResponse> explain(ExplainRequest request) {
+        return execute(ExplainAction.INSTANCE, request);
+    }
+
+    @Override
+    public void explain(ExplainRequest request, ActionListener<ExplainResponse> listener) {
+        execute(ExplainAction.INSTANCE, request, listener);
     }
 }

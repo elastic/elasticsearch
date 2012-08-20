@@ -168,7 +168,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                     indexRequest.version(version);
 
                     // update mapping on master if needed, we won't update changes to the same type, since once its changed, it won't have mappers added
-                    if (op.parsedDoc().mappersAdded()) {
+                    if (op.parsedDoc().mappingsModified()) {
                         if (mappingsToUpdate == null) {
                             mappingsToUpdate = Sets.newHashSet();
                         }

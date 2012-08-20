@@ -72,7 +72,7 @@ public class ParseContext {
 
     private Map<String, String> ignoredValues = new HashMap<String, String>();
 
-    private boolean mappersAdded = false;
+    private boolean mappingsModified = false;
 
     private boolean externalValueSet;
 
@@ -103,7 +103,7 @@ public class ParseContext {
         this.sourceToParse = source;
         this.source = source == null ? null : sourceToParse.source();
         this.path.reset();
-        this.mappersAdded = false;
+        this.mappingsModified = false;
         this.listener = listener == null ? DocumentMapper.ParseListener.EMPTY : listener;
         this.allEntries = new AllEntries();
         this.ignoredValues.clear();
@@ -117,12 +117,12 @@ public class ParseContext {
         return this.docMapperParser;
     }
 
-    public boolean mappersAdded() {
-        return this.mappersAdded;
+    public boolean mappingsModified() {
+        return this.mappingsModified;
     }
 
-    public void addedMapper() {
-        this.mappersAdded = true;
+    public void setMappingsModified() {
+        this.mappingsModified = true;
     }
 
     public String index() {

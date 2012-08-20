@@ -36,6 +36,8 @@ import org.joda.time.format.ISODateTimeFormat;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Date;
 import java.util.Map;
 
@@ -470,6 +472,42 @@ public final class XContentBuilder implements BytesStream {
         return this;
     }
 
+    public XContentBuilder field(String name, BigDecimal value) throws IOException {
+        return field(name, value, value.scale(), RoundingMode.HALF_UP, true);
+    }
+
+    public XContentBuilder field(XContentBuilderString name, BigDecimal value) throws IOException {
+        return field(name, value, value.scale(), RoundingMode.HALF_UP, true);
+    }
+
+    public XContentBuilder field(String name, BigDecimal value, int scale, RoundingMode rounding, boolean toDouble) throws IOException {
+        field(name);
+        if (toDouble) {
+            try {
+                generator.writeNumber(value.setScale(scale, rounding).doubleValue());
+            } catch (ArithmeticException e) {
+                generator.writeString(value.toEngineeringString());            
+            }
+        } else {
+            generator.writeString(value.toEngineeringString());
+        }
+        return this;
+    }
+
+    public XContentBuilder field(XContentBuilderString name, BigDecimal value, int scale, RoundingMode rounding, boolean toDouble) throws IOException {
+        field(name);
+        if (toDouble) {
+            try {
+                generator.writeNumber(value.setScale(scale, rounding).doubleValue());
+            } catch (ArithmeticException e) {
+                generator.writeString(value.toEngineeringString());            
+            }
+        } else {
+            generator.writeString(value.toEngineeringString());
+        }
+        return this;
+    }    
+    
     public XContentBuilder field(String name, BytesReference value) throws IOException {
         field(name);
         if (!value.hasArray()) {

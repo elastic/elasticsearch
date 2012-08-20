@@ -16,7 +16,8 @@
                     },
                     "last":{
                         "type":"string",
-                        "index":"not_analyzed"
+                        "index":"not_analyzed",
+                        "boost":2.0
                     }
                 }
             },

@@ -79,6 +79,10 @@ public class AllEntries extends Reader {
         entries.add(entry);
     }
 
+    public boolean customBoost() {
+        return customBoost;
+    }
+
     public void clear() {
         this.entries.clear();
         this.current = null;

@@ -20,12 +20,16 @@
 package org.elasticsearch.test.unit.index.mapper.all;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.all.AllEntries;
 import org.elasticsearch.common.lucene.all.AllField;
 import org.elasticsearch.common.lucene.all.AllTokenStream;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.test.unit.index.mapper.MapperTests;
+import org.hamcrest.Matchers;
 import org.testng.annotations.Test;
 
 import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
@@ -51,6 +55,22 @@ public class SimpleAllMapperTests {
         assertThat(allEntries.fields().contains("address.last.location"), equalTo(true));
         assertThat(allEntries.fields().contains("name.last"), equalTo(true));
         assertThat(allEntries.fields().contains("simple1"), equalTo(true));
+    }
+
+    @Test
+    public void testAllMappersNoBoost() throws Exception {
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/mapper/all/noboost-mapping.json");
+        DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
+        byte[] json = copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/mapper/all/test1.json");
+        Document doc = docMapper.parse(new BytesArray(json)).rootDoc();
+        AllField field = (AllField) doc.getFieldable("_all");
+        AllEntries allEntries = ((AllTokenStream) field.tokenStreamValue()).allEntries();
+        assertThat(allEntries.fields().size(), equalTo(3));
+        assertThat(allEntries.fields().contains("address.last.location"), equalTo(true));
+        assertThat(allEntries.fields().contains("name.last"), equalTo(true));
+        assertThat(allEntries.fields().contains("simple1"), equalTo(true));
+        FieldMapper mapper = docMapper.mappers().smartNameFieldMapper("_all");
+        assertThat(mapper.queryStringTermQuery(new Term("_all", "foobar")), Matchers.instanceOf(TermQuery.class));
     }
 
     @Test

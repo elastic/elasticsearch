@@ -24,6 +24,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.all.AllField;
@@ -67,6 +68,9 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
 
         private boolean enabled = Defaults.ENABLED;
 
+        // an internal flag, automatically set if we encounter boosting
+        boolean autoBoost = false;
+
         public Builder() {
             super(Defaults.NAME);
             builder = this;
@@ -101,7 +105,7 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
         @Override
         public AllFieldMapper build(BuilderContext context) {
             return new AllFieldMapper(name, store, termVector, omitNorms, omitTermFreqAndPositions,
-                    indexAnalyzer, searchAnalyzer, enabled);
+                    indexAnalyzer, searchAnalyzer, enabled, autoBoost);
         }
     }
 
@@ -115,6 +119,8 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
                     builder.enabled(nodeBooleanValue(fieldNode));
+                } else if (fieldName.equals("auto_boost")) {
+                    builder.autoBoost = nodeBooleanValue(fieldNode);
                 }
             }
             return builder;
@@ -123,16 +129,24 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
 
 
     private boolean enabled;
+    // The autoBoost flag is automatically set based on indexed docs on the mappings
+    // if a doc is indexed with a specific boost value and part of _all, it is automatically
+    // set to true. This allows to optimize (automatically, which we like) for the common case
+    // where fields don't usually have boost associated with them, and we don't need to use the
+    // special SpanTermQuery to look at payloads
+    private volatile boolean autoBoost;
 
     public AllFieldMapper() {
-        this(Defaults.NAME, Defaults.STORE, Defaults.TERM_VECTOR, Defaults.OMIT_NORMS, Defaults.OMIT_TERM_FREQ_AND_POSITIONS, null, null, Defaults.ENABLED);
+        this(Defaults.NAME, Defaults.STORE, Defaults.TERM_VECTOR, Defaults.OMIT_NORMS, Defaults.OMIT_TERM_FREQ_AND_POSITIONS, null, null, Defaults.ENABLED, false);
     }
 
     protected AllFieldMapper(String name, Field.Store store, Field.TermVector termVector, boolean omitNorms, boolean omitTermFreqAndPositions,
-                             NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer, boolean enabled) {
+                             NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer, boolean enabled, boolean autoBoost) {
         super(new Names(name, name, name, name), Field.Index.ANALYZED, store, termVector, 1.0f, omitNorms, omitTermFreqAndPositions,
                 indexAnalyzer, searchAnalyzer);
         this.enabled = enabled;
+        this.autoBoost = autoBoost;
+
     }
 
     public boolean enabled() {
@@ -141,12 +155,15 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
 
     @Override
     public Query queryStringTermQuery(Term term) {
+        if (!autoBoost) {
+            return new TermQuery(term);
+        }
         return new AllTermQuery(term);
     }
 
     @Override
     public Query fieldQuery(String value, QueryParseContext context) {
-        return new AllTermQuery(names().createIndexNameTerm(value));
+        return queryStringTermQuery(names().createIndexNameTerm(value));
     }
 
     @Override
@@ -179,6 +196,13 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
         }
         // reset the entries
         context.allEntries().reset();
+
+        // if the autoBoost flag is not set, and we indexed a doc with custom boost, make
+        // sure to update the flag, and notify mappings on change
+        if (!autoBoost && context.allEntries().customBoost()) {
+            autoBoost = true;
+            context.setMappingsModified();
+        }
 
         Analyzer analyzer = findAnalyzer(context);
         return new AllField(names.indexName(), store, termVector, context.allEntries(), analyzer);
@@ -233,6 +257,9 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
         builder.startObject(CONTENT_TYPE);
         if (enabled != Defaults.ENABLED) {
             builder.field("enabled", enabled);
+        }
+        if (autoBoost != false) {
+            builder.field("auto_boost", autoBoost);
         }
         if (store != Defaults.STORE) {
             builder.field("store", store.name().toLowerCase());

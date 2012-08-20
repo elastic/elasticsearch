@@ -362,7 +362,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
             indexCache.clear(searcher.getIndexReader());
         }
 
-        return new Response(matches, request.doc().mappersAdded());
+        return new Response(matches, request.doc().mappingsModified());
     }
 
     private IndexService percolatorIndexServiceSafe() {

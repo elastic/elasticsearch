@@ -521,7 +521,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                         putMapper(objectMapper);
                         // now re add it
                         context.path().add(currentFieldName);
-                        context.addedMapper();
+                        context.setMappingsModified();
                     }
                 }
                 // traverse and parse outside of the mutex
@@ -757,7 +757,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                     }
                 }
                 putMapper(mapper);
-                context.addedMapper();
+                context.setMappingsModified();
             }
         }
         if (newMapper) {

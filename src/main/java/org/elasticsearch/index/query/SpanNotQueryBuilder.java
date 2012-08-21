@@ -62,7 +62,7 @@ public class SpanNotQueryBuilder extends BaseQueryBuilder implements SpanQueryBu
         include.toXContent(builder, params);
         builder.field("exclude");
         exclude.toXContent(builder, params);
-        if (boost == -1) {
+        if (boost != -1) {
             builder.field("boost", boost);
         }
         builder.endObject();

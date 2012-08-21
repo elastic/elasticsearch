@@ -23,10 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.BaseRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-
-import java.util.Map;
 
 /**
  * A builder for {@link ExplainRequest}.
@@ -97,13 +94,24 @@ public class ExplainRequestBuilder extends BaseRequestBuilder<ExplainRequest, Ex
     /**
      * Sets the query to get a score explanation for.
      */
-    public ExplainRequestBuilder setQuery(QueryBuilder queryBuilder) {
-        sourceBuilder().query(queryBuilder);
+    public ExplainRequestBuilder setQuery(QueryBuilder query) {
+        sourceBuilder().query(query);
         return this;
     }
 
-    public ExplainRequestBuilder setSource(BytesReference querySource, boolean unsafe) {
-        request().source(querySource, unsafe);
+    /**
+     * Sets the query to get a score explanation for.
+     */
+    public ExplainRequestBuilder setQuery(BytesReference query) {
+        sourceBuilder().query(query);
+        return this;
+    }
+
+    /**
+     * Sets the full source of the explain request (for example, wrapping an actual query).
+     */
+    public ExplainRequestBuilder setSource(BytesReference source, boolean unsafe) {
+        request().source(source, unsafe);
         return this;
     }
 

@@ -19,25 +19,17 @@
 
 package org.elasticsearch.action.explain;
 
-import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  * Explain request encapsulating the explain query and document identifier to get an explanation for.
@@ -55,7 +47,7 @@ public class ExplainRequest extends SingleShardOperationRequest {
 
     private String[] filteringAlias = Strings.EMPTY_ARRAY;
 
-    ExplainRequest(){
+    ExplainRequest() {
     }
 
     public ExplainRequest(String index, String type, String id) {
@@ -127,8 +119,8 @@ public class ExplainRequest extends SingleShardOperationRequest {
         return this;
     }
 
-    public ExplainRequest source(BytesReference querySource, boolean unsafe) {
-        this.source = querySource;
+    public ExplainRequest source(BytesReference source, boolean unsafe) {
+        this.source = source;
         this.sourceUnsafe = unsafe;
         return this;
     }

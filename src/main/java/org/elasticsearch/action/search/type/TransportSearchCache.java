@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.search.type;
 
-import jsr166y.LinkedTransferQueue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.dfs.DfsSearchResult;
@@ -36,19 +35,20 @@ import java.util.Queue;
  */
 public class TransportSearchCache {
 
-    private final Queue<Collection<DfsSearchResult>> cacheDfsResults = new LinkedTransferQueue<Collection<DfsSearchResult>>();
+    private final Queue<Collection<DfsSearchResult>> cacheDfsResults = ConcurrentCollections.newQueue();
 
-    private final Queue<Map<SearchShardTarget, QuerySearchResultProvider>> cacheQueryResults = new LinkedTransferQueue<Map<SearchShardTarget, QuerySearchResultProvider>>();
+    private final Queue<Map<SearchShardTarget, QuerySearchResultProvider>> cacheQueryResults = ConcurrentCollections.newQueue();
 
-    private final Queue<Map<SearchShardTarget, FetchSearchResult>> cacheFetchResults = new LinkedTransferQueue<Map<SearchShardTarget, FetchSearchResult>>();
+    private final Queue<Map<SearchShardTarget, FetchSearchResult>> cacheFetchResults = ConcurrentCollections.newQueue();
 
-    private final Queue<Map<SearchShardTarget, QueryFetchSearchResult>> cacheQueryFetchResults = new LinkedTransferQueue<Map<SearchShardTarget, QueryFetchSearchResult>>();
+    private final Queue<Map<SearchShardTarget, QueryFetchSearchResult>> cacheQueryFetchResults = ConcurrentCollections.newQueue();
 
 
     public Collection<DfsSearchResult> obtainDfsResults() {
         Collection<DfsSearchResult> dfsSearchResults;
         while ((dfsSearchResults = cacheDfsResults.poll()) == null) {
-            cacheDfsResults.offer(new LinkedTransferQueue<DfsSearchResult>());
+            Queue<DfsSearchResult> offer = ConcurrentCollections.newQueue();
+            cacheDfsResults.offer(offer);
         }
         return dfsSearchResults;
     }

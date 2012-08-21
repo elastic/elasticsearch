@@ -20,14 +20,13 @@
 package org.elasticsearch.search.query;
 
 import com.google.common.collect.ImmutableMap;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TotalHitCountCollector;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
-import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
-import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.facet.FacetPhase;
@@ -75,22 +74,7 @@ public class QueryPhase implements SearchPhase {
 
     @Override
     public void preProcess(SearchContext context) {
-        if (context.query() == null) {
-            context.parsedQuery(ParsedQuery.MATCH_ALL_PARSED_QUERY);
-        }
-        if (context.queryBoost() != 1.0f) {
-            context.parsedQuery(new ParsedQuery(new FunctionScoreQuery(context.query(), new BoostScoreFunction(context.queryBoost())), context.parsedQuery()));
-        }
-        Filter searchFilter = context.mapperService().searchFilter(context.types());
-        if (searchFilter != null) {
-            if (Queries.isMatchAllQuery(context.query())) {
-                Query q = new DeletionAwareConstantScoreQuery(context.filterCache().cache(searchFilter));
-                q.setBoost(context.query().getBoost());
-                context.parsedQuery(new ParsedQuery(q, context.parsedQuery()));
-            } else {
-                context.parsedQuery(new ParsedQuery(new FilteredQuery(context.query(), context.filterCache().cache(searchFilter)), context.parsedQuery()));
-            }
-        }
+        context.preProcess();
         facetPhase.preProcess(context);
     }
 

@@ -20,6 +20,9 @@
 package org.elasticsearch.index.mapper.core;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.Field.Index;
+import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
@@ -36,6 +39,10 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.*;
  *
  */
 public class TypeParsers {
+    
+    public static final String INDEX_OPTIONS_DOCS = "docs";
+    public static final String INDEX_OPTIONS_FREQS = "freqs";
+    public static final String INDEX_OPTIONS_POSITIONS = "positions";
 
     public static void parseNumberField(NumberFieldMapper.Builder builder, String name, Map<String, Object> numberNode, Mapper.TypeParser.ParserContext parserContext) {
         parseField(builder, name, numberNode, parserContext);
@@ -69,7 +76,10 @@ public class TypeParsers {
             } else if (propName.equals("omit_norms")) {
                 builder.omitNorms(nodeBooleanValue(propNode));
             } else if (propName.equals("omit_term_freq_and_positions")) {
-                builder.omitTermFreqAndPositions(nodeBooleanValue(propNode));
+                // deprecated option for BW compat
+                builder.indexOptions(nodeBooleanValue(propNode) ? IndexOptions.DOCS_ONLY : IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
+            } else if (propName.equals("index_options")) {
+                builder.indexOptions(nodeIndexOptionValue(propNode));
             } else if (propName.equals("analyzer")) {
                 NamedAnalyzer analyzer = parserContext.analysisService().analyzer(propNode.toString());
                 if (analyzer == null) {
@@ -92,6 +102,19 @@ public class TypeParsers {
             } else if (propName.equals("include_in_all")) {
                 builder.includeInAll(nodeBooleanValue(propNode));
             }
+        }
+    }
+
+    private static IndexOptions nodeIndexOptionValue(final Object propNode) {
+        final String value = propNode.toString();
+        if (INDEX_OPTIONS_POSITIONS.equalsIgnoreCase(value)) {
+            return IndexOptions.DOCS_AND_FREQS_AND_POSITIONS;
+        } else if (INDEX_OPTIONS_FREQS.equalsIgnoreCase(value)) {
+            return IndexOptions.DOCS_AND_FREQS;
+        } else if (INDEX_OPTIONS_DOCS.equalsIgnoreCase(value)) {
+            return IndexOptions.DOCS_ONLY;
+        } else {
+            throw new ElasticSearchParseException("Failed to parse index option [" + value + "]");
         }
     }
 

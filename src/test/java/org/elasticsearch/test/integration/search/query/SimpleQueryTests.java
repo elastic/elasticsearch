@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.integration.search.query;
 
+import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -33,6 +34,8 @@ import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
@@ -80,6 +83,49 @@ public class SimpleQueryTests extends AbstractNodesTests {
 
         SearchResponse searchResponse = client.prepareSearch().setQuery("{ \"term\" : { \"field1\" : \"value1_1\" }}").execute().actionGet();
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+    }
+    
+    @Test
+    public void testIndexOptions() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+
+        client.admin().indices().prepareCreate("test")
+        .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("field1").field("index_options", "docs").field("type", "string").endObject().endObject().endObject().endObject())
+        .setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 1)).execute().actionGet();
+        
+        client.prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox").execute().actionGet();
+        client.prepareIndex("test", "type1", "2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox").setRefresh(true).execute().actionGet();
+
+        SearchResponse searchResponse = client.prepareSearch().setQuery("{ \"text_phrase\" : { \"field2\" : \"quick brown\", \"slop\" : \"2\" }}").execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+        SearchResponse actionGet = client.prepareSearch().setQuery("{ \"text_phrase\" : { \"field1\" : \"quick brown\", \"slop\" : \"2\" }}").execute().actionGet();
+        assertThat(actionGet.hits().totalHits(), equalTo(0l));
+    }
+    
+    @Test
+    public void testOmitTermFreqsAndPositions() throws Exception {
+        // backwards compat test!
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+
+        client.admin().indices().prepareCreate("test")
+        .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("field1").field("omit_term_freq_and_positions", true).field("type", "string").endObject().endObject().endObject().endObject())
+        .setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 1)).execute().actionGet();
+        
+        client.prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox").execute().actionGet();
+        client.prepareIndex("test", "type1", "2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox").setRefresh(true).execute().actionGet();
+
+        SearchResponse searchResponse = client.prepareSearch().setQuery("{ \"text_phrase\" : { \"field2\" : \"quick brown\", \"slop\" : \"2\" }}").execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+        SearchResponse actionGet = client.prepareSearch().setQuery("{ \"text_phrase\" : { \"field1\" : \"quick brown\", \"slop\" : \"2\" }}").execute().actionGet();
+        assertThat(actionGet.hits().totalHits(), equalTo(0l));
     }
 
     @Test

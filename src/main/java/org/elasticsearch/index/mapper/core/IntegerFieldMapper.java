@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper.core;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
@@ -37,6 +38,7 @@ import org.elasticsearch.index.analysis.NumericIntegerAnalyzer;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.core.BooleanFieldMapper.Defaults;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
 
@@ -75,7 +77,7 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
         @Override
         public IntegerFieldMapper build(BuilderContext context) {
             IntegerFieldMapper fieldMapper = new IntegerFieldMapper(buildNames(context),
-                    precisionStep, fuzzyFactor, index, store, boost, omitNorms, omitTermFreqAndPositions,
+                    precisionStep, fuzzyFactor, index, store, boost, omitNorms, indexOptions,
                     nullValue, ignoreMalformed);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
@@ -103,9 +105,9 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
     private String nullValueAsString;
 
     protected IntegerFieldMapper(Names names, int precisionStep, String fuzzyFactor, Field.Index index, Field.Store store,
-                                 float boost, boolean omitNorms, boolean omitTermFreqAndPositions,
+                                 float boost, boolean omitNorms, IndexOptions indexOptions,
                                  Integer nullValue, boolean ignoreMalformed) {
-        super(names, precisionStep, fuzzyFactor, index, store, boost, omitNorms, omitTermFreqAndPositions,
+        super(names, precisionStep, fuzzyFactor, index, store, boost, omitNorms, indexOptions,
                 ignoreMalformed, new NamedAnalyzer("_int/" + precisionStep, new NumericIntegerAnalyzer(precisionStep)),
                 new NamedAnalyzer("_int/max", new NumericIntegerAnalyzer(Integer.MAX_VALUE)));
         this.nullValue = nullValue;
@@ -325,8 +327,8 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
         if (omitNorms != Defaults.OMIT_NORMS) {
             builder.field("omit_norms", omitNorms);
         }
-        if (omitTermFreqAndPositions != Defaults.OMIT_TERM_FREQ_AND_POSITIONS) {
-            builder.field("omit_term_freq_and_positions", omitTermFreqAndPositions);
+        if (indexOptions != Defaults.INDEX_OPTIONS) {
+            builder.field("index_options", indexOptionToString(indexOptions));
         }
         if (precisionStep != Defaults.PRECISION_STEP) {
             builder.field("precision_step", precisionStep);

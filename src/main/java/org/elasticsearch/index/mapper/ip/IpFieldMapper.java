@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper.ip;
 import org.apache.lucene.analysis.NumericTokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
@@ -38,6 +39,7 @@ import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
+import org.elasticsearch.index.mapper.core.BooleanFieldMapper.Defaults;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
 
@@ -103,7 +105,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
         @Override
         public IpFieldMapper build(BuilderContext context) {
             IpFieldMapper fieldMapper = new IpFieldMapper(buildNames(context),
-                    precisionStep, index, store, boost, omitNorms, omitTermFreqAndPositions, nullValue);
+                    precisionStep, index, store, boost, omitNorms, indexOptions, nullValue);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -129,9 +131,9 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
 
     protected IpFieldMapper(Names names, int precisionStep,
                             Field.Index index, Field.Store store,
-                            float boost, boolean omitNorms, boolean omitTermFreqAndPositions,
+                            float boost, boolean omitNorms, IndexOptions indexOptions,
                             String nullValue) {
-        super(names, precisionStep, null, index, store, boost, omitNorms, omitTermFreqAndPositions,
+        super(names, precisionStep, null, index, store, boost, omitNorms, indexOptions,
                 false, new NamedAnalyzer("_ip/" + precisionStep, new NumericIpAnalyzer(precisionStep)),
                 new NamedAnalyzer("_ip/max", new NumericIpAnalyzer(Integer.MAX_VALUE)));
         this.nullValue = nullValue;
@@ -301,8 +303,8 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
         if (omitNorms != Defaults.OMIT_NORMS) {
             builder.field("omit_norms", omitNorms);
         }
-        if (omitTermFreqAndPositions != Defaults.OMIT_TERM_FREQ_AND_POSITIONS) {
-            builder.field("omit_term_freq_and_positions", omitTermFreqAndPositions);
+        if (indexOptions != Defaults.INDEX_OPTIONS) {
+            builder.field("index_options", indexOptionToString(indexOptions));
         }
         if (precisionStep != Defaults.PRECISION_STEP) {
             builder.field("precision_step", precisionStep);

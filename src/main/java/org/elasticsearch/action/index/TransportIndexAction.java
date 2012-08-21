@@ -222,7 +222,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
                 // ignore
             }
         }
-        if (op.parsedDoc().mappersAdded()) {
+        if (op.parsedDoc().mappingsModified()) {
             updateMappingOnMaster(request);
         }
         // update the version on the request, so it will be used for the replicas

@@ -85,6 +85,12 @@ public class RecoverySettings extends AbstractComponent {
 
     public void close() {
         concurrentStreamPool.shutdown();
+        try {
+            concurrentStreamPool.awaitTermination(1, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            // that's fine...
+        }
+        concurrentStreamPool.shutdownNow();
     }
 
     public ByteSizeValue fileChunkSize() {

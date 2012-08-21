@@ -49,15 +49,15 @@ public class ParsedDocument {
 
     private final BytesReference source;
 
-    private boolean mappersAdded;
+    private boolean mappingsModified;
 
     private String parent;
 
-    public ParsedDocument(String uid, String id, String type, String routing, long timestamp, long ttl, Document document, Analyzer analyzer, BytesReference source, boolean mappersAdded) {
-        this(uid, id, type, routing, timestamp, ttl, Arrays.asList(document), analyzer, source, mappersAdded);
+    public ParsedDocument(String uid, String id, String type, String routing, long timestamp, long ttl, Document document, Analyzer analyzer, BytesReference source, boolean mappingsModified) {
+        this(uid, id, type, routing, timestamp, ttl, Arrays.asList(document), analyzer, source, mappingsModified);
     }
 
-    public ParsedDocument(String uid, String id, String type, String routing, long timestamp, long ttl, List<Document> documents, Analyzer analyzer, BytesReference source, boolean mappersAdded) {
+    public ParsedDocument(String uid, String id, String type, String routing, long timestamp, long ttl, List<Document> documents, Analyzer analyzer, BytesReference source, boolean mappingsModified) {
         this.uid = uid;
         this.id = id;
         this.type = type;
@@ -67,7 +67,7 @@ public class ParsedDocument {
         this.documents = documents;
         this.source = source;
         this.analyzer = analyzer;
-        this.mappersAdded = mappersAdded;
+        this.mappingsModified = mappingsModified;
     }
 
     public String uid() {
@@ -120,10 +120,10 @@ public class ParsedDocument {
     }
 
     /**
-     * Has the parsed document caused for new mappings to be added.
+     * Has the parsed document caused mappings to be modified?
      */
-    public boolean mappersAdded() {
-        return mappersAdded;
+    public boolean mappingsModified() {
+        return mappingsModified;
     }
 
     public String toString() {

@@ -35,7 +35,7 @@ import java.io.IOException;
 public class RestXContentBuilder {
 
     public static XContentBuilder restContentBuilder(RestRequest request) throws IOException {
-        XContentType contentType = XContentType.fromRestContentType(request.header("Content-Type"));
+        XContentType contentType = XContentType.fromRestContentType(request.param("format", request.header("Content-Type")));
         if (contentType == null) {
             // try and guess it from the body, if exists
             if (request.hasContent()) {

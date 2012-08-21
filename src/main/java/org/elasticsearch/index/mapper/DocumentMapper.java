@@ -454,7 +454,7 @@ public class DocumentMapper implements ToXContent {
             context.reset(parser, new Document(), source, listener);
             // on a newly created instance of document mapper, we always consider it as new mappers that have been added
             if (initMappersAdded) {
-                context.addedMapper();
+                context.setMappingsModified();
                 initMappersAdded = false;
             }
 
@@ -518,7 +518,7 @@ public class DocumentMapper implements ToXContent {
             Collections.reverse(context.docs());
         }
         ParsedDocument doc = new ParsedDocument(context.uid(), context.id(), context.type(), source.routing(), source.timestamp(), source.ttl(), context.docs(), context.analyzer(),
-                context.source(), context.mappersAdded()).parent(source.parent());
+                context.source(), context.mappingsModified()).parent(source.parent());
         // reset the context to free up memory
         context.reset(null, null, null, null);
         return doc;

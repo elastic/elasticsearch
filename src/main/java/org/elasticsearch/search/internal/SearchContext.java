@@ -21,13 +21,14 @@ package org.elasticsearch.search.internal;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.*;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
+import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.cache.filter.FilterCache;
@@ -182,6 +183,9 @@ public class SearchContext implements Releasable {
         this.indexService = indexService;
 
         this.searcher = new ContextIndexSearcher(this, engineSearcher);
+
+        // initialize the filtering alias based on the provided filters
+        aliasFilter = indexService.aliasesService().aliasFilter(request.filteringAliases());
     }
 
     @Override
@@ -203,6 +207,28 @@ public class SearchContext implements Releasable {
         }
         engineSearcher.release();
         return true;
+    }
+
+    /**
+     * Should be called before executing the main query and after all other parameters have been set.
+     */
+    public void preProcess() {
+        if (query() == null) {
+            parsedQuery(ParsedQuery.MATCH_ALL_PARSED_QUERY);
+        }
+        if (queryBoost() != 1.0f) {
+            parsedQuery(new ParsedQuery(new FunctionScoreQuery(query(), new BoostScoreFunction(queryBoost)), parsedQuery()));
+        }
+        Filter searchFilter = mapperService().searchFilter(types());
+        if (searchFilter != null) {
+            if (Queries.isMatchAllQuery(query())) {
+                Query q = new DeletionAwareConstantScoreQuery(filterCache().cache(searchFilter));
+                q.setBoost(query().getBoost());
+                parsedQuery(new ParsedQuery(q, parsedQuery()));
+            } else {
+                parsedQuery(new ParsedQuery(new FilteredQuery(query(), filterCache().cache(searchFilter)), parsedQuery()));
+            }
+        }
     }
 
     public long id() {
@@ -381,11 +407,6 @@ public class SearchContext implements Releasable {
 
     public Filter parsedFilter() {
         return this.filter;
-    }
-
-    public SearchContext aliasFilter(Filter aliasFilter) {
-        this.aliasFilter = aliasFilter;
-        return this;
     }
 
     public Filter aliasFilter() {

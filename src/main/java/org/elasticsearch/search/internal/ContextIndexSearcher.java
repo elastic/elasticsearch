@@ -195,4 +195,14 @@ public class ContextIndexSearcher extends ExtendedIndexSearcher {
             super.search(weight, combinedFilter, collector);
         }
     }
+
+    @Override
+    public Explanation explain(Query query, int doc) throws IOException {
+        if (searchContext.aliasFilter() == null) {
+            return super.explain(query, doc);
+        }
+
+        FilteredQuery filteredQuery = new FilteredQuery(query, searchContext.aliasFilter());
+        return super.explain(filteredQuery, doc);
+    }
 }

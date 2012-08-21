@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper.internal;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
@@ -81,7 +82,7 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
         @Override
         public BoostFieldMapper build(BuilderContext context) {
             return new BoostFieldMapper(name, buildIndexName(context),
-                    precisionStep, index, store, boost, omitNorms, omitTermFreqAndPositions, nullValue);
+                    precisionStep, index, store, boost, omitNorms, indexOptions, nullValue);
         }
     }
 
@@ -110,13 +111,13 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
 
     protected BoostFieldMapper(String name, String indexName) {
         this(name, indexName, Defaults.PRECISION_STEP, Defaults.INDEX, Defaults.STORE,
-                Defaults.BOOST, Defaults.OMIT_NORMS, Defaults.OMIT_TERM_FREQ_AND_POSITIONS, Defaults.NULL_VALUE);
+                Defaults.BOOST, Defaults.OMIT_NORMS, Defaults.INDEX_OPTIONS, Defaults.NULL_VALUE);
     }
 
     protected BoostFieldMapper(String name, String indexName, int precisionStep, Field.Index index, Field.Store store,
-                               float boost, boolean omitNorms, boolean omitTermFreqAndPositions,
+                               float boost, boolean omitNorms, IndexOptions indexOptions,
                                Float nullValue) {
-        super(new Names(name, indexName, indexName, name), precisionStep, null, index, store, boost, omitNorms, omitTermFreqAndPositions,
+        super(new Names(name, indexName, indexName, name), precisionStep, null, index, store, boost, omitNorms, indexOptions,
                 false, new NamedAnalyzer("_float/" + precisionStep, new NumericFloatAnalyzer(precisionStep)),
                 new NamedAnalyzer("_float/max", new NumericFloatAnalyzer(Integer.MAX_VALUE)));
         this.nullValue = nullValue;

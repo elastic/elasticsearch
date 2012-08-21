@@ -57,7 +57,7 @@ public class MoreLikeThisQueryTests {
         mltQuery.setLikeText("lucene");
         mltQuery.setMinTermFrequency(1);
         mltQuery.setMinDocFreq(1);
-        long count = Lucene.count(searcher, mltQuery, -1);
+        long count = Lucene.count(searcher, mltQuery);
         assertThat(count, equalTo(2l));
 
         reader.close();

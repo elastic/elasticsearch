@@ -24,6 +24,7 @@ import org.apache.lucene.document.AbstractField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.NumericUtils;
@@ -48,7 +49,7 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
         public static final int PRECISION_STEP = NumericUtils.PRECISION_STEP_DEFAULT;
         public static final Field.Index INDEX = Field.Index.NOT_ANALYZED;
         public static final boolean OMIT_NORMS = true;
-        public static final boolean OMIT_TERM_FREQ_AND_POSITIONS = true;
+        public static final IndexOptions INDEX_OPTIONS = IndexOptions.DOCS_ONLY;
         public static final String FUZZY_FACTOR = null;
         public static final boolean IGNORE_MALFORMED = false;
     }
@@ -65,7 +66,7 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
             super(name);
             this.index = Defaults.INDEX;
             this.omitNorms = Defaults.OMIT_NORMS;
-            this.omitTermFreqAndPositions = Defaults.OMIT_TERM_FREQ_AND_POSITIONS;
+            this.indexOptions = Defaults.INDEX_OPTIONS;
         }
 
         @Override
@@ -124,9 +125,9 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
 
     protected NumberFieldMapper(Names names, int precisionStep, @Nullable String fuzzyFactor,
                                 Field.Index index, Field.Store store,
-                                float boost, boolean omitNorms, boolean omitTermFreqAndPositions,
+                                float boost, boolean omitNorms, IndexOptions indexOptions,
                                 boolean ignoreMalformed, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer) {
-        super(names, index, store, Field.TermVector.NO, boost, boost != 1.0f || omitNorms, omitTermFreqAndPositions, indexAnalyzer, searchAnalyzer);
+        super(names, index, store, Field.TermVector.NO, boost, boost != 1.0f || omitNorms, indexOptions, indexAnalyzer, searchAnalyzer);
         if (precisionStep <= 0 || precisionStep >= maxPrecisionStep()) {
             this.precisionStep = Integer.MAX_VALUE;
         } else {

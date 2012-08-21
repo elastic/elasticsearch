@@ -74,6 +74,7 @@ public class IndicesQueriesRegistry {
         addQueryParser(queryParsers, new FuzzyLikeThisFieldQueryParser());
         addQueryParser(queryParsers, new WrapperQueryParser());
         addQueryParser(queryParsers, new IndicesQueryParser(clusterService));
+        addQueryParser(queryParsers, new GeoShapeQueryParser());
         this.queryParsers = ImmutableMap.copyOf(queryParsers);
 
         Map<String, FilterParser> filterParsers = Maps.newHashMap();
@@ -92,6 +93,7 @@ public class IndicesQueriesRegistry {
         addFilterParser(filterParsers, new GeoDistanceRangeFilterParser());
         addFilterParser(filterParsers, new GeoBoundingBoxFilterParser());
         addFilterParser(filterParsers, new GeoPolygonFilterParser());
+        addFilterParser(filterParsers, new GeoShapeFilterParser());
         addFilterParser(filterParsers, new QueryFilterParser());
         addFilterParser(filterParsers, new FQueryFilterParser());
         addFilterParser(filterParsers, new BoolFilterParser());

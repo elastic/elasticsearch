@@ -22,9 +22,11 @@ package org.elasticsearch.common.xcontent;
 import com.fasterxml.jackson.dataformat.smile.SmileConstants;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.smile.SmileXContent;
+import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -37,14 +39,6 @@ import java.util.Arrays;
 public class XContentFactory {
 
     private static int GUESS_HEADER_LENGTH = 20;
-
-    private static final XContent[] contents;
-
-    static {
-        contents = new XContent[2];
-        contents[0] = JsonXContent.jsonXContent;
-        contents[1] = SmileXContent.smileXContent;
-    }
 
     /**
      * Returns a content builder using JSON format ({@link org.elasticsearch.common.xcontent.XContentType#JSON}.
@@ -75,6 +69,13 @@ public class XContentFactory {
     }
 
     /**
+     * Constructs a new yaml builder that will output the result into the provided output stream.
+     */
+    public static XContentBuilder yamlBuilder(OutputStream os) throws IOException {
+        return new XContentBuilder(YamlXContent.yamlXContent, os);
+    }
+
+    /**
      * Constructs a xcontent builder that will output the result into the provided output stream.
      */
     public static XContentBuilder contentBuilder(XContentType type, OutputStream outputStream) throws IOException {
@@ -82,6 +83,8 @@ public class XContentFactory {
             return jsonBuilder(outputStream);
         } else if (type == XContentType.SMILE) {
             return smileBuilder(outputStream);
+        } else if (type == XContentType.YAML) {
+            return yamlBuilder(outputStream);
         }
         throw new ElasticSearchIllegalArgumentException("No matching content type for " + type);
     }
@@ -94,6 +97,8 @@ public class XContentFactory {
             return JsonXContent.contentBuilder();
         } else if (type == XContentType.SMILE) {
             return SmileXContent.contentBuilder();
+        } else if (type == XContentType.YAML) {
+            return YamlXContent.contentBuilder();
         }
         throw new ElasticSearchIllegalArgumentException("No matching content type for " + type);
     }
@@ -102,7 +107,7 @@ public class XContentFactory {
      * Returns the {@link org.elasticsearch.common.xcontent.XContent} for the provided content type.
      */
     public static XContent xContent(XContentType type) {
-        return contents[type.index()];
+        return type.xContent();
     }
 
     /**
@@ -176,6 +181,12 @@ public class XContentFactory {
         if (first == '{' || second == '{') {
             return XContentType.JSON;
         }
+        if (first == '-' && second == '-') {
+            int third = si.read();
+            if (third == '-') {
+                return XContentType.YAML;
+            }
+        }
         for (int i = 2; i < GUESS_HEADER_LENGTH; i++) {
             int val = si.read();
             if (val == -1) {
@@ -192,17 +203,7 @@ public class XContentFactory {
      * Guesses the content type based on the provided bytes.
      */
     public static XContentType xContentType(byte[] data, int offset, int length) {
-        length = length < GUESS_HEADER_LENGTH ? length : GUESS_HEADER_LENGTH;
-        if (length > 2 && data[offset] == SmileConstants.HEADER_BYTE_1 && data[offset + 1] == SmileConstants.HEADER_BYTE_2 && data[offset + 2] == SmileConstants.HEADER_BYTE_3) {
-            return XContentType.SMILE;
-        }
-        int size = offset + length;
-        for (int i = offset; i < size; i++) {
-            if (data[i] == '{') {
-                return XContentType.JSON;
-            }
-        }
-        return null;
+        return xContentType(new BytesArray(data, offset, length));
     }
 
     public static XContent xContent(BytesReference bytes) {
@@ -218,8 +219,18 @@ public class XContentFactory {
      */
     public static XContentType xContentType(BytesReference bytes) {
         int length = bytes.length() < GUESS_HEADER_LENGTH ? bytes.length() : GUESS_HEADER_LENGTH;
-        if (length > 2 && bytes.get(0) == SmileConstants.HEADER_BYTE_1 && bytes.get(1) == SmileConstants.HEADER_BYTE_2 && bytes.get(2) == SmileConstants.HEADER_BYTE_3) {
+        if (length == 0) {
+            return null;
+        }
+        byte first = bytes.get(0);
+        if (first == '{') {
+            return XContentType.JSON;
+        }
+        if (length > 2 && first == SmileConstants.HEADER_BYTE_1 && bytes.get(1) == SmileConstants.HEADER_BYTE_2 && bytes.get(2) == SmileConstants.HEADER_BYTE_3) {
             return XContentType.SMILE;
+        }
+        if (length > 2 && first == '-' && bytes.get(1) == '-' && bytes.get(2) == '-') {
+            return XContentType.YAML;
         }
         for (int i = 0; i < length; i++) {
             if (bytes.get(i) == '{') {

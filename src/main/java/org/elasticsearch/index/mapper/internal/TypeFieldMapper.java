@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DeletionAwareConstantScoreQuery;
 import org.apache.lucene.search.Filter;
@@ -58,7 +59,7 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
         public static final Field.Index INDEX = Field.Index.NOT_ANALYZED;
         public static final Field.Store STORE = Field.Store.NO;
         public static final boolean OMIT_NORMS = true;
-        public static final boolean OMIT_TERM_FREQ_AND_POSITIONS = true;
+        public static final IndexOptions INDEX_OPTIONS = IndexOptions.DOCS_ONLY;
     }
 
     public static class Builder extends AbstractFieldMapper.Builder<Builder, TypeFieldMapper> {
@@ -69,12 +70,12 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
             index = Defaults.INDEX;
             store = Defaults.STORE;
             omitNorms = Defaults.OMIT_NORMS;
-            omitTermFreqAndPositions = Defaults.OMIT_TERM_FREQ_AND_POSITIONS;
+            indexOptions = Defaults.INDEX_OPTIONS;
         }
 
         @Override
         public TypeFieldMapper build(BuilderContext context) {
-            return new TypeFieldMapper(name, indexName, index, store, termVector, boost, omitNorms, omitTermFreqAndPositions);
+            return new TypeFieldMapper(name, indexName, index, store, termVector, boost, omitNorms, indexOptions);
         }
     }
 
@@ -94,13 +95,13 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
 
     protected TypeFieldMapper(String name, String indexName) {
         this(name, indexName, Defaults.INDEX, Defaults.STORE, Defaults.TERM_VECTOR, Defaults.BOOST,
-                Defaults.OMIT_NORMS, Defaults.OMIT_TERM_FREQ_AND_POSITIONS);
+                Defaults.OMIT_NORMS, Defaults.INDEX_OPTIONS);
     }
 
     public TypeFieldMapper(String name, String indexName, Field.Index index, Field.Store store, Field.TermVector termVector,
-                           float boost, boolean omitNorms, boolean omitTermFreqAndPositions) {
-        super(new Names(name, indexName, indexName, name), index, store, termVector, boost, omitNorms, omitTermFreqAndPositions,
-                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
+                           float boost, boolean omitNorms, IndexOptions indexOptions) {
+        super(new Names(name, indexName, indexName, name), index, store, termVector, boost, omitNorms, indexOptions, Lucene.KEYWORD_ANALYZER,
+                Lucene.KEYWORD_ANALYZER);
     }
 
     public String value(Document document) {

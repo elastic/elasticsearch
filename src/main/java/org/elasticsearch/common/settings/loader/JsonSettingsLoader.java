@@ -19,106 +19,16 @@
 
 package org.elasticsearch.common.settings.loader;
 
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-
-import java.io.IOException;
-import java.util.List;
-import java.util.Map;
-
-import static com.google.common.collect.Lists.newArrayList;
-import static com.google.common.collect.Maps.newHashMap;
 
 /**
  * Settings loader that loads (parses) the settings in a json format by flattening them
  * into a map.
- *
- *
  */
-public class JsonSettingsLoader implements SettingsLoader {
+public class JsonSettingsLoader extends XContentSettingsLoader {
 
     @Override
-    public Map<String, String> load(String source) throws IOException {
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(source);
-        try {
-            return load(parser);
-        } finally {
-            parser.close();
-        }
+    public XContentType contentType() {
+        return XContentType.JSON;
     }
-
-    @Override
-    public Map<String, String> load(byte[] source) throws IOException {
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(source);
-        try {
-            return load(parser);
-        } finally {
-            parser.close();
-        }
-    }
-
-    public Map<String, String> load(XContentParser jp) throws IOException {
-        StringBuilder sb = new StringBuilder();
-        Map<String, String> settings = newHashMap();
-        List<String> path = newArrayList();
-        jp.nextToken();
-        serializeObject(settings, sb, path, jp, null);
-        return settings;
-    }
-
-    private void serializeObject(Map<String, String> settings, StringBuilder sb, List<String> path, XContentParser parser, String objFieldName) throws IOException {
-        if (objFieldName != null) {
-            path.add(objFieldName);
-        }
-
-        String currentFieldName = null;
-        XContentParser.Token token;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.START_OBJECT) {
-                serializeObject(settings, sb, path, parser, currentFieldName);
-            } else if (token == XContentParser.Token.START_ARRAY) {
-                serializeArray(settings, sb, path, parser, currentFieldName);
-            } else if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token == XContentParser.Token.VALUE_NULL) {
-                // ignore this
-            } else {
-                serializeValue(settings, sb, path, parser, currentFieldName);
-
-            }
-        }
-
-        if (objFieldName != null) {
-            path.remove(path.size() - 1);
-        }
-    }
-
-    private void serializeArray(Map<String, String> settings, StringBuilder sb, List<String> path, XContentParser parser, String fieldName) throws IOException {
-        XContentParser.Token token;
-        int counter = 0;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-            if (token == XContentParser.Token.START_OBJECT) {
-                serializeObject(settings, sb, path, parser, fieldName + '.' + (counter++));
-            } else if (token == XContentParser.Token.START_ARRAY) {
-                serializeArray(settings, sb, path, parser, fieldName + '.' + (counter++));
-            } else if (token == XContentParser.Token.FIELD_NAME) {
-                fieldName = parser.currentName();
-            } else if (token == XContentParser.Token.VALUE_NULL) {
-                // ignore
-            } else {
-                serializeValue(settings, sb, path, parser, fieldName + '.' + (counter++));
-            }
-        }
-    }
-
-    private void serializeValue(Map<String, String> settings, StringBuilder sb, List<String> path, XContentParser parser, String fieldName) throws IOException {
-        sb.setLength(0);
-        for (String pathEle : path) {
-            sb.append(pathEle).append('.');
-        }
-        sb.append(fieldName);
-        settings.put(sb.toString(), parser.text());
-    }
-
 }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.service;
 
-import jsr166y.LinkedTransferQueue;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cluster.*;
@@ -34,6 +33,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.node.settings.NodeSettingsService;
@@ -76,7 +76,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     private final List<ClusterStateListener> clusterStateListeners = new CopyOnWriteArrayList<ClusterStateListener>();
     private final List<ClusterStateListener> lastClusterStateListeners = new CopyOnWriteArrayList<ClusterStateListener>();
 
-    private final Queue<NotifyTimeout> onGoingTimeouts = new LinkedTransferQueue<NotifyTimeout>();
+    private final Queue<NotifyTimeout> onGoingTimeouts = ConcurrentCollections.newQueue();
 
     private volatile ClusterState clusterState = newClusterStateBuilder().build();
 

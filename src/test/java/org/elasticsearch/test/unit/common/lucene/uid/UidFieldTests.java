@@ -52,14 +52,14 @@ public class UidFieldTests {
         writer.addDocument(doc);
         reader = reader.reopen();
         assertThat(UidField.loadVersion(reader, new Term("_uid", "1")), equalTo(-2l));
-        assertThat(UidField.loadDocIdAndVersion(reader, new Term("_uid", "1")).version, equalTo(-2l));
+        assertThat(UidField.loadDocIdAndVersion(reader, 0, new Term("_uid", "1")).version, equalTo(-2l));
 
         doc = new Document();
         doc.add(new UidField("_uid", "1", 1));
         writer.updateDocument(new Term("_uid", "1"), doc);
         reader = reader.reopen();
         assertThat(UidField.loadVersion(reader, new Term("_uid", "1")), equalTo(1l));
-        assertThat(UidField.loadDocIdAndVersion(reader, new Term("_uid", "1")).version, equalTo(1l));
+        assertThat(UidField.loadDocIdAndVersion(reader, 0, new Term("_uid", "1")).version, equalTo(1l));
 
         doc = new Document();
         UidField uid = new UidField("_uid", "1", 2);
@@ -67,7 +67,7 @@ public class UidFieldTests {
         writer.updateDocument(new Term("_uid", "1"), doc);
         reader = reader.reopen();
         assertThat(UidField.loadVersion(reader, new Term("_uid", "1")), equalTo(2l));
-        assertThat(UidField.loadDocIdAndVersion(reader, new Term("_uid", "1")).version, equalTo(2l));
+        assertThat(UidField.loadDocIdAndVersion(reader, 0, new Term("_uid", "1")).version, equalTo(2l));
 
         // test reuse of uid field
         doc = new Document();
@@ -76,11 +76,11 @@ public class UidFieldTests {
         writer.updateDocument(new Term("_uid", "1"), doc);
         reader = reader.reopen();
         assertThat(UidField.loadVersion(reader, new Term("_uid", "1")), equalTo(3l));
-        assertThat(UidField.loadDocIdAndVersion(reader, new Term("_uid", "1")).version, equalTo(3l));
+        assertThat(UidField.loadDocIdAndVersion(reader, 0, new Term("_uid", "1")).version, equalTo(3l));
 
         writer.deleteDocuments(new Term("_uid", "1"));
         reader = reader.reopen();
         assertThat(UidField.loadVersion(reader, new Term("_uid", "1")), equalTo(-1l));
-        assertThat(UidField.loadDocIdAndVersion(reader, new Term("_uid", "1")), nullValue());
+        assertThat(UidField.loadDocIdAndVersion(reader, 0, new Term("_uid", "1")), nullValue());
     }
 }

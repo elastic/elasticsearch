@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.action.shard;
 
-import jsr166y.LinkedTransferQueue;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -38,6 +37,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.VoidStreamable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
@@ -62,7 +62,7 @@ public class ShardStateAction extends AbstractComponent {
 
     private final ThreadPool threadPool;
 
-    private final BlockingQueue<ShardRouting> startedShardsQueue = new LinkedTransferQueue<ShardRouting>();
+    private final BlockingQueue<ShardRouting> startedShardsQueue = ConcurrentCollections.newBlockingQueue();
 
     @Inject
     public ShardStateAction(Settings settings, ClusterService clusterService, TransportService transportService,

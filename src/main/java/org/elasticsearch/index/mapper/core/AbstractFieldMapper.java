@@ -23,8 +23,10 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TermFilter;
@@ -47,7 +49,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         public static final Field.TermVector TERM_VECTOR = Field.TermVector.NO;
         public static final float BOOST = 1.0f;
         public static final boolean OMIT_NORMS = false;
-        public static final boolean OMIT_TERM_FREQ_AND_POSITIONS = false;
+        public static final IndexOptions INDEX_OPTIONS = IndexOptions.DOCS_AND_FREQS_AND_POSITIONS;
     }
 
     public abstract static class OpenBuilder<T extends Builder, Y extends AbstractFieldMapper> extends AbstractFieldMapper.Builder<T, Y> {
@@ -82,8 +84,8 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         }
 
         @Override
-        public T omitTermFreqAndPositions(boolean omitTermFreqAndPositions) {
-            return super.omitTermFreqAndPositions(omitTermFreqAndPositions);
+        public T indexOptions(IndexOptions indexOptions) {
+            return super.indexOptions(indexOptions);
         }
 
         @Override
@@ -113,9 +115,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         protected float boost = Defaults.BOOST;
 
         protected boolean omitNorms = Defaults.OMIT_NORMS;
-
-        protected boolean omitTermFreqAndPositions = Defaults.OMIT_TERM_FREQ_AND_POSITIONS;
-
+        
         protected String indexName;
 
         protected NamedAnalyzer indexAnalyzer;
@@ -123,6 +123,8 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         protected NamedAnalyzer searchAnalyzer;
 
         protected Boolean includeInAll;
+
+        protected IndexOptions indexOptions = Defaults.INDEX_OPTIONS;
 
         protected Builder(String name) {
             super(name);
@@ -152,12 +154,12 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
             this.omitNorms = omitNorms;
             return builder;
         }
-
-        protected T omitTermFreqAndPositions(boolean omitTermFreqAndPositions) {
-            this.omitTermFreqAndPositions = omitTermFreqAndPositions;
+        
+        protected T indexOptions(IndexOptions indexOptions) {
+            this.indexOptions = indexOptions;
             return builder;
         }
-
+        
         protected T indexName(String indexName) {
             this.indexName = indexName;
             return builder;
@@ -206,8 +208,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
     protected float boost;
 
     protected final boolean omitNorms;
-
-    protected final boolean omitTermFreqAndPositions;
+    
     protected final FieldInfo.IndexOptions indexOptions;
 
     protected final NamedAnalyzer indexAnalyzer;
@@ -215,15 +216,15 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
     protected final NamedAnalyzer searchAnalyzer;
 
     protected AbstractFieldMapper(Names names, Field.Index index, Field.Store store, Field.TermVector termVector,
-                                  float boost, boolean omitNorms, boolean omitTermFreqAndPositions, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer) {
+                                  float boost, boolean omitNorms, IndexOptions indexOptions, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer) {
         this.names = names;
         this.index = index;
         this.store = store;
         this.termVector = termVector;
         this.boost = boost;
         this.omitNorms = omitNorms;
-        this.omitTermFreqAndPositions = omitTermFreqAndPositions;
-        this.indexOptions = omitTermFreqAndPositions ? FieldInfo.IndexOptions.DOCS_ONLY : FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS;
+        this.indexOptions = indexOptions;
+        
         // automatically set to keyword analyzer if its indexed and not analyzed
         if (indexAnalyzer == null && !index.isAnalyzed() && index.isIndexed()) {
             this.indexAnalyzer = Lucene.KEYWORD_ANALYZER;
@@ -287,10 +288,10 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
     public boolean omitNorms() {
         return this.omitNorms;
     }
-
+    
     @Override
-    public boolean omitTermFreqAndPositions() {
-        return this.omitTermFreqAndPositions;
+    public IndexOptions indexOptions() {
+        return this.indexOptions;
     }
 
     @Override
@@ -478,6 +479,19 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         doXContentBody(builder);
         builder.endObject();
         return builder;
+    }
+    
+    protected static String indexOptionToString(IndexOptions indexOption) {
+        switch (indexOption) {
+        case DOCS_AND_FREQS:
+            return TypeParsers.INDEX_OPTIONS_FREQS;
+        case DOCS_AND_FREQS_AND_POSITIONS:
+            return TypeParsers.INDEX_OPTIONS_POSITIONS;
+        case DOCS_ONLY:
+            return TypeParsers.INDEX_OPTIONS_DOCS;
+        default:
+            throw new ElasticSearchIllegalArgumentException("Unknown IndexOptions [" + indexOption + "]");
+        }
     }
 
     protected void doXContentBody(XContentBuilder builder) throws IOException {

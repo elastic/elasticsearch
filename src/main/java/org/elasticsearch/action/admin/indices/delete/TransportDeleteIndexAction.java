@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataDeleteIndexService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.percolator.PercolatorService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -84,10 +85,27 @@ public class TransportDeleteIndexAction extends TransportMasterNodeOperationActi
 
     @Override
     protected void doExecute(DeleteIndexRequest request, ActionListener<DeleteIndexResponse> listener) {
-        if (disableDeleteAllIndices && (request.indices() == null || request.indices().length == 0 || (request.indices().length == 1 && request.indices()[0].equals("_all")))) {
-            throw new ElasticSearchIllegalArgumentException("deleting all indices is disabled");
+        ClusterState state = clusterService.state();
+        String[] indicesOrAliases = request.indices();
+        request.indices(state.metaData().concreteIndices(request.indices()));
+        if (disableDeleteAllIndices) {
+            // simple check on the original indices with "all" default parameter
+            if (indicesOrAliases == null || indicesOrAliases.length == 0 || (indicesOrAliases.length == 1 && indicesOrAliases[0].equals("_all"))) {
+                throw new ElasticSearchIllegalArgumentException("deleting all indices is disabled");
+            }
+            // if we end up matching on all indices, check, if its a wildcard parameter, or a "-something" structure
+            if (request.indices().length == state.metaData().concreteAllIndices().length && indicesOrAliases.length > 0) {
+                boolean hasRegex = false;
+                for (String indexOrAlias : indicesOrAliases) {
+                    if (Regex.isSimpleMatchPattern(indexOrAlias)) {
+                        hasRegex = true;
+                    }
+                }
+                if (indicesOrAliases.length > 0 && (hasRegex || indicesOrAliases[0].charAt(0) == '-')) {
+                    throw new ElasticSearchIllegalArgumentException("deleting all indices is disabled");
+                }
+            }
         }
-        request.indices(clusterService.state().metaData().concreteIndices(request.indices()));
         super.doExecute(request, listener);
     }
 

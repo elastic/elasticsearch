@@ -135,6 +135,7 @@ public class MetaData implements Iterable<IndexMetaData> {
     private final transient int totalNumberOfShards;
 
     private final String[] allIndices;
+    private final ImmutableSet<String> allIndicesSet;
     private final String[] allOpenIndices;
 
     private final ImmutableMap<String, ImmutableMap<String, AliasMetaData>> aliases;
@@ -166,6 +167,7 @@ public class MetaData implements Iterable<IndexMetaData> {
             allIndicesLst.add(indexMetaData.index());
         }
         allIndices = allIndicesLst.toArray(new String[allIndicesLst.size()]);
+        allIndicesSet = ImmutableSet.copyOf(allIndices);
 
         List<String> allOpenIndices = Lists.newArrayList();
         for (IndexMetaData indexMetaData : indices.values()) {
@@ -292,6 +294,10 @@ public class MetaData implements Iterable<IndexMetaData> {
      */
     public String[] concreteAllIndices() {
         return allIndices;
+    }
+
+    public ImmutableSet<String> concreteAllIndicesAsSet() {
+        return allIndicesSet;
     }
 
     public String[] getConcreteAllIndices() {
@@ -508,7 +514,7 @@ public class MetaData implements Iterable<IndexMetaData> {
         if (aliasesOrIndices == null || aliasesOrIndices.length == 0) {
             return allOnlyOpen ? concreteAllOpenIndices() : concreteAllIndices();
         }
-        aliasesOrIndices = convertFromWildcards(aliasesOrIndices, allOnlyOpen, false);
+        aliasesOrIndices = convertFromWildcards(aliasesOrIndices, allOnlyOpen, ignoreMissing);
         // optimize for single element index (common case)
         if (aliasesOrIndices.length == 1) {
             String aliasOrIndex = aliasesOrIndices[0];
@@ -602,6 +608,9 @@ public class MetaData implements Iterable<IndexMetaData> {
                 aliasOrIndex = aliasOrIndex.substring(1);
             }
             if (!Regex.isSimpleMatchPattern(aliasOrIndex)) {
+                if (!ignoreMissing && !aliasAndIndexToIndexMap.containsKey(aliasOrIndex)) {
+                    throw new IndexMissingException(new Index(aliasOrIndex));
+                }
                 if (result != null) {
                     if (add) {
                         result.add(aliasOrIndex);

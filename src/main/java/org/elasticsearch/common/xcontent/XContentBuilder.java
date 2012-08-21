@@ -486,7 +486,7 @@ public final class XContentBuilder implements BytesStream {
             try {
                 generator.writeNumber(value.setScale(scale, rounding).doubleValue());
             } catch (ArithmeticException e) {
-                generator.writeString(value.toEngineeringString());            
+                generator.writeString(value.toEngineeringString());
             }
         } else {
             generator.writeString(value.toEngineeringString());
@@ -500,14 +500,14 @@ public final class XContentBuilder implements BytesStream {
             try {
                 generator.writeNumber(value.setScale(scale, rounding).doubleValue());
             } catch (ArithmeticException e) {
-                generator.writeString(value.toEngineeringString());            
+                generator.writeString(value.toEngineeringString());
             }
         } else {
             generator.writeString(value.toEngineeringString());
         }
         return this;
-    }    
-    
+    }
+
     public XContentBuilder field(String name, BytesReference value) throws IOException {
         field(name);
         if (!value.hasArray()) {

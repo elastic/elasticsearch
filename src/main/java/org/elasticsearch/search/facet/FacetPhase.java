@@ -103,7 +103,9 @@ public class FacetPhase implements SearchPhase {
                     if (collector instanceof AbstractFacetCollector) {
                         AbstractFacetCollector facetCollector = (AbstractFacetCollector) collector;
                         if (facetCollector.getFilter() != null) {
-                            filter = facetCollector.getFilter();
+                            // we can clear the filter, since we are anyhow going to iterate over it
+                            // so no need to double check it...
+                            filter = facetCollector.getAndClearFilter();
                         }
                     }
                     List<Collector> list = filtersByCollector.get(filter);

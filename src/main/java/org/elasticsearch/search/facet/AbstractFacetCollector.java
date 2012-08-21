@@ -48,6 +48,12 @@ public abstract class AbstractFacetCollector extends FacetCollector {
         return this.filter;
     }
 
+    public Filter getAndClearFilter() {
+        Filter filter = this.filter;
+        this.filter = null;
+        return filter;
+    }
+
     @Override
     public void setFilter(Filter filter) {
         if (this.filter == null) {

@@ -333,7 +333,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             }
             List<String> typesToRefresh = null;
             String index = indexMetaData.index();
-            IndexService indexService = indicesService.indexServiceSafe(index);
+            IndexService indexService = indicesService.indexService(index);
+            if (indexService == null) {
+                // got deleted on us, ignore (closing the node)
+                return;
+            }
             MapperService mapperService = indexService.mapperService();
             // first, go over and update the _default_ mapping (if exists)
             if (indexMetaData.mappings().containsKey(MapperService.DEFAULT_MAPPING)) {
@@ -522,7 +526,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     }
 
     private void applyInitializingShard(final RoutingTable routingTable, final DiscoveryNodes nodes, final IndexShardRoutingTable indexShardRouting, final ShardRouting shardRouting) throws ElasticSearchException {
-        final IndexService indexService = indicesService.indexServiceSafe(shardRouting.index());
+        final IndexService indexService = indicesService.indexService(shardRouting.index());
+        if (indexService == null) {
+            // got deleted on us, ignore
+            return;
+        }
         final int shardId = shardRouting.id();
 
         if (indexService.hasShard(shardId)) {

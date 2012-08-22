@@ -27,8 +27,6 @@ import java.util.List;
 
 /**
  * A Query that matches documents matching boolean combinations of other queries.
- *
- *
  */
 public class BoolQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<BoolQueryBuilder> {
 
@@ -42,7 +40,7 @@ public class BoolQueryBuilder extends BaseQueryBuilder implements BoostableQuery
 
     private Boolean disableCoord;
 
-    private int minimumNumberShouldMatch = -1;
+    private String minimumShouldMatch;
 
     /**
      * Adds a query that <b>must</b> appear in the matching documents.
@@ -103,7 +101,15 @@ public class BoolQueryBuilder extends BaseQueryBuilder implements BoostableQuery
      * @param minimumNumberShouldMatch the number of optional clauses that must match
      */
     public BoolQueryBuilder minimumNumberShouldMatch(int minimumNumberShouldMatch) {
-        this.minimumNumberShouldMatch = minimumNumberShouldMatch;
+        this.minimumShouldMatch = Integer.toString(minimumNumberShouldMatch);
+        return this;
+    }
+
+    /**
+     * Sets the minimum should match using the special syntax (for example, supporting percentage).
+     */
+    public BoolQueryBuilder minimumShouldMatch(String minimumShouldMatch) {
+        this.minimumShouldMatch = minimumShouldMatch;
         return this;
     }
 
@@ -126,8 +132,8 @@ public class BoolQueryBuilder extends BaseQueryBuilder implements BoostableQuery
         if (disableCoord != null) {
             builder.field("disable_coord", disableCoord);
         }
-        if (minimumNumberShouldMatch != -1) {
-            builder.field("minimum_number_should_match", minimumNumberShouldMatch);
+        if (minimumShouldMatch != null) {
+            builder.field("minimum_should_match", minimumShouldMatch);
         }
         builder.endObject();
     }

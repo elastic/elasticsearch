@@ -142,7 +142,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         logger.debug("using ping.timeout [{}], master_election.filter_client [{}], master_election.filter_data [{}]", pingTimeout, masterElectionFilterClientNodes, masterElectionFilterDataNodes);
 
-        this.electMaster = new ElectMasterService(settings, nodeSettingsService);
+        this.electMaster = new ElectMasterService(settings);
+        nodeSettingsService.addListener(new ApplySettings());
 
         this.masterFD = new MasterFaultDetection(settings, threadPool, transportService, this);
         this.masterFD.addListener(new MasterNodeFailureListener());
@@ -399,6 +400,34 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 // check if we have enough master nodes, if not, we need to move into joining the cluster again
                 if (!electMaster.hasEnoughMasterNodes(currentState.nodes())) {
                     return rejoin(currentState, "not enough master nodes");
+                }
+                return currentState;
+            }
+
+            @Override
+            public void clusterStateProcessed(ClusterState clusterState) {
+                sendInitialStateEventIfNeeded();
+            }
+        });
+    }
+
+    private void handleMinimumMasterNodesChanged(final int minimumMasterNodes) {
+        if (lifecycleState() != Lifecycle.State.STARTED) {
+            // not started, ignore a node failure
+            return;
+        }
+        if (!master) {
+            // nothing to do here...
+            return;
+        }
+        clusterService.submitStateUpdateTask("zen-disco-minimum_master_nodes_changed", new ProcessedClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                final int prevMinimumMasterNode = ZenDiscovery.this.electMaster.minimumMasterNodes();
+                ZenDiscovery.this.electMaster.minimumMasterNodes(minimumMasterNodes);
+                // check if we have enough master nodes, if not, we need to move into joining the cluster again
+                if (!electMaster.hasEnoughMasterNodes(currentState.nodes())) {
+                    return rejoin(currentState, "not enough master nodes on change of minimum_master_nodes from [" + prevMinimumMasterNode + "] to [" + minimumMasterNodes + "]");
                 }
                 return currentState;
             }
@@ -754,12 +783,12 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            fromNodeId = in.readOptionalUTF();
+            fromNodeId = in.readOptionalString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalUTF(fromNodeId);
+            out.writeOptionalString(fromNodeId);
         }
     }
 
@@ -790,6 +819,17 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         @Override
         public String executor() {
             return ThreadPool.Names.SAME;
+        }
+    }
+
+    class ApplySettings implements NodeSettingsService.Listener {
+        @Override
+        public void onRefreshSettings(Settings settings) {
+            int minimumMasterNodes = settings.getAsInt("discovery.zen.minimum_master_nodes", ZenDiscovery.this.electMaster.minimumMasterNodes());
+            if (minimumMasterNodes != ZenDiscovery.this.electMaster.minimumMasterNodes()) {
+                logger.info("updating discovery.zen.minimum_master_nodes from [{}] to [{}]", ZenDiscovery.this.electMaster.minimumMasterNodes(), minimumMasterNodes);
+                handleMinimumMasterNodesChanged(minimumMasterNodes);
+            }
         }
     }
 

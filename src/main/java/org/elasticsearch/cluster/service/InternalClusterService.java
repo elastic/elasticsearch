@@ -43,10 +43,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Queue;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 import static java.util.concurrent.Executors.newSingleThreadExecutor;
 import static org.elasticsearch.cluster.ClusterState.Builder;
@@ -75,6 +72,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     private final List<ClusterStateListener> priorityClusterStateListeners = new CopyOnWriteArrayList<ClusterStateListener>();
     private final List<ClusterStateListener> clusterStateListeners = new CopyOnWriteArrayList<ClusterStateListener>();
     private final List<ClusterStateListener> lastClusterStateListeners = new CopyOnWriteArrayList<ClusterStateListener>();
+    private final LocalNodeMasterListeners localNodeMasterListeners;
 
     private final Queue<NotifyTimeout> onGoingTimeouts = ConcurrentCollections.newQueue();
 
@@ -97,6 +95,8 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         this.nodeSettingsService.setClusterService(this);
 
         this.reconnectInterval = componentSettings.getAsTime("reconnect_interval", TimeValue.timeValueSeconds(10));
+
+        localNodeMasterListeners = new LocalNodeMasterListeners(threadPool);
     }
 
     public NodeSettingsService settingsService() {
@@ -112,6 +112,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     @Override
     protected void doStart() throws ElasticSearchException {
+        add(localNodeMasterListeners);
         this.clusterState = newClusterStateBuilder().blocks(initialBlocks).build();
         this.updateTasksExecutor = newSingleThreadExecutor(daemonThreadFactory(settings, "clusterService#updateTask"));
         this.reconnectToNodes = threadPool.schedule(reconnectInterval, ThreadPool.Names.GENERIC, new ReconnectToNodes());
@@ -130,6 +131,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         } catch (InterruptedException e) {
             // ignore
         }
+        remove(localNodeMasterListeners);
     }
 
     @Override
@@ -173,6 +175,16 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 it.remove();
             }
         }
+    }
+
+    @Override
+    public void add(LocalNodeMasterListener listener) {
+        localNodeMasterListeners.add(listener);
+    }
+
+    @Override
+    public void remove(LocalNodeMasterListener listener) {
+        localNodeMasterListeners.remove(listener);
     }
 
     public void add(TimeValue timeout, final TimeoutClusterStateListener listener) {
@@ -397,5 +409,76 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     private boolean nodeRequiresConnection(DiscoveryNode node) {
         return localNode().shouldConnectTo(node);
+    }
+
+    private static class LocalNodeMasterListeners implements ClusterStateListener {
+
+        private final List<LocalNodeMasterListener> listeners = new CopyOnWriteArrayList<LocalNodeMasterListener>();
+        private final ThreadPool threadPool;
+        private volatile boolean master = false;
+
+        private LocalNodeMasterListeners(ThreadPool threadPool) {
+            this.threadPool = threadPool;
+        }
+
+        @Override
+        public void clusterChanged(ClusterChangedEvent event) {
+            if (!master && event.localNodeMaster()) {
+                master = true;
+                for (LocalNodeMasterListener listener : listeners) {
+                    Executor executor = threadPool.executor(listener.executorName());
+                    executor.execute(new OnMasterRunnable(listener));
+                }
+                return;
+            }
+
+            if (master && !event.localNodeMaster()) {
+                master = false;
+                for (LocalNodeMasterListener listener : listeners) {
+                    Executor executor = threadPool.executor(listener.executorName());
+                    executor.execute(new OffMasterRunnable(listener));
+                }
+            }
+        }
+
+        private void add(LocalNodeMasterListener listener) {
+            listeners.add(listener);
+        }
+
+        private void remove(LocalNodeMasterListener listener) {
+            listeners.remove(listener);
+        }
+
+        private void clear() {
+            listeners.clear();
+        }
+    }
+
+    private static class OnMasterRunnable implements Runnable {
+
+        private final LocalNodeMasterListener listener;
+
+        private OnMasterRunnable(LocalNodeMasterListener listener) {
+            this.listener = listener;
+        }
+
+        @Override
+        public void run() {
+            listener.onMaster();
+        }
+    }
+
+    private static class OffMasterRunnable implements Runnable {
+
+        private final LocalNodeMasterListener listener;
+
+        private OffMasterRunnable(LocalNodeMasterListener listener) {
+            this.listener = listener;
+        }
+
+        @Override
+        public void run() {
+            listener.offMaster();
+        }
     }
 }

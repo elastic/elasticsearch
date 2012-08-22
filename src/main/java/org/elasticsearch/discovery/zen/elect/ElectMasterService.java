@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.settings.NodeSettingsService;
 
 import java.util.Collections;
 import java.util.Comparator;
@@ -44,11 +43,18 @@ public class ElectMasterService extends AbstractComponent {
 
     private volatile int minimumMasterNodes;
 
-    public ElectMasterService(Settings settings, NodeSettingsService nodeSettingsService) {
+    public ElectMasterService(Settings settings) {
         super(settings);
         this.minimumMasterNodes = settings.getAsInt("discovery.zen.minimum_master_nodes", -1);
         logger.debug("using minimum_master_nodes [{}]", minimumMasterNodes);
-        nodeSettingsService.addListener(new ApplySettings());
+    }
+
+    public void minimumMasterNodes(int minimumMasterNodes) {
+        this.minimumMasterNodes = minimumMasterNodes;
+    }
+
+    public int minimumMasterNodes() {
+        return minimumMasterNodes;
     }
 
     public boolean hasEnoughMasterNodes(Iterable<DiscoveryNode> nodes) {
@@ -109,17 +115,6 @@ public class ElectMasterService extends AbstractComponent {
         }
         Collections.sort(possibleNodes, nodeComparator);
         return possibleNodes;
-    }
-
-    class ApplySettings implements NodeSettingsService.Listener {
-        @Override
-        public void onRefreshSettings(Settings settings) {
-            int minimumMasterNodes = settings.getAsInt("discovery.zen.minimum_master_nodes", ElectMasterService.this.minimumMasterNodes);
-            if (minimumMasterNodes != ElectMasterService.this.minimumMasterNodes) {
-                logger.info("updating [discovery.zen.minimum_master_nodes] from [{}] to [{}]", ElectMasterService.this.minimumMasterNodes, minimumMasterNodes);
-                ElectMasterService.this.minimumMasterNodes = minimumMasterNodes;
-            }
-        }
     }
 
     private static class NodeComparator implements Comparator<DiscoveryNode> {

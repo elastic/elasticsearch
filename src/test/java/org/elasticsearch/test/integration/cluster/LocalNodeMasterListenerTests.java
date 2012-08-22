@@ -20,6 +20,7 @@
 package org.elasticsearch.test.integration.cluster;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -29,8 +30,8 @@ import org.elasticsearch.common.inject.Singleton;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.plugins.AbstractPlugin;
-import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.testng.annotations.AfterMethod;
 import org.testng.annotations.Test;
 
 import java.util.ArrayList;
@@ -44,13 +45,17 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class LocalNodeMasterListenerTests extends AbstractNodesTests {
+public class LocalNodeMasterListenerTests extends AbstractZenNodesTests {
+
+    @AfterMethod
+    public void closeNodes() {
+        closeAllNodes();
+    }
 
     @Test
     public void testListenerCallbacks() throws Exception {
 
         Settings settings = settingsBuilder()
-                .put("discovery.type", "zen")
                 .put("discovery.zen.minimum_master_nodes", 1)
                 .put("discovery.zen.ping_timeout", "200ms")
                 .put("discovery.initial_state_timeout", "500ms")
@@ -62,21 +67,25 @@ public class LocalNodeMasterListenerTests extends AbstractNodesTests {
         MasterAwareService testService1 = node1.injector().getInstance(MasterAwareService.class);
 
         // the first node should be a master as the minimum required is 1
-        assertThat(clusterService1.state().nodes().masterNode(), is(notNullValue()));
+        assertThat(clusterService1.state().nodes().masterNode(), notNullValue());
         assertThat(clusterService1.state().nodes().localNodeMaster(), is(true));
         assertThat(testService1.master(), is(true));
 
         InternalNode node2 = (InternalNode) startNode("node2", settings);
         ClusterService clusterService2 = node2.injector().getInstance(ClusterService.class);
         MasterAwareService testService2 = node2.injector().getInstance(MasterAwareService.class);
-        Thread.sleep(200);
+
+        ClusterHealthResponse clusterHealth = node2.client().admin().cluster().prepareHealth().setWaitForNodes("2").execute().actionGet();
+        assertThat(clusterHealth.timedOut(), equalTo(false));
 
         // the second node should not be the master as node1 is already the master.
         assertThat(clusterService2.state().nodes().localNodeMaster(), is(false));
         assertThat(testService2.master(), is(false));
 
         node1.close();
-        Thread.sleep(200);
+
+        clusterHealth = node2.client().admin().cluster().prepareHealth().setWaitForNodes("1").execute().actionGet();
+        assertThat(clusterHealth.timedOut(), equalTo(false));
 
         // now that node1 is closed, node2 should be elected as master
         assertThat(clusterService2.state().nodes().localNodeMaster(), is(true));
@@ -96,7 +105,9 @@ public class LocalNodeMasterListenerTests extends AbstractNodesTests {
         node1 = (InternalNode) startNode("node1", settings);
         clusterService1 = node1.injector().getInstance(ClusterService.class);
         testService1 = node1.injector().getInstance(MasterAwareService.class);
-        Thread.sleep(200);
+
+        clusterHealth = node2.client().admin().cluster().prepareHealth().setWaitForNodes("2").execute().actionGet();
+        assertThat(clusterHealth.timedOut(), equalTo(false));
 
         // now that we started node1 again, a new master should be elected
         assertThat(clusterService1.state().nodes().masterNode(), is(notNullValue()));
@@ -133,8 +144,8 @@ public class LocalNodeMasterListenerTests extends AbstractNodesTests {
     @Singleton
     public static class MasterAwareService extends AbstractLifecycleComponent<MasterAwareService> implements LocalNodeMasterListener {
 
-        private boolean master;
         private final ClusterService clusterService;
+        private volatile boolean master;
 
         @Inject
         public MasterAwareService(Settings settings, ClusterService clusterService) {
@@ -146,13 +157,13 @@ public class LocalNodeMasterListenerTests extends AbstractNodesTests {
 
         @Override
         public void onMaster() {
-            logger.info("on master [" + clusterService.state().nodes().localNodeId() + "]");
+            logger.info("on master [" + clusterService.state().nodes().localNode() + "]");
             master = true;
         }
 
         @Override
         public void offMaster() {
-            logger.info("off master [" + clusterService.state().nodes().localNodeId() + "]");
+            logger.info("off master [" + clusterService.state().nodes().localNode() + "]");
             master = false;
         }
 

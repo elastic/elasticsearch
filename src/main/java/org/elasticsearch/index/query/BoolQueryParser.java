@@ -23,6 +23,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -56,7 +57,7 @@ public class BoolQueryParser implements QueryParser {
 
         boolean disableCoord = false;
         float boost = 1.0f;
-        int minimumNumberShouldMatch = -1;
+        String minimumShouldMatch = null;
 
         List<BooleanClause> clauses = newArrayList();
 
@@ -112,12 +113,12 @@ public class BoolQueryParser implements QueryParser {
             } else if (token.isValue()) {
                 if ("disable_coord".equals(currentFieldName) || "disableCoord".equals(currentFieldName)) {
                     disableCoord = parser.booleanValue();
-                } else if ("minimum_number_should_match".equals(currentFieldName) || "minimumNumberShouldMatch".equals(currentFieldName)) {
-                    minimumNumberShouldMatch = parser.intValue();
                 } else if ("minimum_should_match".equals(currentFieldName) || "minimumShouldMatch".equals(currentFieldName)) {
-                    minimumNumberShouldMatch = parser.intValue();
+                    minimumShouldMatch = parser.textOrNull();
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
+                } else if ("minimum_number_should_match".equals(currentFieldName) || "minimumNumberShouldMatch".equals(currentFieldName)) {
+                    minimumShouldMatch = parser.textOrNull();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[bool] query does not support [" + currentFieldName + "]");
                 }
@@ -128,28 +129,12 @@ public class BoolQueryParser implements QueryParser {
             return null;
         }
 
-        if (clauses.size() == 1) {
-            BooleanClause clause = clauses.get(0);
-            if (clause.getOccur() == BooleanClause.Occur.MUST) {
-                Query query = clause.getQuery();
-                query.setBoost(boost * query.getBoost());
-                return query;
-            }
-            if (clause.getOccur() == BooleanClause.Occur.SHOULD && minimumNumberShouldMatch > 0) {
-                Query query = clause.getQuery();
-                query.setBoost(boost * query.getBoost());
-                return query;
-            }
-        }
-
         BooleanQuery query = new BooleanQuery(disableCoord);
         for (BooleanClause clause : clauses) {
             query.add(clause);
         }
         query.setBoost(boost);
-        if (minimumNumberShouldMatch != -1) {
-            query.setMinimumNumberShouldMatch(minimumNumberShouldMatch);
-        }
+        Queries.applyMinimumShouldMatch(query, minimumShouldMatch);
         return optimizeQuery(fixNegativeQueryIfNeeded(query));
     }
 }

@@ -25,6 +25,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.UnmodifiableIterator;
 import gnu.trove.set.hash.THashSet;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.Nullable;
@@ -342,7 +343,7 @@ public class MetaData implements Iterable<IndexMetaData> {
     }
 
     public Map<String, Set<String>> resolveSearchRouting(@Nullable String routing, String aliasOrIndex) {
-        return resolveSearchRouting(routing, convertFromWildcards(new String[]{aliasOrIndex}, true, true));
+        return resolveSearchRouting(routing, convertFromWildcards(new String[]{aliasOrIndex}, true, IgnoreIndices.MISSING));
     }
 
     public Map<String, Set<String>> resolveSearchRouting(@Nullable String routing, String[] aliasesOrIndices) {
@@ -350,7 +351,7 @@ public class MetaData implements Iterable<IndexMetaData> {
             return resolveSearchRoutingAllIndices(routing);
         }
 
-        aliasesOrIndices = convertFromWildcards(aliasesOrIndices, true, true);
+        aliasesOrIndices = convertFromWildcards(aliasesOrIndices, true, IgnoreIndices.MISSING);
 
         if (aliasesOrIndices.length == 1) {
             if (aliasesOrIndices[0].equals("_all")) {
@@ -497,24 +498,24 @@ public class MetaData implements Iterable<IndexMetaData> {
      * Translates the provided indices (possibly aliased) into actual indices.
      */
     public String[] concreteIndices(String[] indices) throws IndexMissingException {
-        return concreteIndices(indices, false, false);
+        return concreteIndices(indices, IgnoreIndices.NONE, false);
     }
 
     /**
      * Translates the provided indices (possibly aliased) into actual indices.
      */
     public String[] concreteIndicesIgnoreMissing(String[] indices) {
-        return concreteIndices(indices, true, false);
+        return concreteIndices(indices, IgnoreIndices.MISSING, false);
     }
 
     /**
      * Translates the provided indices (possibly aliased) into actual indices.
      */
-    public String[] concreteIndices(String[] aliasesOrIndices, boolean ignoreMissing, boolean allOnlyOpen) throws IndexMissingException {
+    public String[] concreteIndices(String[] aliasesOrIndices, IgnoreIndices ignoreIndices, boolean allOnlyOpen) throws IndexMissingException {
         if (aliasesOrIndices == null || aliasesOrIndices.length == 0) {
             return allOnlyOpen ? concreteAllOpenIndices() : concreteAllIndices();
         }
-        aliasesOrIndices = convertFromWildcards(aliasesOrIndices, allOnlyOpen, ignoreMissing);
+        aliasesOrIndices = convertFromWildcards(aliasesOrIndices, allOnlyOpen, ignoreIndices);
         // optimize for single element index (common case)
         if (aliasesOrIndices.length == 1) {
             String aliasOrIndex = aliasesOrIndices[0];
@@ -530,11 +531,10 @@ public class MetaData implements Iterable<IndexMetaData> {
             }
             String[] actualLst = aliasAndIndexToIndexMap.get(aliasOrIndex);
             if (actualLst == null) {
-                if (!ignoreMissing) {
-                    throw new IndexMissingException(new Index(aliasOrIndex));
-                } else {
+                if (ignoreIndices == IgnoreIndices.MISSING) {
                     return Strings.EMPTY_ARRAY;
                 }
+                throw new IndexMissingException(new Index(aliasOrIndex));
             } else {
                 return actualLst;
             }
@@ -557,7 +557,7 @@ public class MetaData implements Iterable<IndexMetaData> {
         for (String index : aliasesOrIndices) {
             String[] actualLst = aliasAndIndexToIndexMap.get(index);
             if (actualLst == null) {
-                if (!ignoreMissing) {
+                if (ignoreIndices != IgnoreIndices.MISSING) {
                     throw new IndexMissingException(new Index(index));
                 }
             } else {
@@ -585,7 +585,7 @@ public class MetaData implements Iterable<IndexMetaData> {
         return lst[0];
     }
 
-    public String[] convertFromWildcards(String[] aliasesOrIndices, boolean wildcardOnlyOpen, boolean ignoreMissing) {
+    public String[] convertFromWildcards(String[] aliasesOrIndices, boolean wildcardOnlyOpen, IgnoreIndices ignoreIndices) {
         Set<String> result = null;
         for (int i = 0; i < aliasesOrIndices.length; i++) {
             String aliasOrIndex = aliasesOrIndices[i];
@@ -608,7 +608,7 @@ public class MetaData implements Iterable<IndexMetaData> {
                 aliasOrIndex = aliasOrIndex.substring(1);
             }
             if (!Regex.isSimpleMatchPattern(aliasOrIndex)) {
-                if (!ignoreMissing && !aliasAndIndexToIndexMap.containsKey(aliasOrIndex)) {
+                if (ignoreIndices != IgnoreIndices.MISSING && !aliasAndIndexToIndexMap.containsKey(aliasOrIndex)) {
                     throw new IndexMissingException(new Index(aliasOrIndex));
                 }
                 if (result != null) {
@@ -647,7 +647,7 @@ public class MetaData implements Iterable<IndexMetaData> {
                     }
                 }
             }
-            if (!found && !ignoreMissing) {
+            if (!found && ignoreIndices != IgnoreIndices.MISSING) {
                 throw new IndexMissingException(new Index(aliasOrIndex));
             }
         }

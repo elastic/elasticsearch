@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -82,6 +83,8 @@ public class SearchRequest implements ActionRequest {
 
     private boolean listenerThreaded = false;
     private SearchOperationThreading operationThreading = SearchOperationThreading.THREAD_PER_SHARD;
+
+    private IgnoreIndices ignoreIndices = IgnoreIndices.DEFAULT;
 
     public SearchRequest() {
     }
@@ -177,6 +180,15 @@ public class SearchRequest implements ActionRequest {
      */
     public SearchRequest operationThreading(String operationThreading) {
         return operationThreading(SearchOperationThreading.fromString(operationThreading, this.operationThreading));
+    }
+
+    public IgnoreIndices ignoreIndices() {
+        return ignoreIndices;
+    }
+
+    public SearchRequest ignoreIndices(IgnoreIndices ignoreIndices) {
+        this.ignoreIndices = ignoreIndices;
+        return this;
     }
 
     /**
@@ -496,6 +508,7 @@ public class SearchRequest implements ActionRequest {
                 types[i] = in.readUTF();
             }
         }
+        ignoreIndices = IgnoreIndices.fromId(in.readByte());
     }
 
     @Override
@@ -539,5 +552,6 @@ public class SearchRequest implements ActionRequest {
         for (String type : types) {
             out.writeUTF(type);
         }
+        out.writeByte(ignoreIndices.id());
     }
 }

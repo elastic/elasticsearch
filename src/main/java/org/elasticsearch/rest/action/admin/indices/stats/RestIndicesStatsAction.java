@@ -22,6 +22,7 @@ package org.elasticsearch.rest.action.admin.indices.stats;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.stats.IndicesStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
+import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -82,6 +83,7 @@ public class RestIndicesStatsAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
         indicesStatsRequest.listenerThreaded(false);
+        indicesStatsRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
         boolean clear = request.paramAsBoolean("clear", false);
         if (clear) {
             indicesStatsRequest.clear();

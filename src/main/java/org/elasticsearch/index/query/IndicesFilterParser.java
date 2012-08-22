@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import com.google.common.collect.Sets;
 import org.apache.lucene.search.Filter;
+import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
@@ -115,7 +116,7 @@ public class IndicesFilterParser implements FilterParser {
         String[] concreteIndices = indices.toArray(new String[indices.size()]);
         if (clusterService != null) {
             MetaData metaData = clusterService.state().metaData();
-            concreteIndices = metaData.concreteIndices(indices.toArray(new String[indices.size()]), true, true);
+            concreteIndices = metaData.concreteIndices(indices.toArray(new String[indices.size()]), IgnoreIndices.MISSING, true);
         }
 
         for (String index : concreteIndices) {

@@ -25,6 +25,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -65,7 +66,7 @@ public class TermsQueryParser implements QueryParser {
         String fieldName = null;
         boolean disableCoord = false;
         float boost = 1.0f;
-        int minimumNumberShouldMatch = 1;
+        String minimumShouldMatch = null;
         List<String> values = newArrayList();
 
         String currentFieldName = null;
@@ -86,7 +87,9 @@ public class TermsQueryParser implements QueryParser {
                 if ("disable_coord".equals(currentFieldName) || "disableCoord".equals(currentFieldName)) {
                     disableCoord = parser.booleanValue();
                 } else if ("minimum_match".equals(currentFieldName) || "minimumMatch".equals(currentFieldName)) {
-                    minimumNumberShouldMatch = parser.intValue();
+                    minimumShouldMatch = parser.textOrNull();
+                } else if ("minimum_should_match".equals(currentFieldName) || "minimumShouldMatch".equals(currentFieldName)) {
+                    minimumShouldMatch = parser.textOrNull();
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 }
@@ -115,9 +118,7 @@ public class TermsQueryParser implements QueryParser {
                 }
             }
             query.setBoost(boost);
-            if (minimumNumberShouldMatch != -1) {
-                query.setMinimumNumberShouldMatch(minimumNumberShouldMatch);
-            }
+            Queries.applyMinimumShouldMatch(query, minimumShouldMatch);
             return wrapSmartNameQuery(optimizeQuery(fixNegativeQueryIfNeeded(query)), smartNameFieldMappers, parseContext);
         } finally {
             if (smartNameFieldMappers != null && smartNameFieldMappers.explicitTypeInNameWithDocMapper()) {

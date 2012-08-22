@@ -32,7 +32,7 @@ public class TermsQueryBuilder extends BaseQueryBuilder implements BoostableQuer
 
     private final Object[] values;
 
-    private int minimumMatch = -1;
+    private String minimumShouldMatch;
 
     private Boolean disableCoord;
 
@@ -119,7 +119,12 @@ public class TermsQueryBuilder extends BaseQueryBuilder implements BoostableQuer
      * Sets the minimum number of matches across the provided terms. Defaults to <tt>1</tt>.
      */
     public TermsQueryBuilder minimumMatch(int minimumMatch) {
-        this.minimumMatch = minimumMatch;
+        this.minimumShouldMatch = Integer.toString(minimumMatch);
+        return this;
+    }
+
+    public TermsQueryBuilder minimumShouldMatch(String minimumShouldMatch) {
+        this.minimumShouldMatch = minimumShouldMatch;
         return this;
     }
 
@@ -149,8 +154,8 @@ public class TermsQueryBuilder extends BaseQueryBuilder implements BoostableQuer
         }
         builder.endArray();
 
-        if (minimumMatch != -1) {
-            builder.field("minimum_match", minimumMatch);
+        if (minimumShouldMatch != null) {
+            builder.field("minimum_should_match", minimumShouldMatch);
         }
         if (disableCoord != null) {
             builder.field("disable_coord", disableCoord);

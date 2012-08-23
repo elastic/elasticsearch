@@ -22,6 +22,8 @@ package org.elasticsearch.node.internal;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionModule;
+import org.elasticsearch.bulk.udp.BulkUdpModule;
+import org.elasticsearch.bulk.udp.BulkUdpService;
 import org.elasticsearch.cache.NodeCache;
 import org.elasticsearch.cache.NodeCacheModule;
 import org.elasticsearch.client.Client;
@@ -148,6 +150,7 @@ public final class InternalNode implements Node {
         modules.add(new MonitorModule(settings));
         modules.add(new GatewayModule(settings));
         modules.add(new NodeClientModule());
+        modules.add(new BulkUdpModule());
 
         injector = modules.createInjector();
 
@@ -197,6 +200,7 @@ public final class InternalNode implements Node {
         if (settings.getAsBoolean("http.enabled", true)) {
             injector.getInstance(HttpServer.class).start();
         }
+        injector.getInstance(BulkUdpService.class).start();
         injector.getInstance(JmxService.class).connectAndRegister(discoService.nodeDescription(), injector.getInstance(NetworkService.class));
 
         logger.info("{{}}[{}]: started", Version.CURRENT, JvmInfo.jvmInfo().pid());
@@ -212,6 +216,7 @@ public final class InternalNode implements Node {
         ESLogger logger = Loggers.getLogger(Node.class, settings.get("name"));
         logger.info("{{}}[{}]: stopping ...", Version.CURRENT, JvmInfo.jvmInfo().pid());
 
+        injector.getInstance(BulkUdpService.class).stop();
         if (settings.getAsBoolean("http.enabled", true)) {
             injector.getInstance(HttpServer.class).stop();
         }
@@ -261,7 +266,9 @@ public final class InternalNode implements Node {
         logger.info("{{}}[{}]: closing ...", Version.CURRENT, JvmInfo.jvmInfo().pid());
 
         StopWatch stopWatch = new StopWatch("node_close");
-        stopWatch.start("http");
+        stopWatch.start("bulk.udp");
+        injector.getInstance(BulkUdpService.class).close();
+        stopWatch.stop().start("http");
         if (settings.getAsBoolean("http.enabled", true)) {
             injector.getInstance(HttpServer.class).close();
         }

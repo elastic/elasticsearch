@@ -57,6 +57,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.nio.channels.CancelledKeyException;
 import java.util.*;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
@@ -471,12 +472,12 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                     disconnectFromNode(entry.getKey());
                 }
             }
-        } else if (isConnectException(e.getCause())) {
+        } else if (isConnectException(e.getCause()) || e.getCause() instanceof CancelledKeyException) {
             if (logger.isTraceEnabled()) {
-                logger.trace("(Ignoring) Exception caught on netty layer [" + ctx.getChannel() + "]", e.getCause());
+                logger.trace("(Ignoring) exception caught on netty layer [" + ctx.getChannel() + "]", e.getCause());
             }
         } else {
-            logger.warn("Exception caught on netty layer [" + ctx.getChannel() + "]", e.getCause());
+            logger.warn("exception caught on netty layer [" + ctx.getChannel() + "]", e.getCause());
         }
     }
 

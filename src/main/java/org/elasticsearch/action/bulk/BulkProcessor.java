@@ -243,7 +243,6 @@ public class BulkProcessor {
         if (closed) {
             throw new ElasticSearchIllegalStateException("bulk process already closed");
         }
-        this.closed = true;
         if (!isOverTheLimit()) {
             return;
         }

@@ -32,6 +32,8 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.get.GetField;
@@ -41,12 +43,11 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MoreLikeThisFieldQueryBuilder;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportRequestHandler;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.*;
 
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
 
 import static com.google.common.collect.Sets.newHashSet;
@@ -68,6 +69,8 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
 
     private final ClusterService clusterService;
 
+    private final TransportService transportService;
+
     @Inject
     public TransportMoreLikeThisAction(Settings settings, ThreadPool threadPool, TransportSearchAction searchAction, TransportGetAction getAction,
                                        ClusterService clusterService, IndicesService indicesService, TransportService transportService) {
@@ -76,6 +79,7 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
         this.getAction = getAction;
         this.indicesService = indicesService;
         this.clusterService = clusterService;
+        this.transportService = transportService;
 
         transportService.registerHandler(MoreLikeThisAction.NAME, new TransportHandler());
     }
@@ -87,6 +91,22 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
         // update to the concrete index
         final String concreteIndex = clusterState.metaData().concreteIndex(request.index());
 
+        RoutingNode routingNode = clusterState.getRoutingNodes().nodesToShards().get(clusterService.localNode().getId());
+        if (routingNode == null) {
+            redirect(request, listener, clusterState);
+            return;
+        }
+        boolean hasIndexLocally = false;
+        for (MutableShardRouting shardRouting : routingNode.shards()) {
+            if (concreteIndex.equals(shardRouting.index())) {
+                hasIndexLocally = true;
+                break;
+            }
+        }
+        if (!hasIndexLocally) {
+            redirect(request, listener, clusterState);
+            return;
+        }
         Set<String> getFields = newHashSet();
         if (request.fields() != null) {
             Collections.addAll(getFields, request.fields());
@@ -200,6 +220,39 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
             @Override
             public void onFailure(Throwable e) {
                 listener.onFailure(e);
+            }
+        });
+    }
+
+    // Redirects the request to a data node, that has the index meta data locally available.
+    private void redirect(MoreLikeThisRequest request, final ActionListener<SearchResponse> listener, ClusterState clusterState) {
+        ShardIterator shardIterator = clusterService.operationRouting().getShards(clusterState, request.index(), request.type(), request.id(), null, null);
+        ShardRouting shardRouting = shardIterator.firstOrNull();
+        if (shardRouting == null) {
+            throw new ElasticSearchException("No shards for index " + request.index());
+        }
+        String nodeId = shardRouting.currentNodeId();
+        DiscoveryNode discoveryNode = clusterState.nodes().get(nodeId);
+        transportService.sendRequest(discoveryNode, MoreLikeThisAction.NAME, request, new TransportResponseHandler<SearchResponse>() {
+
+            @Override
+            public SearchResponse newInstance() {
+                return new SearchResponse();
+            }
+
+            @Override
+            public void handleResponse(SearchResponse response) {
+                listener.onResponse(response);
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                listener.onFailure(exp);
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.SAME;
             }
         });
     }

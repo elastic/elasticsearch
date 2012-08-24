@@ -102,6 +102,39 @@ public class ShardGetService extends AbstractIndexShardComponent {
         }
     }
 
+    /**
+     * Returns {@link GetResult} based on the specified {@link Engine.GetResult} argument.
+     * This method basically loads specified fields for the associated document in the engineGetResult.
+     * This method load the fields from the Lucene index and not from transaction log and therefore isn't realtime.
+     * <p>
+     * Note: Call <b>must</b> release engine searcher associated with engineGetResult!
+     */
+    public GetResult get(Engine.GetResult engineGetResult, String id, String type, String[] fields) {
+        if (!engineGetResult.exists()) {
+            return new GetResult(shardId.index().name(), type, id, -1, false, null, null);
+        }
+
+        currentMetric.inc();
+        try {
+            long now = System.nanoTime();
+            DocumentMapper docMapper = mapperService.documentMapper(type);
+            if (docMapper == null) {
+                missingMetric.inc(System.nanoTime() - now);
+                return new GetResult(shardId.index().name(), type, id, -1, false, null, null);
+            }
+
+            GetResult getResult = innerGetLoadFromStoredFields(type, id, fields, engineGetResult, docMapper);
+            if (getResult.exists()) {
+                existsMetric.inc(System.nanoTime() - now);
+            } else {
+                missingMetric.inc(System.nanoTime() - now); // This shouldn't happen...
+            }
+            return getResult;
+        } finally {
+            currentMetric.dec();
+        }
+    }
+
     public GetResult innerGet(String type, String id, String[] gFields, boolean realtime) throws ElasticSearchException {
         boolean loadSource = gFields == null || gFields.length > 0;
         Engine.GetResult get = null;
@@ -139,101 +172,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
         try {
             // break between having loaded it from translog (so we only have _source), and having a document to load
             if (get.docIdAndVersion() != null) {
-                Map<String, GetField> fields = null;
-                byte[] source = null;
-                UidField.DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
-                ResetFieldSelector fieldSelector = buildFieldSelectors(docMapper, gFields);
-                if (fieldSelector != null) {
-                    fieldSelector.reset();
-                    Document doc;
-                    try {
-                        doc = docIdAndVersion.reader.document(docIdAndVersion.docId, fieldSelector);
-                    } catch (IOException e) {
-                        throw new ElasticSearchException("Failed to get type [" + type + "] and id [" + id + "]", e);
-                    }
-                    source = extractSource(doc, docMapper);
-
-                    for (Object oField : doc.getFields()) {
-                        Fieldable field = (Fieldable) oField;
-                        String name = field.name();
-                        Object value = null;
-                        FieldMappers fieldMappers = docMapper.mappers().indexName(field.name());
-                        if (fieldMappers != null) {
-                            FieldMapper mapper = fieldMappers.mapper();
-                            if (mapper != null) {
-                                name = mapper.names().fullName();
-                                value = mapper.valueForSearch(field);
-                            }
-                        }
-                        if (value == null) {
-                            if (field.isBinary()) {
-                                value = new BytesArray(field.getBinaryValue(), field.getBinaryOffset(), field.getBinaryLength());
-                            } else {
-                                value = field.stringValue();
-                            }
-                        }
-
-                        if (fields == null) {
-                            fields = newHashMapWithExpectedSize(2);
-                        }
-
-                        GetField getField = fields.get(name);
-                        if (getField == null) {
-                            getField = new GetField(name, new ArrayList<Object>(2));
-                            fields.put(name, getField);
-                        }
-                        getField.values().add(value);
-                    }
-                }
-
-                // now, go and do the script thingy if needed
-                if (gFields != null && gFields.length > 0) {
-                    SearchLookup searchLookup = null;
-                    for (String field : gFields) {
-                        Object value = null;
-                        if (field.contains("_source.") || field.contains("doc[")) {
-                            if (searchLookup == null) {
-                                searchLookup = new SearchLookup(mapperService, indexCache.fieldData(), new String[]{type});
-                            }
-                            SearchScript searchScript = scriptService.search(searchLookup, "mvel", field, null);
-                            searchScript.setNextReader(docIdAndVersion.reader);
-                            searchScript.setNextDocId(docIdAndVersion.docId);
-
-                            try {
-                                value = searchScript.run();
-                            } catch (RuntimeException e) {
-                                if (logger.isTraceEnabled()) {
-                                    logger.trace("failed to execute get request script field [{}]", e, field);
-                                }
-                                // ignore
-                            }
-                        } else {
-                            FieldMappers x = docMapper.mappers().smartName(field);
-                            if (x == null || !x.mapper().stored()) {
-                                if (searchLookup == null) {
-                                    searchLookup = new SearchLookup(mapperService, indexCache.fieldData(), new String[]{type});
-                                    searchLookup.setNextReader(docIdAndVersion.reader);
-                                    searchLookup.setNextDocId(docIdAndVersion.docId);
-                                }
-                                value = searchLookup.source().extractValue(field);
-                            }
-                        }
-
-                        if (value != null) {
-                            if (fields == null) {
-                                fields = newHashMapWithExpectedSize(2);
-                            }
-                            GetField getField = fields.get(field);
-                            if (getField == null) {
-                                getField = new GetField(field, new ArrayList<Object>(2));
-                                fields.put(field, getField);
-                            }
-                            getField.values().add(value);
-                        }
-                    }
-                }
-
-                return new GetResult(shardId.index().name(), type, id, get.version(), get.exists(), source == null ? null : new BytesArray(source), fields);
+                return innerGetLoadFromStoredFields(type, id, gFields, get, docMapper);
             } else {
                 Translog.Source source = get.source();
 
@@ -332,6 +271,104 @@ public class ShardGetService extends AbstractIndexShardComponent {
         } finally {
             get.release();
         }
+    }
+
+    private GetResult innerGetLoadFromStoredFields(String type, String id, String[] gFields, Engine.GetResult get, DocumentMapper docMapper) {
+        Map<String, GetField> fields = null;
+        byte[] source = null;
+        UidField.DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
+        ResetFieldSelector fieldSelector = buildFieldSelectors(docMapper, gFields);
+        if (fieldSelector != null) {
+            fieldSelector.reset();
+            Document doc;
+            try {
+                doc = docIdAndVersion.reader.document(docIdAndVersion.docId, fieldSelector);
+            } catch (IOException e) {
+                throw new ElasticSearchException("Failed to get type [" + type + "] and id [" + id + "]", e);
+            }
+            source = extractSource(doc, docMapper);
+
+            for (Object oField : doc.getFields()) {
+                Fieldable field = (Fieldable) oField;
+                String name = field.name();
+                Object value = null;
+                FieldMappers fieldMappers = docMapper.mappers().indexName(field.name());
+                if (fieldMappers != null) {
+                    FieldMapper mapper = fieldMappers.mapper();
+                    if (mapper != null) {
+                        name = mapper.names().fullName();
+                        value = mapper.valueForSearch(field);
+                    }
+                }
+                if (value == null) {
+                    if (field.isBinary()) {
+                        value = new BytesArray(field.getBinaryValue(), field.getBinaryOffset(), field.getBinaryLength());
+                    } else {
+                        value = field.stringValue();
+                    }
+                }
+
+                if (fields == null) {
+                    fields = newHashMapWithExpectedSize(2);
+                }
+
+                GetField getField = fields.get(name);
+                if (getField == null) {
+                    getField = new GetField(name, new ArrayList<Object>(2));
+                    fields.put(name, getField);
+                }
+                getField.values().add(value);
+            }
+        }
+
+        // now, go and do the script thingy if needed
+        if (gFields != null && gFields.length > 0) {
+            SearchLookup searchLookup = null;
+            for (String field : gFields) {
+                Object value = null;
+                if (field.contains("_source.") || field.contains("doc[")) {
+                    if (searchLookup == null) {
+                        searchLookup = new SearchLookup(mapperService, indexCache.fieldData(), new String[]{type});
+                    }
+                    SearchScript searchScript = scriptService.search(searchLookup, "mvel", field, null);
+                    searchScript.setNextReader(docIdAndVersion.reader);
+                    searchScript.setNextDocId(docIdAndVersion.docId);
+
+                    try {
+                        value = searchScript.run();
+                    } catch (RuntimeException e) {
+                        if (logger.isTraceEnabled()) {
+                            logger.trace("failed to execute get request script field [{}]", e, field);
+                        }
+                        // ignore
+                    }
+                } else {
+                    FieldMappers x = docMapper.mappers().smartName(field);
+                    if (x == null || !x.mapper().stored()) {
+                        if (searchLookup == null) {
+                            searchLookup = new SearchLookup(mapperService, indexCache.fieldData(), new String[]{type});
+                            searchLookup.setNextReader(docIdAndVersion.reader);
+                            searchLookup.setNextDocId(docIdAndVersion.docId);
+                        }
+                        value = searchLookup.source().extractValue(field);
+                    }
+                }
+
+                if (value != null) {
+                    if (fields == null) {
+                        fields = newHashMapWithExpectedSize(2);
+                    }
+                    GetField getField = fields.get(field);
+                    if (getField == null) {
+                        getField = new GetField(field, new ArrayList<Object>(2));
+                        fields.put(field, getField);
+                    }
+                    getField.values().add(value);
+                }
+            }
+        }
+
+        return new GetResult(shardId.index().name(), type, id, get.version(), get.exists(), source == null ? null : new BytesArray(source), fields);
     }
 
     private static ResetFieldSelector buildFieldSelectors(DocumentMapper docMapper, String... fields) {

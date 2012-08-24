@@ -34,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.query.ParsedQuery;
@@ -106,7 +107,18 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
             int topLevelDocId = result.docIdAndVersion().docId + result.docIdAndVersion().docStart;
 
             Explanation explanation = context.searcher().explain(context.query(), topLevelDocId);
-            return new ExplainResponse(true, explanation);
+            if (request.fields() != null) {
+                if (request.fields().length == 1 && "_source".equals(request.fields()[0])) {
+                    request.fields(null); // Load the _source field
+                }
+                // Advantage is that we're not opening a second searcher to retrieve the _source. Also
+                // because we are working in the same searcher in engineGetResult we can be sure that a
+                // doc isn't deleted between the initial get and this call.
+                GetResult getResult = indexShard.getService().get(result, request.id(), request.type(), request.fields());
+                return new ExplainResponse(true, explanation, getResult);
+            } else {
+                return new ExplainResponse(true, explanation);
+            }
         } catch (IOException e) {
             throw new ElasticSearchException("Could not explain", e);
         } finally {
@@ -154,7 +166,8 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
     }
 
     protected ShardIterator shards(ClusterState state, ExplainRequest request) throws ElasticSearchException {
-        return clusterService.operationRouting()
-                .getShards(clusterService.state(), request.index(), request.type(), request.id(), request.routing(), request.preference());
+        return clusterService.operationRouting().getShards(
+            clusterService.state(), request.index(), request.type(), request.id(), request.routing(), request.preference()
+        );
     }
 }

@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.routing;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -29,10 +30,8 @@ import java.io.Serializable;
 
 /**
  * Shard routing represents the state of a shard instance allocated in the cluster.
- *
- *
  */
-public interface ShardRouting extends Streamable, Serializable {
+public interface ShardRouting extends Streamable, Serializable, ToXContent {
 
     /**
      * The shard id.

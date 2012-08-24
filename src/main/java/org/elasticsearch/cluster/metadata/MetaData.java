@@ -88,7 +88,7 @@ public class MetaData implements Iterable<IndexMetaData> {
     public static <T extends Custom> Custom.Factory<T> lookupFactorySafe(String type) throws ElasticSearchIllegalArgumentException {
         Custom.Factory<T> factory = customFactories.get(type);
         if (factory == null) {
-            throw new ElasticSearchIllegalArgumentException("No custom index metadata factoy registered for type [" + type + "]");
+            throw new ElasticSearchIllegalArgumentException("No custom index metadata factory registered for type [" + type + "]");
         }
         return factory;
     }

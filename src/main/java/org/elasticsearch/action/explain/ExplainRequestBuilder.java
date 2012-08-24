@@ -108,6 +108,14 @@ public class ExplainRequestBuilder extends BaseRequestBuilder<ExplainRequest, Ex
     }
 
     /**
+     * Explicitly specify the fields that will be returned for the explained document. By default, nothing is returned.
+     */
+    public ExplainRequestBuilder setFields(String... fields) {
+        request.fields(fields);
+        return this;
+    }
+
+    /**
      * Sets the full source of the explain request (for example, wrapping an actual query).
      */
     public ExplainRequestBuilder setSource(BytesReference source, boolean unsafe) {

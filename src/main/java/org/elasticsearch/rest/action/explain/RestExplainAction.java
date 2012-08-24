@@ -26,11 +26,13 @@ import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.explain.ExplainSourceBuilder;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.rest.*;
@@ -88,6 +90,14 @@ public class RestExplainAction extends BaseRestHandler {
             explainRequest.source(explainSourceBuilder);
         }
 
+        String sField = request.param("fields");
+        if (sField != null) {
+            String[] sFields = Strings.splitStringByCommaToArray(sField);
+            if (sFields != null) {
+                explainRequest.fields(sFields);
+            }
+        }
+
         client.explain(explainRequest, new ActionListener<ExplainResponse>() {
 
             @Override
@@ -95,11 +105,21 @@ public class RestExplainAction extends BaseRestHandler {
                 try {
                     XContentBuilder builder = restContentBuilder(request);
                     builder.startObject();
-                    builder.field(Fields.OK, response.exists());
-                    builder.field(Fields.MATCHES, response.match());
+                    builder.field(Fields.OK, response.exists())
+                            .field(Fields._INDEX, explainRequest.index())
+                            .field(Fields._TYPE, explainRequest.type())
+                            .field(Fields._ID, explainRequest.id())
+                            .field(Fields.MATCHED, response.match());
+
                     if (response.hasExplanation()) {
                         builder.startObject(Fields.EXPLANATION);
                         buildExplanation(builder, response.explanation());
+                        builder.endObject();
+                    }
+                    GetResult getResult = response.getResult();
+                    if (getResult != null) {
+                        builder.startObject(Fields.GET);
+                        response.getResult().toXContentEmbedded(builder, request);
                         builder.endObject();
                     }
                     builder.endObject();
@@ -137,10 +157,15 @@ public class RestExplainAction extends BaseRestHandler {
 
     static class Fields {
         static final XContentBuilderString OK = new XContentBuilderString("ok");
-        static final XContentBuilderString MATCHES = new XContentBuilderString("matches");
+        static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
+        static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
+        static final XContentBuilderString _ID = new XContentBuilderString("_id");
+        static final XContentBuilderString MATCHED = new XContentBuilderString("matched");
         static final XContentBuilderString EXPLANATION = new XContentBuilderString("explanation");
         static final XContentBuilderString VALUE = new XContentBuilderString("value");
         static final XContentBuilderString DESCRIPTION = new XContentBuilderString("description");
         static final XContentBuilderString DETAILS = new XContentBuilderString("details");
+        static final XContentBuilderString GET = new XContentBuilderString("get");
+
     }
 }

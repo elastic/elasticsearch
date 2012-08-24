@@ -35,6 +35,7 @@ import org.elasticsearch.discovery.zen.ping.unicast.UnicastHostsProvider;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -98,24 +99,6 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
 
         logger.trace("building dynamic unicast discovery nodes...");
         for (Reservation reservation : descInstances.getReservations()) {
-            if (!groups.isEmpty()) {
-                // lets see if we can filter based on groups
-                List<String> groupNames = reservation.getGroupNames();
-                if (bindAnyGroup) {
-                    if (Collections.disjoint(groups, groupNames)) {
-                        logger.trace("filtering out reservation {} based on groups {}, not part of {}", reservation.getReservationId(), groupNames, groups);
-                        // continue to the next reservation
-                        continue;
-                    }
-                } else {
-                    if (!groupNames.containsAll(groups)) {
-                        logger.trace("filtering out reservation {} based on groups {}, does not include all of {}", reservation.getReservationId(), groupNames, groups);
-                        // continue to the next reservation
-                        continue;
-                    }
-                }
-            }
-
             for (Instance instance : reservation.getInstances()) {
                 if (!availabilityZones.isEmpty()) {
                     if (!availabilityZones.contains(instance.getPlacement().getAvailabilityZone())) {
@@ -123,6 +106,29 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
                         continue;
                     }
                 }
+
+                // lets see if we can filter based on groups
+                if (!groups.isEmpty()) {
+                    List<GroupIdentifier> instanceSecurityGroups = instance.getSecurityGroups();
+                    ArrayList<String> securityGroupNames = new ArrayList<String>();
+                    for (GroupIdentifier sg : instanceSecurityGroups) {
+                        securityGroupNames.add(sg.getGroupName());
+                    }
+                    if (bindAnyGroup) {
+                        if (Collections.disjoint(securityGroupNames, groups)) {
+                            logger.trace("filtering out instance {} based on groups {}, not part of {}", instance.getInstanceId(), instanceSecurityGroups, groups);
+                            // continue to the next instance
+                            continue;
+                        }
+                    } else {
+                        if (!securityGroupNames.containsAll(groups)) {
+                            logger.trace("filtering out instance {} based on groups {}, does not include all of {}", instance.getInstanceId(), instanceSecurityGroups, groups);
+                            // continue to the next instance
+                            continue;
+                        }
+                    }
+                }
+
                 // see if we need to filter by tags
                 boolean filterByTag = false;
                 if (!tags.isEmpty()) {

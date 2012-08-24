@@ -23,6 +23,8 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
@@ -33,6 +35,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.termFilter;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  *
@@ -125,4 +128,24 @@ public class MoreLikeThisActionTests extends AbstractNodesTests {
         assertThat(mltResponse.hits().totalHits(), equalTo(1l));
         assertThat(mltResponse.hits().getAt(0).id(), equalTo("2"));
     }
+
+    @Test
+    public void testMoreLikeThisIssue2197() throws Exception {
+        startNode("client-node", ImmutableSettings.settingsBuilder().put("node.client", true));
+        try {
+            client1.admin().indices().prepareDelete("foo").execute().actionGet();
+        } catch (IndexMissingException e) {}
+        client1.prepareIndex("foo", "bar", "1")
+                .setSource(jsonBuilder().startObject().startObject("foo").field("bar", "boz").endObject())
+                .execute().actionGet();
+        client1.admin().indices().prepareRefresh("foo").execute().actionGet();
+
+        SearchResponse searchResponse = client1.prepareMoreLikeThis("foo", "bar", "1").execute().actionGet();
+        assertThat(searchResponse, notNullValue());
+        Client client3 = client("client-node");
+        searchResponse = client3.prepareMoreLikeThis("foo", "bar", "1").execute().actionGet();
+        assertThat(searchResponse, notNullValue());
+        client3.close();
+    }
+
 }

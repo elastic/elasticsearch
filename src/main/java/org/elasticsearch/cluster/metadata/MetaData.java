@@ -304,18 +304,14 @@ public class MetaData implements Iterable<IndexMetaData> {
     }
 
     public Map<String, Set<String>> resolveSearchRouting(@Nullable String routing, String[] aliasesOrIndices) {
-        if (aliasesOrIndices == null || aliasesOrIndices.length == 0) {
+        if (isAllIndices(aliasesOrIndices)) {
             return resolveSearchRoutingAllIndices(routing);
         }
 
         aliasesOrIndices = convertFromWildcards(aliasesOrIndices, true, true);
 
         if (aliasesOrIndices.length == 1) {
-            if (aliasesOrIndices[0].equals("_all")) {
-                return resolveSearchRoutingAllIndices(routing);
-            } else {
-                return resolveSearchRoutingSingleValue(routing, aliasesOrIndices[0]);
-            }
+            return resolveSearchRoutingSingleValue(routing, aliasesOrIndices[0]);
         }
 
         Map<String, Set<String>> routings = null;
@@ -469,19 +465,13 @@ public class MetaData implements Iterable<IndexMetaData> {
      * Translates the provided indices (possibly aliased) into actual indices.
      */
     public String[] concreteIndices(String[] aliasesOrIndices, boolean ignoreMissing, boolean allOnlyOpen) throws IndexMissingException {
-        if (aliasesOrIndices == null || aliasesOrIndices.length == 0) {
+        if (isAllIndices(aliasesOrIndices)) {
             return allOnlyOpen ? concreteAllOpenIndices() : concreteAllIndices();
         }
         aliasesOrIndices = convertFromWildcards(aliasesOrIndices, allOnlyOpen, ignoreMissing);
         // optimize for single element index (common case)
         if (aliasesOrIndices.length == 1) {
             String aliasOrIndex = aliasesOrIndices[0];
-            if (aliasOrIndex.length() == 0) {
-                return allOnlyOpen ? concreteAllOpenIndices() : concreteAllIndices();
-            }
-            if (aliasOrIndex.equals("_all")) {
-                return allOnlyOpen ? concreteAllOpenIndices() : concreteAllIndices();
-            }
             // if a direct index name, just return the array provided
             if (this.indices.containsKey(aliasOrIndex)) {
                 return aliasesOrIndices;
@@ -660,16 +650,12 @@ public class MetaData implements Iterable<IndexMetaData> {
      * the index itself - null is returned. Returns <tt>null</tt> if no filtering is required.</p>
      */
     public String[] filteringAliases(String index, String... indices) {
-        if (indices == null || indices.length == 0) {
+        if (isAllIndices(indices)) {
             return null;
         }
         // optimize for the most common single index/alias scenario
         if (indices.length == 1) {
             String alias = indices[0];
-            // This list contains "_all" - no filtering needed
-            if (alias.equals("_all")) {
-                return null;
-            }
             ImmutableMap<String, Boolean> aliasToFilteringRequiredMap = indexToAliasFilteringRequiredMap.get(index);
             if (aliasToFilteringRequiredMap == null) {
                 // Shouldn't happen
@@ -708,6 +694,10 @@ public class MetaData implements Iterable<IndexMetaData> {
             return null;
         }
         return filteringAliases.toArray(new String[filteringAliases.size()]);
+    }
+
+    private boolean isAllIndices(String[] aliasesOrIndices) {
+        return (aliasesOrIndices == null || aliasesOrIndices.length == 0 || (aliasesOrIndices.length == 1 && "_all".equals(aliasesOrIndices[0])));
     }
 
 

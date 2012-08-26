@@ -24,6 +24,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -56,10 +57,13 @@ public class ExplainActionTests extends AbstractNodesTests {
 
     @Test
     public void testSimple() throws Exception {
-        client.admin().indices().prepareDelete("test").execute().actionGet();
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (IndexMissingException e) {}
         client.admin().indices().prepareCreate("test").setSettings(
                 ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)
         ).execute().actionGet();
+        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
         client.prepareIndex("test", "test", "1")
                 .setSource("field", "value1")
@@ -116,9 +120,12 @@ public class ExplainActionTests extends AbstractNodesTests {
 
     @Test
     public void testExplainWithAlias() throws Exception {
-        client.admin().indices().prepareDelete().execute().actionGet();
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (IndexMissingException e) {}
         client.admin().indices().prepareCreate("test")
                 .execute().actionGet();
+        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
         client.admin().indices().prepareAliases().addAlias("test", "alias1", FilterBuilders.termFilter("field2", "value2"))
                 .execute().actionGet();

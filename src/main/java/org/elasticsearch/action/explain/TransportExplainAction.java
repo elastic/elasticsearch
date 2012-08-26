@@ -95,7 +95,7 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
                 0,
                 new InternalSearchRequest().types(new String[]{request.type()})
                         .filteringAliases(request.filteringAlias()),
-                null, indexShard.searcher(), indexService, indexShard,
+                null, result.searcher(), indexService, indexShard,
                 scriptService
         );
         SearchContext.setCurrent(context);

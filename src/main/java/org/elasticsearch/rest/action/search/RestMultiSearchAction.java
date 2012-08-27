@@ -22,6 +22,7 @@ package org.elasticsearch.rest.action.search;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -60,9 +61,10 @@ public class RestMultiSearchAction extends BaseRestHandler {
 
         String[] indices = RestActions.splitIndices(request.param("index"));
         String[] types = RestActions.splitTypes(request.param("type"));
+        IgnoreIndices ignoreIndices = IgnoreIndices.fromString(request.param("ignore_indices"));
 
         try {
-            multiSearchRequest.add(request.content(), request.contentUnsafe(), indices, types, request.param("search_type"));
+            multiSearchRequest.add(request.content(), request.contentUnsafe(), indices, types, request.param("search_type"), ignoreIndices);
         } catch (Exception e) {
             try {
                 XContentBuilder builder = restContentBuilder(request);

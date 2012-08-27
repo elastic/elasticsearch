@@ -22,6 +22,7 @@ package org.elasticsearch.rest.action.admin.indices.optimize;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
+import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
@@ -58,6 +59,7 @@ public class RestOptimizeAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         OptimizeRequest optimizeRequest = new OptimizeRequest(RestActions.splitIndices(request.param("index")));
         optimizeRequest.listenerThreaded(false);
+        optimizeRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
         try {
             optimizeRequest.waitForMerge(request.paramAsBoolean("wait_for_merge", optimizeRequest.waitForMerge()));
             optimizeRequest.maxNumSegments(request.paramAsInt("max_num_segments", optimizeRequest.maxNumSegments()));

@@ -22,6 +22,7 @@ package org.elasticsearch.rest.action.admin.indices.refresh;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
@@ -57,6 +58,7 @@ public class RestRefreshAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         RefreshRequest refreshRequest = new RefreshRequest(RestActions.splitIndices(request.param("index")));
         refreshRequest.listenerThreaded(false);
+        refreshRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
         BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operation_threading"), BroadcastOperationThreading.SINGLE_THREAD);
         if (operationThreading == BroadcastOperationThreading.NO_THREADS) {
             // since we don't spawn, don't allow no_threads, but change it to a single thread

@@ -21,6 +21,7 @@ package org.elasticsearch.action.count;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.BaseRequestBuilder;
+import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -137,6 +138,14 @@ public class CountRequestBuilder extends BaseRequestBuilder<CountRequest, CountR
      */
     public CountRequestBuilder setListenerThreaded(boolean threadedListener) {
         request.listenerThreaded(threadedListener);
+        return this;
+    }
+
+    /**
+     * Specifies what type of requested indices to ignore. For example indices that don't exist.
+     */
+    public CountRequestBuilder setIgnoreIndices(IgnoreIndices ignoreIndices) {
+        request().ignoreIndices(ignoreIndices);
         return this;
     }
 

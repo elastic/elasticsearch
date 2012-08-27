@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.stats;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.support.BaseIndicesRequestBuilder;
+import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.client.IndicesAdminClient;
 
 /**
@@ -118,6 +119,14 @@ public class IndicesStatsRequestBuilder extends BaseIndicesRequestBuilder<Indice
 
     public IndicesStatsRequestBuilder setWarmer(boolean warmer) {
         request.warmer(warmer);
+        return this;
+    }
+
+    /**
+     * Specifies what type of requested indices to ignore. For example indices that don't exist.
+     */
+    public IndicesStatsRequestBuilder setIgnoreIndices(IgnoreIndices ignoreIndices) {
+        request().ignoreIndices(ignoreIndices);
         return this;
     }
 

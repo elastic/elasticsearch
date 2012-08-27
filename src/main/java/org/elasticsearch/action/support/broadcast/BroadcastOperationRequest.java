@@ -21,6 +21,7 @@ package org.elasticsearch.action.support.broadcast;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -37,6 +38,7 @@ public abstract class BroadcastOperationRequest implements ActionRequest {
 
     private boolean listenerThreaded = false;
     private BroadcastOperationThreading operationThreading = BroadcastOperationThreading.SINGLE_THREAD;
+    private IgnoreIndices ignoreIndices = IgnoreIndices.NONE;
 
     protected BroadcastOperationRequest() {
 
@@ -99,6 +101,15 @@ public abstract class BroadcastOperationRequest implements ActionRequest {
         return operationThreading(BroadcastOperationThreading.fromString(operationThreading, this.operationThreading));
     }
 
+    public IgnoreIndices ignoreIndices() {
+        return ignoreIndices;
+    }
+
+    public BroadcastOperationRequest ignoreIndices(IgnoreIndices ignoreIndices) {
+        this.ignoreIndices = ignoreIndices;
+        return this;
+    }
+
     protected void beforeStart() {
 
     }
@@ -118,6 +129,7 @@ public abstract class BroadcastOperationRequest implements ActionRequest {
             }
         }
         out.writeByte(operationThreading.id());
+        out.writeByte(ignoreIndices.id());
     }
 
     @Override
@@ -132,5 +144,6 @@ public abstract class BroadcastOperationRequest implements ActionRequest {
             }
         }
         operationThreading = BroadcastOperationThreading.fromId(in.readByte());
+        ignoreIndices = IgnoreIndices.fromId(in.readByte());
     }
 }

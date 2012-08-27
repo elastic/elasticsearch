@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.status;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.support.BaseIndicesRequestBuilder;
+import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.client.IndicesAdminClient;
 
 /**
@@ -53,6 +54,14 @@ public class IndicesStatusRequestBuilder extends BaseIndicesRequestBuilder<Indic
      */
     public IndicesStatusRequestBuilder setSnapshot(boolean snapshot) {
         request.snapshot(snapshot);
+        return this;
+    }
+
+    /**
+     * Specifies what type of requested indices to ignore. For example indices that don't exist.
+     */
+    public IndicesStatusRequestBuilder setIgnoreIndices(IgnoreIndices ignoreIndices) {
+        request().ignoreIndices(ignoreIndices);
         return this;
     }
 

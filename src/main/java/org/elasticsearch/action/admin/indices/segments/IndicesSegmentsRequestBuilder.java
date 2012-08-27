@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.segments;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.support.BaseIndicesRequestBuilder;
+import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.client.IndicesAdminClient;
 
 /**
@@ -34,6 +35,14 @@ public class IndicesSegmentsRequestBuilder extends BaseIndicesRequestBuilder<Ind
 
     public IndicesSegmentsRequestBuilder setIndices(String... indices) {
         request.indices(indices);
+        return this;
+    }
+
+    /**
+     * Specifies what type of requested indices to ignore. For example indices that don't exist.
+     */
+    public IndicesSegmentsRequestBuilder setIgnoreIndices(IgnoreIndices ignoreIndices) {
+        request().ignoreIndices(ignoreIndices);
         return this;
     }
 

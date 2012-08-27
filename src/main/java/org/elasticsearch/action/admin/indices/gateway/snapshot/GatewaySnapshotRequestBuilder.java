@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.gateway.snapshot;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.support.BaseIndicesRequestBuilder;
+import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.client.IndicesAdminClient;
 
 /**
@@ -34,6 +35,14 @@ public class GatewaySnapshotRequestBuilder extends BaseIndicesRequestBuilder<Gat
 
     public GatewaySnapshotRequestBuilder setIndices(String... indices) {
         request.indices(indices);
+        return this;
+    }
+
+    /**
+     * Specifies what type of requested indices to ignore. For example indices that don't exist.
+     */
+    public GatewaySnapshotRequestBuilder setIgnoreIndices(IgnoreIndices ignoreIndices) {
+        request().ignoreIndices(ignoreIndices);
         return this;
     }
 

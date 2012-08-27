@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.cache.clear;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.support.BaseIndicesRequestBuilder;
+import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.client.IndicesAdminClient;
 
@@ -76,6 +77,14 @@ public class ClearIndicesCacheRequestBuilder extends BaseIndicesRequestBuilder<C
      */
     public ClearIndicesCacheRequestBuilder setOperationThreading(BroadcastOperationThreading operationThreading) {
         request.operationThreading(operationThreading);
+        return this;
+    }
+
+    /**
+     * Specifies what type of requested indices to ignore. For example indices that don't exist.
+     */
+    public ClearIndicesCacheRequestBuilder setIgnoreIndices(IgnoreIndices ignoreIndices) {
+        request().ignoreIndices(ignoreIndices);
         return this;
     }
 

@@ -114,13 +114,14 @@ public class IndexMetaData {
             .add(IndexMetaData.SETTING_BLOCKS_READ)
             .add(IndexMetaData.SETTING_BLOCKS_WRITE)
             .add(IndexMetaData.SETTING_BLOCKS_METADATA)
+            .add(IndexMetaData.SETTING_NEED_ACCURACY)
             .build();
 
     public static final ClusterBlock INDEX_READ_ONLY_BLOCK = new ClusterBlock(5, "index read-only (api)", false, false, RestStatus.FORBIDDEN, ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA);
     public static final ClusterBlock INDEX_READ_BLOCK = new ClusterBlock(7, "index read (api)", false, false, RestStatus.FORBIDDEN, ClusterBlockLevel.READ);
     public static final ClusterBlock INDEX_WRITE_BLOCK = new ClusterBlock(8, "index write (api)", false, false, RestStatus.FORBIDDEN, ClusterBlockLevel.WRITE);
     public static final ClusterBlock INDEX_METADATA_BLOCK = new ClusterBlock(9, "index metadata (api)", false, false, RestStatus.FORBIDDEN, ClusterBlockLevel.METADATA);
-
+    
     public static ImmutableSet<String> dynamicSettings() {
         return dynamicSettings;
     }
@@ -181,7 +182,8 @@ public class IndexMetaData {
     public static final String SETTING_BLOCKS_WRITE = "index.blocks.write";
     public static final String SETTING_BLOCKS_METADATA = "index.blocks.metadata";
     public static final String SETTING_VERSION_CREATED = "index.version.created";
-
+    public static final String SETTING_NEED_ACCURACY = "index.need_accuracy";
+    
     private final String index;
     private final long version;
 

@@ -25,6 +25,7 @@ import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.collect.BoundedTreeSet;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.index.field.data.FieldDataType;
@@ -39,7 +40,9 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -67,6 +70,8 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
     private final List<ReaderAggregator> aggregators;
 
     private ReaderAggregator current;
+    
+    private ImmutableSettings settings;
 
     long missing;
     long total;
@@ -82,6 +87,7 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
         this.size = size;
         this.comparatorType = comparatorType;
         this.numberOfShards = context.numberOfShards();
+        this.settings= (ImmutableSettings)context.indexShard().indexSettings();
 
         MapperService.SmartNameFieldMappers smartMappers = context.smartFieldMappers(fieldName);
         if (smartMappers == null || !smartMappers.hasMapper()) {
@@ -147,14 +153,20 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
 
         AggregatorPriorityQueue queue = new AggregatorPriorityQueue(aggregators.size());
 
+        Set<String> totalTerms = new HashSet<String>();
         for (ReaderAggregator aggregator : aggregators) {
             if (aggregator.nextPosition()) {
                 queue.add(aggregator);
+                totalTerms.addAll(Arrays.asList(aggregator.values));
             }
         }
 
+        String  need_accuracy = settings.get("index.need_accuracy");
+        if (need_accuracy == null){
+        	need_accuracy = "true";
+        }
         // YACK, we repeat the same logic, but once with an optimizer priority queue for smaller sizes
-        if (size < EntryPriorityQueue.LIMIT) {
+        if (need_accuracy.compareToIgnoreCase("true") !=0 && size < EntryPriorityQueue.LIMIT) {
             // optimize to use priority size
             EntryPriorityQueue ordered = new EntryPriorityQueue(size, comparatorType.comparator());
 
@@ -196,7 +208,14 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
             return new InternalStringTermsFacet(facetName, comparatorType, size, Arrays.asList(list), missing, total);
         }
 
-        BoundedTreeSet<InternalStringTermsFacet.StringEntry> ordered = new BoundedTreeSet<InternalStringTermsFacet.StringEntry>(comparatorType.comparator(), size);
+        BoundedTreeSet<InternalStringTermsFacet.StringEntry> ordered = null;
+        if(need_accuracy.compareToIgnoreCase("true") !=0 ){
+        	ordered = new BoundedTreeSet<InternalStringTermsFacet.StringEntry>(comparatorType.comparator(), size);
+        }
+        else{
+        	//accuracy enabled
+        	ordered = new BoundedTreeSet<InternalStringTermsFacet.StringEntry>(comparatorType.comparator(), totalTerms.size());       
+        }
 
         while (queue.size() > 0) {
             ReaderAggregator agg = queue.top();

@@ -92,6 +92,11 @@ else
     JAVA=`which java`
 fi
 
+if [ -z $JAVA ] || [ ! -x $JAVA ]; then
+  echo "[!] Cannot find Java -- is it installed?"
+  exit 1
+fi
+
 if [ -z "$ES_CLASSPATH" ]; then
     echo "You must set the ES_CLASSPATH var" >&2
     exit 1

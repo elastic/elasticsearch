@@ -54,7 +54,7 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        ShingleFilter filter = new ShingleFilter(tokenStream, maxShingleSize, minShingleSize);
+        ShingleFilter filter = new ShingleFilter(tokenStream, minShingleSize, maxShingleSize);
         filter.setOutputUnigrams(outputUnigrams);
         filter.setOutputUnigramsIfNoShingles(outputUnigramsIfNoShingles);
         filter.setTokenSeparator(tokenSeparator);

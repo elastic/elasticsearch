@@ -19,35 +19,38 @@
 
 package org.elasticsearch.common.geo;
 
-import java.util.Locale;
+import com.spatial4j.core.shape.simple.PointImpl;
+import com.vividsolutions.jts.geom.GeometryFactory;
 
 /**
- * Enum representing the relationship between a Query / Filter Shape and indexed Shapes
- * that will be used to determine if a Document should be matched or not
  */
-public enum ShapeRelation {
+public class ShapesAvailability {
 
-    INTERSECTS("intersects"),
-    DISJOINT("disjoint"),
-    CONTAINS("contains");
+    public static final boolean SPATIAL4J_AVAILABLE;
+    public static final boolean JTS_AVAILABLE;
 
-    private final String relationName;
-
-    ShapeRelation(String relationName) {
-        this.relationName = relationName;
-    }
-
-    public static ShapeRelation getRelationByName(String name) {
-        name = name.toLowerCase(Locale.ENGLISH);
-        for (ShapeRelation relation : ShapeRelation.values()) {
-            if (relation.relationName.equals(name)) {
-                return relation;
-            }
+    static {
+        boolean xSPATIAL4J_AVAILABLE;
+        try {
+            new PointImpl(0, 0);
+            xSPATIAL4J_AVAILABLE = true;
+        } catch (Throwable t) {
+            xSPATIAL4J_AVAILABLE = false;
         }
-        return null;
+        SPATIAL4J_AVAILABLE = xSPATIAL4J_AVAILABLE;
+
+        boolean xJTS_AVAILABLE;
+        try {
+            new GeometryFactory();
+            xJTS_AVAILABLE = true;
+        } catch (Throwable t) {
+            xJTS_AVAILABLE = false;
+        }
+        JTS_AVAILABLE = xJTS_AVAILABLE;
     }
 
-    public String getRelationName() {
-        return relationName;
+
+    private ShapesAvailability() {
+
     }
 }

@@ -157,6 +157,7 @@
             <artifactId>spatial4j</artifactId>
             <version>0.2</version>
             <scope>compile</scope>
+            <optional>true</optional>
         </dependency>
 
         <dependency>
@@ -164,6 +165,7 @@
             <artifactId>jts</artifactId>
             <version>1.12</version>
             <scope>compile</scope>
+            <optional>true</optional>
             <exclusions>
                 <exclusion>
                     <groupId>xerces</groupId>

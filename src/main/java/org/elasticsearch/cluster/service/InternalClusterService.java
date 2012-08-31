@@ -43,10 +43,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Queue;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 import static java.util.concurrent.Executors.newSingleThreadExecutor;
 import static org.elasticsearch.cluster.ClusterState.Builder;

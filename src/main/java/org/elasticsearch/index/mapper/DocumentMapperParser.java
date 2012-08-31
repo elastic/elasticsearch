@@ -25,6 +25,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -70,7 +71,7 @@ public class DocumentMapperParser extends AbstractIndexComponent {
     public DocumentMapperParser(Index index, @IndexSettings Settings indexSettings, AnalysisService analysisService) {
         super(index, indexSettings);
         this.analysisService = analysisService;
-        typeParsers = new MapBuilder<String, Mapper.TypeParser>()
+        MapBuilder<String, Mapper.TypeParser> typeParsersBuilder = new MapBuilder<String, Mapper.TypeParser>()
                 .put(ByteFieldMapper.CONTENT_TYPE, new ByteFieldMapper.TypeParser())
                 .put(ShortFieldMapper.CONTENT_TYPE, new ShortFieldMapper.TypeParser())
                 .put(IntegerFieldMapper.CONTENT_TYPE, new IntegerFieldMapper.TypeParser())
@@ -85,9 +86,13 @@ public class DocumentMapperParser extends AbstractIndexComponent {
                 .put(ObjectMapper.CONTENT_TYPE, new ObjectMapper.TypeParser())
                 .put(ObjectMapper.NESTED_CONTENT_TYPE, new ObjectMapper.TypeParser())
                 .put(MultiFieldMapper.CONTENT_TYPE, new MultiFieldMapper.TypeParser())
-                .put(GeoPointFieldMapper.CONTENT_TYPE, new GeoPointFieldMapper.TypeParser())
-                .put(GeoShapeFieldMapper.CONTENT_TYPE, new GeoShapeFieldMapper.TypeParser())
-                .immutableMap();
+                .put(GeoPointFieldMapper.CONTENT_TYPE, new GeoPointFieldMapper.TypeParser());
+
+        if (ShapesAvailability.JTS_AVAILABLE) {
+            typeParsersBuilder.put(GeoShapeFieldMapper.CONTENT_TYPE, new GeoShapeFieldMapper.TypeParser());
+        }
+
+        typeParsers = typeParsersBuilder.immutableMap();
 
         rootTypeParsers = new MapBuilder<String, Mapper.TypeParser>()
                 .put(SizeFieldMapper.NAME, new SizeFieldMapper.TypeParser())

@@ -78,7 +78,7 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
         public ShortFieldMapper build(BuilderContext context) {
             ShortFieldMapper fieldMapper = new ShortFieldMapper(buildNames(context),
                     precisionStep, fuzzyFactor, index, store, boost, omitNorms, indexOptions, nullValue,
-                    ignoreMalformed);
+                    ignoreMalformed(context));
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }

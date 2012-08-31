@@ -19,14 +19,17 @@
 
 package org.elasticsearch.test.unit.index.mapper.date;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.testng.annotations.Test;
 
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
@@ -96,5 +99,69 @@ public class SimpleDateMappingTests {
 
         assertThat(doc.rootDoc().get("date_field"), nullValue());
         assertThat(doc.rootDoc().get("date_field_x"), equalTo("2010-01-01"));
+    }
+
+    @Test
+    public void testIgnoreMalformedOption() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                .startObject("field1").field("type", "date").field("ignore_malformed", true).endObject()
+                .startObject("field2").field("type", "date").field("ignore_malformed", false).endObject()
+                .startObject("field3").field("type", "date").endObject()
+                .endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
+
+        ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("field1", "a")
+                .field("field2", "2010-01-01")
+                .endObject()
+                .bytes());
+        assertThat(doc.rootDoc().getFieldable("field1"), nullValue());
+        assertThat(doc.rootDoc().getFieldable("field2"), notNullValue());
+
+        try {
+            defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("field2", "a")
+                    .endObject()
+                    .bytes());
+        } catch (MapperParsingException e) {
+            assertThat(e.getCause(), instanceOf(MapperParsingException.class));
+        }
+
+        // Verify that the default is false
+        try {
+            defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("field3", "a")
+                    .endObject()
+                    .bytes());
+        } catch (MapperParsingException e) {
+            assertThat(e.getCause(), instanceOf(MapperParsingException.class));
+        }
+
+        // Unless the global ignore_malformed option is set to true
+        Settings indexSettings = settingsBuilder().put("index.mapping.ignore_malformed", true).build();
+        defaultMapper = MapperTests.newParser(indexSettings).parse(mapping);
+        doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("field3", "a")
+                .endObject()
+                .bytes());
+        assertThat(doc.rootDoc().getFieldable("field3"), nullValue());
+
+        // This should still throw an exception, since field2 is specifically set to ignore_malformed=false
+        try {
+            defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("field2", "a")
+                    .endObject()
+                    .bytes());
+        } catch (MapperParsingException e) {
+            assertThat(e.getCause(), instanceOf(MapperParsingException.class));
+        }
     }
 }

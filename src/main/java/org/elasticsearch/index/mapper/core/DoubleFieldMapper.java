@@ -77,7 +77,7 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
         public DoubleFieldMapper build(BuilderContext context) {
             DoubleFieldMapper fieldMapper = new DoubleFieldMapper(buildNames(context),
                     precisionStep, fuzzyFactor, index, store, boost, omitNorms, indexOptions, nullValue,
-                    ignoreMalformed);
+                    ignoreMalformed(context));
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }

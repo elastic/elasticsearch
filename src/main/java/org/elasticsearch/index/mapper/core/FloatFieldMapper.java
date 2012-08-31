@@ -78,7 +78,7 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
         public FloatFieldMapper build(BuilderContext context) {
             FloatFieldMapper fieldMapper = new FloatFieldMapper(buildNames(context),
                     precisionStep, fuzzyFactor, index, store, boost, omitNorms, indexOptions, nullValue,
-                    ignoreMalformed);
+                    ignoreMalformed(context));
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }

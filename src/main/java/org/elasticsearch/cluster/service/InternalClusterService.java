@@ -360,6 +360,9 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     }
 
     private class ReconnectToNodes implements Runnable {
+
+        private ConcurrentMap<DiscoveryNode, Integer> failureCount = ConcurrentCollections.newConcurrentMap();
+
         @Override
         public void run() {
             // master node will check against all nodes if its alive with certain discoveries implementations,
@@ -380,10 +383,30 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                                 return;
                             }
                             if (clusterState.nodes().nodeExists(node.id())) { // double check here as well, maybe its gone?
-                                logger.warn("failed to reconnect to node {}", e, node);
+                                Integer nodeFailureCount = failureCount.get(node);
+                                if (nodeFailureCount == null) {
+                                    nodeFailureCount = 1;
+                                } else {
+                                    nodeFailureCount = nodeFailureCount + 1;
+                                }
+                                // log every 6th failure
+                                if ((nodeFailureCount % 6) == 0) {
+                                    // reset the failure count...
+                                    nodeFailureCount = 0;
+                                    logger.warn("failed to reconnect to node {}", e, node);
+                                }
+                                failureCount.put(node, nodeFailureCount);
                             }
                         }
                     }
+                }
+            }
+            // go over and remove failed nodes that have been removed
+            DiscoveryNodes nodes = clusterState.nodes();
+            for (Iterator<DiscoveryNode> failedNodesIt = failureCount.keySet().iterator(); failedNodesIt.hasNext(); ) {
+                DiscoveryNode failedNode = failedNodesIt.next();
+                if (!nodes.nodeExists(failedNode.id())) {
+                    failedNodesIt.remove();
                 }
             }
             if (lifecycle.started()) {

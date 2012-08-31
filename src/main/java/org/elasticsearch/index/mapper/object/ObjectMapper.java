@@ -397,6 +397,11 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
             // the object is null ("obj1" : null), simply bail
             return;
         }
+        
+        if (token.isValue()) {
+        	// if we are parsing an object but it is just a value
+	    	throw new MapperParsingException("object mapping for [" + name + "] tried to parse as object, but found a concrete value");
+        }
 
         Document restoreDoc = null;
         if (nested.isNested()) {

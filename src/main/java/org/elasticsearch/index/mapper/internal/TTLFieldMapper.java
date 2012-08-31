@@ -75,7 +75,7 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
 
         @Override
         public TTLFieldMapper build(BuilderContext context) {
-            return new TTLFieldMapper(store, index, enabled, defaultTTL);
+            return new TTLFieldMapper(store, index, enabled, defaultTTL, ignoreMalformed(context));
         }
     }
 
@@ -104,13 +104,13 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
     private long defaultTTL;
 
     public TTLFieldMapper() {
-        this(Defaults.STORE, Defaults.INDEX, Defaults.ENABLED, Defaults.DEFAULT);
+        this(Defaults.STORE, Defaults.INDEX, Defaults.ENABLED, Defaults.DEFAULT, Defaults.IGNORE_MALFORMED);
     }
 
-    protected TTLFieldMapper(Field.Store store, Field.Index index, boolean enabled, long defaultTTL) {
+    protected TTLFieldMapper(Field.Store store, Field.Index index, boolean enabled, long defaultTTL, boolean ignoreMalformed) {
         super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), Defaults.PRECISION_STEP,
                 Defaults.FUZZY_FACTOR, index, store, Defaults.BOOST, Defaults.OMIT_NORMS, Defaults.INDEX_OPTIONS,
-                Defaults.NULL_VALUE, Defaults.IGNORE_MALFORMED);
+                Defaults.NULL_VALUE, ignoreMalformed);
         this.enabled = enabled;
         this.defaultTTL = defaultTTL;
     }

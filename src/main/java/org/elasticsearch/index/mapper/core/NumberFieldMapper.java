@@ -60,7 +60,7 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
 
         protected String fuzzyFactor = Defaults.FUZZY_FACTOR;
 
-        protected boolean ignoreMalformed = Defaults.IGNORE_MALFORMED;
+        private Boolean ignoreMalformed;
 
         public Builder(String name) {
             super(name);
@@ -104,6 +104,15 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
             return builder;
         }
 
+        protected boolean ignoreMalformed(BuilderContext context) {
+            if (ignoreMalformed != null) {
+                return ignoreMalformed;
+            }
+            if (context.indexSettings() != null) {
+                return context.indexSettings().getAsBoolean("index.mapping.ignore_malformed", Defaults.IGNORE_MALFORMED);
+            }
+            return Defaults.IGNORE_MALFORMED;
+        }
     }
 
     protected int precisionStep;

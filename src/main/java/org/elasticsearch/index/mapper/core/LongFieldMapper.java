@@ -78,7 +78,7 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
         public LongFieldMapper build(BuilderContext context) {
             LongFieldMapper fieldMapper = new LongFieldMapper(buildNames(context),
                     precisionStep, fuzzyFactor, index, store, boost, omitNorms, indexOptions, nullValue,
-                    ignoreMalformed);
+                    ignoreMalformed(context));
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }

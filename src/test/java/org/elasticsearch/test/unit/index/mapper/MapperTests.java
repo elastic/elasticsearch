@@ -22,6 +22,7 @@ package org.elasticsearch.test.unit.index.mapper;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
@@ -42,6 +43,10 @@ public class MapperTests {
 
     public static DocumentMapperParser newParser() {
         return new DocumentMapperParser(new Index("test"), newAnalysisService());
+    }
+
+    public static DocumentMapperParser newParser(Settings indexSettings) {
+        return new DocumentMapperParser(new Index("test"), indexSettings, newAnalysisService());
     }
 
     public static MapperService newMapperService() {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.unit.index.mapper.numeric;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -30,6 +31,7 @@ import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.testng.annotations.Test;
 
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
@@ -79,7 +81,7 @@ public class SimpleNumericTests {
         assertThat(mapper, instanceOf(StringFieldMapper.class));
     }
 
-    public void testIgnoreMalformedEnabled() throws Exception {
+    public void testIgnoreMalformedOption() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
                     .startObject("field1").field("type", "integer").field("ignore_malformed", true).endObject()
@@ -114,6 +116,27 @@ public class SimpleNumericTests {
             defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                     .startObject()
                     .field("field3", "a")
+                    .endObject()
+                    .bytes());
+        } catch (MapperParsingException e) {
+            assertThat(e.getCause(), instanceOf(NumberFormatException.class));
+        }
+
+        // Unless the global ignore_malformed option is set to true
+        Settings indexSettings = settingsBuilder().put("index.mapping.ignore_malformed", true).build();
+        defaultMapper = MapperTests.newParser(indexSettings).parse(mapping);
+        doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("field3", "a")
+                .endObject()
+                .bytes());
+        assertThat(doc.rootDoc().getFieldable("field3"), nullValue());
+
+        // This should still throw an exception, since field2 is specifically set to ignore_malformed=false
+        try {
+            defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("field2", "a")
                     .endObject()
                     .bytes());
         } catch (MapperParsingException e) {

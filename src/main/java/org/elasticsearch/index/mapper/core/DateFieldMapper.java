@@ -105,7 +105,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
             }
             DateFieldMapper fieldMapper = new DateFieldMapper(buildNames(context), dateTimeFormatter,
                     precisionStep, fuzzyFactor, index, store, boost, omitNorms, indexOptions, nullValue,
-                    timeUnit, parseUpperInclusive, ignoreMalformed);
+                    timeUnit, parseUpperInclusive, ignoreMalformed(context));
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }

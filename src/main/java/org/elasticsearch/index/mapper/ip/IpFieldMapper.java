@@ -105,7 +105,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
         @Override
         public IpFieldMapper build(BuilderContext context) {
             IpFieldMapper fieldMapper = new IpFieldMapper(buildNames(context),
-                    precisionStep, index, store, boost, omitNorms, indexOptions, nullValue);
+                    precisionStep, index, store, boost, omitNorms, indexOptions, nullValue, ignoreMalformed(context));
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -132,9 +132,9 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
     protected IpFieldMapper(Names names, int precisionStep,
                             Field.Index index, Field.Store store,
                             float boost, boolean omitNorms, IndexOptions indexOptions,
-                            String nullValue) {
+                            String nullValue, boolean ignoreMalformed) {
         super(names, precisionStep, null, index, store, boost, omitNorms, indexOptions,
-                false, new NamedAnalyzer("_ip/" + precisionStep, new NumericIpAnalyzer(precisionStep)),
+                ignoreMalformed, new NamedAnalyzer("_ip/" + precisionStep, new NumericIpAnalyzer(precisionStep)),
                 new NamedAnalyzer("_ip/max", new NumericIpAnalyzer(Integer.MAX_VALUE)));
         this.nullValue = nullValue;
     }

@@ -76,7 +76,7 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
         @Override
         public ByteFieldMapper build(BuilderContext context) {
             ByteFieldMapper fieldMapper = new ByteFieldMapper(buildNames(context),
-                    precisionStep, fuzzyFactor, index, store, boost, omitNorms, indexOptions, nullValue, ignoreMalformed);
+                    precisionStep, fuzzyFactor, index, store, boost, omitNorms, indexOptions, nullValue, ignoreMalformed(context));
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }

@@ -87,9 +87,9 @@ elif [ -r "$ES_INCLUDE" ]; then
 fi
 
 if [ -x "$JAVA_HOME/bin/java" ]; then
-    JAVA=$JAVA_HOME/bin/java
+    JAVA="$JAVA_HOME/bin/java"
 else
-    JAVA=`which java`
+    JAVA=java
 fi
 
 if [ -z "$ES_CLASSPATH" ]; then

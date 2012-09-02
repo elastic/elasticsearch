@@ -58,10 +58,19 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
         updateSettingsRequest.listenerThreaded(false);
 
         ImmutableSettings.Builder updateSettings = ImmutableSettings.settingsBuilder();
-        String bodySettings = request.content().toUtf8();
-        if (Strings.hasText(bodySettings)) {
+        String bodySettingsStr = request.content().toUtf8();
+        if (Strings.hasText(bodySettingsStr)) {
             try {
-                updateSettings.put(ImmutableSettings.settingsBuilder().loadFromSource(bodySettings).build());
+                Settings buildSettings = ImmutableSettings.settingsBuilder().loadFromSource(bodySettingsStr).build();
+                for (Map.Entry<String, String> entry : buildSettings.getAsMap().entrySet()) {
+                    String key = entry.getKey();
+                    String value = entry.getValue();
+                    // clean up in case the body is wrapped with "settings" : { ... }
+                    if (key.startsWith("settings.")) {
+                        key = key.substring("settings.".length());
+                    }
+                    updateSettings.put(key, value);
+                }
             } catch (Exception e) {
                 try {
                     channel.sendResponse(new XContentThrowableRestResponse(request, BAD_REQUEST, new SettingsException("Failed to parse index settings", e)));

@@ -41,7 +41,10 @@ public class DiscoveryNodeFilters {
     public static DiscoveryNodeFilters buildFromKeyValue(Map<String, String> filters) {
         Map<String, String[]> bFilters = new HashMap<String, String[]>();
         for (Map.Entry<String, String> entry : filters.entrySet()) {
-            bFilters.put(entry.getKey(), Strings.splitStringByCommaToArray(entry.getValue()));
+            String[] values = Strings.splitStringByCommaToArray(entry.getValue());
+            if (values.length > 0) {
+                bFilters.put(entry.getKey(), values);
+            }
         }
         if (bFilters.isEmpty()) {
             return NO_FILTERS;

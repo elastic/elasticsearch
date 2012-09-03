@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.node;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.UnmodifiableIterator;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -215,12 +216,26 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
                     if (index != -1) {
                         String matchAttrName = nodeId.substring(0, index);
                         String matchAttrValue = nodeId.substring(index + 1);
-                        for (DiscoveryNode node : this) {
-                            for (Map.Entry<String, String> entry : node.attributes().entrySet()) {
-                                String attrName = entry.getKey();
-                                String attrValue = entry.getValue();
-                                if (Regex.simpleMatch(matchAttrName, attrName) && Regex.simpleMatch(matchAttrValue, attrValue)) {
-                                    resolvedNodesIds.add(node.id());
+                        if ("data".equals(matchAttrName)) {
+                            if (Booleans.parseBoolean(matchAttrValue, true)) {
+                                resolvedNodesIds.addAll(dataNodes.keySet());
+                            } else {
+                                resolvedNodesIds.removeAll(dataNodes.keySet());
+                            }
+                        } else if ("master".equals(matchAttrName)) {
+                            if (Booleans.parseBoolean(matchAttrValue, true)) {
+                                resolvedNodesIds.addAll(masterNodes.keySet());
+                            } else {
+                                resolvedNodesIds.removeAll(masterNodes.keySet());
+                            }
+                        } else {
+                            for (DiscoveryNode node : this) {
+                                for (Map.Entry<String, String> entry : node.attributes().entrySet()) {
+                                    String attrName = entry.getKey();
+                                    String attrValue = entry.getValue();
+                                    if (Regex.simpleMatch(matchAttrName, attrName) && Regex.simpleMatch(matchAttrValue, attrValue)) {
+                                        resolvedNodesIds.add(node.id());
+                                    }
                                 }
                             }
                         }

@@ -36,6 +36,7 @@ import org.elasticsearch.index.settings.IndexSettings;
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeUnit;
 
 /**
  *
@@ -130,7 +131,7 @@ public abstract class AbstractConcurrentMapFieldDataCache extends AbstractIndexC
                         fieldDataCache.put(fieldName, fieldData);
                         long took = System.nanoTime() - time;
                         if (logger.isTraceEnabled()) {
-                            logger.trace("loaded field [{}] for reader [{}], took [{}], took_millis [{}]", fieldName, reader, TimeValue.timeValueNanos(took), took / 1000);
+                            logger.trace("loaded field [{}] for reader [{}], took [{}], took_millis [{}]", fieldName, reader, TimeValue.timeValueNanos(took), TimeUnit.NANOSECONDS.toMillis(took));
                         }
                     } catch (OutOfMemoryError e) {
                         logger.warn("loading field [" + fieldName + "] caused out of memory failure", e);

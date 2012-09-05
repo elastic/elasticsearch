@@ -58,7 +58,9 @@ public class RestFlushAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         FlushRequest flushRequest = new FlushRequest(RestActions.splitIndices(request.param("index")));
         flushRequest.listenerThreaded(false);
-        flushRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
+        if (request.hasParam("ignore_indices")) {
+            flushRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
+        }
         BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operationThreading"), BroadcastOperationThreading.SINGLE_THREAD);
         if (operationThreading == BroadcastOperationThreading.NO_THREADS) {
             // since we don't spawn, don't allow no_threads, but change it to a single thread

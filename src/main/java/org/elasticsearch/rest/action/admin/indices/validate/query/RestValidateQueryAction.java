@@ -63,7 +63,9 @@ public class RestValidateQueryAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         ValidateQueryRequest validateQueryRequest = new ValidateQueryRequest(RestActions.splitIndices(request.param("index")));
         validateQueryRequest.listenerThreaded(false);
-        validateQueryRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
+        if (request.hasParam("ignore_indices")) {
+            validateQueryRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
+        }
         try {
             BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operation_threading"), BroadcastOperationThreading.SINGLE_THREAD);
             if (operationThreading == BroadcastOperationThreading.NO_THREADS) {

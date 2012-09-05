@@ -384,6 +384,10 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         return this.dynamic;
     }
 
+    protected boolean allowValue() {
+        return true;
+    }
+
     public void parse(ParseContext context) throws IOException {
         if (!enabled) {
             context.parser().skipChildren();
@@ -397,10 +401,11 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
             // the object is null ("obj1" : null), simply bail
             return;
         }
-        
-        if (token.isValue()) {
-        	// if we are parsing an object but it is just a value
-	    	throw new MapperParsingException("object mapping for [" + name + "] tried to parse as object, but found a concrete value");
+
+        if (token.isValue() && !allowValue()) {
+            // if we are parsing an object but it is just a value, its only allowed on root level parsers with there
+            // is a field name with the same name as the type
+            throw new MapperParsingException("object mapping for [" + name + "] tried to parse as object, but found a concrete value");
         }
 
         Document restoreDoc = null;
@@ -559,6 +564,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
     }
 
     private void serializeArray(ParseContext context, String lastFieldName) throws IOException {
+        String arrayFieldName = lastFieldName;
         Mapper mapper = mappers.get(lastFieldName);
         if (mapper != null && mapper instanceof ArrayValueMapperParser) {
             mapper.parse(context);
@@ -574,6 +580,8 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                     lastFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.VALUE_NULL) {
                     serializeNullValue(context, lastFieldName);
+                } else if (token == null) {
+                    throw new MapperParsingException("object mapping for [" + name + "] with array for [" + arrayFieldName + "] tried to parse as array, but got EOF, is there a mismatch in types for the same field?");
                 } else {
                     serializeValue(context, lastFieldName, token);
                 }

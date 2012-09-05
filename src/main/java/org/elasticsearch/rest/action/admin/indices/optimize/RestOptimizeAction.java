@@ -59,7 +59,9 @@ public class RestOptimizeAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         OptimizeRequest optimizeRequest = new OptimizeRequest(RestActions.splitIndices(request.param("index")));
         optimizeRequest.listenerThreaded(false);
-        optimizeRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
+        if (request.hasParam("ignore_indices")) {
+            optimizeRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
+        }
         try {
             optimizeRequest.waitForMerge(request.paramAsBoolean("wait_for_merge", optimizeRequest.waitForMerge()));
             optimizeRequest.maxNumSegments(request.paramAsInt("max_num_segments", optimizeRequest.maxNumSegments()));

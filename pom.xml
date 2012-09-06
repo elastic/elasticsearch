@@ -147,7 +147,7 @@
         <dependency>
             <groupId>com.ning</groupId>
             <artifactId>compress-lzf</artifactId>
-            <version>0.9.5</version>
+            <version>0.9.6</version>
             <scope>compile</scope>
         </dependency>
         <!-- END: dependencies that are shaded -->

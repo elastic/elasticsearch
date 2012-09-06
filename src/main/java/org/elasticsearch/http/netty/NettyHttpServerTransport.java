@@ -162,6 +162,10 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
                 maxChunkSize, maxHeaderSize, maxInitialLineLength, this.maxContentLength, receivePredictorMin, receivePredictorMax);
     }
 
+    public Settings settings() {
+        return this.settings;
+    }
+
     public void httpServerAdapter(HttpServerAdapter httpServerAdapter) {
         this.httpServerAdapter = httpServerAdapter;
     }

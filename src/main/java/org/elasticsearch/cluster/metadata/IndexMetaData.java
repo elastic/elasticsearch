@@ -414,7 +414,7 @@ public class IndexMetaData {
             return index;
         }
 
-        public Builder index(String name) {
+        public Builder index(String index) {
             this.index = index;
             return this;
         }

@@ -443,7 +443,7 @@ public final class XContentBuilder implements BytesStream {
         if (value == null) {
             generator.writeNull();
         } else {
-            generator.writeNumber(value.doubleValue());
+            generator.writeNumber(value);
         }
         return this;
     }
@@ -453,7 +453,7 @@ public final class XContentBuilder implements BytesStream {
         if (value == null) {
             generator.writeNull();
         } else {
-            generator.writeNumber(value.doubleValue());
+            generator.writeNumber(value);
         }
         return this;
     }
@@ -479,6 +479,15 @@ public final class XContentBuilder implements BytesStream {
         return this;
     }
 
+    public XContentBuilder field(XContentBuilderString name, BytesReference value) throws IOException {
+        field(name);
+        if (!value.hasArray()) {
+            value = value.toBytesArray();
+        }
+        generator.writeBinary(value.array(), value.arrayOffset(), value.length());
+        return this;
+    }
+
     public XContentBuilder field(String name, Text value) throws IOException {
         field(name);
         if (value.hasBytes() && value.bytes().hasArray()) {
@@ -495,6 +504,21 @@ public final class XContentBuilder implements BytesStream {
         return this;
     }
 
+    public XContentBuilder field(XContentBuilderString name, Text value) throws IOException {
+        field(name);
+        if (value.hasBytes() && value.bytes().hasArray()) {
+            generator.writeUTF8String(value.bytes().array(), value.bytes().arrayOffset(), value.bytes().length());
+            return this;
+        }
+        if (value.hasString()) {
+            generator.writeString(value.string());
+            return this;
+        }
+        // TODO: TextBytesOptimization we can use a buffer here to convert it? maybe add a request to jackson to support InputStream as well?
+        BytesArray bytesArray = value.bytes().toBytesArray();
+        generator.writeUTF8String(bytesArray.array(), bytesArray.arrayOffset(), bytesArray.length());
+        return this;
+    }
 
     public XContentBuilder field(String name, byte[] value, int offset, int length) throws IOException {
         field(name);
@@ -684,6 +708,10 @@ public final class XContentBuilder implements BytesStream {
             field(name, (float[]) value);
         } else if (value instanceof double[]) {
             field(name, (double[]) value);
+        } else if (value instanceof BytesReference) {
+            field(name, (BytesReference) value);
+        } else if (value instanceof Text) {
+            field(name, (Text) value);
         } else if (value instanceof ToXContent) {
             field(name, (ToXContent) value);
         } else {

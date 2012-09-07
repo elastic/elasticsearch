@@ -335,22 +335,28 @@ public abstract class BaseFuture<V> implements Future<V> {
          * Implementation of completing a task.  Either {@code v} or {@code t} will
          * be set but not both.  The {@code finalState} is the state to change to
          * from {@link #RUNNING}.  If the state is not in the RUNNING state we
-         * return {@code false}.
+         * return {@code false} after waiting for the state to be set to a valid
+         * final state ({@link #COMPLETED} or {@link #CANCELLED}).
          *
          * @param v          the value to set as the result of the computation.
          * @param t          the exception to set as the result of the computation.
          * @param finalState the state to transition to.
          */
-        private boolean complete(@Nullable V v, Throwable t, int finalState) {
-            if (compareAndSetState(RUNNING, COMPLETING)) {
+        private boolean complete(@Nullable V v, @Nullable Throwable t,
+                                 int finalState) {
+            boolean doCompletion = compareAndSetState(RUNNING, COMPLETING);
+            if (doCompletion) {
+                // If this thread successfully transitioned to COMPLETING, set the value
+                // and exception and then release to the final state.
                 this.value = v;
                 this.exception = t;
                 releaseShared(finalState);
-                return true;
+            } else if (getState() == COMPLETING) {
+                // If some other thread is currently completing the future, block until
+                // they are done so we can guarantee completion.
+                acquireShared(-1);
             }
-
-            // The state was not RUNNING, so there are no valid transitions.
-            return false;
+            return doCompletion;
         }
     }
 }

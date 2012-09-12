@@ -26,6 +26,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.index.query.QueryParseContext;
 
 import java.util.List;
+import java.util.Map;
 
 public class MultiMatchQuery extends MatchQuery {
 
@@ -44,16 +45,28 @@ public class MultiMatchQuery extends MatchQuery {
         super(parseContext);
     }
 
-    public Query parse(Type type, List<String> fieldNames, String text) {
+    public Query parse(Type type, Map<String, Float> fieldNames, String text) {
         if (fieldNames.size() == 1) {
-            return parse(type, fieldNames.get(0), text);
+            Map.Entry<String, Float> fieldBoost = fieldNames.entrySet().iterator().next();
+            Float boostValue = fieldBoost.getValue();
+            if (boostValue == null) {
+                return parse(type, fieldBoost.getKey(), text);
+            } else {
+                Query query = parse(type, fieldBoost.getKey(), text);
+                query.setBoost(boostValue);
+                return query;
+            }
         }
 
         if (useDisMax) {
             DisjunctionMaxQuery disMaxQuery = new DisjunctionMaxQuery(tieBreaker);
             boolean clauseAdded = false;
-            for (String fieldName : fieldNames) {
+            for (String fieldName : fieldNames.keySet()) {
                 Query query = parse(type, fieldName, text);
+                Float boostValue = fieldNames.get(fieldName);
+                if (boostValue != null) {
+                    query.setBoost(boostValue);
+                }
                 if (query != null) {
                     clauseAdded = true;
                     disMaxQuery.add(query);
@@ -62,8 +75,12 @@ public class MultiMatchQuery extends MatchQuery {
             return clauseAdded ? disMaxQuery : null;
         } else {
             BooleanQuery booleanQuery = new BooleanQuery();
-            for (String fieldName : fieldNames) {
+            for (String fieldName : fieldNames.keySet()) {
                 Query query = parse(type, fieldName, text);
+                Float boostValue = fieldNames.get(fieldName);
+                if (boostValue != null) {
+                    query.setBoost(boostValue);
+                }
                 if (query != null) {
                     booleanQuery.add(query, BooleanClause.Occur.SHOULD);
                 }

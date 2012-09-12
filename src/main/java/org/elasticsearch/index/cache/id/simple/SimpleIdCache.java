@@ -20,6 +20,7 @@
 package org.elasticsearch.index.cache.id.simple;
 
 import gnu.trove.impl.Constants;
+import gnu.trove.map.hash.TIntObjectHashMap;
 import org.apache.lucene.index.*;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ElasticSearchException;
@@ -138,6 +139,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
                                 // when traversing, make sure to ignore deleted docs, so the key->docId will be correct
                                 if (!reader.isDeleted(termDocs.doc())) {
                                     typeBuilder.idToDoc.put(idAsBytes, termDocs.doc());
+                                    typeBuilder.docToId[termDocs.doc()] = idAsBytes;
                                 }
                             }
                         } while (termEnum.next());
@@ -205,6 +207,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
                     for (Map.Entry<String, TypeBuilder> typeBuilderEntry : entry.getValue().entrySet()) {
                         types.put(typeBuilderEntry.getKey(), new SimpleIdReaderTypeCache(typeBuilderEntry.getKey(),
                                 typeBuilderEntry.getValue().idToDoc,
+                                typeBuilderEntry.getValue().docToId,
                                 typeBuilderEntry.getValue().parentIdsValues.toArray(new HashedBytesArray[typeBuilderEntry.getValue().parentIdsValues.size()]),
                                 typeBuilderEntry.getValue().parentIdsOrdinals));
                     }
@@ -246,6 +249,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
 
     static class TypeBuilder {
         final ExtTObjectIntHasMap<HashedBytesArray> idToDoc = new ExtTObjectIntHasMap<HashedBytesArray>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, -1);
+        final HashedBytesArray[] docToId;
         final ArrayList<HashedBytesArray> parentIdsValues = new ArrayList<HashedBytesArray>();
         final int[] parentIdsOrdinals;
         int t = 1;  // current term number (0 indicated null value)
@@ -254,6 +258,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
             parentIdsOrdinals = new int[reader.maxDoc()];
             // the first one indicates null value
             parentIdsValues.add(null);
+            docToId = new HashedBytesArray[reader.maxDoc()];
         }
 
         /**

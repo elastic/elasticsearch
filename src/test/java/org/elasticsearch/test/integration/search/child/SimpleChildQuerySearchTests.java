@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.integration.search.child;
 
+import com.beust.jcommander.internal.Maps;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -31,9 +32,12 @@ import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
-import java.util.Arrays;
+import java.util.*;
 
+import static com.google.common.collect.Lists.newArrayList;
+import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.index.query.FilterBuilders.hasChildFilter;
+import static org.elasticsearch.index.query.FilterBuilders.hasParentFilter;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.search.facet.FacetBuilders.termsFacet;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -237,6 +241,77 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().totalHits(), equalTo(2l));
         assertThat(searchResponse.hits().getAt(0).id(), anyOf(equalTo("p2"), equalTo("p1")));
         assertThat(searchResponse.hits().getAt(1).id(), anyOf(equalTo("p2"), equalTo("p1")));
+
+        // HAS PARENT FILTER
+        searchResponse = client.prepareSearch("test").setQuery(constantScoreQuery(hasParentFilter("parent", termQuery("p_field", "p_value2")))).execute().actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
+        assertThat(searchResponse.failedShards(), equalTo(0));
+        assertThat(searchResponse.hits().totalHits(), equalTo(2l));
+        assertThat(searchResponse.hits().getAt(0).id(), equalTo("c3"));
+        assertThat(searchResponse.hits().getAt(1).id(), equalTo("c4"));
+
+        searchResponse = client.prepareSearch("test").setQuery(constantScoreQuery(hasParentFilter("parent", termQuery("p_field", "p_value1")))).execute().actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
+        assertThat(searchResponse.failedShards(), equalTo(0));
+        assertThat(searchResponse.hits().totalHits(), equalTo(2l));
+        assertThat(searchResponse.hits().getAt(0).id(), equalTo("c1"));
+        assertThat(searchResponse.hits().getAt(1).id(), equalTo("c2"));
+    }
+
+    @Test
+    public void testHasParentFilter() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+        client.admin().indices().prepareCreate("test").execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().indices().preparePutMapping("test").setType("child").setSource(XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_parent").field("type", "parent").endObject()
+                .endObject().endObject()).execute().actionGet();
+
+        Map<String, List<String>> parentToChildren = newHashMap();
+        // Childless parent
+        client.prepareIndex("test", "parent", "p0").setSource("p_field", "p0").execute().actionGet();
+        parentToChildren.put("p0", new ArrayList<String>());
+
+        String previousParentId = null;
+        int numChildDocs = 32;
+        int numChildDocsPerParent = 0;
+        for (int i = 1; i <= numChildDocs; i++) {
+            if (previousParentId == null || i % numChildDocsPerParent == 0) {
+                previousParentId = "p" + i;
+                client.prepareIndex("test", "parent", previousParentId).setSource("p_field", previousParentId).execute().actionGet();
+                client.admin().indices().prepareFlush("test").execute().actionGet();
+                numChildDocsPerParent++;
+            }
+
+            String childId = "c" + i;
+            client.prepareIndex("test", "child", childId)
+                    .setSource("c_field", childId)
+                    .setParent(previousParentId)
+                    .execute().actionGet();
+
+            if (!parentToChildren.containsKey(previousParentId)) {
+                parentToChildren.put(previousParentId, new ArrayList<String>());
+            }
+            parentToChildren.get(previousParentId).add(childId);
+        }
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        assertThat(parentToChildren.isEmpty(), equalTo(false));
+        for (Map.Entry<String, List<String>> parentToChildrenEntry : parentToChildren.entrySet()) {
+            SearchResponse searchResponse = client.prepareSearch("test")
+                    .setQuery(constantScoreQuery(hasParentFilter("parent", termQuery("p_field", parentToChildrenEntry.getKey()))))
+                    .setSize(numChildDocsPerParent)
+                    .execute().actionGet();
+
+            assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
+            assertThat(searchResponse.failedShards(), equalTo(0));
+            List<String> childIds = parentToChildrenEntry.getValue();
+            assertThat(searchResponse.hits().totalHits(), equalTo((long) childIds.size()));
+            int counter = 0;
+            for (String childId : childIds) {
+                assertThat(searchResponse.hits().getAt(counter++).id(), equalTo(childId));
+            }
+        }
     }
 
     @Test

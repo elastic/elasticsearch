@@ -78,6 +78,7 @@ public class IndicesQueriesRegistry {
 
         Map<String, FilterParser> filterParsers = Maps.newHashMap();
         addFilterParser(filterParsers, new HasChildFilterParser());
+        addFilterParser(filterParsers, new HasParentFilterParser());
         addFilterParser(filterParsers, new NestedFilterParser());
         addFilterParser(filterParsers, new TypeFilterParser());
         addFilterParser(filterParsers, new IdsFilterParser());

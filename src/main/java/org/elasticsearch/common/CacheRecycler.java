@@ -20,6 +20,7 @@
 package org.elasticsearch.common;
 
 import gnu.trove.map.hash.*;
+import gnu.trove.set.hash.THashSet;
 import org.elasticsearch.common.trove.ExtTDoubleObjectHashMap;
 import org.elasticsearch.common.trove.ExtTHashMap;
 import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
@@ -33,6 +34,7 @@ public class CacheRecycler {
 
     public static void clear() {
         hashMap.clear();
+        hashSet.clear();
         doubleObjectHashMap.clear();
         longObjectHashMap.clear();
         longLongHashMap.clear();
@@ -86,6 +88,32 @@ public class CacheRecycler {
         if (ref == null) {
             ref = ConcurrentCollections.newQueue();
             hashMap.set(ref);
+        }
+        map.clear();
+        ref.add(map);
+    }
+
+    // ----- THashSet -----
+
+    private static SoftWrapper<Queue<THashSet>> hashSet = new SoftWrapper<Queue<THashSet>>();
+
+    public static <T> THashSet<T> popHashSet() {
+        Queue<THashSet> ref = hashSet.get();
+        if (ref == null) {
+            return new THashSet<T>();
+        }
+        THashSet set = ref.poll();
+        if (set == null) {
+            return new THashSet<T>();
+        }
+        return set;
+    }
+
+    public static void pushHashSet(THashSet map) {
+        Queue<THashSet> ref = hashSet.get();
+        if (ref == null) {
+            ref = ConcurrentCollections.newQueue();
+            hashSet.set(ref);
         }
         map.clear();
         ref.add(map);

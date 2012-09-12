@@ -367,6 +367,10 @@ public abstract class FilterBuilders {
         return new HasChildFilterBuilder(type, query);
     }
 
+    public static HasParentFilterBuilder hasParentFilter(String parentType, QueryBuilder query) {
+        return new HasParentFilterBuilder(parentType, query);
+    }
+
     public static BoolFilterBuilder boolFilter() {
         return new BoolFilterBuilder();
     }

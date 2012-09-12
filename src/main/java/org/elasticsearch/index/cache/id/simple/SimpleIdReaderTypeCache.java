@@ -32,14 +32,17 @@ public class SimpleIdReaderTypeCache implements IdReaderTypeCache {
 
     private final ExtTObjectIntHasMap<HashedBytesArray> idToDoc;
 
+    private final HashedBytesArray[] docIdToId;
+
     private final HashedBytesArray[] parentIdsValues;
 
     private final int[] parentIdsOrdinals;
 
-    public SimpleIdReaderTypeCache(String type, ExtTObjectIntHasMap<HashedBytesArray> idToDoc,
+    public SimpleIdReaderTypeCache(String type, ExtTObjectIntHasMap<HashedBytesArray> idToDoc, HashedBytesArray[] docIdToId,
                                    HashedBytesArray[] parentIdsValues, int[] parentIdsOrdinals) {
         this.type = type;
         this.idToDoc = idToDoc;
+        this.docIdToId = docIdToId;
         this.idToDoc.trimToSize();
         this.parentIdsValues = parentIdsValues;
         this.parentIdsOrdinals = parentIdsOrdinals;
@@ -53,8 +56,12 @@ public class SimpleIdReaderTypeCache implements IdReaderTypeCache {
         return parentIdsValues[parentIdsOrdinals[docId]];
     }
 
-    public int docById(HashedBytesArray id) {
-        return idToDoc.get(id);
+    public int docById(HashedBytesArray uid) {
+        return idToDoc.get(uid);
+    }
+
+    public HashedBytesArray idByDoc(int docId) {
+        return docIdToId[docId];
     }
 
     /**

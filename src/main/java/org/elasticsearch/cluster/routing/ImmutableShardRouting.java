@@ -242,7 +242,8 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        // we check on instanceof so we also handle the MutableShardRouting case as well
+        if (o == null || !(o instanceof ImmutableShardRouting)) return false;
 
         ImmutableShardRouting that = (ImmutableShardRouting) o;
 

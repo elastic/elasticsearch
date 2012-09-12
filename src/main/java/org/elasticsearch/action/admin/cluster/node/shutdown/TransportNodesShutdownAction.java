@@ -168,7 +168,7 @@ public class TransportNodesShutdownAction extends TransportMasterNodeOperationAc
             });
             t.start();
         } else {
-            final String[] nodesIds = state.nodes().resolveNodes(request.nodesIds);
+            final String[] nodesIds = state.nodes().resolveNodesIds(request.nodesIds);
             logger.info("[partial_cluster_shutdown]: requested, shutting down [{}] in [{}]", nodesIds, request.delay);
 
             for (String nodeId : nodesIds) {

@@ -40,7 +40,8 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  *
@@ -180,11 +181,11 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
 
         clusterState2 = clusterService2.state();
         routingNodeEntry2 = clusterState2.readOnlyRoutingNodes().nodesToShards().get(clusterState2.nodes().localNodeId());
-        assertThat(routingNodeEntry2, nullValue());
+        assertThat(routingNodeEntry2.shards().isEmpty(), equalTo(true));
 
         clusterState3 = clusterService3.state();
         routingNodeEntry3 = clusterState3.readOnlyRoutingNodes().nodesToShards().get(clusterState3.nodes().localNodeId());
-        assertThat(routingNodeEntry3, nullValue());
+        assertThat(routingNodeEntry3.shards().isEmpty(), equalTo(true));
     }
 
     @Test
@@ -314,11 +315,11 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
 
         clusterState2 = clusterService2.state();
         routingNodeEntry2 = clusterState2.readOnlyRoutingNodes().nodesToShards().get(clusterState2.nodes().localNodeId());
-        assertThat(routingNodeEntry2, nullValue());
+        assertThat(routingNodeEntry2.shards().isEmpty(), equalTo(true));
 
         clusterState3 = clusterService3.state();
         routingNodeEntry3 = clusterState3.readOnlyRoutingNodes().nodesToShards().get(clusterState3.nodes().localNodeId());
-        assertThat(routingNodeEntry3, nullValue());
+        assertThat(routingNodeEntry3.shards().isEmpty(), equalTo(true));
     }
 
     @Test

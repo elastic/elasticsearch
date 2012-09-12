@@ -71,6 +71,8 @@ public class RoutingAllocation {
 
     private Map<ShardId, String> ignoredShardToNodes = null;
 
+    private Map<ShardId, String> ignoreDisable = null;
+
     public RoutingAllocation(AllocationDeciders deciders, RoutingNodes routingNodes, DiscoveryNodes nodes) {
         this.deciders = deciders;
         this.routingNodes = routingNodes;
@@ -99,6 +101,17 @@ public class RoutingAllocation {
 
     public AllocationExplanation explanation() {
         return explanation;
+    }
+
+    public void addIgnoreDisable(ShardId shardId, String nodeId) {
+        if (ignoreDisable == null) {
+            ignoreDisable = new HashMap<ShardId, String>();
+        }
+        ignoreDisable.put(shardId, nodeId);
+    }
+
+    public boolean shouldIgnoreDisable(ShardId shardId, String nodeId) {
+        return ignoreDisable != null && nodeId.equals(ignoreDisable.get(shardId));
     }
 
     public void addIgnoreShardForNode(ShardId shardId, String nodeId) {

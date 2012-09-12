@@ -119,7 +119,7 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
             this.request = request;
             this.listener = listener;
             clusterState = clusterService.state();
-            String[] nodesIds = clusterState.nodes().resolveNodes(request.nodesIds());
+            String[] nodesIds = clusterState.nodes().resolveNodesIds(request.nodesIds());
             this.nodesIds = filterNodeIds(clusterState.nodes(), nodesIds);
             this.responses = new AtomicReferenceArray<Object>(this.nodesIds.length);
         }

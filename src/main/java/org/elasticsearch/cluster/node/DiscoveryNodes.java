@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.node;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.UnmodifiableIterator;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -177,7 +178,18 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
         return nodesIds == null || nodesIds.length == 0 || (nodesIds.length == 1 && nodesIds[0].equals("_all"));
     }
 
-    public String[] resolveNodes(String... nodesIds) {
+    public DiscoveryNode resolveNode(String node) {
+        String[] resolvedNodeIds = resolveNodesIds(node);
+        if (resolvedNodeIds.length > 1) {
+            throw new ElasticSearchIllegalArgumentException("resolved [" + node + "] into [" + resolvedNodeIds.length + "] nodes, where expected to be resolved to a single node");
+        }
+        if (resolvedNodeIds.length == 0) {
+            throw new ElasticSearchIllegalArgumentException("failed to resolve [" + node + " ], no matching nodes");
+        }
+        return nodes.get(resolvedNodeIds[0]);
+    }
+
+    public String[] resolveNodesIds(String... nodesIds) {
         if (isAllNodes(nodesIds)) {
             int index = 0;
             nodesIds = new String[nodes.size()];

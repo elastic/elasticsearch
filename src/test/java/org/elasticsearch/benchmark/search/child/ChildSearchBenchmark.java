@@ -30,6 +30,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.query.FilterBuilders;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.node.Node;
 
 import java.io.IOException;
@@ -40,6 +42,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.FilterBuilders.hasParentFilter;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 
@@ -52,16 +55,12 @@ public class ChildSearchBenchmark {
         Settings settings = settingsBuilder()
                 .put("index.engine.robin.refreshInterval", "-1")
                 .put("gateway.type", "local")
-                .put(SETTING_NUMBER_OF_SHARDS, 2)
-                .put(SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(SETTING_NUMBER_OF_SHARDS, 1)
+                .put(SETTING_NUMBER_OF_REPLICAS, 0)
                 .build();
 
         Node node1 = nodeBuilder().settings(settingsBuilder().put(settings).put("name", "node1")).node();
-        Node node2 = nodeBuilder().settings(settingsBuilder().put(settings).put("name", "node2")).node();
-
-        Node clientNode = nodeBuilder().settings(settingsBuilder().put(settings).put("name", "client")).client(true).node();
-
-        Client client = clientNode.client();
+        Client client = node1.client();
 
         long COUNT = SizeValue.parseSizeValue("1m").singles();
         int CHILD_COUNT = 5;
@@ -162,6 +161,59 @@ public class ChildSearchBenchmark {
         }
         System.out.println("--> has_child Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");
 
+        String[] executionTypes = new String[]{"uid", "indirect"}; // either uid (faster, in general a bit more memory) or indirect (slower, but in general a bit less memory)
+        for (String executionType : executionTypes) {
+            System.out.println("--> Running has_parent filter with " + executionType + " execution type");
+            // run parent child constant query
+            for (int j = 0; j < QUERY_WARMUP; j++) {
+                SearchResponse searchResponse = client.prepareSearch()
+                        .setQuery(constantScoreQuery(
+                                hasParentFilter("parent", termQuery("name", "test1")).executionType(executionType)
+                        ))
+                        .execute().actionGet();
+                if (searchResponse.failedShards() > 0) {
+                    System.err.println("Search Failures " + Arrays.toString(searchResponse.shardFailures()));
+                }
+                if (searchResponse.hits().totalHits() != CHILD_COUNT) {
+                    System.err.println("--> mismatch on hits [" + j + "], got [" + searchResponse.hits().totalHits() + "], expected [" + CHILD_COUNT + "]");
+                }
+            }
+
+            totalQueryTime = 0;
+            for (int j = 1; j <= QUERY_COUNT; j++) {
+                SearchResponse searchResponse = client.prepareSearch()
+                        .setQuery(constantScoreQuery(
+                                hasParentFilter("parent", termQuery("name", "test1")).executionType(executionType)
+                        ))
+                        .execute().actionGet();
+                if (searchResponse.failedShards() > 0) {
+                    System.err.println("Search Failures " + Arrays.toString(searchResponse.shardFailures()));
+                }
+                if (searchResponse.hits().totalHits() != CHILD_COUNT) {
+                    System.err.println("--> mismatch on hits [" + j + "], got [" + searchResponse.hits().totalHits() + "], expected [" + CHILD_COUNT + "]");
+                }
+                totalQueryTime += searchResponse.tookInMillis();
+            }
+            System.out.println("--> has_parent[" + executionType + "] Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");
+
+            System.out.println("--> Running has_parent[" + executionType + "] filter with match_all query as parent query");
+            totalQueryTime = 0;
+            for (int j = 1; j <= QUERY_COUNT; j++) {
+                SearchResponse searchResponse = client.prepareSearch()
+                        .setQuery(constantScoreQuery(
+                                hasParentFilter("parent", matchAllQuery()).executionType(executionType)
+                        ))
+                        .execute().actionGet();
+                if (searchResponse.failedShards() > 0) {
+                    System.err.println("Search Failures " + Arrays.toString(searchResponse.shardFailures()));
+                }
+                if (searchResponse.hits().totalHits() != 5000000) {
+                    System.err.println("--> mismatch on hits [" + j + "], got [" + searchResponse.hits().totalHits() + "], expected [" + 5000000 + "]");
+                }
+                totalQueryTime += searchResponse.tookInMillis();
+            }
+            System.out.println("--> has_parent[" + executionType + "] with match_all query as parent query Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");
+        }
         System.out.println("--> Running top_children query");
         // run parent child score query
         for (int j = 0; j < QUERY_WARMUP; j++) {
@@ -183,10 +235,8 @@ public class ChildSearchBenchmark {
         }
         System.out.println("--> top_children Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");
 
-        clientNode.close();
-
+        client.close();
         node1.close();
-        node2.close();
     }
 
     private static XContentBuilder parentSource(String id, String nameValue) throws IOException {

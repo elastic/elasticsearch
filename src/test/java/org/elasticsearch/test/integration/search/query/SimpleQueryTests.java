@@ -358,9 +358,9 @@ public class SimpleQueryTests extends AbstractNodesTests {
 
         client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 1)).execute().actionGet();
 
-        client.prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value4").execute().actionGet();
-        client.prepareIndex("test", "type1", "2").setSource("field1", "value2", "field2", "value5").execute().actionGet();
-        client.prepareIndex("test", "type1", "3").setSource("field1", "value3", "field2", "value6").execute().actionGet();
+        client.prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value4", "field3", "value3").execute().actionGet();
+        client.prepareIndex("test", "type1", "2").setSource("field1", "value2", "field2", "value5", "field3", "value2").execute().actionGet();
+        client.prepareIndex("test", "type1", "3").setSource("field1", "value3", "field2", "value6", "field3", "value1").execute().actionGet();
         client.admin().indices().prepareRefresh("test").execute().actionGet();
 
         MultiMatchQueryBuilder builder = QueryBuilders.multiMatchQuery("value1 value2 value4", "field1", "field2");
@@ -390,6 +390,16 @@ public class SimpleQueryTests extends AbstractNodesTests {
                 .execute().actionGet();
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
         assertThat("1", equalTo(searchResponse.hits().getAt(0).id()));
+
+        client.admin().indices().prepareRefresh("test").execute().actionGet();
+        builder = QueryBuilders.multiMatchQuery("value1", "field1", "field3^1.5")
+                .operator(MatchQueryBuilder.Operator.AND); // Operator only applies on terms inside a field! Fields are always OR-ed together.
+        searchResponse = client.prepareSearch()
+                .setQuery(builder)
+                .execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(2l));
+        assertThat("3", equalTo(searchResponse.hits().getAt(0).id()));
+        assertThat("1", equalTo(searchResponse.hits().getAt(1).id()));
     }
 
 }

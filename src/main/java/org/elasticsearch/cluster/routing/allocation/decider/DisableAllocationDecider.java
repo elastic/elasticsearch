@@ -70,10 +70,10 @@ public class DisableAllocationDecider extends AllocationDecider {
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (disableAllocation) {
-            return Decision.NO;
+            return allocation.shouldIgnoreDisable(shardRouting.shardId(), node.nodeId()) ? Decision.YES : Decision.NO;
         }
         if (disableReplicaAllocation) {
-            return shardRouting.primary() ? Decision.YES : Decision.NO;
+            return shardRouting.primary() ? Decision.YES : allocation.shouldIgnoreDisable(shardRouting.shardId(), node.nodeId()) ? Decision.YES : Decision.NO;
         }
         return Decision.YES;
     }

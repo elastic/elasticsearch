@@ -27,8 +27,6 @@ import org.elasticsearch.common.settings.Settings;
 
 /**
  * A pluggable logic allowing to control if allocation of a shard is allowed on a specific node.
- *
- *
  */
 public abstract class AllocationDecider extends AbstractComponent {
 
@@ -38,10 +36,20 @@ public abstract class AllocationDecider extends AbstractComponent {
             public boolean allocate() {
                 return true;
             }
+
+            @Override
+            public boolean allowed() {
+                return true;
+            }
         },
         NO {
             @Override
             public boolean allocate() {
+                return false;
+            }
+
+            @Override
+            public boolean allowed() {
                 return false;
             }
         },
@@ -50,9 +58,24 @@ public abstract class AllocationDecider extends AbstractComponent {
             public boolean allocate() {
                 return false;
             }
+
+            @Override
+            public boolean allowed() {
+                return true;
+            }
         };
 
+        /**
+         * It can be allocated *now* on a node. Note, it might be {@link #allowed()} to be allocated
+         * on a node, yet, allocate will be <tt>false</tt> since its being throttled for example.
+         */
         public abstract boolean allocate();
+
+        /**
+         * Is allocation allowed on a node. Note, this does not mean that we should allocate *now*,
+         * though, in extreme cases, we might "force" allocation.
+         */
+        public abstract boolean allowed();
     }
 
     protected AllocationDecider(Settings settings) {

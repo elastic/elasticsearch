@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.cache.id.simple;
 
+import gnu.trove.impl.hash.TObjectHash;
+import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.trove.ExtTObjectIntHasMap;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
@@ -37,6 +39,8 @@ public class SimpleIdReaderTypeCache implements IdReaderTypeCache {
     private final HashedBytesArray[] parentIdsValues;
 
     private final int[] parentIdsOrdinals;
+
+    private long sizeInBytes = -1;
 
     public SimpleIdReaderTypeCache(String type, ExtTObjectIntHasMap<HashedBytesArray> idToDoc, HashedBytesArray[] docIdToId,
                                    HashedBytesArray[] parentIdsValues, int[] parentIdsOrdinals) {
@@ -64,10 +68,46 @@ public class SimpleIdReaderTypeCache implements IdReaderTypeCache {
         return docIdToId[docId];
     }
 
+    public long sizeInBytes() {
+        if (sizeInBytes == -1) {
+            sizeInBytes = computeSizeInBytes();
+        }
+        return sizeInBytes;
+    }
+
     /**
      * Returns an already stored instance if exists, if not, returns null;
      */
     public HashedBytesArray canReuse(HashedBytesArray id) {
         return idToDoc.key(id);
     }
+
+    long computeSizeInBytes() {
+        long sizeInBytes = 0;
+        // Ignore type field
+        //  sizeInBytes += ((type.length() * RamUsage.NUM_BYTES_CHAR) + (3 * RamUsage.NUM_BYTES_INT)) + RamUsage.NUM_BYTES_OBJECT_HEADER;
+        sizeInBytes += RamUsage.NUM_BYTES_ARRAY_HEADER + (idToDoc._valuesSize() * RamUsage.NUM_BYTES_INT);
+        for (Object o : idToDoc._set) {
+            if (o == TObjectHash.FREE || o == TObjectHash.REMOVED) {
+                sizeInBytes += RamUsage.NUM_BYTES_OBJECT_REF;
+            } else {
+                HashedBytesArray bytesArray = (HashedBytesArray) o;
+                sizeInBytes += RamUsage.NUM_BYTES_OBJECT_HEADER + (bytesArray.length() + RamUsage.NUM_BYTES_INT);
+            }
+        }
+
+        // The docIdToId array contains references to idToDoc for this segment or other segments, so we can use OBJECT_REF
+        sizeInBytes += RamUsage.NUM_BYTES_ARRAY_HEADER + (RamUsage.NUM_BYTES_OBJECT_REF * docIdToId.length);
+        for (HashedBytesArray bytesArray : parentIdsValues) {
+            if (bytesArray == null) {
+                sizeInBytes += RamUsage.NUM_BYTES_OBJECT_REF;
+            } else {
+                sizeInBytes += RamUsage.NUM_BYTES_OBJECT_HEADER + (bytesArray.length() + RamUsage.NUM_BYTES_INT);
+            }
+        }
+        sizeInBytes += RamUsage.NUM_BYTES_ARRAY_HEADER + (RamUsage.NUM_BYTES_INT * parentIdsOrdinals.length);
+
+        return sizeInBytes;
+    }
+
 }

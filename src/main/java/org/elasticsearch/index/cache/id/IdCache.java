@@ -35,4 +35,7 @@ public interface IdCache extends IndexComponent, CloseableComponent, Iterable<Id
     void refresh(IndexReader[] readers) throws Exception;
 
     IdReaderCache reader(IndexReader reader);
+
+    long sizeInBytes();
+
 }

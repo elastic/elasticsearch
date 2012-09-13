@@ -33,4 +33,6 @@ public interface IdReaderCache {
     HashedBytesArray parentIdByDoc(String type, int docId);
 
     int docById(String type, HashedBytesArray id);
+
+    long sizeInBytes();
 }

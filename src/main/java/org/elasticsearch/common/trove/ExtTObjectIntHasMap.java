@@ -48,4 +48,8 @@ public class ExtTObjectIntHasMap<T> extends TObjectIntHashMap<T> {
         int index = index(key);
         return index < 0 ? null : (T) _set[index];
     }
+
+    public int _valuesSize() {
+        return _values.length;
+    }
 }

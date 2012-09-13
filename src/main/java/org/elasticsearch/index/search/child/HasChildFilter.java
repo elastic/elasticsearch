@@ -19,12 +19,19 @@
 
 package org.elasticsearch.index.search.child;
 
+import gnu.trove.set.hash.THashSet;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.common.bytes.HashedBytesArray;
+import org.elasticsearch.common.lucene.docset.GetDocSet;
+import org.elasticsearch.common.lucene.search.NoopCollector;
+import org.elasticsearch.index.cache.id.IdReaderTypeCache;
 import org.elasticsearch.search.internal.ScopePhase;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -34,68 +41,150 @@ import java.util.Map;
 /**
  *
  */
-public class HasChildFilter extends Filter implements ScopePhase.CollectorPhase {
+public abstract class HasChildFilter extends Filter implements ScopePhase.CollectorPhase {
 
-    private Query query;
+    final Query childQuery;
+    final String scope;
+    final String parentType;
+    final String childType;
+    final SearchContext searchContext;
 
-    private String scope;
-
-    private String parentType;
-
-    private String childType;
-
-    private final SearchContext searchContext;
-
-    private Map<Object, FixedBitSet> parentDocs;
-
-    public HasChildFilter(Query query, String scope, String childType, String parentType, SearchContext searchContext) {
-        this.query = query;
-        this.scope = scope;
+    protected HasChildFilter(Query childQuery, String scope, String parentType, String childType, SearchContext searchContext) {
+        this.searchContext = searchContext;
         this.parentType = parentType;
         this.childType = childType;
-        this.searchContext = searchContext;
+        this.scope = scope;
+        this.childQuery = childQuery;
     }
 
-    @Override
     public Query query() {
-        return query;
+        return childQuery;
     }
 
-    @Override
-    public boolean requiresProcessing() {
-        return parentDocs == null;
-    }
-
-    @Override
-    public Collector collector() {
-        return new ChildCollector(parentType, searchContext);
-    }
-
-    @Override
-    public void processCollector(Collector collector) {
-        this.parentDocs = ((ChildCollector) collector).parentDocs();
-    }
-
-    @Override
     public String scope() {
-        return this.scope;
-    }
-
-    @Override
-    public void clear() {
-        parentDocs = null;
-    }
-
-    @Override
-    public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
-        // ok to return null
-        return parentDocs.get(reader.getCoreCacheKey());
+        return scope;
     }
 
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append("child_filter[").append(childType).append("/").append(parentType).append("](").append(query).append(')');
+        sb.append("child_filter[").append(childType).append("/").append(parentType).append("](").append(childQuery).append(')');
         return sb.toString();
+    }
+
+    public static HasChildFilter create(Query childQuery, String scope, String parentType, String childType, SearchContext searchContext, String executionType) {
+        // This mechanism is experimental and will most likely be removed.
+        if ("bitset".equals(executionType)) {
+            return new Bitset(childQuery, scope, parentType, childType, searchContext);
+        } else if ("uid".endsWith(executionType)) {
+            return new Uid(childQuery, scope, parentType, childType, searchContext);
+        }
+        throw new ElasticSearchIllegalStateException("Illegal has_child execution type: " + executionType);
+    }
+
+    static class Bitset extends HasChildFilter {
+
+        private Map<Object, FixedBitSet> parentDocs;
+
+        public Bitset(Query childQuery, String scope, String parentType, String childType, SearchContext searchContext) {
+            super(childQuery, scope, parentType, childType, searchContext);
+        }
+
+        public boolean requiresProcessing() {
+            return parentDocs == null;
+        }
+
+        public Collector collector() {
+            return new ChildCollector(parentType, searchContext);
+        }
+
+        public void processCollector(Collector collector) {
+            this.parentDocs = ((ChildCollector) collector).parentDocs();
+        }
+
+        public void clear() {
+            parentDocs = null;
+        }
+
+        public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
+            // ok to return null
+            return parentDocs.get(reader.getCoreCacheKey());
+        }
+
+    }
+
+    static class Uid extends HasChildFilter {
+
+        THashSet<HashedBytesArray> collectedUids;
+
+        Uid(Query childQuery, String scope, String parentType, String childType, SearchContext searchContext) {
+            super(childQuery, scope, parentType, childType, searchContext);
+        }
+
+        public boolean requiresProcessing() {
+            return collectedUids == null;
+        }
+
+        public Collector collector() {
+            collectedUids = CacheRecycler.popHashSet();
+            return new UidCollector(parentType, searchContext, collectedUids);
+        }
+
+        public void processCollector(Collector collector) {
+            collectedUids = ((UidCollector) collector).collectedUids;
+        }
+
+        public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
+            IdReaderTypeCache idReaderTypeCache = searchContext.idCache().reader(reader).type(parentType);
+            return new ParentDocSet(reader, collectedUids, idReaderTypeCache);
+        }
+
+        public void clear() {
+            CacheRecycler.pushHashSet(collectedUids);
+            collectedUids = null;
+        }
+
+        static class ParentDocSet extends GetDocSet {
+
+            final IndexReader reader;
+            final THashSet<HashedBytesArray> parents;
+            final IdReaderTypeCache typeCache;
+
+            ParentDocSet(IndexReader reader, THashSet<HashedBytesArray> parents, IdReaderTypeCache typeCache) {
+                super(reader.maxDoc());
+                this.reader = reader;
+                this.parents = parents;
+                this.typeCache = typeCache;
+            }
+
+            public boolean get(int doc) {
+                return !reader.isDeleted(doc) && parents.contains(typeCache.idByDoc(doc));
+            }
+        }
+
+        static class UidCollector extends NoopCollector {
+
+            final String parentType;
+            final SearchContext context;
+            final THashSet<HashedBytesArray> collectedUids;
+
+            private IdReaderTypeCache typeCache;
+
+            UidCollector(String parentType, SearchContext context, THashSet<HashedBytesArray> collectedUids) {
+                this.parentType = parentType;
+                this.context = context;
+                this.collectedUids = collectedUids;
+            }
+
+            @Override
+            public void collect(int doc) throws IOException {
+                collectedUids.add(typeCache.parentIdByDoc(doc));
+            }
+
+            @Override
+            public void setNextReader(IndexReader reader, int docBase) throws IOException {
+                typeCache = context.idCache().reader(reader).type(parentType);
+            }
+        }
     }
 }

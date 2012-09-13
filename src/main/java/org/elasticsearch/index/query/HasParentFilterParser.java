@@ -85,7 +85,6 @@ public class HasParentFilterParser implements FilterParser {
                     scope = parser.text();
                 } else if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
-                    // TODO: change to execution_type
                 } else if ("execution_type".equals(currentFieldName) || "executionType".equals(currentFieldName)) { // This option is experimental and will most likely be removed.
                     executionType = parser.text();
                 } else {

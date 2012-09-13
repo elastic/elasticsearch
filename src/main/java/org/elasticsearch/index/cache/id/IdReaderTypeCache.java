@@ -44,4 +44,8 @@ public interface IdReaderTypeCache {
      */
     HashedBytesArray idByDoc(int docId);
 
+    /**
+     * @return The size in bytes for this particular instance
+     */
+    long sizeInBytes();
 }

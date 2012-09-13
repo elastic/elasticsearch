@@ -218,6 +218,14 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
         }
     }
 
+    public long sizeInBytes() {
+        long sizeInBytes = 0;
+        for (SimpleIdReaderCache idReaderCache : idReaders.values()) {
+            sizeInBytes += idReaderCache.sizeInBytes();
+        }
+        return sizeInBytes;
+    }
+
     private HashedBytesArray checkIfCanReuse(Map<Object, Map<String, TypeBuilder>> builders, HashedBytesArray idAsBytes) {
         HashedBytesArray finalIdAsBytes;
         // go over and see if we can reuse this id

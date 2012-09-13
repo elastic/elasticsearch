@@ -66,6 +66,14 @@ public class SimpleIdReaderCache implements IdReaderCache {
         return -1;
     }
 
+    public long sizeInBytes() {
+        long sizeInBytes = 0;
+        for (SimpleIdReaderTypeCache readerTypeCache : types.values()) {
+            sizeInBytes += readerTypeCache.sizeInBytes();
+        }
+        return sizeInBytes;
+    }
+
     /**
      * Returns an already stored instance if exists, if not, returns null;
      */

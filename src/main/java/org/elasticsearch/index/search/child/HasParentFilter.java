@@ -29,7 +29,6 @@ import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.docset.GetDocSet;
 import org.elasticsearch.common.lucene.search.NoopCollector;
-import org.elasticsearch.common.trove.ExtTHashMap;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
 import org.elasticsearch.search.internal.ScopePhase;
 import org.elasticsearch.search.internal.SearchContext;
@@ -44,13 +43,13 @@ import static com.google.common.collect.Maps.newHashMap;
  */
 public abstract class HasParentFilter extends Filter implements ScopePhase.CollectorPhase {
 
-    final Query query;
+    final Query parentQuery;
     final String scope;
     final String parentType;
     final SearchContext context;
 
-    HasParentFilter(Query query, String scope, String parentType, SearchContext context) {
-        this.query = query;
+    HasParentFilter(Query parentQuery, String scope, String parentType, SearchContext context) {
+        this.parentQuery = parentQuery;
         this.scope = scope;
         this.parentType = parentType;
         this.context = context;
@@ -61,24 +60,31 @@ public abstract class HasParentFilter extends Filter implements ScopePhase.Colle
     }
 
     public Query query() {
-        return query;
+        return parentQuery;
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("parent_filter[").append(parentType).append("](").append(query()).append(')');
+        return sb.toString();
     }
 
     public static HasParentFilter create(String executionType, Query query, String scope, String parentType, SearchContext context) {
         // This mechanism is experimental and will most likely be removed.
-        if ("indirect".equals(executionType)) {
-            return new InDirect(query, scope, parentType, context);
+        if ("bitset".equals(executionType)) {
+            return new Bitset(query, scope, parentType, context);
         } else if ("uid".equals(executionType)) {
-            return new UidParentFilter(query, scope, parentType, context);
+            return new Uid(query, scope, parentType, context);
         }
         throw new ElasticSearchIllegalStateException("Illegal has_parent execution type: " + executionType);
     }
 
-    static class UidParentFilter extends HasParentFilter {
+    static class Uid extends HasParentFilter {
 
         THashSet<HashedBytesArray> parents;
 
-        UidParentFilter(Query query, String scope, String parentType, SearchContext context) {
+        Uid(Query query, String scope, String parentType, SearchContext context) {
             super(query, scope, parentType, context);
         }
 
@@ -149,11 +155,11 @@ public abstract class HasParentFilter extends Filter implements ScopePhase.Colle
 
     }
 
-    static class InDirect extends HasParentFilter {
+    static class Bitset extends HasParentFilter {
 
         Map<Object, FixedBitSet> parentDocs;
 
-        InDirect(Query query, String scope, String parentType, SearchContext context) {
+        Bitset(Query query, String scope, String parentType, SearchContext context) {
             super(query, scope, parentType, context);
         }
 

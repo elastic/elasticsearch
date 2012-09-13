@@ -54,7 +54,7 @@ public class HasParentFilterBuilder extends BaseFilterBuilder {
     }
 
     /**
-     * Expert: Sets the low level parent to child filtering implementation. Can be: 'indirect' or 'uid'
+     * Expert: Sets the low level parent to child filtering implementation. Can be: 'bitset' or 'uid'
      *
      * This option is experimental and will be removed.
      */

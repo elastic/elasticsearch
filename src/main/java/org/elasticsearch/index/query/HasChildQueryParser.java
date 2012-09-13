@@ -56,6 +56,7 @@ public class HasChildQueryParser implements QueryParser {
         String childType = null;
         String scope = null;
 
+        String executionType = "uid";
         String currentFieldName = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -75,12 +76,14 @@ public class HasChildQueryParser implements QueryParser {
                     throw new QueryParsingException(parseContext.index(), "[has_child] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
-                if ("type".equals(currentFieldName)) {
+                if ("type".equals(currentFieldName) || "child_type".equals(currentFieldName) || "childType".equals(currentFieldName)) {
                     childType = parser.text();
                 } else if ("_scope".equals(currentFieldName)) {
                     scope = parser.text();
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
+                } else if ("execution_type".equals(currentFieldName) || "executionType".equals(currentFieldName)) {// This option is experimental and will most likely be removed.
+                    executionType = parser.text();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[has_child] query does not support [" + currentFieldName + "]");
                 }
@@ -107,7 +110,7 @@ public class HasChildQueryParser implements QueryParser {
         query = new FilteredQuery(query, parseContext.cacheFilter(childDocMapper.typeFilter(), null));
 
         SearchContext searchContext = SearchContext.current();
-        HasChildFilter childFilter = new HasChildFilter(query, scope, childType, parentType, searchContext);
+        HasChildFilter childFilter = HasChildFilter.create(query, scope, parentType, childType, searchContext, executionType);
         // we don't need DeletionAwareConstantScore, since we filter deleted parent docs in the filter
         ConstantScoreQuery childQuery = new ConstantScoreQuery(childFilter);
         childQuery.setBoost(boost);

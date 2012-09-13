@@ -55,6 +55,7 @@ public class HasChildFilterParser implements FilterParser {
         String childType = null;
         String scope = null;
 
+        String executionType = "uid";
         String filterName = null;
         String currentFieldName = null;
         XContentParser.Token token;
@@ -75,12 +76,14 @@ public class HasChildFilterParser implements FilterParser {
                     throw new QueryParsingException(parseContext.index(), "[has_child] filter does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
-                if ("type".equals(currentFieldName)) {
+                if ("type".equals(currentFieldName) || "child_type".equals(currentFieldName) || "childType".equals(currentFieldName)) {
                     childType = parser.text();
                 } else if ("_scope".equals(currentFieldName)) {
                     scope = parser.text();
                 } else if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
+                } else if ("execution_type".equals(currentFieldName) || "executionType".equals(currentFieldName)) {// This option is experimental and will most likely be removed.
+                    executionType = parser.text();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[has_child] filter does not support [" + currentFieldName + "]");
                 }
@@ -107,7 +110,7 @@ public class HasChildFilterParser implements FilterParser {
 
         SearchContext searchContext = SearchContext.current();
 
-        HasChildFilter childFilter = new HasChildFilter(query, scope, childType, parentType, searchContext);
+        HasChildFilter childFilter = HasChildFilter.create(query, scope, parentType, childType, searchContext, executionType);
         searchContext.addScopePhase(childFilter);
 
         if (filterName != null) {

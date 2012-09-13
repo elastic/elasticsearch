@@ -19,7 +19,6 @@
 
 package org.elasticsearch.test.integration.search.child;
 
-import com.beust.jcommander.internal.Maps;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -67,6 +66,10 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
         return client("node1");
     }
 
+    protected String getExecutionMethod() {
+        return "uid";
+    }
+
     @Test
     public void multiLevelChild() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
@@ -87,7 +90,15 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
         client.admin().indices().prepareRefresh().execute().actionGet();
 
         SearchResponse searchResponse = client.prepareSearch("test")
-                .setQuery(filteredQuery(matchAllQuery(), hasChildFilter("child", filteredQuery(termQuery("c_field", "c_value1"), hasChildFilter("grandchild", termQuery("gc_field", "gc_value1"))))))
+                .setQuery(
+                        filteredQuery(
+                                matchAllQuery(),
+                                hasChildFilter(
+                                        "child",
+                                        filteredQuery(termQuery("c_field", "c_value1"), hasChildFilter("grandchild", termQuery("gc_field", "gc_value1")).executionType(getExecutionMethod()))
+                                ).executionType(getExecutionMethod())
+                        )
+                )
                 .execute().actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
@@ -192,7 +203,7 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
 
         // HAS CHILD QUERY
 
-        searchResponse = client.prepareSearch("test").setQuery(hasChildQuery("child", termQuery("c_field", "yellow"))).execute().actionGet();
+        searchResponse = client.prepareSearch("test").setQuery(hasChildQuery("child", termQuery("c_field", "yellow")).executionType(getExecutionMethod())).execute().actionGet();
         if (searchResponse.failedShards() > 0) {
             logger.warn("Failed shards:");
             for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
@@ -203,13 +214,13 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("p1"));
 
-        searchResponse = client.prepareSearch("test").setQuery(hasChildQuery("child", termQuery("c_field", "blue"))).execute().actionGet();
+        searchResponse = client.prepareSearch("test").setQuery(hasChildQuery("child", termQuery("c_field", "blue")).executionType(getExecutionMethod())).execute().actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("p2"));
 
-        searchResponse = client.prepareSearch("test").setQuery(hasChildQuery("child", termQuery("c_field", "red"))).execute().actionGet();
+        searchResponse = client.prepareSearch("test").setQuery(hasChildQuery("child", termQuery("c_field", "red")).executionType(getExecutionMethod())).execute().actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(2l));
@@ -218,13 +229,13 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
 
         // HAS CHILD FILTER
 
-        searchResponse = client.prepareSearch("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "yellow")))).execute().actionGet();
+        searchResponse = client.prepareSearch("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "yellow")).executionType(getExecutionMethod()))).execute().actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("p1"));
 
-        searchResponse = client.prepareSearch("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "blue")))).execute().actionGet();
+        searchResponse = client.prepareSearch("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "blue")).executionType(getExecutionMethod()))).execute().actionGet();
         if (searchResponse.failedShards() > 0) {
             logger.warn("Failed shards:");
             for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
@@ -235,7 +246,7 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("p2"));
 
-        searchResponse = client.prepareSearch("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "red")))).execute().actionGet();
+        searchResponse = client.prepareSearch("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "red")).executionType(getExecutionMethod()))).execute().actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(2l));
@@ -243,14 +254,14 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().getAt(1).id(), anyOf(equalTo("p2"), equalTo("p1")));
 
         // HAS PARENT FILTER
-        searchResponse = client.prepareSearch("test").setQuery(constantScoreQuery(hasParentFilter("parent", termQuery("p_field", "p_value2")))).execute().actionGet();
+        searchResponse = client.prepareSearch("test").setQuery(constantScoreQuery(hasParentFilter("parent", termQuery("p_field", "p_value2")).executionType(getExecutionMethod()))).execute().actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(2l));
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("c3"));
         assertThat(searchResponse.hits().getAt(1).id(), equalTo("c4"));
 
-        searchResponse = client.prepareSearch("test").setQuery(constantScoreQuery(hasParentFilter("parent", termQuery("p_field", "p_value1")))).execute().actionGet();
+        searchResponse = client.prepareSearch("test").setQuery(constantScoreQuery(hasParentFilter("parent", termQuery("p_field", "p_value1")).executionType(getExecutionMethod()))).execute().actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(2l));
@@ -299,7 +310,7 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
         assertThat(parentToChildren.isEmpty(), equalTo(false));
         for (Map.Entry<String, List<String>> parentToChildrenEntry : parentToChildren.entrySet()) {
             SearchResponse searchResponse = client.prepareSearch("test")
-                    .setQuery(constantScoreQuery(hasParentFilter("parent", termQuery("p_field", parentToChildrenEntry.getKey()))))
+                    .setQuery(constantScoreQuery(hasParentFilter("parent", termQuery("p_field", parentToChildrenEntry.getKey())).executionType(getExecutionMethod())))
                     .setSize(numChildDocsPerParent)
                     .execute().actionGet();
 
@@ -368,19 +379,19 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
 
         // HAS CHILD QUERY
 
-        searchResponse = client.prepareSearch("test").setQuery(hasChildQuery("child", termQuery("c_field", "yellow"))).execute().actionGet();
+        searchResponse = client.prepareSearch("test").setQuery(hasChildQuery("child", termQuery("c_field", "yellow")).executionType(getExecutionMethod())).execute().actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("p1"));
 
-        searchResponse = client.prepareSearch("test").setQuery(hasChildQuery("child", termQuery("c_field", "blue"))).execute().actionGet();
+        searchResponse = client.prepareSearch("test").setQuery(hasChildQuery("child", termQuery("c_field", "blue")).executionType(getExecutionMethod())).execute().actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("p2"));
 
-        searchResponse = client.prepareSearch("test").setQuery(hasChildQuery("child", termQuery("c_field", "red"))).execute().actionGet();
+        searchResponse = client.prepareSearch("test").setQuery(hasChildQuery("child", termQuery("c_field", "red")).executionType(getExecutionMethod())).execute().actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(2l));
@@ -389,19 +400,19 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
 
         // HAS CHILD FILTER
 
-        searchResponse = client.prepareSearch("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "yellow")))).execute().actionGet();
+        searchResponse = client.prepareSearch("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "yellow")).executionType(getExecutionMethod()))).execute().actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("p1"));
 
-        searchResponse = client.prepareSearch("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "blue")))).execute().actionGet();
+        searchResponse = client.prepareSearch("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "blue")).executionType(getExecutionMethod()))).execute().actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("p2"));
 
-        searchResponse = client.prepareSearch("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "red")))).execute().actionGet();
+        searchResponse = client.prepareSearch("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "red")).executionType(getExecutionMethod()))).execute().actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(2l));
@@ -463,19 +474,19 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
 
         // HAS CHILD QUERY
 
-        searchResponse = client.prepareSearch("test").setQuery(hasChildQuery("child", termQuery("c_field", "yellow"))).execute().actionGet();
+        searchResponse = client.prepareSearch("test").setQuery(hasChildQuery("child", termQuery("c_field", "yellow")).executionType(getExecutionMethod())).execute().actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("p1"));
 
-        searchResponse = client.prepareSearch("test").setQuery(hasChildQuery("child", termQuery("c_field", "blue"))).execute().actionGet();
+        searchResponse = client.prepareSearch("test").setQuery(hasChildQuery("child", termQuery("c_field", "blue")).executionType(getExecutionMethod())).execute().actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("p2"));
 
-        searchResponse = client.prepareSearch("test").setQuery(hasChildQuery("child", termQuery("c_field", "red"))).execute().actionGet();
+        searchResponse = client.prepareSearch("test").setQuery(hasChildQuery("child", termQuery("c_field", "red")).executionType(getExecutionMethod())).execute().actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(2l));
@@ -484,19 +495,19 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
 
         // HAS CHILD FILTER
 
-        searchResponse = client.prepareSearch("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "yellow")))).execute().actionGet();
+        searchResponse = client.prepareSearch("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "yellow")).executionType(getExecutionMethod()))).execute().actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("p1"));
 
-        searchResponse = client.prepareSearch("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "blue")))).execute().actionGet();
+        searchResponse = client.prepareSearch("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "blue")).executionType(getExecutionMethod()))).execute().actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("p2"));
 
-        searchResponse = client.prepareSearch("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "red")))).execute().actionGet();
+        searchResponse = client.prepareSearch("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "red")).executionType(getExecutionMethod()))).execute().actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(2l));
@@ -577,7 +588,7 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("p1"));
         assertThat(searchResponse.hits().getAt(0).sourceAsString(), containsString("\"p_value1\""));
 
-        searchResponse = client.prepareSearch("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "yellow")))).execute().actionGet();
+        searchResponse = client.prepareSearch("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "yellow")).executionType(getExecutionMethod()))).execute().actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
@@ -596,7 +607,7 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("p1"));
         assertThat(searchResponse.hits().getAt(0).sourceAsString(), containsString("\"p_value1_updated\""));
 
-        searchResponse = client.prepareSearch("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "yellow")))).execute().actionGet();
+        searchResponse = client.prepareSearch("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "yellow")).executionType(getExecutionMethod()))).execute().actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
@@ -625,7 +636,7 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
         client.admin().indices().prepareRefresh().execute().actionGet();
 
         SearchResponse searchResponse = client.prepareSearch("test").setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-                .setQuery(boolQuery().mustNot(hasChildQuery("child", boolQuery().should(queryString("c_field:*")))))
+                .setQuery(boolQuery().mustNot(hasChildQuery("child", boolQuery().should(queryString("c_field:*"))).executionType(getExecutionMethod())))
                 .execute().actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
     }

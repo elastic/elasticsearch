@@ -36,6 +36,8 @@ public class HasChildFilterBuilder extends BaseFilterBuilder {
 
     private String filterName;
 
+    private String executionType;
+
     public HasChildFilterBuilder(String type, QueryBuilder queryBuilder) {
         this.childType = type;
         this.queryBuilder = queryBuilder;
@@ -54,17 +56,30 @@ public class HasChildFilterBuilder extends BaseFilterBuilder {
         return this;
     }
 
+    /**
+     * Expert: Sets the low level child to parent filtering implementation. Can be: 'bitset' or 'uid'
+     *
+     * This option is experimental and will be removed.
+     */
+    public HasChildFilterBuilder executionType(String executionType) {
+        this.executionType = executionType;
+        return this;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(HasChildFilterParser.NAME);
         builder.field("query");
         queryBuilder.toXContent(builder, params);
-        builder.field("type", childType);
+        builder.field("child_type", childType);
         if (scope != null) {
             builder.field("_scope", scope);
         }
         if (filterName != null) {
             builder.field("_name", filterName);
+        }
+        if (executionType != null) {
+            builder.field("execution_type", executionType);
         }
         builder.endObject();
     }

@@ -136,32 +136,61 @@ public class ChildSearchBenchmark {
         }
         System.out.println("--> Just Child Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");
 
-        System.out.println("--> Running has_child query");
-        // run parent child constant query
-        for (int j = 0; j < QUERY_WARMUP; j++) {
-            SearchResponse searchResponse = client.prepareSearch().setQuery(hasChildQuery("child", termQuery("tag", "tag1"))).execute().actionGet();
-            if (searchResponse.failedShards() > 0) {
-                System.err.println("Search Failures " + Arrays.toString(searchResponse.shardFailures()));
+        String[] executionTypes = new String[]{"uid", "bitset"};// either uid (faster, in general a bit more memory) or bitset (slower, but in general a bit less memory)
+        for (String executionType : executionTypes) {
+            System.out.println("--> Running has_child query with execution type " + executionType);
+            // run parent child constant query
+            for (int j = 0; j < QUERY_WARMUP; j++) {
+                SearchResponse searchResponse = client.prepareSearch()
+                        .setQuery(
+                                hasChildQuery("child", termQuery("tag", "tag1")).executionType(executionType)
+                        )
+                        .execute().actionGet();
+                if (searchResponse.failedShards() > 0) {
+                    System.err.println("Search Failures " + Arrays.toString(searchResponse.shardFailures()));
+                }
+                if (searchResponse.hits().totalHits() != COUNT) {
+                    System.err.println("--> mismatch on hits [" + j + "], got [" + searchResponse.hits().totalHits() + "], expected [" + COUNT + "]");
+                }
             }
-            if (searchResponse.hits().totalHits() != COUNT) {
-                System.err.println("--> mismatch on hits [" + j + "], got [" + searchResponse.hits().totalHits() + "], expected [" + COUNT + "]");
+
+            totalQueryTime = 0;
+            for (int j = 0; j < QUERY_COUNT; j++) {
+                SearchResponse searchResponse = client.prepareSearch()
+                        .setQuery(
+                                hasChildQuery("child", termQuery("tag", "tag1")).executionType(executionType)
+                        )
+                        .execute().actionGet();
+                if (searchResponse.failedShards() > 0) {
+                    System.err.println("Search Failures " + Arrays.toString(searchResponse.shardFailures()));
+                }
+                if (searchResponse.hits().totalHits() != COUNT) {
+                    System.err.println("--> mismatch on hits [" + j + "], got [" + searchResponse.hits().totalHits() + "], expected [" + COUNT + "]");
+                }
+                totalQueryTime += searchResponse.tookInMillis();
             }
+            System.out.println("--> has_child[" + executionType + "] Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");
+
+            System.out.println("--> Running has_child[" + executionType + "] filter with match_all child query");
+            totalQueryTime = 0;
+            for (int j = 1; j <= QUERY_COUNT; j++) {
+                SearchResponse searchResponse = client.prepareSearch()
+                        .setQuery(
+                                hasChildQuery("child", matchAllQuery()).executionType(executionType)
+                        )
+                        .execute().actionGet();
+                if (searchResponse.failedShards() > 0) {
+                    System.err.println("Search Failures " + Arrays.toString(searchResponse.shardFailures()));
+                }
+                long expected = (COUNT / BATCH) * BATCH;
+                if (searchResponse.hits().totalHits() != expected) {
+                    System.err.println("--> mismatch on hits [" + j + "], got [" + searchResponse.hits().totalHits() + "], expected [" + expected + "]");
+                }
+                totalQueryTime += searchResponse.tookInMillis();
+            }
+            System.out.println("--> has_child[" + executionType + "] with match_all child query, Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");
         }
 
-        totalQueryTime = 0;
-        for (int j = 0; j < QUERY_COUNT; j++) {
-            SearchResponse searchResponse = client.prepareSearch().setQuery(hasChildQuery("child", termQuery("tag", "tag1"))).execute().actionGet();
-            if (searchResponse.failedShards() > 0) {
-                System.err.println("Search Failures " + Arrays.toString(searchResponse.shardFailures()));
-            }
-            if (searchResponse.hits().totalHits() != COUNT) {
-                System.err.println("--> mismatch on hits [" + j + "], got [" + searchResponse.hits().totalHits() + "], expected [" + COUNT + "]");
-            }
-            totalQueryTime += searchResponse.tookInMillis();
-        }
-        System.out.println("--> has_child Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");
-
-        String[] executionTypes = new String[]{"uid", "indirect"}; // either uid (faster, in general a bit more memory) or indirect (slower, but in general a bit less memory)
         for (String executionType : executionTypes) {
             System.out.println("--> Running has_parent filter with " + executionType + " execution type");
             // run parent child constant query
@@ -196,7 +225,7 @@ public class ChildSearchBenchmark {
             }
             System.out.println("--> has_parent[" + executionType + "] Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");
 
-            System.out.println("--> Running has_parent[" + executionType + "] filter with match_all query as parent query");
+            System.out.println("--> Running has_parent[" + executionType + "] filter with match_all parent query ");
             totalQueryTime = 0;
             for (int j = 1; j <= QUERY_COUNT; j++) {
                 SearchResponse searchResponse = client.prepareSearch()
@@ -212,7 +241,7 @@ public class ChildSearchBenchmark {
                 }
                 totalQueryTime += searchResponse.tookInMillis();
             }
-            System.out.println("--> has_parent[" + executionType + "] with match_all query as parent query Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");
+            System.out.println("--> has_parent[" + executionType + "] with match_all parent query, Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");
         }
         System.out.println("--> Running top_children query");
         // run parent child score query

@@ -30,8 +30,12 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocateAllocationCo
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.elasticsearch.common.io.stream.BytesStreamInput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.shard.ShardId;
 import org.testng.annotations.Test;
 
@@ -283,5 +287,53 @@ public class AllocationCommandsTests {
         assertThat(clusterState.routingNodes().node("node1").shardsWithState(STARTED).size(), equalTo(1));
         assertThat(clusterState.routingNodes().node("node2").shards().size(), equalTo(0));
         assertThat(clusterState.routingNodes().node("node3").shards().size(), equalTo(0));
+    }
+
+    @Test
+    public void serialization() throws Exception {
+        AllocationCommands commands = new AllocationCommands(
+                new AllocateAllocationCommand(new ShardId("test", 1), "node1", true),
+                new MoveAllocationCommand(new ShardId("test", 3), "node2", "node3"),
+                new CancelAllocationCommand(new ShardId("test", 4), "node5")
+        );
+        BytesStreamOutput bytes = new BytesStreamOutput();
+        AllocationCommands.writeTo(commands, bytes);
+        AllocationCommands sCommands = AllocationCommands.readFrom(new BytesStreamInput(bytes.bytes()));
+
+        assertThat(sCommands.commands().size(), equalTo(3));
+        assertThat(((AllocateAllocationCommand) (sCommands.commands().get(0))).shardId(), equalTo(new ShardId("test", 1)));
+        assertThat(((AllocateAllocationCommand) (sCommands.commands().get(0))).node(), equalTo("node1"));
+        assertThat(((AllocateAllocationCommand) (sCommands.commands().get(0))).allowPrimary(), equalTo(true));
+
+        assertThat(((MoveAllocationCommand) (sCommands.commands().get(1))).shardId(), equalTo(new ShardId("test", 3)));
+        assertThat(((MoveAllocationCommand) (sCommands.commands().get(1))).fromNode(), equalTo("node2"));
+        assertThat(((MoveAllocationCommand) (sCommands.commands().get(1))).toNode(), equalTo("node3"));
+
+        assertThat(((CancelAllocationCommand) (sCommands.commands().get(2))).shardId(), equalTo(new ShardId("test", 4)));
+        assertThat(((CancelAllocationCommand) (sCommands.commands().get(2))).node(), equalTo("node5"));
+    }
+
+    @Test
+    public void xContent() throws Exception {
+        String commands = "{\n" +
+                "    \"commands\" : [\n" +
+                "        {\"allocate\" : {\"index\" : \"test\", \"shard\" : 1, \"node\" : \"node1\", \"allow_primary\" : true}}\n" +
+                "       ,{\"move\" : {\"index\" : \"test\", \"shard\" : 3, \"from_node\" : \"node2\", \"to_node\" : \"node3\"}} \n" +
+                "       ,{\"cancel\" : {\"index\" : \"test\", \"shard\" : 4, \"node\" : \"node5\"}} \n" +
+                "    ]\n" +
+                "}\n";
+        AllocationCommands sCommands = AllocationCommands.fromXContent(XContentFactory.xContent(XContentType.JSON).createParser(commands));
+
+        assertThat(sCommands.commands().size(), equalTo(3));
+        assertThat(((AllocateAllocationCommand) (sCommands.commands().get(0))).shardId(), equalTo(new ShardId("test", 1)));
+        assertThat(((AllocateAllocationCommand) (sCommands.commands().get(0))).node(), equalTo("node1"));
+        assertThat(((AllocateAllocationCommand) (sCommands.commands().get(0))).allowPrimary(), equalTo(true));
+
+        assertThat(((MoveAllocationCommand) (sCommands.commands().get(1))).shardId(), equalTo(new ShardId("test", 3)));
+        assertThat(((MoveAllocationCommand) (sCommands.commands().get(1))).fromNode(), equalTo("node2"));
+        assertThat(((MoveAllocationCommand) (sCommands.commands().get(1))).toNode(), equalTo("node3"));
+
+        assertThat(((CancelAllocationCommand) (sCommands.commands().get(2))).shardId(), equalTo(new ShardId("test", 4)));
+        assertThat(((CancelAllocationCommand) (sCommands.commands().get(2))).node(), equalTo("node5"));
     }
 }

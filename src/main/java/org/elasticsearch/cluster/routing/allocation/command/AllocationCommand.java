@@ -21,10 +21,30 @@ package org.elasticsearch.cluster.routing.allocation.command;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+
+import java.io.IOException;
 
 /**
  */
 public interface AllocationCommand {
+
+    interface Factory<T extends AllocationCommand> {
+
+        T readFrom(StreamInput in) throws IOException;
+
+        void writeTo(T command, StreamOutput out) throws IOException;
+
+        T fromXContent(XContentParser parser) throws IOException;
+
+        void toXContent(T command, XContentBuilder builder, ToXContent.Params params) throws IOException;
+    }
+
+    String name();
 
     void execute(RoutingAllocation allocation) throws ElasticSearchException;
 }

@@ -21,14 +21,21 @@ package org.elasticsearch.cluster.routing.allocation.command;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.shard.ShardId;
+
+import java.io.IOException;
 
 /**
  * A command that moves a shard from a specific node to another node. Note, the shards
@@ -36,24 +43,110 @@ import org.elasticsearch.index.shard.ShardId;
  */
 public class MoveAllocationCommand implements AllocationCommand {
 
+    public static final String NAME = "move";
+
+    public static class Factory implements AllocationCommand.Factory<MoveAllocationCommand> {
+
+        @Override
+        public MoveAllocationCommand readFrom(StreamInput in) throws IOException {
+            return new MoveAllocationCommand(ShardId.readShardId(in), in.readString(), in.readString());
+        }
+
+        @Override
+        public void writeTo(MoveAllocationCommand command, StreamOutput out) throws IOException {
+            command.shardId().writeTo(out);
+            out.writeString(command.fromNode());
+            out.writeString(command.toNode());
+        }
+
+        @Override
+        public MoveAllocationCommand fromXContent(XContentParser parser) throws IOException {
+            String index = null;
+            int shardId = -1;
+            String fromNode = null;
+            String toNode = null;
+
+            String currentFieldName = null;
+            XContentParser.Token token;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (token.isValue()) {
+                    if ("index".equals(currentFieldName)) {
+                        index = parser.text();
+                    } else if ("shard".equals(currentFieldName)) {
+                        shardId = parser.intValue();
+                    } else if ("from_node".equals(currentFieldName) || "fromNode".equals(currentFieldName)) {
+                        fromNode = parser.text();
+                    } else if ("to_node".equals(currentFieldName) || "toNode".equals(currentFieldName)) {
+                        toNode = parser.text();
+                    } else {
+                        throw new ElasticSearchParseException("[move] command does not support field [" + currentFieldName + "]");
+                    }
+                } else {
+                    throw new ElasticSearchParseException("[move] command does not support complex json tokens [" + token + "]");
+                }
+            }
+            if (index == null) {
+                throw new ElasticSearchParseException("[move] command missing the index parameter");
+            }
+            if (shardId == -1) {
+                throw new ElasticSearchParseException("[move] command missing the shard parameter");
+            }
+            if (fromNode == null) {
+                throw new ElasticSearchParseException("[move] command missing the from_node parameter");
+            }
+            if (toNode == null) {
+                throw new ElasticSearchParseException("[move] command missing the to_node parameter");
+            }
+            return new MoveAllocationCommand(new ShardId(index, shardId), fromNode, toNode);
+        }
+
+        @Override
+        public void toXContent(MoveAllocationCommand command, XContentBuilder builder, ToXContent.Params params) throws IOException {
+            builder.startObject();
+            builder.field("index", command.shardId().index());
+            builder.field("shard", command.shardId().id());
+            builder.field("from_node", command.fromNode());
+            builder.field("to_node", command.toNode());
+            builder.endObject();
+        }
+    }
+
     private final ShardId shardId;
-    @Nullable
     private final String fromNode;
     private final String toNode;
 
-    public MoveAllocationCommand(ShardId shardId, @Nullable String fromNode, String toNode) {
+    public MoveAllocationCommand(ShardId shardId, String fromNode, String toNode) {
         this.shardId = shardId;
         this.fromNode = fromNode;
         this.toNode = toNode;
     }
 
     @Override
+    public String name() {
+        return NAME;
+    }
+
+    public ShardId shardId() {
+        return this.shardId;
+    }
+
+    public String fromNode() {
+        return this.fromNode;
+    }
+
+    public String toNode() {
+        return this.toNode;
+    }
+
+    @Override
     public void execute(RoutingAllocation allocation) throws ElasticSearchException {
-        DiscoveryNode from = allocation.nodes().resolveNode(fromNode);
-        DiscoveryNode to = allocation.nodes().resolveNode(toNode);
+        DiscoveryNode fromDiscoNode = allocation.nodes().resolveNode(fromNode);
+        DiscoveryNode toDiscoNode = allocation.nodes().resolveNode(toNode);
 
         boolean found = false;
-        for (MutableShardRouting shardRouting : allocation.routingNodes().node(from.id())) {
+        for (MutableShardRouting shardRouting : allocation.routingNodes().node(fromDiscoNode.id())) {
             if (!shardRouting.shardId().equals(shardId)) {
                 continue;
             }
@@ -64,10 +157,10 @@ public class MoveAllocationCommand implements AllocationCommand {
                 throw new ElasticSearchIllegalArgumentException("[move_allocation] can't move " + shardId + ", shard is not started (state = " + shardRouting.state() + "]");
             }
 
-            RoutingNode toRoutingNode = allocation.routingNodes().node(to.id());
+            RoutingNode toRoutingNode = allocation.routingNodes().node(toDiscoNode.id());
             AllocationDecider.Decision decision = allocation.deciders().canAllocate(shardRouting, toRoutingNode, allocation);
             if (!decision.allowed()) {
-                throw new ElasticSearchIllegalArgumentException("[move_allocation] can't move " + shardId + ", from " + from + ", to " + to + ", since its not allowed");
+                throw new ElasticSearchIllegalArgumentException("[move_allocation] can't move " + shardId + ", from " + fromDiscoNode + ", to " + toDiscoNode + ", since its not allowed");
             }
             if (!decision.allocate()) {
                 // its being throttled, maybe have a flag to take it into account and fail? for now, just do it since the "user" wants it...
@@ -81,7 +174,7 @@ public class MoveAllocationCommand implements AllocationCommand {
         }
 
         if (!found) {
-            throw new ElasticSearchIllegalArgumentException("[move_allocation] can't move " + shardId + ", failed to find it on node " + from);
+            throw new ElasticSearchIllegalArgumentException("[move_allocation] can't move " + shardId + ", failed to find it on node " + fromDiscoNode);
         }
     }
 }

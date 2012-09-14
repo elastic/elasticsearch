@@ -72,7 +72,7 @@ public class HasParentQueryParser implements QueryParser {
                         QueryParseContext.setTypes(origTypes);
                     }
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[has_parent] filter does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext.index(), "[has_parent] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("type".equals(currentFieldName) || "parent_type".equals(currentFieldName) || "parentType".equals(currentFieldName)) {
@@ -84,24 +84,24 @@ public class HasParentQueryParser implements QueryParser {
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[has_parent] filter does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext.index(), "[has_parent] query does not support [" + currentFieldName + "]");
                 }
             }
         }
         if (!queryFound) {
-            throw new QueryParsingException(parseContext.index(), "[parent] filter requires 'query' field");
+            throw new QueryParsingException(parseContext.index(), "[parent] query requires 'query' field");
         }
         if (query == null) {
             return null;
         }
 
         if (parentType == null) {
-            throw new QueryParsingException(parseContext.index(), "[parent] filter requires 'parent_type' field");
+            throw new QueryParsingException(parseContext.index(), "[parent] query requires 'parent_type' field");
         }
 
         DocumentMapper parentDocMapper = parseContext.mapperService().documentMapper(parentType);
         if (parentDocMapper == null) {
-            throw new QueryParsingException(parseContext.index(), "[parent] filter configured 'parent_type' [" + parentType + "] is not a valid type");
+            throw new QueryParsingException(parseContext.index(), "[parent] query configured 'parent_type' [" + parentType + "] is not a valid type");
         }
 
         query.setBoost(boost);

@@ -140,7 +140,9 @@ public abstract class HasChildFilter extends Filter implements ScopePhase.Collec
         }
 
         public void clear() {
-            CacheRecycler.pushHashSet(collectedUids);
+            if (collectedUids != null) {
+                CacheRecycler.pushHashSet(collectedUids);
+            }
             collectedUids = null;
         }
 

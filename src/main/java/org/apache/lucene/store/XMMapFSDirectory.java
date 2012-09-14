@@ -27,7 +27,7 @@ import java.io.IOException;
 
 /**
  */
-public class XMMapFSDirectory extends NIOFSDirectory {
+public class XMMapFSDirectory extends MMapDirectory {
 
     private final StoreRateLimiting.Provider rateLimitingProvider;
 

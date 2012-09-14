@@ -550,6 +550,17 @@ public abstract class QueryBuilders {
         return new HasChildQueryBuilder(type, query);
     }
 
+    /**
+     * Constructs a new NON scoring parent query, with the parent type and the query to run on the parent documents. The
+     * results of this query are the children docs that those parent docs matched.
+     *
+     * @param type  The parent type.
+     * @param query The query.
+     */
+    public static HasParentQueryBuilder hasParentQuery(String type, QueryBuilder query) {
+        return new HasParentQueryBuilder(type, query);
+    }
+
     public static NestedQueryBuilder nestedQuery(String path, QueryBuilder query) {
         return new NestedQueryBuilder(path, query);
     }

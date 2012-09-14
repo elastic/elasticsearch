@@ -44,6 +44,7 @@ public class IndicesQueriesRegistry {
         addQueryParser(queryParsers, new MultiMatchQueryParser());
         addQueryParser(queryParsers, new NestedQueryParser());
         addQueryParser(queryParsers, new HasChildQueryParser());
+        addQueryParser(queryParsers, new HasParentQueryParser());
         addQueryParser(queryParsers, new TopChildrenQueryParser());
         addQueryParser(queryParsers, new DisMaxQueryParser());
         addQueryParser(queryParsers, new IdsQueryParser());

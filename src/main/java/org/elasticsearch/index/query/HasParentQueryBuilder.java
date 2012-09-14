@@ -31,7 +31,6 @@ public class HasParentQueryBuilder extends BaseQueryBuilder implements Boostable
     private final QueryBuilder queryBuilder;
     private final String parentType;
     private String scope;
-    private String filterName;
     private String executionType;
     private float boost = 1.0f;
 
@@ -46,11 +45,6 @@ public class HasParentQueryBuilder extends BaseQueryBuilder implements Boostable
 
     public HasParentQueryBuilder scope(String scope) {
         this.scope = scope;
-        return this;
-    }
-
-    public HasParentQueryBuilder filterName(String filterName) {
-        this.filterName = filterName;
         return this;
     }
 
@@ -76,9 +70,6 @@ public class HasParentQueryBuilder extends BaseQueryBuilder implements Boostable
         builder.field("parent_type", parentType);
         if (scope != null) {
             builder.field("_scope", scope);
-        }
-        if (filterName != null) {
-            builder.field("_name", filterName);
         }
         if (executionType != null) {
             builder.field("execution_type", executionType);

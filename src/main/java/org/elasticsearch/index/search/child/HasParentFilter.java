@@ -21,7 +21,10 @@ package org.elasticsearch.index.search.child;
 
 import gnu.trove.set.hash.THashSet;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.CacheRecycler;
@@ -107,7 +110,9 @@ public abstract class HasParentFilter extends Filter implements ScopePhase.Colle
         }
 
         public void clear() {
-            CacheRecycler.pushHashSet(parents);
+            if (parents != null) {
+                CacheRecycler.pushHashSet(parents);
+            }
             parents = null;
         }
 

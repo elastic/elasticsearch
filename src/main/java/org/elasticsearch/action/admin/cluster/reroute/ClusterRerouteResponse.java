@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.cluster.reroute;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -29,14 +30,31 @@ import java.io.IOException;
  */
 public class ClusterRerouteResponse implements ActionResponse {
 
+    private ClusterState state;
+
     ClusterRerouteResponse() {
+
+    }
+
+    ClusterRerouteResponse(ClusterState state) {
+        this.state = state;
+    }
+
+    public ClusterState state() {
+        return this.state;
+    }
+
+    public ClusterState getState() {
+        return this.state;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        state = ClusterState.Builder.readFrom(in, null);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        ClusterState.Builder.writeTo(state, out);
     }
 }

@@ -22,6 +22,8 @@ package org.elasticsearch.action.admin.cluster.reroute;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.support.BaseClusterRequestBuilder;
 import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**
@@ -30,6 +32,29 @@ public class ClusterRerouteRequestBuilder extends BaseClusterRequestBuilder<Clus
 
     public ClusterRerouteRequestBuilder(ClusterAdminClient clusterClient) {
         super(clusterClient, new ClusterRerouteRequest());
+    }
+
+    /**
+     * Adds allocation commands to be applied to the cluster. Note, can be empty, in which case
+     * will simply run a simple "reroute".
+     */
+    public ClusterRerouteRequestBuilder add(AllocationCommand... commands) {
+        request.add(commands);
+        return this;
+    }
+
+    /**
+     * Sets a dry run flag (defaults to <tt>false</tt>) allowing to run the commands without
+     * actually applying them to the cluster state, and getting the resulting cluster state back.
+     */
+    public ClusterRerouteRequestBuilder setDryRun(boolean dryRun) {
+        request.dryRun(dryRun);
+        return this;
+    }
+
+    public ClusterRerouteRequestBuilder setSource(BytesReference source) throws Exception {
+        request.source(source);
+        return this;
     }
 
     /**

@@ -70,19 +70,26 @@ public class TransportClusterRerouteAction extends TransportMasterNodeOperationA
     }
 
     @Override
-    protected ClusterRerouteResponse masterOperation(ClusterRerouteRequest request, ClusterState state) throws ElasticSearchException {
+    protected ClusterRerouteResponse masterOperation(final ClusterRerouteRequest request, ClusterState state) throws ElasticSearchException {
         final AtomicReference<Throwable> failureRef = new AtomicReference<Throwable>();
+        final AtomicReference<ClusterState> clusterStateResponse = new AtomicReference<ClusterState>();
         final CountDownLatch latch = new CountDownLatch(1);
 
         clusterService.submitStateUpdateTask("cluster_reroute (api)", new ProcessedClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 try {
-                    RoutingAllocation.Result routingResult = allocationService.reroute(currentState);
-                    return newClusterStateBuilder().state(currentState).routingResult(routingResult).build();
+                    RoutingAllocation.Result routingResult = allocationService.reroute(currentState, request.commands);
+                    ClusterState newState = newClusterStateBuilder().state(currentState).routingResult(routingResult).build();
+                    clusterStateResponse.set(newState);
+                    if (request.dryRun) {
+                        return currentState;
+                    }
+                    return newState;
                 } catch (Exception e) {
+                    logger.debug("failed to reroute", e);
+                    failureRef.set(e);
                     latch.countDown();
-                    logger.warn("failed to reroute", e);
                     return currentState;
                 } finally {
                     // we don't release the latch here, only after we rerouted
@@ -109,7 +116,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeOperationA
             }
         }
 
-        return new ClusterRerouteResponse();
+        return new ClusterRerouteResponse(clusterStateResponse.get());
 
     }
 }

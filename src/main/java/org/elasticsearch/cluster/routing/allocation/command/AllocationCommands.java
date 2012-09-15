@@ -126,25 +126,25 @@ public class AllocationCommands {
     public static AllocationCommands fromXContent(XContentParser parser) throws IOException {
         AllocationCommands commands = new AllocationCommands();
 
-        XContentParser.Token token = parser.nextToken();
+        XContentParser.Token token = parser.currentToken();
         if (token == null) {
             throw new ElasticSearchParseException("No commands");
         }
-        if (token != XContentParser.Token.START_OBJECT) {
-            throw new ElasticSearchParseException("No start object, got " + token);
-        }
-
-        token = parser.nextToken();
-        if (token != XContentParser.Token.FIELD_NAME) {
-            throw new ElasticSearchParseException("expected the field name `commands` to exists, got " + token);
-        }
-        if (!parser.currentName().equals("commands")) {
-            throw new ElasticSearchParseException("expected field name to be named `commands`, got " + parser.currentName());
-        }
-
-        token = parser.nextToken();
-        if (token != XContentParser.Token.START_ARRAY) {
-            throw new ElasticSearchParseException("commands should follow with an array element");
+        if (token == XContentParser.Token.FIELD_NAME) {
+            if (!parser.currentName().equals("commands")) {
+                throw new ElasticSearchParseException("expected field name to be named `commands`, got " + parser.currentName());
+            }
+            if (!parser.currentName().equals("commands")) {
+                throw new ElasticSearchParseException("expected field name to be named `commands`, got " + parser.currentName());
+            }
+            token = parser.nextToken();
+            if (token != XContentParser.Token.START_ARRAY) {
+                throw new ElasticSearchParseException("commands should follow with an array element");
+            }
+        } else if (token == XContentParser.Token.START_ARRAY) {
+            // ok...
+        } else {
+            throw new ElasticSearchParseException("expected either field name commands, or start array, got " + token);
         }
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             if (token == XContentParser.Token.START_OBJECT) {
@@ -165,7 +165,6 @@ public class AllocationCommands {
     }
 
     public static void toXContent(AllocationCommands commands, XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.startObject();
         builder.startArray("commands");
         for (AllocationCommand command : commands.commands) {
             builder.startObject();
@@ -174,6 +173,5 @@ public class AllocationCommands {
             builder.endObject();
         }
         builder.endArray();
-        builder.endObject();
     }
 }

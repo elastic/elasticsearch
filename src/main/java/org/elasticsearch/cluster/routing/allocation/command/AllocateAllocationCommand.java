@@ -160,7 +160,6 @@ public class AllocateAllocationCommand implements AllocationCommand {
         }
 
         RoutingNode routingNode = allocation.routingNodes().node(discoNode.id());
-        allocation.addIgnoreDisable(shardRouting.shardId(), routingNode.nodeId());
         if (!allocation.deciders().canAllocate(shardRouting, routingNode, allocation).allowed()) {
             throw new ElasticSearchIllegalArgumentException("[allocate] allocation of " + shardId + " on node " + discoNode + " is not allowed");
         }

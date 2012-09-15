@@ -35,6 +35,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.shard.ShardId;
 import org.testng.annotations.Test;
@@ -184,7 +185,7 @@ public class AllocationCommandsTests {
     }
 
     @Test
-    public void cacnelCommand() {
+    public void cancelCommand() {
         AllocationService allocation = new AllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.disable_allocation", true)
                 .build());
@@ -322,7 +323,11 @@ public class AllocationCommandsTests {
                 "       ,{\"cancel\" : {\"index\" : \"test\", \"shard\" : 4, \"node\" : \"node5\"}} \n" +
                 "    ]\n" +
                 "}\n";
-        AllocationCommands sCommands = AllocationCommands.fromXContent(XContentFactory.xContent(XContentType.JSON).createParser(commands));
+        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(commands);
+        // move two tokens, parser expected to be "on" `commands` field
+        parser.nextToken();
+        parser.nextToken();
+        AllocationCommands sCommands = AllocationCommands.fromXContent(parser);
 
         assertThat(sCommands.commands().size(), equalTo(3));
         assertThat(((AllocateAllocationCommand) (sCommands.commands().get(0))).shardId(), equalTo(new ShardId("test", 1)));

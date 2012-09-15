@@ -27,7 +27,9 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
 
@@ -35,10 +37,13 @@ import java.io.IOException;
  */
 public class RestClusterRerouteAction extends BaseRestHandler {
 
+    private final SettingsFilter settingsFilter;
+
     @Inject
     public RestClusterRerouteAction(Settings settings, Client client, RestController controller,
                                     SettingsFilter settingsFilter) {
         super(settings, client);
+        this.settingsFilter = settingsFilter;
         controller.registerHandler(RestRequest.Method.POST, "/_cluster/reroute", this);
     }
 
@@ -46,11 +51,37 @@ public class RestClusterRerouteAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         final ClusterRerouteRequest clusterRerouteRequest = Requests.clusterRerouteRequest();
         clusterRerouteRequest.listenerThreaded(false);
+        clusterRerouteRequest.dryRun(request.paramAsBoolean("dry_run", clusterRerouteRequest.dryRun()));
+        if (request.hasContent()) {
+            try {
+                clusterRerouteRequest.source(request.content());
+            } catch (Exception e) {
+                try {
+                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                } catch (IOException e1) {
+                    logger.warn("Failed to send response", e1);
+                }
+                return;
+            }
+        }
         client.admin().cluster().reroute(clusterRerouteRequest, new ActionListener<ClusterRerouteResponse>() {
             @Override
             public void onResponse(ClusterRerouteResponse response) {
                 try {
-                    channel.sendResponse(new StringRestResponse(RestStatus.OK));
+                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
+                    builder.startObject();
+
+                    builder.field("ok", true);
+                    builder.startObject("state");
+                    // by default, filter metadata
+                    if (request.param("filter_metadata") == null) {
+                        request.params().put("filter_metadata", "true");
+                    }
+                    response.state().settingsFilter(settingsFilter).toXContent(builder, request);
+                    builder.endObject();
+
+                    builder.endObject();
+                    channel.sendResponse(new XContentRestResponse(request, RestStatus.OK, builder));
                 } catch (Exception e) {
                     onFailure(e);
                 }

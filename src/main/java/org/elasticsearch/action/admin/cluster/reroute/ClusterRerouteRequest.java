@@ -19,10 +19,16 @@
 
 package org.elasticsearch.action.admin.cluster.reroute;
 
+import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -30,7 +36,63 @@ import java.io.IOException;
  */
 public class ClusterRerouteRequest extends MasterNodeOperationRequest {
 
+    AllocationCommands commands = new AllocationCommands();
+    boolean dryRun;
+
     public ClusterRerouteRequest() {
+    }
+
+    /**
+     * Adds allocation commands to be applied to the cluster. Note, can be empty, in which case
+     * will simply run a simple "reroute".
+     */
+    public ClusterRerouteRequest add(AllocationCommand... commands) {
+        this.commands.add(commands);
+        return this;
+    }
+
+    /**
+     * Sets a dry run flag (defaults to <tt>false</tt>) allowing to run the commands without
+     * actually applying them to the cluster state, and getting the resulting cluster state back.
+     */
+    public ClusterRerouteRequest dryRun(boolean dryRun) {
+        this.dryRun = dryRun;
+        return this;
+    }
+
+    public boolean dryRun() {
+        return this.dryRun;
+    }
+
+    /**
+     * Sets the source for the request.
+     */
+    public ClusterRerouteRequest source(BytesReference source) throws Exception {
+        XContentParser parser = XContentHelper.createParser(source);
+        try {
+            XContentParser.Token token;
+            String currentFieldName = null;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (token == XContentParser.Token.START_ARRAY) {
+                    if ("commands".equals(currentFieldName)) {
+                        this.commands = AllocationCommands.fromXContent(parser);
+                    } else {
+                        throw new ElasticSearchParseException("failed to parse reroute request, got start array with wrong field name [" + currentFieldName + "]");
+                    }
+                } else if (token.isValue()) {
+                    if ("dry_run".equals(currentFieldName) || "dryRun".equals(currentFieldName)) {
+                        dryRun = parser.booleanValue();
+                    } else {
+                        throw new ElasticSearchParseException("failed to parse reroute request, got value with wrong field name [" + currentFieldName + "]");
+                    }
+                }
+            }
+        } finally {
+            parser.close();
+        }
+        return this;
     }
 
     @Override
@@ -41,10 +103,14 @@ public class ClusterRerouteRequest extends MasterNodeOperationRequest {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
+        commands = AllocationCommands.readFrom(in);
+        dryRun = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        AllocationCommands.writeTo(commands, out);
+        out.writeBoolean(dryRun);
     }
 }

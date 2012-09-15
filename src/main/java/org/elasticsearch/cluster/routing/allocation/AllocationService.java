@@ -113,7 +113,11 @@ public class AllocationService extends AbstractComponent {
         // a consistent result of the effect the commands have on the routing
         // this allows systems to dry run the commands, see the resulting cluster state, and act on it
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, clusterState.nodes());
+        // we ignore disable allocation, because commands are explicit
+        allocation.ignoreDisable(true);
         commands.execute(allocation);
+        // we revert the ignore disable flag, since when rerouting, we want the original setting to take place
+        allocation.ignoreDisable(false);
         // the assumption is that commands will move / act on shards (or fail through exceptions)
         // so, there will always be shard "movements", so no need to check on reroute
         reroute(allocation);

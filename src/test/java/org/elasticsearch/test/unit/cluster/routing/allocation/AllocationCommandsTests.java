@@ -219,7 +219,7 @@ public class AllocationCommandsTests {
 
         logger.info("--> cancel primary allocation, make sure it fails...");
         try {
-            allocation.reroute(clusterState, new AllocationCommands(new CancelAllocationCommand(new ShardId("test", 0), "node1")));
+            allocation.reroute(clusterState, new AllocationCommands(new CancelAllocationCommand(new ShardId("test", 0), "node1", false)));
             assert false;
         } catch (ElasticSearchIllegalArgumentException e) {
         }
@@ -233,7 +233,7 @@ public class AllocationCommandsTests {
 
         logger.info("--> cancel primary allocation, make sure it fails...");
         try {
-            allocation.reroute(clusterState, new AllocationCommands(new CancelAllocationCommand(new ShardId("test", 0), "node1")));
+            allocation.reroute(clusterState, new AllocationCommands(new CancelAllocationCommand(new ShardId("test", 0), "node1", false)));
             assert false;
         } catch (ElasticSearchIllegalArgumentException e) {
         }
@@ -248,7 +248,7 @@ public class AllocationCommandsTests {
         assertThat(clusterState.routingNodes().node("node2").shardsWithState(INITIALIZING).size(), equalTo(1));
 
         logger.info("--> cancel the relocation allocation");
-        rerouteResult = allocation.reroute(clusterState, new AllocationCommands(new CancelAllocationCommand(new ShardId("test", 0), "node2")));
+        rerouteResult = allocation.reroute(clusterState, new AllocationCommands(new CancelAllocationCommand(new ShardId("test", 0), "node2", false)));
         assertThat(rerouteResult.changed(), equalTo(true));
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(rerouteResult.routingTable()).build();
         assertThat(clusterState.routingNodes().node("node1").shards().size(), equalTo(1));
@@ -265,9 +265,9 @@ public class AllocationCommandsTests {
         assertThat(clusterState.routingNodes().node("node2").shards().size(), equalTo(1));
         assertThat(clusterState.routingNodes().node("node2").shardsWithState(INITIALIZING).size(), equalTo(1));
 
-        logger.info("--> cancel the primary being relocated, make sure it fails");
+        logger.info("--> cancel the primary being replicated, make sure it fails");
         try {
-            allocation.reroute(clusterState, new AllocationCommands(new CancelAllocationCommand(new ShardId("test", 0), "node1")));
+            allocation.reroute(clusterState, new AllocationCommands(new CancelAllocationCommand(new ShardId("test", 0), "node1", false)));
             assert false;
         } catch (ElasticSearchIllegalArgumentException e) {
         }
@@ -281,12 +281,36 @@ public class AllocationCommandsTests {
         assertThat(clusterState.routingNodes().node("node2").shardsWithState(STARTED).size(), equalTo(1));
 
         logger.info("--> cancel allocation of the replica shard");
-        rerouteResult = allocation.reroute(clusterState, new AllocationCommands(new CancelAllocationCommand(new ShardId("test", 0), "node2")));
+        rerouteResult = allocation.reroute(clusterState, new AllocationCommands(new CancelAllocationCommand(new ShardId("test", 0), "node2", false)));
         assertThat(rerouteResult.changed(), equalTo(true));
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(rerouteResult.routingTable()).build();
         assertThat(clusterState.routingNodes().node("node1").shards().size(), equalTo(1));
         assertThat(clusterState.routingNodes().node("node1").shardsWithState(STARTED).size(), equalTo(1));
         assertThat(clusterState.routingNodes().node("node2").shards().size(), equalTo(0));
+        assertThat(clusterState.routingNodes().node("node3").shards().size(), equalTo(0));
+
+        logger.info("--> allocate the replica shard on on the second node");
+        rerouteResult = allocation.reroute(clusterState, new AllocationCommands(new AllocateAllocationCommand(new ShardId("test", 0), "node2", false)));
+        clusterState = newClusterStateBuilder().state(clusterState).routingTable(rerouteResult.routingTable()).build();
+        assertThat(rerouteResult.changed(), equalTo(true));
+        assertThat(clusterState.routingNodes().node("node1").shards().size(), equalTo(1));
+        assertThat(clusterState.routingNodes().node("node1").shardsWithState(STARTED).size(), equalTo(1));
+        assertThat(clusterState.routingNodes().node("node2").shards().size(), equalTo(1));
+        assertThat(clusterState.routingNodes().node("node2").shardsWithState(INITIALIZING).size(), equalTo(1));
+        logger.info("--> start the replica shard");
+        rerouteResult = allocation.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING));
+        clusterState = newClusterStateBuilder().state(clusterState).routingTable(rerouteResult.routingTable()).build();
+        assertThat(clusterState.routingNodes().node("node1").shards().size(), equalTo(1));
+        assertThat(clusterState.routingNodes().node("node1").shardsWithState(STARTED).size(), equalTo(1));
+        assertThat(clusterState.routingNodes().node("node2").shards().size(), equalTo(1));
+        assertThat(clusterState.routingNodes().node("node2").shardsWithState(STARTED).size(), equalTo(1));
+
+        logger.info("--> cancel the primary allocation (with allow_primary set to true)");
+        rerouteResult = allocation.reroute(clusterState, new AllocationCommands(new CancelAllocationCommand(new ShardId("test", 0), "node1", true)));
+        clusterState = newClusterStateBuilder().state(clusterState).routingTable(rerouteResult.routingTable()).build();
+        assertThat(rerouteResult.changed(), equalTo(true));
+        assertThat(clusterState.routingNodes().node("node2").shardsWithState(STARTED).get(0).primary(), equalTo(true));
+        assertThat(clusterState.routingNodes().node("node1").shards().size(), equalTo(0));
         assertThat(clusterState.routingNodes().node("node3").shards().size(), equalTo(0));
     }
 
@@ -295,7 +319,7 @@ public class AllocationCommandsTests {
         AllocationCommands commands = new AllocationCommands(
                 new AllocateAllocationCommand(new ShardId("test", 1), "node1", true),
                 new MoveAllocationCommand(new ShardId("test", 3), "node2", "node3"),
-                new CancelAllocationCommand(new ShardId("test", 4), "node5")
+                new CancelAllocationCommand(new ShardId("test", 4), "node5", true)
         );
         BytesStreamOutput bytes = new BytesStreamOutput();
         AllocationCommands.writeTo(commands, bytes);
@@ -312,6 +336,7 @@ public class AllocationCommandsTests {
 
         assertThat(((CancelAllocationCommand) (sCommands.commands().get(2))).shardId(), equalTo(new ShardId("test", 4)));
         assertThat(((CancelAllocationCommand) (sCommands.commands().get(2))).node(), equalTo("node5"));
+        assertThat(((CancelAllocationCommand) (sCommands.commands().get(2))).allowPrimary(), equalTo(true));
     }
 
     @Test
@@ -320,7 +345,7 @@ public class AllocationCommandsTests {
                 "    \"commands\" : [\n" +
                 "        {\"allocate\" : {\"index\" : \"test\", \"shard\" : 1, \"node\" : \"node1\", \"allow_primary\" : true}}\n" +
                 "       ,{\"move\" : {\"index\" : \"test\", \"shard\" : 3, \"from_node\" : \"node2\", \"to_node\" : \"node3\"}} \n" +
-                "       ,{\"cancel\" : {\"index\" : \"test\", \"shard\" : 4, \"node\" : \"node5\"}} \n" +
+                "       ,{\"cancel\" : {\"index\" : \"test\", \"shard\" : 4, \"node\" : \"node5\", \"allow_primary\" : true}} \n" +
                 "    ]\n" +
                 "}\n";
         XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(commands);
@@ -340,5 +365,6 @@ public class AllocationCommandsTests {
 
         assertThat(((CancelAllocationCommand) (sCommands.commands().get(2))).shardId(), equalTo(new ShardId("test", 4)));
         assertThat(((CancelAllocationCommand) (sCommands.commands().get(2))).node(), equalTo("node5"));
+        assertThat(((CancelAllocationCommand) (sCommands.commands().get(2))).allowPrimary(), equalTo(true));
     }
 }

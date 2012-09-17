@@ -285,8 +285,8 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
                         indexRoutingTableBuilders.put(index, indexBuilder);
                     }
 
-                    boolean allocatedPostApi = routingNodes.routingTable().index(shardRoutingEntry.index()).shard(shardRoutingEntry.id()).allocatedPostApi();
-                    indexBuilder.addShard(new ImmutableShardRouting(shardRoutingEntry), !allocatedPostApi);
+                    IndexShardRoutingTable refData = routingNodes.routingTable().index(shardRoutingEntry.index()).shard(shardRoutingEntry.id());
+                    indexBuilder.addShard(refData, shardRoutingEntry);
                 }
             }
             for (MutableShardRouting shardRoutingEntry : Iterables.concat(routingNodes.unassigned(), routingNodes.ignoredUnassigned())) {
@@ -296,8 +296,8 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
                     indexBuilder = new IndexRoutingTable.Builder(index);
                     indexRoutingTableBuilders.put(index, indexBuilder);
                 }
-                boolean allocatedPostApi = routingNodes.routingTable().index(shardRoutingEntry.index()).shard(shardRoutingEntry.id()).allocatedPostApi();
-                indexBuilder.addShard(new ImmutableShardRouting(shardRoutingEntry), !allocatedPostApi);
+                IndexShardRoutingTable refData = routingNodes.routingTable().index(shardRoutingEntry.index()).shard(shardRoutingEntry.id());
+                indexBuilder.addShard(refData, shardRoutingEntry);
             }
             for (IndexRoutingTable.Builder indexBuilder : indexRoutingTableBuilders.values()) {
                 add(indexBuilder);
@@ -341,10 +341,19 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
             return this;
         }
 
-        public Builder add(IndexMetaData indexMetaData, boolean fromApi) {
+        public Builder addAsNew(IndexMetaData indexMetaData) {
             if (indexMetaData.state() == IndexMetaData.State.OPEN) {
                 IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(indexMetaData.index())
-                        .initializeEmpty(indexMetaData, fromApi);
+                        .initializeAsNew(indexMetaData);
+                add(indexRoutingBuilder);
+            }
+            return this;
+        }
+
+        public Builder addAsRecovery(IndexMetaData indexMetaData) {
+            if (indexMetaData.state() == IndexMetaData.State.OPEN) {
+                IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(indexMetaData.index())
+                        .initializeAsRecovery(indexMetaData);
                 add(indexRoutingBuilder);
             }
             return this;

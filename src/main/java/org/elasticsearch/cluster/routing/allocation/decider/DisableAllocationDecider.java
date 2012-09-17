@@ -33,6 +33,7 @@ public class DisableAllocationDecider extends AllocationDecider {
 
     static {
         MetaData.addDynamicSettings(
+                "cluster.routing.allocation.disable_new_allocation",
                 "cluster.routing.allocation.disable_allocation",
                 "cluster.routing.allocation.disable_replica_allocation"
         );
@@ -41,6 +42,12 @@ public class DisableAllocationDecider extends AllocationDecider {
     class ApplySettings implements NodeSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
+            boolean disableNewAllocation = settings.getAsBoolean("cluster.routing.allocation.disable_new_allocation", DisableAllocationDecider.this.disableNewAllocation);
+            if (disableNewAllocation != DisableAllocationDecider.this.disableNewAllocation) {
+                logger.info("updating [cluster.routing.allocation.disable_new_allocation] from [{}] to [{}]", DisableAllocationDecider.this.disableNewAllocation, disableNewAllocation);
+                DisableAllocationDecider.this.disableNewAllocation = disableNewAllocation;
+            }
+
             boolean disableAllocation = settings.getAsBoolean("cluster.routing.allocation.disable_allocation", DisableAllocationDecider.this.disableAllocation);
             if (disableAllocation != DisableAllocationDecider.this.disableAllocation) {
                 logger.info("updating [cluster.routing.allocation.disable_allocation] from [{}] to [{}]", DisableAllocationDecider.this.disableAllocation, disableAllocation);
@@ -55,12 +62,14 @@ public class DisableAllocationDecider extends AllocationDecider {
         }
     }
 
+    private volatile boolean disableNewAllocation;
     private volatile boolean disableAllocation;
     private volatile boolean disableReplicaAllocation;
 
     @Inject
     public DisableAllocationDecider(Settings settings, NodeSettingsService nodeSettingsService) {
         super(settings);
+        this.disableNewAllocation = settings.getAsBoolean("cluster.routing.allocation.disable_new_allocation", false);
         this.disableAllocation = settings.getAsBoolean("cluster.routing.allocation.disable_allocation", false);
         this.disableReplicaAllocation = settings.getAsBoolean("cluster.routing.allocation.disable_replica_allocation", false);
 
@@ -69,6 +78,11 @@ public class DisableAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        if (shardRouting.primary() && !allocation.routingNodes().routingTable().index(shardRouting.index()).shard(shardRouting.id()).primaryAllocatedPostApi()) {
+            // if its primary, and it hasn't been allocated post API (meaning its a "fresh newly created shard"), only disable allocation
+            // on a special disable allocation flag
+            return allocation.ignoreDisable() ? Decision.YES : disableNewAllocation ? Decision.NO : Decision.YES;
+        }
         if (disableAllocation) {
             return allocation.ignoreDisable() ? Decision.YES : Decision.NO;
         }

@@ -49,7 +49,7 @@ public class HasParentQueryBuilder extends BaseQueryBuilder implements Boostable
     }
 
     /**
-     * Expert: Sets the low level parent to child filtering implementation. Can be: 'indirect' or 'uid'
+     * Expert: Sets the low level parent to child filtering implementation. Can be: 'bitset' or 'uid'
      *
      * This option is experimental and will be removed.
      */

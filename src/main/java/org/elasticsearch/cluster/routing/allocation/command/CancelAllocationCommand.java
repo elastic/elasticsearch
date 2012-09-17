@@ -51,13 +51,14 @@ public class CancelAllocationCommand implements AllocationCommand {
 
         @Override
         public CancelAllocationCommand readFrom(StreamInput in) throws IOException {
-            return new CancelAllocationCommand(ShardId.readShardId(in), in.readString());
+            return new CancelAllocationCommand(ShardId.readShardId(in), in.readString(), in.readBoolean());
         }
 
         @Override
         public void writeTo(CancelAllocationCommand command, StreamOutput out) throws IOException {
             command.shardId().writeTo(out);
             out.writeString(command.node());
+            out.writeBoolean(command.allowPrimary());
         }
 
         @Override
@@ -65,6 +66,7 @@ public class CancelAllocationCommand implements AllocationCommand {
             String index = null;
             int shardId = -1;
             String nodeId = null;
+            boolean allowPrimary = false;
 
             String currentFieldName = null;
             XContentParser.Token token;
@@ -78,6 +80,8 @@ public class CancelAllocationCommand implements AllocationCommand {
                         shardId = parser.intValue();
                     } else if ("node".equals(currentFieldName)) {
                         nodeId = parser.text();
+                    } else if ("allow_primary".equals(currentFieldName) || "allowPrimary".equals(currentFieldName)) {
+                        allowPrimary = parser.booleanValue();
                     } else {
                         throw new ElasticSearchParseException("[cancel] command does not support field [" + currentFieldName + "]");
                     }
@@ -94,7 +98,7 @@ public class CancelAllocationCommand implements AllocationCommand {
             if (nodeId == null) {
                 throw new ElasticSearchParseException("[cancel] command missing the node parameter");
             }
-            return new CancelAllocationCommand(new ShardId(index, shardId), nodeId);
+            return new CancelAllocationCommand(new ShardId(index, shardId), nodeId, allowPrimary);
         }
 
         @Override
@@ -103,6 +107,7 @@ public class CancelAllocationCommand implements AllocationCommand {
             builder.field("index", command.shardId().index());
             builder.field("shard", command.shardId().id());
             builder.field("node", command.node());
+            builder.field("allow_primary", command.allowPrimary());
             builder.endObject();
         }
     }
@@ -110,10 +115,12 @@ public class CancelAllocationCommand implements AllocationCommand {
 
     private final ShardId shardId;
     private final String node;
+    private final boolean allowPrimary;
 
-    public CancelAllocationCommand(ShardId shardId, String node) {
+    public CancelAllocationCommand(ShardId shardId, String node, boolean allowPrimary) {
         this.shardId = shardId;
         this.node = node;
+        this.allowPrimary = allowPrimary;
     }
 
     @Override
@@ -127,6 +134,10 @@ public class CancelAllocationCommand implements AllocationCommand {
 
     public String node() {
         return this.node;
+    }
+
+    public boolean allowPrimary() {
+        return this.allowPrimary;
     }
 
     @Override
@@ -157,7 +168,7 @@ public class CancelAllocationCommand implements AllocationCommand {
                     }
                 } else if (shardRouting.relocating()) {
                     // the shard is relocating to another node, cancel the recovery on the other node, and deallocate this one
-                    if (shardRouting.primary()) {
+                    if (!allowPrimary && shardRouting.primary()) {
                         // can't cancel a primary shard being initialized
                         throw new ElasticSearchIllegalArgumentException("[cancel_allocation] can't cancel " + shardId + " on node " + discoNode + ", shard is primary and initializing its state");
                     }
@@ -179,9 +190,9 @@ public class CancelAllocationCommand implements AllocationCommand {
                 }
             } else {
                 // the shard is not relocating, its either started, or initializing, just cancel it and move on...
-                if (shardRouting.primary()) {
+                if (!allowPrimary && shardRouting.primary()) {
                     // can't cancel a primary shard being initialized
-                    throw new ElasticSearchIllegalArgumentException("[cancel_allocation] can't cancel " + shardId + " on node " + discoNode + ", shard is primary and initializing its state");
+                    throw new ElasticSearchIllegalArgumentException("[cancel_allocation] can't cancel " + shardId + " on node " + discoNode + ", shard is primary and started");
                 }
                 it.remove();
                 allocation.routingNodes().unassigned().add(new MutableShardRouting(shardRouting.index(), shardRouting.id(),

@@ -615,7 +615,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             if (shardRouting.relocatingNodeId() == null) {
                 // we are the first primary, recover from the gateway
                 // if its post api allocation, the index should exists
-                boolean indexShouldExists = indexShardRouting.allocatedPostApi();
+                boolean indexShouldExists = indexShardRouting.primaryAllocatedPostApi();
                 IndexShardGatewayService shardGatewayService = indexService.shardInjector(shardId).getInstance(IndexShardGatewayService.class);
                 shardGatewayService.recover(indexShouldExists, new IndexShardGatewayService.RecoveryListener() {
                     @Override

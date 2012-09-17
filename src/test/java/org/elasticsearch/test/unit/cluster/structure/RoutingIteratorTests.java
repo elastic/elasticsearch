@@ -37,7 +37,6 @@ import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.newIndexMetaDataBuilder;
 import static org.elasticsearch.cluster.metadata.MetaData.newMetaDataBuilder;
 import static org.elasticsearch.cluster.node.DiscoveryNodes.newNodesBuilder;
-import static org.elasticsearch.cluster.routing.RoutingBuilders.indexRoutingTable;
 import static org.elasticsearch.cluster.routing.RoutingBuilders.routingTable;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -92,7 +91,7 @@ public class RoutingIteratorTests {
                 .put(newIndexMetaDataBuilder("test1").numberOfShards(1).numberOfReplicas(2))
                 .build();
         RoutingTable routingTable = routingTable()
-                .add(indexRoutingTable("test1").initializeEmpty(metaData.index("test1")))
+                .addAsNew(metaData.index("test1"))
                 .build();
 
         ShardIterator shardIterator = routingTable.index("test1").shard(0).shardsIt(0);
@@ -128,8 +127,8 @@ public class RoutingIteratorTests {
                 .build();
 
         RoutingTable routingTable = routingTable()
-                .add(indexRoutingTable("test1").initializeEmpty(metaData.index("test1")))
-                .add(indexRoutingTable("test2").initializeEmpty(metaData.index("test2")))
+                .addAsNew(metaData.index("test1"))
+                .addAsNew(metaData.index("test2"))
                 .build();
 
         ShardIterator shardIterator = routingTable.index("test1").shard(0).shardsIt(0);
@@ -231,8 +230,8 @@ public class RoutingIteratorTests {
                 .build();
 
         RoutingTable routingTable = routingTable()
-                .add(indexRoutingTable("test1").initializeEmpty(metaData.index("test1")))
-                .add(indexRoutingTable("test2").initializeEmpty(metaData.index("test2")))
+                .addAsNew(metaData.index("test1"))
+                .addAsNew(metaData.index("test2"))
                 .build();
 
         ShardIterator shardIterator = routingTable.index("test1").shard(0).shardsRandomIt();
@@ -264,7 +263,7 @@ public class RoutingIteratorTests {
                 .build();
 
         RoutingTable routingTable = routingTable()
-                .add(indexRoutingTable("test").initializeEmpty(metaData.index("test")))
+                .addAsNew(metaData.index("test"))
                 .build();
 
         ClusterState clusterState = newClusterStateBuilder().metaData(metaData).routingTable(routingTable).build();
@@ -313,7 +312,7 @@ public class RoutingIteratorTests {
                 .build();
 
         RoutingTable routingTable = routingTable()
-                .add(indexRoutingTable("test").initializeEmpty(metaData.index("test")))
+                .addAsNew(metaData.index("test"))
                 .build();
 
         ClusterState clusterState = newClusterStateBuilder().metaData(metaData).routingTable(routingTable).build();

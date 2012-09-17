@@ -297,7 +297,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                     if (request.state == State.OPEN) {
                         RoutingTable.Builder routingTableBuilder = RoutingTable.builder().routingTable(updatedState.routingTable())
-                                .add(updatedState.metaData().index(request.index), true);
+                                .addAsNew(updatedState.metaData().index(request.index));
                         RoutingAllocation.Result routingResult = allocationService.reroute(newClusterStateBuilder().state(updatedState).routingTable(routingTableBuilder).build());
                         updatedState = newClusterStateBuilder().state(updatedState).routingResult(routingResult).build();
                     }

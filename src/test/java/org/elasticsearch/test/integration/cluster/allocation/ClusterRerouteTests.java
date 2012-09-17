@@ -60,6 +60,7 @@ public class ClusterRerouteTests extends AbstractNodesTests {
     @Test
     public void rerouteWithCommands() throws Exception {
         Settings commonSettings = settingsBuilder()
+                .put("cluster.routing.allocation.disable_new_allocation", true)
                 .put("cluster.routing.allocation.disable_allocation", true)
                 .build();
 
@@ -122,6 +123,7 @@ public class ClusterRerouteTests extends AbstractNodesTests {
     @Test
     public void rerouteWithAllocateLocalGateway() throws Exception {
         Settings commonSettings = settingsBuilder()
+                .put("cluster.routing.allocation.disable_new_allocation", true)
                 .put("cluster.routing.allocation.disable_allocation", true)
                 .put("gateway.type", "local")
                 .build();

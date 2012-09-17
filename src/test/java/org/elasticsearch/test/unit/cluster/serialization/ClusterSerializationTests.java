@@ -33,7 +33,6 @@ import org.testng.annotations.Test;
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.newIndexMetaDataBuilder;
 import static org.elasticsearch.cluster.metadata.MetaData.newMetaDataBuilder;
-import static org.elasticsearch.cluster.routing.RoutingBuilders.indexRoutingTable;
 import static org.elasticsearch.cluster.routing.RoutingBuilders.routingTable;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -50,7 +49,7 @@ public class ClusterSerializationTests {
                 .build();
 
         RoutingTable routingTable = routingTable()
-                .add(indexRoutingTable("test").initializeEmpty(metaData.index("test")))
+                .addAsNew(metaData.index("test"))
                 .build();
 
         DiscoveryNodes nodes = DiscoveryNodes.newNodesBuilder().put(newNode("node1")).put(newNode("node2")).put(newNode("node3")).localNodeId("node1").masterNodeId("node2").build();
@@ -73,7 +72,7 @@ public class ClusterSerializationTests {
                 .build();
 
         RoutingTable routingTable = routingTable()
-                .add(indexRoutingTable("test").initializeEmpty(metaData.index("test")))
+                .addAsNew(metaData.index("test"))
                 .build();
 
         DiscoveryNodes nodes = DiscoveryNodes.newNodesBuilder().put(newNode("node1")).put(newNode("node2")).put(newNode("node3")).build();

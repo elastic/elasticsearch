@@ -41,10 +41,8 @@ import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.newIndexMetaDataBuilder;
 import static org.elasticsearch.cluster.metadata.MetaData.newMetaDataBuilder;
 import static org.elasticsearch.cluster.node.DiscoveryNodes.newNodesBuilder;
-import static org.elasticsearch.cluster.routing.RoutingBuilders.indexRoutingTable;
 import static org.elasticsearch.cluster.routing.RoutingBuilders.routingTable;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
-import static org.elasticsearch.test.unit.cluster.routing.allocation.RoutingAllocationTests.newNode;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
@@ -67,7 +65,7 @@ public class SingleShardNoReplicasRoutingTests {
                 .build();
 
         RoutingTable routingTable = routingTable()
-                .add(indexRoutingTable("test").initializeEmpty(metaData.index("test")))
+                .addAsNew(metaData.index("test"))
                 .build();
 
         ClusterState clusterState = newClusterStateBuilder().metaData(metaData).routingTable(routingTable).build();
@@ -169,7 +167,7 @@ public class SingleShardNoReplicasRoutingTests {
                 .build();
 
         RoutingTable routingTable = routingTable()
-                .add(indexRoutingTable("test").initializeEmpty(metaData.index("test")))
+                .addAsNew(metaData.index("test"))
                 .build();
 
         ClusterState clusterState = newClusterStateBuilder().metaData(metaData).routingTable(routingTable).build();
@@ -227,7 +225,7 @@ public class SingleShardNoReplicasRoutingTests {
 
         RoutingTable.Builder routingTableBuilder = routingTable();
         for (int i = 0; i < numberOfIndices; i++) {
-            routingTableBuilder.add(indexRoutingTable("test" + i).initializeEmpty(metaData.index("test" + i)));
+            routingTableBuilder.addAsNew(metaData.index("test" + i));
         }
         RoutingTable routingTable = routingTableBuilder.build();
         ClusterState clusterState = newClusterStateBuilder().metaData(metaData).routingTable(routingTable).build();
@@ -340,7 +338,7 @@ public class SingleShardNoReplicasRoutingTests {
 
         RoutingTable.Builder routingTableBuilder = routingTable();
         for (int i = 0; i < numberOfIndices; i++) {
-            routingTableBuilder.add(indexRoutingTable("test" + i).initializeEmpty(metaData.index("test" + i)));
+            routingTableBuilder.addAsNew(metaData.index("test" + i));
         }
         RoutingTable routingTable = routingTableBuilder.build();
 

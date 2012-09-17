@@ -34,7 +34,6 @@ import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.newIndexMetaDataBuilder;
 import static org.elasticsearch.cluster.metadata.MetaData.newMetaDataBuilder;
 import static org.elasticsearch.cluster.node.DiscoveryNodes.newNodesBuilder;
-import static org.elasticsearch.cluster.routing.RoutingBuilders.indexRoutingTable;
 import static org.elasticsearch.cluster.routing.RoutingBuilders.routingTable;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -61,7 +60,7 @@ public class DeadNodesAllocationTests {
                 .put(newIndexMetaDataBuilder("test").numberOfShards(1).numberOfReplicas(1))
                 .build();
         RoutingTable routingTable = routingTable()
-                .add(indexRoutingTable("test").initializeEmpty(metaData.index("test")))
+                .addAsNew(metaData.index("test"))
                 .build();
         ClusterState clusterState = newClusterStateBuilder().metaData(metaData).routingTable(routingTable).build();
 
@@ -113,7 +112,7 @@ public class DeadNodesAllocationTests {
                 .put(newIndexMetaDataBuilder("test").numberOfShards(1).numberOfReplicas(1))
                 .build();
         RoutingTable routingTable = routingTable()
-                .add(indexRoutingTable("test").initializeEmpty(metaData.index("test")))
+                .addAsNew(metaData.index("test"))
                 .build();
         ClusterState clusterState = newClusterStateBuilder().metaData(metaData).routingTable(routingTable).build();
 
@@ -188,7 +187,7 @@ public class DeadNodesAllocationTests {
                 .put(newIndexMetaDataBuilder("test").numberOfShards(1).numberOfReplicas(1))
                 .build();
         RoutingTable routingTable = routingTable()
-                .add(indexRoutingTable("test").initializeEmpty(metaData.index("test")))
+                .addAsNew(metaData.index("test"))
                 .build();
         ClusterState clusterState = newClusterStateBuilder().metaData(metaData).routingTable(routingTable).build();
 

@@ -32,7 +32,6 @@ import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.newIndexMetaDataBuilder;
 import static org.elasticsearch.cluster.metadata.MetaData.newMetaDataBuilder;
 import static org.elasticsearch.cluster.node.DiscoveryNodes.newNodesBuilder;
-import static org.elasticsearch.cluster.routing.RoutingBuilders.indexRoutingTable;
 import static org.elasticsearch.cluster.routing.RoutingBuilders.routingTable;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -56,20 +55,20 @@ public class AllocatePostApiFlagTests {
                 .put(newIndexMetaDataBuilder("test").numberOfShards(1).numberOfReplicas(0))
                 .build();
         RoutingTable routingTable = routingTable()
-                .add(indexRoutingTable("test").initializeEmpty(metaData.index("test")))
+                .addAsNew(metaData.index("test"))
                 .build();
         ClusterState clusterState = newClusterStateBuilder().metaData(metaData).routingTable(routingTable).build();
-        assertThat(clusterState.routingTable().index("test").shard(0).allocatedPostApi(), equalTo(false));
+        assertThat(clusterState.routingTable().index("test").shard(0).primaryAllocatedPostApi(), equalTo(false));
 
         logger.info("adding two nodes and performing rerouting");
         clusterState = newClusterStateBuilder().state(clusterState).nodes(newNodesBuilder().put(newNode("node1")).put(newNode("node2"))).build();
         RoutingAllocation.Result rerouteResult = allocation.reroute(clusterState);
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(rerouteResult.routingTable()).build();
-        assertThat(clusterState.routingTable().index("test").shard(0).allocatedPostApi(), equalTo(false));
+        assertThat(clusterState.routingTable().index("test").shard(0).primaryAllocatedPostApi(), equalTo(false));
 
         logger.info("start primary shard");
         rerouteResult = allocation.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING));
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(rerouteResult.routingTable()).build();
-        assertThat(clusterState.routingTable().index("test").shard(0).allocatedPostApi(), equalTo(true));
+        assertThat(clusterState.routingTable().index("test").shard(0).primaryAllocatedPostApi(), equalTo(true));
     }
 }

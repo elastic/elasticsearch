@@ -118,7 +118,7 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
             }
 
             // this is an API allocation, ignore since we know there is no data...
-            if (!routingNodes.routingTable().index(shard.index()).shard(shard.id()).allocatedPostApi()) {
+            if (!routingNodes.routingTable().index(shard.index()).shard(shard.id()).primaryAllocatedPostApi()) {
                 continue;
             }
 

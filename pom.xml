@@ -229,7 +229,7 @@
         <dependency>
             <groupId>org.testng</groupId>
             <artifactId>testng</artifactId>
-            <version>6.5.2</version>
+            <version>6.8</version>
             <scope>test</scope>
             <exclusions>
                 <exclusion>

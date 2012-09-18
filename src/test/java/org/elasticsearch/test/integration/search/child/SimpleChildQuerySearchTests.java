@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.integration.search.child;
 
+import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -703,6 +704,45 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(2l));
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("p2"));
+    }
+
+    @Test
+    public void testCountApiUsage() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().indices().preparePutMapping("test").setType("child").setSource(XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_parent").field("type", "parent").endObject()
+                .endObject().endObject()).execute().actionGet();
+
+        String parentId = "p1";
+        client.prepareIndex("test", "parent", parentId)
+                .setSource("p_field", "p_value1")
+                .execute().actionGet();
+        client.prepareIndex("test", "child", parentId + "_c1")
+                .setSource("c_field1", parentId)
+                .setParent(parentId)
+                .execute().actionGet();
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        CountResponse countResponse = client.prepareCount("test")
+                .setQuery(topChildrenQuery("child", termQuery("c_field1", "1")))
+                .execute().actionGet();
+        assertThat(countResponse.failedShards(), equalTo(1));
+        assertThat(countResponse.shardFailures().get(0).reason().contains("top_children query hasn't executed properly"), equalTo(true));
+
+        countResponse = client.prepareCount("test")
+                .setQuery(hasChildQuery("child", termQuery("c_field1", "2")).executionType(getExecutionMethod()))
+                .execute().actionGet();
+        assertThat(countResponse.failedShards(), equalTo(1));
+        assertThat(countResponse.shardFailures().get(0).reason().contains("has_child filter/query hasn't executed properly"), equalTo(true));
+
+        countResponse = client.prepareCount("test")
+                .setQuery(hasParentQuery("parent", termQuery("p_field1", "1")).executionType(getExecutionMethod()))
+                .execute().actionGet();
+        assertThat(countResponse.failedShards(), equalTo(1));
+        assertThat(countResponse.shardFailures().get(0).reason().contains("has_parent filter/query hasn't executed properly"), equalTo(true));
     }
 
 }

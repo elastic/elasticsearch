@@ -74,6 +74,9 @@ public class TopChildrenQuery extends Query implements ScopePhase.TopDocsPhase {
 
     private int numHits = 0;
 
+    // Need to know if this query is properly used, otherwise the results are unexpected for example in the count api
+    private boolean properlyInvoked = false;
+
     // Note, the query is expected to already be filtered to only child type docs
     public TopChildrenQuery(Query query, String scope, String childType, String parentType, ScoreType scoreType, int factor, int incrementalFactor) {
         this.query = query;
@@ -97,6 +100,7 @@ public class TopChildrenQuery extends Query implements ScopePhase.TopDocsPhase {
 
     @Override
     public void clear() {
+        properlyInvoked = true;
         parentDocs = null;
         numHits = 0;
     }
@@ -202,6 +206,10 @@ public class TopChildrenQuery extends Query implements ScopePhase.TopDocsPhase {
 
     @Override
     public Weight createWeight(Searcher searcher) throws IOException {
+        if (!properlyInvoked) {
+            throw new ElasticSearchIllegalStateException("top_children query hasn't executed properly");
+        }
+
         if (parentDocs != null) {
             return new ParentWeight(searcher, query.weight(searcher));
         }

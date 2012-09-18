@@ -107,6 +107,10 @@ public abstract class HasChildFilter extends Filter implements ScopePhase.Collec
         }
 
         public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
+            if (parentDocs == null) {
+                throw new ElasticSearchIllegalStateException("has_child filter/query hasn't executed properly");
+            }
+
             // ok to return null
             return parentDocs.get(reader.getCoreCacheKey());
         }
@@ -135,6 +139,10 @@ public abstract class HasChildFilter extends Filter implements ScopePhase.Collec
         }
 
         public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
+            if (collectedUids == null) {
+                throw new ElasticSearchIllegalStateException("has_child filter/query hasn't executed properly");
+            }
+
             IdReaderTypeCache idReaderTypeCache = searchContext.idCache().reader(reader).type(parentType);
             return new ParentDocSet(reader, collectedUids, idReaderTypeCache);
         }

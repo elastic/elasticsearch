@@ -217,6 +217,9 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
                 if (previousClusterState == newClusterState) {
                     logger.debug("processing [{}]: no change in cluster_state", source);
+                    if (updateTask instanceof ProcessedClusterStateUpdateTask) {
+                        ((ProcessedClusterStateUpdateTask) updateTask).clusterStateProcessed(newClusterState);
+                    }
                     return;
                 }
 

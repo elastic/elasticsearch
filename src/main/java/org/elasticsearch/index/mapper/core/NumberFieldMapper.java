@@ -28,6 +28,7 @@ import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -51,7 +52,7 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
         public static final boolean OMIT_NORMS = true;
         public static final IndexOptions INDEX_OPTIONS = IndexOptions.DOCS_ONLY;
         public static final String FUZZY_FACTOR = null;
-        public static final boolean IGNORE_MALFORMED = false;
+        public static final Explicit<Boolean> IGNORE_MALFORMED = new Explicit<Boolean>(false, false);
     }
 
     public abstract static class Builder<T extends Builder, Y extends NumberFieldMapper> extends AbstractFieldMapper.Builder<T, Y> {
@@ -104,12 +105,12 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
             return builder;
         }
 
-        protected boolean ignoreMalformed(BuilderContext context) {
+        protected Explicit<Boolean> ignoreMalformed(BuilderContext context) {
             if (ignoreMalformed != null) {
-                return ignoreMalformed;
+                return new Explicit<Boolean>(ignoreMalformed, true);
             }
             if (context.indexSettings() != null) {
-                return context.indexSettings().getAsBoolean("index.mapping.ignore_malformed", Defaults.IGNORE_MALFORMED);
+                return new Explicit<Boolean>(context.indexSettings().getAsBoolean("index.mapping.ignore_malformed", Defaults.IGNORE_MALFORMED.value()), false);
             }
             return Defaults.IGNORE_MALFORMED;
         }
@@ -123,7 +124,7 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
 
     protected Boolean includeInAll;
 
-    protected boolean ignoreMalformed;
+    protected Explicit<Boolean> ignoreMalformed;
 
     private ThreadLocal<NumericTokenStream> tokenStream = new ThreadLocal<NumericTokenStream>() {
         @Override
@@ -135,7 +136,7 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
     protected NumberFieldMapper(Names names, int precisionStep, @Nullable String fuzzyFactor,
                                 Field.Index index, Field.Store store,
                                 float boost, boolean omitNorms, IndexOptions indexOptions,
-                                boolean ignoreMalformed, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer) {
+                                Explicit<Boolean> ignoreMalformed, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer) {
         super(names, index, store, Field.TermVector.NO, boost, boost != 1.0f || omitNorms, indexOptions, indexAnalyzer, searchAnalyzer);
         if (precisionStep <= 0 || precisionStep >= maxPrecisionStep()) {
             this.precisionStep = Integer.MAX_VALUE;
@@ -185,7 +186,7 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
             e = e2;
         }
 
-        if (ignoreMalformed) {
+        if (ignoreMalformed.value()) {
             return null;
         } else {
             throw e;
@@ -263,7 +264,9 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
             this.includeInAll = nfmMergeWith.includeInAll;
             this.fuzzyFactor = nfmMergeWith.fuzzyFactor;
             this.dFuzzyFactor = parseFuzzyFactor(nfmMergeWith.fuzzyFactor);
-            this.ignoreMalformed = nfmMergeWith.ignoreMalformed;
+            if (nfmMergeWith.ignoreMalformed.explicit()) {
+                this.ignoreMalformed = nfmMergeWith.ignoreMalformed;
+            }
         }
     }
 
@@ -320,6 +323,8 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
     @Override
     protected void doXContentBody(XContentBuilder builder) throws IOException {
         super.doXContentBody(builder);
-        builder.field("ignore_malformed", ignoreMalformed);
+        if (ignoreMalformed.explicit()) {
+            builder.field("ignore_malformed", ignoreMalformed.value());
+        }
     }
 }

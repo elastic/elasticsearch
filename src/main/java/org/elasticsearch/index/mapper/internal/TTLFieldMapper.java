@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper.internal;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -107,7 +108,7 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
         this(Defaults.STORE, Defaults.INDEX, Defaults.ENABLED, Defaults.DEFAULT, Defaults.IGNORE_MALFORMED);
     }
 
-    protected TTLFieldMapper(Field.Store store, Field.Index index, boolean enabled, long defaultTTL, boolean ignoreMalformed) {
+    protected TTLFieldMapper(Field.Store store, Field.Index index, boolean enabled, long defaultTTL, Explicit<Boolean> ignoreMalformed) {
         super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), Defaults.PRECISION_STEP,
                 Defaults.FUZZY_FACTOR, index, store, Defaults.BOOST, Defaults.OMIT_NORMS, Defaults.INDEX_OPTIONS,
                 Defaults.NULL_VALUE, ignoreMalformed);

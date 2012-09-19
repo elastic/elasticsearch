@@ -6,7 +6,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.elasticsearch</groupId>
     <artifactId>elasticsearch-mapper-attachments</artifactId>
-    <version>1.5.0-SNAPSHOT</version>
+    <version>1.5.0</version>
     <packaging>jar</packaging>
     <description>Mapper Attachments Type for ElasticSearch</description>
     <inceptionYear>2009</inceptionYear>
@@ -69,6 +69,24 @@
             <artifactId>tika-app</artifactId>
             <version>1.2</version>
             <scope>compile</scope>
+            <exclusions>
+                <exclusion>
+                    <artifactId>tika-parsers</artifactId>
+                    <groupId>org.apache.tika</groupId>
+                </exclusion>
+                <exclusion>
+                    <artifactId>tika-xmp</artifactId>
+                    <groupId>org.apache.tika</groupId>
+                </exclusion>
+                <exclusion>
+                    <artifactId>slf4j-log4j12</artifactId>
+                    <groupId>org.slf4j</groupId>
+                </exclusion>
+                <exclusion>
+                    <artifactId>gson</artifactId>
+                    <groupId>com.google.code.gson</groupId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <dependency>

@@ -230,7 +230,7 @@ public class HighlightBuilder implements ToXContent {
         int numOfFragments = -1;
         Boolean requireFieldMatch;
 
-        private Field(String name) {
+        public Field(String name) {
             this.name = name;
         }
 

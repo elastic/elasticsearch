@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper.internal;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
@@ -123,7 +124,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
     }
 
     protected TimestampFieldMapper(Field.Store store, Field.Index index, boolean enabled, String path,
-                                   FormatDateTimeFormatter dateTimeFormatter, boolean parseUpperInclusive, boolean ignoreMalformed) {
+                                   FormatDateTimeFormatter dateTimeFormatter, boolean parseUpperInclusive, Explicit<Boolean> ignoreMalformed) {
         super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), dateTimeFormatter,
                 Defaults.PRECISION_STEP, Defaults.FUZZY_FACTOR, index, store, Defaults.BOOST, Defaults.OMIT_NORMS, Defaults.INDEX_OPTIONS,
                 Defaults.NULL_VALUE, TimeUnit.MILLISECONDS /*always milliseconds*/,

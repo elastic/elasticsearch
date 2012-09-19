@@ -27,6 +27,7 @@ import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
@@ -41,7 +42,6 @@ import org.elasticsearch.index.analysis.NumericDateAnalyzer;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.mapper.*;
-import org.elasticsearch.index.mapper.core.BooleanFieldMapper.Defaults;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
 
@@ -144,7 +144,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     protected DateFieldMapper(Names names, FormatDateTimeFormatter dateTimeFormatter, int precisionStep, String fuzzyFactor,
                               Field.Index index, Field.Store store,
                               float boost, boolean omitNorms, IndexOptions indexOptions,
-                              String nullValue, TimeUnit timeUnit, boolean parseUpperInclusive, boolean ignoreMalformed) {
+                              String nullValue, TimeUnit timeUnit, boolean parseUpperInclusive, Explicit<Boolean> ignoreMalformed) {
         super(names, precisionStep, fuzzyFactor, index, store, boost, omitNorms, indexOptions,
                 ignoreMalformed, new NamedAnalyzer("_date/" + precisionStep,
                 new NumericDateAnalyzer(precisionStep, dateTimeFormatter.parser())),

@@ -26,6 +26,7 @@ import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
@@ -39,7 +40,6 @@ import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
-import org.elasticsearch.index.mapper.core.BooleanFieldMapper.Defaults;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
 
@@ -132,7 +132,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
     protected IpFieldMapper(Names names, int precisionStep,
                             Field.Index index, Field.Store store,
                             float boost, boolean omitNorms, IndexOptions indexOptions,
-                            String nullValue, boolean ignoreMalformed) {
+                            String nullValue, Explicit<Boolean> ignoreMalformed) {
         super(names, precisionStep, null, index, store, boost, omitNorms, indexOptions,
                 ignoreMalformed, new NamedAnalyzer("_ip/" + precisionStep, new NumericIpAnalyzer(precisionStep)),
                 new NamedAnalyzer("_ip/max", new NumericIpAnalyzer(Integer.MAX_VALUE)));

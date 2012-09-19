@@ -28,6 +28,7 @@ import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -37,7 +38,6 @@ import org.elasticsearch.index.analysis.NumericDoubleAnalyzer;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.mapper.*;
-import org.elasticsearch.index.mapper.core.BooleanFieldMapper.Defaults;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
 
@@ -107,7 +107,7 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
     protected DoubleFieldMapper(Names names, int precisionStep, String fuzzyFactor,
                                 Field.Index index, Field.Store store,
                                 float boost, boolean omitNorms, IndexOptions indexOptions,
-                                Double nullValue, boolean ignoreMalformed) {
+                                Double nullValue, Explicit<Boolean> ignoreMalformed) {
         super(names, precisionStep, fuzzyFactor, index, store, boost, omitNorms, indexOptions,
                 ignoreMalformed, new NamedAnalyzer("_double/" + precisionStep, new NumericDoubleAnalyzer(precisionStep)),
                 new NamedAnalyzer("_double/max", new NumericDoubleAnalyzer(Integer.MAX_VALUE)));

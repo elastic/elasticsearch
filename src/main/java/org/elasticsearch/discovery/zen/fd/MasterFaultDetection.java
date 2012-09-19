@@ -310,7 +310,7 @@ public class MasterFaultDetection extends AbstractComponent {
                                         return;
                                     } else if (exp.getCause() instanceof NotMasterException) {
                                         logger.debug("[master] pinging a master {} that is not the master", masterNode);
-                                        notifyMasterFailure(masterToPing, "no longer master");
+                                        notifyMasterFailure(masterToPing, "not master");
                                         return;
                                     } else if (exp.getCause() instanceof NodeDoesNotExistOnMasterException) {
                                         logger.debug("[master] pinging a master {} but we do not exists on it, act as if its master failure", masterNode);

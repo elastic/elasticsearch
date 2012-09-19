@@ -132,7 +132,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
                             float boost, boolean omitNorms, boolean omitTermFreqAndPositions,
                             String nullValue) {
         super(names, precisionStep, null, index, store, boost, omitNorms, omitTermFreqAndPositions,
-                false, new NamedAnalyzer("_ip/" + precisionStep, new NumericIpAnalyzer(precisionStep)),
+                Defaults.IGNORE_MALFORMED, new NamedAnalyzer("_ip/" + precisionStep, new NumericIpAnalyzer(precisionStep)),
                 new NamedAnalyzer("_ip/max", new NumericIpAnalyzer(Integer.MAX_VALUE)));
         this.nullValue = nullValue;
     }

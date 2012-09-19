@@ -27,6 +27,7 @@ import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
@@ -76,7 +77,7 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
         public LongFieldMapper build(BuilderContext context) {
             LongFieldMapper fieldMapper = new LongFieldMapper(buildNames(context),
                     precisionStep, fuzzyFactor, index, store, boost, omitNorms, omitTermFreqAndPositions, nullValue,
-                    ignoreMalformed);
+                    ignoreMalformed(context));
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -104,7 +105,7 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
 
     protected LongFieldMapper(Names names, int precisionStep, String fuzzyFactor, Field.Index index, Field.Store store,
                               float boost, boolean omitNorms, boolean omitTermFreqAndPositions,
-                              Long nullValue, boolean ignoreMalformed) {
+                              Long nullValue, Explicit<Boolean> ignoreMalformed) {
         super(names, precisionStep, fuzzyFactor, index, store, boost, omitNorms, omitTermFreqAndPositions,
                 ignoreMalformed, new NamedAnalyzer("_long/" + precisionStep, new NumericLongAnalyzer(precisionStep)),
                 new NamedAnalyzer("_long/max", new NumericLongAnalyzer(Integer.MAX_VALUE)));

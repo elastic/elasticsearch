@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-@Test
+@Test(enabled = false)
 public class ClusterRerouteTests extends AbstractNodesTests {
 
     private final ESLogger logger = Loggers.getLogger(ClusterRerouteTests.class);
@@ -57,7 +57,7 @@ public class ClusterRerouteTests extends AbstractNodesTests {
         closeAllNodes();
     }
 
-    @Test
+    @Test(enabled = false)
     public void rerouteWithCommands() throws Exception {
         Settings commonSettings = settingsBuilder()
                 .put("cluster.routing.allocation.disable_new_allocation", true)
@@ -120,7 +120,7 @@ public class ClusterRerouteTests extends AbstractNodesTests {
         assertThat(state.routingNodes().node(state.nodes().resolveNode("node2").id()).shards().get(0).state(), equalTo(ShardRoutingState.STARTED));
     }
 
-    @Test
+    @Test(enabled = false)
     public void rerouteWithAllocateLocalGateway() throws Exception {
         Settings commonSettings = settingsBuilder()
                 .put("cluster.routing.allocation.disable_new_allocation", true)

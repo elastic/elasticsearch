@@ -19,40 +19,21 @@
 
 package org.elasticsearch.rest.action.admin.cluster.state;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlock;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.AllocationExplanation;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
 
 /**
  *
@@ -86,221 +67,14 @@ public class RestClusterStateAction extends BaseRestHandler {
             @Override
             public void onResponse(ClusterStateResponse response) {
                 try {
-                    ClusterState state = response.state();
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
-
-                    builder.field("cluster_name", response.clusterName().value());
-
-                    if (!clusterStateRequest.filterNodes()) {
-                        builder.field("master_node", state.nodes().masterNodeId());
-                    }
-
-                    // blocks
-                    if (!clusterStateRequest.filterBlocks()) {
-                        builder.startObject("blocks");
-
-                        if (!state.blocks().global().isEmpty()) {
-                            builder.startObject("global");
-                            for (ClusterBlock block : state.blocks().global()) {
-                                block.toXContent(builder, request);
-                            }
-                            builder.endObject();
-                        }
-
-                        if (!state.blocks().indices().isEmpty()) {
-                            builder.startObject("indices");
-                            for (Map.Entry<String, ImmutableSet<ClusterBlock>> entry : state.blocks().indices().entrySet()) {
-                                builder.startObject(entry.getKey());
-                                for (ClusterBlock block : entry.getValue()) {
-                                    block.toXContent(builder, request);
-                                }
-                                builder.endObject();
-                            }
-                            builder.endObject();
-                        }
-
-                        builder.endObject();
-                    }
-
-                    // nodes
-                    if (!clusterStateRequest.filterNodes()) {
-                        builder.startObject("nodes");
-                        for (DiscoveryNode node : state.nodes()) {
-                            builder.startObject(node.id(), XContentBuilder.FieldCaseConversion.NONE);
-                            builder.field("name", node.name());
-                            builder.field("transport_address", node.address().toString());
-
-                            builder.startObject("attributes");
-                            for (Map.Entry<String, String> attr : node.attributes().entrySet()) {
-                                builder.field(attr.getKey(), attr.getValue());
-                            }
-                            builder.endObject();
-
-                            builder.endObject();
-                        }
-                        builder.endObject();
-                    }
-
-                    // meta data
-                    if (!clusterStateRequest.filterMetaData()) {
-                        builder.startObject("metadata");
-
-                        builder.startObject("templates");
-                        for (IndexTemplateMetaData templateMetaData : state.metaData().templates().values()) {
-                            builder.startObject(templateMetaData.name(), XContentBuilder.FieldCaseConversion.NONE);
-
-                            builder.field("template", templateMetaData.template());
-                            builder.field("order", templateMetaData.order());
-
-                            builder.startObject("settings");
-                            Settings settings = settingsFilter.filterSettings(templateMetaData.settings());
-                            for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
-                                builder.field(entry.getKey(), entry.getValue());
-                            }
-                            builder.endObject();
-
-                            builder.startObject("mappings");
-                            for (Map.Entry<String, CompressedString> entry : templateMetaData.mappings().entrySet()) {
-                                byte[] mappingSource = entry.getValue().uncompressed();
-                                XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource);
-                                Map<String, Object> mapping = parser.map();
-                                if (mapping.size() == 1 && mapping.containsKey(entry.getKey())) {
-                                    // the type name is the root value, reduce it
-                                    mapping = (Map<String, Object>) mapping.get(entry.getKey());
-                                }
-                                builder.field(entry.getKey());
-                                builder.map(mapping);
-                            }
-                            builder.endObject();
-
-
-                            builder.endObject();
-                        }
-                        builder.endObject();
-
-                        builder.startObject("indices");
-                        for (IndexMetaData indexMetaData : state.metaData()) {
-                            builder.startObject(indexMetaData.index(), XContentBuilder.FieldCaseConversion.NONE);
-
-                            builder.field("state", indexMetaData.state().toString().toLowerCase(Locale.ENGLISH));
-
-                            builder.startObject("settings");
-                            Settings settings = settingsFilter.filterSettings(indexMetaData.settings());
-                            for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
-                                builder.field(entry.getKey(), entry.getValue());
-                            }
-                            builder.endObject();
-
-                            builder.startObject("mappings");
-                            for (Map.Entry<String, MappingMetaData> entry : indexMetaData.mappings().entrySet()) {
-                                byte[] mappingSource = entry.getValue().source().uncompressed();
-                                XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource);
-                                Map<String, Object> mapping = parser.map();
-                                if (mapping.size() == 1 && mapping.containsKey(entry.getKey())) {
-                                    // the type name is the root value, reduce it
-                                    mapping = (Map<String, Object>) mapping.get(entry.getKey());
-                                }
-                                builder.field(entry.getKey());
-                                builder.map(mapping);
-                            }
-                            builder.endObject();
-
-                            builder.startArray("aliases");
-                            for (String alias : indexMetaData.aliases().keySet()) {
-                                builder.value(alias);
-                            }
-                            builder.endArray();
-
-                            builder.endObject();
-                        }
-                        builder.endObject();
-
-                        builder.endObject();
-                    }
-
-                    // routing table
-                    if (!clusterStateRequest.filterRoutingTable()) {
-                        builder.startObject("routing_table");
-                        builder.startObject("indices");
-                        for (IndexRoutingTable indexRoutingTable : state.routingTable()) {
-                            builder.startObject(indexRoutingTable.index(), XContentBuilder.FieldCaseConversion.NONE);
-                            builder.startObject("shards");
-                            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                                builder.startArray(Integer.toString(indexShardRoutingTable.shardId().id()));
-                                for (ShardRouting shardRouting : indexShardRoutingTable) {
-                                    jsonShardRouting(builder, shardRouting);
-                                }
-                                builder.endArray();
-                            }
-                            builder.endObject();
-                            builder.endObject();
-                        }
-                        builder.endObject();
-                        builder.endObject();
-                    }
-
-                    // routing nodes
-                    if (!clusterStateRequest.filterRoutingTable()) {
-                        builder.startObject("routing_nodes");
-                        builder.startArray("unassigned");
-                        for (ShardRouting shardRouting : state.readOnlyRoutingNodes().unassigned()) {
-                            jsonShardRouting(builder, shardRouting);
-                        }
-                        builder.endArray();
-
-                        builder.startObject("nodes");
-                        for (RoutingNode routingNode : state.readOnlyRoutingNodes()) {
-                            builder.startArray(routingNode.nodeId(), XContentBuilder.FieldCaseConversion.NONE);
-                            for (ShardRouting shardRouting : routingNode) {
-                                jsonShardRouting(builder, shardRouting);
-                            }
-                            builder.endArray();
-                        }
-                        builder.endObject();
-
-                        builder.endObject();
-                    }
-
-                    if (!clusterStateRequest.filterRoutingTable()) {
-                        builder.startArray("allocations");
-                        for (Map.Entry<ShardId, List<AllocationExplanation.NodeExplanation>> entry : state.allocationExplanation().explanations().entrySet()) {
-                            builder.startObject();
-                            builder.field("index", entry.getKey().index().name());
-                            builder.field("shard", entry.getKey().id());
-                            builder.startArray("explanations");
-                            for (AllocationExplanation.NodeExplanation nodeExplanation : entry.getValue()) {
-                                builder.field("desc", nodeExplanation.description());
-                                if (nodeExplanation.node() != null) {
-                                    builder.startObject("node");
-                                    builder.field("id", nodeExplanation.node().id());
-                                    builder.field("name", nodeExplanation.node().name());
-                                    builder.endObject();
-                                }
-                            }
-                            builder.endArray();
-                            builder.endObject();
-                        }
-                        builder.endArray();
-                    }
-
-
+                    response.state().settingsFilter(settingsFilter).toXContent(builder, request);
                     builder.endObject();
                     channel.sendResponse(new XContentRestResponse(request, RestStatus.OK, builder));
                 } catch (Exception e) {
                     onFailure(e);
                 }
-            }
-
-            private void jsonShardRouting(XContentBuilder builder, ShardRouting shardRouting) throws IOException {
-                builder.startObject()
-                        .field("state", shardRouting.state())
-                        .field("primary", shardRouting.primary())
-                        .field("node", shardRouting.currentNodeId())
-                        .field("relocating_node", shardRouting.relocatingNodeId())
-                        .field("shard", shardRouting.shardId().id())
-                        .field("index", shardRouting.shardId().index().name())
-                        .endObject();
             }
 
             @Override

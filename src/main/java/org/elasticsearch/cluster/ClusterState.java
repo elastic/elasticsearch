@@ -19,23 +19,38 @@
 
 package org.elasticsearch.cluster;
 
+import com.google.common.collect.ImmutableSet;
+import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.RoutingNodes;
-import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.cluster.routing.allocation.AllocationExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.io.stream.*;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 /**
  *
  */
-public class ClusterState {
+public class ClusterState implements ToXContent {
 
     private final long version;
 
@@ -51,6 +66,8 @@ public class ClusterState {
 
     // built on demand
     private volatile RoutingNodes routingNodes;
+
+    private SettingsFilter settingsFilter;
 
     public ClusterState(long version, ClusterState state) {
         this(version, state.metaData(), state.routingTable(), state.nodes(), state.blocks(), state.allocationExplanation());
@@ -131,6 +148,208 @@ public class ClusterState {
         }
         routingNodes = routingTable.routingNodes(this);
         return routingNodes;
+    }
+
+    public ClusterState settingsFilter(SettingsFilter settingsFilter) {
+        this.settingsFilter = settingsFilter;
+        return this;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (!params.paramAsBoolean("filter_nodes", false)) {
+            builder.field("master_node", nodes().masterNodeId());
+        }
+
+        // blocks
+        if (!params.paramAsBoolean("filter_blocks", false)) {
+            builder.startObject("blocks");
+
+            if (!blocks().global().isEmpty()) {
+                builder.startObject("global");
+                for (ClusterBlock block : blocks().global()) {
+                    block.toXContent(builder, params);
+                }
+                builder.endObject();
+            }
+
+            if (!blocks().indices().isEmpty()) {
+                builder.startObject("indices");
+                for (Map.Entry<String, ImmutableSet<ClusterBlock>> entry : blocks().indices().entrySet()) {
+                    builder.startObject(entry.getKey());
+                    for (ClusterBlock block : entry.getValue()) {
+                        block.toXContent(builder, params);
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+
+            builder.endObject();
+        }
+
+        // nodes
+        if (!params.paramAsBoolean("filter_nodes", false)) {
+            builder.startObject("nodes");
+            for (DiscoveryNode node : nodes()) {
+                builder.startObject(node.id(), XContentBuilder.FieldCaseConversion.NONE);
+                builder.field("name", node.name());
+                builder.field("transport_address", node.address().toString());
+
+                builder.startObject("attributes");
+                for (Map.Entry<String, String> attr : node.attributes().entrySet()) {
+                    builder.field(attr.getKey(), attr.getValue());
+                }
+                builder.endObject();
+
+                builder.endObject();
+            }
+            builder.endObject();
+        }
+
+        // meta data
+        if (!params.paramAsBoolean("filter_metadata", false)) {
+            builder.startObject("metadata");
+
+            builder.startObject("templates");
+            for (IndexTemplateMetaData templateMetaData : metaData().templates().values()) {
+                builder.startObject(templateMetaData.name(), XContentBuilder.FieldCaseConversion.NONE);
+
+                builder.field("template", templateMetaData.template());
+                builder.field("order", templateMetaData.order());
+
+                builder.startObject("settings");
+                Settings settings = settingsFilter.filterSettings(templateMetaData.settings());
+                for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
+                    builder.field(entry.getKey(), entry.getValue());
+                }
+                builder.endObject();
+
+                builder.startObject("mappings");
+                for (Map.Entry<String, CompressedString> entry : templateMetaData.mappings().entrySet()) {
+                    byte[] mappingSource = entry.getValue().uncompressed();
+                    XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource);
+                    Map<String, Object> mapping = parser.map();
+                    if (mapping.size() == 1 && mapping.containsKey(entry.getKey())) {
+                        // the type name is the root value, reduce it
+                        mapping = (Map<String, Object>) mapping.get(entry.getKey());
+                    }
+                    builder.field(entry.getKey());
+                    builder.map(mapping);
+                }
+                builder.endObject();
+
+
+                builder.endObject();
+            }
+            builder.endObject();
+
+            builder.startObject("indices");
+            for (IndexMetaData indexMetaData : metaData()) {
+                builder.startObject(indexMetaData.index(), XContentBuilder.FieldCaseConversion.NONE);
+
+                builder.field("state", indexMetaData.state().toString().toLowerCase(Locale.ENGLISH));
+
+                builder.startObject("settings");
+                Settings settings = settingsFilter.filterSettings(indexMetaData.settings());
+                for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
+                    builder.field(entry.getKey(), entry.getValue());
+                }
+                builder.endObject();
+
+                builder.startObject("mappings");
+                for (Map.Entry<String, MappingMetaData> entry : indexMetaData.mappings().entrySet()) {
+                    byte[] mappingSource = entry.getValue().source().uncompressed();
+                    XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource);
+                    Map<String, Object> mapping = parser.map();
+                    if (mapping.size() == 1 && mapping.containsKey(entry.getKey())) {
+                        // the type name is the root value, reduce it
+                        mapping = (Map<String, Object>) mapping.get(entry.getKey());
+                    }
+                    builder.field(entry.getKey());
+                    builder.map(mapping);
+                }
+                builder.endObject();
+
+                builder.startArray("aliases");
+                for (String alias : indexMetaData.aliases().keySet()) {
+                    builder.value(alias);
+                }
+                builder.endArray();
+
+                builder.endObject();
+            }
+            builder.endObject();
+
+            builder.endObject();
+        }
+
+        // routing table
+        if (!params.paramAsBoolean("filter_routing_table", false)) {
+            builder.startObject("routing_table");
+            builder.startObject("indices");
+            for (IndexRoutingTable indexRoutingTable : routingTable()) {
+                builder.startObject(indexRoutingTable.index(), XContentBuilder.FieldCaseConversion.NONE);
+                builder.startObject("shards");
+                for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
+                    builder.startArray(Integer.toString(indexShardRoutingTable.shardId().id()));
+                    for (ShardRouting shardRouting : indexShardRoutingTable) {
+                        shardRouting.toXContent(builder, params);
+                    }
+                    builder.endArray();
+                }
+                builder.endObject();
+                builder.endObject();
+            }
+            builder.endObject();
+            builder.endObject();
+        }
+
+        // routing nodes
+        if (!params.paramAsBoolean("filter_routing_table", false)) {
+            builder.startObject("routing_nodes");
+            builder.startArray("unassigned");
+            for (ShardRouting shardRouting : readOnlyRoutingNodes().unassigned()) {
+                shardRouting.toXContent(builder, params);
+            }
+            builder.endArray();
+
+            builder.startObject("nodes");
+            for (RoutingNode routingNode : readOnlyRoutingNodes()) {
+                builder.startArray(routingNode.nodeId(), XContentBuilder.FieldCaseConversion.NONE);
+                for (ShardRouting shardRouting : routingNode) {
+                    shardRouting.toXContent(builder, params);
+                }
+                builder.endArray();
+            }
+            builder.endObject();
+
+            builder.endObject();
+        }
+
+        if (!params.paramAsBoolean("filter_routing_table", false)) {
+            builder.startArray("allocations");
+            for (Map.Entry<ShardId, List<AllocationExplanation.NodeExplanation>> entry : allocationExplanation().explanations().entrySet()) {
+                builder.startObject();
+                builder.field("index", entry.getKey().index().name());
+                builder.field("shard", entry.getKey().id());
+                builder.startArray("explanations");
+                for (AllocationExplanation.NodeExplanation nodeExplanation : entry.getValue()) {
+                    builder.field("desc", nodeExplanation.description());
+                    if (nodeExplanation.node() != null) {
+                        builder.startObject("node");
+                        builder.field("id", nodeExplanation.node().id());
+                        builder.field("name", nodeExplanation.node().name());
+                        builder.endObject();
+                    }
+                }
+                builder.endArray();
+                builder.endObject();
+            }
+            builder.endArray();
+        }
+
+        return builder;
     }
 
     public static Builder builder() {

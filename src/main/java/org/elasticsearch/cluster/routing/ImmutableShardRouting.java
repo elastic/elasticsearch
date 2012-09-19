@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -292,4 +293,15 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
         return sb.toString();
     }
 
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder.startObject()
+                .field("state", state())
+                .field("primary", primary())
+                .field("node", currentNodeId())
+                .field("relocating_node", relocatingNodeId())
+                .field("shard", shardId().id())
+                .field("index", shardId().index().name())
+                .endObject();
+    }
 }

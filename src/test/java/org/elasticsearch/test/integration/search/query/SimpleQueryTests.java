@@ -19,8 +19,6 @@
 
 package org.elasticsearch.test.integration.search.query;
 
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
@@ -34,8 +32,6 @@ import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
@@ -43,7 +39,6 @@ import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.testng.Assert.fail;
 
 /**
@@ -84,7 +79,7 @@ public class SimpleQueryTests extends AbstractNodesTests {
         SearchResponse searchResponse = client.prepareSearch().setQuery("{ \"term\" : { \"field1\" : \"value1_1\" }}").execute().actionGet();
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
     }
-    
+
     @Test
     public void testIndexOptions() throws Exception {
         try {
@@ -94,9 +89,9 @@ public class SimpleQueryTests extends AbstractNodesTests {
         }
 
         client.admin().indices().prepareCreate("test")
-        .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("field1").field("index_options", "docs").field("type", "string").endObject().endObject().endObject().endObject())
-        .setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 1)).execute().actionGet();
-        
+                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("field1").field("index_options", "docs").field("type", "string").endObject().endObject().endObject().endObject())
+                .setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 1)).execute().actionGet();
+
         client.prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox").execute().actionGet();
         client.prepareIndex("test", "type1", "2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox").setRefresh(true).execute().actionGet();
 
@@ -105,7 +100,7 @@ public class SimpleQueryTests extends AbstractNodesTests {
         SearchResponse actionGet = client.prepareSearch().setQuery("{ \"text_phrase\" : { \"field1\" : \"quick brown\", \"slop\" : \"2\" }}").execute().actionGet();
         assertThat(actionGet.hits().totalHits(), equalTo(0l));
     }
-    
+
     @Test
     public void testOmitTermFreqsAndPositions() throws Exception {
         // backwards compat test!
@@ -116,9 +111,9 @@ public class SimpleQueryTests extends AbstractNodesTests {
         }
 
         client.admin().indices().prepareCreate("test")
-        .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("field1").field("omit_term_freq_and_positions", true).field("type", "string").endObject().endObject().endObject().endObject())
-        .setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 1)).execute().actionGet();
-        
+                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("field1").field("omit_term_freq_and_positions", true).field("type", "string").endObject().endObject().endObject().endObject())
+                .setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 1)).execute().actionGet();
+
         client.prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox").execute().actionGet();
         client.prepareIndex("test", "type1", "2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox").setRefresh(true).execute().actionGet();
 
@@ -444,6 +439,16 @@ public class SimpleQueryTests extends AbstractNodesTests {
 
         client.admin().indices().prepareRefresh("test").execute().actionGet();
         builder = QueryBuilders.multiMatchQuery("value1", "field1", "field3^1.5")
+                .operator(MatchQueryBuilder.Operator.AND); // Operator only applies on terms inside a field! Fields are always OR-ed together.
+        searchResponse = client.prepareSearch()
+                .setQuery(builder)
+                .execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(2l));
+        assertThat("3", equalTo(searchResponse.hits().getAt(0).id()));
+        assertThat("1", equalTo(searchResponse.hits().getAt(1).id()));
+
+        client.admin().indices().prepareRefresh("test").execute().actionGet();
+        builder = QueryBuilders.multiMatchQuery("value1").field("field1").field("field3", 1.5f)
                 .operator(MatchQueryBuilder.Operator.AND); // Operator only applies on terms inside a field! Fields are always OR-ed together.
         searchResponse = client.prepareSearch()
                 .setQuery(builder)

@@ -39,9 +39,12 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
-import org.elasticsearch.action.admin.indices.exists.IndicesExistsRequest;
-import org.elasticsearch.action.admin.indices.exists.IndicesExistsRequestBuilder;
-import org.elasticsearch.action.admin.indices.exists.IndicesExistsResponse;
+import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
+import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequestBuilder;
+import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
+import org.elasticsearch.action.admin.indices.exists.types.TypesExistsRequest;
+import org.elasticsearch.action.admin.indices.exists.types.TypesExistsRequestBuilder;
+import org.elasticsearch.action.admin.indices.exists.types.TypesExistsResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequestBuilder;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
@@ -128,6 +131,28 @@ public interface IndicesAdminClient {
      * Indices exists.
      */
     IndicesExistsRequestBuilder prepareExists(String... indices);
+
+
+    /**
+     * Types Exists.
+     *
+     * @param request The types exists request
+     * @return The result future
+     */
+    ActionFuture<TypesExistsResponse> typesExists(TypesExistsRequest request);
+
+    /**
+     * Types exists
+     *
+     * @param request  The types exists
+     * @param listener A listener to be notified with a result
+     */
+    void typesExists(TypesExistsRequest request, ActionListener<TypesExistsResponse> listener);
+
+    /**
+     * Indices exists.
+     */
+    TypesExistsRequestBuilder prepareTypesExists(String... index);
 
     /**
      * Indices stats.

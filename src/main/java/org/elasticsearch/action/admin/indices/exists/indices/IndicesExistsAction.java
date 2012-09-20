@@ -17,28 +17,29 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.exists;
+package org.elasticsearch.action.admin.indices.exists.indices;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.support.BaseIndicesRequestBuilder;
+import org.elasticsearch.action.admin.indices.IndicesAction;
 import org.elasticsearch.client.IndicesAdminClient;
 
 /**
- *
  */
-public class IndicesExistsRequestBuilder extends BaseIndicesRequestBuilder<IndicesExistsRequest, IndicesExistsResponse> {
+public class IndicesExistsAction extends IndicesAction<IndicesExistsRequest, IndicesExistsResponse, IndicesExistsRequestBuilder> {
 
-    public IndicesExistsRequestBuilder(IndicesAdminClient indicesClient, String... indices) {
-        super(indicesClient, new IndicesExistsRequest(indices));
-    }
+    public static final IndicesExistsAction INSTANCE = new IndicesExistsAction();
+    public static final String NAME = "indices/exists";
 
-    public IndicesExistsRequestBuilder setIndices(String... indices) {
-        request.indices(indices);
-        return this;
+    private IndicesExistsAction() {
+        super(NAME);
     }
 
     @Override
-    protected void doExecute(ActionListener<IndicesExistsResponse> listener) {
-        client.exists(request, listener);
+    public IndicesExistsResponse newResponse() {
+        return new IndicesExistsResponse();
+    }
+
+    @Override
+    public IndicesExistsRequestBuilder newRequestBuilder(IndicesAdminClient client) {
+        return new IndicesExistsRequestBuilder(client);
     }
 }

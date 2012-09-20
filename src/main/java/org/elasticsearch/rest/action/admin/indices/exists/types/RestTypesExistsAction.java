@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,46 +17,47 @@
  * under the License.
  */
 
-package org.elasticsearch.rest.action.admin.indices.exists;
+package org.elasticsearch.rest.action.admin.indices.exists.types;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.exists.IndicesExistsRequest;
-import org.elasticsearch.action.admin.indices.exists.IndicesExistsResponse;
+import org.elasticsearch.action.admin.indices.exists.types.TypesExistsRequest;
+import org.elasticsearch.action.admin.indices.exists.types.TypesExistsResponse;
+import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.rest.*;
 
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.action.support.RestActions.splitIndices;
+import static org.elasticsearch.rest.action.support.RestActions.splitTypes;
 
 /**
- *
+ * Rest api for checking if a type exists.
  */
-public class RestIndicesExistsAction extends BaseRestHandler {
-
-    private final SettingsFilter settingsFilter;
+public class RestTypesExistsAction extends BaseRestHandler {
 
     @Inject
-    public RestIndicesExistsAction(Settings settings, Client client, RestController controller,
-                                   SettingsFilter settingsFilter) {
+    public RestTypesExistsAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
-        controller.registerHandler(HEAD, "/{index}", this);
-
-        this.settingsFilter = settingsFilter;
+        controller.registerHandler(HEAD, "/{index}/{type}", this);
     }
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
-        IndicesExistsRequest indicesExistsRequest = new IndicesExistsRequest(splitIndices(request.param("index")));
-        indicesExistsRequest.listenerThreaded(false);
-        client.admin().indices().exists(indicesExistsRequest, new ActionListener<IndicesExistsResponse>() {
+        TypesExistsRequest typesExistsRequest = new TypesExistsRequest(
+                splitIndices(request.param("index")), splitTypes(request.param("type"))
+        );
+        typesExistsRequest.listenerThreaded(false);
+        if (request.hasParam("ignore_indices")) {
+            typesExistsRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
+        }
+        client.admin().indices().typesExists(typesExistsRequest, new ActionListener<TypesExistsResponse>() {
             @Override
-            public void onResponse(IndicesExistsResponse response) {
+            public void onResponse(TypesExistsResponse response) {
                 try {
                     if (response.exists()) {
                         channel.sendResponse(new StringRestResponse(OK));

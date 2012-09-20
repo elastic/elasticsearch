@@ -1,15 +1,18 @@
 package org.elasticsearch.common.lucene.spatial;
 
+import com.spatial4j.core.context.SpatialContext;
+import com.spatial4j.core.shape.Point;
+import com.spatial4j.core.shape.Rectangle;
 import com.spatial4j.core.shape.Shape;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.geo.GeoShapeConstants;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.spatial.prefix.NodeTokenStream;
 import org.elasticsearch.common.lucene.spatial.prefix.tree.Node;
 import org.elasticsearch.common.lucene.spatial.prefix.tree.SpatialPrefixTree;
-import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.index.mapper.FieldMapper;
 
 import java.util.List;
@@ -54,7 +57,8 @@ public abstract class SpatialStrategy {
      * @return Fieldable for indexing the Shape
      */
     public Fieldable createField(Shape shape) {
-        int detailLevel = prefixTree.getMaxLevelForPrecision(shape, distanceErrorPct);
+        int detailLevel = prefixTree.getLevelForDistance(
+                calcDistanceFromErrPct(shape, distanceErrorPct, GeoShapeConstants.SPATIAL_CONTEXT));
         List<Node> nodes = prefixTree.getNodes(shape, detailLevel, true);
         NodeTokenStream tokenStream = nodeTokenStream.get();
         tokenStream.setNodes(nodes);
@@ -184,5 +188,30 @@ public abstract class SpatialStrategy {
      */
     public SpatialPrefixTree getPrefixTree() {
         return prefixTree;
+    }
+
+    /**
+     * Computes the distance given a shape and the {@code distErrPct}.  The
+     * algorithm is the fraction of the distance from the center of the query
+     * shape to its furthest bounding box corner.
+     *
+     * @param shape Mandatory.
+     * @param distErrPct 0 to 0.5
+     * @param ctx Mandatory
+     * @return A distance (in degrees).
+     */
+    protected final double calcDistanceFromErrPct(Shape shape, double distErrPct, SpatialContext ctx) {
+        if (distErrPct < 0 || distErrPct > 0.5) {
+            throw new IllegalArgumentException("distErrPct " + distErrPct + " must be between [0 to 0.5]");
+        }
+        if (distErrPct == 0 || shape instanceof Point) {
+            return 0;
+        }
+        Rectangle bbox = shape.getBoundingBox();
+        //The diagonal distance should be the same computed from any opposite corner,
+        // and this is the longest distance that might be occurring within the shape.
+        double diagonalDist = ctx.getDistCalc().distance(
+                ctx.makePoint(bbox.getMinX(), bbox.getMinY()), bbox.getMaxX(), bbox.getMaxY());
+        return diagonalDist * 0.5 * distErrPct;
     }
 }

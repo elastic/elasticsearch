@@ -20,9 +20,9 @@
 package org.elasticsearch.common.geo;
 
 import com.spatial4j.core.shape.Shape;
+import com.spatial4j.core.shape.impl.RectangleImpl;
 import com.spatial4j.core.shape.jts.JtsGeometry;
 import com.spatial4j.core.shape.jts.JtsPoint;
-import com.spatial4j.core.shape.simple.RectangleImpl;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.GeometryFactory;
 import com.vividsolutions.jts.geom.LinearRing;
@@ -138,9 +138,9 @@ public class GeoJSONShapeParser {
      */
     private static Shape buildShape(String shapeType, CoordinateNode node) {
         if ("point".equals(shapeType)) {
-            return new JtsPoint(GEOMETRY_FACTORY.createPoint(node.coordinate));
+            return new JtsPoint(GEOMETRY_FACTORY.createPoint(node.coordinate), GeoShapeConstants.SPATIAL_CONTEXT);
         } else if ("linestring".equals(shapeType)) {
-            return new JtsGeometry(GEOMETRY_FACTORY.createLineString(toCoordinates(node)));
+            return new JtsGeometry(GEOMETRY_FACTORY.createLineString(toCoordinates(node)), GeoShapeConstants.SPATIAL_CONTEXT, true);
         } else if ("polygon".equals(shapeType)) {
             LinearRing shell = GEOMETRY_FACTORY.createLinearRing(toCoordinates(node.children.get(0)));
             LinearRing[] holes = null;
@@ -150,12 +150,12 @@ public class GeoJSONShapeParser {
                     holes[i] = GEOMETRY_FACTORY.createLinearRing(toCoordinates(node.children.get(i + 1)));
                 }
             }
-            return new JtsGeometry(GEOMETRY_FACTORY.createPolygon(shell, holes));
+            return new JtsGeometry(GEOMETRY_FACTORY.createPolygon(shell, holes), GeoShapeConstants.SPATIAL_CONTEXT, true);
         } else if ("multipoint".equals(shapeType)) {
-            return new JtsGeometry(GEOMETRY_FACTORY.createMultiPoint(toCoordinates(node)));
+            return new JtsGeometry(GEOMETRY_FACTORY.createMultiPoint(toCoordinates(node)), GeoShapeConstants.SPATIAL_CONTEXT, true);
         } else if ("envelope".equals(shapeType)) {
             Coordinate[] coordinates = toCoordinates(node);
-            return new RectangleImpl(coordinates[0].x, coordinates[1].x, coordinates[1].y, coordinates[0].y);
+            return new RectangleImpl(coordinates[0].x, coordinates[1].x, coordinates[1].y, coordinates[0].y, GeoShapeConstants.SPATIAL_CONTEXT);
         }
 
         throw new UnsupportedOperationException("ShapeType [" + shapeType + "] not supported");

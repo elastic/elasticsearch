@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.integration.indices;
 
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.client.Client;
@@ -31,9 +32,7 @@ import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 import static org.testng.Assert.fail;
 
 public class IgnoreIndicesTests extends AbstractNodesTests {
@@ -57,11 +56,14 @@ public class IgnoreIndicesTests extends AbstractNodesTests {
         client.admin().indices().prepareDelete().execute().actionGet();
 
         client.admin().indices().prepareCreate("test1").execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        ClusterHealthResponse clusterHealthResponse = client.admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
+        assertThat(clusterHealthResponse.timedOut(), equalTo(false));
+
         try {
             client.prepareSearch("test1", "test2").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
             fail("Exception should have been thrown.");
-        } catch (IndexMissingException e) {}
+        } catch (IndexMissingException e) {
+        }
         MultiSearchResponse multiSearchResponse = client.prepareMultiSearch().add(
                 client.prepareSearch("test1", "test2").setQuery(QueryBuilders.matchAllQuery())
         ).execute().actionGet();
@@ -70,43 +72,53 @@ public class IgnoreIndicesTests extends AbstractNodesTests {
         try {
             client.prepareCount("test1", "test2").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
             fail("Exception should have been thrown.");
-        } catch (IndexMissingException e) {}
+        } catch (IndexMissingException e) {
+        }
         try {
             client.admin().indices().prepareClearCache("test1", "test2").execute().actionGet();
             fail("Exception should have been thrown.");
-        } catch (IndexMissingException e) {}
+        } catch (IndexMissingException e) {
+        }
         try {
             client.admin().indices().prepareFlush("test1", "test2").execute().actionGet();
             fail("Exception should have been thrown.");
-        } catch (IndexMissingException e) {}
+        } catch (IndexMissingException e) {
+        }
         try {
             client.admin().indices().prepareGatewaySnapshot("test1", "test2").execute().actionGet();
             fail("Exception should have been thrown.");
-        } catch (IndexMissingException e) {}
+        } catch (IndexMissingException e) {
+        }
         try {
             client.admin().indices().prepareSegments("test1", "test2").execute().actionGet();
             fail("Exception should have been thrown.");
-        } catch (IndexMissingException e) {}
+        } catch (IndexMissingException e) {
+        }
         try {
             client.admin().indices().prepareStats("test1", "test2").execute().actionGet();
             fail("Exception should have been thrown.");
-        } catch (IndexMissingException e) {}
+        } catch (IndexMissingException e) {
+        }
         try {
             client.admin().indices().prepareStatus("test1", "test2").execute().actionGet();
             fail("Exception should have been thrown.");
-        } catch (IndexMissingException e) {}
+        } catch (IndexMissingException e) {
+        }
         try {
             client.admin().indices().prepareOptimize("test1", "test2").execute().actionGet();
             fail("Exception should have been thrown.");
-        } catch (IndexMissingException e) {}
+        } catch (IndexMissingException e) {
+        }
         try {
             client.admin().indices().prepareRefresh("test1", "test2").execute().actionGet();
             fail("Exception should have been thrown.");
-        } catch (IndexMissingException e) {}
+        } catch (IndexMissingException e) {
+        }
         try {
             client.admin().indices().prepareValidateQuery("test1", "test2").execute().actionGet();
             fail("Exception should have been thrown.");
-        } catch (IndexMissingException e) {}
+        } catch (IndexMissingException e) {
+        }
 
         client.prepareSearch("test1", "test2").setIgnoreIndices(IgnoreIndices.MISSING)
                 .setQuery(QueryBuilders.matchAllQuery())
@@ -140,7 +152,10 @@ public class IgnoreIndicesTests extends AbstractNodesTests {
                 .execute().actionGet();
 
         client.admin().indices().prepareCreate("test2").execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        clusterHealthResponse = client.admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
+        assertThat(clusterHealthResponse.timedOut(), equalTo(false));
+
         client.prepareSearch("test1", "test2").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
         client.prepareCount("test1", "test2").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
         client.admin().indices().prepareClearCache("test1", "test2").execute().actionGet();
@@ -161,11 +176,17 @@ public class IgnoreIndicesTests extends AbstractNodesTests {
 
         client.admin().indices().prepareCreate("test1").execute().actionGet();
         client.admin().indices().prepareCreate("test2").execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        ClusterHealthResponse clusterHealthResponse = client.admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
+        assertThat(clusterHealthResponse.timedOut(), equalTo(false));
+
         client.prepareSearch("test1", "test2").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
 
         client.admin().indices().prepareClose("test2").execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        clusterHealthResponse = client.admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
+        assertThat(clusterHealthResponse.timedOut(), equalTo(false));
+
         try {
             client.prepareSearch("test1", "test2").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
             fail("Exception should have been thrown");

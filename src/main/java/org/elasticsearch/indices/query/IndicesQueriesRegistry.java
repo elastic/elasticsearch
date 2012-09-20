@@ -21,110 +21,49 @@ package org.elasticsearch.indices.query;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.geo.ShapesAvailability;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.query.*;
+import org.elasticsearch.index.query.FilterParser;
+import org.elasticsearch.index.query.QueryParser;
 
 import java.util.Map;
+import java.util.Set;
 
 /**
  *
  */
-public class IndicesQueriesRegistry {
+public class IndicesQueriesRegistry extends AbstractComponent {
 
     private ImmutableMap<String, QueryParser> queryParsers;
     private ImmutableMap<String, FilterParser> filterParsers;
 
     @Inject
-    public IndicesQueriesRegistry(Settings settings, @Nullable ClusterService clusterService) {
+    public IndicesQueriesRegistry(Settings settings, Set<QueryParser> injectedQueryParsers, Set<FilterParser> injectedFilterParsers) {
+        super(settings);
         Map<String, QueryParser> queryParsers = Maps.newHashMap();
-        addQueryParser(queryParsers, new MatchQueryParser());
-        addQueryParser(queryParsers, new MultiMatchQueryParser());
-        addQueryParser(queryParsers, new NestedQueryParser());
-        addQueryParser(queryParsers, new HasChildQueryParser());
-        addQueryParser(queryParsers, new HasParentQueryParser());
-        addQueryParser(queryParsers, new TopChildrenQueryParser());
-        addQueryParser(queryParsers, new DisMaxQueryParser());
-        addQueryParser(queryParsers, new IdsQueryParser());
-        addQueryParser(queryParsers, new MatchAllQueryParser());
-        addQueryParser(queryParsers, new QueryStringQueryParser(settings));
-        addQueryParser(queryParsers, new BoostingQueryParser());
-        addQueryParser(queryParsers, new BoolQueryParser(settings));
-        addQueryParser(queryParsers, new TermQueryParser());
-        addQueryParser(queryParsers, new TermsQueryParser());
-        addQueryParser(queryParsers, new FuzzyQueryParser());
-        addQueryParser(queryParsers, new FieldQueryParser(settings));
-        addQueryParser(queryParsers, new RangeQueryParser());
-        addQueryParser(queryParsers, new PrefixQueryParser());
-        addQueryParser(queryParsers, new WildcardQueryParser());
-        addQueryParser(queryParsers, new FilteredQueryParser());
-        addQueryParser(queryParsers, new ConstantScoreQueryParser());
-        addQueryParser(queryParsers, new CustomBoostFactorQueryParser());
-        addQueryParser(queryParsers, new CustomScoreQueryParser());
-        addQueryParser(queryParsers, new CustomFiltersScoreQueryParser());
-        addQueryParser(queryParsers, new SpanTermQueryParser());
-        addQueryParser(queryParsers, new SpanNotQueryParser());
-        addQueryParser(queryParsers, new SpanFirstQueryParser());
-        addQueryParser(queryParsers, new SpanNearQueryParser());
-        addQueryParser(queryParsers, new SpanOrQueryParser());
-        addQueryParser(queryParsers, new MoreLikeThisQueryParser());
-        addQueryParser(queryParsers, new MoreLikeThisFieldQueryParser());
-        addQueryParser(queryParsers, new FuzzyLikeThisQueryParser());
-        addQueryParser(queryParsers, new FuzzyLikeThisFieldQueryParser());
-        addQueryParser(queryParsers, new WrapperQueryParser());
-        addQueryParser(queryParsers, new IndicesQueryParser(clusterService));
-        if (ShapesAvailability.JTS_AVAILABLE) {
-            addQueryParser(queryParsers, new GeoShapeQueryParser());
+        for (QueryParser queryParser : injectedQueryParsers) {
+            addQueryParser(queryParsers, queryParser);
         }
         this.queryParsers = ImmutableMap.copyOf(queryParsers);
 
         Map<String, FilterParser> filterParsers = Maps.newHashMap();
-        addFilterParser(filterParsers, new HasChildFilterParser());
-        addFilterParser(filterParsers, new HasParentFilterParser());
-        addFilterParser(filterParsers, new NestedFilterParser());
-        addFilterParser(filterParsers, new TypeFilterParser());
-        addFilterParser(filterParsers, new IdsFilterParser());
-        addFilterParser(filterParsers, new LimitFilterParser());
-        addFilterParser(filterParsers, new TermFilterParser());
-        addFilterParser(filterParsers, new TermsFilterParser());
-        addFilterParser(filterParsers, new RangeFilterParser());
-        addFilterParser(filterParsers, new NumericRangeFilterParser());
-        addFilterParser(filterParsers, new PrefixFilterParser());
-        addFilterParser(filterParsers, new ScriptFilterParser());
-        addFilterParser(filterParsers, new GeoDistanceFilterParser());
-        addFilterParser(filterParsers, new GeoDistanceRangeFilterParser());
-        addFilterParser(filterParsers, new GeoBoundingBoxFilterParser());
-        addFilterParser(filterParsers, new GeoPolygonFilterParser());
-        if (ShapesAvailability.JTS_AVAILABLE) {
-            addFilterParser(filterParsers, new GeoShapeFilterParser());
+        for (FilterParser filterParser : injectedFilterParsers) {
+            addFilterParser(filterParsers, filterParser);
         }
-        addFilterParser(filterParsers, new QueryFilterParser());
-        addFilterParser(filterParsers, new FQueryFilterParser());
-        addFilterParser(filterParsers, new BoolFilterParser());
-        addFilterParser(filterParsers, new AndFilterParser());
-        addFilterParser(filterParsers, new OrFilterParser());
-        addFilterParser(filterParsers, new NotFilterParser());
-        addFilterParser(filterParsers, new MatchAllFilterParser());
-        addFilterParser(filterParsers, new ExistsFilterParser());
-        addFilterParser(filterParsers, new MissingFilterParser());
-        addFilterParser(filterParsers, new IndicesFilterParser(clusterService));
-        addFilterParser(filterParsers, new WrapperFilterParser());
         this.filterParsers = ImmutableMap.copyOf(filterParsers);
     }
 
     /**
      * Adds a global query parser.
      */
-    public void addQueryParser(QueryParser queryParser) {
+    public synchronized void addQueryParser(QueryParser queryParser) {
         Map<String, QueryParser> queryParsers = Maps.newHashMap(this.queryParsers);
         addQueryParser(queryParsers, queryParser);
         this.queryParsers = ImmutableMap.copyOf(queryParsers);
     }
 
-    public void addFilterParser(FilterParser filterParser) {
+    public synchronized void addFilterParser(FilterParser filterParser) {
         Map<String, FilterParser> filterParsers = Maps.newHashMap(this.filterParsers);
         addFilterParser(filterParsers, filterParser);
         this.filterParsers = ImmutableMap.copyOf(filterParsers);

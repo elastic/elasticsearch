@@ -19,6 +19,9 @@
 
 package org.elasticsearch.index.query;
 
+import com.google.common.collect.Lists;
+import gnu.trove.impl.Constants;
+import gnu.trove.map.hash.TObjectFloatHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -34,6 +37,7 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
     private final Object text;
 
     private final List<String> fields;
+    private TObjectFloatHashMap<String> fieldsBoosts;
 
     private MatchQueryBuilder.Type type;
 
@@ -65,8 +69,29 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
      * Constructs a new text query.
      */
     public MultiMatchQueryBuilder(Object text, String... fields) {
-        this.fields = Arrays.asList(fields);
+        this.fields = Lists.newArrayList();
+        this.fields.addAll(Arrays.asList(fields));
         this.text = text;
+    }
+
+    /**
+     * Adds a field to run the multi match against.
+     */
+    public MultiMatchQueryBuilder field(String field) {
+        fields.add(field);
+        return this;
+    }
+
+    /**
+     * Adds a field to run the multi match against with a specific boost.
+     */
+    public MultiMatchQueryBuilder field(String field, float boost) {
+        fields.add(field);
+        if (fieldsBoosts == null) {
+            fieldsBoosts = new TObjectFloatHashMap<String>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, -1);
+        }
+        fieldsBoosts.put(field, boost);
+        return this;
     }
 
     /**
@@ -162,7 +187,18 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
         builder.startObject(MultiMatchQueryParser.NAME);
 
         builder.field("query", text);
-        builder.field("fields", fields);
+        builder.startArray("fields");
+        for (String field : fields) {
+            float boost = -1;
+            if (fieldsBoosts != null) {
+                boost = fieldsBoosts.get(field);
+            }
+            if (boost != -1) {
+                field += "^" + boost;
+            }
+            builder.value(field);
+        }
+        builder.endArray();
 
         if (type != null) {
             builder.field("type", type.toString().toLowerCase(Locale.ENGLISH));

@@ -19,7 +19,10 @@
 
 package org.elasticsearch.search;
 
+import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
+
 import com.google.common.collect.ImmutableMap;
+
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.search.SearchType;
@@ -46,14 +49,23 @@ import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.warmer.IndicesWarmer;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.additional.AdditionalParametersParser;
 import org.elasticsearch.search.dfs.CachedDfSource;
 import org.elasticsearch.search.dfs.DfsPhase;
 import org.elasticsearch.search.dfs.DfsSearchResult;
-import org.elasticsearch.search.fetch.*;
+import org.elasticsearch.search.fetch.FetchPhase;
+import org.elasticsearch.search.fetch.FetchSearchRequest;
+import org.elasticsearch.search.fetch.FetchSearchResult;
+import org.elasticsearch.search.fetch.QueryFetchSearchResult;
+import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.InternalSearchRequest;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.query.*;
+import org.elasticsearch.search.query.QueryPhase;
+import org.elasticsearch.search.query.QueryPhaseExecutionException;
+import org.elasticsearch.search.query.QuerySearchRequest;
+import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.query.ScrollQuerySearchResult;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -62,8 +74,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicLong;
-
-import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 
 /**
  *
@@ -122,6 +132,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         elementParsers.putAll(queryPhase.parseElements());
         elementParsers.putAll(fetchPhase.parseElements());
         elementParsers.put("stats", new StatsGroupsParseElement());
+        elementParsers.put("additional", new AdditionalParametersParser());
         this.elementParsers = ImmutableMap.copyOf(elementParsers);
         indicesLifecycle.addListener(indicesLifecycleListener);
 

@@ -825,4 +825,9 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
     private HighlightBuilder highlightBuilder() {
         return sourceBuilder().highlighter();
     }
+    
+    public SearchRequestBuilder addAdditionalParameter(String name, String value) {
+      sourceBuilder.additionalParameters().addParam(name, value);
+      return this;
+    }
 }

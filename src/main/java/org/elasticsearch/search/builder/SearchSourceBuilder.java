@@ -21,8 +21,7 @@ package org.elasticsearch.search.builder;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
-import gnu.trove.iterator.TObjectFloatIterator;
-import gnu.trove.map.hash.TObjectFloatHashMap;
+
 import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
@@ -36,12 +35,15 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.additional.AdditionalParametersBuilder;
 import org.elasticsearch.search.facet.AbstractFacetBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 
+import gnu.trove.iterator.TObjectFloatIterator;
+import gnu.trove.map.hash.TObjectFloatHashMap;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -67,6 +69,13 @@ public class SearchSourceBuilder implements ToXContent {
      */
     public static HighlightBuilder highlight() {
         return new HighlightBuilder();
+    }
+    
+    /** 
+     * A static factory method to construct new additional parameters builder. 
+     */
+    public static AdditionalParametersBuilder additionalParams() {
+      return new AdditionalParametersBuilder();
     }
 
     private QueryBuilder queryBuilder;
@@ -106,6 +115,8 @@ public class SearchSourceBuilder implements ToXContent {
     private TObjectFloatHashMap<String> indexBoost = null;
 
     private String[] stats;
+    
+    private AdditionalParametersBuilder additionalParameters;
 
 
     /**
@@ -534,6 +545,13 @@ public class SearchSourceBuilder implements ToXContent {
         this.stats = statsGroups;
         return this;
     }
+    
+    public AdditionalParametersBuilder additionalParameters() {
+      if (this.additionalParameters == null) {
+        this.additionalParameters = additionalParams();
+      }
+      return this.additionalParameters;
+    }
 
     @Override
     public String toString() {
@@ -717,6 +735,10 @@ public class SearchSourceBuilder implements ToXContent {
             builder.endArray();
         }
 
+        if (additionalParameters != null) {
+            additionalParameters.toXContent(builder, params);
+        }
+        
         builder.endObject();
         return builder;
     }

@@ -167,6 +167,8 @@ public class SearchContext implements Releasable {
     private List<ScopePhase> scopePhases = null;
 
     private Map<String, BlockJoinQuery> nestedQueries;
+    
+    private Map<String, String> additionalParameters;
 
     public SearchContext(long id, InternalSearchRequest request, SearchShardTarget shardTarget,
                          Engine.Searcher engineSearcher, IndexService indexService, IndexShard indexShard, ScriptService scriptService) {
@@ -603,5 +605,16 @@ public class SearchContext implements Releasable {
 
     public MapperService.SmartNameObjectMapper smartNameObjectMapper(String name) {
         return mapperService().smartNameObjectMapper(name, request.types());
+    }
+    
+    public Map<String, String> additionalParameters() {
+      return additionalParameters;
+    }
+
+    public void addAdditionalParameter(String name, String value) {
+      if (additionalParameters == null) {
+        additionalParameters = new HashMap<String, String>();
+      }
+      additionalParameters.put(name, value);
     }
 }

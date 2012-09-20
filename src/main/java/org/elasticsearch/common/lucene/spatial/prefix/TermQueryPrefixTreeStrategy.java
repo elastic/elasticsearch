@@ -7,17 +7,15 @@ import com.vividsolutions.jts.operation.buffer.BufferOp;
 import com.vividsolutions.jts.operation.buffer.BufferParameters;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
-import org.elasticsearch.common.lucene.search.OrFilter;
+import org.elasticsearch.common.geo.GeoShapeConstants;
 import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.lucene.spatial.SpatialStrategy;
 import org.elasticsearch.common.lucene.spatial.prefix.tree.Node;
 import org.elasticsearch.common.lucene.spatial.prefix.tree.SpatialPrefixTree;
 import org.elasticsearch.common.geo.ShapeBuilder;
-import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.index.mapper.FieldMapper;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -46,7 +44,8 @@ public class TermQueryPrefixTreeStrategy extends SpatialStrategy {
      */
     @Override
     public Filter createIntersectsFilter(Shape shape) {
-        int detailLevel = getPrefixTree().getMaxLevelForPrecision(shape, getDistanceErrorPct());
+        int detailLevel = getPrefixTree().getLevelForDistance(
+                calcDistanceFromErrPct(shape, getDistanceErrorPct(), GeoShapeConstants.SPATIAL_CONTEXT));
         List<Node> nodes = getPrefixTree().getNodes(shape, detailLevel, false);
 
         Term[] nodeTerms = new Term[nodes.size()];
@@ -61,7 +60,8 @@ public class TermQueryPrefixTreeStrategy extends SpatialStrategy {
      */
     @Override
     public Query createIntersectsQuery(Shape shape) {
-        int detailLevel = getPrefixTree().getMaxLevelForPrecision(shape, getDistanceErrorPct());
+        int detailLevel = getPrefixTree().getLevelForDistance(
+                calcDistanceFromErrPct(shape, getDistanceErrorPct(), GeoShapeConstants.SPATIAL_CONTEXT));
         List<Node> nodes = getPrefixTree().getNodes(shape, detailLevel, false);
 
         BooleanQuery query = new BooleanQuery();
@@ -78,7 +78,8 @@ public class TermQueryPrefixTreeStrategy extends SpatialStrategy {
      */
     @Override
     public Filter createDisjointFilter(Shape shape) {
-        int detailLevel = getPrefixTree().getMaxLevelForPrecision(shape, getDistanceErrorPct());
+        int detailLevel = getPrefixTree().getLevelForDistance(
+                calcDistanceFromErrPct(shape, getDistanceErrorPct(), GeoShapeConstants.SPATIAL_CONTEXT));
         List<Node> nodes = getPrefixTree().getNodes(shape, detailLevel, false);
 
         XBooleanFilter filter = new XBooleanFilter();
@@ -94,7 +95,8 @@ public class TermQueryPrefixTreeStrategy extends SpatialStrategy {
      */
     @Override
     public Query createDisjointQuery(Shape shape) {
-        int detailLevel = getPrefixTree().getMaxLevelForPrecision(shape, getDistanceErrorPct());
+        int detailLevel = getPrefixTree().getLevelForDistance(
+                calcDistanceFromErrPct(shape, getDistanceErrorPct(), GeoShapeConstants.SPATIAL_CONTEXT));
         List<Node> nodes = getPrefixTree().getNodes(shape, detailLevel, false);
 
         BooleanQuery query = new BooleanQuery();
@@ -115,10 +117,8 @@ public class TermQueryPrefixTreeStrategy extends SpatialStrategy {
         Filter intersectsFilter = createIntersectsFilter(shape);
 
         Geometry shapeGeometry = ShapeBuilder.toJTSGeometry(shape);
-        // TODO: Need some way to detect if having the buffer is going to push the shape over the dateline
-        // and throw an error in this instance
         Geometry buffer = BufferOp.bufferOp(shapeGeometry, CONTAINS_BUFFER_DISTANCE, BUFFER_PARAMETERS);
-        Shape bufferedShape = new JtsGeometry(buffer.difference(shapeGeometry));
+        Shape bufferedShape = new JtsGeometry(buffer.difference(shapeGeometry), GeoShapeConstants.SPATIAL_CONTEXT, true);
         Filter bufferedFilter = createIntersectsFilter(bufferedShape);
 
         XBooleanFilter filter = new XBooleanFilter();
@@ -137,7 +137,7 @@ public class TermQueryPrefixTreeStrategy extends SpatialStrategy {
 
         Geometry shapeGeometry = ShapeBuilder.toJTSGeometry(shape);
         Geometry buffer = BufferOp.bufferOp(shapeGeometry, CONTAINS_BUFFER_DISTANCE, BUFFER_PARAMETERS);
-        Shape bufferedShape = new JtsGeometry(buffer.difference(shapeGeometry));
+        Shape bufferedShape = new JtsGeometry(buffer.difference(shapeGeometry), GeoShapeConstants.SPATIAL_CONTEXT, true);
         Query bufferedQuery = createIntersectsQuery(bufferedShape);
 
         BooleanQuery query = new BooleanQuery();

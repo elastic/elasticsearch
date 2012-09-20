@@ -28,10 +28,12 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * A Spatial Prefix Tree, or Trie, which decomposes shapes into prefixed strings at variable lengths corresponding to
+ * A spatial Prefix Tree, or Trie, which decomposes shapes into prefixed strings at variable lengths corresponding to
  * variable precision.  Each string corresponds to a spatial region.
- *
+ * <p/>
  * Implementations of this class should be thread-safe and immutable once initialized.
+ *
+ * @lucene.experimental
  */
 public abstract class SpatialPrefixTree {
 
@@ -61,34 +63,14 @@ public abstract class SpatialPrefixTree {
   }
 
   /**
-   * See {@link com.spatial4j.core.query.SpatialArgs#getDistPrecision()}.
-   * A grid level looked up via {@link #getLevelForDistance(double)} is returned.
-   *
-   * @param shape
-   * @param precision 0-0.5
-   * @return 1-maxLevels
-   */
-  public int getMaxLevelForPrecision(Shape shape, double precision) {
-    if (precision < 0 || precision > 0.5) {
-      throw new IllegalArgumentException("Precision " + precision + " must be between [0-0.5]");
-    }
-    if (precision == 0 || shape instanceof Point) {
-      return maxLevels;
-    }
-    double bboxArea = shape.getBoundingBox().getArea();
-    if (bboxArea == 0) {
-      return maxLevels;
-    }
-    double avgSideLenFromCenter = Math.sqrt(bboxArea) / 2;
-    return getLevelForDistance(avgSideLenFromCenter * precision);
-  }
-
-  /**
-   * Returns the level of the smallest grid size with a side length that is greater or equal to the provided
-   * distance.
+   * Returns the level of the largest grid in which its longest side is less
+   * than or equal to the provided distance (in degrees). Consequently {@code
+   * dist} acts as an error epsilon declaring the amount of detail needed in the
+   * grid, such that you can get a grid with just the right amount of
+   * precision.
    *
    * @param dist >= 0
-   * @return level [1-maxLevels]
+   * @return level [1 to maxLevels]
    */
   public abstract int getLevelForDistance(double dist);
 

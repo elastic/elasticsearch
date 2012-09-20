@@ -28,6 +28,8 @@ import java.util.List;
 
 /**
  * Represents a grid cell. These are not necessarily threadsafe, although new Cell("") (world cell) must be.
+ *
+ * @lucene.experimental
  */
 public abstract class Node implements Comparable<Node> {
   public static final byte LEAF_BYTE = '+';//NOTE: must sort before letters & numbers
@@ -150,7 +152,7 @@ public abstract class Node implements Comparable<Node> {
     }
     List<Node> copy = new ArrayList<Node>(cells.size());//copy since cells contractually isn't modifiable
     for (Node cell : cells) {
-      SpatialRelation rel = cell.getShape().relate(shapeFilter, spatialPrefixTree.ctx);
+      SpatialRelation rel = cell.getShape().relate(shapeFilter);
       if (rel == SpatialRelation.DISJOINT)
         continue;
       cell.shapeRel = rel;

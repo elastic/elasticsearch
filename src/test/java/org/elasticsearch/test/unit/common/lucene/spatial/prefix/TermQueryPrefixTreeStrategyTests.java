@@ -1,8 +1,5 @@
 package org.elasticsearch.test.unit.common.lucene.spatial.prefix;
 
-import com.spatial4j.core.context.SpatialContext;
-import com.spatial4j.core.context.jts.JtsSpatialContext;
-import com.spatial4j.core.distance.DistanceUnits;
 import com.spatial4j.core.shape.Rectangle;
 import com.spatial4j.core.shape.Shape;
 import org.apache.lucene.analysis.KeywordAnalyzer;
@@ -16,6 +13,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.Version;
+import org.elasticsearch.common.geo.GeoShapeConstants;
 import org.elasticsearch.common.lucene.spatial.prefix.TermQueryPrefixTreeStrategy;
 import org.elasticsearch.common.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.elasticsearch.common.lucene.spatial.prefix.tree.QuadPrefixTree;
@@ -37,13 +35,12 @@ import static org.testng.Assert.assertTrue;
  */
 public class TermQueryPrefixTreeStrategyTests {
 
-    private static final SpatialContext SPATIAL_CONTEXT = new JtsSpatialContext(DistanceUnits.KILOMETERS);
 
     // TODO: Randomize the implementation choice
     private static final SpatialPrefixTree QUAD_PREFIX_TREE =
-            new QuadPrefixTree(SPATIAL_CONTEXT, QuadPrefixTree.DEFAULT_MAX_LEVELS);
+            new QuadPrefixTree(GeoShapeConstants.SPATIAL_CONTEXT, QuadPrefixTree.DEFAULT_MAX_LEVELS);
     private static final SpatialPrefixTree GEOHASH_PREFIX_TREE
-            = new GeohashPrefixTree(SPATIAL_CONTEXT, GeohashPrefixTree.getMaxLevelsPossible());
+            = new GeohashPrefixTree(GeoShapeConstants.SPATIAL_CONTEXT, GeohashPrefixTree.getMaxLevelsPossible());
 
     private static final TermQueryPrefixTreeStrategy STRATEGY = new TermQueryPrefixTreeStrategy(new FieldMapper.Names("shape"), GEOHASH_PREFIX_TREE, 0.025);
 

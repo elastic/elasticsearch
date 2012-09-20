@@ -155,7 +155,7 @@
         <dependency>
             <groupId>com.spatial4j</groupId>
             <artifactId>spatial4j</artifactId>
-            <version>0.2</version>
+            <version>0.3</version>
             <scope>compile</scope>
             <optional>true</optional>
         </dependency>

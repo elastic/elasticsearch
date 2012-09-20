@@ -22,10 +22,10 @@ package org.elasticsearch.common.geo;
 import com.spatial4j.core.shape.Point;
 import com.spatial4j.core.shape.Rectangle;
 import com.spatial4j.core.shape.Shape;
+import com.spatial4j.core.shape.impl.PointImpl;
+import com.spatial4j.core.shape.impl.RectangleImpl;
 import com.spatial4j.core.shape.jts.JtsGeometry;
 import com.spatial4j.core.shape.jts.JtsPoint;
-import com.spatial4j.core.shape.simple.PointImpl;
-import com.spatial4j.core.shape.simple.RectangleImpl;
 import com.vividsolutions.jts.geom.*;
 
 import java.util.ArrayList;
@@ -50,7 +50,7 @@ public class ShapeBuilder {
      * @return Point with the latitude and longitude
      */
     public static Point newPoint(double lon, double lat) {
-        return new PointImpl(lon, lat);
+        return new PointImpl(lon, lat, GeoShapeConstants.SPATIAL_CONTEXT);
     }
 
     /**
@@ -80,9 +80,9 @@ public class ShapeBuilder {
      */
     public static Geometry toJTSGeometry(Shape shape) {
         if (shape instanceof JtsGeometry) {
-            return ((JtsGeometry) shape).geo;
+            return ((JtsGeometry) shape).getGeom();
         } else if (shape instanceof JtsPoint) {
-            return ((JtsPoint) shape).getJtsPoint();
+            return ((JtsPoint) shape).getGeom();
         } else if (shape instanceof Rectangle) {
             Rectangle rectangle = (Rectangle) shape;
 
@@ -119,7 +119,7 @@ public class ShapeBuilder {
          * @return this
          */
         public RectangleBuilder topLeft(double lon, double lat) {
-            this.topLeft = new PointImpl(lon, lat);
+            this.topLeft = new PointImpl(lon, lat, GeoShapeConstants.SPATIAL_CONTEXT);
             return this;
         }
 
@@ -131,7 +131,7 @@ public class ShapeBuilder {
          * @return this
          */
         public RectangleBuilder bottomRight(double lon, double lat) {
-            this.bottomRight = new PointImpl(lon, lat);
+            this.bottomRight = new PointImpl(lon, lat, GeoShapeConstants.SPATIAL_CONTEXT);
             return this;
         }
 
@@ -141,7 +141,7 @@ public class ShapeBuilder {
          * @return Built Rectangle
          */
         public Rectangle build() {
-            return new RectangleImpl(topLeft.getX(), bottomRight.getX(), bottomRight.getY(), topLeft.getY());
+            return new RectangleImpl(topLeft.getX(), bottomRight.getX(), bottomRight.getY(), topLeft.getY(), GeoShapeConstants.SPATIAL_CONTEXT);
         }
     }
 
@@ -160,7 +160,7 @@ public class ShapeBuilder {
          * @return this
          */
         public PolygonBuilder point(double lon, double lat) {
-            points.add(new PointImpl(lon, lat));
+            points.add(new PointImpl(lon, lat, GeoShapeConstants.SPATIAL_CONTEXT));
             return this;
         }
 
@@ -170,7 +170,7 @@ public class ShapeBuilder {
          * @return Built polygon
          */
         public Shape build() {
-            return new JtsGeometry(toPolygon());
+            return new JtsGeometry(toPolygon(), GeoShapeConstants.SPATIAL_CONTEXT, true);
         }
 
         /**

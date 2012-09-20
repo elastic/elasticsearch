@@ -1,14 +1,12 @@
 package org.elasticsearch.index.mapper.geo;
 
-import com.spatial4j.core.context.SpatialContext;
-import com.spatial4j.core.context.jts.JtsSpatialContext;
-import com.spatial4j.core.distance.DistanceUnits;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.FieldInfo;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoJSONShapeParser;
+import org.elasticsearch.common.geo.GeoShapeConstants;
 import org.elasticsearch.common.lucene.spatial.SpatialStrategy;
 import org.elasticsearch.common.lucene.spatial.prefix.TermQueryPrefixTreeStrategy;
 import org.elasticsearch.common.lucene.spatial.prefix.tree.GeohashPrefixTree;
@@ -43,9 +41,6 @@ import java.util.Map;
 public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
 
     public static final String CONTENT_TYPE = "geo_shape";
-
-    // TODO: Unsure if the units actually matter since we dont do distance calculations
-    public static final SpatialContext SPATIAL_CONTEXT = new JtsSpatialContext(DistanceUnits.KILOMETERS);
 
     public static class Names {
         public static final String TREE = "tree";
@@ -93,10 +88,10 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
         public GeoShapeFieldMapper build(BuilderContext context) {
             if (tree.equals(Names.GEOHASH)) {
                 int levels = treeLevels != 0 ? treeLevels : Defaults.GEOHASH_LEVELS;
-                prefixTree = new GeohashPrefixTree(SPATIAL_CONTEXT, levels);
+                prefixTree = new GeohashPrefixTree(GeoShapeConstants.SPATIAL_CONTEXT, levels);
             } else if (tree.equals(Names.QUADTREE)) {
                 int levels = treeLevels != 0 ? treeLevels : Defaults.QUADTREE_LEVELS;
-                prefixTree = new QuadPrefixTree(SPATIAL_CONTEXT, levels);
+                prefixTree = new QuadPrefixTree(GeoShapeConstants.SPATIAL_CONTEXT, levels);
             } else {
                 throw new ElasticSearchIllegalArgumentException("Unknown prefix tree type [" + tree + "]");
             }

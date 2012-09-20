@@ -19,38 +19,12 @@
 
 package org.elasticsearch.common.geo;
 
-import com.spatial4j.core.shape.impl.PointImpl;
-import com.vividsolutions.jts.geom.GeometryFactory;
+import com.spatial4j.core.context.jts.JtsSpatialContext;
 
 /**
+ * Common constants through the GeoShape codebase
  */
-public class ShapesAvailability {
+public interface GeoShapeConstants {
 
-    public static final boolean SPATIAL4J_AVAILABLE;
-    public static final boolean JTS_AVAILABLE;
-
-    static {
-        boolean xSPATIAL4J_AVAILABLE;
-        try {
-            new PointImpl(0, 0, GeoShapeConstants.SPATIAL_CONTEXT);
-            xSPATIAL4J_AVAILABLE = true;
-        } catch (Throwable t) {
-            xSPATIAL4J_AVAILABLE = false;
-        }
-        SPATIAL4J_AVAILABLE = xSPATIAL4J_AVAILABLE;
-
-        boolean xJTS_AVAILABLE;
-        try {
-            new GeometryFactory();
-            xJTS_AVAILABLE = true;
-        } catch (Throwable t) {
-            xJTS_AVAILABLE = false;
-        }
-        JTS_AVAILABLE = xJTS_AVAILABLE;
-    }
-
-
-    private ShapesAvailability() {
-
-    }
+    public static final JtsSpatialContext SPATIAL_CONTEXT = new JtsSpatialContext(true);
 }

@@ -18,10 +18,10 @@
 package org.elasticsearch.common.lucene.spatial.prefix.tree;
 
 import com.spatial4j.core.context.SpatialContext;
+import com.spatial4j.core.io.GeohashUtils;
 import com.spatial4j.core.shape.Point;
 import com.spatial4j.core.shape.Rectangle;
 import com.spatial4j.core.shape.Shape;
-import com.spatial4j.core.util.GeohashUtils;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -30,6 +30,8 @@ import java.util.List;
 
 /**
  * A SpatialPrefixGrid based on Geohashes.  Uses {@link GeohashUtils} to do all the geohash work.
+ *
+ * @lucene.experimental
  */
 public class GeohashPrefixTree extends SpatialPrefixTree {
 
@@ -37,19 +39,23 @@ public class GeohashPrefixTree extends SpatialPrefixTree {
     super(ctx, maxLevels);
     Rectangle bounds = ctx.getWorldBounds();
     if (bounds.getMinX() != -180)
-      throw new IllegalArgumentException("Geohash only supports lat-lon world bounds. Got "+bounds);
+      throw new IllegalArgumentException("Geohash only supports lat-lon world bounds. Got " + bounds);
     int MAXP = getMaxLevelsPossible();
     if (maxLevels <= 0 || maxLevels > MAXP)
-      throw new IllegalArgumentException("maxLen must be [1-"+MAXP+"] but got "+ maxLevels);
+      throw new IllegalArgumentException("maxLen must be [1-" + MAXP + "] but got " + maxLevels);
   }
 
-  /** Any more than this and there's no point (double lat & lon are the same). */
+  /**
+   * Any more than this and there's no point (double lat & lon are the same).
+   */
   public static int getMaxLevelsPossible() {
     return GeohashUtils.MAX_PRECISION;
   }
 
   @Override
   public int getLevelForDistance(double dist) {
+    if (dist == 0)
+      return maxLevels;//short circuit
     final int level = GeohashUtils.lookupHashLenForWidthHeight(dist, dist);
     return Math.max(Math.min(level, maxLevels), 1);
   }
@@ -107,7 +113,7 @@ public class GeohashPrefixTree extends SpatialPrefixTree {
 
     @Override
     public Node getSubCell(Point p) {
-      return GeohashPrefixTree.this.getNode(p,getLevel()+1);//not performant!
+      return GeohashPrefixTree.this.getNode(p, getLevel() + 1);//not performant!
     }
 
     private Shape shape;//cache

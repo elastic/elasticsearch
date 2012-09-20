@@ -50,7 +50,7 @@ public class GeoJSONShapeSerializer {
      */
     public static void serialize(Shape shape, XContentBuilder builder) throws IOException {
         if (shape instanceof JtsGeometry) {
-            Geometry geometry = ((JtsGeometry) shape).geo;
+            Geometry geometry = ((JtsGeometry) shape).getGeom();
             if (geometry instanceof Point) {
                 serializePoint((Point) geometry, builder);
             } else if (geometry instanceof LineString) {

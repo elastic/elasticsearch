@@ -221,7 +221,7 @@ public class SearchContext implements Releasable {
         }
         Filter searchFilter = mapperService().searchFilter(types());
         if (searchFilter != null) {
-            if (Queries.isMatchAllQuery(query())) {
+            if (Queries.isConstantMatchAllQuery(query())) {
                 Query q = new DeletionAwareConstantScoreQuery(filterCache().cache(searchFilter));
                 q.setBoost(query().getBoost());
                 parsedQuery(new ParsedQuery(q, parsedQuery()));

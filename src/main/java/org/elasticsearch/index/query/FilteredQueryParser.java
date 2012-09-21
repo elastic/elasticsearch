@@ -95,7 +95,7 @@ public class FilteredQueryParser implements QueryParser {
         }
 
         // if its a match_all query, use constant_score
-        if (Queries.isMatchAllQuery(query)) {
+        if (Queries.isConstantMatchAllQuery(query)) {
             Query q = new DeletionAwareConstantScoreQuery(filter);
             q.setBoost(boost);
             return q;

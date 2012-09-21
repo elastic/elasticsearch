@@ -108,11 +108,8 @@ public class Queries {
         return q;
     }
 
-    public static boolean isMatchAllQuery(Query query) {
+    public static boolean isConstantMatchAllQuery(Query query) {
         if (query == Queries.MATCH_ALL_QUERY) {
-            return true;
-        }
-        if (query instanceof MatchAllDocsQuery) {
             return true;
         }
         if (query instanceof DeletionAwareConstantScoreQuery) {

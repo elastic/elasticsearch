@@ -4,11 +4,14 @@ import com.spatial4j.core.shape.Shape;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.GeoJSONShapeParser;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
+import org.elasticsearch.index.search.shape.ShapeFetchService;
 
 import java.io.IOException;
 
@@ -36,6 +39,13 @@ public class GeoShapeFilterParser implements FilterParser {
 
     public static final String NAME = "geo_shape";
 
+    private ShapeFetchService fetchService;
+
+    public static class DEFAULTS {
+        public static final String INDEX_NAME = "shapes";
+        public static final String SHAPE_FIELD_NAME = "shape";
+    }
+
     @Override
     public String[] names() {
         return new String[]{NAME, "geoShape"};
@@ -51,6 +61,11 @@ public class GeoShapeFilterParser implements FilterParser {
         boolean cache = false;
         CacheKeyFilter.Key cacheKey = null;
         String filterName = null;
+
+        String id = null;
+        String type = null;
+        String index = DEFAULTS.INDEX_NAME;
+        String shapeFieldName = DEFAULTS.SHAPE_FIELD_NAME;
 
         XContentParser.Token token;
         String currentFieldName = null;
@@ -73,6 +88,28 @@ public class GeoShapeFilterParser implements FilterParser {
                             if (shapeRelation == null) {
                                 throw new QueryParsingException(parseContext.index(), "Unknown shape operation [" + parser.text() + " ]");
                             }
+                        } else if ("indexed_shape".equals(currentFieldName)) {
+                            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                                if (token == XContentParser.Token.FIELD_NAME) {
+                                    currentFieldName = parser.currentName();
+                                } else if (token.isValue()) {
+                                    if ("id".equals(currentFieldName)) {
+                                        id = parser.text();
+                                    } else if ("type".equals(currentFieldName)) {
+                                        type = parser.text();
+                                    } else if ("index".equals(currentFieldName)) {
+                                        index = parser.text();
+                                    } else if ("shape_field_name".equals(currentFieldName)) {
+                                        shapeFieldName = parser.text();
+                                    }
+                                }
+                            }
+                            if (id == null) {
+                                throw new QueryParsingException(parseContext.index(), "ID for indexed shape not provided");
+                            } else if (type == null) {
+                                throw new QueryParsingException(parseContext.index(), "Type for indexed shape not provided");
+                            }
+                            shape = fetchService.fetch(id, type, index, shapeFieldName);
                         }
                     }
                 }
@@ -118,5 +155,10 @@ public class GeoShapeFilterParser implements FilterParser {
         }
 
         return filter;
+    }
+
+    @Inject(optional = true)
+    public void setFetchService(@Nullable ShapeFetchService fetchService) {
+        this.fetchService = fetchService;
     }
 }

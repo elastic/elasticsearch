@@ -23,16 +23,40 @@ public class GeoShapeFilterBuilder extends BaseFilterBuilder {
 
     private String filterName;
 
+    private final String indexedShapeId;
+    private final String indexedShapeType;
+
+    private String indexedShapeIndex;
+    private String indexedShapeFieldName;
+
     /**
      * Creates a new GeoShapeFilterBuilder whose Filter will be against the
-     * given field name
+     * given field name using the given Shape
      *
      * @param name Name of the field that will be filtered
      * @param shape Shape used in the filter
      */
     public GeoShapeFilterBuilder(String name, Shape shape) {
+        this(name, shape, null, null);
+    }
+
+    /**
+     * Creates a new GeoShapeFilterBuilder whose Filter will be against the given field name
+     * and will use the Shape found with the given ID in the given type
+     *
+     * @param name Name of the field that will be filtered
+     * @param indexedShapeId ID of the indexed Shape that will be used in the Filter
+     * @param indexedShapeType Index type of the indexed Shapes
+     */
+    public GeoShapeFilterBuilder(String name, String indexedShapeId, String indexedShapeType) {
+        this(name, null, indexedShapeId, indexedShapeType);
+    }
+
+    private GeoShapeFilterBuilder(String name, Shape shape, String indexedShapeId, String indexedShapeType) {
         this.name = name;
         this.shape = shape;
+        this.indexedShapeId = indexedShapeId;
+        this.indexedShapeType = indexedShapeType;
     }
 
     /**
@@ -80,6 +104,28 @@ public class GeoShapeFilterBuilder extends BaseFilterBuilder {
         return this;
     }
 
+    /**
+     * Sets the name of the index where the indexed Shape can be found
+     *
+     * @param indexedShapeIndex Name of the index where the indexed Shape is
+     * @return this
+     */
+    public GeoShapeFilterBuilder indexedShapeIndex(String indexedShapeIndex) {
+        this.indexedShapeIndex = indexedShapeIndex;
+        return this;
+    }
+
+    /**
+     * Sets the name of the field in the indexed Shape document that has the Shape itself
+     *
+     * @param indexedShapeFieldName Name of the field where the Shape itself is defined
+     * @return this
+     */
+    public GeoShapeFilterBuilder indexedShapeFieldName(String indexedShapeFieldName) {
+        this.indexedShapeFieldName = indexedShapeFieldName;
+        return this;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(GeoShapeFilterParser.NAME);
@@ -87,9 +133,22 @@ public class GeoShapeFilterBuilder extends BaseFilterBuilder {
         builder.startObject(name);
         builder.field("relation", relation.getRelationName());
 
-        builder.startObject("shape");
-        GeoJSONShapeSerializer.serialize(shape, builder);
-        builder.endObject();
+        if (shape != null) {
+            builder.startObject("shape");
+            GeoJSONShapeSerializer.serialize(shape, builder);
+            builder.endObject();
+        } else {
+            builder.startObject("indexed_shape")
+                    .field("id", indexedShapeId)
+                    .field("type", indexedShapeType);
+            if (indexedShapeIndex != null) {
+                builder.field("index", indexedShapeIndex);
+            }
+            if (indexedShapeFieldName != null) {
+                builder.field("shape_field_name", indexedShapeFieldName);
+            }
+            builder.endObject();
+        }
 
         builder.endObject();
 

@@ -349,6 +349,10 @@ public abstract class FilterBuilders {
         return new GeoShapeFilterBuilder(name, shape);
     }
 
+    public static GeoShapeFilterBuilder geoShapeFilter(String name, String indexedShapeId, String indexedShapeType) {
+        return new GeoShapeFilterBuilder(name, indexedShapeId, indexedShapeType);
+    }
+
     /**
      * A filter to filter only documents where a field exists in them.
      *

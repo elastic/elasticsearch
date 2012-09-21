@@ -723,6 +723,10 @@ public abstract class QueryBuilders {
         return new GeoShapeQueryBuilder(name, shape);
     }
 
+    public static GeoShapeQueryBuilder geoShapeQuery(String name, String indexedShapeId, String indexedShapeType) {
+        return new GeoShapeQueryBuilder(name, indexedShapeId, indexedShapeType);
+    }
+
     private QueryBuilders() {
 
     }

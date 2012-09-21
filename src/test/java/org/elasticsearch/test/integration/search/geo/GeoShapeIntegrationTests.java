@@ -3,9 +3,10 @@ package org.elasticsearch.test.integration.search.geo;
 import com.spatial4j.core.shape.Shape;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.geo.GeoJSONShapeSerializer;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.query.GeoShapeFilterParser;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -43,11 +44,7 @@ public class GeoShapeIntegrationTests extends AbstractNodesTests {
 
     @Test
     public void testIndexPointsFilterRectangle() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
+        client.admin().indices().prepareDelete().execute().actionGet();
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location")
@@ -89,6 +86,58 @@ public class GeoShapeIntegrationTests extends AbstractNodesTests {
 
         searchResponse = client.prepareSearch()
                 .setQuery(geoShapeQuery("location", shape).relation(ShapeRelation.INTERSECTS))
+                .execute().actionGet();
+
+        assertThat(searchResponse.hits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.hits().hits().length, equalTo(1));
+        assertThat(searchResponse.hits().getAt(0).id(), equalTo("1"));
+    }
+
+    @Test
+    public void testIndexedShapeReference() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("properties").startObject("location")
+                .field("type", "geo_shape")
+                .field("tree", "quadtree")
+                .endObject().endObject()
+                .endObject().endObject().string();
+        client.admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        client.prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+                .field("name", "Document 1")
+                .startObject("location")
+                .field("type", "point")
+                .startArray("coordinates").value(-30).value(-30).endArray()
+                .endObject()
+                .endObject()).execute().actionGet();
+
+        client.admin().indices().prepareRefresh("test").execute().actionGet();
+
+        Shape shape = newRectangle().topLeft(-45, 45).bottomRight(45, -45).build();
+        XContentBuilder shapeContent = jsonBuilder().startObject()
+                .startObject("shape");
+        GeoJSONShapeSerializer.serialize(shape, shapeContent);
+        shapeContent.endObject();
+
+        client.prepareIndex("shapes", "shape_type", "Big_Rectangle").setSource(shapeContent).execute().actionGet();
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        client.admin().indices().prepareRefresh("shapes").execute().actionGet();
+
+        SearchResponse searchResponse = client.prepareSearch("test")
+                .setQuery(filteredQuery(matchAllQuery(),
+                        geoShapeFilter("location", "Big_Rectangle", "shape_type").relation(ShapeRelation.INTERSECTS)))
+                .execute().actionGet();
+
+        assertThat(searchResponse.hits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.hits().hits().length, equalTo(1));
+        assertThat(searchResponse.hits().getAt(0).id(), equalTo("1"));
+
+        searchResponse = client.prepareSearch()
+                .setQuery(geoShapeQuery("location", "Big_Rectangle", "shape_type").relation(ShapeRelation.INTERSECTS))
                 .execute().actionGet();
 
         assertThat(searchResponse.hits().getTotalHits(), equalTo(1l));

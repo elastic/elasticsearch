@@ -33,7 +33,7 @@ import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
-import org.elasticsearch.transport.support.TransportStreams;
+import org.elasticsearch.transport.support.TransportStatus;
 
 import java.io.IOException;
 import java.util.Map;
@@ -163,7 +163,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
 
             stream.writeLong(requestId);
             byte status = 0;
-            status = TransportStreams.statusSetRequest(status);
+            status = TransportStatus.setRequest(status);
             stream.writeByte(status); // 0 for request, 1 for response.
 
             stream.writeUTF(action);
@@ -203,7 +203,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         try {
             long requestId = stream.readLong();
             byte status = stream.readByte();
-            boolean isRequest = TransportStreams.statusIsRequest(status);
+            boolean isRequest = TransportStatus.isRequest(status);
 
             if (isRequest) {
                 handleRequest(stream, requestId, sourceTransport);
@@ -211,7 +211,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
                 final TransportResponseHandler handler = transportServiceAdapter.remove(requestId);
                 // ignore if its null, the adapter logs it
                 if (handler != null) {
-                    if (TransportStreams.statusIsError(status)) {
+                    if (TransportStatus.isError(status)) {
                         handlerResponseError(stream, handler);
                     } else {
                         handleResponse(stream, handler);

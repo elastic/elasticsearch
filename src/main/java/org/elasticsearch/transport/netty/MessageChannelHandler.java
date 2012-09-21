@@ -30,7 +30,7 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
-import org.elasticsearch.transport.support.TransportStreams;
+import org.elasticsearch.transport.support.TransportStatus;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.channel.*;
 
@@ -72,8 +72,10 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         }
         ChannelBuffer buffer = (ChannelBuffer) m;
         int size = buffer.getInt(buffer.readerIndex() - 4);
+        transportServiceAdapter.received(size + 6);
 
-        transportServiceAdapter.received(size + 4);
+        // we have additional bytes to read, outside of the header
+        boolean hasMessageBytesToRead = (size - (NettyHeader.HEADER_SIZE - 6)) != 0;
 
         int markedReaderIndex = buffer.readerIndex();
         int expectedIndexReader = markedReaderIndex + size;
@@ -84,13 +86,11 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
 
         long requestId = buffer.readLong();
         byte status = buffer.readByte();
-        boolean isRequest = TransportStreams.statusIsRequest(status);
+        boolean isRequest = TransportStatus.isRequest(status);
 
-        // we have additional bytes to read, outside of the header
-        boolean hasBytesToRead = (size - (TransportStreams.HEADER_SIZE - 4)) != 0;
 
         StreamInput wrappedStream;
-        if (TransportStreams.statusIsCompress(status) && hasBytesToRead && buffer.readable()) {
+        if (TransportStatus.isCompress(status) && hasMessageBytesToRead && buffer.readable()) {
             Compressor compressor = CompressorFactory.compressor(buffer);
             if (compressor == null) {
                 int maxToRead = Math.min(buffer.readableBytes(), 10);
@@ -121,7 +121,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
             TransportResponseHandler handler = transportServiceAdapter.remove(requestId);
             // ignore if its null, the adapter logs it
             if (handler != null) {
-                if (TransportStreams.statusIsError(status)) {
+                if (TransportStatus.isError(status)) {
                     handlerResponseError(wrappedStream, handler);
                 } else {
                     handleResponse(wrappedStream, handler);
@@ -132,9 +132,9 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
             }
             if (buffer.readerIndex() != expectedIndexReader) {
                 if (buffer.readerIndex() < expectedIndexReader) {
-                    logger.warn("Message not fully read (response) for [{}] handler {}, error [{}], resetting", requestId, handler, TransportStreams.statusIsError(status));
+                    logger.warn("Message not fully read (response) for [{}] handler {}, error [{}], resetting", requestId, handler, TransportStatus.isError(status));
                 } else {
-                    logger.warn("Message read past expected size (response) for [{}] handler {}, error [{}], resetting", requestId, handler, TransportStreams.statusIsError(status));
+                    logger.warn("Message read past expected size (response) for [{}] handler {}, error [{}], resetting", requestId, handler, TransportStatus.isError(status));
                 }
                 buffer.readerIndex(expectedIndexReader);
             }

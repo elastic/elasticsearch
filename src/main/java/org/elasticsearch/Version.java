@@ -185,6 +185,14 @@ public class Version implements Serializable {
         return version.id >= id;
     }
 
+    public boolean before(Version version) {
+        return version.id < id;
+    }
+
+    public boolean onOrBefore(Version version) {
+        return version.id <= id;
+    }
+
     /**
      * Just the version number (without -SNAPSHOT if snapshot).
      */

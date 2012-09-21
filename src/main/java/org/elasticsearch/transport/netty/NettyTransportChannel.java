@@ -19,15 +19,17 @@
 
 package org.elasticsearch.transport.netty;
 
+import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.ThrowableObjectOutputStream;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.CachedStreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.transport.NotSerializableTransportException;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponseOptions;
-import org.elasticsearch.transport.support.TransportStreams;
+import org.elasticsearch.transport.support.TransportStatus;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelFuture;
@@ -73,8 +75,24 @@ public class NettyTransportChannel implements TransportChannel {
             options.withCompress(true);
         }
         CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
-        TransportStreams.buildResponse(cachedEntry, requestId, message, options);
+
+        byte status = 0;
+        status = TransportStatus.setResponse(status);
+
+        if (options.compress()) {
+            status = TransportStatus.setCompress(status);
+            cachedEntry.bytes().skip(NettyHeader.HEADER_SIZE);
+            StreamOutput stream = cachedEntry.handles(CompressorFactory.defaultCompressor());
+            message.writeTo(stream);
+            stream.close();
+        } else {
+            StreamOutput stream = cachedEntry.handles();
+            cachedEntry.bytes().skip(NettyHeader.HEADER_SIZE);
+            message.writeTo(stream);
+            stream.close();
+        }
         ChannelBuffer buffer = cachedEntry.bytes().bytes().toChannelBuffer();
+        NettyHeader.writeHeader(buffer, requestId, status);
         ChannelFuture future = channel.write(buffer);
         future.addListener(new NettyTransport.CacheFutureListener(cachedEntry));
     }
@@ -85,7 +103,7 @@ public class NettyTransportChannel implements TransportChannel {
         BytesStreamOutput stream;
         try {
             stream = cachedEntry.bytes();
-            writeResponseExceptionHeader(stream);
+            cachedEntry.bytes().skip(NettyHeader.HEADER_SIZE);
             RemoteTransportException tx = new RemoteTransportException(transport.nodeName(), transport.wrapAddress(channel.getLocalAddress()), action, error);
             ThrowableObjectOutputStream too = new ThrowableObjectOutputStream(stream);
             too.writeObject(tx);
@@ -93,24 +111,20 @@ public class NettyTransportChannel implements TransportChannel {
         } catch (NotSerializableException e) {
             cachedEntry.reset();
             stream = cachedEntry.bytes();
-            writeResponseExceptionHeader(stream);
+            cachedEntry.bytes().skip(NettyHeader.HEADER_SIZE);
             RemoteTransportException tx = new RemoteTransportException(transport.nodeName(), transport.wrapAddress(channel.getLocalAddress()), action, new NotSerializableTransportException(error));
             ThrowableObjectOutputStream too = new ThrowableObjectOutputStream(stream);
             too.writeObject(tx);
             too.close();
         }
-        ChannelBuffer buffer = stream.bytes().toChannelBuffer();
-        buffer.setInt(0, buffer.writerIndex() - 4); // update real size.
+
+        byte status = 0;
+        status = TransportStatus.setResponse(status);
+        status = TransportStatus.setError(status);
+
+        ChannelBuffer buffer = cachedEntry.bytes().bytes().toChannelBuffer();
+        NettyHeader.writeHeader(buffer, requestId, status);
         ChannelFuture future = channel.write(buffer);
         future.addListener(new NettyTransport.CacheFutureListener(cachedEntry));
-    }
-
-    private void writeResponseExceptionHeader(BytesStreamOutput stream) throws IOException {
-        stream.writeBytes(LENGTH_PLACEHOLDER);
-        stream.writeLong(requestId);
-        byte status = 0;
-        status = TransportStreams.statusSetResponse(status);
-        status = TransportStreams.statusSetError(status);
-        stream.writeByte(status);
     }
 }

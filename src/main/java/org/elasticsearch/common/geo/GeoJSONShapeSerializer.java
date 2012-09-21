@@ -59,6 +59,8 @@ public class GeoJSONShapeSerializer {
                 serializePolygon((Polygon) geometry, builder);
             } else if (geometry instanceof MultiPoint) {
                 serializeMultiPoint((MultiPoint) geometry, builder);
+            } else if (geometry instanceof MultiPolygon) {
+                serializeMulitPolygon((MultiPolygon) geometry, builder);
             } else {
                 throw new ElasticSearchIllegalArgumentException("Geometry type [" + geometry.getGeometryType() + "] not supported");
             }
@@ -143,6 +145,19 @@ public class GeoJSONShapeSerializer {
         builder.field("type", "Polygon")
                 .startArray("coordinates");
 
+        serializePolygonCoordinates(polygon, builder);
+
+        builder.endArray();
+    }
+
+    /**
+     * Serializes the actual coordinates of the given {@link Polygon}
+     *
+     * @param polygon Polygon whose coordinates will be serialized
+     * @param builder XContentBuilder it will be serialized to
+     * @throws IOException Thrown if an error occurs while writing to the XContentBuilder
+     */
+    private static void serializePolygonCoordinates(Polygon polygon, XContentBuilder builder) throws IOException {
         builder.startArray(); // start outer ring
 
         for (Coordinate coordinate : polygon.getExteriorRing().getCoordinates()) {
@@ -162,7 +177,26 @@ public class GeoJSONShapeSerializer {
 
             builder.endArray();
         }
+    }
 
+    /**
+     * Serializes the given {@link MultiPolygon}
+     *
+     * @param multiPolygon MultiPolygon that will be serialized
+     * @param builder XContentBuilder it will be serialized to
+     * @throws IOException Thrown if an error occurs while writing to the XContentBuilder
+     */
+    private static void serializeMulitPolygon(MultiPolygon multiPolygon, XContentBuilder builder) throws IOException {
+        builder.field("type", "MultiPolygon")
+                .startArray("coordinates");
+
+        for (int i = 0; i < multiPolygon.getNumGeometries(); i++) {
+            builder.startArray();
+
+            serializePolygonCoordinates((Polygon) multiPolygon.getGeometryN(i), builder);
+
+            builder.endArray();
+        }
 
         builder.endArray();
     }
@@ -170,7 +204,7 @@ public class GeoJSONShapeSerializer {
     /**
      * Serializes the given {@link MultiPoint}
      *
-     * @param multiPoint MulitPoint that will be serialized
+     * @param multiPoint MultiPoint that will be serialized
      * @param builder    XContentBuilder it will be serialized to
      * @throws IOException Thrown if an error occurs while writing to the XContentBuilder
      */

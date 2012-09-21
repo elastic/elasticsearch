@@ -60,6 +60,7 @@ import org.elasticsearch.gateway.GatewayModule;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.http.HttpServerModule;
+import org.elasticsearch.index.search.shape.ShapeModule;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cache.filter.IndicesFilterCache;
@@ -151,6 +152,7 @@ public final class InternalNode implements Node {
         modules.add(new GatewayModule(settings));
         modules.add(new NodeClientModule());
         modules.add(new BulkUdpModule());
+        modules.add(new ShapeModule());
 
         injector = modules.createInjector();
 

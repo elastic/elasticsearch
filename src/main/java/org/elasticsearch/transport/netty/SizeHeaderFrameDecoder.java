@@ -18,11 +18,16 @@ public class SizeHeaderFrameDecoder extends FrameDecoder {
 
     @Override
     protected Object decode(ChannelHandlerContext ctx, Channel channel, ChannelBuffer buffer) throws Exception {
-        if (buffer.readableBytes() < 4) {
+        if (buffer.readableBytes() < 6) {
             return null;
         }
 
-        int dataLen = buffer.getInt(buffer.readerIndex());
+        int readerIndex = buffer.readerIndex();
+        if (buffer.getByte(readerIndex) != 'E' || buffer.getByte(readerIndex + 1) != 'S') {
+            throw new StreamCorruptedException("invalid internal transport message format");
+        }
+
+        int dataLen = buffer.getInt(buffer.readerIndex() + 2);
         if (dataLen <= 0) {
             throw new StreamCorruptedException("invalid data length: " + dataLen);
         }
@@ -32,10 +37,10 @@ public class SizeHeaderFrameDecoder extends FrameDecoder {
                     "transport content length received [" + new ByteSizeValue(dataLen) + "] exceeded [" + new ByteSizeValue(NINETY_PER_HEAP_SIZE) + "]");
         }
 
-        if (buffer.readableBytes() < dataLen + 4) {
+        if (buffer.readableBytes() < dataLen + 6) {
             return null;
         }
-        buffer.skipBytes(4);
+        buffer.skipBytes(6);
         return buffer;
     }
 }

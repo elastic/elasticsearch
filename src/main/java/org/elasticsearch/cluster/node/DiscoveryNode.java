@@ -229,13 +229,13 @@ public class DiscoveryNode implements Streamable, Serializable {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        nodeName = in.readUTF().intern();
-        nodeId = in.readUTF().intern();
+        nodeName = in.readString().intern();
+        nodeId = in.readString().intern();
         address = TransportAddressSerializers.addressFromStream(in);
         int size = in.readVInt();
         ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
         for (int i = 0; i < size; i++) {
-            builder.put(in.readUTF().intern(), in.readUTF().intern());
+            builder.put(in.readString().intern(), in.readString().intern());
         }
         attributes = builder.build();
         version = Version.readVersion(in);
@@ -243,13 +243,13 @@ public class DiscoveryNode implements Streamable, Serializable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeUTF(nodeName);
-        out.writeUTF(nodeId);
+        out.writeString(nodeName);
+        out.writeString(nodeId);
         addressToStream(out, address);
         out.writeVInt(attributes.size());
         for (Map.Entry<String, String> entry : attributes.entrySet()) {
-            out.writeUTF(entry.getKey());
-            out.writeUTF(entry.getValue());
+            out.writeString(entry.getKey());
+            out.writeString(entry.getValue());
         }
         Version.writeVersion(version, out);
     }

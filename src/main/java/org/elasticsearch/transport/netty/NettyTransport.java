@@ -26,8 +26,10 @@ import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.CachedStreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.netty.NettyStaticSetup;
 import org.elasticsearch.common.netty.OpenChannelsHandler;
@@ -43,7 +45,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
-import org.elasticsearch.transport.support.TransportStreams;
+import org.elasticsearch.transport.support.TransportStatus;
 import org.jboss.netty.bootstrap.ClientBootstrap;
 import org.jboss.netty.bootstrap.ServerBootstrap;
 import org.jboss.netty.buffer.ChannelBuffer;
@@ -58,7 +60,10 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.nio.channels.CancelledKeyException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -472,19 +477,19 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             // ignore
         }
         if (isCloseConnectionException(e.getCause())) {
-            // disconnect the node
-            Channel channel = ctx.getChannel();
-            for (Map.Entry<DiscoveryNode, NodeChannels> entry : connectedNodes.entrySet()) {
-                if (entry.getValue().hasChannel(channel)) {
-                    disconnectFromNode(entry.getKey());
-                }
+            if (logger.isTraceEnabled()) {
+                logger.trace("close connection exception caught on transport layer [{}], disconnecting from relevant node", e.getCause(), ctx.getChannel());
             }
+            // close the channel, which will cause a node to be disconnected if relevant
+            ctx.getChannel().close();
         } else if (isConnectException(e.getCause()) || e.getCause() instanceof CancelledKeyException) {
             if (logger.isTraceEnabled()) {
-                logger.trace("(Ignoring) exception caught on netty layer [" + ctx.getChannel() + "]", e.getCause());
+                logger.trace("(ignoring) exception caught on transport layer [{}]", e.getCause(), ctx.getChannel());
             }
         } else {
-            logger.warn("exception caught on netty layer [" + ctx.getChannel() + "]", e.getCause());
+            logger.warn("exception caught on transport layer [{}], closing connection", e.getCause(), ctx.getChannel());
+            // close the channel, which will cause a node to be disconnected if relevant
+            ctx.getChannel().close();
         }
     }
 
@@ -507,8 +512,27 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         }
 
         CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
-        TransportStreams.buildRequest(cachedEntry, requestId, action, message, options);
+
+        byte status = 0;
+        status = TransportStatus.setRequest(status);
+
+        if (options.compress()) {
+            status = TransportStatus.setCompress(status);
+            cachedEntry.bytes().skip(NettyHeader.HEADER_SIZE);
+            StreamOutput stream = cachedEntry.handles(CompressorFactory.defaultCompressor());
+            stream.writeString(action);
+            message.writeTo(stream);
+            stream.close();
+        } else {
+            StreamOutput stream = cachedEntry.handles();
+            cachedEntry.bytes().skip(NettyHeader.HEADER_SIZE);
+            stream.writeString(action);
+            message.writeTo(stream);
+            stream.close();
+        }
         ChannelBuffer buffer = cachedEntry.bytes().bytes().toChannelBuffer();
+        NettyHeader.writeHeader(buffer, requestId, status);
+
         ChannelFuture future = targetChannel.write(buffer);
         future.addListener(new CacheFutureListener(cachedEntry));
         // We handle close connection exception in the #exceptionCaught method, which is the main reason we want to add this future

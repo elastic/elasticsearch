@@ -28,7 +28,7 @@ import org.elasticsearch.transport.NotSerializableTransportException;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponseOptions;
-import org.elasticsearch.transport.support.TransportStreams;
+import org.elasticsearch.transport.support.TransportStatus;
 
 import java.io.IOException;
 import java.io.NotSerializableException;
@@ -71,7 +71,7 @@ public class LocalTransportChannel implements TransportChannel {
             StreamOutput stream = cachedEntry.handles();
             stream.writeLong(requestId);
             byte status = 0;
-            status = TransportStreams.statusSetResponse(status);
+            status = TransportStatus.setResponse(status);
             stream.writeByte(status); // 0 for request, 1 for response.
             message.writeTo(stream);
             stream.close();
@@ -123,8 +123,8 @@ public class LocalTransportChannel implements TransportChannel {
     private void writeResponseExceptionHeader(BytesStreamOutput stream) throws IOException {
         stream.writeLong(requestId);
         byte status = 0;
-        status = TransportStreams.statusSetResponse(status);
-        status = TransportStreams.statusSetError(status);
+        status = TransportStatus.setResponse(status);
+        status = TransportStatus.setError(status);
         stream.writeByte(status);
     }
 }

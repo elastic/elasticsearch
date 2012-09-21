@@ -26,6 +26,7 @@ import com.spatial4j.core.shape.jts.JtsPoint;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.GeometryFactory;
 import com.vividsolutions.jts.geom.LinearRing;
+import com.vividsolutions.jts.geom.Polygon;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -142,23 +143,42 @@ public class GeoJSONShapeParser {
         } else if ("linestring".equals(shapeType)) {
             return new JtsGeometry(GEOMETRY_FACTORY.createLineString(toCoordinates(node)), GeoShapeConstants.SPATIAL_CONTEXT, true);
         } else if ("polygon".equals(shapeType)) {
-            LinearRing shell = GEOMETRY_FACTORY.createLinearRing(toCoordinates(node.children.get(0)));
-            LinearRing[] holes = null;
-            if (node.children.size() > 1) {
-                holes = new LinearRing[node.children.size() - 1];
-                for (int i = 0; i < node.children.size() - 1; i++) {
-                    holes[i] = GEOMETRY_FACTORY.createLinearRing(toCoordinates(node.children.get(i + 1)));
-                }
-            }
-            return new JtsGeometry(GEOMETRY_FACTORY.createPolygon(shell, holes), GeoShapeConstants.SPATIAL_CONTEXT, true);
+            return new JtsGeometry(buildPolygon(node), GeoShapeConstants.SPATIAL_CONTEXT, true);
         } else if ("multipoint".equals(shapeType)) {
             return new JtsGeometry(GEOMETRY_FACTORY.createMultiPoint(toCoordinates(node)), GeoShapeConstants.SPATIAL_CONTEXT, true);
         } else if ("envelope".equals(shapeType)) {
             Coordinate[] coordinates = toCoordinates(node);
             return new RectangleImpl(coordinates[0].x, coordinates[1].x, coordinates[1].y, coordinates[0].y, GeoShapeConstants.SPATIAL_CONTEXT);
+        } else if ("multipolygon".equals(shapeType)) {
+            Polygon[] polygons = new Polygon[node.children.size()];
+            for (int i = 0; i < node.children.size(); i++) {
+                polygons[i] = buildPolygon(node.children.get(i));
+            }
+            return new JtsGeometry(
+                    GEOMETRY_FACTORY.createMultiPolygon(polygons),
+                    GeoShapeConstants.SPATIAL_CONTEXT,
+                    true);
         }
 
         throw new UnsupportedOperationException("ShapeType [" + shapeType + "] not supported");
+    }
+
+    /**
+     * Builds a {@link Polygon} from the given CoordinateNode
+     *
+     * @param node CoordinateNode that the Polygon will be built from
+     * @return Polygon consisting of the coordinates in the CoordinateNode
+     */
+    private static Polygon buildPolygon(CoordinateNode node) {
+        LinearRing shell = GEOMETRY_FACTORY.createLinearRing(toCoordinates(node.children.get(0)));
+        LinearRing[] holes = null;
+        if (node.children.size() > 1) {
+            holes = new LinearRing[node.children.size() - 1];
+            for (int i = 0; i < node.children.size() - 1; i++) {
+                holes[i] = GEOMETRY_FACTORY.createLinearRing(toCoordinates(node.children.get(i + 1)));
+            }
+        }
+        return GEOMETRY_FACTORY.createPolygon(shell, holes);
     }
 
     /**

@@ -158,6 +158,10 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         this.threadPool = threadPool;
         this.networkService = networkService;
 
+        if (settings.getAsBoolean("netty.epollBugWorkaround", false)) {
+            System.setProperty("org.jboss.netty.epollBugWorkaround", "true");
+        }
+
         this.connectMutex = new Object[500];
         for (int i = 0; i < connectMutex.length; i++) {
             connectMutex[i] = new Object();

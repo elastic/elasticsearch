@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.io.stream;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -35,6 +36,17 @@ import java.util.*;
  *
  */
 public abstract class StreamInput extends InputStream {
+
+    private Version version = Version.CURRENT;
+
+    public Version getVersion() {
+        return this.version;
+    }
+
+    public StreamInput setVersion(Version version) {
+        this.version = version;
+        return this;
+    }
 
     /**
      * Reads and returns a single byte.

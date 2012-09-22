@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport.netty;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.ThrowableObjectOutputStream;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -42,9 +43,9 @@ import java.io.NotSerializableException;
  */
 public class NettyTransportChannel implements TransportChannel {
 
-    private static final byte[] LENGTH_PLACEHOLDER = new byte[4];
-
     private final NettyTransport transport;
+
+    private final Version version;
 
     private final String action;
 
@@ -52,7 +53,8 @@ public class NettyTransportChannel implements TransportChannel {
 
     private final long requestId;
 
-    public NettyTransportChannel(NettyTransport transport, String action, Channel channel, long requestId) {
+    public NettyTransportChannel(NettyTransport transport, String action, Channel channel, long requestId, Version version) {
+        this.version = version;
         this.transport = transport;
         this.action = action;
         this.channel = channel;
@@ -83,16 +85,18 @@ public class NettyTransportChannel implements TransportChannel {
             status = TransportStatus.setCompress(status);
             cachedEntry.bytes().skip(NettyHeader.HEADER_SIZE);
             StreamOutput stream = cachedEntry.handles(CompressorFactory.defaultCompressor());
+            stream.setVersion(version);
             message.writeTo(stream);
             stream.close();
         } else {
             StreamOutput stream = cachedEntry.handles();
+            stream.setVersion(version);
             cachedEntry.bytes().skip(NettyHeader.HEADER_SIZE);
             message.writeTo(stream);
             stream.close();
         }
         ChannelBuffer buffer = cachedEntry.bytes().bytes().toChannelBuffer();
-        NettyHeader.writeHeader(buffer, requestId, status);
+        NettyHeader.writeHeader(buffer, requestId, status, version);
         ChannelFuture future = channel.write(buffer);
         future.addListener(new NettyTransport.CacheFutureListener(cachedEntry));
     }
@@ -123,7 +127,7 @@ public class NettyTransportChannel implements TransportChannel {
         status = TransportStatus.setError(status);
 
         ChannelBuffer buffer = cachedEntry.bytes().bytes().toChannelBuffer();
-        NettyHeader.writeHeader(buffer, requestId, status);
+        NettyHeader.writeHeader(buffer, requestId, status, version);
         ChannelFuture future = channel.write(buffer);
         future.addListener(new NettyTransport.CacheFutureListener(cachedEntry));
     }

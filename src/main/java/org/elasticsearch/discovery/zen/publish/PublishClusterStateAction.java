@@ -19,9 +19,10 @@
 
 package org.elasticsearch.discovery.zen.publish;
 
+import com.google.common.collect.Maps;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.Compressor;
@@ -33,6 +34,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  *
@@ -66,36 +68,44 @@ public class PublishClusterStateAction extends AbstractComponent {
     public void publish(ClusterState clusterState) {
         DiscoveryNode localNode = nodesProvider.nodes().localNode();
 
-        // serialize the cluster state here, so we won't do it several times per node
-        CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
-        byte[] clusterStateInBytes;
+        Map<Version, CachedStreamOutput.Entry> serializedStates = Maps.newHashMap();
         try {
-            StreamOutput stream = cachedEntry.handles(CompressorFactory.defaultCompressor());
-            ClusterState.Builder.writeTo(clusterState, stream);
-            stream.close();
-            clusterStateInBytes = cachedEntry.bytes().bytes().copyBytesArray().toBytes();
-        } catch (Exception e) {
-            logger.warn("failed to serialize cluster_state before publishing it to nodes", e);
-            return;
-        } finally {
-            CachedStreamOutput.pushEntry(cachedEntry);
-        }
+            for (final DiscoveryNode node : clusterState.nodes()) {
+                if (node.equals(localNode)) {
+                    // no need to send to our self
+                    continue;
+                }
+                // try and serialize the cluster state once (or per version), so we don't serialize it
+                // per node when we send it over the wire, compress it while we are at it...
+                CachedStreamOutput.Entry entry = serializedStates.get(node.version());
+                if (entry == null) {
+                    try {
+                        entry = CachedStreamOutput.popEntry();
+                        StreamOutput stream = entry.handles(CompressorFactory.defaultCompressor());
+                        stream.setVersion(node.version());
+                        ClusterState.Builder.writeTo(clusterState, stream);
+                        stream.close();
+                        serializedStates.put(node.version(), entry);
+                    } catch (Exception e) {
+                        logger.warn("failed to serialize cluster_state before publishing it to nodes", e);
+                        return;
+                    }
+                }
+                transportService.sendRequest(node, PublishClusterStateRequestHandler.ACTION,
+                        new PublishClusterStateRequest(entry.bytes().bytes()),
+                        TransportRequestOptions.options().withHighType().withCompress(false), // no need to compress, we already compressed the bytes
 
-        for (final DiscoveryNode node : clusterState.nodes()) {
-            if (node.equals(localNode)) {
-                // no need to send to our self
-                continue;
+                        new VoidTransportResponseHandler(ThreadPool.Names.SAME) {
+                            @Override
+                            public void handleException(TransportException exp) {
+                                logger.debug("failed to send cluster state to [{}], should be detected as failed soon...", exp, node);
+                            }
+                        });
             }
-            transportService.sendRequest(node, PublishClusterStateRequestHandler.ACTION,
-                    new PublishClusterStateRequest(clusterStateInBytes),
-                    TransportRequestOptions.options().withHighType().withCompress(false), // no need to compress, we already compressed the bytes
-
-                    new VoidTransportResponseHandler(ThreadPool.Names.SAME) {
-                        @Override
-                        public void handleException(TransportException exp) {
-                            logger.debug("failed to send cluster state to [{}], should be detected as failed soon...", exp, node);
-                        }
-                    });
+        } finally {
+            for (CachedStreamOutput.Entry entry : serializedStates.values()) {
+                CachedStreamOutput.pushEntry(entry);
+            }
         }
     }
 
@@ -106,8 +116,8 @@ public class PublishClusterStateAction extends AbstractComponent {
         private PublishClusterStateRequest() {
         }
 
-        private PublishClusterStateRequest(byte[] clusterStateInBytes) {
-            this.clusterStateInBytes = new BytesArray(clusterStateInBytes);
+        private PublishClusterStateRequest(BytesReference clusterStateInBytes) {
+            this.clusterStateInBytes = clusterStateInBytes;
         }
 
         @Override

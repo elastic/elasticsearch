@@ -520,18 +520,20 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             status = TransportStatus.setCompress(status);
             cachedEntry.bytes().skip(NettyHeader.HEADER_SIZE);
             StreamOutput stream = cachedEntry.handles(CompressorFactory.defaultCompressor());
+            stream.setVersion(node.version());
             stream.writeString(action);
             message.writeTo(stream);
             stream.close();
         } else {
             StreamOutput stream = cachedEntry.handles();
             cachedEntry.bytes().skip(NettyHeader.HEADER_SIZE);
+            stream.setVersion(node.version());
             stream.writeString(action);
             message.writeTo(stream);
             stream.close();
         }
         ChannelBuffer buffer = cachedEntry.bytes().bytes().toChannelBuffer();
-        NettyHeader.writeHeader(buffer, requestId, status);
+        NettyHeader.writeHeader(buffer, requestId, status, node.version());
 
         ChannelFuture future = targetChannel.write(buffer);
         future.addListener(new CacheFutureListener(cachedEntry));

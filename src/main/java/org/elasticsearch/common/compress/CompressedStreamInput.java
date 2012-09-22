@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.compress;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.EOFException;
@@ -40,7 +41,14 @@ public abstract class CompressedStreamInput<T extends CompressorContext> extends
     public CompressedStreamInput(StreamInput in, T context) throws IOException {
         this.in = in;
         this.context = context;
+        super.setVersion(in.getVersion());
         readHeader(in);
+    }
+
+    @Override
+    public StreamInput setVersion(Version version) {
+        in.setVersion(version);
+        return super.setVersion(version);
     }
 
     /**

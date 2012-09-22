@@ -20,6 +20,7 @@
 package org.elasticsearch.transport.netty;
 
 import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
@@ -86,8 +87,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
 
         long requestId = buffer.readLong();
         byte status = buffer.readByte();
-        boolean isRequest = TransportStatus.isRequest(status);
-
+        Version version = Version.fromId(buffer.readInt());
 
         StreamInput wrappedStream;
         if (TransportStatus.isCompress(status) && hasMessageBytesToRead && buffer.readable()) {
@@ -106,9 +106,10 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         } else {
             wrappedStream = CachedStreamInput.cachedHandles(streamIn);
         }
+        wrappedStream.setVersion(version);
 
-        if (isRequest) {
-            String action = handleRequest(ctx.getChannel(), wrappedStream, requestId);
+        if (TransportStatus.isRequest(status)) {
+            String action = handleRequest(ctx.getChannel(), wrappedStream, requestId, version);
             if (buffer.readerIndex() != expectedIndexReader) {
                 if (buffer.readerIndex() < expectedIndexReader) {
                     logger.warn("Message not fully read (request) for [{}] and action [{}], resetting", requestId, action);
@@ -194,10 +195,10 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         }
     }
 
-    private String handleRequest(Channel channel, StreamInput buffer, long requestId) throws IOException {
+    private String handleRequest(Channel channel, StreamInput buffer, long requestId, Version version) throws IOException {
         final String action = buffer.readUTF();
 
-        final NettyTransportChannel transportChannel = new NettyTransportChannel(transport, action, channel, requestId);
+        final NettyTransportChannel transportChannel = new NettyTransportChannel(transport, action, channel, requestId, version);
         try {
             final TransportRequestHandler handler = transportServiceAdapter.handler(action);
             if (handler == null) {

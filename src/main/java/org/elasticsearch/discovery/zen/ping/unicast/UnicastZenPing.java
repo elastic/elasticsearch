@@ -182,12 +182,12 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                     public void run() {
                         sendPings(timeout, TimeValue.timeValueMillis(timeout.millis() / 2), sendPingsHandler);
                         ConcurrentMap<DiscoveryNode, PingResponse> responses = receivedResponses.remove(sendPingsHandler.id());
-                        listener.onPing(responses.values().toArray(new PingResponse[responses.size()]));
+                        sendPingsHandler.close();
                         for (DiscoveryNode node : sendPingsHandler.nodeToDisconnect) {
                             logger.trace("[{}] disconnecting from {}", sendPingsHandler.id(), node);
                             transportService.disconnectFromNode(node);
                         }
-                        sendPingsHandler.close();
+                        listener.onPing(responses.values().toArray(new PingResponse[responses.size()]));
                     }
                 });
             }
@@ -226,7 +226,6 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                 executor.shutdownNow();
                 executor = null;
             }
-            nodeToDisconnect.clear();
         }
     }
 
@@ -266,6 +265,9 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                     @Override
                     public void run() {
                         try {
+                            if (sendPingsHandler.isClosed()) {
+                                return;
+                            }
                             // connect to the node, see if we manage to do it, if not, bail
                             if (!nodeFoundByAddress) {
                                 logger.trace("[{}] connecting (light) to {}", sendPingsHandler.id(), nodeToSend);

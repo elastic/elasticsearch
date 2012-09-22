@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.io.stream;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.UTF8StreamWriter;
@@ -36,6 +37,17 @@ import java.util.Map;
  *
  */
 public abstract class StreamOutput extends OutputStream {
+
+    private Version version = Version.CURRENT;
+
+    public Version getVersion() {
+        return this.version;
+    }
+
+    public StreamOutput setVersion(Version version) {
+        this.version = version;
+        return this;
+    }
 
     public boolean seekPositionSupported() {
         return false;

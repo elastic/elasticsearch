@@ -1,5 +1,6 @@
 package org.elasticsearch.common.io.stream;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.Text;
 
@@ -16,6 +17,13 @@ public abstract class AdapterStreamInput extends StreamInput {
 
     public AdapterStreamInput(StreamInput in) {
         this.in = in;
+        super.setVersion(in.getVersion());
+    }
+
+    @Override
+    public StreamInput setVersion(Version version) {
+        in.setVersion(version);
+        return super.setVersion(version);
     }
 
     public void reset(StreamInput in) {

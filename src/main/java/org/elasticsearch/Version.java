@@ -97,24 +97,8 @@ public class Version implements Serializable {
 
     public static Version fromId(int id) {
         switch (id) {
-            case V_0_18_0_ID:
-                return V_0_18_0;
-            case V_0_18_1_ID:
-                return V_0_18_1;
-            case V_0_18_2_ID:
-                return V_0_18_2;
-            case V_0_18_3_ID:
-                return V_0_18_3;
-            case V_0_18_4_ID:
-                return V_0_18_4;
-            case V_0_18_5_ID:
-                return V_0_18_5;
-            case V_0_18_6_ID:
-                return V_0_18_6;
-            case V_0_18_7_ID:
-                return V_0_18_7;
-            case V_0_18_8_ID:
-                return V_0_18_8;
+            case V_0_20_0_Beta1_ID:
+                return V_0_20_0_Beta1;
 
             case V_0_19_0_RC1_ID:
                 return V_0_19_0_RC1;
@@ -145,8 +129,24 @@ public class Version implements Serializable {
             case V_0_19_10_ID:
                 return V_0_19_10;
 
-            case V_0_20_0_Beta1_ID:
-                return V_0_20_0_Beta1;
+            case V_0_18_0_ID:
+                return V_0_18_0;
+            case V_0_18_1_ID:
+                return V_0_18_1;
+            case V_0_18_2_ID:
+                return V_0_18_2;
+            case V_0_18_3_ID:
+                return V_0_18_3;
+            case V_0_18_4_ID:
+                return V_0_18_4;
+            case V_0_18_5_ID:
+                return V_0_18_5;
+            case V_0_18_6_ID:
+                return V_0_18_6;
+            case V_0_18_7_ID:
+                return V_0_18_7;
+            case V_0_18_8_ID:
+                return V_0_18_8;
 
             default:
                 return new Version(id, null);
@@ -219,5 +219,22 @@ public class Version implements Serializable {
             sb.append("-SNAPSHOT");
         }
         return sb.toString();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        Version version = (Version) o;
+
+        if (id != version.id) return false;
+
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        return id;
     }
 }

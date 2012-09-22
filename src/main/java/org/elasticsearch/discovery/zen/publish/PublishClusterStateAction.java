@@ -112,6 +112,7 @@ public class PublishClusterStateAction extends AbstractComponent {
     class PublishClusterStateRequest implements Streamable {
 
         BytesReference clusterStateInBytes;
+        Version version = Version.CURRENT;
 
         private PublishClusterStateRequest() {
         }
@@ -123,6 +124,7 @@ public class PublishClusterStateAction extends AbstractComponent {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             clusterStateInBytes = in.readBytesReference();
+            version = in.getVersion();
         }
 
         @Override
@@ -149,6 +151,7 @@ public class PublishClusterStateAction extends AbstractComponent {
             } else {
                 in = CachedStreamInput.cachedHandles(request.clusterStateInBytes.streamInput());
             }
+            in.setVersion(request.version);
             ClusterState clusterState = ClusterState.Builder.readFrom(in, nodesProvider.nodes().localNode());
             listener.onNewClusterState(clusterState);
             channel.sendResponse(VoidStreamable.INSTANCE);

@@ -1,3 +1,22 @@
+/*
+ * Licensed to ElasticSearch and Shay Banon under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. ElasticSearch licenses this
+ * file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 package org.elasticsearch.test.integration.search.geo;
 
 import com.spatial4j.core.shape.Shape;
@@ -15,9 +34,7 @@ import org.testng.annotations.Test;
 import static org.elasticsearch.common.geo.ShapeBuilder.newRectangle;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.geoShapeFilter;
-import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
-import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -48,8 +65,8 @@ public class GeoShapeIntegrationTests extends AbstractNodesTests {
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location")
-                    .field("type", "geo_shape")
-                    .field("tree", "quadtree")
+                .field("type", "geo_shape")
+                .field("tree", "quadtree")
                 .endObject().endObject()
                 .endObject().endObject().string();
         client.admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
@@ -66,8 +83,8 @@ public class GeoShapeIntegrationTests extends AbstractNodesTests {
         client.prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
                 .field("name", "Document 2")
                 .startObject("location")
-                    .field("type", "point")
-                    .startArray("coordinates").value(-45).value(-50).endArray()
+                .field("type", "point")
+                .startArray("coordinates").value(-45).value(-50).endArray()
                 .endObject()
                 .endObject()).execute().actionGet();
 

@@ -207,8 +207,9 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                     Engine.Delete delete = indexShard.prepareDelete(deleteRequest.type(), deleteRequest.id(), deleteRequest.version()).versionType(deleteRequest.versionType()).origin(Engine.Operation.Origin.PRIMARY);
                     indexShard.delete(delete);
                     // update the request with teh version so it will go to the replicas
-                    deleteRequest.version(delete.version());
-
+                    if (!delete.notFound()) {
+                        deleteRequest.version(delete.version());
+                    }
                     // add the response
                     responses[i] = new BulkItemResponse(item.id(), "delete",
                             new DeleteResponse(deleteRequest.index(), deleteRequest.type(), deleteRequest.id(), delete.version(), delete.notFound()));

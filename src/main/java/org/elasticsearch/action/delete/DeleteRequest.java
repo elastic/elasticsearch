@@ -76,6 +76,16 @@ public class DeleteRequest extends ShardReplicationOperationRequest {
         this.id = id;
     }
 
+    public DeleteRequest(DeleteRequest request) {
+        super(request);
+        this.type = request.type();
+        this.id = request.id();
+        this.routing = request.routing();
+        this.refresh = request.refresh();
+        this.version = request.version();
+        this.versionType = request.versionType();
+    }
+
     public DeleteRequest() {
     }
 

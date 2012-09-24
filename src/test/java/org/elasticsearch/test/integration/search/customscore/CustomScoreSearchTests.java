@@ -19,6 +19,8 @@
 
 package org.elasticsearch.test.integration.search.customscore;
 
+import org.apache.lucene.search.Explanation;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
@@ -38,6 +40,7 @@ import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.testng.Assert.assertNotNull;
 
 /**
  *
@@ -61,6 +64,81 @@ public class CustomScoreSearchTests extends AbstractNodesTests {
 
     protected Client getClient() {
         return client("node1");
+    }
+
+    @Test
+    public void testScoreExplainBug_2283() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+        client.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth("test").setWaitForYellowStatus().execute().actionGet();
+        assertThat(healthResponse.timedOut(), equalTo(false));
+
+        client.prepareIndex("test", "type", "1").setSource("field", "value1", "color", "red").execute().actionGet();
+        client.prepareIndex("test", "type", "2").setSource("field", "value2", "color", "blue").execute().actionGet();
+        client.prepareIndex("test", "type", "3").setSource("field", "value3", "color", "red").execute().actionGet();
+        client.prepareIndex("test", "type", "4").setSource("field", "value4", "color", "blue").execute().actionGet();
+
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        SearchResponse searchResponse = client.prepareSearch("test")
+                .setQuery(customFiltersScoreQuery(matchAllQuery())
+                        .add(termFilter("field", "value4"), "2")
+                        .add(termFilter("field", "value2"), "3")
+                .scoreMode("first"))
+                .setExplain(true)
+                .execute().actionGet();
+
+        assertThat(Arrays.toString(searchResponse.shardFailures()), searchResponse.failedShards(), equalTo(0));
+
+        assertThat(searchResponse.hits().totalHits(), equalTo(4l));
+        assertThat(searchResponse.hits().getAt(0).id(), equalTo("2"));
+        assertThat(searchResponse.hits().getAt(0).score(), equalTo(3.0f));
+        logger.info("--> Hit[0] {} Explanation:\n {}", searchResponse.hits().getAt(0).id(), searchResponse.hits().getAt(0).explanation());
+        Explanation explanation = searchResponse.hits().getAt(0).explanation();
+        assertNotNull(explanation);
+        assertThat(explanation.isMatch(), equalTo(true));
+        assertThat(explanation.getValue(), equalTo(3f));
+        assertThat(explanation.getDescription(), equalTo("custom score, score mode [first]"));
+
+        assertThat(explanation.getDetails().length, equalTo(2));
+        assertThat(explanation.getDetails()[0].isMatch(), equalTo(true));
+        assertThat(explanation.getDetails()[0].getValue(), equalTo(1f));
+        assertThat(explanation.getDetails()[0].getDetails().length, equalTo(2));
+        assertThat(explanation.getDetails()[1].isMatch(), equalTo(true));
+        assertThat(explanation.getDetails()[1].getValue(), equalTo(3f));
+        assertThat(explanation.getDetails()[1].getDetails().length, equalTo(3));
+
+        // Same query but with boost
+        searchResponse = client.prepareSearch("test")
+                .setQuery(customFiltersScoreQuery(matchAllQuery())
+                        .add(termFilter("field", "value4"), "2")
+                        .add(termFilter("field", "value2"), "3")
+                        .boost(2)
+                .scoreMode("first"))
+                .setExplain(true)
+                .execute().actionGet();
+
+        assertThat(Arrays.toString(searchResponse.shardFailures()), searchResponse.failedShards(), equalTo(0));
+
+        assertThat(searchResponse.hits().totalHits(), equalTo(4l));
+        assertThat(searchResponse.hits().getAt(0).id(), equalTo("2"));
+        assertThat(searchResponse.hits().getAt(0).score(), equalTo(6f));
+        logger.info("--> Hit[0] {} Explanation:\n {}", searchResponse.hits().getAt(0).id(), searchResponse.hits().getAt(0).explanation());
+        explanation = searchResponse.hits().getAt(0).explanation();
+        assertNotNull(explanation);
+        assertThat(explanation.isMatch(), equalTo(true));
+        assertThat(explanation.getValue(), equalTo(6f));
+        assertThat(explanation.getDescription(), equalTo("custom score, score mode [first]"));
+
+        assertThat(explanation.getDetails().length, equalTo(2));
+        assertThat(explanation.getDetails()[0].isMatch(), equalTo(true));
+        assertThat(explanation.getDetails()[0].getValue(), equalTo(1f));
+        assertThat(explanation.getDetails()[0].getDetails().length, equalTo(2));
+        assertThat(explanation.getDetails()[1].isMatch(), equalTo(true));
+        assertThat(explanation.getDetails()[1].getValue(), equalTo(6f));
+        assertThat(explanation.getDetails()[1].getDetails().length, equalTo(3));
+        assertThat(explanation.getDetails()[1].getDetails()[2].getDescription(), equalTo("queryBoost"));
+        assertThat(explanation.getDetails()[1].getDetails()[2].getValue(), equalTo(2f));
     }
 
     @Test

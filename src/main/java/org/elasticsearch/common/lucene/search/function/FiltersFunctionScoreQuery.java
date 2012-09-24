@@ -168,11 +168,17 @@ public class FiltersFunctionScoreQuery extends Query {
                         filterFunction.function.setNextReader(reader);
                         Explanation functionExplanation = filterFunction.function.explainFactor(doc);
                         float sc = getValue() * subQueryExpl.getValue() * functionExplanation.getValue();
-                        Explanation res = new ComplexExplanation(true, sc, "custom score, product of:");
-                        res.addDetail(new Explanation(1.0f, "match filter: " + filterFunction.filter.toString()));
-                        res.addDetail(functionExplanation);
-                        res.addDetail(new Explanation(getValue(), "queryBoost"));
-                        return res;
+                        Explanation filterExplanation = new ComplexExplanation(true, sc, "custom score, product of:");
+                        filterExplanation.addDetail(new Explanation(1.0f, "match filter: " + filterFunction.filter.toString()));
+                        filterExplanation.addDetail(functionExplanation);
+                        filterExplanation.addDetail(new Explanation(getValue(), "queryBoost"));
+
+                        // top level score = subquery.score * filter.score (this already has the query boost)
+                        float topLevelScore = subQueryExpl.getValue() * sc;
+                        Explanation topLevel = new ComplexExplanation(true, topLevelScore, "custom score, score mode [" + scoreMode.toString().toLowerCase() + "]");
+                        topLevel.addDetail(subQueryExpl);
+                        topLevel.addDetail(filterExplanation);
+                        return topLevel;
                     }
                 }
             } else {

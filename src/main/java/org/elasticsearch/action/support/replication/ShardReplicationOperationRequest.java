@@ -61,6 +61,19 @@ public abstract class ShardReplicationOperationRequest implements ActionRequest 
         return this;
     }
 
+    protected ShardReplicationOperationRequest() {
+
+    }
+
+    public ShardReplicationOperationRequest(ShardReplicationOperationRequest request) {
+        this.timeout = request.timeout();
+        this.index = request.index();
+        this.threadedListener = request.threadedListener;
+        this.threadedOperation = request.threadedOperation;
+        this.replicationType = request.replicationType();
+        this.consistencyLevel = request.consistencyLevel();
+    }
+
     /**
      * Should the listener be called on a separate thread if needed.
      */

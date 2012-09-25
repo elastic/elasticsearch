@@ -133,12 +133,21 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
     }
 
     /**
-     * Constructs a new index request against the specific index. The {@link #type(String)},
-     * {@link #id(String)} and {@link #source(byte[])} must be set.
+     * Constructs a new index request against the specific index. The {@link #type(String)}
+     * {@link #source(byte[])} must be set. 
      */
     public IndexRequest(String index) {
         this.index = index;
     }
+
+    /**
+     * Constructs a new index request against the specific index and type. The 
+     * {@link #source(byte[])} must be set.
+     */
+    public IndexRequest(String index, String type) {
+        this.index = index;
+        this.type = type;
+   }
 
     /**
      * Constructs a new index request against the index, type, id and using the source.

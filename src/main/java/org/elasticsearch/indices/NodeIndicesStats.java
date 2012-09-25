@@ -19,6 +19,9 @@
 
 package org.elasticsearch.indices;
 
+import java.io.IOException;
+import java.io.Serializable;
+
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -26,6 +29,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.cache.CacheStats;
+import org.elasticsearch.index.cache.FieldDataCacheStats;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.indexing.IndexingStats;
@@ -34,9 +38,6 @@ import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.store.StoreStats;
-
-import java.io.IOException;
-import java.io.Serializable;
 
 /**
  * Global information on indices stats running on a specific node.
@@ -62,11 +63,13 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
     private RefreshStats refreshStats;
 
     private FlushStats flushStats;
+    
+    private FieldDataCacheStats fieldCacheStats;
 
     NodeIndicesStats() {
     }
 
-    public NodeIndicesStats(StoreStats storeStats, DocsStats docsStats, IndexingStats indexingStats, GetStats getStats, SearchStats searchStats, CacheStats cacheStats, MergeStats mergeStats, RefreshStats refreshStats, FlushStats flushStats) {
+    public NodeIndicesStats(StoreStats storeStats, DocsStats docsStats, IndexingStats indexingStats, GetStats getStats, SearchStats searchStats, CacheStats cacheStats, FieldDataCacheStats fieldCacheStats, MergeStats mergeStats, RefreshStats refreshStats, FlushStats flushStats) {
         this.storeStats = storeStats;
         this.docsStats = docsStats;
         this.indexingStats = indexingStats;
@@ -76,6 +79,7 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
         this.mergeStats = mergeStats;
         this.refreshStats = refreshStats;
         this.flushStats = flushStats;
+        this.fieldCacheStats = fieldCacheStats;
     }
 
     public StoreStats store() {
@@ -127,6 +131,14 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
 
     public CacheStats getCache() {
         return this.cache();
+    }
+    
+    public FieldDataCacheStats fieldDataCache() {
+        return this.fieldCacheStats;
+    }
+
+    public FieldDataCacheStats getFieldDataCache() {
+        return this.fieldDataCache();
     }
 
     public MergeStats merge() {
@@ -199,6 +211,7 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
         refreshStats.toXContent(builder, params);
         flushStats.toXContent(builder, params);
 
+        fieldCacheStats.toXContent(builder, params);
         builder.endObject();
         return builder;
     }

@@ -19,7 +19,13 @@
 
 package org.elasticsearch.index.cache.field.data.support;
 
-import com.google.common.cache.Cache;
+import java.io.IOException;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeUnit;
+
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SegmentReader;
 import org.elasticsearch.ElasticSearchException;
@@ -33,10 +39,7 @@ import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.settings.IndexSettings;
 
-import java.io.IOException;
-import java.util.Map;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.TimeUnit;
+import com.google.common.cache.Cache;
 
 /**
  *
@@ -93,9 +96,26 @@ public abstract class AbstractConcurrentMapFieldDataCache extends AbstractIndexC
         return sizeInBytes;
     }
 
+    /**
+     * Returns all field names a cache exists for
+     * @return List of field names, which have a cache
+     */
+    public Set<String> getFieldNames() {
+    	Set<String> fieldNameList = new HashSet<String>();
+
+        for (Cache<String, FieldData> map : cache.values()) {
+    		for(String key : map.asMap().keySet()) {
+    			fieldNameList.add(key);
+    		}
+    	}
+        
+        return fieldNameList;
+    }
+
     @Override
     public long sizeInBytes(String fieldName) {
         long sizeInBytes = 0;
+
         for (Cache<String, FieldData> map : cache.values()) {
             FieldData fieldData = map.getIfPresent(fieldName);
             if (fieldData != null) {

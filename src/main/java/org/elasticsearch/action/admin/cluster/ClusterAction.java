@@ -28,7 +28,7 @@ import org.elasticsearch.client.ClusterAdminClient;
 /**
  * Cluster action (used with {@link ClusterAdminClient} API.
  */
-public abstract class ClusterAction<Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response>>
+public abstract class ClusterAction<Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>>
         extends GenericAction<Request, Response> {
 
     protected ClusterAction(String name) {

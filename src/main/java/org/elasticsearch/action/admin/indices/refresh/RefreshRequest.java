@@ -31,12 +31,11 @@ import java.io.IOException;
  * capabilities depends on the index engine used. For example, the robin one requires refresh to be called, but by
  * default a refresh is scheduled periodically.
  *
- *
  * @see org.elasticsearch.client.Requests#refreshRequest(String...)
  * @see org.elasticsearch.client.IndicesAdminClient#refresh(RefreshRequest)
  * @see RefreshResponse
  */
-public class RefreshRequest extends BroadcastOperationRequest {
+public class RefreshRequest extends BroadcastOperationRequest<RefreshRequest> {
 
     private boolean waitForOperations = true;
 
@@ -47,24 +46,6 @@ public class RefreshRequest extends BroadcastOperationRequest {
         super(indices);
         // we want to do the refresh in parallel on local shards...
         operationThreading(BroadcastOperationThreading.THREAD_PER_SHARD);
-    }
-
-    /**
-     * Should the listener be called on a separate thread if needed.
-     */
-    @Override
-    public RefreshRequest listenerThreaded(boolean threadedListener) {
-        super.listenerThreaded(threadedListener);
-        return this;
-    }
-
-    /**
-     * Controls the operation threading model.
-     */
-    @Override
-    public RefreshRequest operationThreading(BroadcastOperationThreading operationThreading) {
-        super.operationThreading(operationThreading);
-        return this;
     }
 
     public boolean waitForOperations() {

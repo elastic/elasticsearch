@@ -20,29 +20,22 @@
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.BaseRequestBuilder;
+import org.elasticsearch.action.support.single.shard.SingleShardOperationRequestBuilder;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.Nullable;
 
 /**
  * A get document action request builder.
  */
-public class GetRequestBuilder extends BaseRequestBuilder<GetRequest, GetResponse> {
+public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetRequest, GetResponse, GetRequestBuilder> {
 
     public GetRequestBuilder(Client client) {
-        super(client, new GetRequest());
+        super((InternalClient) client, new GetRequest());
     }
 
     public GetRequestBuilder(Client client, @Nullable String index) {
-        super(client, new GetRequest(index));
-    }
-
-    /**
-     * Sets the index of the document to fetch.
-     */
-    public GetRequestBuilder setIndex(String index) {
-        request.index(index);
-        return this;
+        super((InternalClient) client, new GetRequest(index));
     }
 
     /**
@@ -114,24 +107,8 @@ public class GetRequestBuilder extends BaseRequestBuilder<GetRequest, GetRespons
         return this;
     }
 
-    /**
-     * Should the listener be called on a separate thread if needed.
-     */
-    public GetRequestBuilder setListenerThreaded(boolean threadedListener) {
-        request.listenerThreaded(threadedListener);
-        return this;
-    }
-
-    /**
-     * Controls if the operation will be executed on a separate thread when executed locally.
-     */
-    public GetRequestBuilder setOperationThreaded(boolean threadedOperation) {
-        request.operationThreaded(threadedOperation);
-        return this;
-    }
-
     @Override
     protected void doExecute(ActionListener<GetResponse> listener) {
-        client.get(request, listener);
+        ((Client) client).get(request, listener);
     }
 }

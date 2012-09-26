@@ -29,7 +29,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  */
-public class NodesHotThreadsRequest extends NodesOperationRequest {
+public class NodesHotThreadsRequest extends NodesOperationRequest<NodesHotThreadsRequest> {
 
     int threads = 3;
     String type = "cpu";

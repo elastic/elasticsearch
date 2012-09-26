@@ -20,8 +20,9 @@
 package org.elasticsearch.action.admin.indices.mapping.put;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.support.BaseIndicesRequestBuilder;
+import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 import org.elasticsearch.common.Required;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -31,10 +32,10 @@ import java.util.Map;
 /**
  *
  */
-public class PutMappingRequestBuilder extends BaseIndicesRequestBuilder<PutMappingRequest, PutMappingResponse> {
+public class PutMappingRequestBuilder extends MasterNodeOperationRequestBuilder<PutMappingRequest, PutMappingResponse, PutMappingRequestBuilder> {
 
     public PutMappingRequestBuilder(IndicesAdminClient indicesClient) {
-        super(indicesClient, new PutMappingRequest());
+        super((InternalIndicesAdminClient) indicesClient, new PutMappingRequest());
     }
 
     public PutMappingRequestBuilder setIndices(String... indices) {
@@ -94,14 +95,6 @@ public class PutMappingRequestBuilder extends BaseIndicesRequestBuilder<PutMappi
     }
 
     /**
-     * Sets the master node timeout in case the master has not yet been discovered.
-     */
-    public PutMappingRequestBuilder setMasterNodeTimeout(TimeValue timeout) {
-        request.masterNodeTimeout(timeout);
-        return this;
-    }
-
-    /**
      * If there is already a mapping definition registered against the type, then it will be merged. If there are
      * elements that can't be merged are detected, the request will be rejected unless the
      * {@link #setIgnoreConflicts(boolean)} is set. In such a case, the duplicate mappings will be rejected.
@@ -113,6 +106,6 @@ public class PutMappingRequestBuilder extends BaseIndicesRequestBuilder<PutMappi
 
     @Override
     protected void doExecute(ActionListener<PutMappingResponse> listener) {
-        client.putMapping(request, listener);
+        ((IndicesAdminClient) client).putMapping(request, listener);
     }
 }

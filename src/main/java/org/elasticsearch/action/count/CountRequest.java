@@ -22,7 +22,6 @@ package org.elasticsearch.action.count;
 import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Required;
@@ -52,7 +51,7 @@ import java.util.Map;
  * @see org.elasticsearch.client.Client#count(CountRequest)
  * @see org.elasticsearch.client.Requests#countRequest(String...)
  */
-public class CountRequest extends BroadcastOperationRequest {
+public class CountRequest extends BroadcastOperationRequest<CountRequest> {
 
     private static final XContentType contentType = Requests.CONTENT_TYPE;
 
@@ -92,35 +91,12 @@ public class CountRequest extends BroadcastOperationRequest {
         return queryHint;
     }
 
-    /**
-     * Controls the operation threading model.
-     */
-    @Override
-    public CountRequest operationThreading(BroadcastOperationThreading operationThreading) {
-        super.operationThreading(operationThreading);
-        return this;
-    }
-
     @Override
     protected void beforeStart() {
         if (querySourceUnsafe) {
             querySource = querySource.copyBytesArray();
             querySourceUnsafe = false;
         }
-    }
-
-    /**
-     * Should the listener be called on a separate thread if needed.
-     */
-    @Override
-    public CountRequest listenerThreaded(boolean threadedListener) {
-        super.listenerThreaded(threadedListener);
-        return this;
-    }
-
-    public CountRequest indices(String... indices) {
-        this.indices = indices;
-        return this;
     }
 
     /**

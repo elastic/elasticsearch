@@ -21,9 +21,10 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.BaseRequestBuilder;
+import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
@@ -42,12 +43,12 @@ import java.util.Map;
 /**
  * A search action request builder.
  */
-public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, SearchResponse> {
+public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, SearchResponse, SearchRequestBuilder> {
 
     private SearchSourceBuilder sourceBuilder;
 
     public SearchRequestBuilder(Client client) {
-        super(client, new SearchRequest());
+        super((InternalClient) client, new SearchRequest());
     }
 
     /**
@@ -173,14 +174,6 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
      */
     public SearchRequestBuilder setOperationThreading(String operationThreading) {
         request.operationThreading(operationThreading);
-        return this;
-    }
-
-    /**
-     * Should the listener be called on a separate thread if needed.
-     */
-    public SearchRequestBuilder setListenerThreaded(boolean listenerThreaded) {
-        request.listenerThreaded(listenerThreaded);
         return this;
     }
 
@@ -812,7 +805,7 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
         if (sourceBuilder != null) {
             request.source(sourceBuilder());
         }
-        client.search(request, listener);
+        ((Client) client).search(request, listener);
     }
 
     private SearchSourceBuilder sourceBuilder() {

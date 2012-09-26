@@ -51,8 +51,8 @@ import org.elasticsearch.search.dfs.DfsPhase;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.*;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
-import org.elasticsearch.search.internal.InternalSearchRequest;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.*;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -164,7 +164,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         }
     }
 
-    public DfsSearchResult executeDfsPhase(InternalSearchRequest request) throws ElasticSearchException {
+    public DfsSearchResult executeDfsPhase(ShardSearchRequest request) throws ElasticSearchException {
         SearchContext context = createContext(request);
         activeContexts.put(context.id(), context);
         try {
@@ -181,7 +181,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         }
     }
 
-    public QuerySearchResult executeScan(InternalSearchRequest request) throws ElasticSearchException {
+    public QuerySearchResult executeScan(ShardSearchRequest request) throws ElasticSearchException {
         SearchContext context = createContext(request);
         assert context.searchType() == SearchType.SCAN;
         context.searchType(SearchType.COUNT); // move to COUNT, and then, when scrolling, move to SCAN
@@ -232,7 +232,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         }
     }
 
-    public QuerySearchResult executeQueryPhase(InternalSearchRequest request) throws ElasticSearchException {
+    public QuerySearchResult executeQueryPhase(ShardSearchRequest request) throws ElasticSearchException {
         SearchContext context = createContext(request);
         activeContexts.put(context.id(), context);
         try {
@@ -305,7 +305,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         }
     }
 
-    public QueryFetchSearchResult executeFetchPhase(InternalSearchRequest request) throws ElasticSearchException {
+    public QueryFetchSearchResult executeFetchPhase(ShardSearchRequest request) throws ElasticSearchException {
         SearchContext context = createContext(request);
         activeContexts.put(context.id(), context);
         contextProcessing(context);
@@ -462,11 +462,11 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         return context;
     }
 
-    SearchContext createContext(InternalSearchRequest request) throws ElasticSearchException {
+    SearchContext createContext(ShardSearchRequest request) throws ElasticSearchException {
         return createContext(request, null);
     }
 
-    SearchContext createContext(InternalSearchRequest request, @Nullable Engine.Searcher searcher) throws ElasticSearchException {
+    SearchContext createContext(ShardSearchRequest request, @Nullable Engine.Searcher searcher) throws ElasticSearchException {
         IndexService indexService = indicesService.indexServiceSafe(request.index());
         IndexShard indexShard = indexService.shardSafe(request.shardId());
 
@@ -639,7 +639,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                 SearchContext context = null;
                 try {
                     long now = System.nanoTime();
-                    InternalSearchRequest request = new InternalSearchRequest(indexShard.shardId().index().name(), indexShard.shardId().id(), indexMetaData.numberOfShards(), SearchType.COUNT)
+                    ShardSearchRequest request = new ShardSearchRequest(indexShard.shardId().index().name(), indexShard.shardId().id(), indexMetaData.numberOfShards(), SearchType.COUNT)
                             .source(entry.source())
                             .types(entry.types());
                     context = createContext(request, warmerContext.newSearcher());

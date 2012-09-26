@@ -25,14 +25,10 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StringStreamable;
-import org.elasticsearch.common.io.stream.VoidStreamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.jmx.JmxService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportRequestHandler;
-import org.elasticsearch.transport.FutureTransportResponseHandler;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.*;
 
 /**
  *
@@ -60,7 +56,7 @@ public class GetJmxServiceUrlAction extends AbstractComponent {
         if (clusterService.state().nodes().localNodeId().equals(node.id())) {
             return jmxService.publishUrl();
         } else {
-            return transportService.submitRequest(node, GetJmxServiceUrlTransportHandler.ACTION, VoidStreamable.INSTANCE, new FutureTransportResponseHandler<StringStreamable>() {
+            return transportService.submitRequest(node, GetJmxServiceUrlTransportHandler.ACTION, TransportRequest.Empty.INSTANCE, new FutureTransportResponseHandler<StringStreamable>() {
                 @Override
                 public StringStreamable newInstance() {
                     return new StringStreamable();
@@ -69,13 +65,13 @@ public class GetJmxServiceUrlAction extends AbstractComponent {
         }
     }
 
-    private class GetJmxServiceUrlTransportHandler extends BaseTransportRequestHandler<VoidStreamable> {
+    private class GetJmxServiceUrlTransportHandler extends BaseTransportRequestHandler<TransportRequest.Empty> {
 
         static final String ACTION = "jmx/publishUrl";
 
         @Override
-        public VoidStreamable newInstance() {
-            return VoidStreamable.INSTANCE;
+        public TransportRequest.Empty newInstance() {
+            return TransportRequest.Empty.INSTANCE;
         }
 
         @Override
@@ -84,7 +80,7 @@ public class GetJmxServiceUrlAction extends AbstractComponent {
         }
 
         @Override
-        public void messageReceived(VoidStreamable request, TransportChannel channel) throws Exception {
+        public void messageReceived(TransportRequest.Empty request, TransportChannel channel) throws Exception {
             channel.sendResponse(new StringStreamable(jmxService.publishUrl()));
         }
     }

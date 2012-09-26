@@ -32,7 +32,7 @@ import java.util.concurrent.TimeUnit;
 /**
  *
  */
-public abstract class InstanceShardOperationRequest implements ActionRequest {
+public abstract class InstanceShardOperationRequest<T extends InstanceShardOperationRequest> extends ActionRequest<T> {
 
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
 
@@ -42,17 +42,11 @@ public abstract class InstanceShardOperationRequest implements ActionRequest {
     // -1 means its not set, allows to explicitly direct a request to a specific shard
     protected int shardId = -1;
 
-    private boolean threadedListener = false;
-
     protected InstanceShardOperationRequest() {
     }
 
     public InstanceShardOperationRequest(String index) {
         this.index = index;
-    }
-
-    public TimeValue timeout() {
-        return timeout;
     }
 
     @Override
@@ -68,28 +62,36 @@ public abstract class InstanceShardOperationRequest implements ActionRequest {
         return index;
     }
 
-    InstanceShardOperationRequest index(String index) {
+    @SuppressWarnings("unchecked")
+    public final T index(String index) {
         this.index = index;
-        return this;
+        return (T) this;
+    }
+
+    public TimeValue timeout() {
+        return timeout;
     }
 
     /**
-     * Should the listener be called on a separate thread if needed.
+     * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
      */
-    @Override
-    public boolean listenerThreaded() {
-        return threadedListener;
+    @SuppressWarnings("unchecked")
+    public final T timeout(TimeValue timeout) {
+        this.timeout = timeout;
+        return (T) this;
     }
 
-    @Override
-    public InstanceShardOperationRequest listenerThreaded(boolean threadedListener) {
-        this.threadedListener = threadedListener;
-        return this;
+    /**
+     * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
+     */
+    public final T timeout(String timeout) {
+        return timeout(TimeValue.parseTimeValue(timeout, null));
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        index = in.readUTF();
+        super.readFrom(in);
+        index = in.readString();
         shardId = in.readInt();
         timeout = TimeValue.readTimeValue(in);
         // no need to pass threading over the network, they are always false when coming throw a thread pool
@@ -97,7 +99,8 @@ public abstract class InstanceShardOperationRequest implements ActionRequest {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeUTF(index);
+        super.writeTo(out);
+        out.writeString(index);
         out.writeInt(shardId);
         timeout.writeTo(out);
     }

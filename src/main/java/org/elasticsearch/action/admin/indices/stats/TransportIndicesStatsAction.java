@@ -178,13 +178,14 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
 
     public static class IndexShardStatsRequest extends BroadcastShardOperationRequest {
 
+        // TODO if there are many indices, the request might hold a large indices array..., we don't really need to serialize it
         IndicesStatsRequest request;
 
         IndexShardStatsRequest() {
         }
 
         IndexShardStatsRequest(String index, int shardId, IndicesStatsRequest request) {
-            super(index, shardId);
+            super(index, shardId, request);
             this.request = request;
         }
 

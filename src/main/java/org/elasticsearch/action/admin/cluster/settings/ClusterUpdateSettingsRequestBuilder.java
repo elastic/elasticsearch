@@ -20,19 +20,19 @@
 package org.elasticsearch.action.admin.cluster.settings;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.support.BaseClusterRequestBuilder;
+import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.client.internal.InternalClusterAdminClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.Map;
 
 /**
  */
-public class ClusterUpdateSettingsRequestBuilder extends BaseClusterRequestBuilder<ClusterUpdateSettingsRequest, ClusterUpdateSettingsResponse> {
+public class ClusterUpdateSettingsRequestBuilder extends MasterNodeOperationRequestBuilder<ClusterUpdateSettingsRequest, ClusterUpdateSettingsResponse, ClusterUpdateSettingsRequestBuilder> {
 
     public ClusterUpdateSettingsRequestBuilder(ClusterAdminClient clusterClient) {
-        super(clusterClient, new ClusterUpdateSettingsRequest());
+        super((InternalClusterAdminClient) clusterClient, new ClusterUpdateSettingsRequest());
     }
 
     public ClusterUpdateSettingsRequestBuilder setTransientSettings(Settings settings) {
@@ -75,24 +75,8 @@ public class ClusterUpdateSettingsRequestBuilder extends BaseClusterRequestBuild
         return this;
     }
 
-    /**
-     * Sets the master node timeout in case the master has not yet been discovered.
-     */
-    public ClusterUpdateSettingsRequestBuilder setMasterNodeTimeout(TimeValue timeout) {
-        request.masterNodeTimeout(timeout);
-        return this;
-    }
-
-    /**
-     * Sets the master node timeout in case the master has not yet been discovered.
-     */
-    public ClusterUpdateSettingsRequestBuilder setMasterNodeTimeout(String timeout) {
-        request.masterNodeTimeout(timeout);
-        return this;
-    }
-
     @Override
     protected void doExecute(ActionListener<ClusterUpdateSettingsResponse> listener) {
-        client.updateSettings(request, listener);
+        ((ClusterAdminClient) client).updateSettings(request, listener);
     }
 }

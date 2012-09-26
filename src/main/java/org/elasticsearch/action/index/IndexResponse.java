@@ -23,7 +23,6 @@ import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -32,11 +31,10 @@ import java.util.List;
 /**
  * A response of an index operation,
  *
- *
  * @see org.elasticsearch.action.index.IndexRequest
  * @see org.elasticsearch.client.Client#index(IndexRequest)
  */
-public class IndexResponse implements ActionResponse, Streamable {
+public class IndexResponse implements ActionResponse {
 
     private String index;
 

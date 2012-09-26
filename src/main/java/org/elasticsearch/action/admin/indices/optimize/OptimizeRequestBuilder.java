@@ -20,10 +20,9 @@
 package org.elasticsearch.action.admin.indices.optimize;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.support.BaseIndicesRequestBuilder;
-import org.elasticsearch.action.support.IgnoreIndices;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
+import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 
 /**
  * A request to optimize one or more indices. In order to optimize on all the indices, pass an empty array or
@@ -35,15 +34,10 @@ import org.elasticsearch.client.IndicesAdminClient;
  * <p>{@link #setMaxNumSegments(int)} allows to control the number of segments to optimize down to. By default, will
  * cause the optimize process to optimize down to half the configured number of segments.
  */
-public class OptimizeRequestBuilder extends BaseIndicesRequestBuilder<OptimizeRequest, OptimizeResponse> {
+public class OptimizeRequestBuilder extends BroadcastOperationRequestBuilder<OptimizeRequest, OptimizeResponse, OptimizeRequestBuilder> {
 
     public OptimizeRequestBuilder(IndicesAdminClient indicesClient) {
-        super(indicesClient, new OptimizeRequest());
-    }
-
-    public OptimizeRequestBuilder setIndices(String... indices) {
-        request.indices(indices);
-        return this;
+        super((InternalIndicesAdminClient) indicesClient, new OptimizeRequest());
     }
 
     /**
@@ -88,32 +82,8 @@ public class OptimizeRequestBuilder extends BaseIndicesRequestBuilder<OptimizeRe
         return this;
     }
 
-    /**
-     * Should the listener be called on a separate thread if needed.
-     */
-    public OptimizeRequestBuilder setListenerThreaded(boolean threadedListener) {
-        request.listenerThreaded(threadedListener);
-        return this;
-    }
-
-    /**
-     * Controls the operation threading model.
-     */
-    public OptimizeRequestBuilder setOperationThreading(BroadcastOperationThreading operationThreading) {
-        request.operationThreading(operationThreading);
-        return this;
-    }
-
-    /**
-     * Specifies what type of requested indices to ignore. For example indices that don't exist.
-     */
-    public OptimizeRequestBuilder setIgnoreIndices(IgnoreIndices ignoreIndices) {
-        request().ignoreIndices(ignoreIndices);
-        return this;
-    }
-
     @Override
     protected void doExecute(ActionListener<OptimizeResponse> listener) {
-        client.optimize(request, listener);
+        ((IndicesAdminClient) client).optimize(request, listener);
     }
 }

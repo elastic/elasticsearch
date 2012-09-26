@@ -28,7 +28,7 @@ import org.elasticsearch.client.IndicesAdminClient;
 /**
  * Indices action (used with {@link IndicesAdminClient} API.
  */
-public abstract class IndicesAction<Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response>>
+public abstract class IndicesAction<Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>>
         extends GenericAction<Request, Response> {
 
     protected IndicesAction(String name) {

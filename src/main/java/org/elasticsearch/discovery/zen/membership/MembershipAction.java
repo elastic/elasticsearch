@@ -99,7 +99,7 @@ public class MembershipAction extends AbstractComponent {
                 .txGet(timeout.millis(), TimeUnit.MILLISECONDS);
     }
 
-    static class JoinRequest implements Streamable {
+    static class JoinRequest extends TransportRequest {
 
         DiscoveryNode node;
 
@@ -115,12 +115,14 @@ public class MembershipAction extends AbstractComponent {
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
             node = DiscoveryNode.readNode(in);
             withClusterState = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
             node.writeTo(out);
             out.writeBoolean(withClusterState);
         }
@@ -173,7 +175,7 @@ public class MembershipAction extends AbstractComponent {
         }
     }
 
-    class ValidateJoinRequest implements Streamable {
+    class ValidateJoinRequest extends TransportRequest {
 
         ClusterState clusterState;
 
@@ -186,11 +188,13 @@ public class MembershipAction extends AbstractComponent {
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
             clusterState = ClusterState.Builder.readFrom(in, nodesProvider.nodes().localNode());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
             ClusterState.Builder.writeTo(clusterState, out);
         }
     }
@@ -216,7 +220,7 @@ public class MembershipAction extends AbstractComponent {
         }
     }
 
-    private static class LeaveRequest implements Streamable {
+    static class LeaveRequest extends TransportRequest {
 
         private DiscoveryNode node;
 
@@ -229,11 +233,13 @@ public class MembershipAction extends AbstractComponent {
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
             node = DiscoveryNode.readNode(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
             node.writeTo(out);
         }
     }

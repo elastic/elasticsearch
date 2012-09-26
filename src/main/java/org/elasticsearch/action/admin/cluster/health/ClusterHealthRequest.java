@@ -34,7 +34,7 @@ import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
 /**
  *
  */
-public class ClusterHealthRequest extends MasterNodeOperationRequest {
+public class ClusterHealthRequest extends MasterNodeOperationRequest<ClusterHealthRequest> {
 
     private String[] indices;
 
@@ -141,7 +141,7 @@ public class ClusterHealthRequest extends MasterNodeOperationRequest {
         } else {
             indices = new String[size];
             for (int i = 0; i < indices.length; i++) {
-                indices[i] = in.readUTF();
+                indices[i] = in.readString();
             }
         }
         timeout = readTimeValue(in);
@@ -150,7 +150,7 @@ public class ClusterHealthRequest extends MasterNodeOperationRequest {
         }
         waitForRelocatingShards = in.readInt();
         waitForActiveShards = in.readInt();
-        waitForNodes = in.readUTF();
+        waitForNodes = in.readString();
     }
 
     @Override
@@ -161,7 +161,7 @@ public class ClusterHealthRequest extends MasterNodeOperationRequest {
         } else {
             out.writeVInt(indices.length);
             for (String index : indices) {
-                out.writeUTF(index);
+                out.writeString(index);
             }
         }
         timeout.writeTo(out);
@@ -173,6 +173,6 @@ public class ClusterHealthRequest extends MasterNodeOperationRequest {
         }
         out.writeInt(waitForRelocatingShards);
         out.writeInt(waitForActiveShards);
-        out.writeUTF(waitForNodes);
+        out.writeString(waitForNodes);
     }
 }

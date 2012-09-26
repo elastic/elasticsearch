@@ -98,7 +98,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
 
     @Override
     protected NodeRequest newNodeRequest(String nodeId, Request request) {
-        return new NodeRequest(nodeId, request.shardId, request.unallocated);
+        return new NodeRequest(nodeId, request);
     }
 
     @Override
@@ -281,7 +281,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
     }
 
 
-    static class Request extends NodesOperationRequest {
+    static class Request extends NodesOperationRequest<Request> {
 
         private ShardId shardId;
 
@@ -300,12 +300,6 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
             super(nodesIds);
             this.shardId = shardId;
             this.unallocated = unallocated;
-        }
-
-        @Override
-        public Request timeout(TimeValue timeout) {
-            super.timeout(timeout);
-            return this;
         }
 
         @Override
@@ -368,10 +362,10 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
         NodeRequest() {
         }
 
-        NodeRequest(String nodeId, ShardId shardId, boolean unallocated) {
-            super(nodeId);
-            this.shardId = shardId;
-            this.unallocated = unallocated;
+        NodeRequest(String nodeId, TransportNodesListShardStoreMetaData.Request request) {
+            super(request, nodeId);
+            this.shardId = request.shardId;
+            this.unallocated = request.unallocated;
         }
 
         @Override

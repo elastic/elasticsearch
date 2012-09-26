@@ -21,8 +21,8 @@ package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -31,7 +31,7 @@ import java.util.List;
 /**
  *
  */
-class RecoveryFilesInfoRequest implements Streamable {
+class RecoveryFilesInfoRequest extends TransportRequest {
 
     private long recoveryId;
     private ShardId shardId;
@@ -67,12 +67,13 @@ class RecoveryFilesInfoRequest implements Streamable {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
         recoveryId = in.readLong();
         shardId = ShardId.readShardId(in);
         int size = in.readVInt();
         phase1FileNames = new ArrayList<String>(size);
         for (int i = 0; i < size; i++) {
-            phase1FileNames.add(in.readUTF());
+            phase1FileNames.add(in.readString());
         }
 
         size = in.readVInt();
@@ -84,7 +85,7 @@ class RecoveryFilesInfoRequest implements Streamable {
         size = in.readVInt();
         phase1ExistingFileNames = new ArrayList<String>(size);
         for (int i = 0; i < size; i++) {
-            phase1ExistingFileNames.add(in.readUTF());
+            phase1ExistingFileNames.add(in.readString());
         }
 
         size = in.readVInt();
@@ -99,12 +100,13 @@ class RecoveryFilesInfoRequest implements Streamable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeLong(recoveryId);
         shardId.writeTo(out);
 
         out.writeVInt(phase1FileNames.size());
         for (String phase1FileName : phase1FileNames) {
-            out.writeUTF(phase1FileName);
+            out.writeString(phase1FileName);
         }
 
         out.writeVInt(phase1FileSizes.size());
@@ -114,7 +116,7 @@ class RecoveryFilesInfoRequest implements Streamable {
 
         out.writeVInt(phase1ExistingFileNames.size());
         for (String phase1ExistingFileName : phase1ExistingFileNames) {
-            out.writeUTF(phase1ExistingFileName);
+            out.writeString(phase1ExistingFileName);
         }
 
         out.writeVInt(phase1ExistingFileSizes.size());

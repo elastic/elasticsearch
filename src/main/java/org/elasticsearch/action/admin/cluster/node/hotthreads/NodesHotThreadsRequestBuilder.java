@@ -20,21 +20,17 @@
 package org.elasticsearch.action.admin.cluster.node.hotthreads;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.support.BaseClusterRequestBuilder;
+import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
 import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.client.internal.InternalClusterAdminClient;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**
  */
-public class NodesHotThreadsRequestBuilder extends BaseClusterRequestBuilder<NodesHotThreadsRequest, NodesHotThreadsResponse> {
+public class NodesHotThreadsRequestBuilder extends NodesOperationRequestBuilder<NodesHotThreadsRequest, NodesHotThreadsResponse, NodesHotThreadsRequestBuilder> {
 
     public NodesHotThreadsRequestBuilder(ClusterAdminClient clusterClient) {
-        super(clusterClient, new NodesHotThreadsRequest());
-    }
-
-    public NodesHotThreadsRequestBuilder setNodesIds(String... nodesIds) {
-        request.nodesIds(nodesIds);
-        return this;
+        super((InternalClusterAdminClient) clusterClient, new NodesHotThreadsRequest());
     }
 
     public NodesHotThreadsRequestBuilder setThreads(int threads) {
@@ -54,6 +50,6 @@ public class NodesHotThreadsRequestBuilder extends BaseClusterRequestBuilder<Nod
 
     @Override
     protected void doExecute(ActionListener<NodesHotThreadsResponse> listener) {
-        client.nodesHotThreads(request, listener);
+        ((ClusterAdminClient) client).nodesHotThreads(request, listener);
     }
 }

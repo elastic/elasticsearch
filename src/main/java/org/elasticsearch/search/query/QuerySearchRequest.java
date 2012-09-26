@@ -19,10 +19,11 @@
 
 package org.elasticsearch.search.query;
 
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.search.dfs.AggregatedDfs;
+import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
@@ -31,7 +32,7 @@ import static org.elasticsearch.search.dfs.AggregatedDfs.readAggregatedDfs;
 /**
  *
  */
-public class QuerySearchRequest implements Streamable {
+public class QuerySearchRequest extends TransportRequest {
 
     private long id;
 
@@ -40,7 +41,8 @@ public class QuerySearchRequest implements Streamable {
     public QuerySearchRequest() {
     }
 
-    public QuerySearchRequest(long id, AggregatedDfs dfs) {
+    public QuerySearchRequest(SearchRequest request, long id, AggregatedDfs dfs) {
+        super(request);
         this.id = id;
         this.dfs = dfs;
     }
@@ -55,12 +57,14 @@ public class QuerySearchRequest implements Streamable {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
         id = in.readLong();
         dfs = readAggregatedDfs(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeLong(id);
         dfs.writeTo(out);
     }

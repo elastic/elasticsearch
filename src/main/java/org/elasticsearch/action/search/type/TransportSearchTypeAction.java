@@ -40,7 +40,7 @@ import org.elasticsearch.search.action.SearchServiceListener;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.controller.ShardDoc;
-import org.elasticsearch.search.internal.InternalSearchRequest;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -339,14 +339,14 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
                     if (!docIdsToLoad.containsKey(entry.getKey())) {
                         DiscoveryNode node = nodes.get(entry.getKey().nodeId());
                         if (node != null) { // should not happen (==null) but safeguard anyhow
-                            searchService.sendFreeContext(node, entry.getValue().id());
+                            searchService.sendFreeContext(node, entry.getValue().id(), request);
                         }
                     }
                 }
             }
         }
 
-        protected abstract void sendExecuteFirstPhase(DiscoveryNode node, InternalSearchRequest request, SearchServiceListener<FirstResult> listener);
+        protected abstract void sendExecuteFirstPhase(DiscoveryNode node, ShardSearchRequest request, SearchServiceListener<FirstResult> listener);
 
         protected abstract void processFirstPhaseResult(ShardRouting shard, FirstResult result);
 

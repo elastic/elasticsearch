@@ -29,9 +29,8 @@ import java.io.IOException;
 /**
  *
  */
-public abstract class SingleCustomOperationRequest implements ActionRequest {
+public abstract class SingleCustomOperationRequest<T extends SingleCustomOperationRequest> extends ActionRequest<T> {
 
-    private boolean threadedListener = false;
     private boolean threadedOperation = true;
     private boolean preferLocal = true;
 
@@ -44,20 +43,6 @@ public abstract class SingleCustomOperationRequest implements ActionRequest {
     }
 
     /**
-     * Should the listener be called on a separate thread if needed.
-     */
-    @Override
-    public boolean listenerThreaded() {
-        return threadedListener;
-    }
-
-    @Override
-    public SingleCustomOperationRequest listenerThreaded(boolean threadedListener) {
-        this.threadedListener = threadedListener;
-        return this;
-    }
-
-    /**
      * Controls if the operation will be executed on a separate thread when executed locally.
      */
     public boolean operationThreaded() {
@@ -67,18 +52,20 @@ public abstract class SingleCustomOperationRequest implements ActionRequest {
     /**
      * Controls if the operation will be executed on a separate thread when executed locally.
      */
-    public SingleCustomOperationRequest operationThreaded(boolean threadedOperation) {
+    @SuppressWarnings("unchecked")
+    public final T operationThreaded(boolean threadedOperation) {
         this.threadedOperation = threadedOperation;
-        return this;
+        return (T) this;
     }
 
     /**
      * if this operation hits a node with a local relevant shard, should it be preferred
      * to be executed on, or just do plain round robin. Defaults to <tt>true</tt>
      */
-    public SingleCustomOperationRequest preferLocal(boolean preferLocal) {
+    @SuppressWarnings("unchecked")
+    public final T preferLocal(boolean preferLocal) {
         this.preferLocal = preferLocal;
-        return this;
+        return (T) this;
     }
 
     /**
@@ -95,12 +82,13 @@ public abstract class SingleCustomOperationRequest implements ActionRequest {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        // no need to pass threading over the network, they are always false when coming throw a thread pool
+        super.readFrom(in);
         preferLocal = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeBoolean(preferLocal);
     }
 }

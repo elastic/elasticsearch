@@ -42,8 +42,8 @@ import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.internal.InternalSearchRequest;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -94,7 +94,7 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
 
         SearchContext context = new SearchContext(
                 0,
-                new InternalSearchRequest().types(new String[]{request.type()})
+                new ShardSearchRequest().types(new String[]{request.type()})
                         .filteringAliases(request.filteringAlias()),
                 null, result.searcher(), indexService, indexShard,
                 scriptService
@@ -167,7 +167,7 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
 
     protected ShardIterator shards(ClusterState state, ExplainRequest request) throws ElasticSearchException {
         return clusterService.operationRouting().getShards(
-            clusterService.state(), request.index(), request.type(), request.id(), request.routing(), request.preference()
+                clusterService.state(), request.index(), request.type(), request.id(), request.routing(), request.preference()
         );
     }
 }

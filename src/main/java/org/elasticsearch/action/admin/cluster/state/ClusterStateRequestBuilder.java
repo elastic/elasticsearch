@@ -20,17 +20,17 @@
 package org.elasticsearch.action.admin.cluster.state;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.support.BaseClusterRequestBuilder;
+import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ClusterAdminClient;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.client.internal.InternalClusterAdminClient;
 
 /**
  *
  */
-public class ClusterStateRequestBuilder extends BaseClusterRequestBuilder<ClusterStateRequest, ClusterStateResponse> {
+public class ClusterStateRequestBuilder extends MasterNodeOperationRequestBuilder<ClusterStateRequest, ClusterStateResponse, ClusterStateRequestBuilder> {
 
     public ClusterStateRequestBuilder(ClusterAdminClient clusterClient) {
-        super(clusterClient, new ClusterStateRequest());
+        super((InternalClusterAdminClient) clusterClient, new ClusterStateRequest());
     }
 
     /**
@@ -88,22 +88,6 @@ public class ClusterStateRequestBuilder extends BaseClusterRequestBuilder<Cluste
     }
 
     /**
-     * Sets the master node timeout in case the master has not yet been discovered.
-     */
-    public ClusterStateRequestBuilder setMasterNodeTimeout(TimeValue timeout) {
-        request.masterNodeTimeout(timeout);
-        return this;
-    }
-
-    /**
-     * Sets the master node timeout in case the master has not yet been discovered.
-     */
-    public ClusterStateRequestBuilder setMasterNodeTimeout(String timeout) {
-        request.masterNodeTimeout(timeout);
-        return this;
-    }
-
-    /**
      * Sets if the cluster state request should be executed locally on the node, and not go to the master.
      */
     public ClusterStateRequestBuilder setLocal(boolean local) {
@@ -113,6 +97,6 @@ public class ClusterStateRequestBuilder extends BaseClusterRequestBuilder<Cluste
 
     @Override
     protected void doExecute(ActionListener<ClusterStateResponse> listener) {
-        client.state(request, listener);
+        ((ClusterAdminClient) client).state(request, listener);
     }
 }

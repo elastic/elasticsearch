@@ -20,21 +20,22 @@
 package org.elasticsearch.action.admin.indices.template.delete;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.support.BaseIndicesRequestBuilder;
+import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**
  *
  */
-public class DeleteIndexTemplateRequestBuilder extends BaseIndicesRequestBuilder<DeleteIndexTemplateRequest, DeleteIndexTemplateResponse> {
+public class DeleteIndexTemplateRequestBuilder extends MasterNodeOperationRequestBuilder<DeleteIndexTemplateRequest, DeleteIndexTemplateResponse, DeleteIndexTemplateRequestBuilder> {
 
     public DeleteIndexTemplateRequestBuilder(IndicesAdminClient indicesClient) {
-        super(indicesClient, new DeleteIndexTemplateRequest());
+        super((InternalIndicesAdminClient) indicesClient, new DeleteIndexTemplateRequest());
     }
 
     public DeleteIndexTemplateRequestBuilder(IndicesAdminClient indicesClient, String name) {
-        super(indicesClient, new DeleteIndexTemplateRequest(name));
+        super((InternalIndicesAdminClient) indicesClient, new DeleteIndexTemplateRequest(name));
     }
 
     /**
@@ -55,24 +56,8 @@ public class DeleteIndexTemplateRequestBuilder extends BaseIndicesRequestBuilder
         return this;
     }
 
-    /**
-     * Sets the master node timeout in case the master has not yet been discovered.
-     */
-    public DeleteIndexTemplateRequestBuilder setMasterNodeTimeout(TimeValue timeout) {
-        request.masterNodeTimeout(timeout);
-        return this;
-    }
-
-    /**
-     * Sets the master node timeout in case the master has not yet been discovered.
-     */
-    public DeleteIndexTemplateRequestBuilder setMasterNodeTimeout(String timeout) {
-        request.masterNodeTimeout(timeout);
-        return this;
-    }
-
     @Override
     protected void doExecute(ActionListener<DeleteIndexTemplateResponse> listener) {
-        client.deleteTemplate(request, listener);
+        ((IndicesAdminClient) client).deleteTemplate(request, listener);
     }
 }

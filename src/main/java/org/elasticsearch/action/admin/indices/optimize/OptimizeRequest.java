@@ -36,12 +36,11 @@ import java.io.IOException;
  * <p>{@link #maxNumSegments(int)} allows to control the number of segments to optimize down to. By default, will
  * cause the optimize process to optimize down to half the configured number of segments.
  *
- *
  * @see org.elasticsearch.client.Requests#optimizeRequest(String...)
  * @see org.elasticsearch.client.IndicesAdminClient#optimize(OptimizeRequest)
  * @see OptimizeResponse
  */
-public class OptimizeRequest extends BroadcastOperationRequest {
+public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> {
 
     public static final class Defaults {
         public static final boolean WAIT_FOR_MERGE = true;
@@ -74,18 +73,6 @@ public class OptimizeRequest extends BroadcastOperationRequest {
 
     public OptimizeRequest() {
 
-    }
-
-    @Override
-    public OptimizeRequest listenerThreaded(boolean threadedListener) {
-        super.listenerThreaded(threadedListener);
-        return this;
-    }
-
-    @Override
-    public OptimizeRequest operationThreading(BroadcastOperationThreading operationThreading) {
-        super.operationThreading(operationThreading);
-        return this;
     }
 
     /**

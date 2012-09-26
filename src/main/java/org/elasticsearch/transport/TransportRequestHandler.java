@@ -19,12 +19,10 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.common.io.stream.Streamable;
-
 /**
  *
  */
-public interface TransportRequestHandler<T extends Streamable> {
+public interface TransportRequestHandler<T extends TransportRequest> {
 
     T newInstance();
 

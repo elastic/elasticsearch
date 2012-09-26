@@ -38,7 +38,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Delete by query request to execute on a specific shard.
  */
-public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest {
+public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest<ShardDeleteByQueryRequest> {
 
     private int shardId;
     private BytesReference querySource;
@@ -49,6 +49,7 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest 
     private String[] filteringAliases;
 
     ShardDeleteByQueryRequest(IndexDeleteByQueryRequest request, int shardId) {
+        super(request);
         this.index = request.index();
         this.querySource = request.querySource();
         this.types = request.types();
@@ -97,25 +98,19 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest 
         super.readFrom(in);
         querySource = in.readBytesReference();
         shardId = in.readVInt();
-        int typesSize = in.readVInt();
-        if (typesSize > 0) {
-            types = new String[typesSize];
-            for (int i = 0; i < typesSize; i++) {
-                types[i] = in.readUTF();
-            }
-        }
+        types = in.readStringArray();
         int routingSize = in.readVInt();
         if (routingSize > 0) {
             routing = new THashSet<String>(routingSize);
             for (int i = 0; i < routingSize; i++) {
-                routing.add(in.readUTF());
+                routing.add(in.readString());
             }
         }
         int aliasesSize = in.readVInt();
         if (aliasesSize > 0) {
             filteringAliases = new String[aliasesSize];
             for (int i = 0; i < aliasesSize; i++) {
-                filteringAliases[i] = in.readUTF();
+                filteringAliases[i] = in.readString();
             }
         }
     }
@@ -125,14 +120,11 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest 
         super.writeTo(out);
         out.writeBytesReference(querySource);
         out.writeVInt(shardId);
-        out.writeVInt(types.length);
-        for (String type : types) {
-            out.writeUTF(type);
-        }
+        out.writeStringArray(types);
         if (routing != null) {
             out.writeVInt(routing.size());
             for (String r : routing) {
-                out.writeUTF(r);
+                out.writeString(r);
             }
         } else {
             out.writeVInt(0);
@@ -140,7 +132,7 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest 
         if (filteringAliases != null) {
             out.writeVInt(filteringAliases.length);
             for (String alias : filteringAliases) {
-                out.writeUTF(alias);
+                out.writeString(alias);
             }
         } else {
             out.writeVInt(0);

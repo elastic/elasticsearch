@@ -65,7 +65,7 @@ import org.elasticsearch.client.internal.InternalClusterAdminClient;
 public abstract class AbstractClusterAdminClient implements InternalClusterAdminClient {
 
     @Override
-    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response>> RequestBuilder prepareExecute(ClusterAction<Request, Response, RequestBuilder> action) {
+    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> RequestBuilder prepareExecute(ClusterAction<Request, Response, RequestBuilder> action) {
         return action.newRequestBuilder(this);
     }
 

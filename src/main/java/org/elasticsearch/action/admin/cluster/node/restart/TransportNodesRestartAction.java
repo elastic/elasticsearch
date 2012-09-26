@@ -102,7 +102,7 @@ public class TransportNodesRestartAction extends TransportNodesOperationAction<N
 
     @Override
     protected NodeRestartRequest newNodeRequest(String nodeId, NodesRestartRequest request) {
-        return new NodeRestartRequest(nodeId, request.delay);
+        return new NodeRestartRequest(nodeId, request);
     }
 
     @Override
@@ -161,9 +161,9 @@ public class TransportNodesRestartAction extends TransportNodesOperationAction<N
         private NodeRestartRequest() {
         }
 
-        private NodeRestartRequest(String nodeId, TimeValue delay) {
-            super(nodeId);
-            this.delay = delay;
+        private NodeRestartRequest(String nodeId, NodesRestartRequest request) {
+            super(request, nodeId);
+            this.delay = request.delay;
         }
 
         @Override

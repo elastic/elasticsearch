@@ -31,7 +31,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Delete by query request to execute on a specific shard.
  */
-public class ShardDeleteRequest extends ShardReplicationOperationRequest {
+public class ShardDeleteRequest extends ShardReplicationOperationRequest<ShardDeleteRequest> {
 
     private int shardId;
     private String type;
@@ -40,6 +40,7 @@ public class ShardDeleteRequest extends ShardReplicationOperationRequest {
     private long version;
 
     ShardDeleteRequest(IndexDeleteRequest request, int shardId) {
+        super(request);
         this.index = request.index();
         this.shardId = shardId;
         this.type = request.type();
@@ -94,8 +95,8 @@ public class ShardDeleteRequest extends ShardReplicationOperationRequest {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         shardId = in.readVInt();
-        type = in.readUTF();
-        id = in.readUTF();
+        type = in.readString();
+        id = in.readString();
         refresh = in.readBoolean();
         version = in.readLong();
     }
@@ -104,8 +105,8 @@ public class ShardDeleteRequest extends ShardReplicationOperationRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVInt(shardId);
-        out.writeUTF(type);
-        out.writeUTF(id);
+        out.writeString(type);
+        out.writeString(id);
         out.writeBoolean(refresh);
         out.writeLong(version);
     }

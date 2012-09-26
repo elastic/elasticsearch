@@ -20,21 +20,17 @@
 package org.elasticsearch.action.admin.cluster.node.info;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.support.BaseClusterRequestBuilder;
+import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
 import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.client.internal.InternalClusterAdminClient;
 
 /**
  *
  */
-public class NodesInfoRequestBuilder extends BaseClusterRequestBuilder<NodesInfoRequest, NodesInfoResponse> {
+public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesInfoRequest, NodesInfoResponse, NodesInfoRequestBuilder> {
 
     public NodesInfoRequestBuilder(ClusterAdminClient clusterClient) {
-        super(clusterClient, new NodesInfoRequest());
-    }
-
-    public NodesInfoRequestBuilder setNodesIds(String... nodesIds) {
-        request.nodesIds(nodesIds);
-        return this;
+        super((InternalClusterAdminClient) clusterClient, new NodesInfoRequest());
     }
 
     /**
@@ -120,6 +116,6 @@ public class NodesInfoRequestBuilder extends BaseClusterRequestBuilder<NodesInfo
 
     @Override
     protected void doExecute(ActionListener<NodesInfoResponse> listener) {
-        client.nodesInfo(request, listener);
+        ((ClusterAdminClient) client).nodesInfo(request, listener);
     }
 }

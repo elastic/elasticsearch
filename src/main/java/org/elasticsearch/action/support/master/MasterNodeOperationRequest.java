@@ -29,50 +29,41 @@ import java.io.IOException;
 /**
  * A based request for master based operation.
  */
-public abstract class MasterNodeOperationRequest implements ActionRequest {
+public abstract class MasterNodeOperationRequest<T extends MasterNodeOperationRequest> extends ActionRequest<T> {
 
     public static TimeValue DEFAULT_MASTER_NODE_TIMEOUT = TimeValue.timeValueSeconds(30);
 
     protected TimeValue masterNodeTimeout = DEFAULT_MASTER_NODE_TIMEOUT;
 
-    @Override
-    public boolean listenerThreaded() {
-        // always threaded
-        return true;
-    }
-
-    @Override
-    public MasterNodeOperationRequest listenerThreaded(boolean listenerThreaded) {
-        // really, does not mean anything in this case
-        return this;
-    }
-
     /**
      * A timeout value in case the master has not been discovered yet or disconnected.
      */
-    public MasterNodeOperationRequest masterNodeTimeout(TimeValue timeout) {
+    @SuppressWarnings("unchecked")
+    public final T masterNodeTimeout(TimeValue timeout) {
         this.masterNodeTimeout = timeout;
-        return this;
+        return (T) this;
     }
 
     /**
      * A timeout value in case the master has not been discovered yet or disconnected.
      */
-    public MasterNodeOperationRequest masterNodeTimeout(String timeout) {
+    public final T masterNodeTimeout(String timeout) {
         return masterNodeTimeout(TimeValue.parseTimeValue(timeout, null));
     }
 
-    public TimeValue masterNodeTimeout() {
+    public final TimeValue masterNodeTimeout() {
         return this.masterNodeTimeout;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
         masterNodeTimeout = TimeValue.readTimeValue(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         masterNodeTimeout.writeTo(out);
     }
 }

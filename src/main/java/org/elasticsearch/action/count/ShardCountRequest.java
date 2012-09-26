@@ -36,8 +36,6 @@ class ShardCountRequest extends BroadcastShardOperationRequest {
     private float minScore;
 
     private BytesReference querySource;
-    private int querySourceOffset;
-    private int querySourceLength;
 
     private String[] types = Strings.EMPTY_ARRAY;
 
@@ -49,7 +47,7 @@ class ShardCountRequest extends BroadcastShardOperationRequest {
     }
 
     public ShardCountRequest(String index, int shardId, @Nullable String[] filteringAliases, CountRequest request) {
-        super(index, shardId);
+        super(index, shardId, request);
         this.minScore = request.minScore();
         this.querySource = request.querySource();
         this.types = request.types();

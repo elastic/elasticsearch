@@ -20,8 +20,9 @@
 package org.elasticsearch.action.admin.indices.template.put;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.support.BaseIndicesRequestBuilder;
+import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -32,14 +33,14 @@ import java.util.Map;
 /**
  *
  */
-public class PutIndexTemplateRequestBuilder extends BaseIndicesRequestBuilder<PutIndexTemplateRequest, PutIndexTemplateResponse> {
+public class PutIndexTemplateRequestBuilder extends MasterNodeOperationRequestBuilder<PutIndexTemplateRequest, PutIndexTemplateResponse, PutIndexTemplateRequestBuilder> {
 
     public PutIndexTemplateRequestBuilder(IndicesAdminClient indicesClient) {
-        super(indicesClient, new PutIndexTemplateRequest());
+        super((InternalIndicesAdminClient) indicesClient, new PutIndexTemplateRequest());
     }
 
     public PutIndexTemplateRequestBuilder(IndicesAdminClient indicesClient, String name) {
-        super(indicesClient, new PutIndexTemplateRequest(name));
+        super((InternalIndicesAdminClient) indicesClient, new PutIndexTemplateRequest(name));
     }
 
     /**
@@ -206,24 +207,8 @@ public class PutIndexTemplateRequestBuilder extends BaseIndicesRequestBuilder<Pu
         return this;
     }
 
-    /**
-     * Sets the master node timeout in case the master has not yet been discovered.
-     */
-    public PutIndexTemplateRequestBuilder setMasterNodeTimeout(TimeValue timeout) {
-        request.masterNodeTimeout(timeout);
-        return this;
-    }
-
-    /**
-     * Sets the master node timeout in case the master has not yet been discovered.
-     */
-    public PutIndexTemplateRequestBuilder setMasterNodeTimeout(String timeout) {
-        request.masterNodeTimeout(timeout);
-        return this;
-    }
-
     @Override
     protected void doExecute(ActionListener<PutIndexTemplateResponse> listener) {
-        client.putTemplate(request, listener);
+        ((IndicesAdminClient) client).putTemplate(request, listener);
     }
 }

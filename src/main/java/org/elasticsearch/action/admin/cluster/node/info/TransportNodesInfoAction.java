@@ -113,7 +113,7 @@ public class TransportNodesInfoAction extends TransportNodesOperationAction<Node
         }
 
         NodeInfoRequest(String nodeId, NodesInfoRequest request) {
-            super(nodeId);
+            super(request, nodeId);
             this.request = request;
         }
 

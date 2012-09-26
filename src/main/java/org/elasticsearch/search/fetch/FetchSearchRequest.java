@@ -21,15 +21,15 @@ package org.elasticsearch.search.fetch;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.trove.ExtTIntArrayList;
+import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
 /**
  *
  */
-public class FetchSearchRequest implements Streamable {
+public class FetchSearchRequest extends TransportRequest {
 
     private long id;
 
@@ -40,16 +40,11 @@ public class FetchSearchRequest implements Streamable {
     public FetchSearchRequest() {
     }
 
-    public FetchSearchRequest(long id, ExtTIntArrayList list) {
+    public FetchSearchRequest(TransportRequest request, long id, ExtTIntArrayList list) {
+        super(request);
         this.id = id;
         this.docIds = list.unsafeArray();
         this.size = list.size();
-    }
-
-    public FetchSearchRequest(long id, int[] docIds) {
-        this.id = id;
-        this.docIds = docIds;
-        this.size = docIds.length;
     }
 
     public long id() {
@@ -66,6 +61,7 @@ public class FetchSearchRequest implements Streamable {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
         id = in.readLong();
         size = in.readVInt();
         docIds = new int[size];
@@ -76,6 +72,7 @@ public class FetchSearchRequest implements Streamable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeLong(id);
         out.writeVInt(size);
         for (int i = 0; i < size; i++) {

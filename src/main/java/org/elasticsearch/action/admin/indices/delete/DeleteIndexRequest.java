@@ -34,7 +34,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 /**
  * A request to delete an index. Best created with {@link org.elasticsearch.client.Requests#deleteIndexRequest(String)}.
  */
-public class DeleteIndexRequest extends MasterNodeOperationRequest {
+public class DeleteIndexRequest extends MasterNodeOperationRequest<DeleteIndexRequest> {
 
     private String[] indices;
 
@@ -105,7 +105,7 @@ public class DeleteIndexRequest extends MasterNodeOperationRequest {
         super.readFrom(in);
         indices = new String[in.readVInt()];
         for (int i = 0; i < indices.length; i++) {
-            indices[i] = in.readUTF();
+            indices[i] = in.readString();
         }
         timeout = readTimeValue(in);
     }
@@ -118,7 +118,7 @@ public class DeleteIndexRequest extends MasterNodeOperationRequest {
         } else {
             out.writeVInt(indices.length);
             for (String index : indices) {
-                out.writeUTF(index);
+                out.writeString(index);
             }
         }
         timeout.writeTo(out);

@@ -34,7 +34,7 @@ import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
-import org.elasticsearch.search.internal.InternalSearchRequest;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -45,22 +45,15 @@ import java.util.Map;
  */
 public abstract class TransportSearchHelper {
 
-
-    public static InternalSearchRequest internalSearchRequest(ShardRouting shardRouting, int numberOfShards, SearchRequest request, String[] filteringAliases, long nowInMillis) {
-        InternalSearchRequest internalRequest = new InternalSearchRequest(shardRouting, numberOfShards, request.searchType());
-        internalRequest.source(request.source());
-        internalRequest.extraSource(request.extraSource());
-        internalRequest.scroll(request.scroll());
-        internalRequest.filteringAliases(filteringAliases);
-        internalRequest.types(request.types());
-        internalRequest.nowInMillis(nowInMillis);
-        return internalRequest;
+    public static ShardSearchRequest internalSearchRequest(ShardRouting shardRouting, int numberOfShards, SearchRequest request, String[] filteringAliases, long nowInMillis) {
+        ShardSearchRequest shardRequest = new ShardSearchRequest(request, shardRouting, numberOfShards);
+        shardRequest.filteringAliases(filteringAliases);
+        shardRequest.nowInMillis(nowInMillis);
+        return shardRequest;
     }
 
     public static InternalScrollSearchRequest internalScrollSearchRequest(long id, SearchScrollRequest request) {
-        InternalScrollSearchRequest internalRequest = new InternalScrollSearchRequest(id);
-        internalRequest.scroll(request.scroll());
-        return internalRequest;
+        return new InternalScrollSearchRequest(request, id);
     }
 
     public static String buildScrollId(SearchType searchType, Collection<? extends SearchPhaseResult> searchPhaseResults, @Nullable Map<String, String> attributes) throws IOException {

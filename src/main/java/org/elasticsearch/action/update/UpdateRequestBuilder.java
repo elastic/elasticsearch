@@ -22,11 +22,11 @@ package org.elasticsearch.action.update;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.BaseRequestBuilder;
 import org.elasticsearch.action.support.replication.ReplicationType;
+import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequestBuilder;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 
@@ -34,22 +34,14 @@ import java.util.Map;
 
 /**
  */
-public class UpdateRequestBuilder extends BaseRequestBuilder<UpdateRequest, UpdateResponse> {
+public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<UpdateRequest, UpdateResponse, UpdateRequestBuilder> {
 
     public UpdateRequestBuilder(Client client) {
-        super(client, new UpdateRequest());
+        super((InternalClient) client, new UpdateRequest());
     }
 
     public UpdateRequestBuilder(Client client, String index, String type, String id) {
-        super(client, new UpdateRequest(index, type, id));
-    }
-
-    /**
-     * Sets the index the document will exists on.
-     */
-    public UpdateRequestBuilder setIndex(String index) {
-        request.index(index);
-        return this;
+        super((InternalClient) client, new UpdateRequest(index, type, id));
     }
 
     /**
@@ -129,22 +121,6 @@ public class UpdateRequestBuilder extends BaseRequestBuilder<UpdateRequest, Upda
      */
     public UpdateRequestBuilder setRetryOnConflict(int retryOnConflict) {
         request.retryOnConflict(retryOnConflict);
-        return this;
-    }
-
-    /**
-     * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
-     */
-    public UpdateRequestBuilder setTimeout(TimeValue timeout) {
-        request.timeout(timeout);
-        return this;
-    }
-
-    /**
-     * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
-     */
-    public UpdateRequestBuilder setTimeout(String timeout) {
-        request.timeout(timeout);
         return this;
     }
 
@@ -319,6 +295,6 @@ public class UpdateRequestBuilder extends BaseRequestBuilder<UpdateRequest, Upda
 
     @Override
     protected void doExecute(ActionListener<UpdateResponse> listener) {
-        client.update(request, listener);
+        ((Client) client).update(request, listener);
     }
 }

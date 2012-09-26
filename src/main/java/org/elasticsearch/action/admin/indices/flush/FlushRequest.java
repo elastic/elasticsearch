@@ -33,12 +33,11 @@ import java.io.IOException;
  * <p/>
  * <p>Best created with {@link org.elasticsearch.client.Requests#flushRequest(String...)}.
  *
- *
  * @see org.elasticsearch.client.Requests#flushRequest(String...)
  * @see org.elasticsearch.client.IndicesAdminClient#flush(FlushRequest)
  * @see FlushResponse
  */
-public class FlushRequest extends BroadcastOperationRequest {
+public class FlushRequest extends BroadcastOperationRequest<FlushRequest> {
 
     private boolean refresh = false;
 
@@ -102,24 +101,6 @@ public class FlushRequest extends BroadcastOperationRequest {
      */
     public FlushRequest force(boolean force) {
         this.force = force;
-        return this;
-    }
-
-    /**
-     * Should the listener be called on a separate thread if needed.
-     */
-    @Override
-    public FlushRequest listenerThreaded(boolean threadedListener) {
-        super.listenerThreaded(threadedListener);
-        return this;
-    }
-
-    /**
-     * Controls the operation threading model.
-     */
-    @Override
-    public FlushRequest operationThreading(BroadcastOperationThreading operationThreading) {
-        super.operationThreading(operationThreading);
         return this;
     }
 

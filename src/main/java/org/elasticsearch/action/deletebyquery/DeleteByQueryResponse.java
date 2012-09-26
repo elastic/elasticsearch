@@ -22,7 +22,6 @@ package org.elasticsearch.action.deletebyquery;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -33,10 +32,8 @@ import static com.google.common.collect.Maps.newHashMap;
 /**
  * The response of delete by query action. Holds the {@link IndexDeleteByQueryResponse}s from all the
  * different indices.
- *
- *
  */
-public class DeleteByQueryResponse implements ActionResponse, Streamable, Iterable<IndexDeleteByQueryResponse> {
+public class DeleteByQueryResponse implements ActionResponse, Iterable<IndexDeleteByQueryResponse> {
 
     private Map<String, IndexDeleteByQueryResponse> indices = newHashMap();
 

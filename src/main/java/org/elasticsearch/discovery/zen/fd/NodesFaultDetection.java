@@ -305,7 +305,7 @@ public class NodesFaultDetection extends AbstractComponent {
     }
 
 
-    static class PingRequest implements Streamable {
+    static class PingRequest extends TransportRequest {
 
         // the (assumed) node id we are pinging
         private String nodeId;
@@ -319,12 +319,14 @@ public class NodesFaultDetection extends AbstractComponent {
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            nodeId = in.readUTF();
+            super.readFrom(in);
+            nodeId = in.readString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeUTF(nodeId);
+            super.writeTo(out);
+            out.writeString(nodeId);
         }
     }
 

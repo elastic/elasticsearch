@@ -325,7 +325,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
         }
     }
 
-    static class MulticastPingResponse implements Streamable {
+    static class MulticastPingResponse extends TransportRequest {
 
         int id;
 
@@ -336,12 +336,14 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
             id = in.readInt();
             pingResponse = PingResponse.readPingResponse(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
             out.writeInt(id);
             pingResponse.writeTo(out);
         }

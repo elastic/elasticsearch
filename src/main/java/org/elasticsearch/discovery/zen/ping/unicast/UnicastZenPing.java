@@ -403,7 +403,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         }
     }
 
-    static class UnicastPingRequest implements Streamable {
+    static class UnicastPingRequest extends TransportRequest {
 
         int id;
 
@@ -416,6 +416,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
             id = in.readInt();
             timeout = readTimeValue(in);
             pingResponse = readPingResponse(in);
@@ -423,6 +424,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
             out.writeInt(id);
             timeout.writeTo(out);
             pingResponse.writeTo(out);

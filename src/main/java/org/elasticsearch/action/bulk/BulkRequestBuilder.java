@@ -20,24 +20,25 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.support.BaseRequestBuilder;
 import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.Nullable;
 
 /**
  * A bulk request holds an ordered {@link IndexRequest}s and {@link DeleteRequest}s and allows to executes
  * it in a single batch.
  */
-public class BulkRequestBuilder extends BaseRequestBuilder<BulkRequest, BulkResponse> {
+public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkResponse, BulkRequestBuilder> {
 
     public BulkRequestBuilder(Client client) {
-        super(client, new BulkRequest());
+        super((InternalClient) client, new BulkRequest());
     }
 
     /**
@@ -125,6 +126,6 @@ public class BulkRequestBuilder extends BaseRequestBuilder<BulkRequest, BulkResp
 
     @Override
     protected void doExecute(ActionListener<BulkResponse> listener) {
-        client.bulk(request, listener);
+        ((Client) client).bulk(request, listener);
     }
 }

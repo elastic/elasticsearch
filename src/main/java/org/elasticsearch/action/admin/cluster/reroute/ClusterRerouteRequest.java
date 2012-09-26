@@ -34,7 +34,7 @@ import java.io.IOException;
 
 /**
  */
-public class ClusterRerouteRequest extends MasterNodeOperationRequest {
+public class ClusterRerouteRequest extends MasterNodeOperationRequest<ClusterRerouteRequest> {
 
     AllocationCommands commands = new AllocationCommands();
     boolean dryRun;

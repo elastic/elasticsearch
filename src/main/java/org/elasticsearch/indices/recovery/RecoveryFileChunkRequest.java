@@ -24,15 +24,15 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
 /**
  *
  */
-class RecoveryFileChunkRequest implements Streamable {
+class RecoveryFileChunkRequest extends TransportRequest {
 
     private long recoveryId;
     private ShardId shardId;
@@ -92,30 +92,25 @@ class RecoveryFileChunkRequest implements Streamable {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
         recoveryId = in.readLong();
         shardId = ShardId.readShardId(in);
-        name = in.readUTF();
+        name = in.readString();
         position = in.readVLong();
         length = in.readVLong();
-        if (in.readBoolean()) {
-            checksum = in.readUTF();
-        }
+        checksum = in.readOptionalString();
         content = in.readBytesReference();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeLong(recoveryId);
         shardId.writeTo(out);
-        out.writeUTF(name);
+        out.writeString(name);
         out.writeVLong(position);
         out.writeVLong(length);
-        if (checksum == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeUTF(checksum);
-        }
+        out.writeOptionalString(checksum);
         out.writeBytesReference(content);
     }
 

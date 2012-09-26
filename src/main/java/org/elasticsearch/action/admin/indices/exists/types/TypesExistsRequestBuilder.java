@@ -20,25 +20,26 @@
 package org.elasticsearch.action.admin.indices.exists.types;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.support.BaseIndicesRequestBuilder;
 import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 import org.elasticsearch.common.Strings;
 
 /**
  * A builder for {@link TypesExistsRequest}.
  */
-public class TypesExistsRequestBuilder extends BaseIndicesRequestBuilder<TypesExistsRequest, TypesExistsResponse> {
+public class TypesExistsRequestBuilder extends MasterNodeOperationRequestBuilder<TypesExistsRequest, TypesExistsResponse, TypesExistsRequestBuilder> {
 
     /**
      * @param indices What indices to check for types
      */
     public TypesExistsRequestBuilder(IndicesAdminClient indicesClient, String... indices) {
-        super(indicesClient, new TypesExistsRequest(indices, Strings.EMPTY_ARRAY));
+        super((InternalIndicesAdminClient) indicesClient, new TypesExistsRequest(indices, Strings.EMPTY_ARRAY));
     }
 
     TypesExistsRequestBuilder(IndicesAdminClient client) {
-        super(client, new TypesExistsRequest());
+        super((InternalIndicesAdminClient) client, new TypesExistsRequest());
     }
 
     /**
@@ -66,6 +67,6 @@ public class TypesExistsRequestBuilder extends BaseIndicesRequestBuilder<TypesEx
     }
 
     protected void doExecute(ActionListener<TypesExistsResponse> listener) {
-        client.typesExists(request, listener);
+        ((IndicesAdminClient) client).typesExists(request, listener);
     }
 }

@@ -19,14 +19,15 @@
 
 package org.elasticsearch.search.internal;
 
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.search.Scroll;
+import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
@@ -49,7 +50,7 @@ import static org.elasticsearch.search.Scroll.readScroll;
  * }
  * </pre>
  */
-public class InternalSearchRequest implements Streamable {
+public class ShardSearchRequest extends TransportRequest {
 
     private String index;
 
@@ -70,14 +71,27 @@ public class InternalSearchRequest implements Streamable {
 
     private long nowInMillis;
 
-    public InternalSearchRequest() {
+    public ShardSearchRequest() {
     }
 
-    public InternalSearchRequest(ShardRouting shardRouting, int numberOfShards, SearchType searchType) {
+    public ShardSearchRequest(SearchRequest searchRequest, ShardRouting shardRouting, int numberOfShards) {
+        super(searchRequest);
+        this.index = shardRouting.index();
+        this.shardId = shardRouting.id();
+        this.numberOfShards = numberOfShards;
+        this.searchType = searchRequest.searchType();
+        this.source = searchRequest.source();
+        this.extraSource = searchRequest.extraSource();
+        this.scroll = searchRequest.scroll();
+        this.types = searchRequest.types();
+
+    }
+
+    public ShardSearchRequest(ShardRouting shardRouting, int numberOfShards, SearchType searchType) {
         this(shardRouting.index(), shardRouting.id(), numberOfShards, searchType);
     }
 
-    public InternalSearchRequest(String index, int shardId, int numberOfShards, SearchType searchType) {
+    public ShardSearchRequest(String index, int shardId, int numberOfShards, SearchType searchType) {
         this.index = index;
         this.shardId = shardId;
         this.numberOfShards = numberOfShards;
@@ -108,17 +122,17 @@ public class InternalSearchRequest implements Streamable {
         return this.extraSource;
     }
 
-    public InternalSearchRequest source(BytesReference source) {
+    public ShardSearchRequest source(BytesReference source) {
         this.source = source;
         return this;
     }
 
-    public InternalSearchRequest extraSource(BytesReference extraSource) {
+    public ShardSearchRequest extraSource(BytesReference extraSource) {
         this.extraSource = extraSource;
         return this;
     }
 
-    public InternalSearchRequest nowInMillis(long nowInMillis) {
+    public ShardSearchRequest nowInMillis(long nowInMillis) {
         this.nowInMillis = nowInMillis;
         return this;
     }
@@ -131,7 +145,7 @@ public class InternalSearchRequest implements Streamable {
         return scroll;
     }
 
-    public InternalSearchRequest scroll(Scroll scroll) {
+    public ShardSearchRequest scroll(Scroll scroll) {
         this.scroll = scroll;
         return this;
     }
@@ -140,7 +154,7 @@ public class InternalSearchRequest implements Streamable {
         return filteringAliases;
     }
 
-    public InternalSearchRequest filteringAliases(String[] filteringAliases) {
+    public ShardSearchRequest filteringAliases(String[] filteringAliases) {
         this.filteringAliases = filteringAliases;
         return this;
     }
@@ -149,14 +163,15 @@ public class InternalSearchRequest implements Streamable {
         return types;
     }
 
-    public InternalSearchRequest types(String[] types) {
+    public ShardSearchRequest types(String[] types) {
         this.types = types;
         return this;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        index = in.readUTF();
+        super.readFrom(in);
+        index = in.readString();
         shardId = in.readVInt();
         searchType = SearchType.fromId(in.readByte());
         numberOfShards = in.readVInt();
@@ -167,28 +182,15 @@ public class InternalSearchRequest implements Streamable {
         source = in.readBytesReference();
         extraSource = in.readBytesReference();
 
-        int typesSize = in.readVInt();
-        if (typesSize > 0) {
-            types = new String[typesSize];
-            for (int i = 0; i < typesSize; i++) {
-                types[i] = in.readUTF();
-            }
-        }
-        int indicesSize = in.readVInt();
-        if (indicesSize > 0) {
-            filteringAliases = new String[indicesSize];
-            for (int i = 0; i < indicesSize; i++) {
-                filteringAliases[i] = in.readUTF();
-            }
-        } else {
-            filteringAliases = null;
-        }
+        types = in.readStringArray();
+        filteringAliases = in.readStringArray();
         nowInMillis = in.readVLong();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeUTF(index);
+        super.writeTo(out);
+        out.writeString(index);
         out.writeVInt(shardId);
         out.writeByte(searchType.id());
         out.writeVInt(numberOfShards);
@@ -200,18 +202,8 @@ public class InternalSearchRequest implements Streamable {
         }
         out.writeBytesReference(source);
         out.writeBytesReference(extraSource);
-        out.writeVInt(types.length);
-        for (String type : types) {
-            out.writeUTF(type);
-        }
-        if (filteringAliases != null) {
-            out.writeVInt(filteringAliases.length);
-            for (String index : filteringAliases) {
-                out.writeUTF(index);
-            }
-        } else {
-            out.writeVInt(0);
-        }
+        out.writeStringArray(types);
+        out.writeStringArrayNullable(filteringAliases);
         out.writeVLong(nowInMillis);
     }
 }

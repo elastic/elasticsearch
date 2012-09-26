@@ -20,12 +20,10 @@
 package org.elasticsearch.client.internal;
 
 import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.threadpool.ThreadPool;
 
 /**
  *
  */
-public interface InternalIndicesAdminClient extends IndicesAdminClient {
+public interface InternalIndicesAdminClient extends IndicesAdminClient, InternalGenericClient {
 
-    ThreadPool threadPool();
 }

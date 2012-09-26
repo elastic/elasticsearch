@@ -285,22 +285,23 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         }
     }
 
-    protected class ReplicaOperationRequest implements Streamable {
+    protected class ReplicaOperationRequest extends TransportRequest {
 
         public int shardId;
-
         public ReplicaRequest request;
 
         public ReplicaOperationRequest() {
         }
 
         public ReplicaOperationRequest(int shardId, ReplicaRequest request) {
+            super(request);
             this.shardId = shardId;
             this.request = request;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
             shardId = in.readVInt();
             request = newReplicaRequestInstance();
             request.readFrom(in);
@@ -308,6 +309,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
             out.writeVInt(shardId);
             request.writeTo(out);
         }

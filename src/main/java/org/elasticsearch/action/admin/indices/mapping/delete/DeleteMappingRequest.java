@@ -31,7 +31,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  *
  */
-public class DeleteMappingRequest extends MasterNodeOperationRequest {
+public class DeleteMappingRequest extends MasterNodeOperationRequest<DeleteMappingRequest> {
 
     private String[] indices;
 
@@ -92,10 +92,10 @@ public class DeleteMappingRequest extends MasterNodeOperationRequest {
         super.readFrom(in);
         indices = new String[in.readVInt()];
         for (int i = 0; i < indices.length; i++) {
-            indices[i] = in.readUTF();
+            indices[i] = in.readString();
         }
         if (in.readBoolean()) {
-            mappingType = in.readUTF();
+            mappingType = in.readString();
         }
     }
 
@@ -107,14 +107,14 @@ public class DeleteMappingRequest extends MasterNodeOperationRequest {
         } else {
             out.writeVInt(indices.length);
             for (String index : indices) {
-                out.writeUTF(index);
+                out.writeString(index);
             }
         }
         if (mappingType == null) {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeUTF(mappingType);
+            out.writeString(mappingType);
         }
     }
 }

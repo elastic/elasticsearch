@@ -39,7 +39,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  *
  */
-public class PercolateRequest extends SingleCustomOperationRequest {
+public class PercolateRequest extends SingleCustomOperationRequest<PercolateRequest> {
 
     private String index;
     private String type;
@@ -146,16 +146,6 @@ public class PercolateRequest extends SingleCustomOperationRequest {
         return this;
     }
 
-    /**
-     * if this operation hits a node with a local relevant shard, should it be preferred
-     * to be executed on, or just do plain round robin. Defaults to <tt>true</tt>
-     */
-    @Override
-    public PercolateRequest preferLocal(boolean preferLocal) {
-        super.preferLocal(preferLocal);
-        return this;
-    }
-
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
@@ -174,8 +164,8 @@ public class PercolateRequest extends SingleCustomOperationRequest {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        index = in.readUTF();
-        type = in.readUTF();
+        index = in.readString();
+        type = in.readString();
 
         sourceUnsafe = false;
         source = in.readBytesReference();
@@ -184,8 +174,8 @@ public class PercolateRequest extends SingleCustomOperationRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeUTF(index);
-        out.writeUTF(type);
+        out.writeString(index);
+        out.writeString(type);
         out.writeBytesReference(source);
     }
 }

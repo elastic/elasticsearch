@@ -33,7 +33,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * A request to analyze a text associated with a specific index. Allow to provide
  * the actual analyzer name to perform the analysis with.
  */
-public class AnalyzeRequest extends SingleCustomOperationRequest {
+public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest> {
 
     private String index;
 
@@ -120,16 +120,6 @@ public class AnalyzeRequest extends SingleCustomOperationRequest {
         return this.field;
     }
 
-    /**
-     * if this operation hits a node with a local relevant shard, should it be preferred
-     * to be executed on, or just do plain round robin. Defaults to <tt>true</tt>
-     */
-    @Override
-    public AnalyzeRequest preferLocal(boolean preferLocal) {
-        super.preferLocal(preferLocal);
-        return this;
-    }
-
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
@@ -142,35 +132,35 @@ public class AnalyzeRequest extends SingleCustomOperationRequest {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        index = in.readOptionalUTF();
-        text = in.readUTF();
-        analyzer = in.readOptionalUTF();
-        tokenizer = in.readOptionalUTF();
+        index = in.readOptionalString();
+        text = in.readString();
+        analyzer = in.readOptionalString();
+        tokenizer = in.readOptionalString();
         int size = in.readVInt();
         if (size > 0) {
             tokenFilters = new String[size];
             for (int i = 0; i < size; i++) {
-                tokenFilters[i] = in.readUTF();
+                tokenFilters[i] = in.readString();
             }
         }
-        field = in.readOptionalUTF();
+        field = in.readOptionalString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeOptionalUTF(index);
-        out.writeUTF(text);
-        out.writeOptionalUTF(analyzer);
-        out.writeOptionalUTF(tokenizer);
+        out.writeOptionalString(index);
+        out.writeString(text);
+        out.writeOptionalString(analyzer);
+        out.writeOptionalString(tokenizer);
         if (tokenFilters == null) {
             out.writeVInt(0);
         } else {
             out.writeVInt(tokenFilters.length);
             for (String tokenFilter : tokenFilters) {
-                out.writeUTF(tokenFilter);
+                out.writeString(tokenFilter);
             }
         }
-        out.writeOptionalUTF(field);
+        out.writeOptionalString(field);
     }
 }

@@ -28,7 +28,7 @@ import java.io.IOException;
 /**
  * A request to get node (cluster) level stats.
  */
-public class NodesStatsRequest extends NodesOperationRequest {
+public class NodesStatsRequest extends NodesOperationRequest<NodesStatsRequest> {
 
     private boolean indices = true;
     private boolean os;

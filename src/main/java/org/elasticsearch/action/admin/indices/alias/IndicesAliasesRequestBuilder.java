@@ -20,8 +20,9 @@
 package org.elasticsearch.action.admin.indices.alias;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.support.BaseIndicesRequestBuilder;
+import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.FilterBuilder;
@@ -31,10 +32,10 @@ import java.util.Map;
 /**
  *
  */
-public class IndicesAliasesRequestBuilder extends BaseIndicesRequestBuilder<IndicesAliasesRequest, IndicesAliasesResponse> {
+public class IndicesAliasesRequestBuilder extends MasterNodeOperationRequestBuilder<IndicesAliasesRequest, IndicesAliasesResponse, IndicesAliasesRequestBuilder> {
 
     public IndicesAliasesRequestBuilder(IndicesAdminClient indicesClient) {
-        super(indicesClient, new IndicesAliasesRequest());
+        super((InternalIndicesAdminClient) indicesClient, new IndicesAliasesRequest());
     }
 
     /**
@@ -106,14 +107,6 @@ public class IndicesAliasesRequestBuilder extends BaseIndicesRequestBuilder<Indi
     }
 
     /**
-     * Sets the master node timeout in case the master has not yet been discovered.
-     */
-    public IndicesAliasesRequestBuilder setMasterNodeTimeout(TimeValue timeout) {
-        request.masterNodeTimeout(timeout);
-        return this;
-    }
-
-    /**
      * Sets operation timeout.
      *
      * @param timeout
@@ -125,6 +118,6 @@ public class IndicesAliasesRequestBuilder extends BaseIndicesRequestBuilder<Indi
 
     @Override
     protected void doExecute(ActionListener<IndicesAliasesResponse> listener) {
-        client.aliases(request, listener);
+        ((IndicesAdminClient) client).aliases(request, listener);
     }
 }

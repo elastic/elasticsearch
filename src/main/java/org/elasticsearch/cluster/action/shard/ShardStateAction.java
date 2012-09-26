@@ -34,7 +34,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.VoidStreamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -216,7 +215,7 @@ public class ShardStateAction extends AbstractComponent {
         }
     }
 
-    private class ShardStartedTransportHandler extends BaseTransportRequestHandler<ShardRoutingEntry> {
+    class ShardStartedTransportHandler extends BaseTransportRequestHandler<ShardRoutingEntry> {
 
         static final String ACTION = "cluster/shardStarted";
 
@@ -237,7 +236,7 @@ public class ShardStateAction extends AbstractComponent {
         }
     }
 
-    private static class ShardRoutingEntry implements Streamable {
+    static class ShardRoutingEntry extends TransportRequest {
 
         private ShardRouting shardRouting;
 
@@ -253,14 +252,16 @@ public class ShardStateAction extends AbstractComponent {
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
             shardRouting = readShardRoutingEntry(in);
-            reason = in.readUTF();
+            reason = in.readString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
             shardRouting.writeTo(out);
-            out.writeUTF(reason);
+            out.writeString(reason);
         }
     }
 }

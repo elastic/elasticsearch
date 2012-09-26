@@ -40,7 +40,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.writeSettingsT
 
 /**
  */
-public class ClusterUpdateSettingsRequest extends MasterNodeOperationRequest {
+public class ClusterUpdateSettingsRequest extends MasterNodeOperationRequest<ClusterUpdateSettingsRequest> {
 
     private Settings transientSettings = EMPTY_SETTINGS;
     private Settings persistentSettings = EMPTY_SETTINGS;

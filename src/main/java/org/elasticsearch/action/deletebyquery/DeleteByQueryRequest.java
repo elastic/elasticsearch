@@ -22,9 +22,7 @@ package org.elasticsearch.action.deletebyquery;
 import com.google.common.base.Charsets;
 import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.support.replication.IndicesReplicationOperationRequest;
-import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Required;
@@ -33,7 +31,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -57,7 +54,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see org.elasticsearch.client.Requests#deleteByQueryRequest(String...)
  * @see org.elasticsearch.client.Client#deleteByQuery(DeleteByQueryRequest)
  */
-public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
+public class DeleteByQueryRequest extends IndicesReplicationOperationRequest<DeleteByQueryRequest> {
 
     private static final XContentType contentType = Requests.CONTENT_TYPE;
 
@@ -79,15 +76,6 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
     public DeleteByQueryRequest() {
     }
 
-    /**
-     * Should the listener be called on a separate thread if needed.
-     */
-    @Override
-    public DeleteByQueryRequest listenerThreaded(boolean threadedListener) {
-        super.listenerThreaded(threadedListener);
-        return this;
-    }
-
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
@@ -95,14 +83,6 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
             validationException = addValidationError("query is missing", validationException);
         }
         return validationException;
-    }
-
-    /**
-     * The indices the delete by query will run against.
-     */
-    public DeleteByQueryRequest indices(String... indices) {
-        this.indices = indices;
-        return this;
     }
 
     /**
@@ -193,7 +173,6 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
     /**
      * A comma separated list of routing values to control the shards the search will be executed on.
      */
-    @Override
     public String routing() {
         return this.routing;
     }
@@ -222,80 +201,19 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
         return this;
     }
 
-    /**
-     * A timeout to wait if the delete by query operation can't be performed immediately. Defaults to <tt>1m</tt>.
-     */
-    public DeleteByQueryRequest timeout(TimeValue timeout) {
-        this.timeout = timeout;
-        return this;
-    }
-
-    /**
-     * A timeout to wait if the delete by query operation can't be performed immediately. Defaults to <tt>1m</tt>.
-     */
-    public DeleteByQueryRequest timeout(String timeout) {
-        this.timeout = TimeValue.parseTimeValue(timeout, null);
-        return this;
-    }
-
-    /**
-     * The replication type to use with this operation.
-     */
-    public DeleteByQueryRequest replicationType(ReplicationType replicationType) {
-        this.replicationType = replicationType;
-        return this;
-    }
-
-    public DeleteByQueryRequest consistencyLevel(WriteConsistencyLevel consistencyLevel) {
-        this.consistencyLevel = consistencyLevel;
-        return this;
-    }
-
-    /**
-     * The replication type to use with this operation.
-     */
-    public DeleteByQueryRequest replicationType(String replicationType) {
-        this.replicationType = ReplicationType.fromString(replicationType);
-        return this;
-    }
-
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-
         querySourceUnsafe = false;
         querySource = in.readBytesReference();
-
-        if (in.readBoolean()) {
-            routing = in.readUTF();
-        }
-
-        int size = in.readVInt();
-        if (size == 0) {
-            types = Strings.EMPTY_ARRAY;
-        } else {
-            types = new String[size];
-            for (int i = 0; i < size; i++) {
-                types[i] = in.readUTF();
-            }
-        }
+        routing = in.readOptionalString();
+        types = in.readStringArray();
     }
 
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-
         out.writeBytesReference(querySource);
-
-        if (routing == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeUTF(routing);
-        }
-
-        out.writeVInt(types.length);
-        for (String type : types) {
-            out.writeUTF(type);
-        }
+        out.writeOptionalString(routing);
+        out.writeStringArray(types);
     }
 
     @Override

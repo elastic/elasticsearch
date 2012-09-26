@@ -20,22 +20,17 @@
 package org.elasticsearch.action.admin.indices.flush;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.support.BaseIndicesRequestBuilder;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 
 /**
  *
  */
-public class FlushRequestBuilder extends BaseIndicesRequestBuilder<FlushRequest, FlushResponse> {
+public class FlushRequestBuilder extends BroadcastOperationRequestBuilder<FlushRequest, FlushResponse, FlushRequestBuilder> {
 
     public FlushRequestBuilder(IndicesAdminClient indicesClient) {
-        super(indicesClient, new FlushRequest());
-    }
-
-    public FlushRequestBuilder setIndices(String... indices) {
-        request.indices(indices);
-        return this;
+        super((InternalIndicesAdminClient) indicesClient, new FlushRequest());
     }
 
     public FlushRequestBuilder setRefresh(boolean refresh) {
@@ -48,16 +43,8 @@ public class FlushRequestBuilder extends BaseIndicesRequestBuilder<FlushRequest,
         return this;
     }
 
-    /**
-     * Specifies what type of requested indices to ignore. For example indices that don't exist.
-     */
-    public FlushRequestBuilder setIgnoreIndices(IgnoreIndices ignoreIndices) {
-        request().ignoreIndices(ignoreIndices);
-        return this;
-    }
-
     @Override
     protected void doExecute(ActionListener<FlushResponse> listener) {
-        client.flush(request, listener);
+        ((IndicesAdminClient) client).flush(request, listener);
     }
 }

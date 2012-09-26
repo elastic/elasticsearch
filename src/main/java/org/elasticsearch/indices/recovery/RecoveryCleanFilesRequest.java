@@ -22,8 +22,8 @@ package org.elasticsearch.indices.recovery;
 import com.google.common.collect.Sets;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.Set;
@@ -31,7 +31,7 @@ import java.util.Set;
 /**
  *
  */
-class RecoveryCleanFilesRequest implements Streamable {
+class RecoveryCleanFilesRequest extends TransportRequest {
 
     private long recoveryId;
     private ShardId shardId;
@@ -61,22 +61,24 @@ class RecoveryCleanFilesRequest implements Streamable {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
         recoveryId = in.readLong();
         shardId = ShardId.readShardId(in);
         int size = in.readVInt();
         snapshotFiles = Sets.newHashSetWithExpectedSize(size);
         for (int i = 0; i < size; i++) {
-            snapshotFiles.add(in.readUTF());
+            snapshotFiles.add(in.readString());
         }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeLong(recoveryId);
         shardId.writeTo(out);
         out.writeVInt(snapshotFiles.size());
         for (String snapshotFile : snapshotFiles) {
-            out.writeUTF(snapshotFile);
+            out.writeString(snapshotFile);
         }
     }
 }

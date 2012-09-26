@@ -21,18 +21,17 @@ package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
 /**
  *
  */
-class RecoveryPrepareForTranslogOperationsRequest implements Streamable {
+class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
 
     private long recoveryId;
-
     private ShardId shardId;
 
     RecoveryPrepareForTranslogOperationsRequest() {
@@ -53,12 +52,14 @@ class RecoveryPrepareForTranslogOperationsRequest implements Streamable {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
         recoveryId = in.readLong();
         shardId = ShardId.readShardId(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeLong(recoveryId);
         shardId.writeTo(out);
     }

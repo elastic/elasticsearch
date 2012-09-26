@@ -19,14 +19,29 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.transport.TransportRequest;
+
+import java.io.IOException;
 
 /**
  *
  */
-public interface ActionRequest extends Streamable {
+public abstract class ActionRequest<T extends ActionRequest> extends TransportRequest {
 
-    ActionRequestValidationException validate();
+    private boolean listenerThreaded = false;
+
+    protected ActionRequest() {
+        super();
+    }
+
+    protected ActionRequest(ActionRequest request) {
+        super(request);
+        // this does not set the listenerThreaded API, if needed, its up to the caller to set it
+        // since most times, we actually want it to not be threaded...
+        //this.listenerThreaded = request.listenerThreaded();
+    }
 
     /**
      * Should the response listener be executed on a thread or not.
@@ -34,10 +49,28 @@ public interface ActionRequest extends Streamable {
      * <p>When not executing on a thread, it will either be executed on the calling thread, or
      * on an expensive, IO based, thread.
      */
-    boolean listenerThreaded();
+    public final boolean listenerThreaded() {
+        return this.listenerThreaded;
+    }
 
     /**
      * Sets if the response listener be executed on a thread or not.
      */
-    ActionRequest listenerThreaded(boolean listenerThreaded);
+    @SuppressWarnings("unchecked")
+    public final T listenerThreaded(boolean listenerThreaded) {
+        this.listenerThreaded = listenerThreaded;
+        return (T) this;
+    }
+
+    public abstract ActionRequestValidationException validate();
+
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+    }
 }

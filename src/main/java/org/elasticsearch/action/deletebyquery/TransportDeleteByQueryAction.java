@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.deletebyquery;
 
+import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.support.replication.TransportIndicesReplicationOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
@@ -40,6 +42,11 @@ public class TransportDeleteByQueryAction extends TransportIndicesReplicationOpe
     public TransportDeleteByQueryAction(Settings settings, ClusterService clusterService, TransportService transportService,
                                         ThreadPool threadPool, TransportIndexDeleteByQueryAction indexDeleteByQueryAction) {
         super(settings, transportService, clusterService, threadPool, indexDeleteByQueryAction);
+    }
+
+    @Override
+    protected Map<String, Set<String>> resolveRouting(ClusterState clusterState, DeleteByQueryRequest request) throws ElasticSearchException {
+        return clusterState.metaData().resolveSearchRouting(request.routing(), request.indices());
     }
 
     @Override

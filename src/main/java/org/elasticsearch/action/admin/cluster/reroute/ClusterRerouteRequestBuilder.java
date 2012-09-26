@@ -20,18 +20,18 @@
 package org.elasticsearch.action.admin.cluster.reroute;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.support.BaseClusterRequestBuilder;
+import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.client.internal.InternalClusterAdminClient;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.unit.TimeValue;
 
 /**
  */
-public class ClusterRerouteRequestBuilder extends BaseClusterRequestBuilder<ClusterRerouteRequest, ClusterRerouteResponse> {
+public class ClusterRerouteRequestBuilder extends MasterNodeOperationRequestBuilder<ClusterRerouteRequest, ClusterRerouteResponse, ClusterRerouteRequestBuilder> {
 
     public ClusterRerouteRequestBuilder(ClusterAdminClient clusterClient) {
-        super(clusterClient, new ClusterRerouteRequest());
+        super((InternalClusterAdminClient) clusterClient, new ClusterRerouteRequest());
     }
 
     /**
@@ -57,24 +57,8 @@ public class ClusterRerouteRequestBuilder extends BaseClusterRequestBuilder<Clus
         return this;
     }
 
-    /**
-     * Sets the master node timeout in case the master has not yet been discovered.
-     */
-    public ClusterRerouteRequestBuilder setMasterNodeTimeout(TimeValue timeout) {
-        request.masterNodeTimeout(timeout);
-        return this;
-    }
-
-    /**
-     * Sets the master node timeout in case the master has not yet been discovered.
-     */
-    public ClusterRerouteRequestBuilder setMasterNodeTimeout(String timeout) {
-        request.masterNodeTimeout(timeout);
-        return this;
-    }
-
     @Override
     protected void doExecute(ActionListener<ClusterRerouteResponse> listener) {
-        client.reroute(request, listener);
+        ((ClusterAdminClient) client).reroute(request, listener);
     }
 }

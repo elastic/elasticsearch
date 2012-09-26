@@ -345,6 +345,8 @@ public abstract class StreamInput extends InputStream {
                 return new DateTime(readLong());
             case 14:
                 return readBytesReference();
+            case 15:
+                return readText();
             default:
                 throw new IOException("Can't read unknown type [" + type + "]");
         }

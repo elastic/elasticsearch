@@ -104,7 +104,7 @@ public class TransportGatewaySnapshotAction extends TransportBroadcastOperationA
 
     @Override
     protected ShardGatewaySnapshotRequest newShardRequest(ShardRouting shard, GatewaySnapshotRequest request) {
-        return new ShardGatewaySnapshotRequest(shard.index(), shard.id());
+        return new ShardGatewaySnapshotRequest(shard.index(), shard.id(), request);
     }
 
     @Override

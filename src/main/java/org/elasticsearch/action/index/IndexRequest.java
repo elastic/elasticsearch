@@ -26,8 +26,6 @@ import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.RoutingMissingException;
-import org.elasticsearch.action.WriteConsistencyLevel;
-import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.action.support.replication.ShardReplicationOperationRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -39,7 +37,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
@@ -66,7 +63,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see org.elasticsearch.client.Requests#indexRequest(String)
  * @see org.elasticsearch.client.Client#index(IndexRequest)
  */
-public class IndexRequest extends ShardReplicationOperationRequest {
+public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest> {
 
     /**
      * Operation type controls if the type of the index operation.
@@ -178,38 +175,10 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     }
 
     /**
-     * Sets the index the index operation will happen on.
-     */
-    @Override
-    public IndexRequest index(String index) {
-        super.index(index);
-        return this;
-    }
-
-    /**
      * Sets the content type that will be used when generating a document from user provided objects (like Map).
      */
     public IndexRequest contentType(XContentType contentType) {
         this.contentType = contentType;
-        return this;
-    }
-
-    /**
-     * Should the listener be called on a separate thread if needed.
-     */
-    @Override
-    public IndexRequest listenerThreaded(boolean threadedListener) {
-        super.listenerThreaded(threadedListener);
-        return this;
-    }
-
-    /**
-     * Controls if the operation will be executed on a separate thread when executed locally. Defaults
-     * to <tt>true</tt> when running in embedded mode.
-     */
-    @Override
-    public IndexRequest operationThreaded(boolean threadedOperation) {
-        super.operationThreaded(threadedOperation);
         return this;
     }
 
@@ -469,21 +438,6 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     }
 
     /**
-     * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
-     */
-    public IndexRequest timeout(TimeValue timeout) {
-        this.timeout = timeout;
-        return this;
-    }
-
-    /**
-     * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
-     */
-    public IndexRequest timeout(String timeout) {
-        return timeout(TimeValue.parseTimeValue(timeout, null));
-    }
-
-    /**
      * Sets the type of operation to perform.
      */
     public IndexRequest opType(OpType opType) {
@@ -503,32 +457,6 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         } else {
             throw new ElasticSearchIllegalArgumentException("No index opType matching [" + opType + "]");
         }
-    }
-
-    /**
-     * Set the replication type for this operation.
-     */
-    @Override
-    public IndexRequest replicationType(ReplicationType replicationType) {
-        super.replicationType(replicationType);
-        return this;
-    }
-
-    /**
-     * Sets the consistency level of write. Defaults to {@link org.elasticsearch.action.WriteConsistencyLevel#DEFAULT}
-     */
-    @Override
-    public IndexRequest consistencyLevel(WriteConsistencyLevel consistencyLevel) {
-        super.consistencyLevel(consistencyLevel);
-        return this;
-    }
-
-    /**
-     * Set the replication type for this operation.
-     */
-    public IndexRequest replicationType(String replicationType) {
-        super.replicationType(ReplicationType.fromString(replicationType));
-        return this;
     }
 
     /**
@@ -662,19 +590,11 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        type = in.readUTF();
-        if (in.readBoolean()) {
-            id = in.readUTF();
-        }
-        if (in.readBoolean()) {
-            routing = in.readUTF();
-        }
-        if (in.readBoolean()) {
-            parent = in.readUTF();
-        }
-        if (in.readBoolean()) {
-            timestamp = in.readUTF();
-        }
+        type = in.readString();
+        id = in.readOptionalString();
+        routing = in.readOptionalString();
+        parent = in.readOptionalString();
+        timestamp = in.readOptionalString();
         ttl = in.readLong();
         source = in.readBytesReference();
         sourceUnsafe = false;
@@ -682,51 +602,24 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         opType = OpType.fromId(in.readByte());
         refresh = in.readBoolean();
         version = in.readLong();
-        if (in.readBoolean()) {
-            percolate = in.readUTF();
-        }
+        percolate = in.readOptionalString();
         versionType = VersionType.fromValue(in.readByte());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeUTF(type);
-        if (id == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeUTF(id);
-        }
-        if (routing == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeUTF(routing);
-        }
-        if (parent == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeUTF(parent);
-        }
-        if (timestamp == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeUTF(timestamp);
-        }
+        out.writeString(type);
+        out.writeOptionalString(id);
+        out.writeOptionalString(routing);
+        out.writeOptionalString(parent);
+        out.writeOptionalString(timestamp);
         out.writeLong(ttl);
         out.writeBytesReference(source);
         out.writeByte(opType.id());
         out.writeBoolean(refresh);
         out.writeLong(version);
-        if (percolate == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeUTF(percolate);
-        }
+        out.writeOptionalString(percolate);
         out.writeByte(versionType.getValue());
     }
 

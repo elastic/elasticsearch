@@ -20,21 +20,22 @@
 package org.elasticsearch.action.admin.indices.open;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.support.BaseIndicesRequestBuilder;
+import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**
  *
  */
-public class OpenIndexRequestBuilder extends BaseIndicesRequestBuilder<OpenIndexRequest, OpenIndexResponse> {
+public class OpenIndexRequestBuilder extends MasterNodeOperationRequestBuilder<OpenIndexRequest, OpenIndexResponse, OpenIndexRequestBuilder> {
 
     public OpenIndexRequestBuilder(IndicesAdminClient indicesClient) {
-        super(indicesClient, new OpenIndexRequest());
+        super((InternalIndicesAdminClient) indicesClient, new OpenIndexRequest());
     }
 
     public OpenIndexRequestBuilder(IndicesAdminClient indicesClient, String index) {
-        super(indicesClient, new OpenIndexRequest(index));
+        super((InternalIndicesAdminClient) indicesClient, new OpenIndexRequest(index));
     }
 
     public OpenIndexRequestBuilder setIndex(String index) {
@@ -60,24 +61,8 @@ public class OpenIndexRequestBuilder extends BaseIndicesRequestBuilder<OpenIndex
         return this;
     }
 
-    /**
-     * Sets the master node timeout in case the master has not yet been discovered.
-     */
-    public OpenIndexRequestBuilder setMasterNodeTimeout(TimeValue timeout) {
-        request.masterNodeTimeout(timeout);
-        return this;
-    }
-
-    /**
-     * Sets the master node timeout in case the master has not yet been discovered.
-     */
-    public OpenIndexRequestBuilder setMasterNodeTimeout(String timeout) {
-        request.masterNodeTimeout(timeout);
-        return this;
-    }
-
     @Override
     protected void doExecute(ActionListener<OpenIndexResponse> listener) {
-        client.open(request, listener);
+        ((IndicesAdminClient) client).open(request, listener);
     }
 }

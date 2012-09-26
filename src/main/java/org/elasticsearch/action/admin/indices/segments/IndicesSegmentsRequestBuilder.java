@@ -20,34 +20,21 @@
 package org.elasticsearch.action.admin.indices.segments;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.support.BaseIndicesRequestBuilder;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 
 /**
  *
  */
-public class IndicesSegmentsRequestBuilder extends BaseIndicesRequestBuilder<IndicesSegmentsRequest, IndicesSegmentResponse> {
+public class IndicesSegmentsRequestBuilder extends BroadcastOperationRequestBuilder<IndicesSegmentsRequest, IndicesSegmentResponse, IndicesSegmentsRequestBuilder> {
 
     public IndicesSegmentsRequestBuilder(IndicesAdminClient indicesClient) {
-        super(indicesClient, new IndicesSegmentsRequest());
-    }
-
-    public IndicesSegmentsRequestBuilder setIndices(String... indices) {
-        request.indices(indices);
-        return this;
-    }
-
-    /**
-     * Specifies what type of requested indices to ignore. For example indices that don't exist.
-     */
-    public IndicesSegmentsRequestBuilder setIgnoreIndices(IgnoreIndices ignoreIndices) {
-        request().ignoreIndices(ignoreIndices);
-        return this;
+        super((InternalIndicesAdminClient) indicesClient, new IndicesSegmentsRequest());
     }
 
     @Override
     protected void doExecute(ActionListener<IndicesSegmentResponse> listener) {
-        client.segments(request, listener);
+        ((IndicesAdminClient) client).segments(request, listener);
     }
 }

@@ -395,7 +395,7 @@ public class MasterFaultDetection extends AbstractComponent {
     }
 
 
-    private static class MasterPingRequest implements Streamable {
+    private static class MasterPingRequest extends TransportRequest {
 
         private String nodeId;
 
@@ -411,14 +411,16 @@ public class MasterFaultDetection extends AbstractComponent {
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            nodeId = in.readUTF();
-            masterNodeId = in.readUTF();
+            super.readFrom(in);
+            nodeId = in.readString();
+            masterNodeId = in.readString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeUTF(nodeId);
-            out.writeUTF(masterNodeId);
+            super.writeTo(out);
+            out.writeString(nodeId);
+            out.writeString(masterNodeId);
         }
     }
 

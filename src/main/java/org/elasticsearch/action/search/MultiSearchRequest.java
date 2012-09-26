@@ -41,11 +41,10 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * A multi search API request.
  */
-public class MultiSearchRequest implements ActionRequest {
+public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
 
     private List<SearchRequest> requests = Lists.newArrayList();
 
-    private boolean listenerThreaded = false;
     private IgnoreIndices ignoreIndices = IgnoreIndices.DEFAULT;
 
     /**
@@ -183,17 +182,6 @@ public class MultiSearchRequest implements ActionRequest {
         return validationException;
     }
 
-    @Override
-    public boolean listenerThreaded() {
-        return listenerThreaded;
-    }
-
-    @Override
-    public MultiSearchRequest listenerThreaded(boolean listenerThreaded) {
-        this.listenerThreaded = listenerThreaded;
-        return this;
-    }
-
     public IgnoreIndices ignoreIndices() {
         return ignoreIndices;
     }
@@ -205,6 +193,7 @@ public class MultiSearchRequest implements ActionRequest {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             SearchRequest request = new SearchRequest();
@@ -215,6 +204,7 @@ public class MultiSearchRequest implements ActionRequest {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeVInt(requests.size());
         for (SearchRequest request : requests) {
             request.writeTo(out);

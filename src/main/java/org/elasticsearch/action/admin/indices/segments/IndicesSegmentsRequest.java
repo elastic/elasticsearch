@@ -22,7 +22,7 @@ package org.elasticsearch.action.admin.indices.segments;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
 import org.elasticsearch.common.Strings;
 
-public class IndicesSegmentsRequest extends BroadcastOperationRequest {
+public class IndicesSegmentsRequest extends BroadcastOperationRequest<IndicesSegmentsRequest> {
 
     public IndicesSegmentsRequest() {
         this(Strings.EMPTY_ARRAY);

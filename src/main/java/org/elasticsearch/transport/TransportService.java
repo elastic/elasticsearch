@@ -155,24 +155,24 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         this.throwConnectException = throwConnectException;
     }
 
-    public <T extends Streamable> TransportFuture<T> submitRequest(DiscoveryNode node, String action, Streamable message,
+    public <T extends Streamable> TransportFuture<T> submitRequest(DiscoveryNode node, String action, TransportRequest request,
                                                                    TransportResponseHandler<T> handler) throws TransportException {
-        return submitRequest(node, action, message, TransportRequestOptions.EMPTY, handler);
+        return submitRequest(node, action, request, TransportRequestOptions.EMPTY, handler);
     }
 
-    public <T extends Streamable> TransportFuture<T> submitRequest(DiscoveryNode node, String action, Streamable message,
+    public <T extends Streamable> TransportFuture<T> submitRequest(DiscoveryNode node, String action, TransportRequest request,
                                                                    TransportRequestOptions options, TransportResponseHandler<T> handler) throws TransportException {
         PlainTransportFuture<T> futureHandler = new PlainTransportFuture<T>(handler);
-        sendRequest(node, action, message, options, futureHandler);
+        sendRequest(node, action, request, options, futureHandler);
         return futureHandler;
     }
 
-    public <T extends Streamable> void sendRequest(final DiscoveryNode node, final String action, final Streamable message,
+    public <T extends Streamable> void sendRequest(final DiscoveryNode node, final String action, final TransportRequest request,
                                                    final TransportResponseHandler<T> handler) throws TransportException {
-        sendRequest(node, action, message, TransportRequestOptions.EMPTY, handler);
+        sendRequest(node, action, request, TransportRequestOptions.EMPTY, handler);
     }
 
-    public <T extends Streamable> void sendRequest(final DiscoveryNode node, final String action, final Streamable message,
+    public <T extends Streamable> void sendRequest(final DiscoveryNode node, final String action, final TransportRequest request,
                                                    final TransportRequestOptions options, final TransportResponseHandler<T> handler) throws TransportException {
         final long requestId = newRequestId();
         TimeoutHandler timeoutHandler = null;
@@ -182,7 +182,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                 timeoutHandler.future = threadPool.schedule(options.timeout(), ThreadPool.Names.GENERIC, timeoutHandler);
             }
             clientHandlers.put(requestId, new RequestHolder<T>(handler, node, action, timeoutHandler));
-            transport.sendRequest(node, requestId, action, message, options);
+            transport.sendRequest(node, requestId, action, request, options);
         } catch (final Exception e) {
             // usually happen either because we failed to connect to the node
             // or because we failed serializing the message
@@ -213,10 +213,6 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
     public TransportAddress[] addressesFromString(String address) throws Exception {
         return transport.addressesFromString(address);
-    }
-
-    public void registerHandler(ActionTransportRequestHandler handler) {
-        registerHandler(handler.action(), handler);
     }
 
     public void registerHandler(String action, TransportRequestHandler handler) {

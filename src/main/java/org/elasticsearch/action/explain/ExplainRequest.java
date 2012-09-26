@@ -34,7 +34,7 @@ import java.io.IOException;
 /**
  * Explain request encapsulating the explain query and document identifier to get an explanation for.
  */
-public class ExplainRequest extends SingleShardOperationRequest {
+public class ExplainRequest extends SingleShardOperationRequest<ExplainRequest> {
 
     private static final XContentType contentType = Requests.CONTENT_TYPE;
 
@@ -55,11 +55,6 @@ public class ExplainRequest extends SingleShardOperationRequest {
         this.index = index;
         this.type = type;
         this.id = id;
-    }
-
-    public ExplainRequest index(String index) {
-        this.index = index;
-        return this;
     }
 
     public String type() {
@@ -145,18 +140,6 @@ public class ExplainRequest extends SingleShardOperationRequest {
         }
 
         this.filteringAlias = filteringAlias;
-    }
-
-    @Override
-    public ExplainRequest listenerThreaded(boolean threadedListener) {
-        super.listenerThreaded(threadedListener);
-        return this;
-    }
-
-    @Override
-    public ExplainRequest operationThreaded(boolean threadedOperation) {
-        super.operationThreaded(threadedOperation);
-        return this;
     }
 
     @Override

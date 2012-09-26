@@ -20,23 +20,23 @@
 package org.elasticsearch.action.admin.indices.warmer.put;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.support.BaseIndicesRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 
 /**
  *
  */
-public class PutWarmerRequestBuilder extends BaseIndicesRequestBuilder<PutWarmerRequest, PutWarmerResponse> {
+public class PutWarmerRequestBuilder extends MasterNodeOperationRequestBuilder<PutWarmerRequest, PutWarmerResponse, PutWarmerRequestBuilder> {
 
     public PutWarmerRequestBuilder(IndicesAdminClient indicesClient, String name) {
-        super(indicesClient, new PutWarmerRequest().name(name));
+        super((InternalIndicesAdminClient) indicesClient, new PutWarmerRequest().name(name));
     }
 
     public PutWarmerRequestBuilder(IndicesAdminClient indicesClient) {
-        super(indicesClient, new PutWarmerRequest());
+        super((InternalIndicesAdminClient) indicesClient, new PutWarmerRequest());
     }
 
     /**
@@ -63,16 +63,8 @@ public class PutWarmerRequestBuilder extends BaseIndicesRequestBuilder<PutWarmer
         return this;
     }
 
-    /**
-     * Sets the master node timeout in case the master has not yet been discovered.
-     */
-    public PutWarmerRequestBuilder setMasterNodeTimeout(TimeValue timeout) {
-        request.masterNodeTimeout(timeout);
-        return this;
-    }
-
     @Override
     protected void doExecute(ActionListener<PutWarmerResponse> listener) {
-        client.putWarmer(request, listener);
+        ((IndicesAdminClient) client).putWarmer(request, listener);
     }
 }

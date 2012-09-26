@@ -20,16 +20,17 @@
 package org.elasticsearch.action.admin.indices.exists.indices;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.support.BaseIndicesRequestBuilder;
+import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 
 /**
  *
  */
-public class IndicesExistsRequestBuilder extends BaseIndicesRequestBuilder<IndicesExistsRequest, IndicesExistsResponse> {
+public class IndicesExistsRequestBuilder extends MasterNodeOperationRequestBuilder<IndicesExistsRequest, IndicesExistsResponse, IndicesExistsRequestBuilder> {
 
     public IndicesExistsRequestBuilder(IndicesAdminClient indicesClient, String... indices) {
-        super(indicesClient, new IndicesExistsRequest(indices));
+        super((InternalIndicesAdminClient) indicesClient, new IndicesExistsRequest(indices));
     }
 
     public IndicesExistsRequestBuilder setIndices(String... indices) {
@@ -39,6 +40,6 @@ public class IndicesExistsRequestBuilder extends BaseIndicesRequestBuilder<Indic
 
     @Override
     protected void doExecute(ActionListener<IndicesExistsResponse> listener) {
-        client.exists(request, listener);
+        ((IndicesAdminClient) client).exists(request, listener);
     }
 }

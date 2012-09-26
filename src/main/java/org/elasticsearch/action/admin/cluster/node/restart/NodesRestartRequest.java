@@ -30,10 +30,8 @@ import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
 
 /**
  * A request to restart one ore more nodes (or the whole cluster).
- *
- *
  */
-public class NodesRestartRequest extends NodesOperationRequest {
+public class NodesRestartRequest extends NodesOperationRequest<NodesRestartRequest> {
 
     TimeValue delay = TimeValue.timeValueSeconds(1);
 

@@ -22,7 +22,6 @@ package org.elasticsearch.action.admin.indices.validate.query;
 import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Required;
 import org.elasticsearch.common.Strings;
@@ -46,7 +45,7 @@ import java.util.Map;
  * <p>The request requires the query source to be set either using {@link #query(org.elasticsearch.index.query.QueryBuilder)},
  * or {@link #query(byte[])}.
  */
-public class ValidateQueryRequest extends BroadcastOperationRequest {
+public class ValidateQueryRequest extends BroadcastOperationRequest<ValidateQueryRequest> {
 
     private static final XContentType contentType = Requests.CONTENT_TYPE;
 
@@ -74,35 +73,12 @@ public class ValidateQueryRequest extends BroadcastOperationRequest {
         return validationException;
     }
 
-    /**
-     * Controls the operation threading model.
-     */
-    @Override
-    public ValidateQueryRequest operationThreading(BroadcastOperationThreading operationThreading) {
-        super.operationThreading(operationThreading);
-        return this;
-    }
-
     @Override
     protected void beforeStart() {
         if (querySourceUnsafe) {
             querySource = querySource.copyBytesArray();
             querySourceUnsafe = false;
         }
-    }
-
-    /**
-     * Should the listener be called on a separate thread if needed.
-     */
-    @Override
-    public ValidateQueryRequest listenerThreaded(boolean threadedListener) {
-        super.listenerThreaded(threadedListener);
-        return this;
-    }
-
-    public ValidateQueryRequest indices(String... indices) {
-        this.indices = indices;
-        return this;
     }
 
     /**

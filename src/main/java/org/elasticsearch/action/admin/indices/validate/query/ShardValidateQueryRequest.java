@@ -34,9 +34,7 @@ import java.io.IOException;
 class ShardValidateQueryRequest extends BroadcastShardOperationRequest {
 
     private BytesReference querySource;
-
     private String[] types = Strings.EMPTY_ARRAY;
-
     private boolean explain;
 
     @Nullable
@@ -47,7 +45,7 @@ class ShardValidateQueryRequest extends BroadcastShardOperationRequest {
     }
 
     public ShardValidateQueryRequest(String index, int shardId, @Nullable String[] filteringAliases, ValidateQueryRequest request) {
-        super(index, shardId);
+        super(index, shardId, request);
         this.querySource = request.querySource();
         this.types = request.types();
         this.explain = request.explain();
@@ -79,14 +77,14 @@ class ShardValidateQueryRequest extends BroadcastShardOperationRequest {
         if (typesSize > 0) {
             types = new String[typesSize];
             for (int i = 0; i < typesSize; i++) {
-                types[i] = in.readUTF();
+                types[i] = in.readString();
             }
         }
         int aliasesSize = in.readVInt();
         if (aliasesSize > 0) {
             filteringAliases = new String[aliasesSize];
             for (int i = 0; i < aliasesSize; i++) {
-                filteringAliases[i] = in.readUTF();
+                filteringAliases[i] = in.readString();
             }
         }
 
@@ -100,12 +98,12 @@ class ShardValidateQueryRequest extends BroadcastShardOperationRequest {
 
         out.writeVInt(types.length);
         for (String type : types) {
-            out.writeUTF(type);
+            out.writeString(type);
         }
         if (filteringAliases != null) {
             out.writeVInt(filteringAliases.length);
             for (String alias : filteringAliases) {
-                out.writeUTF(alias);
+                out.writeString(alias);
             }
         } else {
             out.writeVInt(0);

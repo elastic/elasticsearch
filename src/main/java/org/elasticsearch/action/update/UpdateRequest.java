@@ -30,7 +30,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -43,7 +42,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  */
-public class UpdateRequest extends InstanceShardOperationRequest {
+public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> {
 
     private String type;
     private String id;
@@ -96,14 +95,6 @@ public class UpdateRequest extends InstanceShardOperationRequest {
             validationException = addValidationError("script or doc is missing", validationException);
         }
         return validationException;
-    }
-
-    /**
-     * Sets the index the document will exists on.
-     */
-    public UpdateRequest index(String index) {
-        this.index = index;
-        return this;
     }
 
     /**
@@ -293,21 +284,6 @@ public class UpdateRequest extends InstanceShardOperationRequest {
 
     public String percolate() {
         return this.percolate;
-    }
-
-    /**
-     * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
-     */
-    public UpdateRequest timeout(TimeValue timeout) {
-        this.timeout = timeout;
-        return this;
-    }
-
-    /**
-     * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
-     */
-    public UpdateRequest timeout(String timeout) {
-        return timeout(TimeValue.parseTimeValue(timeout, null));
     }
 
     /**
@@ -533,14 +509,14 @@ public class UpdateRequest extends InstanceShardOperationRequest {
         super.readFrom(in);
         replicationType = ReplicationType.fromId(in.readByte());
         consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
-        type = in.readUTF();
-        id = in.readUTF();
-        routing = in.readOptionalUTF();
-        script = in.readOptionalUTF();
-        scriptLang = in.readOptionalUTF();
+        type = in.readString();
+        id = in.readString();
+        routing = in.readOptionalString();
+        script = in.readOptionalString();
+        scriptLang = in.readOptionalString();
         scriptParams = in.readMap();
         retryOnConflict = in.readVInt();
-        percolate = in.readOptionalUTF();
+        percolate = in.readOptionalString();
         refresh = in.readBoolean();
         if (in.readBoolean()) {
             doc = new IndexRequest();
@@ -550,7 +526,7 @@ public class UpdateRequest extends InstanceShardOperationRequest {
         if (size >= 0) {
             fields = new String[size];
             for (int i = 0; i < size; i++) {
-                fields[i] = in.readUTF();
+                fields[i] = in.readString();
             }
         }
         if (in.readBoolean()) {
@@ -564,14 +540,14 @@ public class UpdateRequest extends InstanceShardOperationRequest {
         super.writeTo(out);
         out.writeByte(replicationType.id());
         out.writeByte(consistencyLevel.id());
-        out.writeUTF(type);
-        out.writeUTF(id);
-        out.writeOptionalUTF(routing);
-        out.writeOptionalUTF(script);
-        out.writeOptionalUTF(scriptLang);
+        out.writeString(type);
+        out.writeString(id);
+        out.writeOptionalString(routing);
+        out.writeOptionalString(script);
+        out.writeOptionalString(scriptLang);
         out.writeMap(scriptParams);
         out.writeVInt(retryOnConflict);
-        out.writeOptionalUTF(percolate);
+        out.writeOptionalString(percolate);
         out.writeBoolean(refresh);
         if (doc == null) {
             out.writeBoolean(false);
@@ -588,7 +564,7 @@ public class UpdateRequest extends InstanceShardOperationRequest {
         } else {
             out.writeInt(fields.length);
             for (String field : fields) {
-                out.writeUTF(field);
+                out.writeString(field);
             }
         }
         if (upsertRequest == null) {

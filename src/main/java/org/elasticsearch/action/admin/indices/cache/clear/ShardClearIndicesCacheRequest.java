@@ -40,7 +40,7 @@ class ShardClearIndicesCacheRequest extends BroadcastShardOperationRequest {
     }
 
     public ShardClearIndicesCacheRequest(String index, int shardId, ClearIndicesCacheRequest request) {
-        super(index, shardId);
+        super(index, shardId, request);
         filterCache = request.filterCache();
         fieldDataCache = request.fieldDataCache();
         idCache = request.idCache();

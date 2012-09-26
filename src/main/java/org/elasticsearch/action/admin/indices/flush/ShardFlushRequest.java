@@ -38,7 +38,7 @@ class ShardFlushRequest extends BroadcastShardOperationRequest {
     }
 
     public ShardFlushRequest(String index, int shardId, FlushRequest request) {
-        super(index, shardId);
+        super(index, shardId, request);
         this.refresh = request.refresh();
         this.full = request.full();
         this.force = request.force();

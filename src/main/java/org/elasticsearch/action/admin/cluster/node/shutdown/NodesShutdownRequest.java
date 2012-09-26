@@ -33,7 +33,7 @@ import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
 /**
  *
  */
-public class NodesShutdownRequest extends MasterNodeOperationRequest {
+public class NodesShutdownRequest extends MasterNodeOperationRequest<NodesShutdownRequest> {
 
     String[] nodesIds = Strings.EMPTY_ARRAY;
 
@@ -96,13 +96,7 @@ public class NodesShutdownRequest extends MasterNodeOperationRequest {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         delay = readTimeValue(in);
-        int size = in.readVInt();
-        if (size > 0) {
-            nodesIds = new String[size];
-            for (int i = 0; i < nodesIds.length; i++) {
-                nodesIds[i] = in.readUTF();
-            }
-        }
+        nodesIds = in.readStringArray();
         exit = in.readBoolean();
     }
 
@@ -110,14 +104,7 @@ public class NodesShutdownRequest extends MasterNodeOperationRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         delay.writeTo(out);
-        if (nodesIds == null) {
-            out.writeVInt(0);
-        } else {
-            out.writeVInt(nodesIds.length);
-            for (String nodeId : nodesIds) {
-                out.writeUTF(nodeId);
-            }
-        }
+        out.writeStringArrayNullable(nodesIds);
         out.writeBoolean(exit);
     }
 }

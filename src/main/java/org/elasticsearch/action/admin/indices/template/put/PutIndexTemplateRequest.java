@@ -51,7 +51,7 @@ import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
 /**
  * A request to create an index template.
  */
-public class PutIndexTemplateRequest extends MasterNodeOperationRequest {
+public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndexTemplateRequest> {
 
     private String name;
 
@@ -370,20 +370,20 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        cause = in.readUTF();
-        name = in.readUTF();
-        template = in.readUTF();
+        cause = in.readString();
+        name = in.readString();
+        template = in.readString();
         order = in.readInt();
         create = in.readBoolean();
         settings = readSettingsFromStream(in);
         timeout = readTimeValue(in);
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
-            mappings.put(in.readUTF(), in.readUTF());
+            mappings.put(in.readString(), in.readString());
         }
         int customSize = in.readVInt();
         for (int i = 0; i < customSize; i++) {
-            String type = in.readUTF();
+            String type = in.readString();
             IndexMetaData.Custom customIndexMetaData = IndexMetaData.lookupFactorySafe(type).readFrom(in);
             customs.put(type, customIndexMetaData);
         }
@@ -392,21 +392,21 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeUTF(cause);
-        out.writeUTF(name);
-        out.writeUTF(template);
+        out.writeString(cause);
+        out.writeString(name);
+        out.writeString(template);
         out.writeInt(order);
         out.writeBoolean(create);
         writeSettingsToStream(settings, out);
         timeout.writeTo(out);
         out.writeVInt(mappings.size());
         for (Map.Entry<String, String> entry : mappings.entrySet()) {
-            out.writeUTF(entry.getKey());
-            out.writeUTF(entry.getValue());
+            out.writeString(entry.getKey());
+            out.writeString(entry.getValue());
         }
         out.writeVInt(customs.size());
         for (Map.Entry<String, IndexMetaData.Custom> entry : customs.entrySet()) {
-            out.writeUTF(entry.getKey());
+            out.writeString(entry.getKey());
             IndexMetaData.lookupFactorySafe(entry.getKey()).writeTo(entry.getValue(), out);
         }
     }

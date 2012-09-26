@@ -34,7 +34,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 /**
  * A request to open an index.
  */
-public class OpenIndexRequest extends MasterNodeOperationRequest {
+public class OpenIndexRequest extends MasterNodeOperationRequest<OpenIndexRequest> {
 
     private String index;
 
@@ -99,14 +99,14 @@ public class OpenIndexRequest extends MasterNodeOperationRequest {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        index = in.readUTF();
+        index = in.readString();
         timeout = readTimeValue(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeUTF(index);
+        out.writeString(index);
         timeout.writeTo(out);
     }
 }

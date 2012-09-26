@@ -21,31 +21,24 @@ package org.elasticsearch.action.delete;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.WriteConsistencyLevel;
-import org.elasticsearch.action.support.BaseRequestBuilder;
 import org.elasticsearch.action.support.replication.ReplicationType;
+import org.elasticsearch.action.support.replication.ShardReplicationOperationRequestBuilder;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.VersionType;
 
 /**
  * A delete document action request builder.
  */
-public class DeleteRequestBuilder extends BaseRequestBuilder<DeleteRequest, DeleteResponse> {
+public class DeleteRequestBuilder extends ShardReplicationOperationRequestBuilder<DeleteRequest, DeleteResponse, DeleteRequestBuilder> {
 
     public DeleteRequestBuilder(Client client) {
-        super(client, new DeleteRequest());
+        super((InternalClient) client, new DeleteRequest());
     }
 
     public DeleteRequestBuilder(Client client, @Nullable String index) {
-        super(client, new DeleteRequest(index));
-    }
-
-    /**
-     * Sets the index the delete will happen on.
-     */
-    public DeleteRequestBuilder setIndex(String index) {
-        request.index(index);
-        return this;
+        super((InternalClient) client, new DeleteRequest(index));
     }
 
     /**
@@ -110,23 +103,6 @@ public class DeleteRequestBuilder extends BaseRequestBuilder<DeleteRequest, Dele
     }
 
     /**
-     * Should the listener be called on a separate thread if needed.
-     */
-    public DeleteRequestBuilder setListenerThreaded(boolean threadedListener) {
-        request.listenerThreaded(threadedListener);
-        return this;
-    }
-
-    /**
-     * Controls if the operation will be executed on a separate thread when executed locally. Defaults
-     * to <tt>true</tt> when running in embedded mode.
-     */
-    public DeleteRequestBuilder setOperationThreaded(boolean threadedOperation) {
-        request.operationThreaded(threadedOperation);
-        return this;
-    }
-
-    /**
      * Set the replication type for this operation.
      */
     public DeleteRequestBuilder setReplicationType(ReplicationType replicationType) {
@@ -144,6 +120,6 @@ public class DeleteRequestBuilder extends BaseRequestBuilder<DeleteRequest, Dele
 
     @Override
     protected void doExecute(ActionListener<DeleteResponse> listener) {
-        client.delete(request, listener);
+        ((Client) client).delete(request, listener);
     }
 }

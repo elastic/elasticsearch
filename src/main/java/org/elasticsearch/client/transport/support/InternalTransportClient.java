@@ -87,8 +87,9 @@ public class InternalTransportClient extends AbstractClient implements InternalC
         return adminClient;
     }
 
+    @SuppressWarnings("unchecked")
     @Override
-    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response>> ActionFuture<Response> execute(final Action<Request, Response, RequestBuilder> action, final Request request) {
+    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> ActionFuture<Response> execute(final Action<Request, Response, RequestBuilder> action, final Request request) {
         final TransportActionNodeProxy<Request, Response> proxy = actions.get(action);
         return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<Response>>() {
             @Override
@@ -98,8 +99,9 @@ public class InternalTransportClient extends AbstractClient implements InternalC
         });
     }
 
+    @SuppressWarnings("unchecked")
     @Override
-    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response>> void execute(final Action<Request, Response, RequestBuilder> action, final Request request, ActionListener<Response> listener) {
+    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void execute(final Action<Request, Response, RequestBuilder> action, final Request request, ActionListener<Response> listener) {
         final TransportActionNodeProxy<Request, Response> proxy = actions.get(action);
         nodesService.execute(new TransportClientNodesService.NodeListenerCallback<Response>() {
             @Override

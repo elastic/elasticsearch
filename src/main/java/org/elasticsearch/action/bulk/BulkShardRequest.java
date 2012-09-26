@@ -28,7 +28,7 @@ import java.io.IOException;
 /**
  *
  */
-public class BulkShardRequest extends ShardReplicationOperationRequest {
+public class BulkShardRequest extends ShardReplicationOperationRequest<BulkShardRequest> {
 
     private int shardId;
 

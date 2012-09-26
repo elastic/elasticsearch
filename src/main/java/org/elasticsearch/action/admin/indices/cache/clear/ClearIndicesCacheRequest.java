@@ -29,7 +29,7 @@ import java.io.IOException;
 /**
  *
  */
-public class ClearIndicesCacheRequest extends BroadcastOperationRequest {
+public class ClearIndicesCacheRequest extends BroadcastOperationRequest<ClearIndicesCacheRequest> {
 
     private boolean filterCache = false;
     private boolean fieldDataCache = false;
@@ -44,24 +44,6 @@ public class ClearIndicesCacheRequest extends BroadcastOperationRequest {
         super(indices);
         // we want to do the refresh in parallel on local shards...
         operationThreading(BroadcastOperationThreading.THREAD_PER_SHARD);
-    }
-
-    /**
-     * Should the listener be called on a separate thread if needed.
-     */
-    @Override
-    public ClearIndicesCacheRequest listenerThreaded(boolean threadedListener) {
-        super.listenerThreaded(threadedListener);
-        return this;
-    }
-
-    /**
-     * Controls the operation threading model.
-     */
-    @Override
-    public ClearIndicesCacheRequest operationThreading(BroadcastOperationThreading operationThreading) {
-        super.operationThreading(operationThreading);
-        return this;
     }
 
     public boolean filterCache() {

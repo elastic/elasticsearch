@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.VoidStreamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -129,7 +128,7 @@ public class TransportNodesShutdownAction extends TransportMasterNodeOperationAc
                             latch.countDown();
                         } else {
                             logger.trace("[cluster_shutdown]: sending shutdown request to [{}]", node);
-                            transportService.sendRequest(node, NodeShutdownRequestHandler.ACTION, new NodeShutdownRequest(request.exit), new VoidTransportResponseHandler(ThreadPool.Names.SAME) {
+                            transportService.sendRequest(node, NodeShutdownRequestHandler.ACTION, new NodeShutdownRequest(request), new VoidTransportResponseHandler(ThreadPool.Names.SAME) {
                                 @Override
                                 public void handleResponse(VoidStreamable response) {
                                     logger.trace("[cluster_shutdown]: received shutdown response from [{}]", node);
@@ -153,7 +152,7 @@ public class TransportNodesShutdownAction extends TransportMasterNodeOperationAc
 
                     // now, kill the master
                     logger.trace("[cluster_shutdown]: shutting down the master [{}]", state.nodes().masterNode());
-                    transportService.sendRequest(state.nodes().masterNode(), NodeShutdownRequestHandler.ACTION, new NodeShutdownRequest(request.exit), new VoidTransportResponseHandler(ThreadPool.Names.SAME) {
+                    transportService.sendRequest(state.nodes().masterNode(), NodeShutdownRequestHandler.ACTION, new NodeShutdownRequest(request), new VoidTransportResponseHandler(ThreadPool.Names.SAME) {
                         @Override
                         public void handleResponse(VoidStreamable response) {
                             logger.trace("[cluster_shutdown]: received shutdown response from master");
@@ -197,7 +196,7 @@ public class TransportNodesShutdownAction extends TransportMasterNodeOperationAc
                         }
 
                         logger.trace("[partial_cluster_shutdown]: sending shutdown request to [{}]", node);
-                        transportService.sendRequest(node, NodeShutdownRequestHandler.ACTION, new NodeShutdownRequest(request.exit), new VoidTransportResponseHandler(ThreadPool.Names.SAME) {
+                        transportService.sendRequest(node, NodeShutdownRequestHandler.ACTION, new NodeShutdownRequest(request), new VoidTransportResponseHandler(ThreadPool.Names.SAME) {
                             @Override
                             public void handleResponse(VoidStreamable response) {
                                 logger.trace("[partial_cluster_shutdown]: received shutdown response from [{}]", node);
@@ -293,24 +292,27 @@ public class TransportNodesShutdownAction extends TransportMasterNodeOperationAc
         }
     }
 
-    static class NodeShutdownRequest implements Streamable {
+    static class NodeShutdownRequest extends TransportRequest {
 
         boolean exit;
 
         NodeShutdownRequest() {
         }
 
-        NodeShutdownRequest(boolean exit) {
-            this.exit = exit;
+        NodeShutdownRequest(NodesShutdownRequest request) {
+            super(request);
+            this.exit = request.exit();
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
             exit = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
             out.writeBoolean(exit);
         }
     }

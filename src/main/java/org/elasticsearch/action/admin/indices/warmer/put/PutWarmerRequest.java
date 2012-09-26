@@ -34,7 +34,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * A request to put a search warmer.
  */
-public class PutWarmerRequest extends MasterNodeOperationRequest {
+public class PutWarmerRequest extends MasterNodeOperationRequest<PutWarmerRequest> {
 
     private String name;
 
@@ -98,7 +98,7 @@ public class PutWarmerRequest extends MasterNodeOperationRequest {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        name = in.readUTF();
+        name = in.readString();
         if (in.readBoolean()) {
             searchRequest = new SearchRequest();
             searchRequest.readFrom(in);
@@ -108,7 +108,7 @@ public class PutWarmerRequest extends MasterNodeOperationRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeUTF(name);
+        out.writeString(name);
         if (searchRequest == null) {
             out.writeBoolean(false);
         } else {

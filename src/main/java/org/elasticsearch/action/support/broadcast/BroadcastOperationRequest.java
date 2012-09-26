@@ -22,7 +22,6 @@ package org.elasticsearch.action.support.broadcast;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IgnoreIndices;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -31,12 +30,10 @@ import java.io.IOException;
 /**
  *
  */
-public abstract class BroadcastOperationRequest implements ActionRequest {
+public abstract class BroadcastOperationRequest<T extends BroadcastOperationRequest> extends ActionRequest<T> {
 
     protected String[] indices;
 
-
-    private boolean listenerThreaded = false;
     private BroadcastOperationThreading operationThreading = BroadcastOperationThreading.SINGLE_THREAD;
     private IgnoreIndices ignoreIndices = IgnoreIndices.NONE;
 
@@ -52,31 +49,15 @@ public abstract class BroadcastOperationRequest implements ActionRequest {
         return indices;
     }
 
-    public BroadcastOperationRequest indices(String... indices) {
+    @SuppressWarnings("unchecked")
+    public final T indices(String... indices) {
         this.indices = indices;
-        return this;
+        return (T) this;
     }
 
     @Override
     public ActionRequestValidationException validate() {
         return null;
-    }
-
-    /**
-     * Should the listener be called on a separate thread if needed.
-     */
-    @Override
-    public boolean listenerThreaded() {
-        return this.listenerThreaded;
-    }
-
-    /**
-     * Should the listener be called on a separate thread if needed.
-     */
-    @Override
-    public BroadcastOperationRequest listenerThreaded(boolean listenerThreaded) {
-        this.listenerThreaded = listenerThreaded;
-        return this;
     }
 
     /**
@@ -89,15 +70,16 @@ public abstract class BroadcastOperationRequest implements ActionRequest {
     /**
      * Controls the operation threading model.
      */
-    public BroadcastOperationRequest operationThreading(BroadcastOperationThreading operationThreading) {
+    @SuppressWarnings("unchecked")
+    public final T operationThreading(BroadcastOperationThreading operationThreading) {
         this.operationThreading = operationThreading;
-        return this;
+        return (T) this;
     }
 
     /**
      * Controls the operation threading model.
      */
-    public BroadcastOperationRequest operationThreading(String operationThreading) {
+    public T operationThreading(String operationThreading) {
         return operationThreading(BroadcastOperationThreading.fromString(operationThreading, this.operationThreading));
     }
 
@@ -105,9 +87,10 @@ public abstract class BroadcastOperationRequest implements ActionRequest {
         return ignoreIndices;
     }
 
-    public BroadcastOperationRequest ignoreIndices(IgnoreIndices ignoreIndices) {
+    @SuppressWarnings("unchecked")
+    public final T ignoreIndices(IgnoreIndices ignoreIndices) {
         this.ignoreIndices = ignoreIndices;
-        return this;
+        return (T) this;
     }
 
     protected void beforeStart() {
@@ -120,29 +103,16 @@ public abstract class BroadcastOperationRequest implements ActionRequest {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (indices == null) {
-            out.writeVInt(0);
-        } else {
-            out.writeVInt(indices.length);
-            for (String index : indices) {
-                out.writeUTF(index);
-            }
-        }
+        super.writeTo(out);
+        out.writeStringArrayNullable(indices);
         out.writeByte(operationThreading.id());
         out.writeByte(ignoreIndices.id());
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        int size = in.readVInt();
-        if (size == 0) {
-            indices = Strings.EMPTY_ARRAY;
-        } else {
-            indices = new String[size];
-            for (int i = 0; i < indices.length; i++) {
-                indices[i] = in.readUTF();
-            }
-        }
+        super.readFrom(in);
+        indices = in.readStringArray();
         operationThreading = BroadcastOperationThreading.fromId(in.readByte());
         ignoreIndices = IgnoreIndices.fromId(in.readByte());
     }

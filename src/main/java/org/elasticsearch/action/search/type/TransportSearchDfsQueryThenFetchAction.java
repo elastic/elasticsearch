@@ -35,8 +35,8 @@ import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchRequest;
 import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.internal.InternalSearchRequest;
 import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
@@ -82,7 +82,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
         }
 
         @Override
-        protected void sendExecuteFirstPhase(DiscoveryNode node, InternalSearchRequest request, SearchServiceListener<DfsSearchResult> listener) {
+        protected void sendExecuteFirstPhase(DiscoveryNode node, ShardSearchRequest request, SearchServiceListener<DfsSearchResult> listener) {
             searchService.sendExecuteDfs(node, request, listener);
         }
 
@@ -103,7 +103,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
                 if (node.id().equals(nodes.localNodeId())) {
                     localOperations++;
                 } else {
-                    QuerySearchRequest querySearchRequest = new QuerySearchRequest(dfsResult.id(), dfs);
+                    QuerySearchRequest querySearchRequest = new QuerySearchRequest(request, dfsResult.id(), dfs);
                     executeQuery(dfsResult, counter, querySearchRequest, node);
                 }
             }
@@ -116,7 +116,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
                             for (final DfsSearchResult dfsResult : dfsResults) {
                                 DiscoveryNode node = nodes.get(dfsResult.shardTarget().nodeId());
                                 if (node.id().equals(nodes.localNodeId())) {
-                                    QuerySearchRequest querySearchRequest = new QuerySearchRequest(dfsResult.id(), dfs);
+                                    QuerySearchRequest querySearchRequest = new QuerySearchRequest(request, dfsResult.id(), dfs);
                                     executeQuery(dfsResult, counter, querySearchRequest, node);
                                 }
                             }
@@ -127,7 +127,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
                     for (final DfsSearchResult dfsResult : dfsResults) {
                         final DiscoveryNode node = nodes.get(dfsResult.shardTarget().nodeId());
                         if (node.id().equals(nodes.localNodeId())) {
-                            final QuerySearchRequest querySearchRequest = new QuerySearchRequest(dfsResult.id(), dfs);
+                            final QuerySearchRequest querySearchRequest = new QuerySearchRequest(request, dfsResult.id(), dfs);
                             if (localAsync) {
                                 threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
                                     @Override
@@ -194,7 +194,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
                 if (node.id().equals(nodes.localNodeId())) {
                     localOperations++;
                 } else {
-                    FetchSearchRequest fetchSearchRequest = new FetchSearchRequest(queryResults.get(entry.getKey()).id(), entry.getValue());
+                    FetchSearchRequest fetchSearchRequest = new FetchSearchRequest(request, queryResults.get(entry.getKey()).id(), entry.getValue());
                     executeFetch(entry.getKey(), counter, fetchSearchRequest, node);
                 }
             }
@@ -207,7 +207,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
                             for (final Map.Entry<SearchShardTarget, ExtTIntArrayList> entry : docIdsToLoad.entrySet()) {
                                 DiscoveryNode node = nodes.get(entry.getKey().nodeId());
                                 if (node.id().equals(nodes.localNodeId())) {
-                                    FetchSearchRequest fetchSearchRequest = new FetchSearchRequest(queryResults.get(entry.getKey()).id(), entry.getValue());
+                                    FetchSearchRequest fetchSearchRequest = new FetchSearchRequest(request, queryResults.get(entry.getKey()).id(), entry.getValue());
                                     executeFetch(entry.getKey(), counter, fetchSearchRequest, node);
                                 }
                             }
@@ -218,7 +218,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
                     for (final Map.Entry<SearchShardTarget, ExtTIntArrayList> entry : docIdsToLoad.entrySet()) {
                         final DiscoveryNode node = nodes.get(entry.getKey().nodeId());
                         if (node.id().equals(nodes.localNodeId())) {
-                            final FetchSearchRequest fetchSearchRequest = new FetchSearchRequest(queryResults.get(entry.getKey()).id(), entry.getValue());
+                            final FetchSearchRequest fetchSearchRequest = new FetchSearchRequest(request, queryResults.get(entry.getKey()).id(), entry.getValue());
                             if (localAsync) {
                                 threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
                                     @Override

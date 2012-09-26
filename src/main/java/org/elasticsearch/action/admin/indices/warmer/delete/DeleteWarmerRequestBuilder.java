@@ -20,17 +20,17 @@
 package org.elasticsearch.action.admin.indices.warmer.delete;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.support.BaseIndicesRequestBuilder;
+import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 
 /**
  *
  */
-public class DeleteWarmerRequestBuilder extends BaseIndicesRequestBuilder<DeleteWarmerRequest, DeleteWarmerResponse> {
+public class DeleteWarmerRequestBuilder extends MasterNodeOperationRequestBuilder<DeleteWarmerRequest, DeleteWarmerResponse, DeleteWarmerRequestBuilder> {
 
     public DeleteWarmerRequestBuilder(IndicesAdminClient indicesClient) {
-        super(indicesClient, new DeleteWarmerRequest());
+        super((InternalIndicesAdminClient) indicesClient, new DeleteWarmerRequest());
     }
 
     public DeleteWarmerRequestBuilder setIndices(String... indices) {
@@ -47,16 +47,8 @@ public class DeleteWarmerRequestBuilder extends BaseIndicesRequestBuilder<Delete
         return this;
     }
 
-    /**
-     * Sets the master node timeout in case the master has not yet been discovered.
-     */
-    public DeleteWarmerRequestBuilder setMasterNodeTimeout(TimeValue timeout) {
-        request.masterNodeTimeout(timeout);
-        return this;
-    }
-
     @Override
     protected void doExecute(ActionListener<DeleteWarmerResponse> listener) {
-        client.deleteWarmer(request, listener);
+        ((IndicesAdminClient) client).deleteWarmer(request, listener);
     }
 }

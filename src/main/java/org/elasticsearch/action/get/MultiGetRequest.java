@@ -36,7 +36,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class MultiGetRequest implements ActionRequest {
+public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
 
     /**
      * A single get item.
@@ -174,17 +174,6 @@ public class MultiGetRequest implements ActionRequest {
     }
 
     @Override
-    public boolean listenerThreaded() {
-        return listenerThreaded;
-    }
-
-    @Override
-    public MultiGetRequest listenerThreaded(boolean listenerThreaded) {
-        this.listenerThreaded = listenerThreaded;
-        return this;
-    }
-
-    @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (items.isEmpty()) {
@@ -305,9 +294,8 @@ public class MultiGetRequest implements ActionRequest {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        if (in.readBoolean()) {
-            preference = in.readUTF();
-        }
+        super.readFrom(in);
+        preference = in.readOptionalString();
         refresh = in.readBoolean();
         byte realtime = in.readByte();
         if (realtime == 0) {
@@ -325,12 +313,8 @@ public class MultiGetRequest implements ActionRequest {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (preference == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeUTF(preference);
-        }
+        super.writeTo(out);
+        out.writeOptionalString(preference);
         out.writeBoolean(refresh);
         if (realtime == null) {
             out.writeByte((byte) -1);

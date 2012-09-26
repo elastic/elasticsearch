@@ -90,7 +90,7 @@ public class TransportNodesListGatewayMetaState extends TransportNodesOperationA
 
     @Override
     protected NodeRequest newNodeRequest(String nodeId, Request request) {
-        return new NodeRequest(nodeId);
+        return new NodeRequest(nodeId, request);
     }
 
     @Override
@@ -128,19 +128,13 @@ public class TransportNodesListGatewayMetaState extends TransportNodesOperationA
         return true;
     }
 
-    static class Request extends NodesOperationRequest {
+    static class Request extends NodesOperationRequest<Request> {
 
         public Request() {
         }
 
         public Request(Set<String> nodesIds) {
             super(nodesIds.toArray(new String[nodesIds.size()]));
-        }
-
-        @Override
-        public Request timeout(TimeValue timeout) {
-            super.timeout(timeout);
-            return this;
         }
 
         @Override
@@ -196,8 +190,8 @@ public class TransportNodesListGatewayMetaState extends TransportNodesOperationA
         NodeRequest() {
         }
 
-        NodeRequest(String nodeId) {
-            super(nodeId);
+        NodeRequest(String nodeId, TransportNodesListGatewayMetaState.Request request) {
+            super(request, nodeId);
         }
 
         @Override

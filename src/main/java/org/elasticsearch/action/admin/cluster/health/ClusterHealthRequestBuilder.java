@@ -20,29 +20,22 @@
 package org.elasticsearch.action.admin.cluster.health;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.support.BaseClusterRequestBuilder;
+import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.client.internal.InternalClusterAdminClient;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**
  *
  */
-public class ClusterHealthRequestBuilder extends BaseClusterRequestBuilder<ClusterHealthRequest, ClusterHealthResponse> {
+public class ClusterHealthRequestBuilder extends MasterNodeOperationRequestBuilder<ClusterHealthRequest, ClusterHealthResponse, ClusterHealthRequestBuilder> {
 
     public ClusterHealthRequestBuilder(ClusterAdminClient clusterClient) {
-        super(clusterClient, new ClusterHealthRequest());
+        super((InternalClusterAdminClient) clusterClient, new ClusterHealthRequest());
     }
 
     public ClusterHealthRequestBuilder setIndices(String... indices) {
         request.indices(indices);
-        return this;
-    }
-
-    /**
-     * Sets the master node timeout in case the master has not yet been discovered.
-     */
-    public ClusterHealthRequestBuilder setMasterNodeTimeout(TimeValue timeout) {
-        request.masterNodeTimeout(timeout);
         return this;
     }
 
@@ -91,6 +84,6 @@ public class ClusterHealthRequestBuilder extends BaseClusterRequestBuilder<Clust
 
     @Override
     protected void doExecute(ActionListener<ClusterHealthResponse> listener) {
-        client.health(request, listener);
+        ((ClusterAdminClient) client).health(request, listener);
     }
 }

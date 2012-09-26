@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.exists.indices;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -28,9 +29,9 @@ import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class IndicesExistsRequest extends MasterNodeOperationRequest {
+public class IndicesExistsRequest extends MasterNodeOperationRequest<IndicesExistsRequest> {
 
-    private String[] indices;
+    private String[] indices = Strings.EMPTY_ARRAY;
 
     public IndicesExistsRequest(String... indices) {
         this.indices = indices;
@@ -56,18 +57,12 @@ public class IndicesExistsRequest extends MasterNodeOperationRequest {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        indices = new String[in.readVInt()];
-        for (int i = 0; i < indices.length; i++) {
-            indices[i] = in.readUTF();
-        }
+        indices = in.readStringArray();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeVInt(indices.length);
-        for (String index : indices) {
-            out.writeUTF(index);
-        }
+        out.writeStringArray(indices);
     }
 }

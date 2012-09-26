@@ -33,8 +33,8 @@ class ShardGatewaySnapshotRequest extends BroadcastShardOperationRequest {
     ShardGatewaySnapshotRequest() {
     }
 
-    public ShardGatewaySnapshotRequest(String index, int shardId) {
-        super(index, shardId);
+    public ShardGatewaySnapshotRequest(String index, int shardId, GatewaySnapshotRequest request) {
+        super(index, shardId, request);
     }
 
     @Override

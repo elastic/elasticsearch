@@ -23,9 +23,9 @@ import com.google.common.collect.Maps;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.StoreFileMetaData;
+import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.Map;
@@ -34,7 +34,7 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  *
  */
-public class StartRecoveryRequest implements Streamable {
+public class StartRecoveryRequest extends TransportRequest {
 
     private static final AtomicLong recoveryIdGenerator = new AtomicLong();
 
@@ -97,6 +97,7 @@ public class StartRecoveryRequest implements Streamable {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
         recoveryId = in.readLong();
         shardId = ShardId.readShardId(in);
         sourceNode = DiscoveryNode.readNode(in);
@@ -112,6 +113,7 @@ public class StartRecoveryRequest implements Streamable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeLong(recoveryId);
         shardId.writeTo(out);
         sourceNode.writeTo(out);

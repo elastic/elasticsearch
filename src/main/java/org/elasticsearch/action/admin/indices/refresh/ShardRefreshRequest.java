@@ -36,7 +36,7 @@ class ShardRefreshRequest extends BroadcastShardOperationRequest {
     }
 
     public ShardRefreshRequest(String index, int shardId, RefreshRequest request) {
-        super(index, shardId);
+        super(index, shardId, request);
         waitForOperations = request.waitForOperations();
     }
 

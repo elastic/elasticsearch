@@ -156,7 +156,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     @Override
-    public <T extends Streamable> void sendRequest(final DiscoveryNode node, final long requestId, final String action, final Streamable message, TransportRequestOptions options) throws IOException, TransportException {
+    public void sendRequest(final DiscoveryNode node, final long requestId, final String action, final TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
         CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
         try {
             StreamOutput stream = cachedEntry.handles();
@@ -166,8 +166,8 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
             status = TransportStatus.setRequest(status);
             stream.writeByte(status); // 0 for request, 1 for response.
 
-            stream.writeUTF(action);
-            message.writeTo(stream);
+            stream.writeString(action);
+            request.writeTo(stream);
 
             stream.close();
 
@@ -231,16 +231,16 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     private void handleRequest(StreamInput stream, long requestId, LocalTransport sourceTransport) throws Exception {
-        final String action = stream.readUTF();
+        final String action = stream.readString();
         final LocalTransportChannel transportChannel = new LocalTransportChannel(this, sourceTransport, action, requestId);
         try {
             final TransportRequestHandler handler = transportServiceAdapter.handler(action);
             if (handler == null) {
                 throw new ActionNotFoundTransportException("Action [" + action + "] not found");
             }
-            final Streamable streamable = handler.newInstance();
-            streamable.readFrom(stream);
-            handler.messageReceived(streamable, transportChannel);
+            final TransportRequest request = handler.newInstance();
+            request.readFrom(stream);
+            handler.messageReceived(request, transportChannel);
         } catch (Exception e) {
             try {
                 transportChannel.sendResponse(e);

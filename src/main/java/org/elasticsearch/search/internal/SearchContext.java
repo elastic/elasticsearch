@@ -85,7 +85,7 @@ public class SearchContext implements Releasable {
 
     private final long id;
 
-    private final InternalSearchRequest request;
+    private final ShardSearchRequest request;
 
     private final SearchShardTarget shardTarget;
 
@@ -168,7 +168,7 @@ public class SearchContext implements Releasable {
 
     private Map<String, BlockJoinQuery> nestedQueries;
 
-    public SearchContext(long id, InternalSearchRequest request, SearchShardTarget shardTarget,
+    public SearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget,
                          Engine.Searcher engineSearcher, IndexService indexService, IndexShard indexShard, ScriptService scriptService) {
         this.id = id;
         this.request = request;
@@ -235,7 +235,7 @@ public class SearchContext implements Releasable {
         return this.id;
     }
 
-    public InternalSearchRequest request() {
+    public ShardSearchRequest request() {
         return this.request;
     }
 

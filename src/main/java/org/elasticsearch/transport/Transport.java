@@ -21,7 +21,6 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 
@@ -73,7 +72,7 @@ public interface Transport extends LifecycleComponent<Transport> {
     /**
      * Sends the request to the node.
      */
-    <T extends Streamable> void sendRequest(DiscoveryNode node, long requestId, String action, Streamable message, TransportRequestOptions options) throws IOException, TransportException;
+    void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException;
 
     long serverOpen();
 }

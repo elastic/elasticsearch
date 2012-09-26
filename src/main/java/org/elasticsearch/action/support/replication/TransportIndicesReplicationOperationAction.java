@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.support.replication;
 
+import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -63,6 +64,9 @@ public abstract class TransportIndicesReplicationOperationAction<Request extends
         transportService.registerHandler(transportAction, new TransportHandler());
     }
 
+
+    protected abstract Map<String, Set<String>> resolveRouting(ClusterState clusterState, Request request) throws ElasticSearchException;
+
     @Override
     protected void doExecute(final Request request, final ActionListener<Response> listener) {
         ClusterState clusterState = clusterService.state();
@@ -81,7 +85,7 @@ public abstract class TransportIndicesReplicationOperationAction<Request extends
         final AtomicInteger completionCounter = new AtomicInteger(concreteIndices.length);
         final AtomicReferenceArray<Object> indexResponses = new AtomicReferenceArray<Object>(concreteIndices.length);
 
-        Map<String, Set<String>> routingMap = clusterState.metaData().resolveSearchRouting(request.routing(), request.indices());
+        Map<String, Set<String>> routingMap = resolveRouting(clusterState, request);
 
         for (final String index : concreteIndices) {
             Set<String> routing = null;

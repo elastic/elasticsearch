@@ -20,17 +20,18 @@
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.BaseRequestBuilder;
+import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.Nullable;
 
 /**
  * A multi get document action request builder.
  */
-public class MultiGetRequestBuilder extends BaseRequestBuilder<MultiGetRequest, MultiGetResponse> {
+public class MultiGetRequestBuilder extends ActionRequestBuilder<MultiGetRequest, MultiGetResponse, MultiGetRequestBuilder> {
 
     public MultiGetRequestBuilder(Client client) {
-        super(client, new MultiGetRequest());
+        super((InternalClient) client, new MultiGetRequest());
     }
 
     public MultiGetRequestBuilder add(String index, @Nullable String type, String id) {
@@ -82,16 +83,8 @@ public class MultiGetRequestBuilder extends BaseRequestBuilder<MultiGetRequest, 
         return this;
     }
 
-    /**
-     * Should the listener be called on a separate thread if needed.
-     */
-    public MultiGetRequestBuilder setListenerThreaded(boolean threadedListener) {
-        request.listenerThreaded(threadedListener);
-        return this;
-    }
-
     @Override
     protected void doExecute(ActionListener<MultiGetResponse> listener) {
-        client.multiGet(request, listener);
+        ((Client) client).multiGet(request, listener);
     }
 }

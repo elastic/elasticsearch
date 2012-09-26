@@ -33,13 +33,11 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  *
  */
-public class IndexReplicationOperationRequest implements ActionRequest {
+public class IndexReplicationOperationRequest<T extends IndexReplicationOperationRequest> extends ActionRequest<T> {
 
     protected TimeValue timeout = ShardReplicationOperationRequest.DEFAULT_TIMEOUT;
 
     protected String index;
-
-    private boolean threadedListener = false;
 
     protected ReplicationType replicationType = ReplicationType.DEFAULT;
     protected WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
@@ -52,14 +50,26 @@ public class IndexReplicationOperationRequest implements ActionRequest {
         return this.index;
     }
 
-    public IndexReplicationOperationRequest index(String index) {
+    @SuppressWarnings("unchecked")
+    public T index(String index) {
         this.index = index;
-        return this;
+        return (T) this;
     }
 
-    @Override
-    public boolean listenerThreaded() {
-        return this.threadedListener;
+    /**
+     * Sets the replication type.
+     */
+    @SuppressWarnings("unchecked")
+    public T replicationType(ReplicationType replicationType) {
+        this.replicationType = replicationType;
+        return (T) this;
+    }
+
+    /**
+     * Sets the replication type.
+     */
+    public T replicationType(String replicationType) {
+        return replicationType(ReplicationType.fromString(replicationType));
     }
 
     public ReplicationType replicationType() {
@@ -70,10 +80,13 @@ public class IndexReplicationOperationRequest implements ActionRequest {
         return this.consistencyLevel;
     }
 
-    @Override
-    public IndexReplicationOperationRequest listenerThreaded(boolean threadedListener) {
-        this.threadedListener = threadedListener;
-        return this;
+    /**
+     * Sets the consistency level of write. Defaults to {@link org.elasticsearch.action.WriteConsistencyLevel#DEFAULT}
+     */
+    @SuppressWarnings("unchecked")
+    public T consistencyLevel(WriteConsistencyLevel consistencyLevel) {
+        this.consistencyLevel = consistencyLevel;
+        return (T) this;
     }
 
     @Override
@@ -87,17 +100,19 @@ public class IndexReplicationOperationRequest implements ActionRequest {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
         replicationType = ReplicationType.fromId(in.readByte());
         consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
         timeout = TimeValue.readTimeValue(in);
-        index = in.readUTF();
+        index = in.readString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeByte(replicationType.id());
         out.writeByte(consistencyLevel.id());
         timeout.writeTo(out);
-        out.writeUTF(index);
+        out.writeString(index);
     }
 }

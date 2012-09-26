@@ -29,7 +29,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class MultiGetShardRequest extends SingleShardOperationRequest {
+public class MultiGetShardRequest extends SingleShardOperationRequest<MultiGetShardRequest> {
 
     private int shardId;
     private String preference;
@@ -108,16 +108,16 @@ public class MultiGetShardRequest extends SingleShardOperationRequest {
         for (int i = 0; i < size; i++) {
             locations.add(in.readVInt());
             if (in.readBoolean()) {
-                types.add(in.readUTF());
+                types.add(in.readString());
             } else {
                 types.add(null);
             }
-            ids.add(in.readUTF());
+            ids.add(in.readString());
             int size1 = in.readVInt();
             if (size1 > 0) {
                 String[] fields = new String[size1];
                 for (int j = 0; j < size1; j++) {
-                    fields[j] = in.readUTF();
+                    fields[j] = in.readString();
                 }
                 this.fields.add(fields);
             } else {
@@ -125,9 +125,7 @@ public class MultiGetShardRequest extends SingleShardOperationRequest {
             }
         }
 
-        if (in.readBoolean()) {
-            preference = in.readUTF();
-        }
+        preference = in.readOptionalString();
         refresh = in.readBoolean();
         byte realtime = in.readByte();
         if (realtime == 0) {
@@ -147,25 +145,20 @@ public class MultiGetShardRequest extends SingleShardOperationRequest {
                 out.writeBoolean(false);
             } else {
                 out.writeBoolean(true);
-                out.writeUTF(types.get(i));
+                out.writeString(types.get(i));
             }
-            out.writeUTF(ids.get(i));
+            out.writeString(ids.get(i));
             if (fields.get(i) == null) {
                 out.writeVInt(0);
             } else {
                 out.writeVInt(fields.get(i).length);
                 for (String field : fields.get(i)) {
-                    out.writeUTF(field);
+                    out.writeString(field);
                 }
             }
         }
 
-        if (preference == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeUTF(preference);
-        }
+        out.writeOptionalString(preference);
         out.writeBoolean(refresh);
         if (realtime == null) {
             out.writeByte((byte) -1);

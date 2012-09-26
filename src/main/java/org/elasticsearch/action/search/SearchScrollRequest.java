@@ -34,13 +34,12 @@ import static org.elasticsearch.search.Scroll.readScroll;
 /**
  *
  */
-public class SearchScrollRequest implements ActionRequest {
+public class SearchScrollRequest extends ActionRequest<SearchScrollRequest> {
 
     private String scrollId;
 
     private Scroll scroll;
 
-    private boolean listenerThreaded = false;
     private SearchOperationThreading operationThreading = SearchOperationThreading.THREAD_PER_SHARD;
 
     public SearchScrollRequest() {
@@ -71,23 +70,6 @@ public class SearchScrollRequest implements ActionRequest {
      */
     public SearchScrollRequest operationThreading(SearchOperationThreading operationThreading) {
         this.operationThreading = operationThreading;
-        return this;
-    }
-
-    /**
-     * Should the listener be called on a separate thread if needed.
-     */
-    @Override
-    public boolean listenerThreaded() {
-        return listenerThreaded;
-    }
-
-    /**
-     * Should the listener be called on a separate thread if needed.
-     */
-    @Override
-    public SearchScrollRequest listenerThreaded(boolean threadedListener) {
-        this.listenerThreaded = threadedListener;
         return this;
     }
 
@@ -134,8 +116,9 @@ public class SearchScrollRequest implements ActionRequest {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
         operationThreading = SearchOperationThreading.fromId(in.readByte());
-        scrollId = in.readUTF();
+        scrollId = in.readString();
         if (in.readBoolean()) {
             scroll = readScroll(in);
         }
@@ -143,8 +126,9 @@ public class SearchScrollRequest implements ActionRequest {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeByte(operationThreading.id());
-        out.writeUTF(scrollId);
+        out.writeString(scrollId);
         if (scroll == null) {
             out.writeBoolean(false);
         } else {

@@ -90,7 +90,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
 
     @Override
     protected NodeRequest newNodeRequest(String nodeId, Request request) {
-        return new NodeRequest(request.shardId(), nodeId);
+        return new NodeRequest(nodeId, request);
     }
 
     @Override
@@ -132,7 +132,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
         return true;
     }
 
-    static class Request extends NodesOperationRequest {
+    static class Request extends NodesOperationRequest<Request> {
 
         private ShardId shardId;
 
@@ -146,12 +146,6 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
 
         public ShardId shardId() {
             return this.shardId;
-        }
-
-        @Override
-        public Request timeout(TimeValue timeout) {
-            super.timeout(timeout);
-            return this;
         }
 
         @Override
@@ -211,9 +205,9 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
         NodeRequest() {
         }
 
-        NodeRequest(ShardId shardId, String nodeId) {
-            super(nodeId);
-            this.shardId = shardId;
+        NodeRequest(String nodeId, TransportNodesListGatewayStartedShards.Request request) {
+            super(request, nodeId);
+            this.shardId = request.shardId();
         }
 
         @Override

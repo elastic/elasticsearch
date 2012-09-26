@@ -109,7 +109,7 @@ public class PublishClusterStateAction extends AbstractComponent {
         }
     }
 
-    class PublishClusterStateRequest implements Streamable {
+    class PublishClusterStateRequest extends TransportRequest {
 
         BytesReference clusterStateInBytes;
         Version version = Version.CURRENT;
@@ -123,12 +123,14 @@ public class PublishClusterStateAction extends AbstractComponent {
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
             clusterStateInBytes = in.readBytesReference();
             version = in.getVersion();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
             out.writeBytesReference(clusterStateInBytes);
         }
     }

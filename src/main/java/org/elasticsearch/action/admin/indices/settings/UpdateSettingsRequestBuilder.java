@@ -20,8 +20,9 @@
 package org.elasticsearch.action.admin.indices.settings;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.support.BaseIndicesRequestBuilder;
+import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.Map;
@@ -29,10 +30,10 @@ import java.util.Map;
 /**
  *
  */
-public class UpdateSettingsRequestBuilder extends BaseIndicesRequestBuilder<UpdateSettingsRequest, UpdateSettingsResponse> {
+public class UpdateSettingsRequestBuilder extends MasterNodeOperationRequestBuilder<UpdateSettingsRequest, UpdateSettingsResponse, UpdateSettingsRequestBuilder> {
 
     public UpdateSettingsRequestBuilder(IndicesAdminClient indicesClient, String... indices) {
-        super(indicesClient, new UpdateSettingsRequest(indices));
+        super((InternalIndicesAdminClient) indicesClient, new UpdateSettingsRequest(indices));
     }
 
     public UpdateSettingsRequestBuilder setIndices(String... indices) {
@@ -74,6 +75,6 @@ public class UpdateSettingsRequestBuilder extends BaseIndicesRequestBuilder<Upda
 
     @Override
     protected void doExecute(ActionListener<UpdateSettingsResponse> listener) {
-        client.updateSettings(request, listener);
+        ((IndicesAdminClient) client).updateSettings(request, listener);
     }
 }

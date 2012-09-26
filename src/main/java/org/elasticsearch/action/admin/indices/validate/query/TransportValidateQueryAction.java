@@ -40,8 +40,8 @@ import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.internal.InternalSearchRequest;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -166,7 +166,7 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
             valid = true;
         } else {
             SearchContext.setCurrent(new SearchContext(0,
-                    new InternalSearchRequest().types(request.types()),
+                    new ShardSearchRequest().types(request.types()),
                     null, indexShard.searcher(), indexService, indexShard,
                     scriptService));
             try {

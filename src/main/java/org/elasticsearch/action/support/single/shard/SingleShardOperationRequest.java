@@ -30,11 +30,10 @@ import java.io.IOException;
 /**
  *
  */
-public abstract class SingleShardOperationRequest implements ActionRequest {
+public abstract class SingleShardOperationRequest<T extends SingleShardOperationRequest> extends ActionRequest<T> {
 
     protected String index;
 
-    private boolean threadedListener = false;
     private boolean threadedOperation = true;
 
     protected SingleShardOperationRequest() {
@@ -57,23 +56,13 @@ public abstract class SingleShardOperationRequest implements ActionRequest {
         return index;
     }
 
-    SingleShardOperationRequest index(String index) {
-        this.index = index;
-        return this;
-    }
-
     /**
-     * Should the listener be called on a separate thread if needed.
+     * Sets the index.
      */
-    @Override
-    public boolean listenerThreaded() {
-        return threadedListener;
-    }
-
-    @Override
-    public SingleShardOperationRequest listenerThreaded(boolean threadedListener) {
-        this.threadedListener = threadedListener;
-        return this;
+    @SuppressWarnings("unchecked")
+    public final T index(String index) {
+        this.index = index;
+        return (T) this;
     }
 
     /**
@@ -86,9 +75,10 @@ public abstract class SingleShardOperationRequest implements ActionRequest {
     /**
      * Controls if the operation will be executed on a separate thread when executed locally.
      */
-    public SingleShardOperationRequest operationThreaded(boolean threadedOperation) {
+    @SuppressWarnings("unchecked")
+    public final T operationThreaded(boolean threadedOperation) {
         this.threadedOperation = threadedOperation;
-        return this;
+        return (T) this;
     }
 
     protected void beforeLocalFork() {
@@ -96,13 +86,15 @@ public abstract class SingleShardOperationRequest implements ActionRequest {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        index = in.readUTF();
+        super.readFrom(in);
+        index = in.readString();
         // no need to pass threading over the network, they are always false when coming throw a thread pool
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeUTF(index);
+        super.writeTo(out);
+        out.writeString(index);
     }
 
 }

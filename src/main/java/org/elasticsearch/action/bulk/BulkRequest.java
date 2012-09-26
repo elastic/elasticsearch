@@ -49,13 +49,11 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  *
  * @see org.elasticsearch.client.Client#bulk(BulkRequest)
  */
-public class BulkRequest implements ActionRequest {
+public class BulkRequest extends ActionRequest<BulkRequest> {
 
     private static final int REQUEST_OVERHEAD = 50;
 
     final List<ActionRequest> requests = Lists.newArrayList();
-
-    private boolean listenerThreaded = false;
 
     private ReplicationType replicationType = ReplicationType.DEFAULT;
     private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
@@ -330,18 +328,8 @@ public class BulkRequest implements ActionRequest {
     }
 
     @Override
-    public boolean listenerThreaded() {
-        return listenerThreaded;
-    }
-
-    @Override
-    public BulkRequest listenerThreaded(boolean listenerThreaded) {
-        this.listenerThreaded = listenerThreaded;
-        return this;
-    }
-
-    @Override
     public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
         replicationType = ReplicationType.fromId(in.readByte());
         consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
         int size = in.readVInt();
@@ -362,6 +350,7 @@ public class BulkRequest implements ActionRequest {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeByte(replicationType.id());
         out.writeByte(consistencyLevel.id());
         out.writeVInt(requests.size());

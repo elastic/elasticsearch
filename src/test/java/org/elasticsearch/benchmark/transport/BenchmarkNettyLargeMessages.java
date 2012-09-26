@@ -19,6 +19,7 @@
 
 package org.elasticsearch.benchmark.transport;
 
+import org.elasticsearch.benchmark.transport.netty.BenchmarkMessageRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Bytes;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -59,10 +60,10 @@ public class BenchmarkNettyLargeMessages {
         transportServiceClient.connectToNode(bigNode);
         transportServiceClient.connectToNode(smallNode);
 
-        transportServiceServer.registerHandler("benchmark", new BaseTransportRequestHandler<BenchmarkMessage>() {
+        transportServiceServer.registerHandler("benchmark", new BaseTransportRequestHandler<BenchmarkMessageRequest>() {
             @Override
-            public BenchmarkMessage newInstance() {
-                return new BenchmarkMessage();
+            public BenchmarkMessageRequest newInstance() {
+                return new BenchmarkMessageRequest();
             }
 
             @Override
@@ -71,7 +72,7 @@ public class BenchmarkNettyLargeMessages {
             }
 
             @Override
-            public void messageReceived(BenchmarkMessage request, TransportChannel channel) throws Exception {
+            public void messageReceived(BenchmarkMessageRequest request, TransportChannel channel) throws Exception {
                 channel.sendResponse(request);
             }
         });
@@ -82,7 +83,7 @@ public class BenchmarkNettyLargeMessages {
                 @Override
                 public void run() {
                     for (int i = 0; i < NUMBER_OF_ITERATIONS; i++) {
-                        BenchmarkMessage message = new BenchmarkMessage(1, payload);
+                        BenchmarkMessageRequest message = new BenchmarkMessageRequest(1, payload);
                         transportServiceClient.submitRequest(bigNode, "benchmark", message, options().withLowType(), new BaseTransportResponseHandler<BenchmarkMessage>() {
                             @Override
                             public BenchmarkMessage newInstance() {
@@ -113,7 +114,7 @@ public class BenchmarkNettyLargeMessages {
             @Override
             public void run() {
                 for (int i = 0; i < 1; i++) {
-                    BenchmarkMessage message = new BenchmarkMessage(2, Bytes.EMPTY_ARRAY);
+                    BenchmarkMessageRequest message = new BenchmarkMessageRequest(2, Bytes.EMPTY_ARRAY);
                     long start = System.currentTimeMillis();
                     transportServiceClient.submitRequest(smallNode, "benchmark", message, options().withHighType(), new BaseTransportResponseHandler<BenchmarkMessage>() {
                         @Override

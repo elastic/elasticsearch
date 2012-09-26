@@ -20,20 +20,21 @@
 package org.elasticsearch.action.admin.indices.analyze;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.support.BaseIndicesRequestBuilder;
+import org.elasticsearch.action.support.single.custom.SingleCustomOperationRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 
 /**
  *
  */
-public class AnalyzeRequestBuilder extends BaseIndicesRequestBuilder<AnalyzeRequest, AnalyzeResponse> {
+public class AnalyzeRequestBuilder extends SingleCustomOperationRequestBuilder<AnalyzeRequest, AnalyzeResponse, AnalyzeRequestBuilder> {
 
     public AnalyzeRequestBuilder(IndicesAdminClient indicesClient) {
-        super(indicesClient, new AnalyzeRequest());
+        super((InternalIndicesAdminClient) indicesClient, new AnalyzeRequest());
     }
 
     public AnalyzeRequestBuilder(IndicesAdminClient indicesClient, String index, String text) {
-        super(indicesClient, new AnalyzeRequest(index, text));
+        super((InternalIndicesAdminClient) indicesClient, new AnalyzeRequest(index, text));
     }
 
     /**
@@ -81,17 +82,8 @@ public class AnalyzeRequestBuilder extends BaseIndicesRequestBuilder<AnalyzeRequ
         return this;
     }
 
-    /**
-     * if this operation hits a node with a local relevant shard, should it be preferred
-     * to be executed on, or just do plain round robin. Defaults to <tt>true</tt>
-     */
-    public AnalyzeRequestBuilder setPreferLocal(boolean preferLocal) {
-        request.preferLocal(preferLocal);
-        return this;
-    }
-
     @Override
     protected void doExecute(ActionListener<AnalyzeResponse> listener) {
-        client.analyze(request, listener);
+        ((IndicesAdminClient) client).analyze(request, listener);
     }
 }

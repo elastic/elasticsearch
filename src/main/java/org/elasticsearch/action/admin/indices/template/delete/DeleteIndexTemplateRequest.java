@@ -34,7 +34,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 /**
  * A request to delete an index template.
  */
-public class DeleteIndexTemplateRequest extends MasterNodeOperationRequest {
+public class DeleteIndexTemplateRequest extends MasterNodeOperationRequest<DeleteIndexTemplateRequest> {
 
     private String name;
 
@@ -94,14 +94,14 @@ public class DeleteIndexTemplateRequest extends MasterNodeOperationRequest {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        name = in.readUTF();
+        name = in.readString();
         timeout = readTimeValue(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeUTF(name);
+        out.writeString(name);
         timeout.writeTo(out);
     }
 }

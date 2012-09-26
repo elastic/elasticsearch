@@ -20,17 +20,18 @@
 package org.elasticsearch.action.admin.indices.delete;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.support.BaseIndicesRequestBuilder;
+import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**
  *
  */
-public class DeleteIndexRequestBuilder extends BaseIndicesRequestBuilder<DeleteIndexRequest, DeleteIndexResponse> {
+public class DeleteIndexRequestBuilder extends MasterNodeOperationRequestBuilder<DeleteIndexRequest, DeleteIndexResponse, DeleteIndexRequestBuilder> {
 
     public DeleteIndexRequestBuilder(IndicesAdminClient indicesClient, String... indices) {
-        super(indicesClient, new DeleteIndexRequest(indices));
+        super((InternalIndicesAdminClient) indicesClient, new DeleteIndexRequest(indices));
     }
 
     /**
@@ -51,24 +52,8 @@ public class DeleteIndexRequestBuilder extends BaseIndicesRequestBuilder<DeleteI
         return this;
     }
 
-    /**
-     * Sets the master node timeout in case the master has not yet been discovered.
-     */
-    public DeleteIndexRequestBuilder setMasterNodeTimeout(TimeValue timeout) {
-        request.masterNodeTimeout(timeout);
-        return this;
-    }
-
-    /**
-     * Sets the master node timeout in case the master has not yet been discovered.
-     */
-    public DeleteIndexRequestBuilder setMasterNodeTimeout(String timeout) {
-        request.masterNodeTimeout(timeout);
-        return this;
-    }
-
     @Override
     protected void doExecute(ActionListener<DeleteIndexResponse> listener) {
-        client.delete(request, listener);
+        ((IndicesAdminClient) client).delete(request, listener);
     }
 }

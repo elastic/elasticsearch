@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.warmer.delete;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -30,11 +31,11 @@ import java.io.IOException;
 /**
  * A request to delete an index warmer.
  */
-public class DeleteWarmerRequest extends MasterNodeOperationRequest {
+public class DeleteWarmerRequest extends MasterNodeOperationRequest<DeleteWarmerRequest> {
 
     private String name;
 
-    private String[] indices;
+    private String[] indices = Strings.EMPTY_ARRAY;
 
     DeleteWarmerRequest() {
     }
@@ -89,24 +90,14 @@ public class DeleteWarmerRequest extends MasterNodeOperationRequest {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        name = in.readOptionalUTF();
-        indices = new String[in.readVInt()];
-        for (int i = 0; i < indices.length; i++) {
-            indices[i] = in.readUTF();
-        }
+        name = in.readOptionalString();
+        indices = in.readStringArray();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeOptionalUTF(name);
-        if (indices == null) {
-            out.writeVInt(0);
-        } else {
-            out.writeVInt(indices.length);
-            for (String index : indices) {
-                out.writeUTF(index);
-            }
-        }
+        out.writeOptionalString(name);
+        out.writeStringArrayNullable(indices);
     }
 }

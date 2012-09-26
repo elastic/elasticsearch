@@ -21,14 +21,14 @@ package org.elasticsearch.action.support.nodes;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
 /**
  *
  */
-public abstract class NodeOperationRequest implements Streamable {
+public abstract class NodeOperationRequest extends TransportRequest {
 
     private String nodeId;
 
@@ -36,17 +36,20 @@ public abstract class NodeOperationRequest implements Streamable {
 
     }
 
-    protected NodeOperationRequest(String nodeId) {
+    protected NodeOperationRequest(NodesOperationRequest request, String nodeId) {
+        super(request);
         this.nodeId = nodeId;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        nodeId = in.readUTF();
+        super.readFrom(in);
+        nodeId = in.readString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeUTF(nodeId);
+        super.writeTo(out);
+        out.writeString(nodeId);
     }
 }

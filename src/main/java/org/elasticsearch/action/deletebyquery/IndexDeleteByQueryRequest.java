@@ -37,7 +37,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Delete by query request to execute on a specific index.
  */
-public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest {
+public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest<IndexDeleteByQueryRequest> {
 
     private BytesReference querySource;
     private String[] types = Strings.EMPTY_ARRAY;
@@ -97,21 +97,21 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest 
         if (typesSize > 0) {
             types = new String[typesSize];
             for (int i = 0; i < typesSize; i++) {
-                types[i] = in.readUTF();
+                types[i] = in.readString();
             }
         }
         int routingSize = in.readVInt();
         if (routingSize > 0) {
             routing = new THashSet<String>(routingSize);
             for (int i = 0; i < routingSize; i++) {
-                routing.add(in.readUTF());
+                routing.add(in.readString());
             }
         }
         int aliasesSize = in.readVInt();
         if (aliasesSize > 0) {
             filteringAliases = new String[aliasesSize];
             for (int i = 0; i < aliasesSize; i++) {
-                filteringAliases[i] = in.readUTF();
+                filteringAliases[i] = in.readString();
             }
         }
     }
@@ -121,12 +121,12 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest 
         out.writeBytesReference(querySource);
         out.writeVInt(types.length);
         for (String type : types) {
-            out.writeUTF(type);
+            out.writeString(type);
         }
         if (routing != null) {
             out.writeVInt(routing.size());
             for (String r : routing) {
-                out.writeUTF(r);
+                out.writeString(r);
             }
         } else {
             out.writeVInt(0);
@@ -134,7 +134,7 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest 
         if (filteringAliases != null) {
             out.writeVInt(filteringAliases.length);
             for (String alias : filteringAliases) {
-                out.writeUTF(alias);
+                out.writeString(alias);
             }
         } else {
             out.writeVInt(0);

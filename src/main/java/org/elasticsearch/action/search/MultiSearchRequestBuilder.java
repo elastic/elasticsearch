@@ -20,23 +20,24 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.BaseRequestBuilder;
+import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.InternalClient;
 
 /**
  * A request builder for multiple search requests.
  */
-public class MultiSearchRequestBuilder extends BaseRequestBuilder<MultiSearchRequest, MultiSearchResponse> {
+public class MultiSearchRequestBuilder extends ActionRequestBuilder<MultiSearchRequest, MultiSearchResponse, MultiSearchRequestBuilder> {
 
     public MultiSearchRequestBuilder(Client client) {
-        super(client, new MultiSearchRequest());
+        super((InternalClient) client, new MultiSearchRequest());
     }
 
     /**
      * Add a search request to execute. Note, the order is important, the search response will be returned in the
      * same order as the search requests.
-     *
+     * <p/>
      * If ignoreIndices has been set on the search request, then the ignoreIndices of the multi search request
      * will not be used (if set).
      */
@@ -73,6 +74,6 @@ public class MultiSearchRequestBuilder extends BaseRequestBuilder<MultiSearchReq
 
     @Override
     protected void doExecute(ActionListener<MultiSearchResponse> listener) {
-        client.multiSearch(request, listener);
+        ((Client) client).multiSearch(request, listener);
     }
 }

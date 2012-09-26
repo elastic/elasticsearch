@@ -22,7 +22,6 @@ package org.elasticsearch.action.support.replication;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.WriteConsistencyLevel;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -32,17 +31,10 @@ import java.io.IOException;
 /**
  *
  */
-public class IndicesReplicationOperationRequest implements ActionRequest {
+public class IndicesReplicationOperationRequest<T extends IndicesReplicationOperationRequest> extends ActionRequest<T> {
 
     protected TimeValue timeout = ShardReplicationOperationRequest.DEFAULT_TIMEOUT;
-
     protected String[] indices;
-
-    private boolean threadedListener = false;
-    @Nullable
-    private String routing;
-
-
     protected ReplicationType replicationType = ReplicationType.DEFAULT;
     protected WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
 
@@ -50,13 +42,68 @@ public class IndicesReplicationOperationRequest implements ActionRequest {
         return timeout;
     }
 
+    /**
+     * A timeout to wait if the delete by query operation can't be performed immediately. Defaults to <tt>1m</tt>.
+     */
+    @SuppressWarnings("unchecked")
+    public final T timeout(TimeValue timeout) {
+        this.timeout = timeout;
+        return (T) this;
+    }
+
+    /**
+     * A timeout to wait if the delete by query operation can't be performed immediately. Defaults to <tt>1m</tt>.
+     */
+    @SuppressWarnings("unchecked")
+    public T timeout(String timeout) {
+        this.timeout = TimeValue.parseTimeValue(timeout, null);
+        return (T) this;
+    }
+
     public String[] indices() {
         return this.indices;
     }
 
-    public IndicesReplicationOperationRequest indices(String[] indices) {
+    /**
+     * The indices the request will execute against.
+     */
+    @SuppressWarnings("unchecked")
+    public final T indices(String[] indices) {
         this.indices = indices;
-        return this;
+        return (T) this;
+    }
+
+    public ReplicationType replicationType() {
+        return this.replicationType;
+    }
+
+    /**
+     * Sets the replication type.
+     */
+    @SuppressWarnings("unchecked")
+    public final T replicationType(ReplicationType replicationType) {
+        this.replicationType = replicationType;
+        return (T) this;
+    }
+
+    /**
+     * Sets the replication type.
+     */
+    public final T replicationType(String replicationType) {
+        return replicationType(ReplicationType.fromString(replicationType));
+    }
+
+    public WriteConsistencyLevel consistencyLevel() {
+        return this.consistencyLevel;
+    }
+
+    /**
+     * Sets the consistency level of write. Defaults to {@link org.elasticsearch.action.WriteConsistencyLevel#DEFAULT}
+     */
+    @SuppressWarnings("unchecked")
+    public final T consistencyLevel(WriteConsistencyLevel consistencyLevel) {
+        this.consistencyLevel = consistencyLevel;
+        return (T) this;
     }
 
     @Override
@@ -64,54 +111,21 @@ public class IndicesReplicationOperationRequest implements ActionRequest {
         return null;
     }
 
-    /**
-     * Should the listener be called on a separate thread if needed.
-     */
-    @Override
-    public boolean listenerThreaded() {
-        return this.threadedListener;
-    }
-
-    /**
-     * Should the listener be called on a separate thread if needed.
-     */
-    @Override
-    public IndicesReplicationOperationRequest listenerThreaded(boolean threadedListener) {
-        this.threadedListener = threadedListener;
-        return this;
-    }
-
-    public ReplicationType replicationType() {
-        return this.replicationType;
-    }
-
-    public WriteConsistencyLevel consistencyLevel() {
-        return this.consistencyLevel;
-    }
-
-    public String routing() {
-        return null;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
         replicationType = ReplicationType.fromId(in.readByte());
         consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
         timeout = TimeValue.readTimeValue(in);
-        indices = new String[in.readVInt()];
-        for (int i = 0; i < indices.length; i++) {
-            indices[i] = in.readUTF();
-        }
+        indices = in.readStringArray();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeByte(replicationType.id());
         out.writeByte(consistencyLevel.id());
         timeout.writeTo(out);
-        out.writeVInt(indices.length);
-        for (String index : indices) {
-            out.writeUTF(index);
-        }
+        out.writeStringArrayNullable(indices);
     }
 }

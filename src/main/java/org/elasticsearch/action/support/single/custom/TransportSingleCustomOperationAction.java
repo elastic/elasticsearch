@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
@@ -331,16 +330,16 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
         }
     }
 
-    protected class ShardSingleOperationRequest implements Streamable {
+    protected class ShardSingleOperationRequest extends TransportRequest {
 
         private Request request;
-
         private int shardId;
 
         ShardSingleOperationRequest() {
         }
 
         public ShardSingleOperationRequest(Request request, int shardId) {
+            super(request);
             this.request = request;
             this.shardId = shardId;
         }
@@ -355,6 +354,7 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
             request = newRequest();
             request.readFrom(in);
             shardId = in.readVInt();
@@ -362,6 +362,7 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
             request.writeTo(out);
             out.writeVInt(shardId);
         }

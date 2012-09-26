@@ -20,17 +20,18 @@
 package org.elasticsearch.action.admin.cluster.node.shutdown;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.support.BaseClusterRequestBuilder;
+import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.client.internal.InternalClusterAdminClient;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**
  *
  */
-public class NodesShutdownRequestBuilder extends BaseClusterRequestBuilder<NodesShutdownRequest, NodesShutdownResponse> {
+public class NodesShutdownRequestBuilder extends MasterNodeOperationRequestBuilder<NodesShutdownRequest, NodesShutdownResponse, NodesShutdownRequestBuilder> {
 
     public NodesShutdownRequestBuilder(ClusterAdminClient clusterClient) {
-        super(clusterClient, new NodesShutdownRequest());
+        super((InternalClusterAdminClient) clusterClient, new NodesShutdownRequest());
     }
 
     /**
@@ -65,17 +66,8 @@ public class NodesShutdownRequestBuilder extends BaseClusterRequestBuilder<Nodes
         return this;
     }
 
-    /**
-     * Sets the master node timeout in case the master has not yet been discovered.
-     */
-    public NodesShutdownRequestBuilder setMasterNodeTimeout(TimeValue timeout) {
-        request.masterNodeTimeout(timeout);
-        return this;
-    }
-
-
     @Override
     protected void doExecute(ActionListener<NodesShutdownResponse> listener) {
-        client.nodesShutdown(request, listener);
+        ((ClusterAdminClient) client).nodesShutdown(request, listener);
     }
 }

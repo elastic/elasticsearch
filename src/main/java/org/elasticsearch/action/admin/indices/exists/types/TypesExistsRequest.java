@@ -31,7 +31,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  */
-public class TypesExistsRequest extends MasterNodeOperationRequest {
+public class TypesExistsRequest extends MasterNodeOperationRequest<TypesExistsRequest> {
 
     private String[] indices;
     private String[] types;

@@ -38,7 +38,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.VoidStreamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -770,7 +769,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         }
     }
 
-    static class RejoinClusterRequest implements Streamable {
+    static class RejoinClusterRequest extends TransportRequest {
 
         private String fromNodeId;
 
@@ -783,11 +782,13 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
             fromNodeId = in.readOptionalString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
             out.writeOptionalString(fromNodeId);
         }
     }

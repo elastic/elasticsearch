@@ -20,12 +20,9 @@
 package org.elasticsearch.client.internal;
 
 import org.elasticsearch.client.ClusterAdminClient;
-import org.elasticsearch.threadpool.ThreadPool;
 
 /**
  *
  */
-public interface InternalClusterAdminClient extends ClusterAdminClient {
-
-    ThreadPool threadPool();
+public interface InternalClusterAdminClient extends ClusterAdminClient, InternalGenericClient {
 }

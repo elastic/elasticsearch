@@ -26,12 +26,11 @@ import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
  * By default, each index gateway periodically snapshot changes, though it can be disabled and be controlled completely
  * through this API. Best created using {@link org.elasticsearch.client.Requests#gatewaySnapshotRequest(String...)}.
  *
- *
  * @see org.elasticsearch.client.Requests#gatewaySnapshotRequest(String...)
  * @see org.elasticsearch.client.IndicesAdminClient#gatewaySnapshot(GatewaySnapshotRequest)
  * @see GatewaySnapshotResponse
  */
-public class GatewaySnapshotRequest extends BroadcastOperationRequest {
+public class GatewaySnapshotRequest extends BroadcastOperationRequest<GatewaySnapshotRequest> {
 
     GatewaySnapshotRequest() {
 
@@ -43,14 +42,5 @@ public class GatewaySnapshotRequest extends BroadcastOperationRequest {
      */
     public GatewaySnapshotRequest(String... indices) {
         this.indices = indices;
-    }
-
-    /**
-     * Should the listener be called on a separate thread if needed.
-     */
-    @Override
-    public GatewaySnapshotRequest listenerThreaded(boolean threadedListener) {
-        super.listenerThreaded(threadedListener);
-        return this;
     }
 }

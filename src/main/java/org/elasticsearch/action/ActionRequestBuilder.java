@@ -19,14 +19,48 @@
 
 package org.elasticsearch.action;
 
+import org.elasticsearch.action.support.PlainListenableActionFuture;
+import org.elasticsearch.client.internal.InternalGenericClient;
+
 /**
  *
  */
-public interface ActionRequestBuilder<Request extends ActionRequest, Response extends ActionResponse> {
+public abstract class ActionRequestBuilder<Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder> {
 
-    Request request();
+    protected final Request request;
 
-    ListenableActionFuture<Response> execute();
+    protected final InternalGenericClient client;
 
-    void execute(ActionListener<Response> listener);
+    protected ActionRequestBuilder(InternalGenericClient client, Request request) {
+        this.client = client;
+        this.request = request;
+    }
+
+    public Request request() {
+        return this.request;
+    }
+
+    @SuppressWarnings("unchecked")
+    public final RequestBuilder setListenerThreaded(boolean listenerThreaded) {
+        request.listenerThreaded(listenerThreaded);
+        return (RequestBuilder) this;
+    }
+
+    @SuppressWarnings("unchecked")
+    public final RequestBuilder putHeader(String key, Object value) {
+        request.putHeader(key, value);
+        return (RequestBuilder) this;
+    }
+
+    public ListenableActionFuture<Response> execute() {
+        PlainListenableActionFuture<Response> future = new PlainListenableActionFuture<Response>(request.listenerThreaded(), client.threadPool());
+        execute(future);
+        return future;
+    }
+
+    public void execute(ActionListener<Response> listener) {
+        doExecute(listener);
+    }
+
+    protected abstract void doExecute(ActionListener<Response> listener);
 }

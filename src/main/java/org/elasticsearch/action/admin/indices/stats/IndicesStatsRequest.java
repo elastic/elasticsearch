@@ -34,7 +34,7 @@ import java.io.IOException;
  * <p>All the stats to be returned can be cleared using {@link #clear()}, at which point, specific
  * stats can be enabled.
  */
-public class IndicesStatsRequest extends BroadcastOperationRequest {
+public class IndicesStatsRequest extends BroadcastOperationRequest<IndicesStatsRequest> {
 
     private boolean docs = true;
     private boolean store = true;
@@ -47,11 +47,6 @@ public class IndicesStatsRequest extends BroadcastOperationRequest {
     private boolean warmer = false;
     private String[] types = null;
     private String[] groups = null;
-
-    public IndicesStatsRequest indices(String... indices) {
-        this.indices = indices;
-        return this;
-    }
 
     /**
      * Sets all flags to return all stats.

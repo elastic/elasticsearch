@@ -21,23 +21,23 @@ package org.elasticsearch.action.support.broadcast;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
 /**
  *
  */
-public abstract class BroadcastShardOperationRequest implements Streamable {
+public abstract class BroadcastShardOperationRequest extends TransportRequest {
 
     private String index;
-
     private int shardId;
 
     protected BroadcastShardOperationRequest() {
     }
 
-    protected BroadcastShardOperationRequest(String index, int shardId) {
+    protected BroadcastShardOperationRequest(String index, int shardId, BroadcastOperationRequest request) {
+        super(request);
         this.index = index;
         this.shardId = shardId;
     }
@@ -52,13 +52,15 @@ public abstract class BroadcastShardOperationRequest implements Streamable {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        index = in.readUTF();
+        super.readFrom(in);
+        index = in.readString();
         shardId = in.readVInt();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeUTF(index);
+        super.writeTo(out);
+        out.writeString(index);
         out.writeVInt(shardId);
     }
 }

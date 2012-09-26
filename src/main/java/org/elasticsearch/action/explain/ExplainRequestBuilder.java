@@ -20,35 +20,25 @@
 package org.elasticsearch.action.explain;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.BaseRequestBuilder;
+import org.elasticsearch.action.support.single.shard.SingleShardOperationRequestBuilder;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.query.QueryBuilder;
 
 /**
  * A builder for {@link ExplainRequest}.
  */
-public class ExplainRequestBuilder extends BaseRequestBuilder<ExplainRequest, ExplainResponse> {
+public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<ExplainRequest, ExplainResponse, ExplainRequestBuilder> {
 
     private ExplainSourceBuilder sourceBuilder;
 
     ExplainRequestBuilder(Client client) {
-        super(client, new ExplainRequest());
+        super((InternalClient) client, new ExplainRequest());
     }
 
     public ExplainRequestBuilder(Client client, String index, String type, String id) {
-        super(client, new ExplainRequest());
-        request().index(index);
-        request().type(type);
-        request().id(id);
-    }
-
-    /**
-     * Sets the index to get a score explanation for.
-     */
-    public ExplainRequestBuilder setIndex(String index) {
-        request().index(index);
-        return this;
+        super((InternalClient) client, new ExplainRequest().index(index).type(type).id(id));
     }
 
     /**
@@ -136,7 +126,7 @@ public class ExplainRequestBuilder extends BaseRequestBuilder<ExplainRequest, Ex
             request.source(sourceBuilder);
         }
 
-        client.explain(request, listener);
+        ((Client) client).explain(request, listener);
     }
 
     private ExplainSourceBuilder sourceBuilder() {

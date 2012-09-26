@@ -271,6 +271,20 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
+    /**
+     * Writes a string array, for nullable string, writes it as 0 (empty string).
+     */
+    public void writeStringArrayNullable(@Nullable String[] array) throws IOException {
+        if (array == null) {
+            writeVInt(0);
+        } else {
+            writeVInt(array.length);
+            for (String s : array) {
+                writeString(s);
+            }
+        }
+    }
+
     public void writeMap(@Nullable Map<String, Object> map) throws IOException {
         writeGenericValue(map);
     }
@@ -326,7 +340,7 @@ public abstract class StreamOutput extends OutputStream {
             Map<String, Object> map = (Map<String, Object>) value;
             writeVInt(map.size());
             for (Map.Entry<String, Object> entry : map.entrySet()) {
-                writeUTF(entry.getKey());
+                writeString(entry.getKey());
                 writeGenericValue(entry.getValue());
             }
         } else if (type == Byte.class) {
@@ -341,6 +355,9 @@ public abstract class StreamOutput extends OutputStream {
         } else if (value instanceof BytesReference) {
             writeByte((byte) 14);
             writeBytesReference((BytesReference) value);
+        } else if (value instanceof Text) {
+            writeByte((byte) 15);
+            writeText((Text) value);
         } else {
             throw new IOException("Can't write type [" + type + "]");
         }

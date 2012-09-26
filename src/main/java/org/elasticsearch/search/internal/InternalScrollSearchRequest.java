@@ -19,10 +19,11 @@
 
 package org.elasticsearch.search.internal;
 
+import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.search.Scroll;
+import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
@@ -31,13 +32,19 @@ import static org.elasticsearch.search.Scroll.readScroll;
 /**
  *
  */
-public class InternalScrollSearchRequest implements Streamable {
+public class InternalScrollSearchRequest extends TransportRequest {
 
     private long id;
 
     private Scroll scroll;
 
     public InternalScrollSearchRequest() {
+    }
+
+    public InternalScrollSearchRequest(SearchScrollRequest request, long id) {
+        super(request);
+        this.id = id;
+        this.scroll = request.scroll();
     }
 
     public InternalScrollSearchRequest(long id) {
@@ -59,6 +66,7 @@ public class InternalScrollSearchRequest implements Streamable {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
         id = in.readLong();
         if (in.readBoolean()) {
             scroll = readScroll(in);
@@ -67,6 +75,7 @@ public class InternalScrollSearchRequest implements Streamable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeLong(id);
         if (scroll == null) {
             out.writeBoolean(false);

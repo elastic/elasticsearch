@@ -204,13 +204,13 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
             if (handler == null) {
                 throw new ActionNotFoundTransportException(action);
             }
-            final Streamable streamable = handler.newInstance();
-            streamable.readFrom(buffer);
+            final TransportRequest request = handler.newInstance();
+            request.readFrom(buffer);
             if (handler.executor() == ThreadPool.Names.SAME) {
                 //noinspection unchecked
-                handler.messageReceived(streamable, transportChannel);
+                handler.messageReceived(request, transportChannel);
             } else {
-                threadPool.executor(handler.executor()).execute(new RequestHandler(handler, streamable, transportChannel, action));
+                threadPool.executor(handler.executor()).execute(new RequestHandler(handler, request, transportChannel, action));
             }
         } catch (Exception e) {
             try {
@@ -251,13 +251,13 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
 
     class RequestHandler implements Runnable {
         private final TransportRequestHandler handler;
-        private final Streamable streamable;
+        private final TransportRequest request;
         private final NettyTransportChannel transportChannel;
         private final String action;
 
-        public RequestHandler(TransportRequestHandler handler, Streamable streamable, NettyTransportChannel transportChannel, String action) {
+        public RequestHandler(TransportRequestHandler handler, TransportRequest request, NettyTransportChannel transportChannel, String action) {
             this.handler = handler;
-            this.streamable = streamable;
+            this.request = request;
             this.transportChannel = transportChannel;
             this.action = action;
         }
@@ -266,7 +266,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         @Override
         public void run() {
             try {
-                handler.messageReceived(streamable, transportChannel);
+                handler.messageReceived(request, transportChannel);
             } catch (Throwable e) {
                 if (transport.lifecycleState() == Lifecycle.State.STARTED) {
                     // we can only send a response transport is started....

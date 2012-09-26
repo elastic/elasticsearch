@@ -85,7 +85,7 @@ public interface Client {
      * @param <RequestBuilder> The request builder type.
      * @return A future allowing to get back the response.
      */
-    <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response>> ActionFuture<Response> execute(final Action<Request, Response, RequestBuilder> action, final Request request);
+    <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> ActionFuture<Response> execute(final Action<Request, Response, RequestBuilder> action, final Request request);
 
     /**
      * Executes a generic action, denoted by an {@link Action}.
@@ -97,7 +97,7 @@ public interface Client {
      * @param <Response>       The response type.
      * @param <RequestBuilder> The request builder type.
      */
-    <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response>> void execute(final Action<Request, Response, RequestBuilder> action, final Request request, ActionListener<Response> listener);
+    <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void execute(final Action<Request, Response, RequestBuilder> action, final Request request, ActionListener<Response> listener);
 
     /**
      * Prepares a request builder to execute, specified by {@link Action}.
@@ -108,7 +108,7 @@ public interface Client {
      * @param <RequestBuilder> The request builder.
      * @return The request builder, that can, at a later stage, execute the request.
      */
-    <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response>> RequestBuilder prepareExecute(final Action<Request, Response, RequestBuilder> action);
+    <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> RequestBuilder prepareExecute(final Action<Request, Response, RequestBuilder> action);
 
 
     /**
@@ -439,8 +439,8 @@ public interface Client {
      * Computes a score explanation for the specified request.
      *
      * @param index The index this explain is targeted for
-     * @param type The type this explain is targeted for
-     * @param id The document identifier this explain is targeted for
+     * @param type  The type this explain is targeted for
+     * @param id    The document identifier this explain is targeted for
      */
     ExplainRequestBuilder prepareExplain(String index, String type, String id);
 
@@ -454,8 +454,8 @@ public interface Client {
     /**
      * Computes a score explanation for the specified request.
      *
-     * @param request The request encapsulating the query and document identifier to compute a score explanation for
-     * @param listener  A listener to be notified of the result
+     * @param request  The request encapsulating the query and document identifier to compute a score explanation for
+     * @param listener A listener to be notified of the result
      */
     void explain(ExplainRequest request, ActionListener<ExplainResponse> listener);
 

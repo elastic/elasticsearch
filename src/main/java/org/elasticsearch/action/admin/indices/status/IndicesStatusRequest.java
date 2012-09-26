@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.indices.status;
 
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,7 +29,7 @@ import java.io.IOException;
 /**
  *
  */
-public class IndicesStatusRequest extends BroadcastOperationRequest {
+public class IndicesStatusRequest extends BroadcastOperationRequest<IndicesStatusRequest> {
 
     private boolean recovery = false;
 
@@ -66,17 +65,6 @@ public class IndicesStatusRequest extends BroadcastOperationRequest {
 
     public boolean snapshot() {
         return this.snapshot;
-    }
-
-    @Override
-    public IndicesStatusRequest listenerThreaded(boolean listenerThreaded) {
-        super.listenerThreaded(listenerThreaded);
-        return this;
-    }
-
-    @Override
-    public BroadcastOperationRequest operationThreading(BroadcastOperationThreading operationThreading) {
-        return super.operationThreading(operationThreading);
     }
 
     @Override

@@ -56,7 +56,7 @@ import static org.elasticsearch.search.Scroll.readScroll;
  * @see org.elasticsearch.client.Client#search(SearchRequest)
  * @see SearchResponse
  */
-public class SearchRequest implements ActionRequest {
+public class SearchRequest extends ActionRequest<SearchRequest> {
 
     private static final XContentType contentType = Requests.CONTENT_TYPE;
 
@@ -81,7 +81,6 @@ public class SearchRequest implements ActionRequest {
 
     private String[] types = Strings.EMPTY_ARRAY;
 
-    private boolean listenerThreaded = false;
     private SearchOperationThreading operationThreading = SearchOperationThreading.THREAD_PER_SHARD;
 
     private IgnoreIndices ignoreIndices = IgnoreIndices.DEFAULT;
@@ -135,27 +134,10 @@ public class SearchRequest implements ActionRequest {
     }
 
     /**
-     * Should the listener be called on a separate thread if needed.
-     */
-    @Override
-    public boolean listenerThreaded() {
-        return listenerThreaded;
-    }
-
-    /**
      * Sets the indices the search will be executed on.
      */
     public SearchRequest indices(String... indices) {
         this.indices = indices;
-        return this;
-    }
-
-    /**
-     * Should the listener be called on a separate thread if needed.
-     */
-    @Override
-    public SearchRequest listenerThreaded(boolean listenerThreaded) {
-        this.listenerThreaded = listenerThreaded;
         return this;
     }
 
@@ -473,23 +455,18 @@ public class SearchRequest implements ActionRequest {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
         operationThreading = SearchOperationThreading.fromId(in.readByte());
         searchType = SearchType.fromId(in.readByte());
 
         indices = new String[in.readVInt()];
         for (int i = 0; i < indices.length; i++) {
-            indices[i] = in.readUTF();
+            indices[i] = in.readString();
         }
 
-        if (in.readBoolean()) {
-            queryHint = in.readUTF();
-        }
-        if (in.readBoolean()) {
-            routing = in.readUTF();
-        }
-        if (in.readBoolean()) {
-            preference = in.readUTF();
-        }
+        queryHint = in.readOptionalString();
+        routing = in.readOptionalString();
+        preference = in.readOptionalString();
 
         if (in.readBoolean()) {
             scroll = readScroll(in);
@@ -501,44 +478,24 @@ public class SearchRequest implements ActionRequest {
         extraSourceUnsafe = false;
         extraSource = in.readBytesReference();
 
-        int typesSize = in.readVInt();
-        if (typesSize > 0) {
-            types = new String[typesSize];
-            for (int i = 0; i < typesSize; i++) {
-                types[i] = in.readUTF();
-            }
-        }
+        types = in.readStringArray();
         ignoreIndices = IgnoreIndices.fromId(in.readByte());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeByte(operationThreading.id());
         out.writeByte(searchType.id());
 
         out.writeVInt(indices.length);
         for (String index : indices) {
-            out.writeUTF(index);
+            out.writeString(index);
         }
 
-        if (queryHint == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeUTF(queryHint);
-        }
-        if (routing == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeUTF(routing);
-        }
-        if (preference == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeUTF(preference);
-        }
+        out.writeOptionalString(queryHint);
+        out.writeOptionalString(routing);
+        out.writeOptionalString(preference);
 
         if (scroll == null) {
             out.writeBoolean(false);
@@ -548,10 +505,7 @@ public class SearchRequest implements ActionRequest {
         }
         out.writeBytesReference(source);
         out.writeBytesReference(extraSource);
-        out.writeVInt(types.length);
-        for (String type : types) {
-            out.writeUTF(type);
-        }
+        out.writeStringArray(types);
         out.writeByte(ignoreIndices.id());
     }
 }

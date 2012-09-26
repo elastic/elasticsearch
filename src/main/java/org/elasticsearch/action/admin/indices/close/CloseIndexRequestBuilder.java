@@ -20,21 +20,22 @@
 package org.elasticsearch.action.admin.indices.close;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.support.BaseIndicesRequestBuilder;
+import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**
  *
  */
-public class CloseIndexRequestBuilder extends BaseIndicesRequestBuilder<CloseIndexRequest, CloseIndexResponse> {
+public class CloseIndexRequestBuilder extends MasterNodeOperationRequestBuilder<CloseIndexRequest, CloseIndexResponse, CloseIndexRequestBuilder> {
 
     public CloseIndexRequestBuilder(IndicesAdminClient indicesClient) {
-        super(indicesClient, new CloseIndexRequest());
+        super((InternalIndicesAdminClient) indicesClient, new CloseIndexRequest());
     }
 
     public CloseIndexRequestBuilder(IndicesAdminClient indicesClient, String index) {
-        super(indicesClient, new CloseIndexRequest(index));
+        super((InternalIndicesAdminClient) indicesClient, new CloseIndexRequest(index));
     }
 
     public CloseIndexRequestBuilder setIndex(String index) {
@@ -60,24 +61,8 @@ public class CloseIndexRequestBuilder extends BaseIndicesRequestBuilder<CloseInd
         return this;
     }
 
-    /**
-     * Sets the master node timeout in case the master has not yet been discovered.
-     */
-    public CloseIndexRequestBuilder setMasterNodeTimeout(TimeValue timeout) {
-        request.masterNodeTimeout(timeout);
-        return this;
-    }
-
-    /**
-     * Sets the master node timeout in case the master has not yet been discovered.
-     */
-    public CloseIndexRequestBuilder setMasterNodeTimeout(String timeout) {
-        request.masterNodeTimeout(timeout);
-        return this;
-    }
-
     @Override
     protected void doExecute(ActionListener<CloseIndexResponse> listener) {
-        client.close(request, listener);
+        ((IndicesAdminClient) client).close(request, listener);
     }
 }

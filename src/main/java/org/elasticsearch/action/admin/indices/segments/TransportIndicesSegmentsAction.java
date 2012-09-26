@@ -151,7 +151,7 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastOperationA
         }
 
         IndexShardSegmentRequest(String index, int shardId, IndicesSegmentsRequest request) {
-            super(index, shardId);
+            super(index, shardId, request);
         }
 
         @Override

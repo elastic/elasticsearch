@@ -20,25 +20,18 @@
 package org.elasticsearch.action.admin.cluster.node.restart;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.support.BaseClusterRequestBuilder;
+import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
 import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.client.internal.InternalClusterAdminClient;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**
  *
  */
-public class NodesRestartRequestBuilder extends BaseClusterRequestBuilder<NodesRestartRequest, NodesRestartResponse> {
+public class NodesRestartRequestBuilder extends NodesOperationRequestBuilder<NodesRestartRequest, NodesRestartResponse, NodesRestartRequestBuilder> {
 
     public NodesRestartRequestBuilder(ClusterAdminClient clusterClient) {
-        super(clusterClient, new NodesRestartRequest());
-    }
-
-    /**
-     * The nodes ids to restart.
-     */
-    public NodesRestartRequestBuilder setNodesIds(String... nodesIds) {
-        request.nodesIds(nodesIds);
-        return this;
+        super((InternalClusterAdminClient) clusterClient, new NodesRestartRequest());
     }
 
     /**
@@ -59,6 +52,6 @@ public class NodesRestartRequestBuilder extends BaseClusterRequestBuilder<NodesR
 
     @Override
     protected void doExecute(ActionListener<NodesRestartResponse> listener) {
-        client.nodesRestart(request, listener);
+        ((ClusterAdminClient) client).nodesRestart(request, listener);
     }
 }

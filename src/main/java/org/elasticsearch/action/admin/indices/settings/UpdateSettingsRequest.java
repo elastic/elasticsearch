@@ -41,7 +41,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.writeSettingsT
 /**
  *
  */
-public class UpdateSettingsRequest extends MasterNodeOperationRequest {
+public class UpdateSettingsRequest extends MasterNodeOperationRequest<UpdateSettingsRequest> {
 
     private String[] indices;
 
@@ -128,24 +128,14 @@ public class UpdateSettingsRequest extends MasterNodeOperationRequest {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        indices = new String[in.readVInt()];
-        for (int i = 0; i < indices.length; i++) {
-            indices[i] = in.readUTF();
-        }
+        indices = in.readStringArray();
         settings = readSettingsFromStream(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (indices == null) {
-            out.writeVInt(0);
-        } else {
-            out.writeVInt(indices.length);
-            for (String index : indices) {
-                out.writeUTF(index);
-            }
-        }
+        out.writeStringArrayNullable(indices);
         writeSettingsToStream(settings, out);
     }
 }

@@ -31,13 +31,11 @@ import java.io.IOException;
 /**
  *
  */
-public abstract class NodesOperationRequest implements ActionRequest {
+public abstract class NodesOperationRequest<T extends NodesOperationRequest> extends ActionRequest<T> {
 
     public static String[] ALL_NODES = Strings.EMPTY_ARRAY;
 
     private String[] nodesIds;
-
-    private boolean listenerThreaded = false;
 
     private TimeValue timeout;
 
@@ -49,33 +47,30 @@ public abstract class NodesOperationRequest implements ActionRequest {
         this.nodesIds = nodesIds;
     }
 
-    @Override
-    public NodesOperationRequest listenerThreaded(boolean listenerThreaded) {
-        this.listenerThreaded = listenerThreaded;
-        return this;
-    }
-
-    @Override
-    public boolean listenerThreaded() {
-        return this.listenerThreaded;
-    }
-
-    public String[] nodesIds() {
+    public final String[] nodesIds() {
         return nodesIds;
     }
 
-    public NodesOperationRequest nodesIds(String... nodesIds) {
+    @SuppressWarnings("unchecked")
+    public final T nodesIds(String... nodesIds) {
         this.nodesIds = nodesIds;
-        return this;
+        return (T) this;
     }
 
     public TimeValue timeout() {
         return this.timeout;
     }
 
-    public NodesOperationRequest timeout(TimeValue timeout) {
+    @SuppressWarnings("unchecked")
+    public final T timeout(TimeValue timeout) {
         this.timeout = timeout;
-        return this;
+        return (T) this;
+    }
+
+    @SuppressWarnings("unchecked")
+    public final T timeout(String timeout) {
+        this.timeout = TimeValue.parseTimeValue(timeout, null);
+        return (T) this;
     }
 
     @Override
@@ -85,10 +80,8 @@ public abstract class NodesOperationRequest implements ActionRequest {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        nodesIds = new String[in.readVInt()];
-        for (int i = 0; i < nodesIds.length; i++) {
-            nodesIds[i] = in.readUTF();
-        }
+        super.readFrom(in);
+        nodesIds = in.readStringArray();
         if (in.readBoolean()) {
             timeout = TimeValue.readTimeValue(in);
         }
@@ -96,14 +89,8 @@ public abstract class NodesOperationRequest implements ActionRequest {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (nodesIds == null) {
-            out.writeVInt(0);
-        } else {
-            out.writeVInt(nodesIds.length);
-            for (String nodeId : nodesIds) {
-                out.writeUTF(nodeId);
-            }
-        }
+        super.writeTo(out);
+        out.writeStringArrayNullable(nodesIds);
         if (timeout == null) {
             out.writeBoolean(false);
         } else {

@@ -29,14 +29,11 @@ import java.io.IOException;
 /**
  *
  */
-public class IndexDeleteRequest extends IndexReplicationOperationRequest {
+public class IndexDeleteRequest extends IndexReplicationOperationRequest<IndexDeleteRequest> {
 
     private String type;
-
     private String id;
-
     private boolean refresh = false;
-
     private long version;
 
     IndexDeleteRequest() {
@@ -72,8 +69,8 @@ public class IndexDeleteRequest extends IndexReplicationOperationRequest {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        type = in.readUTF();
-        id = in.readUTF();
+        type = in.readString();
+        id = in.readString();
         refresh = in.readBoolean();
         version = in.readLong();
     }
@@ -81,8 +78,8 @@ public class IndexDeleteRequest extends IndexReplicationOperationRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeUTF(type);
-        out.writeUTF(id);
+        out.writeString(type);
+        out.writeString(id);
         out.writeBoolean(refresh);
         out.writeLong(version);
     }

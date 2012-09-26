@@ -44,7 +44,7 @@ import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
 /**
  * A request to add/remove aliases for one or more indices.
  */
-public class IndicesAliasesRequest extends MasterNodeOperationRequest {
+public class IndicesAliasesRequest extends MasterNodeOperationRequest<IndicesAliasesRequest> {
 
     private List<AliasAction> aliasActions = Lists.newArrayList();
 

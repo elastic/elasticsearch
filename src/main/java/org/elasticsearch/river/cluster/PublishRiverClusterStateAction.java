@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.VoidStreamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -86,7 +85,7 @@ public class PublishRiverClusterStateAction extends AbstractComponent {
         }
     }
 
-    private class PublishClusterStateRequest implements Streamable {
+    private class PublishClusterStateRequest extends TransportRequest {
 
         private RiverClusterState clusterState;
 
@@ -99,11 +98,13 @@ public class PublishRiverClusterStateAction extends AbstractComponent {
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
             clusterState = RiverClusterState.Builder.readFrom(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
             RiverClusterState.Builder.writeTo(clusterState, out);
         }
     }

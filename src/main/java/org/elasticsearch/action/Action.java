@@ -24,7 +24,7 @@ import org.elasticsearch.client.Client;
 /**
  * Main action (used with {@link Client} API.
  */
-public abstract class Action<Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response>>
+public abstract class Action<Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>>
         extends GenericAction<Request, Response> {
 
     protected Action(String name) {

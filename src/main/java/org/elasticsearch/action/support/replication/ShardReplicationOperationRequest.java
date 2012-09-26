@@ -34,8 +34,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  *
  */
-public abstract class ShardReplicationOperationRequest implements ActionRequest {
-
+public abstract class ShardReplicationOperationRequest<T extends ShardReplicationOperationRequest> extends ActionRequest<T> {
 
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
 
@@ -43,10 +42,59 @@ public abstract class ShardReplicationOperationRequest implements ActionRequest 
 
     protected String index;
 
-    private boolean threadedListener = false;
     private boolean threadedOperation = true;
     private ReplicationType replicationType = ReplicationType.DEFAULT;
     private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
+
+    protected ShardReplicationOperationRequest() {
+
+    }
+
+    public ShardReplicationOperationRequest(ActionRequest request) {
+        super(request);
+    }
+
+    public ShardReplicationOperationRequest(T request) {
+        super(request);
+        this.timeout = request.timeout();
+        this.index = request.index();
+        this.threadedOperation = request.threadedOperation;
+        this.replicationType = request.replicationType();
+        this.consistencyLevel = request.consistencyLevel();
+    }
+
+    /**
+     * Controls if the operation will be executed on a separate thread when executed locally.
+     */
+    public final boolean operationThreaded() {
+        return threadedOperation;
+    }
+
+    /**
+     * Controls if the operation will be executed on a separate thread when executed locally. Defaults
+     * to <tt>true</tt> when running in embedded mode.
+     */
+    @SuppressWarnings("unchecked")
+    public final T operationThreaded(boolean threadedOperation) {
+        this.threadedOperation = threadedOperation;
+        return (T) this;
+    }
+
+    /**
+     * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
+     */
+    @SuppressWarnings("unchecked")
+    public final T timeout(TimeValue timeout) {
+        this.timeout = timeout;
+        return (T) this;
+    }
+
+    /**
+     * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
+     */
+    public final T timeout(String timeout) {
+        return timeout(TimeValue.parseTimeValue(timeout, null));
+    }
 
     public TimeValue timeout() {
         return timeout;
@@ -56,56 +104,10 @@ public abstract class ShardReplicationOperationRequest implements ActionRequest 
         return this.index;
     }
 
-    public ShardReplicationOperationRequest index(String index) {
+    @SuppressWarnings("unchecked")
+    public final T index(String index) {
         this.index = index;
-        return this;
-    }
-
-    protected ShardReplicationOperationRequest() {
-
-    }
-
-    public ShardReplicationOperationRequest(ShardReplicationOperationRequest request) {
-        this.timeout = request.timeout();
-        this.index = request.index();
-        this.threadedListener = request.threadedListener;
-        this.threadedOperation = request.threadedOperation;
-        this.replicationType = request.replicationType();
-        this.consistencyLevel = request.consistencyLevel();
-    }
-
-    /**
-     * Should the listener be called on a separate thread if needed.
-     */
-    @Override
-    public boolean listenerThreaded() {
-        return threadedListener;
-    }
-
-    /**
-     * Should the listener be called on a separate thread if needed.
-     */
-    @Override
-    public ShardReplicationOperationRequest listenerThreaded(boolean threadedListener) {
-        this.threadedListener = threadedListener;
-        return this;
-    }
-
-
-    /**
-     * Controls if the operation will be executed on a separate thread when executed locally.
-     */
-    public boolean operationThreaded() {
-        return threadedOperation;
-    }
-
-    /**
-     * Controls if the operation will be executed on a separate thread when executed locally. Defaults
-     * to <tt>true</tt> when running in embedded mode.
-     */
-    public ShardReplicationOperationRequest operationThreaded(boolean threadedOperation) {
-        this.threadedOperation = threadedOperation;
-        return this;
+        return (T) this;
     }
 
     /**
@@ -118,18 +120,30 @@ public abstract class ShardReplicationOperationRequest implements ActionRequest 
     /**
      * Sets the replication type.
      */
-    public ShardReplicationOperationRequest replicationType(ReplicationType replicationType) {
+    @SuppressWarnings("unchecked")
+    public final T replicationType(ReplicationType replicationType) {
         this.replicationType = replicationType;
-        return this;
+        return (T) this;
+    }
+
+    /**
+     * Sets the replication type.
+     */
+    public final T replicationType(String replicationType) {
+        return replicationType(ReplicationType.fromString(replicationType));
     }
 
     public WriteConsistencyLevel consistencyLevel() {
         return this.consistencyLevel;
     }
 
-    public ShardReplicationOperationRequest consistencyLevel(WriteConsistencyLevel consistencyLevel) {
+    /**
+     * Sets the consistency level of write. Defaults to {@link org.elasticsearch.action.WriteConsistencyLevel#DEFAULT}
+     */
+    @SuppressWarnings("unchecked")
+    public final T consistencyLevel(WriteConsistencyLevel consistencyLevel) {
         this.consistencyLevel = consistencyLevel;
-        return this;
+        return (T) this;
     }
 
     @Override
@@ -143,19 +157,21 @@ public abstract class ShardReplicationOperationRequest implements ActionRequest 
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
         replicationType = ReplicationType.fromId(in.readByte());
         consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
         timeout = TimeValue.readTimeValue(in);
-        index = in.readUTF();
+        index = in.readString();
         // no need to serialize threaded* parameters, since they only matter locally
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeByte(replicationType.id());
         out.writeByte(consistencyLevel.id());
         timeout.writeTo(out);
-        out.writeUTF(index);
+        out.writeString(index);
     }
 
     /**

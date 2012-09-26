@@ -30,7 +30,6 @@ import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.CachedStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.netty.NettyStaticSetup;
 import org.elasticsearch.common.netty.OpenChannelsHandler;
 import org.elasticsearch.common.network.NetworkService;
@@ -508,7 +507,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     @Override
-    public <T extends Streamable> void sendRequest(final DiscoveryNode node, final long requestId, final String action, final Streamable message, TransportRequestOptions options) throws IOException, TransportException {
+    public void sendRequest(final DiscoveryNode node, final long requestId, final String action, final TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
         Channel targetChannel = nodeChannel(node, options);
 
         if (compress) {
@@ -526,14 +525,14 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             StreamOutput stream = cachedEntry.handles(CompressorFactory.defaultCompressor());
             stream.setVersion(node.version());
             stream.writeString(action);
-            message.writeTo(stream);
+            request.writeTo(stream);
             stream.close();
         } else {
             StreamOutput stream = cachedEntry.handles();
             cachedEntry.bytes().skip(NettyHeader.HEADER_SIZE);
             stream.setVersion(node.version());
             stream.writeString(action);
-            message.writeTo(stream);
+            request.writeTo(stream);
             stream.close();
         }
         ChannelBuffer buffer = cachedEntry.bytes().bytes().toChannelBuffer();

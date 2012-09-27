@@ -19,7 +19,7 @@
             <useProjectArtifact>true</useProjectArtifact>
             <useTransitiveFiltering>true</useTransitiveFiltering>
             <includes>
-                <include>org.apache.tika:tika-app</include>
+                <include>org.apache.tika:tika-parsers</include>
             </includes>
         </dependencySet>
     </dependencySets>

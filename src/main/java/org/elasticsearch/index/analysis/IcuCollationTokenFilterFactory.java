@@ -21,6 +21,7 @@ package org.elasticsearch.index.analysis;
 
 import com.ibm.icu.text.Collator;
 import com.ibm.icu.text.RuleBasedCollator;
+import com.ibm.icu.util.ULocale;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.collation.ICUCollationKeyFilter;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
@@ -33,7 +34,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
-import java.util.Locale;
 
 /**
  * An ICU based collation token filter. There are two ways to configure collation:
@@ -79,17 +79,17 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
         } else {
             String language = settings.get("language");
             if (language != null) {
-                Locale locale;
+                ULocale locale;
                 String country = settings.get("country");
                 if (country != null) {
                     String variant = settings.get("variant");
                     if (variant != null) {
-                        locale = new Locale(language, country, variant);
+                        locale = new ULocale(language, country, variant);
                     } else {
-                        locale = new Locale(language, country);
+                        locale = new ULocale(language, country);
                     }
                 } else {
-                    locale = new Locale(language);
+                    locale = new ULocale(language);
                 }
                 collator = Collator.getInstance(locale);
             } else {

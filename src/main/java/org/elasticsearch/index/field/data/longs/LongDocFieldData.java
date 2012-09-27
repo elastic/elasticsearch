@@ -35,7 +35,7 @@ public class LongDocFieldData extends NumericDocFieldData<LongFieldData> {
         return fieldData.value(docId);
     }
 
-    public long[] getValues() {
+    public Long[] getValues() {
         return fieldData.values(docId);
     }
 

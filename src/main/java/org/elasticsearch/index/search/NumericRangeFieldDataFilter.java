@@ -338,7 +338,7 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
                             return false;
                         }
                         if (fieldData.multiValued()) {
-                            long[] values = fieldData.values(doc);
+                            Long[] values = fieldData.values(doc);
                             for (long value : values) {
                                 if (value >= inclusiveLowerPoint && value <= inclusiveUpperPoint) {
                                     return true;

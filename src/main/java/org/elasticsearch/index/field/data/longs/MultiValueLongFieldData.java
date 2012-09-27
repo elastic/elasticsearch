@@ -58,14 +58,14 @@ public class MultiValueLongFieldData extends LongFieldData {
     };
 
 
-    private ThreadLocal<ThreadLocals.CleanableValue<long[][]>> valuesCache = new ThreadLocal<ThreadLocals.CleanableValue<long[][]>>() {
+    private ThreadLocal<ThreadLocals.CleanableValue<Long[][]>> valuesCache = new ThreadLocal<ThreadLocals.CleanableValue<Long[][]>>() {
         @Override
-        protected ThreadLocals.CleanableValue<long[][]> initialValue() {
-            long[][] value = new long[VALUE_CACHE_SIZE][];
+        protected ThreadLocals.CleanableValue<Long[][]> initialValue() {
+            Long[][] value = new Long[VALUE_CACHE_SIZE][];
             for (int i = 0; i < value.length; i++) {
-                value[i] = new long[i];
+                value[i] = new Long[i];
             }
-            return new ThreadLocals.CleanableValue<long[][]>(value);
+            return new ThreadLocals.CleanableValue<Long[][]>(value);
         }
     };
 
@@ -285,7 +285,7 @@ public class MultiValueLongFieldData extends LongFieldData {
     }
 
     @Override
-    public long[] values(int docId) {
+    public Long[] values(int docId) {
         int length = 0;
         for (int[] ordinal : ordinals) {
             if (ordinal[docId] == 0) {
@@ -296,11 +296,11 @@ public class MultiValueLongFieldData extends LongFieldData {
         if (length == 0) {
             return EMPTY_LONG_ARRAY;
         }
-        long[] longs;
+        Long[] longs;
         if (length < VALUE_CACHE_SIZE) {
             longs = valuesCache.get().get()[length];
         } else {
-            longs = new long[length];
+            longs = new Long[length];
         }
         for (int i = 0; i < length; i++) {
             longs[i] = values[ordinals[i][docId]];

@@ -37,7 +37,7 @@ import java.io.IOException;
  */
 public abstract class LongFieldData extends NumericFieldData<LongDocFieldData> {
 
-    static final long[] EMPTY_LONG_ARRAY = new long[0];
+    static final Long[] EMPTY_LONG_ARRAY = new Long[0];
     static final MutableDateTime[] EMPTY_DATETIME_ARRAY = new MutableDateTime[0];
 
     ThreadLocal<ThreadLocals.CleanableValue<MutableDateTime>> dateTimeCache = new ThreadLocal<ThreadLocals.CleanableValue<MutableDateTime>>() {
@@ -65,7 +65,7 @@ public abstract class LongFieldData extends NumericFieldData<LongDocFieldData> {
 
     abstract public long value(int docId);
 
-    abstract public long[] values(int docId);
+    abstract public Long[] values(int docId);
 
     public MutableDateTime date(int docId) {
         MutableDateTime dateTime = dateTimeCache.get().get();

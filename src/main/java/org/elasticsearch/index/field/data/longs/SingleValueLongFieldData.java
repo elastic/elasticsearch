@@ -46,10 +46,10 @@ public class SingleValueLongFieldData extends LongFieldData {
         }
     };
 
-    private ThreadLocal<long[]> valuesCache = new ThreadLocal<long[]>() {
+    private ThreadLocal<Long[]> valuesCache = new ThreadLocal<Long[]>() {
         @Override
-        protected long[] initialValue() {
-            return new long[1];
+        protected Long[] initialValue() {
+            return new Long[1];
         }
     };
 
@@ -189,12 +189,12 @@ public class SingleValueLongFieldData extends LongFieldData {
     }
 
     @Override
-    public long[] values(int docId) {
+    public Long[] values(int docId) {
         int loc = ordinals[docId];
         if (loc == 0) {
             return EMPTY_LONG_ARRAY;
         }
-        long[] ret = valuesCache.get();
+        Long[] ret = valuesCache.get();
         ret[0] = values[loc];
         return ret;
     }

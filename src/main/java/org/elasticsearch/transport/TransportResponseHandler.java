@@ -19,12 +19,10 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.common.io.stream.Streamable;
-
 /**
  *
  */
-public interface TransportResponseHandler<T extends Streamable> {
+public interface TransportResponseHandler<T extends TransportResponse> {
 
     /**
      * creates a new instance of the return type from the remote call.

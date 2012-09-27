@@ -33,7 +33,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -202,7 +201,7 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
         }
     }
 
-    public static class AllocateDangledResponse implements Streamable {
+    public static class AllocateDangledResponse extends TransportResponse {
 
         private boolean ack;
 
@@ -219,11 +218,13 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
             ack = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
             out.writeBoolean(ack);
         }
     }

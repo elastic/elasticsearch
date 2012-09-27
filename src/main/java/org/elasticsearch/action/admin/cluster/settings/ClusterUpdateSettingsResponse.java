@@ -22,23 +22,24 @@ package org.elasticsearch.action.admin.cluster.settings;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 
 import java.io.IOException;
 
 /**
  * A response for a cluster update settings action.
  */
-public class ClusterUpdateSettingsResponse implements ActionResponse, Streamable {
+public class ClusterUpdateSettingsResponse extends ActionResponse {
 
     ClusterUpdateSettingsResponse() {
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
     }
 }

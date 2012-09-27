@@ -22,25 +22,24 @@ package org.elasticsearch.action.admin.indices.settings;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 
 import java.io.IOException;
 
 /**
  * A response for a update settings action.
- *
- *
  */
-public class UpdateSettingsResponse implements ActionResponse, Streamable {
+public class UpdateSettingsResponse extends ActionResponse {
 
     UpdateSettingsResponse() {
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
     }
 }

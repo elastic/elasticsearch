@@ -34,7 +34,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.VoidStreamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -54,11 +53,8 @@ import static org.elasticsearch.cluster.routing.ImmutableShardRouting.readShardR
 public class ShardStateAction extends AbstractComponent {
 
     private final TransportService transportService;
-
     private final ClusterService clusterService;
-
     private final AllocationService allocationService;
-
     private final ThreadPool threadPool;
 
     private final BlockingQueue<ShardRouting> startedShardsQueue = ConcurrentCollections.newBlockingQueue();
@@ -83,7 +79,7 @@ public class ShardStateAction extends AbstractComponent {
             innerShardFailed(shardRouting, reason);
         } else {
             transportService.sendRequest(clusterService.state().nodes().masterNode(),
-                    ShardFailedTransportHandler.ACTION, new ShardRoutingEntry(shardRouting, reason), new VoidTransportResponseHandler(ThreadPool.Names.SAME) {
+                    ShardFailedTransportHandler.ACTION, new ShardRoutingEntry(shardRouting, reason), new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                 @Override
                 public void handleException(TransportException exp) {
                     logger.warn("failed to send failed shard to [{}]", exp, clusterService.state().nodes().masterNode());
@@ -101,7 +97,7 @@ public class ShardStateAction extends AbstractComponent {
             innerShardStarted(shardRouting, reason);
         } else {
             transportService.sendRequest(clusterService.state().nodes().masterNode(),
-                    ShardStartedTransportHandler.ACTION, new ShardRoutingEntry(shardRouting, reason), new VoidTransportResponseHandler(ThreadPool.Names.SAME) {
+                    ShardStartedTransportHandler.ACTION, new ShardRoutingEntry(shardRouting, reason), new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                 @Override
                 public void handleException(TransportException exp) {
                     logger.warn("failed to send shard started to [{}]", exp, clusterService.state().nodes().masterNode());
@@ -206,7 +202,7 @@ public class ShardStateAction extends AbstractComponent {
         @Override
         public void messageReceived(ShardRoutingEntry request, TransportChannel channel) throws Exception {
             innerShardFailed(request.shardRouting, request.reason);
-            channel.sendResponse(VoidStreamable.INSTANCE);
+            channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
 
         @Override
@@ -227,7 +223,7 @@ public class ShardStateAction extends AbstractComponent {
         @Override
         public void messageReceived(ShardRoutingEntry request, TransportChannel channel) throws Exception {
             innerShardStarted(request.shardRouting, request.reason);
-            channel.sendResponse(VoidStreamable.INSTANCE);
+            channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
 
         @Override

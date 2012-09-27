@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
@@ -424,7 +423,7 @@ public class MasterFaultDetection extends AbstractComponent {
         }
     }
 
-    private static class MasterPingResponseResponse implements Streamable {
+    private static class MasterPingResponseResponse extends TransportResponse {
 
         private boolean connectedToMaster;
 
@@ -437,11 +436,13 @@ public class MasterFaultDetection extends AbstractComponent {
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
             connectedToMaster = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
             out.writeBoolean(connectedToMaster);
         }
     }

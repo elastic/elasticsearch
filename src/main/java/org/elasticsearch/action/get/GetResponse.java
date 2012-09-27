@@ -24,7 +24,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.get.GetField;
@@ -40,7 +39,7 @@ import java.util.Map;
  * @see GetRequest
  * @see org.elasticsearch.client.Client#get(GetRequest)
  */
-public class GetResponse implements ActionResponse, Streamable, Iterable<GetField>, ToXContent {
+public class GetResponse extends ActionResponse implements Iterable<GetField>, ToXContent {
 
     private GetResult getResult;
 
@@ -203,11 +202,13 @@ public class GetResponse implements ActionResponse, Streamable, Iterable<GetFiel
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
         getResult = GetResult.readGetResult(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         getResult.writeTo(out);
     }
 }

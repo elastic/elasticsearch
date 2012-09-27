@@ -30,7 +30,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
@@ -431,7 +430,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         }
     }
 
-    static class UnicastPingResponse implements Streamable {
+    static class UnicastPingResponse extends TransportResponse {
 
         int id;
 
@@ -442,6 +441,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
             id = in.readInt();
             pingResponses = new PingResponse[in.readVInt()];
             for (int i = 0; i < pingResponses.length; i++) {
@@ -451,6 +451,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
             out.writeInt(id);
             out.writeVInt(pingResponses.length);
             for (PingResponse pingResponse : pingResponses) {

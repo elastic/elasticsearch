@@ -316,7 +316,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
             } else {
                 responses.put(request.pingResponse.target(), request.pingResponse);
             }
-            channel.sendResponse(VoidStreamable.INSTANCE);
+            channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
 
         @Override
@@ -534,7 +534,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                         // connect to the node if possible
                         try {
                             transportService.connectToNode(requestingNode);
-                            transportService.sendRequest(requestingNode, MulticastPingResponseRequestHandler.ACTION, multicastPingResponse, new VoidTransportResponseHandler(ThreadPool.Names.SAME) {
+                            transportService.sendRequest(requestingNode, MulticastPingResponseRequestHandler.ACTION, multicastPingResponse, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                                 @Override
                                 public void handleException(TransportException exp) {
                                     logger.warn("failed to receive confirmation on sent ping response to [{}]", exp, requestingNode);
@@ -546,7 +546,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                     }
                 });
             } else {
-                transportService.sendRequest(requestingNode, MulticastPingResponseRequestHandler.ACTION, multicastPingResponse, new VoidTransportResponseHandler(ThreadPool.Names.SAME) {
+                transportService.sendRequest(requestingNode, MulticastPingResponseRequestHandler.ACTION, multicastPingResponse, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                     @Override
                     public void handleException(TransportException exp) {
                         logger.warn("failed to receive confirmation on sent ping response to [{}]", exp, requestingNode);

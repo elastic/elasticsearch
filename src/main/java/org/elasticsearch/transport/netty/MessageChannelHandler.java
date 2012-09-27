@@ -27,7 +27,6 @@ import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.ThrowableObjectInputStream;
 import org.elasticsearch.common.io.stream.CachedStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
@@ -144,19 +143,19 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
     }
 
     private void handleResponse(StreamInput buffer, final TransportResponseHandler handler) {
-        final Streamable streamable = handler.newInstance();
+        final TransportResponse response = handler.newInstance();
         try {
-            streamable.readFrom(buffer);
+            response.readFrom(buffer);
         } catch (Exception e) {
-            handleException(handler, new TransportSerializationException("Failed to deserialize response of type [" + streamable.getClass().getName() + "]", e));
+            handleException(handler, new TransportSerializationException("Failed to deserialize response of type [" + response.getClass().getName() + "]", e));
             return;
         }
         try {
             if (handler.executor() == ThreadPool.Names.SAME) {
                 //noinspection unchecked
-                handler.handleResponse(streamable);
+                handler.handleResponse(response);
             } else {
-                threadPool.executor(handler.executor()).execute(new ResponseHandler(handler, streamable));
+                threadPool.executor(handler.executor()).execute(new ResponseHandler(handler, response));
             }
         } catch (Exception e) {
             handleException(handler, new ResponseHandlerFailureTransportException(e));
@@ -196,7 +195,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
     }
 
     private String handleRequest(Channel channel, StreamInput buffer, long requestId, Version version) throws IOException {
-        final String action = buffer.readUTF();
+        final String action = buffer.readString();
 
         final NettyTransportChannel transportChannel = new NettyTransportChannel(transport, action, channel, requestId, version);
         try {
@@ -231,18 +230,18 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
     class ResponseHandler implements Runnable {
 
         private final TransportResponseHandler handler;
-        private final Streamable streamable;
+        private final TransportResponse response;
 
-        public ResponseHandler(TransportResponseHandler handler, Streamable streamable) {
+        public ResponseHandler(TransportResponseHandler handler, TransportResponse response) {
             this.handler = handler;
-            this.streamable = streamable;
+            this.response = response;
         }
 
         @SuppressWarnings({"unchecked"})
         @Override
         public void run() {
             try {
-                handler.handleResponse(streamable);
+                handler.handleResponse(response);
             } catch (Exception e) {
                 handleException(handler, new ResponseHandlerFailureTransportException(e));
             }

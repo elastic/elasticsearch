@@ -32,13 +32,10 @@ import java.util.Iterator;
  * A response of a bulk execution. Holding a response for each item responding (in order) of the
  * bulk requests. Each item holds the index/type/id is operated on, and if it failed or not (with the
  * failure message).
- *
- *
  */
-public class BulkResponse implements ActionResponse, Iterable<BulkItemResponse> {
+public class BulkResponse extends ActionResponse implements Iterable<BulkItemResponse> {
 
     private BulkItemResponse[] responses;
-
     private long tookInMillis;
 
     BulkResponse() {
@@ -117,6 +114,7 @@ public class BulkResponse implements ActionResponse, Iterable<BulkItemResponse> 
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
         responses = new BulkItemResponse[in.readVInt()];
         for (int i = 0; i < responses.length; i++) {
             responses[i] = BulkItemResponse.readBulkItem(in);
@@ -126,6 +124,7 @@ public class BulkResponse implements ActionResponse, Iterable<BulkItemResponse> 
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeVInt(responses.length);
         for (BulkItemResponse response : responses) {
             response.writeTo(out);

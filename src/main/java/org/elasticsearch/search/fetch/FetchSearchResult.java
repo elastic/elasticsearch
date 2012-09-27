@@ -21,9 +21,9 @@ package org.elasticsearch.search.fetch;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchHits;
+import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
 
@@ -32,14 +32,11 @@ import static org.elasticsearch.search.internal.InternalSearchHits.StreamContext
 /**
  *
  */
-public class FetchSearchResult implements Streamable, FetchSearchResultProvider {
+public class FetchSearchResult extends TransportResponse implements FetchSearchResultProvider {
 
     private long id;
-
     private SearchShardTarget shardTarget;
-
     private InternalSearchHits hits;
-
     // client side counter
     private transient int counter;
 
@@ -95,12 +92,14 @@ public class FetchSearchResult implements Streamable, FetchSearchResultProvider 
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
         id = in.readLong();
         hits = InternalSearchHits.readSearchHits(in, InternalSearchHits.streamContext().streamShardTarget(StreamContext.ShardTargetType.NO_STREAM));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeLong(id);
         hits.writeTo(out, InternalSearchHits.streamContext().streamShardTarget(StreamContext.ShardTargetType.NO_STREAM));
     }

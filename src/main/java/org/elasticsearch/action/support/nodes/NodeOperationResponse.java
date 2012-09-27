@@ -22,16 +22,14 @@ package org.elasticsearch.action.support.nodes;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
 
 /**
  * A base class for node level operations.
- *
- *
  */
-public abstract class NodeOperationResponse implements Streamable {
+public abstract class NodeOperationResponse extends TransportResponse {
 
     private DiscoveryNode node;
 
@@ -58,11 +56,13 @@ public abstract class NodeOperationResponse implements Streamable {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
         node = DiscoveryNode.readNode(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         node.writeTo(out);
     }
 }

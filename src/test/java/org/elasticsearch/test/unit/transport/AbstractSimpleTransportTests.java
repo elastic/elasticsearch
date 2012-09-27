@@ -22,8 +22,6 @@ package org.elasticsearch.test.unit.transport;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.io.stream.VoidStreamable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
@@ -86,7 +84,7 @@ public abstract class AbstractSimpleTransportTests {
             public void messageReceived(StringMessageRequest request, TransportChannel channel) {
                 assertThat("moshe", equalTo(request.message));
                 try {
-                    channel.sendResponse(new StringMessage("hello " + request.message));
+                    channel.sendResponse(new StringMessageResponse("hello " + request.message));
                 } catch (IOException e) {
                     e.printStackTrace();
                     assertThat(e.getMessage(), false, equalTo(true));
@@ -94,11 +92,11 @@ public abstract class AbstractSimpleTransportTests {
             }
         });
 
-        TransportFuture<StringMessage> res = serviceB.submitRequest(serviceANode, "sayHello",
-                new StringMessageRequest("moshe"), new BaseTransportResponseHandler<StringMessage>() {
+        TransportFuture<StringMessageResponse> res = serviceB.submitRequest(serviceANode, "sayHello",
+                new StringMessageRequest("moshe"), new BaseTransportResponseHandler<StringMessageResponse>() {
             @Override
-            public StringMessage newInstance() {
-                return new StringMessage();
+            public StringMessageResponse newInstance() {
+                return new StringMessageResponse();
             }
 
             @Override
@@ -107,7 +105,7 @@ public abstract class AbstractSimpleTransportTests {
             }
 
             @Override
-            public void handleResponse(StringMessage response) {
+            public void handleResponse(StringMessageResponse response) {
                 assertThat("hello moshe", equalTo(response.message));
             }
 
@@ -119,7 +117,7 @@ public abstract class AbstractSimpleTransportTests {
         });
 
         try {
-            StringMessage message = res.get();
+            StringMessageResponse message = res.get();
             assertThat("hello moshe", equalTo(message.message));
         } catch (Exception e) {
             assertThat(e.getMessage(), false, equalTo(true));
@@ -144,7 +142,7 @@ public abstract class AbstractSimpleTransportTests {
             @Override
             public void messageReceived(TransportRequest.Empty request, TransportChannel channel) {
                 try {
-                    channel.sendResponse(VoidStreamable.INSTANCE, TransportResponseOptions.options().withCompress(true));
+                    channel.sendResponse(TransportResponse.Empty.INSTANCE, TransportResponseOptions.options().withCompress(true));
                 } catch (IOException e) {
                     e.printStackTrace();
                     assertThat(e.getMessage(), false, equalTo(true));
@@ -152,11 +150,11 @@ public abstract class AbstractSimpleTransportTests {
             }
         });
 
-        TransportFuture<VoidStreamable> res = serviceB.submitRequest(serviceANode, "sayHello",
-                TransportRequest.Empty.INSTANCE, TransportRequestOptions.options().withCompress(true), new BaseTransportResponseHandler<VoidStreamable>() {
+        TransportFuture<TransportResponse.Empty> res = serviceB.submitRequest(serviceANode, "sayHello",
+                TransportRequest.Empty.INSTANCE, TransportRequestOptions.options().withCompress(true), new BaseTransportResponseHandler<TransportResponse.Empty>() {
             @Override
-            public VoidStreamable newInstance() {
-                return VoidStreamable.INSTANCE;
+            public TransportResponse.Empty newInstance() {
+                return TransportResponse.Empty.INSTANCE;
             }
 
             @Override
@@ -165,7 +163,7 @@ public abstract class AbstractSimpleTransportTests {
             }
 
             @Override
-            public void handleResponse(VoidStreamable response) {
+            public void handleResponse(TransportResponse.Empty response) {
             }
 
             @Override
@@ -176,7 +174,7 @@ public abstract class AbstractSimpleTransportTests {
         });
 
         try {
-            VoidStreamable message = res.get();
+            TransportResponse.Empty message = res.get();
             assertThat(message, notNullValue());
         } catch (Exception e) {
             assertThat(e.getMessage(), false, equalTo(true));
@@ -202,7 +200,7 @@ public abstract class AbstractSimpleTransportTests {
             public void messageReceived(StringMessageRequest request, TransportChannel channel) {
                 assertThat("moshe", equalTo(request.message));
                 try {
-                    channel.sendResponse(new StringMessage("hello " + request.message), TransportResponseOptions.options().withCompress(true));
+                    channel.sendResponse(new StringMessageResponse("hello " + request.message), TransportResponseOptions.options().withCompress(true));
                 } catch (IOException e) {
                     e.printStackTrace();
                     assertThat(e.getMessage(), false, equalTo(true));
@@ -210,11 +208,11 @@ public abstract class AbstractSimpleTransportTests {
             }
         });
 
-        TransportFuture<StringMessage> res = serviceB.submitRequest(serviceANode, "sayHello",
-                new StringMessageRequest("moshe"), TransportRequestOptions.options().withCompress(true), new BaseTransportResponseHandler<StringMessage>() {
+        TransportFuture<StringMessageResponse> res = serviceB.submitRequest(serviceANode, "sayHello",
+                new StringMessageRequest("moshe"), TransportRequestOptions.options().withCompress(true), new BaseTransportResponseHandler<StringMessageResponse>() {
             @Override
-            public StringMessage newInstance() {
-                return new StringMessage();
+            public StringMessageResponse newInstance() {
+                return new StringMessageResponse();
             }
 
             @Override
@@ -223,7 +221,7 @@ public abstract class AbstractSimpleTransportTests {
             }
 
             @Override
-            public void handleResponse(StringMessage response) {
+            public void handleResponse(StringMessageResponse response) {
                 assertThat("hello moshe", equalTo(response.message));
             }
 
@@ -235,7 +233,7 @@ public abstract class AbstractSimpleTransportTests {
         });
 
         try {
-            StringMessage message = res.get();
+            StringMessageResponse message = res.get();
             assertThat("hello moshe", equalTo(message.message));
         } catch (Exception e) {
             assertThat(e.getMessage(), false, equalTo(true));
@@ -264,11 +262,11 @@ public abstract class AbstractSimpleTransportTests {
             }
         });
 
-        TransportFuture<StringMessage> res = serviceB.submitRequest(serviceANode, "sayHelloException",
-                new StringMessageRequest("moshe"), new BaseTransportResponseHandler<StringMessage>() {
+        TransportFuture<StringMessageResponse> res = serviceB.submitRequest(serviceANode, "sayHelloException",
+                new StringMessageRequest("moshe"), new BaseTransportResponseHandler<StringMessageResponse>() {
             @Override
-            public StringMessage newInstance() {
-                return new StringMessage();
+            public StringMessageResponse newInstance() {
+                return new StringMessageResponse();
             }
 
             @Override
@@ -277,7 +275,7 @@ public abstract class AbstractSimpleTransportTests {
             }
 
             @Override
-            public void handleResponse(StringMessage response) {
+            public void handleResponse(StringMessageResponse response) {
                 assertThat("got response instead of exception", false, equalTo(true));
             }
 
@@ -342,11 +340,11 @@ public abstract class AbstractSimpleTransportTests {
             }
         });
 
-        TransportFuture<StringMessage> res = serviceB.submitRequest(serviceANode, "sayHelloTimeoutNoResponse",
-                new StringMessageRequest("moshe"), options().withTimeout(100), new BaseTransportResponseHandler<StringMessage>() {
+        TransportFuture<StringMessageResponse> res = serviceB.submitRequest(serviceANode, "sayHelloTimeoutNoResponse",
+                new StringMessageRequest("moshe"), options().withTimeout(100), new BaseTransportResponseHandler<StringMessageResponse>() {
             @Override
-            public StringMessage newInstance() {
-                return new StringMessage();
+            public StringMessageResponse newInstance() {
+                return new StringMessageResponse();
             }
 
             @Override
@@ -355,7 +353,7 @@ public abstract class AbstractSimpleTransportTests {
             }
 
             @Override
-            public void handleResponse(StringMessage response) {
+            public void handleResponse(StringMessageResponse response) {
                 assertThat("got response instead of exception", false, equalTo(true));
             }
 
@@ -366,7 +364,7 @@ public abstract class AbstractSimpleTransportTests {
         });
 
         try {
-            StringMessage message = res.txGet();
+            StringMessageResponse message = res.txGet();
             assertThat("exception should be thrown", false, equalTo(true));
         } catch (Exception e) {
             assertThat(e, instanceOf(ReceiveTimeoutTransportException.class));
@@ -397,7 +395,7 @@ public abstract class AbstractSimpleTransportTests {
                     // ignore
                 }
                 try {
-                    channel.sendResponse(new StringMessage("hello " + request.message));
+                    channel.sendResponse(new StringMessageResponse("hello " + request.message));
                 } catch (IOException e) {
                     e.printStackTrace();
                     assertThat(e.getMessage(), false, equalTo(true));
@@ -405,11 +403,11 @@ public abstract class AbstractSimpleTransportTests {
             }
         });
 
-        TransportFuture<StringMessage> res = serviceB.submitRequest(serviceANode, "sayHelloTimeoutDelayedResponse",
-                new StringMessageRequest("300ms"), options().withTimeout(100), new BaseTransportResponseHandler<StringMessage>() {
+        TransportFuture<StringMessageResponse> res = serviceB.submitRequest(serviceANode, "sayHelloTimeoutDelayedResponse",
+                new StringMessageRequest("300ms"), options().withTimeout(100), new BaseTransportResponseHandler<StringMessageResponse>() {
             @Override
-            public StringMessage newInstance() {
-                return new StringMessage();
+            public StringMessageResponse newInstance() {
+                return new StringMessageResponse();
             }
 
             @Override
@@ -418,7 +416,7 @@ public abstract class AbstractSimpleTransportTests {
             }
 
             @Override
-            public void handleResponse(StringMessage response) {
+            public void handleResponse(StringMessageResponse response) {
                 assertThat("got response instead of exception", false, equalTo(true));
             }
 
@@ -429,7 +427,7 @@ public abstract class AbstractSimpleTransportTests {
         });
 
         try {
-            StringMessage message = res.txGet();
+            StringMessageResponse message = res.txGet();
             assertThat("exception should be thrown", false, equalTo(true));
         } catch (Exception e) {
             assertThat(e, instanceOf(ReceiveTimeoutTransportException.class));
@@ -442,10 +440,10 @@ public abstract class AbstractSimpleTransportTests {
             final int counter = i;
             // now, try and send another request, this times, with a short timeout
             res = serviceB.submitRequest(serviceANode, "sayHelloTimeoutDelayedResponse",
-                    new StringMessageRequest(counter + "ms"), options().withTimeout(100), new BaseTransportResponseHandler<StringMessage>() {
+                    new StringMessageRequest(counter + "ms"), options().withTimeout(100), new BaseTransportResponseHandler<StringMessageResponse>() {
                 @Override
-                public StringMessage newInstance() {
-                    return new StringMessage();
+                public StringMessageResponse newInstance() {
+                    return new StringMessageResponse();
                 }
 
                 @Override
@@ -454,7 +452,7 @@ public abstract class AbstractSimpleTransportTests {
                 }
 
                 @Override
-                public void handleResponse(StringMessage response) {
+                public void handleResponse(StringMessageResponse response) {
                     assertThat("hello " + counter + "ms", equalTo(response.message));
                 }
 
@@ -465,14 +463,14 @@ public abstract class AbstractSimpleTransportTests {
                 }
             });
 
-            StringMessage message = res.txGet();
+            StringMessageResponse message = res.txGet();
             assertThat(message.message, equalTo("hello " + counter + "ms"));
         }
 
         serviceA.removeHandler("sayHelloTimeoutDelayedResponse");
     }
 
-    class StringMessageRequest extends TransportRequest {
+    static class StringMessageRequest extends TransportRequest {
 
         private String message;
 
@@ -496,24 +494,26 @@ public abstract class AbstractSimpleTransportTests {
         }
     }
 
-    class StringMessage implements Streamable {
+    static class StringMessageResponse extends TransportResponse {
 
         private String message;
 
-        StringMessage(String message) {
+        StringMessageResponse(String message) {
             this.message = message;
         }
 
-        StringMessage() {
+        StringMessageResponse() {
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
             message = in.readString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
             out.writeString(message);
         }
     }

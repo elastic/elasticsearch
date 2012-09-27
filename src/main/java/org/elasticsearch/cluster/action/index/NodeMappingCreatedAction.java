@@ -26,7 +26,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.VoidStreamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -86,7 +85,7 @@ public class NodeMappingCreatedAction extends AbstractComponent {
             });
         } else {
             transportService.sendRequest(clusterService.state().nodes().masterNode(),
-                    NodeMappingCreatedTransportHandler.ACTION, response, VoidTransportResponseHandler.INSTANCE_SAME);
+                    NodeMappingCreatedTransportHandler.ACTION, response, EmptyTransportResponseHandler.INSTANCE_SAME);
         }
     }
 
@@ -115,7 +114,7 @@ public class NodeMappingCreatedAction extends AbstractComponent {
         @Override
         public void messageReceived(NodeMappingCreatedResponse response, TransportChannel channel) throws Exception {
             innerNodeIndexCreated(response);
-            channel.sendResponse(VoidStreamable.INSTANCE);
+            channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
 
         @Override

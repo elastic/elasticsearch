@@ -22,14 +22,13 @@ package org.elasticsearch.action.admin.indices.exists.types;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 
 import java.io.IOException;
 
 /**
  * Whether all of the existed types exist.
  */
-public class TypesExistsResponse implements ActionResponse, Streamable {
+public class TypesExistsResponse extends ActionResponse {
 
     private boolean exists;
 
@@ -49,10 +48,12 @@ public class TypesExistsResponse implements ActionResponse, Streamable {
     }
 
     public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
         exists = in.readBoolean();
     }
 
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeBoolean(exists);
     }
 }

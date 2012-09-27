@@ -33,7 +33,7 @@ import static com.google.common.collect.Maps.newHashMap;
  * The response of delete by query action. Holds the {@link IndexDeleteByQueryResponse}s from all the
  * different indices.
  */
-public class DeleteByQueryResponse implements ActionResponse, Iterable<IndexDeleteByQueryResponse> {
+public class DeleteByQueryResponse extends ActionResponse implements Iterable<IndexDeleteByQueryResponse> {
 
     private Map<String, IndexDeleteByQueryResponse> indices = newHashMap();
 
@@ -69,6 +69,7 @@ public class DeleteByQueryResponse implements ActionResponse, Iterable<IndexDele
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             IndexDeleteByQueryResponse response = new IndexDeleteByQueryResponse();
@@ -79,6 +80,7 @@ public class DeleteByQueryResponse implements ActionResponse, Iterable<IndexDele
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeVInt(indices.size());
         for (IndexDeleteByQueryResponse indexResponse : indices.values()) {
             indexResponse.writeTo(out);

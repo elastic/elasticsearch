@@ -38,7 +38,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.VoidStreamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.Discovery;
@@ -509,7 +508,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         return rejoin(currentState, "zen-disco-master_receive_cluster_state_from_another_master [" + newState.nodes().masterNode() + "]");
                     } else {
                         logger.warn("received cluster state from [{}] which is also master but with an older cluster_state, telling [{}] to rejoin the cluster", newState.nodes().masterNode(), newState.nodes().masterNode());
-                        transportService.sendRequest(newState.nodes().masterNode(), RejoinClusterRequestHandler.ACTION, new RejoinClusterRequest(currentState.nodes().localNodeId()), new VoidTransportResponseHandler(ThreadPool.Names.SAME) {
+                        transportService.sendRequest(newState.nodes().masterNode(), RejoinClusterRequestHandler.ACTION, new RejoinClusterRequest(currentState.nodes().localNodeId()), new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                             @Override
                             public void handleException(TransportException exp) {
                                 logger.warn("failed to send rejoin request to [{}]", exp, newState.nodes().masterNode());
@@ -808,7 +807,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     try {
-                        channel.sendResponse(VoidStreamable.INSTANCE);
+                        channel.sendResponse(TransportResponse.Empty.INSTANCE);
                     } catch (Exception e) {
                         logger.warn("failed to send response on rejoin cluster request handling", e);
                     }

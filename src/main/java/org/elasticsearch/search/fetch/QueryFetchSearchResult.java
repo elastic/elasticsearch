@@ -21,10 +21,10 @@ package org.elasticsearch.search.fetch;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
+import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
 
@@ -34,10 +34,9 @@ import static org.elasticsearch.search.query.QuerySearchResult.readQuerySearchRe
 /**
  *
  */
-public class QueryFetchSearchResult implements Streamable, QuerySearchResultProvider, FetchSearchResultProvider {
+public class QueryFetchSearchResult extends TransportResponse implements QuerySearchResultProvider, FetchSearchResultProvider {
 
     private QuerySearchResult queryResult;
-
     private FetchSearchResult fetchResult;
 
     public QueryFetchSearchResult() {
@@ -84,12 +83,14 @@ public class QueryFetchSearchResult implements Streamable, QuerySearchResultProv
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
         queryResult = readQuerySearchResult(in);
         fetchResult = readFetchSearchResult(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         queryResult.writeTo(out);
         fetchResult.writeTo(out);
     }

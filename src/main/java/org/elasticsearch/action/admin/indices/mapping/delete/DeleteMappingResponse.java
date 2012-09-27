@@ -22,16 +22,13 @@ package org.elasticsearch.action.admin.indices.mapping.delete;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 
 import java.io.IOException;
 
 /**
  * The response of remove mapping operation.
- *
- *
  */
-public class DeleteMappingResponse implements ActionResponse, Streamable {
+public class DeleteMappingResponse extends ActionResponse {
 
     DeleteMappingResponse() {
 
@@ -39,9 +36,11 @@ public class DeleteMappingResponse implements ActionResponse, Streamable {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
     }
 }

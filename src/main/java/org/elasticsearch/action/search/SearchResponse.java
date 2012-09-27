@@ -40,7 +40,7 @@ import static org.elasticsearch.search.internal.InternalSearchResponse.readInter
 /**
  * A response of a search request.
  */
-public class SearchResponse implements ActionResponse, ToXContent {
+public class SearchResponse extends ActionResponse implements ToXContent {
 
     private InternalSearchResponse internalResponse;
 
@@ -281,6 +281,7 @@ public class SearchResponse implements ActionResponse, ToXContent {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
         internalResponse = readInternalSearchResponse(in);
         totalShards = in.readVInt();
         successfulShards = in.readVInt();
@@ -293,14 +294,13 @@ public class SearchResponse implements ActionResponse, ToXContent {
                 shardFailures[i] = readShardSearchFailure(in);
             }
         }
-        if (in.readBoolean()) {
-            scrollId = in.readUTF();
-        }
+        scrollId = in.readOptionalString();
         tookInMillis = in.readVLong();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         internalResponse.writeTo(out);
         out.writeVInt(totalShards);
         out.writeVInt(successfulShards);
@@ -310,12 +310,7 @@ public class SearchResponse implements ActionResponse, ToXContent {
             shardSearchFailure.writeTo(out);
         }
 
-        if (scrollId == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeUTF(scrollId);
-        }
+        out.writeOptionalString(scrollId);
         out.writeVLong(tookInMillis);
     }
 

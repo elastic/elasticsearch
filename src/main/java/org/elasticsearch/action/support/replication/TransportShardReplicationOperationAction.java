@@ -37,7 +37,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.io.stream.VoidStreamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexShardMissingException;
@@ -253,7 +252,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         @Override
         public void messageReceived(final ReplicaOperationRequest request, final TransportChannel channel) throws Exception {
             shardOperationOnReplica(request);
-            channel.sendResponse(VoidStreamable.INSTANCE);
+            channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
     }
 
@@ -631,9 +630,9 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             final ReplicaOperationRequest shardRequest = new ReplicaOperationRequest(shardIt.shardId().id(), response.replicaRequest());
             if (!nodeId.equals(nodes.localNodeId())) {
                 DiscoveryNode node = nodes.get(nodeId);
-                transportService.sendRequest(node, transportReplicaAction, shardRequest, transportOptions, new VoidTransportResponseHandler(ThreadPool.Names.SAME) {
+                transportService.sendRequest(node, transportReplicaAction, shardRequest, transportOptions, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                     @Override
-                    public void handleResponse(VoidStreamable vResponse) {
+                    public void handleResponse(TransportResponse.Empty vResponse) {
                         finishIfPossible();
                     }
 

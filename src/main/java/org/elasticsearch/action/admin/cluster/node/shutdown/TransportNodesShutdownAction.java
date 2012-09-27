@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.VoidStreamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.Node;
@@ -47,11 +46,8 @@ import java.util.concurrent.CountDownLatch;
 public class TransportNodesShutdownAction extends TransportMasterNodeOperationAction<NodesShutdownRequest, NodesShutdownResponse> {
 
     private final Node node;
-
     private final ClusterName clusterName;
-
     private final boolean disabled;
-
     private final TimeValue delay;
 
     @Inject
@@ -128,9 +124,9 @@ public class TransportNodesShutdownAction extends TransportMasterNodeOperationAc
                             latch.countDown();
                         } else {
                             logger.trace("[cluster_shutdown]: sending shutdown request to [{}]", node);
-                            transportService.sendRequest(node, NodeShutdownRequestHandler.ACTION, new NodeShutdownRequest(request), new VoidTransportResponseHandler(ThreadPool.Names.SAME) {
+                            transportService.sendRequest(node, NodeShutdownRequestHandler.ACTION, new NodeShutdownRequest(request), new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                                 @Override
-                                public void handleResponse(VoidStreamable response) {
+                                public void handleResponse(TransportResponse.Empty response) {
                                     logger.trace("[cluster_shutdown]: received shutdown response from [{}]", node);
                                     latch.countDown();
                                 }
@@ -152,9 +148,9 @@ public class TransportNodesShutdownAction extends TransportMasterNodeOperationAc
 
                     // now, kill the master
                     logger.trace("[cluster_shutdown]: shutting down the master [{}]", state.nodes().masterNode());
-                    transportService.sendRequest(state.nodes().masterNode(), NodeShutdownRequestHandler.ACTION, new NodeShutdownRequest(request), new VoidTransportResponseHandler(ThreadPool.Names.SAME) {
+                    transportService.sendRequest(state.nodes().masterNode(), NodeShutdownRequestHandler.ACTION, new NodeShutdownRequest(request), new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                         @Override
-                        public void handleResponse(VoidStreamable response) {
+                        public void handleResponse(TransportResponse.Empty response) {
                             logger.trace("[cluster_shutdown]: received shutdown response from master");
                         }
 
@@ -196,9 +192,9 @@ public class TransportNodesShutdownAction extends TransportMasterNodeOperationAc
                         }
 
                         logger.trace("[partial_cluster_shutdown]: sending shutdown request to [{}]", node);
-                        transportService.sendRequest(node, NodeShutdownRequestHandler.ACTION, new NodeShutdownRequest(request), new VoidTransportResponseHandler(ThreadPool.Names.SAME) {
+                        transportService.sendRequest(node, NodeShutdownRequestHandler.ACTION, new NodeShutdownRequest(request), new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                             @Override
-                            public void handleResponse(VoidStreamable response) {
+                            public void handleResponse(TransportResponse.Empty response) {
                                 logger.trace("[partial_cluster_shutdown]: received shutdown response from [{}]", node);
                                 latch.countDown();
                             }
@@ -288,7 +284,7 @@ public class TransportNodesShutdownAction extends TransportMasterNodeOperationAc
             });
             t.start();
 
-            channel.sendResponse(VoidStreamable.INSTANCE);
+            channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
     }
 

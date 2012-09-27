@@ -24,11 +24,14 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StringStreamable;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.jmx.JmxService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
+
+import java.io.IOException;
 
 /**
  *
@@ -56,12 +59,12 @@ public class GetJmxServiceUrlAction extends AbstractComponent {
         if (clusterService.state().nodes().localNodeId().equals(node.id())) {
             return jmxService.publishUrl();
         } else {
-            return transportService.submitRequest(node, GetJmxServiceUrlTransportHandler.ACTION, TransportRequest.Empty.INSTANCE, new FutureTransportResponseHandler<StringStreamable>() {
+            return transportService.submitRequest(node, GetJmxServiceUrlTransportHandler.ACTION, TransportRequest.Empty.INSTANCE, new FutureTransportResponseHandler<GetJmxServiceUrlResponse>() {
                 @Override
-                public StringStreamable newInstance() {
-                    return new StringStreamable();
+                public GetJmxServiceUrlResponse newInstance() {
+                    return new GetJmxServiceUrlResponse();
                 }
-            }).txGet().get();
+            }).txGet().url();
         }
     }
 
@@ -81,7 +84,35 @@ public class GetJmxServiceUrlAction extends AbstractComponent {
 
         @Override
         public void messageReceived(TransportRequest.Empty request, TransportChannel channel) throws Exception {
-            channel.sendResponse(new StringStreamable(jmxService.publishUrl()));
+            channel.sendResponse(new GetJmxServiceUrlResponse(jmxService.publishUrl()));
+        }
+    }
+
+    static class GetJmxServiceUrlResponse extends TransportResponse {
+
+        private String url;
+
+        GetJmxServiceUrlResponse() {
+        }
+
+        GetJmxServiceUrlResponse(String url) {
+            this.url = url;
+        }
+
+        public String url() {
+            return this.url;
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+            url = in.readString();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeString(url);
         }
     }
 }

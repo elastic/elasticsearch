@@ -33,17 +33,12 @@ import static org.elasticsearch.action.support.DefaultShardOperationFailedExcept
 
 /**
  * Base class for all broadcast operation based responses.
- *
- *
  */
-public abstract class BroadcastOperationResponse implements ActionResponse {
+public abstract class BroadcastOperationResponse extends ActionResponse {
 
     private int totalShards;
-
     private int successfulShards;
-
     private int failedShards;
-
     private List<ShardOperationFailedException> shardFailures = ImmutableList.of();
 
     protected BroadcastOperationResponse() {
@@ -120,6 +115,7 @@ public abstract class BroadcastOperationResponse implements ActionResponse {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
         totalShards = in.readVInt();
         successfulShards = in.readVInt();
         failedShards = in.readVInt();
@@ -134,6 +130,7 @@ public abstract class BroadcastOperationResponse implements ActionResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeVInt(totalShards);
         out.writeVInt(successfulShards);
         out.writeVInt(failedShards);

@@ -22,10 +22,10 @@ package org.elasticsearch.search.query;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.facet.Facets;
 import org.elasticsearch.search.facet.InternalFacets;
+import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
 
@@ -35,20 +35,14 @@ import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
 /**
  *
  */
-public class QuerySearchResult implements Streamable, QuerySearchResultProvider {
+public class QuerySearchResult extends TransportResponse implements QuerySearchResultProvider {
 
     private long id;
-
     private SearchShardTarget shardTarget;
-
     private int from;
-
     private int size;
-
     private TopDocs topDocs;
-
     private InternalFacets facets;
-
     private boolean searchTimedOut;
 
     public QuerySearchResult() {
@@ -133,6 +127,7 @@ public class QuerySearchResult implements Streamable, QuerySearchResultProvider 
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
         id = in.readLong();
 //        shardTarget = readSearchShardTarget(in);
         from = in.readVInt();
@@ -146,6 +141,7 @@ public class QuerySearchResult implements Streamable, QuerySearchResultProvider 
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeLong(id);
 //        shardTarget.writeTo(out);
         out.writeVInt(from);

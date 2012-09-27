@@ -31,18 +31,13 @@ import java.util.List;
 
 /**
  */
-public class UpdateResponse implements ActionResponse {
+public class UpdateResponse extends ActionResponse {
 
     private String index;
-
     private String id;
-
     private String type;
-
     private long version;
-
     private List<String> matches;
-
     private GetResult getResult;
 
     public UpdateResponse() {
@@ -147,28 +142,29 @@ public class UpdateResponse implements ActionResponse {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        index = in.readUTF();
-        id = in.readUTF();
-        type = in.readUTF();
+        super.readFrom(in);
+        index = in.readString();
+        id = in.readString();
+        type = in.readString();
         version = in.readLong();
         if (in.readBoolean()) {
             int size = in.readVInt();
             if (size == 0) {
                 matches = ImmutableList.of();
             } else if (size == 1) {
-                matches = ImmutableList.of(in.readUTF());
+                matches = ImmutableList.of(in.readString());
             } else if (size == 2) {
-                matches = ImmutableList.of(in.readUTF(), in.readUTF());
+                matches = ImmutableList.of(in.readString(), in.readString());
             } else if (size == 3) {
-                matches = ImmutableList.of(in.readUTF(), in.readUTF(), in.readUTF());
+                matches = ImmutableList.of(in.readString(), in.readString(), in.readString());
             } else if (size == 4) {
-                matches = ImmutableList.of(in.readUTF(), in.readUTF(), in.readUTF(), in.readUTF());
+                matches = ImmutableList.of(in.readString(), in.readString(), in.readString(), in.readString());
             } else if (size == 5) {
-                matches = ImmutableList.of(in.readUTF(), in.readUTF(), in.readUTF(), in.readUTF(), in.readUTF());
+                matches = ImmutableList.of(in.readString(), in.readString(), in.readString(), in.readString(), in.readString());
             } else {
                 matches = new ArrayList<String>();
                 for (int i = 0; i < size; i++) {
-                    matches.add(in.readUTF());
+                    matches.add(in.readString());
                 }
             }
         }
@@ -179,9 +175,10 @@ public class UpdateResponse implements ActionResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeUTF(index);
-        out.writeUTF(id);
-        out.writeUTF(type);
+        super.writeTo(out);
+        out.writeString(index);
+        out.writeString(id);
+        out.writeString(type);
         out.writeLong(version);
         if (matches == null) {
             out.writeBoolean(false);
@@ -189,7 +186,7 @@ public class UpdateResponse implements ActionResponse {
             out.writeBoolean(true);
             out.writeVInt(matches.size());
             for (String match : matches) {
-                out.writeUTF(match);
+                out.writeString(match);
             }
         }
         if (getResult == null) {

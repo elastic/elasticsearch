@@ -19,22 +19,18 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.common.io.stream.Streamable;
-
 import java.io.IOException;
 
 /**
  * A transport channel allows to send a response to a request on the channel.
- *
- *
  */
 public interface TransportChannel {
 
     String action();
 
-    void sendResponse(Streamable message) throws IOException;
+    void sendResponse(TransportResponse response) throws IOException;
 
-    void sendResponse(Streamable message, TransportResponseOptions options) throws IOException;
+    void sendResponse(TransportResponse response, TransportResponseOptions options) throws IOException;
 
     void sendResponse(Throwable error) throws IOException;
 }

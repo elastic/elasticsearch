@@ -22,7 +22,7 @@ package org.elasticsearch.indices.recovery;
 import com.google.common.collect.Lists;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
 import java.util.List;
@@ -30,7 +30,7 @@ import java.util.List;
 /**
  *
  */
-class RecoveryResponse implements Streamable {
+class RecoveryResponse extends TransportResponse {
 
     List<String> phase1FileNames = Lists.newArrayList();
     List<Long> phase1FileSizes = Lists.newArrayList();
@@ -54,6 +54,7 @@ class RecoveryResponse implements Streamable {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
         int size = in.readVInt();
         phase1FileNames = Lists.newArrayListWithCapacity(size);
         for (int i = 0; i < size; i++) {
@@ -89,6 +90,7 @@ class RecoveryResponse implements Streamable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeVInt(phase1FileNames.size());
         for (String name : phase1FileNames) {
             out.writeUTF(name);

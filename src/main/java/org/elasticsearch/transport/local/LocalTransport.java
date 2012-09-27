@@ -253,11 +253,11 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
 
 
     private void handleResponse(StreamInput buffer, final TransportResponseHandler handler) {
-        final Streamable streamable = handler.newInstance();
+        final TransportResponse response = handler.newInstance();
         try {
-            streamable.readFrom(buffer);
+            response.readFrom(buffer);
         } catch (Exception e) {
-            handleException(handler, new TransportSerializationException("Failed to deserialize response of type [" + streamable.getClass().getName() + "]", e));
+            handleException(handler, new TransportSerializationException("Failed to deserialize response of type [" + response.getClass().getName() + "]", e));
             return;
         }
         threadPool.executor(handler.executor()).execute(new Runnable() {
@@ -265,7 +265,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
             @Override
             public void run() {
                 try {
-                    handler.handleResponse(streamable);
+                    handler.handleResponse(response);
                 } catch (Exception e) {
                     handleException(handler, new ResponseHandlerFailureTransportException(e));
                 }

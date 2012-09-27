@@ -29,10 +29,9 @@ import java.io.IOException;
 /**
  *
  */
-public class BulkShardResponse implements ActionResponse {
+public class BulkShardResponse extends ActionResponse {
 
     private ShardId shardId;
-
     private BulkItemResponse[] responses;
 
     BulkShardResponse() {
@@ -53,6 +52,7 @@ public class BulkShardResponse implements ActionResponse {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
         shardId = ShardId.readShardId(in);
         responses = new BulkItemResponse[in.readVInt()];
         for (int i = 0; i < responses.length; i++) {
@@ -62,6 +62,7 @@ public class BulkShardResponse implements ActionResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         shardId.writeTo(out);
         out.writeVInt(responses.length);
         for (BulkItemResponse response : responses) {

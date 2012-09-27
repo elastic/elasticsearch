@@ -22,22 +22,21 @@ package org.elasticsearch.action.deletebyquery;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 
 import java.io.IOException;
 
 /**
  * Delete by query response executed on a specific shard.
- *
- *
  */
-public class ShardDeleteByQueryResponse implements ActionResponse, Streamable {
+public class ShardDeleteByQueryResponse extends ActionResponse {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
     }
 }

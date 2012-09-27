@@ -28,7 +28,7 @@ import java.io.IOException;
 
 /**
  */
-public class ClusterRerouteResponse implements ActionResponse {
+public class ClusterRerouteResponse extends ActionResponse {
 
     private ClusterState state;
 
@@ -50,11 +50,13 @@ public class ClusterRerouteResponse implements ActionResponse {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
         state = ClusterState.Builder.readFrom(in, null);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         ClusterState.Builder.writeTo(state, out);
     }
 }

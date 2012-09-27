@@ -22,11 +22,10 @@ package org.elasticsearch.action.admin.indices.exists.indices;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 
 import java.io.IOException;
 
-public class IndicesExistsResponse implements ActionResponse, Streamable {
+public class IndicesExistsResponse extends ActionResponse {
 
     private boolean exists;
 
@@ -47,11 +46,13 @@ public class IndicesExistsResponse implements ActionResponse, Streamable {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
         exists = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeBoolean(exists);
     }
 }

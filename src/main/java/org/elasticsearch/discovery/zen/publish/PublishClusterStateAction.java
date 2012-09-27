@@ -27,7 +27,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
-import org.elasticsearch.common.io.stream.*;
+import org.elasticsearch.common.io.stream.CachedStreamInput;
+import org.elasticsearch.common.io.stream.CachedStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -95,7 +98,7 @@ public class PublishClusterStateAction extends AbstractComponent {
                         new PublishClusterStateRequest(entry.bytes().bytes()),
                         TransportRequestOptions.options().withHighType().withCompress(false), // no need to compress, we already compressed the bytes
 
-                        new VoidTransportResponseHandler(ThreadPool.Names.SAME) {
+                        new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                             @Override
                             public void handleException(TransportException exp) {
                                 logger.debug("failed to send cluster state to [{}], should be detected as failed soon...", exp, node);
@@ -156,7 +159,7 @@ public class PublishClusterStateAction extends AbstractComponent {
             in.setVersion(request.version);
             ClusterState clusterState = ClusterState.Builder.readFrom(in, nodesProvider.nodes().localNode());
             listener.onNewClusterState(clusterState);
-            channel.sendResponse(VoidStreamable.INSTANCE);
+            channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
 
         @Override

@@ -33,7 +33,7 @@ import static org.elasticsearch.common.lucene.Lucene.writeExplanation;
 /**
  * Response containing the score explanation.
  */
-public class ExplainResponse implements ActionResponse {
+public class ExplainResponse extends ActionResponse {
 
     private boolean exists;
     private Explanation explanation;
@@ -94,6 +94,7 @@ public class ExplainResponse implements ActionResponse {
     }
 
     public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
         exists = in.readBoolean();
         if (in.readBoolean()) {
             explanation = readExplanation(in);
@@ -104,6 +105,7 @@ public class ExplainResponse implements ActionResponse {
     }
 
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeBoolean(exists);
         if (explanation == null) {
             out.writeBoolean(false);

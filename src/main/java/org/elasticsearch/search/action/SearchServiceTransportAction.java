@@ -26,7 +26,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.VoidStreamable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchService;
@@ -51,7 +50,7 @@ import java.io.IOException;
  */
 public class SearchServiceTransportAction extends AbstractComponent {
 
-    static final class FreeContextResponseHandler extends VoidTransportResponseHandler {
+    static final class FreeContextResponseHandler extends EmptyTransportResponseHandler {
 
         private final ESLogger logger;
 
@@ -483,7 +482,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
         @Override
         public void messageReceived(SearchFreeContextRequest request, TransportChannel channel) throws Exception {
             searchService.freeContext(request.id());
-            channel.sendResponse(VoidStreamable.INSTANCE);
+            channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
 
         @Override

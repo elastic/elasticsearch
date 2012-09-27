@@ -19,15 +19,12 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.threadpool.ThreadPool;
 
 /**
  * A response handler to be used when all interaction will be done through the {@link TransportFuture}.
- *
- *
  */
-public abstract class FutureTransportResponseHandler<T extends Streamable> extends BaseTransportResponseHandler<T> {
+public abstract class FutureTransportResponseHandler<T extends TransportResponse> extends BaseTransportResponseHandler<T> {
 
     @Override
     public void handleResponse(T response) {

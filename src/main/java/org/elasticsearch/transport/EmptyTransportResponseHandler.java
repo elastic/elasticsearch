@@ -19,29 +19,28 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.common.io.stream.VoidStreamable;
 import org.elasticsearch.threadpool.ThreadPool;
 
 /**
  *
  */
-public class VoidTransportResponseHandler implements TransportResponseHandler<VoidStreamable> {
+public class EmptyTransportResponseHandler implements TransportResponseHandler<TransportResponse.Empty> {
 
-    public static final VoidTransportResponseHandler INSTANCE_SAME = new VoidTransportResponseHandler(ThreadPool.Names.SAME);
+    public static final EmptyTransportResponseHandler INSTANCE_SAME = new EmptyTransportResponseHandler(ThreadPool.Names.SAME);
 
     private final String executor;
 
-    public VoidTransportResponseHandler(String executor) {
+    public EmptyTransportResponseHandler(String executor) {
         this.executor = executor;
     }
 
     @Override
-    public VoidStreamable newInstance() {
-        return VoidStreamable.INSTANCE;
+    public TransportResponse.Empty newInstance() {
+        return TransportResponse.Empty.INSTANCE;
     }
 
     @Override
-    public void handleResponse(VoidStreamable response) {
+    public void handleResponse(TransportResponse.Empty response) {
     }
 
     @Override

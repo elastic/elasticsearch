@@ -25,11 +25,7 @@ import org.elasticsearch.common.io.ThrowableObjectOutputStream;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.CachedStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.transport.NotSerializableTransportException;
-import org.elasticsearch.transport.RemoteTransportException;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportResponseOptions;
+import org.elasticsearch.transport.*;
 import org.elasticsearch.transport.support.TransportStatus;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.channel.Channel;
@@ -67,12 +63,12 @@ public class NettyTransportChannel implements TransportChannel {
     }
 
     @Override
-    public void sendResponse(Streamable message) throws IOException {
-        sendResponse(message, TransportResponseOptions.EMPTY);
+    public void sendResponse(TransportResponse response) throws IOException {
+        sendResponse(response, TransportResponseOptions.EMPTY);
     }
 
     @Override
-    public void sendResponse(Streamable message, TransportResponseOptions options) throws IOException {
+    public void sendResponse(TransportResponse response, TransportResponseOptions options) throws IOException {
         if (transport.compress) {
             options.withCompress(true);
         }
@@ -86,13 +82,13 @@ public class NettyTransportChannel implements TransportChannel {
             cachedEntry.bytes().skip(NettyHeader.HEADER_SIZE);
             StreamOutput stream = cachedEntry.handles(CompressorFactory.defaultCompressor());
             stream.setVersion(version);
-            message.writeTo(stream);
+            response.writeTo(stream);
             stream.close();
         } else {
             StreamOutput stream = cachedEntry.handles();
             stream.setVersion(version);
             cachedEntry.bytes().skip(NettyHeader.HEADER_SIZE);
-            message.writeTo(stream);
+            response.writeTo(stream);
             stream.close();
         }
         ChannelBuffer buffer = cachedEntry.bytes().bytes().toChannelBuffer();

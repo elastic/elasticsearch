@@ -104,13 +104,15 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
         return new MappingUpdatedResponse();
     }
 
-    public static class MappingUpdatedResponse implements ActionResponse {
+    public static class MappingUpdatedResponse extends ActionResponse {
         @Override
         public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
         }
     }
 

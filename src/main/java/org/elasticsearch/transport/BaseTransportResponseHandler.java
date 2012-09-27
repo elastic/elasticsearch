@@ -19,13 +19,9 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.common.io.stream.Streamable;
-
 /**
  * A simple based class that always spawns.
- *
- *
  */
-public abstract class BaseTransportResponseHandler<T extends Streamable> implements TransportResponseHandler<T> {
+public abstract class BaseTransportResponseHandler<T extends TransportResponse> implements TransportResponseHandler<T> {
 
 }

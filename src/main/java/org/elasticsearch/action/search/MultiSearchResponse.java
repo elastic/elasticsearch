@@ -16,7 +16,7 @@ import java.util.Iterator;
 /**
  * A multi search response.
  */
-public class MultiSearchResponse implements ActionResponse, Iterable<MultiSearchResponse.Item>, ToXContent {
+public class MultiSearchResponse extends ActionResponse implements Iterable<MultiSearchResponse.Item>, ToXContent {
 
     /**
      * A search response item, holding the actual search response, or an error message if it failed.
@@ -85,7 +85,7 @@ public class MultiSearchResponse implements ActionResponse, Iterable<MultiSearch
                 this.response = new SearchResponse();
                 response.readFrom(in);
             } else {
-                failureMessage = in.readUTF();
+                failureMessage = in.readString();
             }
         }
 
@@ -95,7 +95,7 @@ public class MultiSearchResponse implements ActionResponse, Iterable<MultiSearch
                 out.writeBoolean(true);
                 response.writeTo(out);
             } else {
-                out.writeUTF(failureMessage);
+                out.writeString(failureMessage);
             }
         }
     }
@@ -130,6 +130,7 @@ public class MultiSearchResponse implements ActionResponse, Iterable<MultiSearch
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
         items = new Item[in.readVInt()];
         for (int i = 0; i < items.length; i++) {
             items[i] = Item.readItem(in);
@@ -138,6 +139,7 @@ public class MultiSearchResponse implements ActionResponse, Iterable<MultiSearch
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeVInt(items.length);
         for (Item item : items) {
             item.writeTo(out);

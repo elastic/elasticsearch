@@ -28,7 +28,6 @@ import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.VoidStreamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -373,7 +372,7 @@ public class RecoveryTarget extends AbstractComponent {
             onGoingRecovery.stage = RecoveryStatus.Stage.TRANSLOG;
 
             onGoingRecovery.indexShard.performRecoveryPrepareForTranslog();
-            channel.sendResponse(VoidStreamable.INSTANCE);
+            channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
     }
 
@@ -405,7 +404,7 @@ public class RecoveryTarget extends AbstractComponent {
             onGoingRecovery.indexShard.performRecoveryFinalization(false, onGoingRecovery);
             onGoingRecovery.time = System.currentTimeMillis() - onGoingRecovery.startTime;
             onGoingRecovery.stage = RecoveryStatus.Stage.DONE;
-            channel.sendResponse(VoidStreamable.INSTANCE);
+            channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
     }
 
@@ -443,7 +442,7 @@ public class RecoveryTarget extends AbstractComponent {
                 shard.performRecoveryOperation(operation);
                 onGoingRecovery.currentTranslogOperations++;
             }
-            channel.sendResponse(VoidStreamable.INSTANCE);
+            channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
     }
 
@@ -478,7 +477,7 @@ public class RecoveryTarget extends AbstractComponent {
             onGoingRecovery.phase1TotalSize = request.phase1TotalSize;
             onGoingRecovery.phase1ExistingTotalSize = request.phase1ExistingTotalSize;
             onGoingRecovery.stage = RecoveryStatus.Stage.INDEX;
-            channel.sendResponse(VoidStreamable.INSTANCE);
+            channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
     }
 
@@ -549,7 +548,7 @@ public class RecoveryTarget extends AbstractComponent {
                     }
                 }
             }
-            channel.sendResponse(VoidStreamable.INSTANCE);
+            channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
     }
 
@@ -646,7 +645,7 @@ public class RecoveryTarget extends AbstractComponent {
                     throw e;
                 }
             }
-            channel.sendResponse(VoidStreamable.INSTANCE);
+            channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
     }
 }

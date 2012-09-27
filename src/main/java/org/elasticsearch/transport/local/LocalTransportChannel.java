@@ -23,11 +23,7 @@ import org.elasticsearch.common.io.ThrowableObjectOutputStream;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.CachedStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.transport.NotSerializableTransportException;
-import org.elasticsearch.transport.RemoteTransportException;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportResponseOptions;
+import org.elasticsearch.transport.*;
 import org.elasticsearch.transport.support.TransportStatus;
 
 import java.io.IOException;
@@ -60,12 +56,12 @@ public class LocalTransportChannel implements TransportChannel {
     }
 
     @Override
-    public void sendResponse(Streamable message) throws IOException {
-        sendResponse(message, TransportResponseOptions.EMPTY);
+    public void sendResponse(TransportResponse response) throws IOException {
+        sendResponse(response, TransportResponseOptions.EMPTY);
     }
 
     @Override
-    public void sendResponse(Streamable message, TransportResponseOptions options) throws IOException {
+    public void sendResponse(TransportResponse response, TransportResponseOptions options) throws IOException {
         CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
         try {
             StreamOutput stream = cachedEntry.handles();
@@ -73,7 +69,7 @@ public class LocalTransportChannel implements TransportChannel {
             byte status = 0;
             status = TransportStatus.setResponse(status);
             stream.writeByte(status); // 0 for request, 1 for response.
-            message.writeTo(stream);
+            response.writeTo(stream);
             stream.close();
             final byte[] data = cachedEntry.bytes().bytes().copyBytesArray().toBytes();
             targetTransport.threadPool().generic().execute(new Runnable() {

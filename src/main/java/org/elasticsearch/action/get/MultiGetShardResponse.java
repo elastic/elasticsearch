@@ -28,7 +28,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class MultiGetShardResponse implements ActionResponse {
+public class MultiGetShardResponse extends ActionResponse {
 
     TIntArrayList locations;
     List<GetResponse> responses;
@@ -54,6 +54,7 @@ public class MultiGetShardResponse implements ActionResponse {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
         int size = in.readVInt();
         locations = new TIntArrayList(size);
         responses = new ArrayList<GetResponse>(size);
@@ -77,6 +78,7 @@ public class MultiGetShardResponse implements ActionResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeVInt(locations.size());
         for (int i = 0; i < locations.size(); i++) {
             out.writeVInt(locations.get(i));

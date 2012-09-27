@@ -24,26 +24,22 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
 
 /**
  *
  */
-public class DfsSearchResult implements SearchPhaseResult {
+public class DfsSearchResult extends TransportResponse implements SearchPhaseResult {
 
     private static Term[] EMPTY_TERMS = new Term[0];
-
     private static int[] EMPTY_FREQS = new int[0];
 
     private SearchShardTarget shardTarget;
-
     private long id;
-
     private Term[] terms;
-
     private int[] freqs;
-
     private int maxDoc;
 
     public DfsSearchResult() {
@@ -99,6 +95,7 @@ public class DfsSearchResult implements SearchPhaseResult {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
         id = in.readLong();
 //        shardTarget = readSearchShardTarget(in);
         int termsSize = in.readVInt();
@@ -124,6 +121,7 @@ public class DfsSearchResult implements SearchPhaseResult {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeLong(id);
 //        shardTarget.writeTo(out);
         out.writeVInt(terms.length);

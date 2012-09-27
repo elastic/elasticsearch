@@ -22,16 +22,13 @@ package org.elasticsearch.action.admin.indices.delete;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 
 import java.io.IOException;
 
 /**
  * A response for a delete index action.
- *
- *
  */
-public class DeleteIndexResponse implements ActionResponse, Streamable {
+public class DeleteIndexResponse extends ActionResponse {
 
     private boolean acknowledged;
 
@@ -60,11 +57,13 @@ public class DeleteIndexResponse implements ActionResponse, Streamable {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
         acknowledged = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeBoolean(acknowledged);
     }
 }

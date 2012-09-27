@@ -17,39 +17,56 @@
  * under the License.
  */
 
-package org.elasticsearch.common.io.stream;
+package org.elasticsearch.benchmark.transport;
+
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
 
 /**
  *
  */
-public class LongStreamable implements Streamable {
+public class BenchmarkMessageResponse extends TransportResponse {
 
-    private long value;
+    long id;
+    byte[] payload;
 
-    public LongStreamable() {
+    public BenchmarkMessageResponse(BenchmarkMessageRequest request) {
+        this.id = request.id;
+        this.payload = request.payload;
     }
 
-    public LongStreamable(long value) {
-        this.value = value;
+    public BenchmarkMessageResponse(long id, byte[] payload) {
+        this.id = id;
+        this.payload = payload;
     }
 
-    public void set(long newValue) {
-        value = newValue;
+    public BenchmarkMessageResponse() {
     }
 
-    public long get() {
-        return this.value;
+    public long id() {
+        return id;
+    }
+
+    public byte[] payload() {
+        return payload;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        value = in.readLong();
+        super.readFrom(in);
+        id = in.readLong();
+        payload = new byte[in.readVInt()];
+        in.readFully(payload);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeLong(value);
+        super.writeTo(out);
+        out.writeLong(id);
+        out.writeVInt(payload.length);
+        out.writeBytes(payload);
     }
 }

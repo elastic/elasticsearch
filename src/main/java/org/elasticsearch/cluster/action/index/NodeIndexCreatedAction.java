@@ -26,7 +26,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.VoidStreamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
@@ -76,7 +75,7 @@ public class NodeIndexCreatedAction extends AbstractComponent {
             });
         } else {
             transportService.sendRequest(clusterService.state().nodes().masterNode(),
-                    NodeIndexCreatedTransportHandler.ACTION, new NodeIndexCreatedMessage(index, nodeId), VoidTransportResponseHandler.INSTANCE_SAME);
+                    NodeIndexCreatedTransportHandler.ACTION, new NodeIndexCreatedMessage(index, nodeId), EmptyTransportResponseHandler.INSTANCE_SAME);
         }
     }
 
@@ -102,7 +101,7 @@ public class NodeIndexCreatedAction extends AbstractComponent {
         @Override
         public void messageReceived(NodeIndexCreatedMessage message, TransportChannel channel) throws Exception {
             innerNodeIndexCreated(message.index, message.nodeId);
-            channel.sendResponse(VoidStreamable.INSTANCE);
+            channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
 
         @Override

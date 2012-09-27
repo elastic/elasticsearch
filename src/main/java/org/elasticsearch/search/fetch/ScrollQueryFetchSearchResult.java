@@ -21,8 +21,8 @@ package org.elasticsearch.search.fetch;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
 
@@ -32,10 +32,9 @@ import static org.elasticsearch.search.fetch.QueryFetchSearchResult.readQueryFet
 /**
  *
  */
-public class ScrollQueryFetchSearchResult implements Streamable {
+public class ScrollQueryFetchSearchResult extends TransportResponse {
 
     private QueryFetchSearchResult result;
-
     private SearchShardTarget shardTarget;
 
     public ScrollQueryFetchSearchResult() {
@@ -56,6 +55,7 @@ public class ScrollQueryFetchSearchResult implements Streamable {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
         shardTarget = readSearchShardTarget(in);
         result = readQueryFetchSearchResult(in);
         result.shardTarget(shardTarget);
@@ -63,6 +63,7 @@ public class ScrollQueryFetchSearchResult implements Streamable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         shardTarget.writeTo(out);
         result.writeTo(out);
     }

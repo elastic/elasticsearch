@@ -31,7 +31,7 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import java.io.IOException;
 import java.util.Iterator;
 
-public class MultiGetResponse implements ActionResponse, Iterable<MultiGetItemResponse>, ToXContent {
+public class MultiGetResponse extends ActionResponse implements Iterable<MultiGetItemResponse>, ToXContent {
 
     /**
      * Represents a failure.
@@ -117,25 +117,18 @@ public class MultiGetResponse implements ActionResponse, Iterable<MultiGetItemRe
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            index = in.readUTF();
-            if (in.readBoolean()) {
-                type = in.readUTF();
-            }
-            id = in.readUTF();
-            message = in.readUTF();
+            index = in.readString();
+            type = in.readOptionalString();
+            id = in.readString();
+            message = in.readString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeUTF(index);
-            if (type == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                out.writeUTF(type);
-            }
-            out.writeUTF(id);
-            out.writeUTF(message);
+            out.writeString(index);
+            out.writeOptionalString(type);
+            out.writeString(id);
+            out.writeString(message);
         }
     }
 
@@ -190,6 +183,7 @@ public class MultiGetResponse implements ActionResponse, Iterable<MultiGetItemRe
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
         responses = new MultiGetItemResponse[in.readVInt()];
         for (int i = 0; i < responses.length; i++) {
             responses[i] = MultiGetItemResponse.readItemResponse(in);
@@ -198,6 +192,7 @@ public class MultiGetResponse implements ActionResponse, Iterable<MultiGetItemRe
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeVInt(responses.length);
         for (MultiGetItemResponse response : responses) {
             response.writeTo(out);

@@ -19,13 +19,7 @@
 
 package org.elasticsearch.index.cache.field.data.support;
 
-import java.io.IOException;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.TimeUnit;
-
+import com.google.common.cache.Cache;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SegmentReader;
 import org.elasticsearch.ElasticSearchException;
@@ -39,7 +33,12 @@ import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.settings.IndexSettings;
 
-import com.google.common.cache.Cache;
+import java.io.IOException;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeUnit;
 
 /**
  *
@@ -108,7 +107,7 @@ public abstract class AbstractConcurrentMapFieldDataCache extends AbstractIndexC
     			fieldNameList.add(key);
     		}
     	}
-        
+
         return fieldNameList;
     }
 

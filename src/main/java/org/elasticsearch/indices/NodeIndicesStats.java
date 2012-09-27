@@ -19,9 +19,6 @@
 
 package org.elasticsearch.indices;
 
-import java.io.IOException;
-import java.io.Serializable;
-
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -38,6 +35,9 @@ import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.store.StoreStats;
+
+import java.io.IOException;
+import java.io.Serializable;
 
 /**
  * Global information on indices stats running on a specific node.
@@ -63,7 +63,7 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
     private RefreshStats refreshStats;
 
     private FlushStats flushStats;
-    
+
     private FieldDataCacheStats fieldCacheStats;
 
     NodeIndicesStats() {
@@ -132,7 +132,7 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
     public CacheStats getCache() {
         return this.cache();
     }
-    
+
     public FieldDataCacheStats fieldDataCache() {
         return this.fieldCacheStats;
     }

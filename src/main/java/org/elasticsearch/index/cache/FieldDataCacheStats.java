@@ -42,7 +42,7 @@ public class FieldDataCacheStats implements ToXContent {
 		while(iterator.hasNext()) {
 			String key = iterator.next();
 			HashMap<String, Object> tmp = this.fieldCaches.get(key);
-			
+
 			//Append the map with all the fieldcaches and their size
 			builder.field(key, tmp);
 		}
@@ -50,7 +50,7 @@ public class FieldDataCacheStats implements ToXContent {
 		builder.endObject();
 		return builder;
 	}
-	
+
 	static final class Fields {
 		static final XContentBuilderString FIELDDATACACHES = new XContentBuilderString("fieldDataCaches");
 	}

@@ -113,7 +113,7 @@ public abstract class HasParentFilter extends Filter implements ScopePhase.Colle
             if (idReaderTypeCache != null) {
                 return new ChildrenDocSet(reader, parents, idReaderTypeCache);
             } else {
-                return DocIdSet.EMPTY_DOCIDSET;
+                return null;
             }
         }
 

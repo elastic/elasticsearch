@@ -16,10 +16,10 @@
 
 package org.elasticsearch.common.inject.spi;
 
+import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.internal.Errors;
-import org.elasticsearch.common.inject.internal.Objects;
 import org.elasticsearch.common.inject.internal.SourceProvider;
 
 import java.io.ObjectStreamException;

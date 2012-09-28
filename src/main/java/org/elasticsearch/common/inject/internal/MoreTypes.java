@@ -17,6 +17,7 @@
 
 package org.elasticsearch.common.inject.internal;
 
+import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.inject.ConfigurationException;

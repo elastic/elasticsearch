@@ -19,6 +19,7 @@
 
 package org.apache.lucene.queryParser;
 
+import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
@@ -549,7 +550,7 @@ public class MapperQueryParser extends QueryParser {
     protected Query getWildcardQuery(String field, String termStr) throws ParseException {
         if (termStr.equals("*")) {
             // we want to optimize for match all query for the "*:*", and "*" cases
-            if ("*".equals(field) || field.equals(this.field)) {
+            if ("*".equals(field) || Objects.equal(field, this.field)) {
                 return newMatchAllDocsQuery();
             }
         }

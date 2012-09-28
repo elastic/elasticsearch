@@ -19,8 +19,7 @@
 
 package org.elasticsearch.common.geo;
 
-import com.spatial4j.core.shape.impl.PointImpl;
-import com.vividsolutions.jts.geom.GeometryFactory;
+import org.elasticsearch.common.Classes;
 
 /**
  */
@@ -32,7 +31,7 @@ public class ShapesAvailability {
     static {
         boolean xSPATIAL4J_AVAILABLE;
         try {
-            new PointImpl(0, 0, GeoShapeConstants.SPATIAL_CONTEXT);
+            Classes.getDefaultClassLoader().loadClass("com.spatial4j.core.shape.impl.PointImpl");
             xSPATIAL4J_AVAILABLE = true;
         } catch (Throwable t) {
             xSPATIAL4J_AVAILABLE = false;
@@ -41,7 +40,7 @@ public class ShapesAvailability {
 
         boolean xJTS_AVAILABLE;
         try {
-            new GeometryFactory();
+            Classes.getDefaultClassLoader().loadClass("com.vividsolutions.jts.geom.GeometryFactory");
             xJTS_AVAILABLE = true;
         } catch (Throwable t) {
             xJTS_AVAILABLE = false;

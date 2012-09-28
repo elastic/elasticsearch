@@ -29,10 +29,10 @@ import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
-import org.hamcrest.MatcherAssert;
 import org.testng.annotations.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
@@ -53,18 +53,18 @@ public class SimpleIcuAnalysisTests {
         AnalysisService analysisService = injector.getInstance(AnalysisService.class);
 
         TokenizerFactory tokenizerFactory = analysisService.tokenizer("icu_tokenizer");
-        MatcherAssert.assertThat(tokenizerFactory, instanceOf(IcuTokenizerFactory.class));
+        assertThat(tokenizerFactory, instanceOf(IcuTokenizerFactory.class));
 
         TokenFilterFactory filterFactory = analysisService.tokenFilter("icu_normalizer");
-        MatcherAssert.assertThat(filterFactory, instanceOf(IcuNormalizerTokenFilterFactory.class));
+        assertThat(filterFactory, instanceOf(IcuNormalizerTokenFilterFactory.class));
 
         filterFactory = analysisService.tokenFilter("icu_folding");
-        MatcherAssert.assertThat(filterFactory, instanceOf(IcuFoldingTokenFilterFactory.class));
+        assertThat(filterFactory, instanceOf(IcuFoldingTokenFilterFactory.class));
 
         filterFactory = analysisService.tokenFilter("icu_collation");
-        MatcherAssert.assertThat(filterFactory, instanceOf(IcuCollationTokenFilterFactory.class));
+        assertThat(filterFactory, instanceOf(IcuCollationTokenFilterFactory.class));
 
         filterFactory = analysisService.tokenFilter("icu_transform");
-        MatcherAssert.assertThat(filterFactory, instanceOf(IcuTransformTokenFilterFactory.class));
+        assertThat(filterFactory, instanceOf(IcuTransformTokenFilterFactory.class));
     }
 }

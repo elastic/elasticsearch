@@ -45,8 +45,6 @@ import java.io.IOException;
  * <p>The second option is to specify collation rules as defined in the <a href="http://www.icu-project.org/userguide/Collate_Customization.html">
  * Collation customization</a> chapter in icu docs. The <tt>rules</tt> parameter can either embed the rules definition
  * in the settings or refer to an external location (preferable located under the <tt>config</tt> location, relative to it).
- *
- *
  */
 public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
 
@@ -96,6 +94,81 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
                 collator = Collator.getInstance();
             }
         }
+
+        // set the strength flag, otherwise it will be the default.
+        String strength = settings.get("strength");
+        if (strength != null) {
+            if (strength.equalsIgnoreCase("primary")) {
+                collator.setStrength(Collator.PRIMARY);
+            } else if (strength.equalsIgnoreCase("secondary")) {
+                collator.setStrength(Collator.SECONDARY);
+            } else if (strength.equalsIgnoreCase("tertiary")) {
+                collator.setStrength(Collator.TERTIARY);
+            } else if (strength.equalsIgnoreCase("quaternary")) {
+                collator.setStrength(Collator.QUATERNARY);
+            } else if (strength.equalsIgnoreCase("identical")) {
+                collator.setStrength(Collator.IDENTICAL);
+            } else {
+                throw new ElasticSearchIllegalArgumentException("Invalid strength: " + strength);
+            }
+        }
+
+        // set the decomposition flag, otherwise it will be the default.
+        String decomposition = settings.get("decomposition");
+        if (decomposition != null) {
+            if (decomposition.equalsIgnoreCase("no")) {
+                collator.setDecomposition(Collator.NO_DECOMPOSITION);
+            } else if (decomposition.equalsIgnoreCase("canonical")) {
+                collator.setDecomposition(Collator.CANONICAL_DECOMPOSITION);
+            } else {
+                throw new ElasticSearchIllegalArgumentException("Invalid decomposition: " + decomposition);
+            }
+        }
+
+        // expert options: concrete subclasses are always a RuleBasedCollator
+        RuleBasedCollator rbc = (RuleBasedCollator) collator;
+        String alternate = settings.get("alternate");
+        if (alternate != null) {
+            if (alternate.equalsIgnoreCase("shifted")) {
+                rbc.setAlternateHandlingShifted(true);
+            } else if (alternate.equalsIgnoreCase("non-ignorable")) {
+                rbc.setAlternateHandlingShifted(false);
+            } else {
+                throw new ElasticSearchIllegalArgumentException("Invalid alternate: " + alternate);
+            }
+        }
+
+        Boolean caseLevel = settings.getAsBoolean("caseLevel", null);
+        if (caseLevel != null) {
+            rbc.setCaseLevel(caseLevel);
+        }
+
+        String caseFirst = settings.get("caseFirst");
+        if (caseFirst != null) {
+            if (caseFirst.equalsIgnoreCase("lower")) {
+                rbc.setLowerCaseFirst(true);
+            } else if (caseFirst.equalsIgnoreCase("upper")) {
+                rbc.setUpperCaseFirst(true);
+            } else {
+                throw new ElasticSearchIllegalArgumentException("Invalid caseFirst: " + caseFirst);
+            }
+        }
+
+        Boolean numeric = settings.getAsBoolean("numeric", null);
+        if (numeric != null) {
+            rbc.setNumericCollation(numeric);
+        }
+
+        String variableTop = settings.get("variableTop");
+        if (variableTop != null) {
+            rbc.setVariableTop(variableTop);
+        }
+
+        Boolean hiraganaQuaternaryMode = settings.getAsBoolean("hiraganaQuaternaryMode", null);
+        if (hiraganaQuaternaryMode != null) {
+            rbc.setHiraganaQuaternary(hiraganaQuaternaryMode);
+        }
+
         this.collator = collator;
     }
 

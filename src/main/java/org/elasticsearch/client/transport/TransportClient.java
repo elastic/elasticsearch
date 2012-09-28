@@ -149,26 +149,26 @@ public class TransportClient extends AbstractClient {
      */
     public TransportClient(Settings pSettings, boolean loadConfigSettings) throws ElasticSearchException {
         Tuple<Settings, Environment> tuple = InternalSettingsPerparer.prepareSettings(pSettings, loadConfigSettings);
-        Settings settings = settings = settingsBuilder().put(tuple.v1())
+        Settings settings = settingsBuilder().put(tuple.v1())
                 .put("network.server", false)
                 .put("node.client", true)
                 .build();
         this.environment = tuple.v2();
 
-        this.pluginsService = new PluginsService(tuple.v1(), tuple.v2());
+        this.pluginsService = new PluginsService(settings, tuple.v2());
         this.settings = pluginsService.updatedSettings();
 
-        CompressorFactory.configure(settings);
+        CompressorFactory.configure(this.settings);
 
         ModulesBuilder modules = new ModulesBuilder();
-        modules.add(new PluginsModule(settings, pluginsService));
+        modules.add(new PluginsModule(this.settings, pluginsService));
         modules.add(new EnvironmentModule(environment));
-        modules.add(new SettingsModule(settings));
+        modules.add(new SettingsModule(this.settings));
         modules.add(new NetworkModule());
-        modules.add(new ClusterNameModule(settings));
-        modules.add(new ThreadPoolModule(settings));
+        modules.add(new ClusterNameModule(this.settings));
+        modules.add(new ThreadPoolModule(this.settings));
         modules.add(new TransportSearchModule());
-        modules.add(new TransportModule(settings));
+        modules.add(new TransportModule(this.settings));
         modules.add(new ActionModule(true));
         modules.add(new ClientTransportModule());
 

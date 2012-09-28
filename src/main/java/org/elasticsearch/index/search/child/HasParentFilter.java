@@ -110,7 +110,11 @@ public abstract class HasParentFilter extends Filter implements ScopePhase.Colle
             }
 
             IdReaderTypeCache idReaderTypeCache = context.idCache().reader(reader).type(parentType);
-            return new ChildrenDocSet(reader, parents, idReaderTypeCache);
+            if (idReaderTypeCache != null) {
+                return new ChildrenDocSet(reader, parents, idReaderTypeCache);
+            } else {
+                return DocIdSet.EMPTY_DOCIDSET;
+            }
         }
 
         public void clear() {

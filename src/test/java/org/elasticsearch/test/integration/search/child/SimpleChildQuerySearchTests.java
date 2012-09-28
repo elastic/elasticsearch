@@ -707,6 +707,49 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
     }
 
     @Test
+    public void testHasChildAndHasParentFailWhenSomeSegmentsDontContainAnyParentOrChildDocs() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+
+        client.admin().indices().prepareCreate("test").setSettings(
+                    ImmutableSettings.settingsBuilder()
+                            .put("index.number_of_shards", 1)
+                            .put("index.number_of_replicas", 0)
+                ).execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().indices().preparePutMapping("test").setType("child").setSource(
+                XContentFactory.jsonBuilder()
+                        .startObject()
+                            .startObject("type")
+                                .startObject("_parent")
+                                    .field("type", "parent")
+                                .endObject()
+                .           endObject()
+                        .endObject()
+        ).execute().actionGet();
+
+        client.prepareIndex("test", "parent", "1").setSource("p_field", 1).execute().actionGet();
+        client.prepareIndex("test", "child", "1").setParent("1").setSource("c_field", 1).execute().actionGet();
+        client.admin().indices().prepareFlush("test").execute().actionGet();
+
+        client.prepareIndex("test", "type1", "1").setSource("p_field", "p_value1").execute().actionGet();
+        client.admin().indices().prepareFlush("test").execute().actionGet();
+
+        SearchResponse searchResponse = client.prepareSearch("test")
+                .setQuery(filteredQuery(matchAllQuery(), hasChildFilter("child", matchAllQuery())))
+                .execute().actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
+        assertThat(searchResponse.failedShards(), equalTo(0));
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+
+        client.prepareSearch("test")
+                .setQuery(filteredQuery(matchAllQuery(), hasParentFilter("parent", matchAllQuery())))
+                .execute().actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
+        assertThat(searchResponse.failedShards(), equalTo(0));
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+    }
+
+    @Test
     public void testCountApiUsage() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
 

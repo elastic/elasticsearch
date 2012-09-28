@@ -16,10 +16,10 @@
 
 package org.elasticsearch.common.inject.spi;
 
+import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import org.elasticsearch.common.inject.Key;
-import org.elasticsearch.common.inject.internal.Objects;
 
 import java.util.List;
 import java.util.Set;

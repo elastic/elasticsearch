@@ -103,6 +103,31 @@ And here is a sample of custom collation:
         }
     }
 
+Optional options:
+* `strength` - The strength property determines the minimum level of difference considered significant during comparison.
+ The default strength for the Collator is `tertiary`, unless specified otherwise by the locale used to create the Collator.
+ Possible values: `primary`, `secondary`, `tertiary`, `quaternary` or `identical`.
+ See ICU Collation:http://icu-project.org/apiref/icu4j/com/ibm/icu/text/Collator.html documentation for a more detailed
+ explanation for the specific values.
+* `decomposition` - Possible values: `no` or `canonical`. Defaults to `no`. Setting this decomposition property with
+`canonical` allows the Collator to handle un-normalized text properly, producing the same results as if the text were
+normalized. If `no` is set, it is the user's responsibility to insure that all text is already in the appropriate form
+before a comparison or before getting a CollationKey. Adjusting decomposition mode allows the user to select between
+faster and more complete collation behavior. Since a great many of the world's languages do not require text
+normalization, most locales set `no` as the default decomposition mode.
+
+Expert options:
+* `alternate` - Possible values: `shifted` or `non-ignorable`. Sets the alternate handling for strength `quaternary`
+ to be either shifted or non-ignorable. What boils down to ignoring punctuation and whitespace.
+* `caseLevel` - Possible values: `true` or `false`. Default is `false`. Whether case level sorting is required. When
+ strength is set to `primary` this will ignore accent differences.
+* `caseFirst` - Possible values: `lower` or `upper`. Useful to control which case is sorted first when case is not ignored
+ for strength `tertiary`.
+* `numeric` - Possible values: `true` or `false`. Whether digits are sorted according to numeric representation. For
+ example the value `egg-9` is sorted before the value `egg-21`. Defaults to `false`.
+* `variableTop` - Single character or contraction. Controls what is variable for `alternate`.
+* `hiraganaQuaternaryMode` - Possible values: `true` or `false`. Defaults to `false`. Distinguishing between Katakana
+ and Hiragana characters in `quaternary` strength .
 
 ICU Tokenizer
 -------------

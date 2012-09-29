@@ -25,7 +25,9 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
 import com.google.common.collect.ImmutableMap;
+import gnu.trove.set.hash.THashSet;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -33,20 +35,32 @@ import org.elasticsearch.common.lucene.docset.DocSet;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.settings.NodeSettingsService;
+import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 public class IndicesFilterCache extends AbstractComponent implements RemovalListener<WeightedFilterCache.FilterCacheKey, DocSet> {
+
+    private final ThreadPool threadPool;
 
     private Cache<WeightedFilterCache.FilterCacheKey, DocSet> cache;
 
     private volatile String size;
     private volatile long sizeInBytes;
     private volatile TimeValue expire;
+
+    private final TimeValue cleanInterval;
+
+    private final Set<Object> readersKeysToClean = ConcurrentCollections.newConcurrentSet();
+
+    private volatile boolean closed;
 
     private volatile Map<String, RemovalListener<WeightedFilterCache.FilterCacheKey, DocSet>> removalListeners =
             ImmutableMap.of();
@@ -85,15 +99,19 @@ public class IndicesFilterCache extends AbstractComponent implements RemovalList
     }
 
     @Inject
-    public IndicesFilterCache(Settings settings, NodeSettingsService nodeSettingsService) {
+    public IndicesFilterCache(Settings settings, ThreadPool threadPool, NodeSettingsService nodeSettingsService) {
         super(settings);
+        this.threadPool = threadPool;
         this.size = componentSettings.get("size", "20%");
         this.expire = componentSettings.getAsTime("expire", null);
+        this.cleanInterval = componentSettings.getAsTime("clean_interval", TimeValue.timeValueSeconds(1));
         computeSizeInBytes();
         buildCache();
         logger.debug("using [node] filter cache with size [{}], actual_size [{}]", size, new ByteSizeValue(sizeInBytes));
 
         nodeSettingsService.addListener(new ApplySettings());
+
+        threadPool.schedule(cleanInterval, ThreadPool.Names.SAME, new ReaderCleaner());
     }
 
     private void buildCache() {
@@ -102,7 +120,7 @@ public class IndicesFilterCache extends AbstractComponent implements RemovalList
                 .maximumWeight(sizeInBytes).weigher(new WeightedFilterCache.FilterCacheValueWeigher());
 
         // defaults to 4, but this is a busy map for all indices, increase it a bit
-        cacheBuilder.concurrencyLevel(8);
+        cacheBuilder.concurrencyLevel(16);
 
         if (expire != null) {
             cacheBuilder.expireAfterAccess(expire.millis(), TimeUnit.MILLISECONDS);
@@ -128,7 +146,12 @@ public class IndicesFilterCache extends AbstractComponent implements RemovalList
         removalListeners = MapBuilder.newMapBuilder(removalListeners).remove(index).immutableMap();
     }
 
+    public void addReaderKeyToClean(Object readerKey) {
+        readersKeysToClean.add(readerKey);
+    }
+
     public void close() {
+        closed = true;
         cache.invalidateAll();
     }
 
@@ -145,6 +168,51 @@ public class IndicesFilterCache extends AbstractComponent implements RemovalList
         RemovalListener<WeightedFilterCache.FilterCacheKey, DocSet> listener = removalListeners.get(key.index());
         if (listener != null) {
             listener.onRemoval(removalNotification);
+        }
+    }
+
+    /**
+     * The reason we need this class ie because we need to clean all the filters that are associated
+     * with a reader. We don't want to do it every time a reader closes, since iterating over all the map
+     * is expensive. There doesn't seem to be a nicer way to do it (and maintaining a list per reader
+     * of the filters will cost more).
+     */
+    class ReaderCleaner implements Runnable {
+
+        @Override
+        public void run() {
+            if (closed) {
+                return;
+            }
+            if (readersKeysToClean.isEmpty()) {
+                threadPool.schedule(cleanInterval, ThreadPool.Names.SAME, this);
+                return;
+            }
+            threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
+                @Override
+                public void run() {
+                    THashSet<Object> keys = CacheRecycler.popHashSet();
+                    try {
+                        for (Iterator<Object> it = readersKeysToClean.iterator(); it.hasNext(); ) {
+                            keys.add(it.next());
+                            it.remove();
+                        }
+                        cache.cleanUp();
+                        if (!keys.isEmpty()) {
+                            for (Iterator<WeightedFilterCache.FilterCacheKey> it = cache.asMap().keySet().iterator(); it.hasNext(); ) {
+                                WeightedFilterCache.FilterCacheKey filterCacheKey = it.next();
+                                if (keys.contains(filterCacheKey.readerKey())) {
+                                    // same as invalidate
+                                    it.remove();
+                                }
+                            }
+                        }
+                        threadPool.schedule(cleanInterval, ThreadPool.Names.SAME, ReaderCleaner.this);
+                    } finally {
+                        CacheRecycler.pushHashSet(keys);
+                    }
+                }
+            });
         }
     }
 }

@@ -704,7 +704,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         }
     }
 
-    private class EngineRefresher implements Runnable {
+    class EngineRefresher implements Runnable {
         @Override
         public void run() {
             // we check before if a refresh is needed, if not, we reschedule, otherwise, we fork, refresh, and then reschedule
@@ -752,7 +752,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         }
     }
 
-    private class EngineMerger implements Runnable {
+    class EngineMerger implements Runnable {
         @Override
         public void run() {
             if (!engine().possibleMergeNeeded()) {

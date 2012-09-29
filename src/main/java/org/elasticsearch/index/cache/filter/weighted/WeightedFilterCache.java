@@ -83,12 +83,7 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
                 return;
             }
             seenReadersCount.dec();
-            for (FilterCacheKey key : indicesFilterCache.cache().asMap().keySet()) {
-                if (key.readerKey() == readerKey) {
-                    // invalidate will cause a removal and will be notified
-                    indicesFilterCache.cache().invalidate(key);
-                }
-            }
+            indicesFilterCache.addReaderKeyToClean(readerKey);
         }
     }
 
@@ -106,13 +101,7 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
             return;
         }
         seenReadersCount.dec();
-        Cache<FilterCacheKey, DocSet> cache = indicesFilterCache.cache();
-        for (FilterCacheKey key : cache.asMap().keySet()) {
-            if (key.readerKey() == reader.getCoreCacheKey()) {
-                // invalidate will cause a removal and will be notified
-                cache.invalidate(key);
-            }
-        }
+        indicesFilterCache.addReaderKeyToClean(reader.getCoreCacheKey());
     }
 
     @Override
@@ -247,7 +236,7 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
             if (this == o) return true;
 //            if (o == null || getClass() != o.getClass()) return false;
             FilterCacheKey that = (FilterCacheKey) o;
-            return (readerKey == that.readerKey && filterKey.equals(that.filterKey));
+            return (readerKey.equals(that.readerKey) && filterKey.equals(that.filterKey));
         }
 
         @Override

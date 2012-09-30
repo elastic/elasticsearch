@@ -50,8 +50,10 @@ import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.channel.*;
 import org.jboss.netty.channel.socket.nio.NioClientSocketChannelFactory;
 import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
+import org.jboss.netty.channel.socket.nio.NioWorkerPool;
 import org.jboss.netty.channel.socket.oio.OioClientSocketChannelFactory;
 import org.jboss.netty.channel.socket.oio.OioServerSocketChannelFactory;
+import org.jboss.netty.util.HashedWheelTimer;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -89,6 +91,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     private final NetworkService networkService;
 
     final int workerCount;
+    final int bossCount;
 
     final boolean blockingServer;
 
@@ -168,6 +171,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         }
 
         this.workerCount = componentSettings.getAsInt("worker_count", Runtime.getRuntime().availableProcessors() * 2);
+        this.bossCount = componentSettings.getAsInt("boss_count", 1);
         this.blockingServer = settings.getAsBoolean("transport.tcp.blocking_server", settings.getAsBoolean(TCP_BLOCKING_SERVER, settings.getAsBoolean(TCP_BLOCKING, false)));
         this.blockingClient = settings.getAsBoolean("transport.tcp.blocking_client", settings.getAsBoolean(TCP_BLOCKING_CLIENT, settings.getAsBoolean(TCP_BLOCKING, false)));
         this.port = componentSettings.get("port", settings.get("transport.tcp.port", "9300-9400"));
@@ -231,8 +235,9 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         } else {
             clientBootstrap = new ClientBootstrap(new NioClientSocketChannelFactory(
                     Executors.newCachedThreadPool(daemonThreadFactory(settings, "transport_client_boss")),
-                    Executors.newCachedThreadPool(daemonThreadFactory(settings, "transport_client_worker")),
-                    workerCount));
+                    bossCount,
+                    new NioWorkerPool(Executors.newCachedThreadPool(daemonThreadFactory(settings, "transport_client_worker")), workerCount),
+                    new HashedWheelTimer(daemonThreadFactory(settings, "transport_client_timer"))));
         }
         ChannelPipelineFactory clientPipelineFactory = new ChannelPipelineFactory() {
             @Override

@@ -58,7 +58,7 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
         super(request);
         this.timeout = request.timeout();
         this.index = request.index();
-        this.threadedOperation = request.threadedOperation;
+        this.threadedOperation = request.operationThreaded();
         this.replicationType = request.replicationType();
         this.consistencyLevel = request.consistencyLevel();
     }

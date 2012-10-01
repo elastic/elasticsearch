@@ -104,10 +104,11 @@ public class IndicesFilterCache extends AbstractComponent implements RemovalList
         this.threadPool = threadPool;
         this.size = componentSettings.get("size", "20%");
         this.expire = componentSettings.getAsTime("expire", null);
-        this.cleanInterval = componentSettings.getAsTime("clean_interval", TimeValue.timeValueSeconds(1));
+        this.cleanInterval = componentSettings.getAsTime("clean_interval", TimeValue.timeValueSeconds(60));
         computeSizeInBytes();
         buildCache();
-        logger.debug("using [node] filter cache with size [{}], actual_size [{}]", size, new ByteSizeValue(sizeInBytes));
+        logger.debug("using [node] weighted filter cache with size [{}], actual_size [{}], expire [{}], clean_interval [{}]",
+                size, new ByteSizeValue(sizeInBytes), expire, cleanInterval);
 
         nodeSettingsService.addListener(new ApplySettings());
 

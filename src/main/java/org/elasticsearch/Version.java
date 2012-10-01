@@ -84,7 +84,7 @@ public class Version implements Serializable {
     public static final int V_0_19_9_ID = /*00*/190999;
     public static final Version V_0_19_9 = new Version(V_0_19_9_ID, false);
     public static final int V_0_19_10_ID = /*00*/191099;
-    public static final Version V_0_19_10 = new Version(V_0_19_10_ID, true);
+    public static final Version V_0_19_10 = new Version(V_0_19_10_ID, false);
 
     public static final Version CURRENT = V_0_19_10;
 

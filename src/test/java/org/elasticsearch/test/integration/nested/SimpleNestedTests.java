@@ -25,6 +25,8 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.index.query.FilterBuilders;
+import org.elasticsearch.index.query.FilteredQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.facet.FacetBuilders;
 import org.elasticsearch.search.facet.termsstats.TermsStatsFacet;
@@ -450,4 +452,69 @@ public class SimpleNestedTests extends AbstractNodesTests {
         assertThat(termsStatsFacet.entries().get(0).count(), equalTo(3l));
         assertThat(termsStatsFacet.entries().get(0).total(), equalTo(8d));
     }
+
+    @Test
+    // When IncludeNestedDocsQuery is wrapped in a FilteredQuery then a in-finite loop occurs b/c of a bug in IncludeNestedDocsQuery#advance()
+    // This IncludeNestedDocsQuery also needs to be aware of the filter from alias
+    public void testDeleteNestedDocsWithAlias() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+
+        client.admin().indices().prepareCreate("test")
+                .setSettings(settingsBuilder().put("index.number_of_shards", 1).put("index.referesh_interval", -1).build())
+                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("nested1")
+                        .field("type", "nested")
+                        .endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
+
+        client.admin().indices().prepareAliases()
+                .addAlias("test", "alias1", FilterBuilders.termFilter("field1", "value1")).execute().actionGet();
+
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+
+        client.prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+                .field("field1", "value1")
+                .startArray("nested1")
+                .startObject()
+                .field("n_field1", "n_value1_1")
+                .field("n_field2", "n_value2_1")
+                .endObject()
+                .startObject()
+                .field("n_field1", "n_value1_2")
+                .field("n_field2", "n_value2_2")
+                .endObject()
+                .endArray()
+                .endObject()).execute().actionGet();
+
+
+        client.prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
+                .field("field1", "value2")
+                .startArray("nested1")
+                .startObject()
+                .field("n_field1", "n_value1_1")
+                .field("n_field2", "n_value2_1")
+                .endObject()
+                .startObject()
+                .field("n_field1", "n_value1_2")
+                .field("n_field2", "n_value2_2")
+                .endObject()
+                .endArray()
+                .endObject()).execute().actionGet();
+
+        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        IndicesStatusResponse statusResponse = client.admin().indices().prepareStatus().execute().actionGet();
+        assertThat(statusResponse.index("test").docs().numDocs(), equalTo(6l));
+
+        client.prepareDeleteByQuery("alias1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
+        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        statusResponse = client.admin().indices().prepareStatus().execute().actionGet();
+
+        // This must be 3, otherwise child docs aren't deleted.
+        // If this is 5 then only the parent has been removed
+        assertThat(statusResponse.index("test").docs().numDocs(), equalTo(3l));
+        assertThat(client.prepareGet("test", "type1", "1").execute().actionGet().exists(), equalTo(false));
+    }
+
 }

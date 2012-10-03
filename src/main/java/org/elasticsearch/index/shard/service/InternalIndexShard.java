@@ -53,7 +53,6 @@ import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.refresh.RefreshStats;
-import org.elasticsearch.index.search.nested.IncludeAllChildrenQuery;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchService;
@@ -362,18 +361,13 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         query = filterQueryIfNeeded(query, types);
 
         Filter aliasFilter = indexAliasesService.aliasFilter(filteringAliases);
-
-        return new Engine.DeleteByQuery(query, querySource, filteringAliases, aliasFilter, types).startTime(startTime);
+        Filter parentFilter  = mapperService.hasNested() ? indexCache.filter().cache(NonNestedDocsFilter.INSTANCE) : null;
+        return new Engine.DeleteByQuery(query, querySource, filteringAliases, aliasFilter, parentFilter, types).startTime(startTime);
     }
 
     @Override
     public void deleteByQuery(Engine.DeleteByQuery deleteByQuery) throws ElasticSearchException {
         writeAllowed();
-        if (mapperService.hasNested()) {
-            // we need to wrap it to delete nested docs as well...
-            IncludeAllChildrenQuery nestedQuery = new IncludeAllChildrenQuery(deleteByQuery.query(), indexCache.filter().cache(NonNestedDocsFilter.INSTANCE));
-            deleteByQuery = new Engine.DeleteByQuery(nestedQuery, deleteByQuery.source(), deleteByQuery.filteringAliases(), deleteByQuery.aliasFilter(), deleteByQuery.types());
-        }
         if (logger.isTraceEnabled()) {
             logger.trace("delete_by_query [{}]", deleteByQuery.query());
         }

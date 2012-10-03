@@ -10,11 +10,10 @@ import java.io.IOException;
 import java.util.Set;
 
 /**
- * A special query that accepts a top level parent matching query, and returns all the children of that parent as
- * well. This is handy when deleting by query.
+ * A special query that accepts a top level parent matching query, and returns the nested docs of the matching parent
+ * doc as well. This is handy when deleting by query.
  */
-public class IncludeAllChildrenQuery extends Query {
-
+public class IncludeNestedDocsQuery extends Query {
 
     private final Filter parentFilter;
     private final Query parentQuery;
@@ -27,30 +26,39 @@ public class IncludeAllChildrenQuery extends Query {
     private final Query origParentQuery;
 
 
-    public IncludeAllChildrenQuery(Query parentQuery, Filter parentFilter) {
+    public IncludeNestedDocsQuery(Query parentQuery, Filter parentFilter) {
         this.origParentQuery = parentQuery;
         this.parentQuery = parentQuery;
         this.parentFilter = parentFilter;
     }
 
-    IncludeAllChildrenQuery(Query origParentQuery, Query parentQuery, Filter parentFilter) {
-        this.origParentQuery = origParentQuery;
-        this.parentQuery = parentQuery;
-        this.parentFilter = parentFilter;
+    // For rewritting
+    IncludeNestedDocsQuery(Query rewrite, Query originalQuery, IncludeNestedDocsQuery previousInstance) {
+        this.origParentQuery = originalQuery;
+        this.parentQuery = rewrite;
+        this.parentFilter = previousInstance.parentFilter;
+        setBoost(previousInstance.getBoost());
+    }
+
+    // For cloning
+    IncludeNestedDocsQuery(Query originalQuery, IncludeNestedDocsQuery previousInstance) {
+        this.origParentQuery = originalQuery;
+        this.parentQuery = originalQuery;
+        this.parentFilter = previousInstance.parentFilter;
     }
 
     @Override
     public Weight createWeight(Searcher searcher) throws IOException {
-        return new IncludeAllChildrenWeight(parentQuery, parentQuery.createWeight(searcher), parentFilter);
+        return new IncludeNestedDocsWeight(parentQuery, parentQuery.createWeight(searcher), parentFilter);
     }
 
-    static class IncludeAllChildrenWeight extends Weight {
+    static class IncludeNestedDocsWeight extends Weight {
 
         private final Query parentQuery;
         private final Weight parentWeight;
         private final Filter parentsFilter;
 
-        IncludeAllChildrenWeight(Query parentQuery, Weight parentWeight, Filter parentsFilter) {
+        IncludeNestedDocsWeight(Query parentQuery, Weight parentWeight, Filter parentsFilter) {
             this.parentQuery = parentQuery;
             this.parentWeight = parentWeight;
             this.parentsFilter = parentsFilter;
@@ -85,12 +93,6 @@ public class IncludeAllChildrenQuery extends Query {
                 return null;
             }
 
-            final int firstParentDoc = parentScorer.nextDoc();
-            if (firstParentDoc == DocIdSetIterator.NO_MORE_DOCS) {
-                // No matches
-                return null;
-            }
-
             DocIdSet parents = parentsFilter.getDocIdSet(reader);
             if (parents == null) {
                 // No matches
@@ -100,11 +102,15 @@ public class IncludeAllChildrenQuery extends Query {
                 parents = ((FixedBitDocSet) parents).set();
             }
             if (!(parents instanceof FixedBitSet)) {
-                throw new IllegalStateException("parentFilter must return OpenBitSet; got " + parents);
+                throw new IllegalStateException("parentFilter must return FixedBitSet; got " + parents);
             }
 
-
-            return new IncludeAllChildrenScorer(this, parentScorer, (FixedBitSet) parents, firstParentDoc);
+            int firstParentDoc = parentScorer.nextDoc();
+            if (firstParentDoc == DocIdSetIterator.NO_MORE_DOCS) {
+                // No matches
+                return null;
+            }
+            return new IncludeNestedDocsScorer(this, parentScorer, (FixedBitSet) parents, firstParentDoc);
         }
 
         @Override
@@ -118,17 +124,16 @@ public class IncludeAllChildrenQuery extends Query {
         }
     }
 
-    static class IncludeAllChildrenScorer extends Scorer {
+    static class IncludeNestedDocsScorer extends Scorer {
 
-        private final Scorer parentScorer;
-        private final FixedBitSet parentBits;
+        final Scorer parentScorer;
+        final FixedBitSet parentBits;
 
-        private int currentChildPointer = -1;
-        private int currentParentPointer = -1;
+        int currentChildPointer = -1;
+        int currentParentPointer = -1;
+        int currentDoc = -1;
 
-        private int currentDoc = -1;
-
-        IncludeAllChildrenScorer(Weight weight, Scorer parentScorer, FixedBitSet parentBits, int currentParentPointer) {
+        IncludeNestedDocsScorer(Weight weight, Scorer parentScorer, FixedBitSet parentBits, int currentParentPointer) {
             super(weight);
             this.parentScorer = parentScorer;
             this.parentBits = parentBits;
@@ -192,33 +197,33 @@ public class IncludeAllChildrenQuery extends Query {
                 return nextDoc();
             }
 
-            currentParentPointer = parentScorer.advance(target);
-            if (currentParentPointer == NO_MORE_DOCS) {
-                return (currentDoc = NO_MORE_DOCS);
-            }
-            if (currentParentPointer == 0) {
-                currentChildPointer = 0;
-            } else {
-                currentChildPointer = parentBits.prevSetBit(currentParentPointer - 1);
-                if (currentChildPointer == -1) {
-                    // no previous set parent, just set the child to 0 to delete all up to the parent
+            if (target < currentParentPointer) {
+                currentDoc = currentParentPointer = parentScorer.advance(target);
+                if (currentParentPointer == NO_MORE_DOCS) {
+                    return (currentDoc = NO_MORE_DOCS);
+                }
+                if (currentParentPointer == 0) {
                     currentChildPointer = 0;
                 } else {
-                    currentChildPointer++; // we only care about children
+                    currentChildPointer = parentBits.prevSetBit(currentParentPointer - 1);
+                    if (currentChildPointer == -1) {
+                        // no previous set parent, just set the child to 0 to delete all up to the parent
+                        currentChildPointer = 0;
+                    } else {
+                        currentChildPointer++; // we only care about children
+                    }
                 }
+            } else {
+                currentDoc = currentChildPointer++;
             }
-
-            currentDoc = currentChildPointer;
 
             return currentDoc;
         }
 
-        @Override
         public float score() throws IOException {
             return parentScorer.score();
         }
 
-        @Override
         public int docID() {
             return currentDoc;
         }
@@ -233,9 +238,7 @@ public class IncludeAllChildrenQuery extends Query {
     public Query rewrite(IndexReader reader) throws IOException {
         final Query parentRewrite = parentQuery.rewrite(reader);
         if (parentRewrite != parentQuery) {
-            Query rewritten = new IncludeAllChildrenQuery(parentQuery, parentRewrite, parentFilter);
-            rewritten.setBoost(getBoost());
-            return rewritten;
+            return new IncludeNestedDocsQuery(parentRewrite, parentQuery, this);
         } else {
             return this;
         }
@@ -243,15 +246,14 @@ public class IncludeAllChildrenQuery extends Query {
 
     @Override
     public String toString(String field) {
-        return "IncludeAllChildrenQuery (" + parentQuery.toString() + ")";
+        return "IncludeNestedDocsQuery (" + parentQuery.toString() + ")";
     }
 
     @Override
     public boolean equals(Object _other) {
-        if (_other instanceof IncludeAllChildrenQuery) {
-            final IncludeAllChildrenQuery other = (IncludeAllChildrenQuery) _other;
-            return origParentQuery.equals(other.origParentQuery) &&
-                    parentFilter.equals(other.parentFilter);
+        if (_other instanceof IncludeNestedDocsQuery) {
+            final IncludeNestedDocsQuery other = (IncludeNestedDocsQuery) _other;
+            return origParentQuery.equals(other.origParentQuery) && parentFilter.equals(other.parentFilter);
         } else {
             return false;
         }
@@ -268,7 +270,7 @@ public class IncludeAllChildrenQuery extends Query {
 
     @Override
     public Object clone() {
-        return new IncludeAllChildrenQuery((Query) origParentQuery.clone(),
-                parentFilter);
+        Query clonedQuery = (Query) origParentQuery.clone();
+        return new IncludeNestedDocsQuery(clonedQuery, this);
     }
 }

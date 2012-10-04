@@ -116,6 +116,11 @@ public class RestGetMappingAction extends BaseRestHandler {
                                 builder.field(mappingMd.type());
                                 builder.map(mappingMd.sourceAsMap());
                             }
+                            
+                            if (indexMetaData.mappings().values().isEmpty() && types.isEmpty()) {
+                                // if no types are specified and no mappings are set for the index, consider this an empty mapping
+                            	foundAny = true;
+                            }
 
                             builder.endObject();
                         }

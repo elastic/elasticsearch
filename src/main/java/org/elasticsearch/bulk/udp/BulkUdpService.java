@@ -176,6 +176,7 @@ public class BulkUdpService extends AbstractLifecycleComponent<BulkUdpService> {
         @Override
         public void messageReceived(ChannelHandlerContext ctx, MessageEvent e) throws Exception {
             ChannelBuffer buffer = (ChannelBuffer) e.getMessage();
+            logger.trace("received message size [{}]", buffer.readableBytes());
             try {
                 bulkProcessor.add(new ChannelBufferBytesReference(buffer), false, null, null);
             } catch (Exception e1) {

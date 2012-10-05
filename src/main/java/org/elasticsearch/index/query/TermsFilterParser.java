@@ -25,6 +25,7 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.XTermsFilter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.AndFilter;
+import org.elasticsearch.common.lucene.search.OrFilter;
 import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -190,6 +191,38 @@ public class TermsFilterParser implements FilterParser {
                     }
                 }
                 filter = new AndFilter(filters);
+                // cache the whole filter by default, or if explicitly told to
+                if (cache == null || cache) {
+                    filter = parseContext.cacheFilter(filter, cacheKey);
+                }
+            } else if ("or".equals(execution)) {
+                List<Filter> filters = Lists.newArrayList();
+                if (fieldMapper != null) {
+                    for (String term : terms) {
+                        filters.add(parseContext.cacheFilter(fieldMapper.fieldFilter(term, parseContext), null));
+                    }
+                } else {
+                    for (String term : terms) {
+                        filters.add(parseContext.cacheFilter(new TermFilter(new Term(fieldName, term)), null));
+                    }
+                }
+                filter = new OrFilter(filters);
+                // only cache if explicitly told to, since we cache inner filters
+                if (cache != null && cache) {
+                    filter = parseContext.cacheFilter(filter, cacheKey);
+                }
+            } else if ("or_nocache".equals(execution)) {
+                List<Filter> filters = Lists.newArrayList();
+                if (fieldMapper != null) {
+                    for (String term : terms) {
+                        filters.add(fieldMapper.fieldFilter(term, parseContext));
+                    }
+                } else {
+                    for (String term : terms) {
+                        filters.add(new TermFilter(new Term(fieldName, term)));
+                    }
+                }
+                filter = new OrFilter(filters);
                 // cache the whole filter by default, or if explicitly told to
                 if (cache == null || cache) {
                     filter = parseContext.cacheFilter(filter, cacheKey);

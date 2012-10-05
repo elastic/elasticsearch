@@ -183,6 +183,43 @@ public class Analysis {
         return defaultStopWords;
     }
 
+    public static Set<?> parseCommonWords(Environment env, Settings settings, Set<?> defaultWords, Version version, boolean ignoreCase) {
+        String value = settings.get("words");
+        if (value != null) {
+            if ("_none_".equals(value)) {
+                return CharArraySet.EMPTY_SET;
+            } else {
+                return new CharArraySet(version, Strings.commaDelimitedListToSet(value), ignoreCase);
+            }
+        }
+        String[] words = settings.getAsArray("words", null);
+        if (words != null) {
+            CharArraySet setWords = new CharArraySet(version, words.length, ignoreCase);
+            for (String word : words) {
+                if (namedStopWords.containsKey(word)) {
+                    setWords.addAll(namedStopWords.get(word));
+                } else {
+                    setWords.add(word);
+                }
+            }
+            return setWords;
+        }
+        List<String> pathLoadedWords = getWordList(env, settings, "words");
+        if (pathLoadedWords != null) {
+            CharArraySet setWords = new CharArraySet(version, pathLoadedWords.size(), ignoreCase);
+            for (String word : pathLoadedWords) {
+                if (namedStopWords.containsKey(word)) {
+                    setWords.addAll(namedStopWords.get(word));
+                } else {
+                    setWords.add(word);
+                }
+            }
+            return setWords;
+        }
+
+        return defaultWords;
+    }
+    
     public static CharArraySet getWordSet(Environment env, Settings settings, String settingsPrefix, Version version) {
         List<String> wordList = getWordList(env, settings, settingsPrefix);
         if (wordList == null) {

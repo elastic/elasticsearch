@@ -490,11 +490,11 @@ public class AnalysisModule extends AbstractModule {
             tokenFiltersBindings.processTokenFilter("hyphenation_decompounder", HyphenationCompoundWordTokenFilterFactory.class);
 
             tokenFiltersBindings.processTokenFilter("arabic_stem", ArabicStemTokenFilterFactory.class);
-            tokenFiltersBindings.processTokenFilter("arabic_normalize", ArabicNormalizationFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("brazilian_stem", BrazilianStemTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("bulgarian_stem", BulgarianStemTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("czech_stem", CzechStemTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("dutch_stem", DutchStemTokenFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("english_minimal_stem", EnglishMinimalStemTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("finnish_light_stem", FinnishLightStemTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("french_stem", FrenchStemTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("french_light_stem", FrenchLightStemTokenFilterFactory.class);
@@ -503,9 +503,10 @@ public class AnalysisModule extends AbstractModule {
             tokenFiltersBindings.processTokenFilter("german_stem", GermanStemTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("german_light_stem", GermanLightStemTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("german_minimal_stem", GermanMinimalStemTokenFilterFactory.class);
-            tokenFiltersBindings.processTokenFilter("german_normalize", GermanNormalizationFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("hungarian_light_stem", HungarianLightStemTokenFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("indonesian_stem", IndonesianStemTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("italian_light_stem", ItalianLightStemTokenFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("latvian_stem", LatvianStemTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("norwegian_light_stem", NorwegianLightStemTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("norwegian_minimal_stem", NorwegianMinimalStemTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("portuguese_light_stem", PortugueseLightStemTokenFilterFactory.class);
@@ -513,6 +514,13 @@ public class AnalysisModule extends AbstractModule {
             tokenFiltersBindings.processTokenFilter("russian_stem", RussianStemTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("russian_light_stem", RussianLightStemTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("spanish_light_stem", SpanishLightStemTokenFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("swedish_light_stem", SwedishLightStemTokenFilterFactory.class);
+
+            tokenFiltersBindings.processTokenFilter("arabic_normalize", ArabicNormalizationFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("german_normalize", GermanNormalizationFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("hindi_normalize", HindiNormalizationFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("indic_normalize", IndicNormalizationFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("persian_normalize", PersianNormalizationFilterFactory.class);
 
             tokenFiltersBindings.processTokenFilter("keyword_marker", KeywordMarkerTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("stemmer_override", StemmerOverrideTokenFilterFactory.class);

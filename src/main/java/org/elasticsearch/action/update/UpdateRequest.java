@@ -477,29 +477,33 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     public UpdateRequest source(BytesReference source) throws Exception {
         XContentType xContentType = XContentFactory.xContentType(source);
         XContentParser parser = XContentFactory.xContent(xContentType).createParser(source);
-        XContentParser.Token t = parser.nextToken();
-        if (t == null) {
-            return this;
-        }
-        String currentFieldName = null;
-        while ((t = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (t == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if ("script".equals(currentFieldName)) {
-                script = parser.textOrNull();
-            } else if ("params".equals(currentFieldName)) {
-                scriptParams = parser.map();
-            } else if ("lang".equals(currentFieldName)) {
-                scriptLang = parser.text();
-            } else if ("upsert".equals(currentFieldName)) {
-                XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
-                builder.copyCurrentStructure(parser);
-                safeUpsertRequest().source(builder);
-            } else if ("doc".equals(currentFieldName)) {
-                XContentBuilder docBuilder = XContentFactory.contentBuilder(xContentType);
-                docBuilder.copyCurrentStructure(parser);
-                safeDoc().source(docBuilder);
+        try {
+            XContentParser.Token t = parser.nextToken();
+            if (t == null) {
+                return this;
             }
+            String currentFieldName = null;
+            while ((t = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (t == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if ("script".equals(currentFieldName)) {
+                    script = parser.textOrNull();
+                } else if ("params".equals(currentFieldName)) {
+                    scriptParams = parser.map();
+                } else if ("lang".equals(currentFieldName)) {
+                    scriptLang = parser.text();
+                } else if ("upsert".equals(currentFieldName)) {
+                    XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
+                    builder.copyCurrentStructure(parser);
+                    safeUpsertRequest().source(builder);
+                } else if ("doc".equals(currentFieldName)) {
+                    XContentBuilder docBuilder = XContentFactory.contentBuilder(xContentType);
+                    docBuilder.copyCurrentStructure(parser);
+                    safeDoc().source(docBuilder);
+                }
+            }
+        } finally {
+            parser.close();
         }
         return this;
     }

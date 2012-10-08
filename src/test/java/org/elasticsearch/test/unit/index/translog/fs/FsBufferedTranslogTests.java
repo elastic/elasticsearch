@@ -19,15 +19,13 @@
 
 package org.elasticsearch.test.unit.index.translog.fs;
 
-import org.elasticsearch.common.io.FileSystemUtils;
+import java.io.File;
+
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.fs.FsTranslog;
 import org.elasticsearch.index.translog.fs.FsTranslogFile;
 import org.elasticsearch.test.unit.index.translog.AbstractSimpleTranslogTests;
-import org.testng.annotations.AfterClass;
-
-import java.io.File;
 
 /**
  *
@@ -35,14 +33,9 @@ import java.io.File;
 public class FsBufferedTranslogTests extends AbstractSimpleTranslogTests {
 
     @Override
-    protected Translog create() {
+    protected Translog create(String testdir) {
         return new FsTranslog(shardId,
                 ImmutableSettings.settingsBuilder().put("index.translog.fs.type", FsTranslogFile.Type.BUFFERED.name()).build(),
-                new File("data/fs-translog"));
-    }
-
-    @AfterClass
-    public void cleanup() {
-        FileSystemUtils.deleteRecursively(new File("data/fs-translog"), true);
+                new File(testdir));
     }
 }

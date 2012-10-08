@@ -26,6 +26,7 @@ import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.deletionpolicy.KeepOnlyLastDeletionPolicy;
@@ -61,6 +62,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 import static org.elasticsearch.common.lucene.DocumentBuilder.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -116,11 +118,21 @@ public abstract class AbstractSimpleEngineTests {
     }
 
     protected Translog createTranslog() {
-        return new FsTranslog(shardId, EMPTY_SETTINGS, new File("work/fs-translog/primary"));
+	    Settings pathdatasettings = settingsBuilder()
+	            .loadFromClasspath("es-test.properties")
+	            .build();
+	    String workdir = pathdatasettings.get("path.work");
+    	
+        return new FsTranslog(shardId, EMPTY_SETTINGS, new File(workdir + "/fs-translog/primary"));
     }
 
     protected Translog createTranslogReplica() {
-        return new FsTranslog(shardId, EMPTY_SETTINGS, new File("work/fs-translog/replica"));
+	    Settings pathdatasettings = settingsBuilder()
+	            .loadFromClasspath("es-test.properties")
+	            .build();
+	    String workdir = pathdatasettings.get("path.work");
+    	
+        return new FsTranslog(shardId, EMPTY_SETTINGS, new File(workdir + "/fs-translog/replica"));
     }
 
     protected IndexDeletionPolicy createIndexDeletionPolicy() {

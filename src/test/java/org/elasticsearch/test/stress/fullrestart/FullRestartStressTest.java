@@ -42,6 +42,7 @@ import org.elasticsearch.node.internal.InternalNode;
 import java.io.File;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 
 /**
@@ -216,12 +217,18 @@ public class FullRestartStressTest {
         System.setProperty("es.logger.prefix", "");
 
         int numberOfNodes = 2;
+	    Settings pathdatasettings = settingsBuilder()
+	            .loadFromClasspath("es-test.properties")
+	            .build();
+	    String datadir = pathdatasettings.get("path.data");
+	    String pathData = datadir + "/data1," + datadir + "/data2";
+
         Settings settings = ImmutableSettings.settingsBuilder()
                 .put("index.shard.check_on_startup", true)
                 .put("gateway.type", "local")
                 .put("gateway.recover_after_nodes", numberOfNodes)
                 .put("index.number_of_shards", 1)
-                .put("path.data", "data/data1,data/data2")
+                .put("path.data", pathData)
                 .build();
 
         FullRestartStressTest test = new FullRestartStressTest()

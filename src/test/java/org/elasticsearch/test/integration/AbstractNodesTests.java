@@ -93,6 +93,14 @@ public abstract class AbstractNodesTests {
             finalSettings = settingsBuilder().put(finalSettings).put("cluster.routing.schedule", "50ms").build();
         }
 
+    	// If we did not set path.data before, we move data dir to target dir es/data
+        if (finalSettings.get("path.data") == null) {
+            Settings pathdatasettings = settingsBuilder()
+                    .loadFromClasspath("es-test.properties")
+                    .build();
+            finalSettings = settingsBuilder().put(finalSettings).put(pathdatasettings).build();
+        }
+
         Node node = nodeBuilder()
                 .settings(finalSettings)
                 .build();

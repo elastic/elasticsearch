@@ -339,10 +339,16 @@ public class RollingRestartStressTest {
     public static void main(String[] args) throws Exception {
         System.setProperty("es.logger.prefix", "");
 
+	    Settings pathdatasettings = settingsBuilder()
+	            .loadFromClasspath("es-test.properties")
+	            .build();
+	    String datadir = pathdatasettings.get("path.data");
+	    String pathData = datadir + "/data1," + datadir + "/data2";
+
         Settings settings = settingsBuilder()
                 .put("index.shard.check_on_startup", true)
                 .put("gateway.type", "none")
-                .put("path.data", "data/data1,data/data2")
+                .put("path.data", pathData)
                 .build();
 
         RollingRestartStressTest test = new RollingRestartStressTest()

@@ -283,6 +283,7 @@
                 <includes>
                     <include>**/*.*</include>
                 </includes>
+                <filtering>true</filtering>
             </testResource>
         </testResources>
 

@@ -21,18 +21,23 @@ package org.elasticsearch.test.unit.index.translog;
 
 import org.apache.lucene.index.Term;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStreams;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
+import org.testng.annotations.AfterClass;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import java.io.File;
 import java.io.IOException;
 
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -47,7 +52,12 @@ public abstract class AbstractSimpleTranslogTests {
 
     @BeforeMethod
     public void setUp() {
-        translog = create();
+	    Settings pathdatasettings = settingsBuilder()
+	            .loadFromClasspath("es-test.properties")
+	            .build();
+	    String datadir = pathdatasettings.get("path.data")+"/fs-translog";
+
+        translog = create(datadir);
         translog.newTranslog(1);
     }
 
@@ -56,7 +66,17 @@ public abstract class AbstractSimpleTranslogTests {
         translog.close(true);
     }
 
-    protected abstract Translog create();
+    @AfterClass
+    public void cleanup() {
+	    Settings pathdatasettings = settingsBuilder()
+	            .loadFromClasspath("es-test.properties")
+	            .build();
+	    String datadir = pathdatasettings.get("path.data")+"/fs-translog";
+    	
+        FileSystemUtils.deleteRecursively(new File(datadir), true);
+    }
+
+    protected abstract Translog create(String testdir);
 
     @Test
     public void testRead() throws IOException {

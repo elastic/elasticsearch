@@ -143,12 +143,28 @@ public class TransportClient extends AbstractClient {
      * be loaded from the classpath / file system (the <tt>elasticsearch.(yml|json)</tt> files optionally prefixed with
      * <tt>config/</tt>).
      *
-     * @param pSettings          The explicit settings.
+     * @param settings           The explicit settings.
      * @param loadConfigSettings <tt>true</tt> if settings should be loaded from the classpath/file system.
      * @throws ElasticSearchException
      */
     public TransportClient(Settings pSettings, boolean loadConfigSettings) throws ElasticSearchException {
-        Tuple<Settings, Environment> tuple = InternalSettingsPerparer.prepareSettings(pSettings, loadConfigSettings);
+    	this(pSettings, loadConfigSettings, true);
+    }
+
+    /**
+     * Constructs a new transport client with the provided settings and the ability to control if settings will
+     * be loaded from the classpath / file system (the <tt>elasticsearch.(yml|json)</tt> files optionally prefixed with
+     * <tt>config/</tt>).
+     * 
+     * Also, we allow the ability to control if settings will be loaded from the System Properties. 
+     *
+     * @param pSettings          The explicit settings.
+     * @param loadConfigSettings <tt>true</tt> if settings should be loaded from the classpath/file system.
+     * @param loadSystemProperties <tt>true</tt> if settings should be loaded from the System properties.
+     * @throws ElasticSearchException
+     */
+    public TransportClient(Settings pSettings, boolean loadConfigSettings, boolean loadSystemProperties) throws ElasticSearchException {
+        Tuple<Settings, Environment> tuple = InternalSettingsPerparer.prepareSettings(pSettings, loadConfigSettings, loadSystemProperties);
         Settings settings = settingsBuilder().put(tuple.v1())
                 .put("network.server", false)
                 .put("node.client", true)

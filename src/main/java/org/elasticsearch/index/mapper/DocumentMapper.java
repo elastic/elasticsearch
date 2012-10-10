@@ -497,6 +497,12 @@ public class DocumentMapper implements ToXContent {
             for (int i = 0; i < countDownTokens; i++) {
                 parser.nextToken();
             }
+            
+            // try to parse the next token, this should be null if the object is ended properly (might throw a JSON exception if the extra tokens is not valid JSON, this will be handled by the catch)
+            if(parser.nextToken() != null) {
+            	// this source object contains more tokens than expected...
+            	 throw new MapperParsingException("Malformed content, object is not ended properly");
+            }
 
             for (RootMapper rootMapper : rootMappersOrdered) {
                 rootMapper.postParse(context);

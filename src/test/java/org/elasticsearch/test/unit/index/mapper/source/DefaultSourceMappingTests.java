@@ -20,6 +20,7 @@
 package org.elasticsearch.test.unit.index.mapper.source;
 
 import org.apache.lucene.document.Fieldable;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -192,5 +193,15 @@ public class DefaultSourceMappingTests {
         DocumentMapper mapper = mapperService.documentMapper("my_type");
         assertThat(mapper.type(), equalTo("my_type"));
         assertThat(mapper.sourceMapper().enabled(), equalTo(true));
+    }
+    
+    @Test(expectedExceptions = MapperParsingException.class)
+    public void testSourceObjectContainsExtraTokens() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_source").endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper documentMapper = MapperTests.newParser().parse(mapping);
+        ParsedDocument doc = documentMapper.parse("type", "1", new BytesArray("{}}")); // extra end object (invalid JSON)
     }
 }

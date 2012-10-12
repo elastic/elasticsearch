@@ -32,7 +32,6 @@ import org.elasticsearch.common.io.stream.BytesStreamInput;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -241,8 +240,13 @@ public class XContentHelper {
                         }
                     } else {
                         // if both are lists, simply combine them, first the defaults, then the content
-                        mergedList.addAll((Collection) defaultEntry.getValue());
-                        mergedList.addAll((Collection) content.get(defaultEntry.getKey()));
+                        // just make sure not to add the same value twice
+                        mergedList.addAll(defaultList);
+                        for (Object o : contentList) {
+                            if (!mergedList.contains(o)) {
+                                mergedList.add(o);
+                            }
+                        }
                     }
                     content.put(defaultEntry.getKey(), mergedList);
                 }

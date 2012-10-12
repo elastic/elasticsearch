@@ -90,7 +90,7 @@ public class GeoPolygonFilterBuilder extends BaseFilterBuilder {
         builder.startObject(name);
         builder.startArray("points");
         for (Point point : points) {
-            builder.startArray().value(point.lon).value(point.lat).endArray();
+            builder.startArray().value(point.lat).value(point.lon).endArray();
         }
         builder.endArray();
         builder.endObject();

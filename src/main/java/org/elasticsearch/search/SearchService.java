@@ -19,6 +19,12 @@
 
 package org.elasticsearch.search;
 
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.atomic.AtomicLong;
+
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticSearchException;
@@ -49,19 +55,21 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.dfs.CachedDfSource;
 import org.elasticsearch.search.dfs.DfsPhase;
 import org.elasticsearch.search.dfs.DfsSearchResult;
-import org.elasticsearch.search.fetch.*;
+import org.elasticsearch.search.fetch.FetchPhase;
+import org.elasticsearch.search.fetch.FetchSearchRequest;
+import org.elasticsearch.search.fetch.FetchSearchResult;
+import org.elasticsearch.search.fetch.QueryFetchSearchResult;
+import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.search.query.*;
+import org.elasticsearch.search.query.QueryPhase;
+import org.elasticsearch.search.query.QueryPhaseExecutionException;
+import org.elasticsearch.search.query.QuerySearchRequest;
+import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.query.ScrollQuerySearchResult;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
-
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 
@@ -120,6 +128,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         Map<String, SearchParseElement> elementParsers = new HashMap<String, SearchParseElement>();
         elementParsers.putAll(dfsPhase.parseElements());
         elementParsers.putAll(queryPhase.parseElements());
+        // TODO: top level facet goes here!!
         elementParsers.putAll(fetchPhase.parseElements());
         elementParsers.put("stats", new StatsGroupsParseElement());
         this.elementParsers = ImmutableMap.copyOf(elementParsers);

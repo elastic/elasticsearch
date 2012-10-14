@@ -47,6 +47,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import org.elasticsearch.search.group.AbstractGroupBuilder;
+
 /**
  * A search source builder allowing to easily build search source. Simple construction
  * using {@link org.elasticsearch.search.builder.SearchSourceBuilder#searchSource()}.
@@ -98,6 +100,7 @@ public class SearchSourceBuilder implements ToXContent {
     private List<PartialField> partialFields;
 
     private List<AbstractFacetBuilder> facets;
+    private List<AbstractGroupBuilder> groups;
 
     private BytesReference facetsBinary;
 
@@ -340,6 +343,14 @@ public class SearchSourceBuilder implements ToXContent {
             facets = Lists.newArrayList();
         }
         facets.add(facet);
+        return this;
+    }
+
+    public SearchSourceBuilder group(AbstractGroupBuilder group) {
+        if (groups == null) {
+            groups = Lists.newArrayList();
+        }
+        groups.add(group);
         return this;
     }
 
@@ -693,6 +704,16 @@ public class SearchSourceBuilder implements ToXContent {
             builder.startObject();
             for (AbstractFacetBuilder facet : facets) {
                 facet.toXContent(builder, params);
+            }
+            builder.endObject();
+        }
+
+        // TODO!!!
+        if (groups != null) {
+            builder.field("groups");
+            builder.startObject();
+            for (AbstractGroupBuilder group : groups) {
+                group.toXContent(builder, params);
             }
             builder.endObject();
         }

@@ -19,15 +19,17 @@
 
 package org.elasticsearch.search.query;
 
+import java.io.IOException;
+
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.facet.Facets;
 import org.elasticsearch.search.facet.InternalFacets;
+import org.elasticsearch.search.group.Group;
+import org.elasticsearch.search.group.InternalGroup;
 import org.elasticsearch.transport.TransportResponse;
-
-import java.io.IOException;
 
 import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
 import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
@@ -43,6 +45,7 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
     private int size;
     private TopDocs topDocs;
     private InternalFacets facets;
+    private InternalGroup group;
     private boolean searchTimedOut;
 
     public QuerySearchResult() {
@@ -101,6 +104,14 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
         this.facets = facets;
     }
 
+    public Group group() {
+        return group;
+    }
+
+    public void group(InternalGroup group) {
+        this.group = group;
+    }
+
     public int from() {
         return from;
     }
@@ -136,6 +147,10 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
         if (in.readBoolean()) {
             facets = InternalFacets.readFacets(in);
         }
+        if (in.readBoolean()) {
+            //group = InternalGroup.readGroup(in);
+            //InternalGroup.Streams.stream(type).readGroup(type, in);
+        }
         searchTimedOut = in.readBoolean();
     }
 
@@ -147,11 +162,17 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
         out.writeVInt(from);
         out.writeVInt(size);
         writeTopDocs(out, topDocs, 0);
-        if (facets == null) {
+        if (group == null) {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            facets.writeTo(out);
+            group.writeTo(out);
+        }
+        if (group == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            group.writeTo(out);
         }
         out.writeBoolean(searchTimedOut);
     }

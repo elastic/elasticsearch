@@ -19,15 +19,8 @@
 
 package org.elasticsearch.action.search.type;
 
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
-
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.ReduceSearchPhaseException;
-import org.elasticsearch.action.search.SearchOperationThreading;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.search.*;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -46,13 +39,28 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import org.elasticsearch.search.group.Group;
+
+import com.google.common.collect.Collections2;
+
+import org.elasticsearch.search.controller.ShardDoc;
+
+import org.apache.lucene.search.ScoreDoc;
+
 /**
  *
  */
-public class TransportSearchQueryThenFetchAction extends TransportSearchTypeAction {
+public class TransportSearchGroupThenFetchAction extends TransportSearchTypeAction {
 
     @Inject
-    public TransportSearchQueryThenFetchAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+    public TransportSearchGroupThenFetchAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                                TransportSearchCache transportSearchCache, SearchServiceTransportAction searchService, SearchPhaseController searchPhaseController) {
         super(settings, threadPool, clusterService, transportSearchCache, searchService, searchPhaseController);
     }
@@ -69,6 +77,8 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
         private final Map<SearchShardTarget, FetchSearchResult> fetchResults = searchCache.obtainFetchResults();
 
         private volatile Map<SearchShardTarget, ExtTIntArrayList> docIdsToLoad;
+
+        private Map<String, ShardDoc[]> sortedShardMap;
 
         private AsyncAction(SearchRequest request, ActionListener<SearchResponse> listener) {
             super(request, listener);
@@ -91,7 +101,13 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
 
         @Override
         protected void moveToSecondPhase() {
-            sortedShardList = searchPhaseController.sortDocs(queryResults.values());
+            sortedShardMap = searchPhaseController.sortDocsGroups(queryResults.values());
+            List<ShardDoc> d = new ArrayList<ShardDoc>();
+            for (ShardDoc[] docs : sortedShardMap.values()) {
+                for (ShardDoc doc: docs) if (doc != null) d.add(doc);
+            }
+            sortedShardList = d.toArray(new ShardDoc[]{});
+            //sortedShardList = searchPhaseController.sortDocs(queryResults.values());
             final Map<SearchShardTarget, ExtTIntArrayList> docIdsToLoad = searchPhaseController.docIdsToLoad(sortedShardList);
             this.docIdsToLoad = docIdsToLoad;
 
@@ -191,7 +207,8 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
         }
 
         void innerFinishHim() throws Exception {
-            InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryResults, fetchResults);
+            //InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryResults, fetchResults);
+            InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardMap, queryResults, fetchResults);
             String scrollId = null;
             if (request.scroll() != null) {
                 scrollId = TransportSearchHelper.buildScrollId(request.searchType(), queryResults.values(), null);

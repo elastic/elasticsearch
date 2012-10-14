@@ -40,6 +40,8 @@ import org.elasticsearch.search.sort.SortOrder;
 
 import java.util.Map;
 
+import org.elasticsearch.search.group.AbstractGroupBuilder;
+
 /**
  * A search action request builder.
  */
@@ -493,6 +495,11 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      */
     public SearchRequestBuilder addFacet(AbstractFacetBuilder facet) {
         sourceBuilder().facet(facet);
+        return this;
+    }
+
+    public SearchRequestBuilder addFacet(AbstractGroupBuilder group) {
+        sourceBuilder().group(group);
         return this;
     }
 

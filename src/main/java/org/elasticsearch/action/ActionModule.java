@@ -215,6 +215,7 @@ public class ActionModule extends AbstractModule {
                 TransportSearchQueryThenFetchAction.class,
                 TransportSearchDfsQueryAndFetchAction.class,
                 TransportSearchQueryAndFetchAction.class,
+                TransportSearchGroupThenFetchAction.class,
                 TransportSearchScanAction.class
         );
         registerAction(SearchScrollAction.INSTANCE, TransportSearchScrollAction.class,

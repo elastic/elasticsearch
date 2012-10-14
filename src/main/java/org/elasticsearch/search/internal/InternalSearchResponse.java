@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.internal;
 
+import java.io.IOException;
+
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -27,8 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.facet.Facets;
 import org.elasticsearch.search.facet.InternalFacets;
-
-import java.io.IOException;
+import org.elasticsearch.search.group.InternalGroup;
 
 import static org.elasticsearch.search.internal.InternalSearchHits.readSearchHits;
 
@@ -40,6 +41,8 @@ public class InternalSearchResponse implements Streamable, ToXContent {
     private InternalSearchHits hits;
 
     private InternalFacets facets;
+
+    private InternalGroup group;
 
     private boolean timedOut;
 
@@ -87,6 +90,9 @@ public class InternalSearchResponse implements Streamable, ToXContent {
         if (in.readBoolean()) {
             facets = InternalFacets.readFacets(in);
         }
+        if (in.readBoolean()) {
+            //group = InternalGroup.readGroup(in);
+        }
         timedOut = in.readBoolean();
     }
 
@@ -98,6 +104,12 @@ public class InternalSearchResponse implements Streamable, ToXContent {
         } else {
             out.writeBoolean(true);
             facets.writeTo(out);
+        }
+        if (group == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            group.writeTo(out);
         }
         out.writeBoolean(timedOut);
     }

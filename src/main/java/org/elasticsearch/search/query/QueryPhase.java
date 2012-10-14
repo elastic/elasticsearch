@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.query;
 
+import java.util.Map;
+
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.Query;
@@ -30,13 +32,14 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.facet.FacetPhase;
+import org.elasticsearch.search.group.GroupCollector;
+import org.elasticsearch.search.group.GroupParseElement;
+import org.elasticsearch.search.group.terms.InternalTermsGroup;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.ScopePhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortParseElement;
 import org.elasticsearch.search.sort.TrackScoresParseElement;
-
-import java.util.Map;
 
 /**
  *
@@ -44,10 +47,12 @@ import java.util.Map;
 public class QueryPhase implements SearchPhase {
 
     private final FacetPhase facetPhase;
+    private final GroupParseElement groupElement;
 
     @Inject
-    public QueryPhase(FacetPhase facetPhase) {
+    public QueryPhase(FacetPhase facetPhase, GroupParseElement groupElement) {
         this.facetPhase = facetPhase;
+        this.groupElement = groupElement;
     }
 
     @Override
@@ -57,6 +62,7 @@ public class QueryPhase implements SearchPhase {
                 .put("indices_boost", new IndicesBoostParseElement())
                 .put("indicesBoost", new IndicesBoostParseElement())
                 .put("query", new QueryParseElement())
+                .put("group", groupElement)
                 .put("queryBinary", new QueryBinaryParseElement())
                 .put("query_binary", new QueryBinaryParseElement())
                 .put("filter", new FilterParseElement())
@@ -172,8 +178,20 @@ public class QueryPhase implements SearchPhase {
                 topDocs = new TopDocs(collector.getTotalHits(), Lucene.EMPTY_SCORE_DOCS, 0);
             } else if (searchContext.searchType() == SearchType.SCAN) {
                 topDocs = searchContext.scanContext().execute(searchContext);
-            } else if (searchContext.sort() != null) {
+            } else if (searchContext.sort() != null && searchContext.group() == null) {
                 topDocs = searchContext.searcher().search(query, null, numDocs, searchContext.sort());
+            } else if (searchContext.sort() != null && searchContext.group() != null) {
+                GroupCollector collector = searchContext.group().groupCollector();
+                searchContext.searcher().search(query, collector);
+                searchContext.queryResult().group((InternalTermsGroup)collector.group());
+                // TODO: hits
+                topDocs = new TopDocs(0, Lucene.EMPTY_SCORE_DOCS, 0);
+            } else if (searchContext.group() != null) {
+                GroupCollector collector = searchContext.group().groupCollector();
+                searchContext.searcher().search(query, collector);
+                searchContext.queryResult().group((InternalTermsGroup)collector.group());
+                // TODO: hits
+                topDocs = new TopDocs(0, Lucene.EMPTY_SCORE_DOCS, 0);
             } else {
                 topDocs = searchContext.searcher().search(query, numDocs);
             }

@@ -19,9 +19,18 @@
 
 package org.elasticsearch.search.internal;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.DeletionAwareConstantScoreQuery;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FilteredQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Sort;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Nullable;
@@ -52,15 +61,11 @@ import org.elasticsearch.search.facet.SearchContextFacets;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.partial.PartialFieldsContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
+import org.elasticsearch.search.group.SearchContextGroup;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.scan.ScanContext;
-
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 /**
  *
@@ -153,6 +158,8 @@ public class SearchContext implements Releasable {
     private int docsIdsToLoadSize;
 
     private SearchContextFacets facets;
+
+    private SearchContextGroup group;
 
     private SearchContextHighlight highlight;
 
@@ -292,6 +299,15 @@ public class SearchContext implements Releasable {
 
     public SearchContext facets(SearchContextFacets facets) {
         this.facets = facets;
+        return this;
+    }
+
+    public SearchContextGroup group() {
+        return group;
+    }
+
+    public SearchContext groups(SearchContextGroup group) {
+        this.group = group;
         return this;
     }
 

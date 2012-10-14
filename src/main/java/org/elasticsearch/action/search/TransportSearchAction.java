@@ -49,6 +49,8 @@ public class TransportSearchAction extends TransportAction<SearchRequest, Search
 
     private final TransportSearchQueryThenFetchAction queryThenFetchAction;
 
+    private final TransportSearchGroupThenFetchAction groupThenFetchAction;
+
     private final TransportSearchDfsQueryAndFetchAction dfsQueryAndFetchAction;
 
     private final TransportSearchQueryAndFetchAction queryAndFetchAction;
@@ -64,6 +66,7 @@ public class TransportSearchAction extends TransportAction<SearchRequest, Search
                                  TransportService transportService, ClusterService clusterService,
                                  TransportSearchDfsQueryThenFetchAction dfsQueryThenFetchAction,
                                  TransportSearchQueryThenFetchAction queryThenFetchAction,
+                                 TransportSearchGroupThenFetchAction groupThenFetchAction,
                                  TransportSearchDfsQueryAndFetchAction dfsQueryAndFetchAction,
                                  TransportSearchQueryAndFetchAction queryAndFetchAction,
                                  TransportSearchScanAction scanAction,
@@ -72,6 +75,7 @@ public class TransportSearchAction extends TransportAction<SearchRequest, Search
         this.clusterService = clusterService;
         this.dfsQueryThenFetchAction = dfsQueryThenFetchAction;
         this.queryThenFetchAction = queryThenFetchAction;
+        this.groupThenFetchAction = groupThenFetchAction;
         this.dfsQueryAndFetchAction = dfsQueryAndFetchAction;
         this.queryAndFetchAction = queryAndFetchAction;
         this.scanAction = scanAction;
@@ -106,7 +110,9 @@ public class TransportSearchAction extends TransportAction<SearchRequest, Search
         if (searchRequest.searchType() == DFS_QUERY_THEN_FETCH) {
             dfsQueryThenFetchAction.execute(searchRequest, listener);
         } else if (searchRequest.searchType() == SearchType.QUERY_THEN_FETCH) {
-            queryThenFetchAction.execute(searchRequest, listener);
+            // TODO: ADD??
+            groupThenFetchAction.execute(searchRequest, listener);
+//            queryThenFetchAction.execute(searchRequest, listener);
         } else if (searchRequest.searchType() == SearchType.DFS_QUERY_AND_FETCH) {
             dfsQueryAndFetchAction.execute(searchRequest, listener);
         } else if (searchRequest.searchType() == SearchType.QUERY_AND_FETCH) {

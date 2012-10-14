@@ -114,6 +114,12 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
     <T> T snapshot(SnapshotHandler<T> snapshotHandler) throws EngineException;
 
+    /**
+     * Snapshots the index and returns a handle to it. Will always try and "commit" the
+     * lucene index to make sure we have a "fresh" copy of the files to snapshot.
+     */
+    SnapshotIndexCommit snapshotIndex() throws EngineException;
+
     void recover(RecoveryHandler recoveryHandler) throws EngineException;
 
     static interface FailedEngineListener {
@@ -141,8 +147,6 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         void phase3(Translog.Snapshot snapshot) throws ElasticSearchException;
     }
 
-    /**
-     */
     static interface SnapshotHandler<T> {
 
         T snapshot(SnapshotIndexCommit snapshotIndexCommit, Translog.Snapshot translogSnapshot) throws EngineException;
@@ -211,9 +215,28 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
     static class Flush {
 
-        private boolean full = false;
+        public static enum Type {
+            /**
+             * A flush that causes a new writer to be created.
+             */
+            NEW_WRITER,
+            /**
+             * A flush that just commits the writer, without cleaning the translog.
+             */
+            COMMIT,
+            /**
+             * A flush that does a commit, as well as clears the translog.
+             */
+            COMMIT_TRANSLOG
+        }
+
+        private Type type = Type.COMMIT_TRANSLOG;
         private boolean refresh = false;
         private boolean force = false;
+        /**
+         * Should the flush operation wait if there is an ongoing flush operation.
+         */
+        private boolean waitIfOngoing = false;
 
         /**
          * Should a refresh be performed after flushing. Defaults to <tt>false</tt>.
@@ -230,18 +253,15 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return this;
         }
 
-        /**
-         * Should a "full" flush be issued, basically cleaning as much memory as possible.
-         */
-        public boolean full() {
-            return this.full;
+        public Type type() {
+            return this.type;
         }
 
         /**
          * Should a "full" flush be issued, basically cleaning as much memory as possible.
          */
-        public Flush full(boolean full) {
-            this.full = full;
+        public Flush type(Type type) {
+            this.type = type;
             return this;
         }
 
@@ -254,9 +274,18 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return this;
         }
 
+        public boolean waitIfOngoing() {
+            return this.waitIfOngoing;
+        }
+
+        public Flush waitIfOngoing(boolean waitIfOngoing) {
+            this.waitIfOngoing = waitIfOngoing;
+            return this;
+        }
+
         @Override
         public String toString() {
-            return "full[" + full + "], refresh[" + refresh + "], force[" + force + "]";
+            return "type[" + type + "], refresh[" + refresh + "], force[" + force + "]";
         }
     }
 

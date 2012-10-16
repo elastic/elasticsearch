@@ -165,9 +165,6 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
 
         protected T indexAnalyzer(NamedAnalyzer indexAnalyzer) {
             this.indexAnalyzer = indexAnalyzer;
-            if (this.searchAnalyzer == null) {
-                this.searchAnalyzer = indexAnalyzer;
-            }
             return builder;
         }
 

@@ -30,54 +30,6 @@ import org.elasticsearch.common.settings.Settings;
  */
 public abstract class AllocationDecider extends AbstractComponent {
 
-    public static enum Decision {
-        YES {
-            @Override
-            public boolean allocate() {
-                return true;
-            }
-
-            @Override
-            public boolean allowed() {
-                return true;
-            }
-        },
-        NO {
-            @Override
-            public boolean allocate() {
-                return false;
-            }
-
-            @Override
-            public boolean allowed() {
-                return false;
-            }
-        },
-        THROTTLE {
-            @Override
-            public boolean allocate() {
-                return false;
-            }
-
-            @Override
-            public boolean allowed() {
-                return true;
-            }
-        };
-
-        /**
-         * It can be allocated *now* on a node. Note, it might be {@link #allowed()} to be allocated
-         * on a node, yet, allocate will be <tt>false</tt> since its being throttled for example.
-         */
-        public abstract boolean allocate();
-
-        /**
-         * Is allocation allowed on a node. Note, this does not mean that we should allocate *now*,
-         * though, in extreme cases, we might "force" allocation.
-         */
-        public abstract boolean allowed();
-    }
-
     protected AllocationDecider(Settings settings) {
         super(settings);
     }
@@ -87,7 +39,7 @@ public abstract class AllocationDecider extends AbstractComponent {
     }
 
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return Decision.YES;
+        return Decision.ALWAYS;
     }
 
     /**

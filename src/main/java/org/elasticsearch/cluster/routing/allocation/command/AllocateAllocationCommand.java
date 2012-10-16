@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -160,8 +161,9 @@ public class AllocateAllocationCommand implements AllocationCommand {
         }
 
         RoutingNode routingNode = allocation.routingNodes().node(discoNode.id());
-        if (!allocation.deciders().canAllocate(shardRouting, routingNode, allocation).allowed()) {
-            throw new ElasticSearchIllegalArgumentException("[allocate] allocation of " + shardId + " on node " + discoNode + " is not allowed");
+        Decision decision = allocation.deciders().canAllocate(shardRouting, routingNode, allocation);
+        if (decision.type() == Decision.Type.NO) {
+            throw new ElasticSearchIllegalArgumentException("[allocate] allocation of " + shardId + " on node " + discoNode + " is not allowed, reason: " + decision);
         }
         // go over and remove it from the unassigned
         for (Iterator<MutableShardRouting> it = allocation.routingNodes().unassigned().iterator(); it.hasNext(); ) {

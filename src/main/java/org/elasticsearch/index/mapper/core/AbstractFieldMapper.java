@@ -115,7 +115,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         protected float boost = Defaults.BOOST;
 
         protected boolean omitNorms = Defaults.OMIT_NORMS;
-        
+
         protected String indexName;
 
         protected NamedAnalyzer indexAnalyzer;
@@ -154,12 +154,12 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
             this.omitNorms = omitNorms;
             return builder;
         }
-        
+
         protected T indexOptions(IndexOptions indexOptions) {
             this.indexOptions = indexOptions;
             return builder;
         }
-        
+
         protected T indexName(String indexName) {
             this.indexName = indexName;
             return builder;
@@ -167,9 +167,6 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
 
         protected T indexAnalyzer(NamedAnalyzer indexAnalyzer) {
             this.indexAnalyzer = indexAnalyzer;
-            if (this.searchAnalyzer == null) {
-                this.searchAnalyzer = indexAnalyzer;
-            }
             return builder;
         }
 
@@ -208,7 +205,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
     protected float boost;
 
     protected final boolean omitNorms;
-    
+
     protected final FieldInfo.IndexOptions indexOptions;
 
     protected final NamedAnalyzer indexAnalyzer;
@@ -224,7 +221,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         this.boost = boost;
         this.omitNorms = omitNorms;
         this.indexOptions = indexOptions;
-        
+
         // automatically set to keyword analyzer if its indexed and not analyzed
         if (indexAnalyzer == null && !index.isAnalyzed() && index.isIndexed()) {
             this.indexAnalyzer = Lucene.KEYWORD_ANALYZER;
@@ -288,7 +285,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
     public boolean omitNorms() {
         return this.omitNorms;
     }
-    
+
     @Override
     public IndexOptions indexOptions() {
         return this.indexOptions;
@@ -480,17 +477,17 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         builder.endObject();
         return builder;
     }
-    
+
     protected static String indexOptionToString(IndexOptions indexOption) {
         switch (indexOption) {
-        case DOCS_AND_FREQS:
-            return TypeParsers.INDEX_OPTIONS_FREQS;
-        case DOCS_AND_FREQS_AND_POSITIONS:
-            return TypeParsers.INDEX_OPTIONS_POSITIONS;
-        case DOCS_ONLY:
-            return TypeParsers.INDEX_OPTIONS_DOCS;
-        default:
-            throw new ElasticSearchIllegalArgumentException("Unknown IndexOptions [" + indexOption + "]");
+            case DOCS_AND_FREQS:
+                return TypeParsers.INDEX_OPTIONS_FREQS;
+            case DOCS_AND_FREQS_AND_POSITIONS:
+                return TypeParsers.INDEX_OPTIONS_POSITIONS;
+            case DOCS_ONLY:
+                return TypeParsers.INDEX_OPTIONS_DOCS;
+            default:
+                throw new ElasticSearchIllegalArgumentException("Unknown IndexOptions [" + indexOption + "]");
         }
     }
 

@@ -35,7 +35,7 @@ import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.GatewayAllocator;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -195,10 +195,10 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
             Set<DiscoveryNode> noNodes = Sets.newHashSet();
             for (DiscoveryNode discoNode : nodesWithHighestVersion) {
                 RoutingNode node = routingNodes.node(discoNode.id());
-                AllocationDecider.Decision decision = allocation.deciders().canAllocate(shard, node, allocation);
-                if (decision == AllocationDecider.Decision.THROTTLE) {
+                Decision decision = allocation.deciders().canAllocate(shard, node, allocation);
+                if (decision.type() == Decision.Type.THROTTLE) {
                     throttledNodes.add(discoNode);
-                } else if (decision == AllocationDecider.Decision.NO) {
+                } else if (decision.type() == Decision.Type.NO) {
                     noNodes.add(discoNode);
                 } else {
                     if (logger.isDebugEnabled()) {
@@ -258,7 +258,8 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
                 }
                 // if we can't allocate it on a node, ignore it, for example, this handles
                 // cases for only allocating a replica after a primary
-                if (allocation.deciders().canAllocate(shard, node, allocation).allocate()) {
+                Decision decision = allocation.deciders().canAllocate(shard, node, allocation);
+                if (decision.type() == Decision.Type.YES) {
                     canBeAllocatedToAtLeastOneNode = true;
                     break;
                 }
@@ -292,7 +293,8 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
                 // check if we can allocate on that node...
                 // we only check for NO, since if this node is THROTTLING and it has enough "same data"
                 // then we will try and assign it next time
-                if (allocation.deciders().canAllocate(shard, node, allocation) == AllocationDecider.Decision.NO) {
+                Decision decision = allocation.deciders().canAllocate(shard, node, allocation);
+                if (decision.type() == Decision.Type.NO) {
                     continue;
                 }
 
@@ -328,7 +330,8 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
 
             if (lastNodeMatched != null) {
                 // we only check on THROTTLE since we checked before before on NO
-                if (allocation.deciders().canAllocate(shard, lastNodeMatched, allocation) == AllocationDecider.Decision.THROTTLE) {
+                Decision decision = allocation.deciders().canAllocate(shard, lastNodeMatched, allocation);
+                if (decision.type() == Decision.Type.THROTTLE) {
                     if (logger.isTraceEnabled()) {
                         logger.debug("[{}][{}]: throttling allocation [{}] to [{}] in order to reuse its unallocated persistent store with total_size [{}]", shard.index(), shard.id(), shard, lastDiscoNodeMatched, new ByteSizeValue(lastSizeMatched));
                     }

@@ -70,18 +70,16 @@ public class AllocationDeciders extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        Decision ret = Decision.YES;
-        // first, check if its in the ignored, if so, return NO
         if (allocation.shouldIgnoreShardForNode(shardRouting.shardId(), node.nodeId())) {
             return Decision.NO;
         }
-        // now, go over the registered allocations
-        for (AllocationDecider allocation1 : allocations) {
-            Decision decision = allocation1.canAllocate(shardRouting, node, allocation);
-            if (decision == Decision.NO) {
-                return Decision.NO;
-            } else if (decision == Decision.THROTTLE) {
-                ret = Decision.THROTTLE;
+        Decision.Multi ret = new Decision.Multi();
+        for (AllocationDecider allocationDecider : allocations) {
+            Decision decision = allocationDecider.canAllocate(shardRouting, node, allocation);
+            // the assumption is that a decider that returns the static instance Decision#ALWAYS
+            // does not really implements canAllocate
+            if (decision != Decision.ALWAYS) {
+                ret.add(decision);
             }
         }
         return ret;

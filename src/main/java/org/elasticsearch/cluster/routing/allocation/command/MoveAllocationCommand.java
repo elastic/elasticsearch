@@ -27,7 +27,7 @@ import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -158,11 +158,11 @@ public class MoveAllocationCommand implements AllocationCommand {
             }
 
             RoutingNode toRoutingNode = allocation.routingNodes().node(toDiscoNode.id());
-            AllocationDecider.Decision decision = allocation.deciders().canAllocate(shardRouting, toRoutingNode, allocation);
-            if (!decision.allowed()) {
-                throw new ElasticSearchIllegalArgumentException("[move_allocation] can't move " + shardId + ", from " + fromDiscoNode + ", to " + toDiscoNode + ", since its not allowed");
+            Decision decision = allocation.deciders().canAllocate(shardRouting, toRoutingNode, allocation);
+            if (decision.type() == Decision.Type.NO) {
+                throw new ElasticSearchIllegalArgumentException("[move_allocation] can't move " + shardId + ", from " + fromDiscoNode + ", to " + toDiscoNode + ", since its not allowed, reason: " + decision);
             }
-            if (!decision.allocate()) {
+            if (decision.type() == Decision.Type.THROTTLE) {
                 // its being throttled, maybe have a flag to take it into account and fail? for now, just do it since the "user" wants it...
             }
 

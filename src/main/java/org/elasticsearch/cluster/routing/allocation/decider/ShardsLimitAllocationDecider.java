@@ -75,11 +75,11 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
     }
 
     @Override
-    public boolean canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+    public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         IndexMetaData indexMd = allocation.routingNodes().metaData().index(shardRouting.index());
         int totalShardsPerNode = indexMd.settings().getAsInt(INDEX_TOTAL_SHARDS_PER_NODE, -1);
         if (totalShardsPerNode <= 0) {
-            return true;
+            return Decision.YES;
         }
 
         int nodeCount = 0;
@@ -96,8 +96,8 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
             nodeCount++;
         }
         if (nodeCount > totalShardsPerNode) {
-            return false;
+            return Decision.NO;
         }
-        return true;
+        return Decision.YES;
     }
 }

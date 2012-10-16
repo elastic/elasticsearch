@@ -107,8 +107,8 @@ public class AwarenessAllocationDecider extends AllocationDecider {
     }
 
     @Override
-    public boolean canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return underCapacity(shardRouting, node, allocation, false);
+    public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        return underCapacity(shardRouting, node, allocation, false) ? Decision.YES : Decision.NO;
     }
 
     private boolean underCapacity(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation, boolean moveToNode) {

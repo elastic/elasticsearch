@@ -72,8 +72,8 @@ public class FilterAllocationDecider extends AllocationDecider {
     }
 
     @Override
-    public boolean canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return !shouldFilter(shardRouting, node, allocation);
+    public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        return shouldFilter(shardRouting, node, allocation) ? Decision.NO : Decision.YES;
     }
 
     private boolean shouldFilter(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {

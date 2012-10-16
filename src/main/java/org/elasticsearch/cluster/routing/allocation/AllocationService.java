@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocators;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -223,7 +224,8 @@ public class AllocationService extends AbstractComponent {
                 continue;
             }
             RoutingNode routingNode = allocation.routingNodes().node(shardRouting.currentNodeId());
-            if (!allocation.deciders().canRemain(shardRouting, routingNode, allocation)) {
+            Decision decision = allocation.deciders().canRemain(shardRouting, routingNode, allocation);
+            if (decision.type() == Decision.Type.NO) {
                 logger.debug("[{}][{}] allocated on [{}], but can no longer be allocated on it, moving...", shardRouting.index(), shardRouting.id(), routingNode.node());
                 boolean moved = shardsAllocators.move(shardRouting, routingNode, allocation);
                 if (!moved) {

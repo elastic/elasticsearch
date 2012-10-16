@@ -34,10 +34,16 @@ public abstract class AllocationDecider extends AbstractComponent {
         super(settings);
     }
 
-    public boolean canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
-        return true;
+    /**
+     * Are we allowed to rebalance this shard?
+     */
+    public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
+        return Decision.ALWAYS;
     }
 
+    /**
+     * Can the provided shard routing be allocated on the node.
+     */
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         return Decision.ALWAYS;
     }
@@ -45,7 +51,7 @@ public abstract class AllocationDecider extends AbstractComponent {
     /**
      * Can the provided shard routing remain on the node?
      */
-    public boolean canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return true;
+    public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        return Decision.ALWAYS;
     }
 }

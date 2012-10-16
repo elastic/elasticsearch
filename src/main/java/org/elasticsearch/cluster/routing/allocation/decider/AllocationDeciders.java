@@ -59,13 +59,15 @@ public class AllocationDeciders extends AllocationDecider {
     }
 
     @Override
-    public boolean canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
-        for (AllocationDecider allocation1 : allocations) {
-            if (!allocation1.canRebalance(shardRouting, allocation)) {
-                return false;
+    public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
+        Decision.Multi ret = new Decision.Multi();
+        for (AllocationDecider allocationDecider : allocations) {
+            Decision decision = allocationDecider.canRebalance(shardRouting, allocation);
+            if (decision != Decision.ALWAYS) {
+                ret.add(decision);
             }
         }
-        return true;
+        return ret;
     }
 
     @Override
@@ -86,15 +88,17 @@ public class AllocationDeciders extends AllocationDecider {
     }
 
     @Override
-    public boolean canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+    public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (allocation.shouldIgnoreShardForNode(shardRouting.shardId(), node.nodeId())) {
-            return false;
+            return Decision.NO;
         }
-        for (AllocationDecider allocation1 : allocations) {
-            if (!allocation1.canRemain(shardRouting, node, allocation)) {
-                return false;
+        Decision.Multi ret = new Decision.Multi();
+        for (AllocationDecider allocationDecider : allocations) {
+            Decision decision = allocationDecider.canRemain(shardRouting, node, allocation);
+            if (decision != Decision.ALWAYS) {
+                ret.add(decision);
             }
         }
-        return true;
+        return ret;
     }
 }

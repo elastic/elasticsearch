@@ -141,12 +141,13 @@ public class EvenShardsCountAllocator extends AbstractComponent implements Shard
                 boolean relocated = false;
                 List<MutableShardRouting> startedShards = highRoutingNode.shardsWithState(STARTED);
                 for (MutableShardRouting startedShard : startedShards) {
-                    if (!allocation.deciders().canRebalance(startedShard, allocation)) {
+                    Decision rebalanceDecision = allocation.deciders().canRebalance(startedShard, allocation);
+                    if (rebalanceDecision.type() == Decision.Type.NO) {
                         continue;
                     }
 
-                    Decision decision = allocation.deciders().canAllocate(startedShard, lowRoutingNode, allocation);
-                    if (decision.type() == Decision.Type.YES) {
+                    Decision allocateDecision = allocation.deciders().canAllocate(startedShard, lowRoutingNode, allocation);
+                    if (allocateDecision.type() == Decision.Type.YES) {
                         changed = true;
                         lowRoutingNode.add(new MutableShardRouting(startedShard.index(), startedShard.id(),
                                 lowRoutingNode.nodeId(), startedShard.currentNodeId(),

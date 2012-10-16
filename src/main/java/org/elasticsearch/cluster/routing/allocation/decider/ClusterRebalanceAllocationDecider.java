@@ -56,11 +56,11 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
     }
 
     @Override
-    public boolean canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
+    public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
         if (type == ClusterRebalanceType.INDICES_PRIMARIES_ACTIVE) {
             for (MutableShardRouting shard : allocation.routingNodes().unassigned()) {
                 if (shard.primary()) {
-                    return false;
+                    return Decision.NO;
                 }
             }
             for (RoutingNode node : allocation.routingNodes()) {
@@ -68,27 +68,27 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
                 for (int i = 0; i < shards.size(); i++) {
                     MutableShardRouting shard = shards.get(i);
                     if (shard.primary() && !shard.active() && shard.relocatingNodeId() == null) {
-                        return false;
+                        return Decision.NO;
                     }
                 }
             }
-            return true;
+            return Decision.YES;
         }
         if (type == ClusterRebalanceType.INDICES_ALL_ACTIVE) {
             if (!allocation.routingNodes().unassigned().isEmpty()) {
-                return false;
+                return Decision.NO;
             }
             for (RoutingNode node : allocation.routingNodes()) {
                 List<MutableShardRouting> shards = node.shards();
                 for (int i = 0; i < shards.size(); i++) {
                     MutableShardRouting shard = shards.get(i);
                     if (!shard.active() && shard.relocatingNodeId() == null) {
-                        return false;
+                        return Decision.NO;
                     }
                 }
             }
         }
         // type == Type.ALWAYS
-        return true;
+        return Decision.YES;
     }
 }

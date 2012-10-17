@@ -138,33 +138,8 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                     // Don't use the context.query() since it might be rewritten, and we need to pass the non rewritten queries to
                     // let the highlighter handle MultiTerm ones
 
-                    // QueryScorer uses WeightedSpanTermExtractor to extract terms, but we can't really plug into
-                    // it, so, we hack here (and really only support top level queries)
                     Query query = context.parsedQuery().query();
-                    while (true) {
-                        boolean extracted = false;
-                        if (query instanceof FunctionScoreQuery) {
-                            query = ((FunctionScoreQuery) query).getSubQuery();
-                            extracted = true;
-                        } else if (query instanceof FiltersFunctionScoreQuery) {
-                            query = ((FiltersFunctionScoreQuery) query).getSubQuery();
-                            extracted = true;
-                        } else if (query instanceof ConstantScoreQuery) {
-                            ConstantScoreQuery q = (ConstantScoreQuery) query;
-                            if (q.getQuery() != null) {
-                                query = q.getQuery();
-                                extracted = true;
-                            }
-                        } else if (query instanceof FilteredQuery) {
-                            query = ((FilteredQuery) query).getQuery();
-                            extracted = true;
-                        }
-                        if (!extracted) {
-                            break;
-                        }
-                    }
-
-                    QueryScorer queryScorer = new QueryScorer(query, field.requireFieldMatch() ? mapper.names().indexName() : null);
+                    QueryScorer queryScorer = new CustomQueryScorer(query, field.requireFieldMatch() ? mapper.names().indexName() : null);
                     queryScorer.setExpandMultiTermQuery(true);
                     Fragmenter fragmenter;
                     if (field.numberOfFragments() == 0) {

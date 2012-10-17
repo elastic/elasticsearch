@@ -59,9 +59,15 @@ public abstract class AbstractFacetBuilder implements ToXContent {
 
     /**
      * Marks the facet to run in a global scope, not bounded by any query.
+     * @param global if true sets scope to global, if false only resets scope
+     *               if scope is currently set to global
      */
     public AbstractFacetBuilder global(boolean global) {
-        this.scope = ContextIndexSearcher.Scopes.GLOBAL;
+        if (global) {
+            this.scope = ContextIndexSearcher.Scopes.GLOBAL;
+        } else if (ContextIndexSearcher.Scopes.GLOBAL.equals(this.scope)) {
+            this.scope = null;
+        }
         return this;
     }
 

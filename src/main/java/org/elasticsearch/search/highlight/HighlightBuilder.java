@@ -48,6 +48,9 @@ public class HighlightBuilder implements ToXContent {
 
     private Boolean requireFieldMatch;
 
+    private String highlighterType;
+
+
     /**
      * Adds a field to be highlighted with default fragment size of 100 characters, and
      * default number of fragments of 5 using the default encoder
@@ -176,6 +179,15 @@ public class HighlightBuilder implements ToXContent {
         return this;
     }
 
+    /**
+     * Set type of highlighter to use. Supported types
+     * are <tt>highlighter</tt> and <tt>fast-vector-highlighter</tt>.
+     */
+    public HighlightBuilder highlighterType(String highlighterType) {
+        this.highlighterType = highlighterType;
+        return this;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("highlight");
@@ -197,6 +209,9 @@ public class HighlightBuilder implements ToXContent {
         if (requireFieldMatch != null) {
             builder.field("require_field_match", requireFieldMatch);
         }
+        if (highlighterType != null) {
+            builder.field("type", highlighterType);
+        }
         if (fields != null) {
             builder.startObject("fields");
             for (Field field : fields) {
@@ -212,6 +227,9 @@ public class HighlightBuilder implements ToXContent {
                 }
                 if (field.requireFieldMatch != null) {
                     builder.field("require_field_match", field.requireFieldMatch);
+                }
+                if (field.highlighterType != null) {
+                    builder.field("type", field.highlighterType);
                 }
 
                 builder.endObject();
@@ -229,6 +247,7 @@ public class HighlightBuilder implements ToXContent {
         int fragmentOffset = -1;
         int numOfFragments = -1;
         Boolean requireFieldMatch;
+        String highlighterType;
 
         public Field(String name) {
             this.name = name;
@@ -255,6 +274,11 @@ public class HighlightBuilder implements ToXContent {
 
         public Field requireFieldMatch(boolean requireFieldMatch) {
             this.requireFieldMatch = requireFieldMatch;
+            return this;
+        }
+
+        public Field highlighterType(String highlighterType) {
+            this.highlighterType = highlighterType;
             return this;
         }
     }

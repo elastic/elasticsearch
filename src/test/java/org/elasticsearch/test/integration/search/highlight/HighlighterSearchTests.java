@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -780,5 +781,110 @@ public class HighlighterSearchTests extends AbstractNodesTests {
 
         hit = search.hits().getAt(0);
         assertThat(hit.highlightFields().get("title.key").fragments()[0].string(), equalTo("<em>this</em> <em>is</em> <em>a</em> <em>test</em>"));
+    }
+
+    @Test
+    public void testFastVectorHighlighterShouldFailIfNoTermVectors() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 2))
+                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("title").field("type", "string").field("store", "yes").field("term_vector", "no").endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
+
+        for (int i = 0; i < 5; i++) {
+            client.prepareIndex("test", "type1", Integer.toString(i))
+                    .setSource("title", "This is a test for the enabling fast vector highlighter").setRefresh(true).execute().actionGet();
+        }
+
+        SearchResponse search = client.prepareSearch()
+                .setQuery(matchPhraseQuery("title", "this is a test"))
+                .addHighlightedField("title", 50, 1, 10)
+                .execute().actionGet();
+
+        assertThat(Arrays.toString(search.shardFailures()), search.failedShards(), equalTo(0));
+
+        search = client.prepareSearch()
+                .setQuery(matchPhraseQuery("title", "this is a test"))
+                .addHighlightedField("title", 50, 1, 10)
+                .setHighlighterType("fast-vector-highlighter")
+                .execute().actionGet();
+
+        assertThat(search.failedShards(), equalTo(2));
+
+    }
+
+    @Test
+    public void testDisableFastVectorHighlighter() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 2))
+                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("title").field("type", "string").field("store", "yes").field("term_vector", "with_positions_offsets").endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
+
+        for (int i = 0; i < 5; i++) {
+            client.prepareIndex("test", "type1", Integer.toString(i))
+                    .setSource("title", "This is a test for the workaround for the fast vector highlighting SOLR-3724").setRefresh(true).execute().actionGet();
+        }
+
+        SearchResponse search = client.prepareSearch()
+                .setQuery(matchPhraseQuery("title", "test for the workaround"))
+                .addHighlightedField("title", 50, 1, 10)
+                .execute().actionGet();
+
+        assertThat(Arrays.toString(search.shardFailures()), search.failedShards(), equalTo(0));
+
+        assertThat(search.hits().totalHits(), equalTo(5l));
+        assertThat(search.hits().hits().length, equalTo(5));
+
+        for (SearchHit hit : search.hits()) {
+            // Because of SOLR-3724 nothing is highlighted when FVH is used
+            assertThat(hit.highlightFields().isEmpty(), equalTo(true));
+        }
+
+        // Using plain highlighter instead of FVH
+        search = client.prepareSearch()
+                .setQuery(matchPhraseQuery("title", "test for the workaround"))
+                .addHighlightedField("title", 50, 1, 10)
+                .setHighlighterType("highlighter")
+                .execute().actionGet();
+
+        assertThat(Arrays.toString(search.shardFailures()), search.failedShards(), equalTo(0));
+
+        assertThat(search.hits().totalHits(), equalTo(5l));
+        assertThat(search.hits().hits().length, equalTo(5));
+
+        for (SearchHit hit : search.hits()) {
+            // With plain highlighter terms are highlighted correctly
+            assertThat(hit.highlightFields().get("title").fragments()[0].string(), equalTo("This is a <em>test</em> for the <em>workaround</em> for the fast vector highlighting SOLR-3724"));
+        }
+
+        // Using plain highlighter instead of FVH on the field level
+        search = client.prepareSearch()
+                .setQuery(matchPhraseQuery("title", "test for the workaround"))
+                .addHighlightedField(new HighlightBuilder.Field("title").highlighterType("highlighter"))
+                .setHighlighterType("highlighter")
+                .execute().actionGet();
+
+        assertThat(Arrays.toString(search.shardFailures()), search.failedShards(), equalTo(0));
+
+        assertThat(search.hits().totalHits(), equalTo(5l));
+        assertThat(search.hits().hits().length, equalTo(5));
+
+        for (SearchHit hit : search.hits()) {
+            // With plain highlighter terms are highlighted correctly
+            assertThat(hit.highlightFields().get("title").fragments()[0].string(), equalTo("This is a <em>test</em> for the <em>workaround</em> for the fast vector highlighting SOLR-3724"));
+        }
     }
 }

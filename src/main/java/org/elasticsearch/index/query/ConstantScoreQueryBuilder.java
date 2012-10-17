@@ -32,8 +32,10 @@ import java.io.IOException;
 public class ConstantScoreQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<ConstantScoreQueryBuilder> {
 
     private final FilterBuilder filterBuilder;
+    private final QueryBuilder queryBuilder;
 
     private float boost = -1;
+    
 
     /**
      * A query that wraps a filter and simply returns a constant score equal to the
@@ -43,7 +45,18 @@ public class ConstantScoreQueryBuilder extends BaseQueryBuilder implements Boost
      */
     public ConstantScoreQueryBuilder(FilterBuilder filterBuilder) {
         this.filterBuilder = filterBuilder;
+        this.queryBuilder = null;
     }
+    /**
+     * A query that wraps a query and simply returns a constant score equal to the
+     * query boost for every document in the query.
+     *
+     * @param queryBuilder The query to wrap in a constant score query
+     */
+    public ConstantScoreQueryBuilder(QueryBuilder queryBuilder) {
+        this.filterBuilder = null;
+        this.queryBuilder = queryBuilder;
+    }    
 
     /**
      * Sets the boost for this query.  Documents matching this query will (in addition to the normal
@@ -57,8 +70,15 @@ public class ConstantScoreQueryBuilder extends BaseQueryBuilder implements Boost
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(ConstantScoreQueryParser.NAME);
-        builder.field("filter");
-        filterBuilder.toXContent(builder, params);
+        if (queryBuilder != null) {
+            assert filterBuilder == null;
+            builder.field("query");
+            queryBuilder.toXContent(builder, params);
+        } else {
+            builder.field("filter");
+            filterBuilder.toXContent(builder, params);  
+        }
+        
         if (boost != -1) {
             builder.field("boost", boost);
         }

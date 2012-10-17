@@ -453,6 +453,16 @@ public abstract class QueryBuilders {
     public static ConstantScoreQueryBuilder constantScoreQuery(FilterBuilder filterBuilder) {
         return new ConstantScoreQueryBuilder(filterBuilder);
     }
+    
+    /**
+     * A query that wraps another query and simply returns a constant score equal to the
+     * query boost for every document in the query.
+     *
+     * @param queryBuilder The query to wrap in a constant score query
+     */
+    public static ConstantScoreQueryBuilder constantScoreQuery(QueryBuilder queryBuilder) {
+        return new ConstantScoreQueryBuilder(queryBuilder);
+    }
 
     /**
      * A query that simply applies the boost fact to the wrapped query (multiplies it).

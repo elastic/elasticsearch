@@ -312,8 +312,31 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
 
         assertThat(searchResponse.hits().getAt(0).highlightFields().get("field2").fragments()[0].string(), equalTo("The <xxx>quick</xxx> brown fox jumps over the lazy dog"));
-    }
+        
+        logger.info("--> searching on _all with constant score, highlighting on field2");
+        source = searchSource()
+                .query(constantScoreQuery(prefixQuery("_all", "qui")))
+                .from(0).size(60).explain(true)
+                .highlight(highlight().field("field2").order("score").preTags("<xxx>").postTags("</xxx>"));
 
+        searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+
+        assertThat(searchResponse.hits().getAt(0).highlightFields().get("field2").fragments()[0].string(), equalTo("The <xxx>quick</xxx> brown fox jumps over the lazy dog"));
+
+        logger.info("--> searching on _all with constant score, highlighting on field2");
+        source = searchSource()
+                .query(boolQuery().should(constantScoreQuery(prefixQuery("_all", "qui"))))
+                .from(0).size(60).explain(true)
+                .highlight(highlight().field("field2").order("score").preTags("<xxx>").postTags("</xxx>"));
+
+        searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+        assertThat(searchResponse.hits().getAt(0).highlightFields().get("field2").fragments()[0].string(), equalTo("The <xxx>quick</xxx> brown fox jumps over the lazy dog"));
+    }
+   
     @Test
     public void testFastVectorHighlighter() throws Exception {
         try {

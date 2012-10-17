@@ -58,6 +58,8 @@ public class SearchContextHighlight {
 
         private Boolean requireFieldMatch;
 
+        private String highlighterType;
+
         private int boundaryMaxScan = -1;
         private char[] boundaryChars = null;
 
@@ -139,6 +141,14 @@ public class SearchContextHighlight {
 
         public void requireFieldMatch(boolean requireFieldMatch) {
             this.requireFieldMatch = requireFieldMatch;
+        }
+
+        public String highlighterType() {
+            return highlighterType;
+        }
+
+        public void highlighterType(String type) {
+            this.highlighterType = type;
         }
 
         public int boundaryMaxScan() {

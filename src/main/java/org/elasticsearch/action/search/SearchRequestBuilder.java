@@ -647,6 +647,14 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
+     * The highlighter type to use.
+     */
+    public SearchRequestBuilder setHighlighterType(String type) {
+        highlightBuilder().highlighterType(type);
+        return this;
+    }
+
+    /**
      * Sets the source of the request as a json string. Note, settings anything other
      * than the search type will cause this source to be overridden, consider using
      * {@link #setExtraSource(String)}.

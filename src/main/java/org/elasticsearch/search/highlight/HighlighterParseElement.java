@@ -76,6 +76,7 @@ public class HighlighterParseElement implements SearchParseElement {
         String globalEncoder = "default";
         int globalBoundaryMaxScan = SimpleBoundaryScanner2.DEFAULT_MAX_SCAN;
         char[] globalBoundaryChars = SimpleBoundaryScanner2.DEFAULT_BOUNDARY_CHARS;
+        String globalHighlighterType = null;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -117,6 +118,8 @@ public class HighlighterParseElement implements SearchParseElement {
                     globalBoundaryMaxScan = parser.intValue();
                 } else if ("boundary_chars".equals(topLevelFieldName) || "boundaryChars".equals(topLevelFieldName)) {
                     globalBoundaryChars = parser.text().toCharArray();
+                } else if ("type".equals(topLevelFieldName)) {
+                    globalHighlighterType = parser.text();
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("fields".equals(topLevelFieldName)) {
@@ -161,6 +164,8 @@ public class HighlighterParseElement implements SearchParseElement {
                                         field.boundaryMaxScan(parser.intValue());
                                     } else if ("boundary_chars".equals(topLevelFieldName) || "boundaryChars".equals(topLevelFieldName)) {
                                         field.boundaryChars(parser.text().toCharArray());
+                                    } else if ("type".equals(fieldName)) {
+                                        field.highlighterType(parser.text());
                                     }
                                 }
                             }
@@ -205,6 +210,9 @@ public class HighlighterParseElement implements SearchParseElement {
             }
             if (field.boundaryChars() == null) {
                 field.boundaryChars(globalBoundaryChars);
+            }
+            if (field.highlighterType() == null) {
+                field.highlighterType(globalHighlighterType);
             }
         }
 

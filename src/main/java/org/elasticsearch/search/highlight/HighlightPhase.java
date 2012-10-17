@@ -129,10 +129,22 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                     continue;
                 }
             }
-
-            // if we can do highlighting using Term Vectors, use FastVectorHighlighter, otherwise, use the
-            // slower plain highlighter
-            if (mapper.termVector() != Field.TermVector.WITH_POSITIONS_OFFSETS) {
+            boolean useFastVectorHighlighter;
+            if (field.highlighterType() == null) {
+                // if we can do highlighting using Term Vectors, use FastVectorHighlighter, otherwise, use the
+                // slower plain highlighter
+                useFastVectorHighlighter =  mapper.termVector() == Field.TermVector.WITH_POSITIONS_OFFSETS;
+            } else if (field.highlighterType().equals("fast-vector-highlighter")) {
+                if (mapper.termVector() != Field.TermVector.WITH_POSITIONS_OFFSETS) {
+                    throw new FetchPhaseExecutionException(context, "The field [" + field.field() + "] should be indexed with term vector with position offsets to be used with fast vector highlighter");
+                }
+                useFastVectorHighlighter = true;
+            } else if (field.highlighterType().equals("highlighter")) {
+                useFastVectorHighlighter = false;
+            } else {
+                throw new FetchPhaseExecutionException(context, "Unknown highlighter type [" + field.highlighterType() + "] for the field [" + field.field() + "]");
+            }
+            if (!useFastVectorHighlighter) {
                 MapperHighlightEntry entry = cache.mappers.get(mapper);
                 if (entry == null) {
                     // Don't use the context.query() since it might be rewritten, and we need to pass the non rewritten queries to

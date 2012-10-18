@@ -437,6 +437,7 @@ public class AnalysisModule extends AbstractModule {
             tokenFiltersBindings.processTokenFilter("unique", UniqueTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("truncate", TruncateTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("trim", TrimTokenFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("collation", CollationKeyFilterFactory.class);
         }
 
         @Override
@@ -464,6 +465,7 @@ public class AnalysisModule extends AbstractModule {
             analyzersBindings.processAnalyzer("stop", StopAnalyzerProvider.class);
             analyzersBindings.processAnalyzer("whitespace", WhitespaceAnalyzerProvider.class);
             analyzersBindings.processAnalyzer("keyword", KeywordAnalyzerProvider.class);
+            analyzersBindings.processAnalyzer("collation", CollationKeyAnalyzerProvider.class);
         }
     }
 

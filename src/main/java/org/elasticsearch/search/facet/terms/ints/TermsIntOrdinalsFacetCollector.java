@@ -34,6 +34,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.terms.TermsFacet;
+import org.elasticsearch.search.facet.terms.comparator.TermsFacetComparator;
 import org.elasticsearch.search.facet.terms.support.EntryPriorityQueue;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -51,7 +52,7 @@ public class TermsIntOrdinalsFacetCollector extends AbstractFacetCollector {
 
     private final String indexFieldName;
 
-    private final TermsFacet.ComparatorType comparatorType;
+    private final TermsFacetComparator comparator;
 
     private final int size;
 
@@ -72,12 +73,12 @@ public class TermsIntOrdinalsFacetCollector extends AbstractFacetCollector {
 
     private final TIntHashSet excluded;
 
-    public TermsIntOrdinalsFacetCollector(String facetName, String fieldName, int size, TermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
+    public TermsIntOrdinalsFacetCollector(String facetName, String fieldName, int size, TermsFacetComparator comparator, boolean allTerms, SearchContext context,
                                           ImmutableSet<String> excluded) {
         super(facetName);
         this.fieldDataCache = context.fieldDataCache();
         this.size = size;
-        this.comparatorType = comparatorType;
+        this.comparator = comparator;
         this.numberOfShards = context.numberOfShards();
 
         MapperService.SmartNameFieldMappers smartMappers = context.smartFieldMappers(fieldName);
@@ -155,7 +156,7 @@ public class TermsIntOrdinalsFacetCollector extends AbstractFacetCollector {
         // YACK, we repeat the same logic, but once with an optimizer priority queue for smaller sizes
         if (size < EntryPriorityQueue.LIMIT) {
             // optimize to use priority size
-            EntryPriorityQueue ordered = new EntryPriorityQueue(size, comparatorType.comparator());
+            EntryPriorityQueue ordered = new EntryPriorityQueue(size, comparator);
 
             while (queue.size() > 0) {
                 ReaderAggregator agg = queue.top();
@@ -188,10 +189,10 @@ public class TermsIntOrdinalsFacetCollector extends AbstractFacetCollector {
                 CacheRecycler.pushIntArray(aggregator.counts);
             }
 
-            return new InternalIntTermsFacet(facetName, comparatorType, size, Arrays.asList(list), missing, total);
+            return new InternalIntTermsFacet(facetName, comparator, size, Arrays.asList(list), missing, total);
         }
 
-        BoundedTreeSet<InternalIntTermsFacet.IntEntry> ordered = new BoundedTreeSet<InternalIntTermsFacet.IntEntry>(comparatorType.comparator(), size);
+        BoundedTreeSet<InternalIntTermsFacet.IntEntry> ordered = new BoundedTreeSet<InternalIntTermsFacet.IntEntry>(comparator, size);
 
         while (queue.size() > 0) {
             ReaderAggregator agg = queue.top();
@@ -220,7 +221,7 @@ public class TermsIntOrdinalsFacetCollector extends AbstractFacetCollector {
             CacheRecycler.pushIntArray(aggregator.counts);
         }
 
-        return new InternalIntTermsFacet(facetName, comparatorType, size, ordered, missing, total);
+        return new InternalIntTermsFacet(facetName, comparator, size, ordered, missing, total);
     }
 
     public static class ReaderAggregator implements FieldData.OrdinalInDocProc {

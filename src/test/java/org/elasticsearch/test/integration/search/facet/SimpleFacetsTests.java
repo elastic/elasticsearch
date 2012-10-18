@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.integration.search.facet;
 
+import java.util.Locale;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -34,6 +35,8 @@ import org.elasticsearch.search.facet.query.QueryFacet;
 import org.elasticsearch.search.facet.range.RangeFacet;
 import org.elasticsearch.search.facet.statistical.StatisticalFacet;
 import org.elasticsearch.search.facet.terms.TermsFacet;
+import org.elasticsearch.search.facet.terms.comparator.AbstractTermsFacetComparator;
+import org.elasticsearch.search.facet.terms.comparator.LocalizedTermsFacetComparator;
 import org.elasticsearch.search.facet.terms.bytes.InternalByteTermsFacet;
 import org.elasticsearch.search.facet.terms.doubles.InternalDoubleTermsFacet;
 import org.elasticsearch.search.facet.terms.ints.InternalIntTermsFacet;
@@ -478,6 +481,8 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                     .addFacet(termsFacet("facet3").field("ltag").size(10).exclude(3000).executionHint(executionHint))
                     .execute().actionGet();
 
+            logger.debug(searchResponse.toString());
+            
             facet = searchResponse.facets().facet("facet1");
             assertThat(facet, instanceOf(InternalLongTermsFacet.class));
             assertThat(facet.name(), equalTo("facet1"));
@@ -652,9 +657,13 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
             searchResponse = client.prepareSearch()
                     .setQuery(matchAllQuery())
-                    .addFacet(termsFacet("facet1").field("tag").size(10).order(TermsFacet.ComparatorType.TERM).executionHint(executionHint))
+                    .addFacet(termsFacet("facet1").field("tag").size(10)
+                            .order(new LocalizedTermsFacetComparator(Locale.US, false))
+                            .executionHint(executionHint))
                     .execute().actionGet();
 
+            logger.debug(searchResponse.toString());
+            
             facet = searchResponse.facets().facet("facet1");
             assertThat(facet.name(), equalTo("facet1"));
             assertThat(facet.entries().size(), equalTo(3));
@@ -667,9 +676,13 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
             searchResponse = client.prepareSearch()
                     .setQuery(matchAllQuery())
-                    .addFacet(termsFacet("facet1").field("tag").size(10).order(TermsFacet.ComparatorType.REVERSE_TERM).executionHint(executionHint))
+                    .addFacet(termsFacet("facet1").field("tag").size(10)
+                            .order(new LocalizedTermsFacetComparator(Locale.US, true))
+                            .executionHint(executionHint))
                     .execute().actionGet();
 
+            logger.debug(searchResponse.toString());
+            
             facet = searchResponse.facets().facet("facet1");
             assertThat(facet.name(), equalTo("facet1"));
             assertThat(facet.entries().size(), equalTo(3));
@@ -684,7 +697,10 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
             searchResponse = client.prepareSearch()
                     .setQuery(matchAllQuery())
-                    .addFacet(termsFacet("facet1").field("tag").size(10).script("term + param1").param("param1", "a").order(TermsFacet.ComparatorType.TERM).executionHint(executionHint))
+                    .addFacet(termsFacet("facet1").field("tag").size(10)
+                            .script("term + param1").param("param1", "a")
+                            .order(new LocalizedTermsFacetComparator(Locale.US, false))
+                            .executionHint(executionHint))
                     .execute().actionGet();
 
             facet = searchResponse.facets().facet("facet1");
@@ -699,7 +715,10 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
             searchResponse = client.prepareSearch()
                     .setQuery(matchAllQuery())
-                    .addFacet(termsFacet("facet1").field("tag").size(10).script("term == 'xxx' ? false : true").order(TermsFacet.ComparatorType.TERM).executionHint(executionHint))
+                    .addFacet(termsFacet("facet1").field("tag").size(10)
+                            .script("term == 'xxx' ? false : true")
+                            .order(new LocalizedTermsFacetComparator(Locale.US, false))
+                            .executionHint(executionHint))
                     .execute().actionGet();
 
             facet = searchResponse.facets().facet("facet1");

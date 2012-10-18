@@ -38,6 +38,7 @@ import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.facet.terms.TermsFacet;
+import org.elasticsearch.search.facet.terms.comparator.TermsFacetComparator;
 import org.elasticsearch.search.facet.terms.support.EntryPriorityQueue;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -55,7 +56,7 @@ public class TermsDoubleFacetCollector extends AbstractFacetCollector {
 
     private final String indexFieldName;
 
-    private final TermsFacet.ComparatorType comparatorType;
+    private final TermsFacetComparator comparator;
 
     private final int size;
 
@@ -69,12 +70,12 @@ public class TermsDoubleFacetCollector extends AbstractFacetCollector {
 
     private final SearchScript script;
 
-    public TermsDoubleFacetCollector(String facetName, String fieldName, int size, TermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
+    public TermsDoubleFacetCollector(String facetName, String fieldName, int size, TermsFacetComparator comparator, boolean allTerms, SearchContext context,
                                      ImmutableSet<String> excluded, String scriptLang, String script, Map<String, Object> params) {
         super(facetName);
         this.fieldDataCache = context.fieldDataCache();
         this.size = size;
-        this.comparatorType = comparatorType;
+        this.comparator = comparator;
         this.numberOfShards = context.numberOfShards();
 
         MapperService.SmartNameFieldMappers smartMappers = context.smartFieldMappers(fieldName);
@@ -142,10 +143,10 @@ public class TermsDoubleFacetCollector extends AbstractFacetCollector {
         TDoubleIntHashMap facets = aggregator.facets();
         if (facets.isEmpty()) {
             CacheRecycler.pushDoubleIntMap(facets);
-            return new InternalDoubleTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalDoubleTermsFacet.DoubleEntry>of(), aggregator.missing(), aggregator.total());
+            return new InternalDoubleTermsFacet(facetName, comparator, size, ImmutableList.<InternalDoubleTermsFacet.DoubleEntry>of(), aggregator.missing(), aggregator.total());
         } else {
             if (size < EntryPriorityQueue.LIMIT) {
-                EntryPriorityQueue ordered = new EntryPriorityQueue(size, comparatorType.comparator());
+                EntryPriorityQueue ordered = new EntryPriorityQueue(size, comparator);
                 for (TDoubleIntIterator it = facets.iterator(); it.hasNext(); ) {
                     it.advance();
                     ordered.insertWithOverflow(new InternalDoubleTermsFacet.DoubleEntry(it.key(), it.value()));
@@ -155,15 +156,15 @@ public class TermsDoubleFacetCollector extends AbstractFacetCollector {
                     list[i] = (InternalDoubleTermsFacet.DoubleEntry) ordered.pop();
                 }
                 CacheRecycler.pushDoubleIntMap(facets);
-                return new InternalDoubleTermsFacet(facetName, comparatorType, size, Arrays.asList(list), aggregator.missing(), aggregator.total());
+                return new InternalDoubleTermsFacet(facetName, comparator, size, Arrays.asList(list), aggregator.missing(), aggregator.total());
             } else {
-                BoundedTreeSet<InternalDoubleTermsFacet.DoubleEntry> ordered = new BoundedTreeSet<InternalDoubleTermsFacet.DoubleEntry>(comparatorType.comparator(), size);
+                BoundedTreeSet<InternalDoubleTermsFacet.DoubleEntry> ordered = new BoundedTreeSet<InternalDoubleTermsFacet.DoubleEntry>(comparator, size);
                 for (TDoubleIntIterator it = facets.iterator(); it.hasNext(); ) {
                     it.advance();
                     ordered.add(new InternalDoubleTermsFacet.DoubleEntry(it.key(), it.value()));
                 }
                 CacheRecycler.pushDoubleIntMap(facets);
-                return new InternalDoubleTermsFacet(facetName, comparatorType, size, ordered, aggregator.missing(), aggregator.total());
+                return new InternalDoubleTermsFacet(facetName, comparator, size, ordered, aggregator.missing(), aggregator.total());
             }
         }
     }

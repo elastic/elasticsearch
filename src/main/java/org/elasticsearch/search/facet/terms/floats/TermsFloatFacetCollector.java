@@ -38,6 +38,7 @@ import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.facet.terms.TermsFacet;
+import org.elasticsearch.search.facet.terms.comparator.TermsFacetComparator;
 import org.elasticsearch.search.facet.terms.support.EntryPriorityQueue;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -55,7 +56,7 @@ public class TermsFloatFacetCollector extends AbstractFacetCollector {
 
     private final String indexFieldName;
 
-    private final TermsFacet.ComparatorType comparatorType;
+    private final TermsFacetComparator comparator;
 
     private final int size;
 
@@ -69,12 +70,12 @@ public class TermsFloatFacetCollector extends AbstractFacetCollector {
 
     private final SearchScript script;
 
-    public TermsFloatFacetCollector(String facetName, String fieldName, int size, TermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
+    public TermsFloatFacetCollector(String facetName, String fieldName, int size, TermsFacetComparator comparator, boolean allTerms, SearchContext context,
                                     ImmutableSet<String> excluded, String scriptLang, String script, Map<String, Object> params) {
         super(facetName);
         this.fieldDataCache = context.fieldDataCache();
         this.size = size;
-        this.comparatorType = comparatorType;
+        this.comparator = comparator;
         this.numberOfShards = context.numberOfShards();
 
         MapperService.SmartNameFieldMappers smartMappers = context.smartFieldMappers(fieldName);
@@ -142,10 +143,10 @@ public class TermsFloatFacetCollector extends AbstractFacetCollector {
         TFloatIntHashMap facets = aggregator.facets();
         if (facets.isEmpty()) {
             CacheRecycler.pushFloatIntMap(facets);
-            return new InternalFloatTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalFloatTermsFacet.FloatEntry>of(), aggregator.missing(), aggregator.total());
+            return new InternalFloatTermsFacet(facetName, comparator, size, ImmutableList.<InternalFloatTermsFacet.FloatEntry>of(), aggregator.missing(), aggregator.total());
         } else {
             if (size < EntryPriorityQueue.LIMIT) {
-                EntryPriorityQueue ordered = new EntryPriorityQueue(size, comparatorType.comparator());
+                EntryPriorityQueue ordered = new EntryPriorityQueue(size, comparator);
                 for (TFloatIntIterator it = facets.iterator(); it.hasNext(); ) {
                     it.advance();
                     ordered.insertWithOverflow(new InternalFloatTermsFacet.FloatEntry(it.key(), it.value()));
@@ -155,15 +156,15 @@ public class TermsFloatFacetCollector extends AbstractFacetCollector {
                     list[i] = (InternalFloatTermsFacet.FloatEntry) ordered.pop();
                 }
                 CacheRecycler.pushFloatIntMap(facets);
-                return new InternalFloatTermsFacet(facetName, comparatorType, size, Arrays.asList(list), aggregator.missing(), aggregator.total());
+                return new InternalFloatTermsFacet(facetName, comparator, size, Arrays.asList(list), aggregator.missing(), aggregator.total());
             } else {
-                BoundedTreeSet<InternalFloatTermsFacet.FloatEntry> ordered = new BoundedTreeSet<InternalFloatTermsFacet.FloatEntry>(comparatorType.comparator(), size);
+                BoundedTreeSet<InternalFloatTermsFacet.FloatEntry> ordered = new BoundedTreeSet<InternalFloatTermsFacet.FloatEntry>(comparator, size);
                 for (TFloatIntIterator it = facets.iterator(); it.hasNext(); ) {
                     it.advance();
                     ordered.add(new InternalFloatTermsFacet.FloatEntry(it.key(), it.value()));
                 }
                 CacheRecycler.pushFloatIntMap(facets);
-                return new InternalFloatTermsFacet(facetName, comparatorType, size, ordered, aggregator.missing(), aggregator.total());
+                return new InternalFloatTermsFacet(facetName, comparator, size, ordered, aggregator.missing(), aggregator.total());
             }
         }
     }

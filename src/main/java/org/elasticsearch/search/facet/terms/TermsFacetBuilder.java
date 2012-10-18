@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.facet.terms;
 
+import org.elasticsearch.search.facet.terms.comparator.AbstractTermsFacetComparator;
+import org.elasticsearch.search.facet.terms.comparator.TermsFacetComparator;
 import com.google.common.collect.Maps;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -27,6 +29,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilderException;
 import org.elasticsearch.search.facet.AbstractFacetBuilder;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -42,7 +45,8 @@ public class TermsFacetBuilder extends AbstractFacetBuilder {
     private Object[] exclude;
     private String regex;
     private int regexFlags = 0;
-    private TermsFacet.ComparatorType comparatorType;
+    private Locale locale;
+    private TermsFacetComparator comparator;
     private String script;
     private String lang;
     private Map<String, Object> params;
@@ -151,10 +155,10 @@ public class TermsFacetBuilder extends AbstractFacetBuilder {
     }
 
     /**
-     * The order by which to return the facets by. Defaults to {@link TermsFacet.ComparatorType#COUNT}.
+     * The order by which to return the facets by. Defaults to {@link TermsFacetCountComparator}.
      */
-    public TermsFacetBuilder order(TermsFacet.ComparatorType comparatorType) {
-        this.comparatorType = comparatorType;
+    public TermsFacetBuilder order(AbstractTermsFacetComparator comparator) {
+        this.comparator = comparator;
         return this;
     }
 
@@ -236,8 +240,9 @@ public class TermsFacetBuilder extends AbstractFacetBuilder {
                 builder.field("regex_flags", Regex.flagsToString(regexFlags));
             }
         }
-        if (comparatorType != null) {
-            builder.field("order", comparatorType.name().toLowerCase());
+        if (comparator != null) {
+            builder.field("locale", comparator.getLocale());
+            builder.field("order", comparator.getType());
         }
         if (allTerms != null) {
             builder.field("all_terms", allTerms);

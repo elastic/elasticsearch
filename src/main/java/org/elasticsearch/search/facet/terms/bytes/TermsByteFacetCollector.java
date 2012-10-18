@@ -38,6 +38,7 @@ import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.facet.terms.TermsFacet;
+import org.elasticsearch.search.facet.terms.comparator.TermsFacetComparator;
 import org.elasticsearch.search.facet.terms.support.EntryPriorityQueue;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -55,7 +56,7 @@ public class TermsByteFacetCollector extends AbstractFacetCollector {
 
     private final String indexFieldName;
 
-    private final TermsFacet.ComparatorType comparatorType;
+    private final TermsFacetComparator comparator;
 
     private final int size;
 
@@ -69,12 +70,12 @@ public class TermsByteFacetCollector extends AbstractFacetCollector {
 
     private final SearchScript script;
 
-    public TermsByteFacetCollector(String facetName, String fieldName, int size, TermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
+    public TermsByteFacetCollector(String facetName, String fieldName, int size, TermsFacetComparator comparator, boolean allTerms, SearchContext context,
                                    ImmutableSet<String> excluded, String scriptLang, String script, Map<String, Object> params) {
         super(facetName);
         this.fieldDataCache = context.fieldDataCache();
         this.size = size;
-        this.comparatorType = comparatorType;
+        this.comparator = comparator;
         this.numberOfShards = context.numberOfShards();
 
         MapperService.SmartNameFieldMappers smartMappers = context.smartFieldMappers(fieldName);
@@ -143,10 +144,10 @@ public class TermsByteFacetCollector extends AbstractFacetCollector {
         TByteIntHashMap facets = aggregator.facets();
         if (facets.isEmpty()) {
             CacheRecycler.pushByteIntMap(facets);
-            return new InternalByteTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalByteTermsFacet.ByteEntry>of(), aggregator.missing(), aggregator.total());
+            return new InternalByteTermsFacet(facetName, comparator, size, ImmutableList.<InternalByteTermsFacet.ByteEntry>of(), aggregator.missing(), aggregator.total());
         } else {
             if (size < EntryPriorityQueue.LIMIT) {
-                EntryPriorityQueue ordered = new EntryPriorityQueue(size, comparatorType.comparator());
+                EntryPriorityQueue ordered = new EntryPriorityQueue(size, comparator);
                 for (TByteIntIterator it = facets.iterator(); it.hasNext(); ) {
                     it.advance();
                     ordered.insertWithOverflow(new InternalByteTermsFacet.ByteEntry(it.key(), it.value()));
@@ -156,15 +157,15 @@ public class TermsByteFacetCollector extends AbstractFacetCollector {
                     list[i] = (InternalByteTermsFacet.ByteEntry) ordered.pop();
                 }
                 CacheRecycler.pushByteIntMap(facets);
-                return new InternalByteTermsFacet(facetName, comparatorType, size, Arrays.asList(list), aggregator.missing(), aggregator.total());
+                return new InternalByteTermsFacet(facetName, comparator, size, Arrays.asList(list), aggregator.missing(), aggregator.total());
             } else {
-                BoundedTreeSet<InternalByteTermsFacet.ByteEntry> ordered = new BoundedTreeSet<InternalByteTermsFacet.ByteEntry>(comparatorType.comparator(), size);
+                BoundedTreeSet<InternalByteTermsFacet.ByteEntry> ordered = new BoundedTreeSet<InternalByteTermsFacet.ByteEntry>(comparator, size);
                 for (TByteIntIterator it = facets.iterator(); it.hasNext(); ) {
                     it.advance();
                     ordered.add(new InternalByteTermsFacet.ByteEntry(it.key(), it.value()));
                 }
                 CacheRecycler.pushByteIntMap(facets);
-                return new InternalByteTermsFacet(facetName, comparatorType, size, ordered, aggregator.missing(), aggregator.total());
+                return new InternalByteTermsFacet(facetName, comparator, size, ordered, aggregator.missing(), aggregator.total());
             }
         }
     }

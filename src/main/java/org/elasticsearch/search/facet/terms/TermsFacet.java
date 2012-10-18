@@ -19,10 +19,8 @@
 
 package org.elasticsearch.search.facet.terms;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.search.facet.Facet;
 
-import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -50,102 +48,6 @@ public interface TermsFacet extends Facet, Iterable<TermsFacet.Entry> {
         int count();
 
         int getCount();
-    }
-
-    /**
-     * Controls how the terms facets are ordered.
-     */
-    public static enum ComparatorType {
-        /**
-         * Order by the (higher) count of each term.
-         */
-        COUNT((byte) 0, new Comparator<Entry>() {
-
-            @Override
-            public int compare(Entry o1, Entry o2) {
-                int i = o2.count() - o1.count();
-                if (i == 0) {
-                    i = o2.compareTo(o1);
-                    if (i == 0) {
-                        i = System.identityHashCode(o2) - System.identityHashCode(o1);
-                    }
-                }
-                return i;
-            }
-        }),
-        /**
-         * Order by the (lower) count of each term.
-         */
-        REVERSE_COUNT((byte) 1, new Comparator<Entry>() {
-
-            @Override
-            public int compare(Entry o1, Entry o2) {
-                return -COUNT.comparator().compare(o1, o2);
-            }
-        }),
-        /**
-         * Order by the terms.
-         */
-        TERM((byte) 2, new Comparator<Entry>() {
-
-            @Override
-            public int compare(Entry o1, Entry o2) {
-                return o1.compareTo(o2);
-            }
-        }),
-        /**
-         * Order by the terms.
-         */
-        REVERSE_TERM((byte) 3, new Comparator<Entry>() {
-
-            @Override
-            public int compare(Entry o1, Entry o2) {
-                return -TERM.comparator().compare(o1, o2);
-            }
-        });
-
-        private final byte id;
-
-        private final Comparator<Entry> comparator;
-
-        ComparatorType(byte id, Comparator<Entry> comparator) {
-            this.id = id;
-            this.comparator = comparator;
-        }
-
-        public byte id() {
-            return this.id;
-        }
-
-        public Comparator<Entry> comparator() {
-            return comparator;
-        }
-
-        public static ComparatorType fromId(byte id) {
-            if (id == COUNT.id()) {
-                return COUNT;
-            } else if (id == REVERSE_COUNT.id()) {
-                return REVERSE_COUNT;
-            } else if (id == TERM.id()) {
-                return TERM;
-            } else if (id == REVERSE_TERM.id()) {
-                return REVERSE_TERM;
-            }
-            throw new ElasticSearchIllegalArgumentException("No type argument match for terms facet comparator [" + id + "]");
-        }
-
-        public static ComparatorType fromString(String type) {
-            if ("count".equals(type)) {
-                return COUNT;
-            } else if ("term".equals(type)) {
-                return TERM;
-            } else if ("reverse_count".equals(type) || "reverseCount".equals(type)) {
-                return REVERSE_COUNT;
-            } else if ("reverse_term".equals(type) || "reverseTerm".equals(type)) {
-                return REVERSE_TERM;
-            }
-            throw new ElasticSearchIllegalArgumentException("No type argument match for terms facet comparator [" + type + "]");
-        }
     }
 
     /**

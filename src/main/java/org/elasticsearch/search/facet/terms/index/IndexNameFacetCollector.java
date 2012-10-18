@@ -24,6 +24,7 @@ import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.terms.TermsFacet;
+import org.elasticsearch.search.facet.terms.comparator.TermsFacetComparator;
 import org.elasticsearch.search.facet.terms.strings.InternalStringTermsFacet;
 
 import java.io.IOException;
@@ -35,16 +36,16 @@ public class IndexNameFacetCollector extends AbstractFacetCollector {
 
     private final String indexName;
 
-    private final InternalStringTermsFacet.ComparatorType comparatorType;
+    private final TermsFacetComparator comparator;
 
     private final int size;
 
     private int count = 0;
 
-    public IndexNameFacetCollector(String facetName, String indexName, TermsFacet.ComparatorType comparatorType, int size) {
+    public IndexNameFacetCollector(String facetName, String indexName, TermsFacetComparator comparator, int size) {
         super(facetName);
         this.indexName = indexName;
-        this.comparatorType = comparatorType;
+        this.comparator = comparator;
         this.size = size;
     }
 
@@ -59,6 +60,6 @@ public class IndexNameFacetCollector extends AbstractFacetCollector {
 
     @Override
     public Facet facet() {
-        return new InternalStringTermsFacet(facetName, comparatorType, size, Sets.newHashSet(new InternalStringTermsFacet.StringEntry(indexName, count)), 0, count);
+        return new InternalStringTermsFacet(facetName, comparator, size, Sets.newHashSet(new InternalStringTermsFacet.StringEntry(indexName, count)), 0, count);
     }
 }

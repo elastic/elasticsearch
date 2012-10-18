@@ -31,12 +31,15 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.terms.InternalTermsFacet;
 import org.elasticsearch.search.facet.terms.TermsFacet;
+import org.elasticsearch.search.facet.terms.comparator.AbstractTermsFacetComparator;
+import org.elasticsearch.search.facet.terms.comparator.TermsFacetComparator;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 
 /**
  *
@@ -123,14 +126,14 @@ public class InternalLongTermsFacet extends InternalTermsFacet {
 
     Collection<LongEntry> entries = ImmutableList.of();
 
-    ComparatorType comparatorType;
+    TermsFacetComparator comparator;
 
     InternalLongTermsFacet() {
     }
 
-    public InternalLongTermsFacet(String name, ComparatorType comparatorType, int requiredSize, Collection<LongEntry> entries, long missing, long total) {
+    public InternalLongTermsFacet(String name, TermsFacetComparator comparator, int requiredSize, Collection<LongEntry> entries, long missing, long total) {
         this.name = name;
-        this.comparatorType = comparatorType;
+        this.comparator = comparator;
         this.requiredSize = requiredSize;
         this.entries = entries;
         this.missing = missing;
@@ -228,7 +231,7 @@ public class InternalLongTermsFacet extends InternalTermsFacet {
             }
         }
 
-        BoundedTreeSet<LongEntry> ordered = new BoundedTreeSet<LongEntry>(first.comparatorType.comparator(), first.requiredSize);
+        BoundedTreeSet<LongEntry> ordered = new BoundedTreeSet<LongEntry>(first.comparator, first.requiredSize);
         for (TLongIntIterator it = aggregated.iterator(); it.hasNext(); ) {
             it.advance();
             ordered.add(new LongEntry(it.key(), it.value()));
@@ -280,7 +283,13 @@ public class InternalLongTermsFacet extends InternalTermsFacet {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         name = in.readUTF();
-        comparatorType = ComparatorType.fromId(in.readByte());
+        String type = in.readUTF();
+        boolean reverse = in.readBoolean();
+        Locale locale =  new Locale(in.readUTF());
+        String rules = in.readOptionalUTF();
+        int decomp = in.readInt();
+        int strength = in.readInt();
+        comparator = AbstractTermsFacetComparator.getInstance(type, reverse, locale, rules, decomp, strength);
         requiredSize = in.readVInt();
         missing = in.readVLong();
         total = in.readVLong();
@@ -295,7 +304,12 @@ public class InternalLongTermsFacet extends InternalTermsFacet {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(name);
-        out.writeByte(comparatorType.id());
+        out.writeUTF(comparator.getType());
+        out.writeBoolean(comparator.getReverse());
+        out.writeUTF(comparator.getLocale().toString());
+        out.writeOptionalUTF(comparator.getRules());
+        out.writeInt(comparator.getDecomposition());
+        out.writeInt(comparator.getStrength());
         out.writeVInt(requiredSize);
         out.writeVLong(missing);
         out.writeVLong(total);

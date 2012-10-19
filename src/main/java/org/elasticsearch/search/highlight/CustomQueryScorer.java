@@ -19,9 +19,6 @@
 
 package org.elasticsearch.search.highlight;
 
-import java.io.IOException;
-import java.util.Map;
-
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FilteredQuery;
@@ -32,70 +29,73 @@ import org.apache.lucene.search.highlight.WeightedSpanTermExtractor;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 
+import java.io.IOException;
+import java.util.Map;
+
 public final class CustomQueryScorer extends QueryScorer {
 
-  public CustomQueryScorer(Query query, IndexReader reader, String field,
-      String defaultField) {
-    super(query, reader, field, defaultField);
-  }
-
-  public CustomQueryScorer(Query query, IndexReader reader, String field) {
-    super(query, reader, field);
-  }
-
-  public CustomQueryScorer(Query query, String field, String defaultField) {
-    super(query, field, defaultField);
-  }
-
-  public CustomQueryScorer(Query query, String field) {
-    super(query, field);
-  }
-
-  public CustomQueryScorer(Query query) {
-    super(query);
-  }
-
-  public CustomQueryScorer(WeightedSpanTerm[] weightedTerms) {
-    super(weightedTerms);
-  }
-
-  @Override
-  protected WeightedSpanTermExtractor newTermExtractor(String defaultField) {
-    return defaultField == null ? new CustomWeightedSpanTermExtractor()
-    : new CustomWeightedSpanTermExtractor(defaultField);
-  }
-  
-  private static class CustomWeightedSpanTermExtractor extends WeightedSpanTermExtractor {
-
-    public CustomWeightedSpanTermExtractor() {
-      super();
+    public CustomQueryScorer(Query query, IndexReader reader, String field,
+                             String defaultField) {
+        super(query, reader, field, defaultField);
     }
 
-    public CustomWeightedSpanTermExtractor(String defaultField) {
-      super(defaultField);
+    public CustomQueryScorer(Query query, IndexReader reader, String field) {
+        super(query, reader, field);
+    }
+
+    public CustomQueryScorer(Query query, String field, String defaultField) {
+        super(query, field, defaultField);
+    }
+
+    public CustomQueryScorer(Query query, String field) {
+        super(query, field);
+    }
+
+    public CustomQueryScorer(Query query) {
+        super(query);
+    }
+
+    public CustomQueryScorer(WeightedSpanTerm[] weightedTerms) {
+        super(weightedTerms);
     }
 
     @Override
-    protected void extractUnknownQuery(Query query,
-        Map<String, WeightedSpanTerm> terms) throws IOException {
-      if (query instanceof FunctionScoreQuery) {
-          query = ((FunctionScoreQuery) query).getSubQuery();
-          extract(query, terms);
-      } else if (query instanceof FiltersFunctionScoreQuery) {
-          query = ((FiltersFunctionScoreQuery) query).getSubQuery();
-          extract(query, terms);
-      } else if (query instanceof ConstantScoreQuery) {
-          ConstantScoreQuery q = (ConstantScoreQuery) query;
-          if (q.getQuery() != null) {
-              query = q.getQuery();
-              extract(query, terms);
-          }
-      } else if (query instanceof FilteredQuery) {
-          query = ((FilteredQuery) query).getQuery();
-          extract(query, terms);
-      }
+    protected WeightedSpanTermExtractor newTermExtractor(String defaultField) {
+        return defaultField == null ? new CustomWeightedSpanTermExtractor()
+                : new CustomWeightedSpanTermExtractor(defaultField);
     }
-    
-  }
+
+    private static class CustomWeightedSpanTermExtractor extends WeightedSpanTermExtractor {
+
+        public CustomWeightedSpanTermExtractor() {
+            super();
+        }
+
+        public CustomWeightedSpanTermExtractor(String defaultField) {
+            super(defaultField);
+        }
+
+        @Override
+        protected void extractUnknownQuery(Query query,
+                                           Map<String, WeightedSpanTerm> terms) throws IOException {
+            if (query instanceof FunctionScoreQuery) {
+                query = ((FunctionScoreQuery) query).getSubQuery();
+                extract(query, terms);
+            } else if (query instanceof FiltersFunctionScoreQuery) {
+                query = ((FiltersFunctionScoreQuery) query).getSubQuery();
+                extract(query, terms);
+            } else if (query instanceof ConstantScoreQuery) {
+                ConstantScoreQuery q = (ConstantScoreQuery) query;
+                if (q.getQuery() != null) {
+                    query = q.getQuery();
+                    extract(query, terms);
+                }
+            } else if (query instanceof FilteredQuery) {
+                query = ((FilteredQuery) query).getQuery();
+                extract(query, terms);
+            }
+        }
+
+    }
 
 }

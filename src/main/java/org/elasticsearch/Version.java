@@ -90,7 +90,7 @@ public class Version implements Serializable {
     public static final Version V_0_20_0_RC1 = new Version(V_0_20_0_RC1_ID, false);
 
     public static final int V_0_21_0_Beta1_ID = /*00*/210001;
-    public static final Version V_0_21_0_Beta1 = new Version(V_0_21_0_Beta1_ID, false);
+    public static final Version V_0_21_0_Beta1 = new Version(V_0_21_0_Beta1_ID, true);
 
     public static final Version CURRENT = V_0_21_0_Beta1;
 

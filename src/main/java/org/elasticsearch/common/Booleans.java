@@ -56,4 +56,12 @@ public class Booleans {
         }
         return !(value.equals("false") || value.equals("0") || value.equals("off") || value.equals("no"));
     }
+
+    public static boolean isExplicitFalse(String value) {
+        return (value.equals("false") || value.equals("0") || value.equals("off") || value.equals("no"));
+    }
+
+    public static boolean isExplicitTrue(String value) {
+        return (value.equals("true") || value.equals("1") || value.equals("on") || value.equals("yes"));
+    }
 }

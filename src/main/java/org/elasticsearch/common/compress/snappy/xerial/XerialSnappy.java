@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.compress.snappy.xerial;
 
+import com.google.common.io.NullOutputStream;
 import org.xerial.snappy.Snappy;
 
 import java.io.PrintStream;
@@ -37,7 +38,7 @@ public class XerialSnappy {
         // when failing to load the snappy library, and we don't want it displayed...
         PrintStream err = System.err;
         try {
-            System.setErr(null);
+            System.setErr(new PrintStream(new NullOutputStream()));
             byte[] tests = Snappy.compress("test");
             Snappy.uncompressString(tests);
             availableX = true;

@@ -25,6 +25,7 @@ import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
+import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.replication.TransportShardReplicationOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -66,7 +67,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class TransportIndexAction extends TransportShardReplicationOperationAction<IndexRequest, IndexRequest, IndexResponse> {
 
-    private final boolean autoCreateIndex;
+    private final AutoCreateIndex autoCreateIndex;
 
     private final boolean allowIdGeneration;
 
@@ -83,7 +84,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         super(settings, transportService, clusterService, indicesService, threadPool, shardStateAction);
         this.createIndexAction = createIndexAction;
         this.mappingUpdatedAction = mappingUpdatedAction;
-        this.autoCreateIndex = settings.getAsBoolean("action.auto_create_index", true);
+        this.autoCreateIndex = new AutoCreateIndex(settings);
         this.allowIdGeneration = settings.getAsBoolean("action.allow_id_generation", true);
         this.waitForMappingChange = settings.getAsBoolean("action.wait_on_mapping_change", false);
     }
@@ -91,7 +92,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
     @Override
     protected void doExecute(final IndexRequest request, final ActionListener<IndexResponse> listener) {
         // if we don't have a master, we don't have metadata, that's fine, let it find a master using create index API
-        if (autoCreateIndex && !clusterService.state().metaData().hasConcreteIndex(request.index())) {
+        if (autoCreateIndex.shouldAutoCreate(request.index(), clusterService.state())) {
             request.beforeLocalFork(); // we fork on another thread...
             createIndexAction.execute(new CreateIndexRequest(request.index()).cause("auto(index api)").masterNodeTimeout(request.timeout()), new ActionListener<CreateIndexResponse>() {
                 @Override

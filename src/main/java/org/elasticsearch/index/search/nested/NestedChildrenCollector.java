@@ -20,6 +20,7 @@
 package org.elasticsearch.index.search.nested;
 
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.FixedBitSet;
@@ -75,7 +76,14 @@ public class NestedChildrenCollector extends FacetCollector {
         collector.setNextReader(reader, docBase);
         currentReader = reader;
         childDocs = DocSets.convert(reader, childFilter.getDocIdSet(reader));
-        parentDocs = ((FixedBitDocSet) parentFilter.getDocIdSet(reader)).set();
+        DocIdSet docIdSet = parentFilter.getDocIdSet(reader);
+        if (docIdSet == null) {
+            parentDocs = null;
+        } else if (docIdSet instanceof FixedBitDocSet) {
+            parentDocs = ((FixedBitDocSet) docIdSet).set();
+        } else {
+            parentDocs = (FixedBitSet) docIdSet;
+        }
     }
 
     @Override
@@ -85,7 +93,7 @@ public class NestedChildrenCollector extends FacetCollector {
 
     @Override
     public void collect(int parentDoc) throws IOException {
-        if (parentDoc == 0) {
+        if (parentDoc == 0 || parentDocs == null) {
             return;
         }
         int prevParentDoc = parentDocs.prevSetBit(parentDoc - 1);

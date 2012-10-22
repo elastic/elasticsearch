@@ -31,7 +31,6 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NamedCustomAnalyzer;
 import org.elasticsearch.index.mapper.*;
-import org.elasticsearch.index.mapper.core.BooleanFieldMapper.Defaults;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 
 import java.io.IOException;
@@ -110,6 +109,17 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
                 indexAnalyzer = new NamedCustomAnalyzer(indexAnalyzer, positionOffsetGap);
                 searchAnalyzer = new NamedCustomAnalyzer(searchAnalyzer, positionOffsetGap);
                 searchQuotedAnalyzer = new NamedCustomAnalyzer(searchQuotedAnalyzer, positionOffsetGap);
+            }
+            // if the field is not analyzed, then by default, we should omit norms and have docs only
+            // index options, as probably what the user really wants
+            // if they are set explicitly, we will use those values
+            if (index == Field.Index.NOT_ANALYZED) {
+                if (!omitNormsSet) {
+                    omitNorms = true;
+                }
+                if (!indexOptionsSet) {
+                    indexOptions = IndexOptions.DOCS_ONLY;
+                }
             }
             StringFieldMapper fieldMapper = new StringFieldMapper(buildNames(context),
                     index, store, termVector, boost, omitNorms, indexOptions, nullValue,

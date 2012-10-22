@@ -107,24 +107,17 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
     public abstract static class Builder<T extends Builder, Y extends AbstractFieldMapper> extends Mapper.Builder<T, Y> {
 
         protected Field.Index index = Defaults.INDEX;
-
         protected Field.Store store = Defaults.STORE;
-
         protected Field.TermVector termVector = Defaults.TERM_VECTOR;
-
         protected float boost = Defaults.BOOST;
-
         protected boolean omitNorms = Defaults.OMIT_NORMS;
-
+        protected boolean omitNormsSet = false;
         protected String indexName;
-
         protected NamedAnalyzer indexAnalyzer;
-
         protected NamedAnalyzer searchAnalyzer;
-
         protected Boolean includeInAll;
-
         protected IndexOptions indexOptions = Defaults.INDEX_OPTIONS;
+        protected boolean indexOptionsSet = false;
 
         protected Builder(String name) {
             super(name);
@@ -152,11 +145,13 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
 
         protected T omitNorms(boolean omitNorms) {
             this.omitNorms = omitNorms;
+            this.omitNormsSet = true;
             return builder;
         }
 
         protected T indexOptions(IndexOptions indexOptions) {
             this.indexOptions = indexOptions;
+            this.indexOptionsSet = true;
             return builder;
         }
 

@@ -29,6 +29,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
@@ -69,6 +70,7 @@ public class RestClusterStateAction extends BaseRestHandler {
                 try {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
+                    builder.field(Fields.CLUSTER_NAME, response.clusterName().value());
                     response.state().settingsFilter(settingsFilter).toXContent(builder, request);
                     builder.endObject();
                     channel.sendResponse(new XContentRestResponse(request, RestStatus.OK, builder));
@@ -89,5 +91,9 @@ public class RestClusterStateAction extends BaseRestHandler {
                 }
             }
         });
+    }
+
+    static final class Fields {
+        static final XContentBuilderString CLUSTER_NAME = new XContentBuilderString("cluster_name");
     }
 }

@@ -85,6 +85,10 @@ public class Version implements Serializable {
     public static final Version V_0_19_9 = new Version(V_0_19_9_ID, false);
     public static final int V_0_19_10_ID = /*00*/191099;
     public static final Version V_0_19_10 = new Version(V_0_19_10_ID, false);
+    public static final int V_0_19_11_ID = /*00*/191199;
+    public static final Version V_0_19_11 = new Version(V_0_19_11_ID, false);
+    public static final int V_0_19_12_ID = /*00*/191299;
+    public static final Version V_0_19_12 = new Version(V_0_19_12_ID, false);
 
     public static final int V_0_20_0_RC1_ID = /*00*/200051;
     public static final Version V_0_20_0_RC1 = new Version(V_0_20_0_RC1_ID, false);
@@ -133,6 +137,10 @@ public class Version implements Serializable {
                 return V_0_19_9;
             case V_0_19_10_ID:
                 return V_0_19_10;
+            case V_0_19_11_ID:
+                return V_0_19_11;
+            case V_0_19_12_ID:
+                return V_0_19_12;
 
             case V_0_18_0_ID:
                 return V_0_18_0;

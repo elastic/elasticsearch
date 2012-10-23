@@ -137,6 +137,9 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
         if (!enabled) {
             return null;
         }
+        if (context.flyweight()) {
+            return null;
+        }
         return new CustomIntegerNumericField(this, context.source().length());
     }
 

@@ -25,6 +25,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -386,4 +387,47 @@ public class SimplePercolatorTests extends AbstractNodesTests {
                 .execute().actionGet();
         assertThat(percolate.matches().size(), equalTo(0));
     }
+
+    @Test
+    public void percolateWithSizeField() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+        try {
+            client.admin().indices().prepareDelete("_percolator").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("_size").field("enabled", true).field("stored", "yes").endObject()
+                .endObject().endObject().string();
+
+        client.admin().indices().prepareCreate("test")
+                .setSettings(settingsBuilder().put("index.number_of_shards", 2))
+                .addMapping("type1",mapping)
+                .execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        logger.info("--> register a query");
+        client.prepareIndex("_percolator", "test", "kuku")
+                .setSource(jsonBuilder().startObject()
+                        .field("query", termQuery("field1", "value1"))
+                        .endObject())
+                .setRefresh(true)
+                .execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForActiveShards(4).execute().actionGet();
+
+        logger.info("--> percolate a document");
+        PercolateResponse percolate = client.preparePercolate("test", "type1").setSource(jsonBuilder().startObject()
+                .startObject("doc").startObject("type1")
+                .field("field1", "value1")
+                .endObject().endObject()
+                .endObject())
+                .execute().actionGet();
+        assertThat(percolate.matches().size(), equalTo(1));
+        assertThat(percolate.matches(), hasItem("kuku"));
+    }
+
 }

@@ -28,4 +28,4 @@ else
     JAVA=`which java`
 fi
 
-exec $JAVA -Xmx64m -Xms16m -Delasticsearch -Des.path.home="$ES_HOME" -cp "$ES_HOME/lib/*" org.elasticsearch.plugins.PluginManager $*
+exec $JAVA $JAVA_OPTS -Xmx64m -Xms16m -Delasticsearch -Des.path.home="$ES_HOME" -cp "$ES_HOME/lib/*" org.elasticsearch.plugins.PluginManager $*

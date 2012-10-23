@@ -26,8 +26,6 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
-import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.highlight.*;
 import org.apache.lucene.search.highlight.Formatter;
@@ -37,8 +35,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.lucene.document.SingleFieldSelector;
-import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
-import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.vectorhighlight.SimpleBoundaryScanner2;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.StringText;
@@ -133,16 +129,16 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
             if (field.highlighterType() == null) {
                 // if we can do highlighting using Term Vectors, use FastVectorHighlighter, otherwise, use the
                 // slower plain highlighter
-                useFastVectorHighlighter =  mapper.termVector() == Field.TermVector.WITH_POSITIONS_OFFSETS;
-            } else if (field.highlighterType().equals("fast-vector-highlighter")) {
+                useFastVectorHighlighter = mapper.termVector() == Field.TermVector.WITH_POSITIONS_OFFSETS;
+            } else if (field.highlighterType().equals("fast-vector-highlighter") || field.highlighterType().equals("fvh")) {
                 if (mapper.termVector() != Field.TermVector.WITH_POSITIONS_OFFSETS) {
-                    throw new FetchPhaseExecutionException(context, "The field [" + field.field() + "] should be indexed with term vector with position offsets to be used with fast vector highlighter");
+                    throw new FetchPhaseExecutionException(context, "the field [" + field.field() + "] should be indexed with term vector with position offsets to be used with fast vector highlighter");
                 }
                 useFastVectorHighlighter = true;
-            } else if (field.highlighterType().equals("highlighter")) {
+            } else if (field.highlighterType().equals("highlighter") || field.highlighterType().equals("plain")) {
                 useFastVectorHighlighter = false;
             } else {
-                throw new FetchPhaseExecutionException(context, "Unknown highlighter type [" + field.highlighterType() + "] for the field [" + field.field() + "]");
+                throw new FetchPhaseExecutionException(context, "unknown highlighter type [" + field.highlighterType() + "] for the field [" + field.field() + "]");
             }
             if (!useFastVectorHighlighter) {
                 MapperHighlightEntry entry = cache.mappers.get(mapper);

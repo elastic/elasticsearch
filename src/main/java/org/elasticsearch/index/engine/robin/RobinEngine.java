@@ -1018,7 +1018,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                     ((EnableMergePolicy) indexWriter.getConfig().getMergePolicy()).enableMerge();
                 }
                 if (optimize.onlyExpungeDeletes()) {
-                    indexWriter.expungeDeletes(false);
+                    indexWriter.forceMergeDeletes(false);
                 } else if (optimize.maxNumSegments() <= 0) {
                     indexWriter.maybeMerge();
                     possibleMergeNeeded = false;

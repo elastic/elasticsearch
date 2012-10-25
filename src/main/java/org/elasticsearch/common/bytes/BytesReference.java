@@ -24,6 +24,7 @@ import org.jboss.netty.buffer.ChannelBuffer;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.Comparator;
 
 /**
  * A reference to bytes.
@@ -94,4 +95,56 @@ public interface BytesReference {
      * Converts to a string based on utf8.
      */
     String toUtf8();
+
+
+    // LUCENE 4 UPGRADE: Used by facets to order. Perhaps make this call implement Comparable.
+    public final static Comparator<BytesReference> utf8SortedAsUnicodeSortOrder = new UTF8SortedAsUnicodeComparator();
+
+    public static class UTF8SortedAsUnicodeComparator implements Comparator<BytesReference> {
+
+        // Only singleton
+        private UTF8SortedAsUnicodeComparator() {}
+
+        public int compare(BytesReference a, BytesReference b) {
+            if (a.hasArray() && b.hasArray()) {
+                final byte[] aBytes = a.array();
+                int aUpto = a.arrayOffset();
+                final byte[] bBytes = b.array();
+                int bUpto = b.arrayOffset();
+
+                final int aStop = aUpto + Math.min(a.length(), b.length());
+                while(aUpto < aStop) {
+                    int aByte = aBytes[aUpto++] & 0xff;
+                    int bByte = bBytes[bUpto++] & 0xff;
+
+                    int diff = aByte - bByte;
+                    if (diff != 0) {
+                        return diff;
+                    }
+                }
+
+                // One is a prefix of the other, or, they are equal:
+                return a.length() - b.length();
+            } else {
+                final byte[] aBytes = a.toBytes();
+                int aUpto = 0;
+                final byte[] bBytes = b.toBytes();
+                int bUpto = 0;
+
+                final int aStop = aUpto + Math.min(a.length(), b.length());
+                while(aUpto < aStop) {
+                    int aByte = aBytes[aUpto++] & 0xff;
+                    int bByte = bBytes[bUpto++] & 0xff;
+
+                    int diff = aByte - bByte;
+                    if (diff != 0) {
+                        return diff;
+                    }
+                }
+
+                // One is a prefix of the other, or, they are equal:
+                return a.length() - b.length();
+            }
+        }
+    }
 }

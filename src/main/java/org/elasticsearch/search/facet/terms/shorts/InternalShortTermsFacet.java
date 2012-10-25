@@ -22,7 +22,10 @@ package org.elasticsearch.search.facet.terms.shorts;
 import com.google.common.collect.ImmutableList;
 import gnu.trove.iterator.TShortIntIterator;
 import gnu.trove.map.hash.TShortIntHashMap;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -71,11 +74,11 @@ public class InternalShortTermsFacet extends InternalTermsFacet {
             this.count = count;
         }
 
-        public String term() {
-            return Short.toString(term);
+        public BytesReference term() {
+            return new BytesArray(Short.toString(term));
         }
 
-        public String getTerm() {
+        public BytesReference getTerm() {
             return term();
         }
 

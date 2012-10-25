@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.field.data.doubles;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.common.util.concurrent.ThreadLocals;
 
@@ -83,7 +84,7 @@ public class MultiValueDoubleFieldData extends DoubleFieldData {
                 }
                 break;
             }
-            proc.onValue(docId, Double.toString(values[loc]));
+            proc.onValue(docId, new BytesRef(Double.toString(values[loc])));
         }
     }
 

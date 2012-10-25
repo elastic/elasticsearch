@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.field.data.strings;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
@@ -45,14 +45,14 @@ public class StringFieldDataType implements FieldDataType<StringFieldData> {
             }
 
             @Override
-            public int reducedType() {
-                return SortField.STRING;
+            public SortField.Type reducedType() {
+                return SortField.Type.STRING;
             }
         };
     }
 
     @Override
-    public StringFieldData load(IndexReader reader, String fieldName) throws IOException {
+    public StringFieldData load(AtomicReader reader, String fieldName) throws IOException {
         return StringFieldData.load(reader, fieldName);
     }
 }

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.mapper.geo;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
@@ -44,14 +44,14 @@ public class GeoPointFieldDataType implements FieldDataType<GeoPointFieldData> {
             }
 
             @Override
-            public int reducedType() {
-                return SortField.STRING;
+            public SortField.Type reducedType() {
+                return SortField.Type.STRING;
             }
         };
     }
 
     @Override
-    public GeoPointFieldData load(IndexReader reader, String fieldName) throws IOException {
+    public GeoPointFieldData load(AtomicReader reader, String fieldName) throws IOException {
         return GeoPointFieldData.load(reader, fieldName);
     }
 }

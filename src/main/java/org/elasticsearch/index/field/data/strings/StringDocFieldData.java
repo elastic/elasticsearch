@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.field.data.strings;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.field.data.DocFieldData;
 
 /**
@@ -30,11 +31,11 @@ public class StringDocFieldData extends DocFieldData<StringFieldData> {
         super(fieldData);
     }
 
-    public String getValue() {
+    public BytesRef getValue() {
         return fieldData.value(docId);
     }
 
-    public String[] getValues() {
+    public BytesRef[] getValues() {
         return fieldData.values(docId);
     }
 }

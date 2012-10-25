@@ -20,8 +20,9 @@
 package org.elasticsearch.index.field.data.longs;
 
 import gnu.trove.list.array.TLongArrayList;
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.search.FieldCache;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.common.util.concurrent.ThreadLocals;
 import org.elasticsearch.index.field.data.FieldDataType;
@@ -92,13 +93,13 @@ public abstract class LongFieldData extends NumericFieldData<LongDocFieldData> {
     @Override
     public void forEachValue(StringValueProc proc) {
         for (int i = 1; i < values.length; i++) {
-            proc.onValue(Long.toString(values[i]));
+            proc.onValue(new BytesRef(Long.toString(values[i])));
         }
     }
 
     @Override
-    public String stringValue(int docId) {
-        return Long.toString(docId);
+    public BytesRef stringValue(int docId) {
+        return new BytesRef(Long.toString(value(docId)));
     }
 
     @Override
@@ -162,7 +163,7 @@ public abstract class LongFieldData extends NumericFieldData<LongDocFieldData> {
         void onValue(int docId, MutableDateTime dateTime);
     }
 
-    public static LongFieldData load(IndexReader reader, String field) throws IOException {
+    public static LongFieldData load(AtomicReader reader, String field) throws IOException {
         return FieldDataLoader.load(reader, field, new LongTypeLoader());
     }
 
@@ -177,7 +178,7 @@ public abstract class LongFieldData extends NumericFieldData<LongDocFieldData> {
         }
 
         @Override
-        public void collectTerm(String term) {
+        public void collectTerm(BytesRef term) {
             terms.add(FieldCache.NUMERIC_UTILS_LONG_PARSER.parseLong(term));
         }
 

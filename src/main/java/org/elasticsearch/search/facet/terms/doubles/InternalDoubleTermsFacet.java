@@ -22,7 +22,10 @@ package org.elasticsearch.search.facet.terms.doubles;
 import com.google.common.collect.ImmutableList;
 import gnu.trove.iterator.TDoubleIntIterator;
 import gnu.trove.map.hash.TDoubleIntHashMap;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -71,11 +74,11 @@ public class InternalDoubleTermsFacet extends InternalTermsFacet {
             this.count = count;
         }
 
-        public String term() {
-            return Double.toString(term);
+        public BytesReference term() {
+            return new BytesArray(Double.toString(term));
         }
 
-        public String getTerm() {
+        public BytesReference getTerm() {
             return term();
         }
 
@@ -279,7 +282,7 @@ public class InternalDoubleTermsFacet extends InternalTermsFacet {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        name = in.readUTF();
+        name = in.readString();
         comparatorType = ComparatorType.fromId(in.readByte());
         requiredSize = in.readVInt();
         missing = in.readVLong();
@@ -294,7 +297,7 @@ public class InternalDoubleTermsFacet extends InternalTermsFacet {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeUTF(name);
+        out.writeString(name);
         out.writeByte(comparatorType.id());
         out.writeVInt(requiredSize);
         out.writeVLong(missing);

@@ -20,8 +20,10 @@
 package org.elasticsearch.index.field.data.bytes;
 
 import gnu.trove.list.array.TByteArrayList;
+import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldCache;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.NumericFieldData;
@@ -69,13 +71,13 @@ public abstract class ByteFieldData extends NumericFieldData<ByteDocFieldData> {
     @Override
     public void forEachValue(StringValueProc proc) {
         for (int i = 1; i < values.length; i++) {
-            proc.onValue(Byte.toString(values[i]));
+            proc.onValue(new BytesRef(Byte.toString(values[i])));
         }
     }
 
     @Override
-    public String stringValue(int docId) {
-        return Byte.toString(value(docId));
+    public BytesRef stringValue(int docId) {
+        return new BytesRef(Byte.toString(value(docId)));
     }
 
     @Override
@@ -131,7 +133,7 @@ public abstract class ByteFieldData extends NumericFieldData<ByteDocFieldData> {
         void onMissing(int docID);
     }
 
-    public static ByteFieldData load(IndexReader reader, String field) throws IOException {
+    public static ByteFieldData load(AtomicReader reader, String field) throws IOException {
         return FieldDataLoader.load(reader, field, new ByteTypeLoader());
     }
 
@@ -146,7 +148,7 @@ public abstract class ByteFieldData extends NumericFieldData<ByteDocFieldData> {
         }
 
         @Override
-        public void collectTerm(String term) {
+        public void collectTerm(BytesRef term) {
             terms.add((byte) FieldCache.NUMERIC_UTILS_INT_PARSER.parseInt(term));
         }
 

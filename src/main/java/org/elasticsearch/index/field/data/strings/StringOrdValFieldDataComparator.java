@@ -19,8 +19,10 @@
 
 package org.elasticsearch.index.field.data.strings;
 
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldComparator;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.index.field.data.FieldDataType;
@@ -31,28 +33,28 @@ import java.io.IOException;
  *
  */
 // LUCENE MONITOR: Monitor against FieldComparator#String
-public class StringOrdValFieldDataComparator extends FieldComparator {
+public class StringOrdValFieldDataComparator extends FieldComparator<BytesRef> {
 
     private final FieldDataCache fieldDataCache;
 
     private final int[] ords;
-    private final String[] values;
+    private final BytesRef[] values;
     private final int[] readerGen;
 
     private int currentReaderGen = -1;
-    private String[] lookup;
+    private BytesRef[] lookup;
     private int[] order;
     private final String field;
 
     private int bottomSlot = -1;
     private int bottomOrd;
     private boolean bottomSameReader;
-    private String bottomValue;
+    private BytesRef bottomValue;
 
     public StringOrdValFieldDataComparator(int numHits, String field, int sortPos, boolean reversed, FieldDataCache fieldDataCache) {
         this.fieldDataCache = fieldDataCache;
         ords = new int[numHits];
-        values = new String[numHits];
+        values = new BytesRef[numHits];
         readerGen = new int[numHits];
         this.field = field;
     }
@@ -63,8 +65,8 @@ public class StringOrdValFieldDataComparator extends FieldComparator {
             return ords[slot1] - ords[slot2];
         }
 
-        final String val1 = values[slot1];
-        final String val2 = values[slot2];
+        final BytesRef val1 = values[slot1];
+        final BytesRef val2 = values[slot2];
         if (val1 == null) {
             if (val2 == null) {
                 return 0;
@@ -92,7 +94,7 @@ public class StringOrdValFieldDataComparator extends FieldComparator {
                 return cmp;
             }
 
-            final String val2 = lookup[order];
+            final BytesRef val2 = lookup[order];
             if (bottomValue == null) {
                 if (val2 == null) {
                     return 0;
@@ -117,8 +119,8 @@ public class StringOrdValFieldDataComparator extends FieldComparator {
     }
 
     @Override
-    public void setNextReader(IndexReader reader, int docBase) throws IOException {
-        FieldData cleanFieldData = fieldDataCache.cache(FieldDataType.DefaultTypes.STRING, reader, field);
+    public FieldComparator<BytesRef> setNextReader(AtomicReaderContext context) throws IOException {
+        FieldData cleanFieldData = fieldDataCache.cache(FieldDataType.DefaultTypes.STRING, context.reader(), field);
         if (cleanFieldData instanceof MultiValueStringFieldData) {
             throw new IOException("Can't sort on string types with more than one value per doc, or more than one token per field");
         }
@@ -130,6 +132,21 @@ public class StringOrdValFieldDataComparator extends FieldComparator {
         if (bottomSlot != -1) {
             setBottom(bottomSlot);
         }
+        return this;
+    }
+
+    @Override
+    public int compareDocToValue(int doc, BytesRef otherVal) throws IOException {
+        BytesRef val = values[ords[doc]];
+        if (otherVal == null) {
+            if (val == null) {
+                return 0;
+            }
+            return -1;
+        } else if (val == null) {
+            return 1;
+        }
+        return val.compareTo(otherVal);
     }
 
     @Override
@@ -147,7 +164,7 @@ public class StringOrdValFieldDataComparator extends FieldComparator {
                 bottomSameReader = true;
                 readerGen[bottomSlot] = currentReaderGen;
             } else {
-                final int index = binarySearch(lookup, bottomValue);
+                final int index = binarySearch(bottomValue, lookup);
                 if (index < 0) {
                     bottomOrd = -index - 2;
                     bottomSameReader = false;
@@ -162,12 +179,37 @@ public class StringOrdValFieldDataComparator extends FieldComparator {
         }
     }
 
+    private static int binarySearch(BytesRef value, BytesRef[] values) {
+        return binarySearch(value, values, 1, values.length-1);
+    }
+
+    private static int binarySearch(BytesRef value, BytesRef[] values, int low, int high) {
+        while (low <= high) {
+            int mid = (low + high) >>> 1;
+            BytesRef midVal = values[mid];
+            int cmp;
+            if (midVal != null) {
+                cmp = midVal.compareTo(value);
+            } else {
+                cmp = -1;
+            }
+
+            if (cmp < 0)
+                low = mid + 1;
+            else if (cmp > 0)
+                high = mid - 1;
+            else
+                return mid;
+        }
+        return -(low + 1);
+    }
+
     @Override
-    public Comparable value(int slot) {
+    public BytesRef value(int slot) {
         return values[slot];
     }
 
-    public String[] getValues() {
+    public BytesRef[] getValues() {
         return values;
     }
 

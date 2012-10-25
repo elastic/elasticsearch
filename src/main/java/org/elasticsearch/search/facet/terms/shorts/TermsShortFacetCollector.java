@@ -24,8 +24,11 @@ import com.google.common.collect.ImmutableSet;
 import gnu.trove.iterator.TShortIntIterator;
 import gnu.trove.map.hash.TShortIntHashMap;
 import gnu.trove.set.hash.TShortHashSet;
+import org.apache.lucene.index.AtomicReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.collect.BoundedTreeSet;
@@ -70,7 +73,7 @@ public class TermsShortFacetCollector extends AbstractFacetCollector {
     private final SearchScript script;
 
     public TermsShortFacetCollector(String facetName, String fieldName, int size, TermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
-                                    ImmutableSet<String> excluded, String scriptLang, String script, Map<String, Object> params) {
+                                    ImmutableSet<BytesRef> excluded, String scriptLang, String script, Map<String, Object> params) {
         super(facetName);
         this.fieldDataCache = context.fieldDataCache();
         this.size = size;
@@ -107,8 +110,8 @@ public class TermsShortFacetCollector extends AbstractFacetCollector {
 
         if (allTerms) {
             try {
-                for (IndexReader reader : context.searcher().subReaders()) {
-                    ShortFieldData fieldData = (ShortFieldData) fieldDataCache.cache(fieldDataType, reader, indexFieldName);
+                for (AtomicReaderContext readerContext : context.searcher().getTopReaderContext().leaves()) {
+                    ShortFieldData fieldData = (ShortFieldData) fieldDataCache.cache(fieldDataType, readerContext.reader(), indexFieldName);
                     fieldData.forEachValue(aggregator);
                 }
             } catch (Exception e) {
@@ -125,10 +128,10 @@ public class TermsShortFacetCollector extends AbstractFacetCollector {
     }
 
     @Override
-    protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
-        fieldData = (ShortFieldData) fieldDataCache.cache(fieldDataType, reader, indexFieldName);
+    protected void doSetNextReader(AtomicReaderContext context) throws IOException {
+        fieldData = (ShortFieldData) fieldDataCache.cache(fieldDataType, context.reader(), indexFieldName);
         if (script != null) {
-            script.setNextReader(reader);
+            script.setNextReader(context.reader());
         }
     }
 
@@ -174,14 +177,14 @@ public class TermsShortFacetCollector extends AbstractFacetCollector {
 
         private final TShortHashSet excluded;
 
-        public AggregatorValueProc(TShortIntHashMap facets, Set<String> excluded, SearchScript script) {
+        public AggregatorValueProc(TShortIntHashMap facets, Set<BytesRef> excluded, SearchScript script) {
             super(facets);
             if (excluded == null || excluded.isEmpty()) {
                 this.excluded = null;
             } else {
                 this.excluded = new TShortHashSet(excluded.size());
-                for (String s : excluded) {
-                    this.excluded.add(Short.parseShort(s));
+                for (BytesRef s : excluded) {
+                    this.excluded.add(Short.parseShort(s.utf8ToString()));
                 }
             }
             this.script = script;

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.facet.statistical;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
@@ -72,8 +72,8 @@ public class ScriptStatisticalFacetCollector extends AbstractFacetCollector {
     }
 
     @Override
-    protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
-        script.setNextReader(reader);
+    protected void doSetNextReader(AtomicReaderContext context) throws IOException {
+        script.setNextReader(context.reader());
     }
 
     @Override

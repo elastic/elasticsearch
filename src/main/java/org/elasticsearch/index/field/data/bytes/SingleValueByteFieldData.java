@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.field.data.bytes;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.common.util.concurrent.ThreadLocals;
 import org.elasticsearch.index.field.data.doubles.DoubleFieldData;
@@ -73,7 +74,7 @@ public class SingleValueByteFieldData extends ByteFieldData {
             proc.onMissing(docId);
             return;
         }
-        proc.onValue(docId, Byte.toString(values[loc]));
+        proc.onValue(docId, new BytesRef(Byte.toString(values[loc])));
     }
 
     @Override

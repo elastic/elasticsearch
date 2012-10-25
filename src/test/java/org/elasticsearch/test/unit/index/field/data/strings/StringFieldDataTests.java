@@ -19,11 +19,10 @@
 
 package org.elasticsearch.test.unit.index.field.data.strings;
 
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.*;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.index.field.data.strings.StringFieldData;
@@ -63,7 +62,7 @@ public class StringFieldDataTests {
         indexWriter.addDocument(doc()
                 .add(field("svalue", "aaa")).build());
 
-        IndexReader reader = IndexReader.open(indexWriter, true);
+        AtomicReader reader = SlowCompositeReaderWrapper.wrap(DirectoryReader.open(indexWriter, false));
 
         StringFieldData sFieldData = StringFieldData.load(reader, "svalue");
         StringFieldData mFieldData = StringFieldData.load(reader, "mvalue");
@@ -76,61 +75,61 @@ public class StringFieldDataTests {
 
         // svalue
         assertThat(sFieldData.hasValue(0), equalTo(true));
-        assertThat(sFieldData.value(0), equalTo("zzz"));
-        assertThat(sFieldData.docFieldData(0).getValue(), equalTo("zzz"));
+        assertThat(sFieldData.value(0).utf8ToString(), equalTo("zzz"));
+        assertThat(sFieldData.docFieldData(0).getValue().utf8ToString(), equalTo("zzz"));
         assertThat(sFieldData.values(0).length, equalTo(1));
         assertThat(sFieldData.docFieldData(0).getValues().length, equalTo(1));
-        assertThat(sFieldData.values(0)[0], equalTo("zzz"));
-        assertThat(sFieldData.docFieldData(0).getValues()[0], equalTo("zzz"));
+        assertThat(sFieldData.values(0)[0].utf8ToString(), equalTo("zzz"));
+        assertThat(sFieldData.docFieldData(0).getValues()[0].utf8ToString(), equalTo("zzz"));
 
         assertThat(sFieldData.hasValue(1), equalTo(true));
-        assertThat(sFieldData.value(1), equalTo("xxx"));
+        assertThat(sFieldData.value(1).utf8ToString(), equalTo("xxx"));
         assertThat(sFieldData.values(1).length, equalTo(1));
-        assertThat(sFieldData.values(1)[0], equalTo("xxx"));
+        assertThat(sFieldData.values(1)[0].utf8ToString(), equalTo("xxx"));
 
         assertThat(sFieldData.hasValue(2), equalTo(false));
 
         assertThat(sFieldData.hasValue(3), equalTo(true));
-        assertThat(sFieldData.value(3), equalTo("aaa"));
+        assertThat(sFieldData.value(3).utf8ToString(), equalTo("aaa"));
         assertThat(sFieldData.values(3).length, equalTo(1));
-        assertThat(sFieldData.values(3)[0], equalTo("aaa"));
+        assertThat(sFieldData.values(3)[0].utf8ToString(), equalTo("aaa"));
 
         assertThat(sFieldData.hasValue(4), equalTo(true));
-        assertThat(sFieldData.value(4), equalTo("aaa"));
+        assertThat(sFieldData.value(4).utf8ToString(), equalTo("aaa"));
         assertThat(sFieldData.values(4).length, equalTo(1));
-        assertThat(sFieldData.values(4)[0], equalTo("aaa"));
+        assertThat(sFieldData.values(4)[0].utf8ToString(), equalTo("aaa"));
 
         // check order is correct
-        final ArrayList<String> values = new ArrayList<String>();
+        final ArrayList<BytesRef> values = new ArrayList<BytesRef>();
         sFieldData.forEachValue(new FieldData.StringValueProc() {
             @Override
-            public void onValue(String value) {
+            public void onValue(BytesRef value) {
                 values.add(value);
             }
         });
         assertThat(values.size(), equalTo(3));
 
-        assertThat(values.get(0), equalTo("aaa"));
-        assertThat(values.get(1), equalTo("xxx"));
-        assertThat(values.get(2), equalTo("zzz"));
+        assertThat(values.get(0).utf8ToString(), equalTo("aaa"));
+        assertThat(values.get(1).utf8ToString(), equalTo("xxx"));
+        assertThat(values.get(2).utf8ToString(), equalTo("zzz"));
 
         // mvalue
         assertThat(mFieldData.hasValue(0), equalTo(true));
-        assertThat(mFieldData.value(0), equalTo("111"));
+        assertThat(mFieldData.value(0).utf8ToString(), equalTo("111"));
         assertThat(mFieldData.values(0).length, equalTo(1));
-        assertThat(mFieldData.values(0)[0], equalTo("111"));
+        assertThat(mFieldData.values(0)[0].utf8ToString(), equalTo("111"));
 
         assertThat(mFieldData.hasValue(1), equalTo(true));
-        assertThat(mFieldData.value(1), equalTo("222"));
+        assertThat(mFieldData.value(1).utf8ToString(), equalTo("222"));
         assertThat(mFieldData.values(1).length, equalTo(2));
-        assertThat(mFieldData.values(1)[0], equalTo("222"));
-        assertThat(mFieldData.values(1)[1], equalTo("333"));
+        assertThat(mFieldData.values(1)[0].utf8ToString(), equalTo("222"));
+        assertThat(mFieldData.values(1)[1].utf8ToString(), equalTo("333"));
 
         assertThat(mFieldData.hasValue(2), equalTo(true));
-        assertThat(mFieldData.value(2), equalTo("333"));
+        assertThat(mFieldData.value(2).utf8ToString(), equalTo("333"));
         assertThat(mFieldData.values(2).length, equalTo(2));
-        assertThat(mFieldData.values(2)[0], equalTo("333"));
-        assertThat(mFieldData.values(2)[1], equalTo("444"));
+        assertThat(mFieldData.values(2)[0].utf8ToString(), equalTo("333"));
+        assertThat(mFieldData.values(2)[1].utf8ToString(), equalTo("444"));
 
         assertThat(mFieldData.hasValue(3), equalTo(false));
 
@@ -139,16 +138,16 @@ public class StringFieldDataTests {
         values.clear();
         mFieldData.forEachValue(new FieldData.StringValueProc() {
             @Override
-            public void onValue(String value) {
+            public void onValue(BytesRef value) {
                 values.add(value);
             }
         });
         assertThat(values.size(), equalTo(4));
 
-        assertThat(values.get(0), equalTo("111"));
-        assertThat(values.get(1), equalTo("222"));
-        assertThat(values.get(2), equalTo("333"));
-        assertThat(values.get(3), equalTo("444"));
+        assertThat(values.get(0).utf8ToString(), equalTo("111"));
+        assertThat(values.get(1).utf8ToString(), equalTo("222"));
+        assertThat(values.get(2).utf8ToString(), equalTo("333"));
+        assertThat(values.get(3).utf8ToString(), equalTo("444"));
 
         indexWriter.close();
     }

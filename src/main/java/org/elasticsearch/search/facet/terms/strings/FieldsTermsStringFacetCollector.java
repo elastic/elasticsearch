@@ -23,8 +23,9 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import gnu.trove.iterator.TObjectIntIterator;
 import gnu.trove.map.hash.TObjectIntHashMap;
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
@@ -68,7 +69,7 @@ public class FieldsTermsStringFacetCollector extends AbstractFacetCollector {
     private final SearchScript script;
 
     public FieldsTermsStringFacetCollector(String facetName, String[] fieldsNames, int size, InternalStringTermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
-                                           ImmutableSet<String> excluded, Pattern pattern, String scriptLang, String script, Map<String, Object> params) {
+                                           ImmutableSet<BytesRef> excluded, Pattern pattern, String scriptLang, String script, Map<String, Object> params) {
         super(facetName);
         this.fieldDataCache = context.fieldDataCache();
         this.size = size;
@@ -98,16 +99,16 @@ public class FieldsTermsStringFacetCollector extends AbstractFacetCollector {
         }
 
         if (excluded.isEmpty() && pattern == null && this.script == null) {
-            aggregator = new StaticAggregatorValueProc(CacheRecycler.<String>popObjectIntMap());
+            aggregator = new StaticAggregatorValueProc(CacheRecycler.<BytesRef>popObjectIntMap());
         } else {
-            aggregator = new AggregatorValueProc(CacheRecycler.<String>popObjectIntMap(), excluded, pattern, this.script);
+            aggregator = new AggregatorValueProc(CacheRecycler.<BytesRef>popObjectIntMap(), excluded, pattern, this.script);
         }
 
         if (allTerms) {
             try {
                 for (int i = 0; i < fieldsNames.length; i++) {
-                    for (IndexReader reader : context.searcher().subReaders()) {
-                        FieldData fieldData = fieldDataCache.cache(fieldsDataType[i], reader, indexFieldsNames[i]);
+                    for (AtomicReaderContext readerContext : context.searcher().getTopReaderContext().leaves()) {
+                        FieldData fieldData = fieldDataCache.cache(fieldsDataType[i], readerContext.reader(), indexFieldsNames[i]);
                         fieldData.forEachValue(aggregator);
                     }
                 }
@@ -125,12 +126,12 @@ public class FieldsTermsStringFacetCollector extends AbstractFacetCollector {
     }
 
     @Override
-    protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
+    protected void doSetNextReader(AtomicReaderContext context) throws IOException {
         for (int i = 0; i < indexFieldsNames.length; i++) {
-            fieldsData[i] = fieldDataCache.cache(fieldsDataType[i], reader, indexFieldsNames[i]);
+            fieldsData[i] = fieldDataCache.cache(fieldsDataType[i], context.reader(), indexFieldsNames[i]);
         }
         if (script != null) {
-            script.setNextReader(reader);
+            script.setNextReader(context.reader());
         }
     }
 
@@ -143,28 +144,28 @@ public class FieldsTermsStringFacetCollector extends AbstractFacetCollector {
 
     @Override
     public Facet facet() {
-        TObjectIntHashMap<String> facets = aggregator.facets();
+        TObjectIntHashMap<BytesRef> facets = aggregator.facets();
         if (facets.isEmpty()) {
             CacheRecycler.pushObjectIntMap(facets);
-            return new InternalStringTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalStringTermsFacet.StringEntry>of(), aggregator.missing(), aggregator.total());
+            return new InternalStringTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalStringTermsFacet.TermEntry>of(), aggregator.missing(), aggregator.total());
         } else {
             if (size < EntryPriorityQueue.LIMIT) {
                 EntryPriorityQueue ordered = new EntryPriorityQueue(size, comparatorType.comparator());
-                for (TObjectIntIterator<String> it = facets.iterator(); it.hasNext(); ) {
+                for (TObjectIntIterator<BytesRef> it = facets.iterator(); it.hasNext(); ) {
                     it.advance();
-                    ordered.insertWithOverflow(new InternalStringTermsFacet.StringEntry(it.key(), it.value()));
+                    ordered.insertWithOverflow(new InternalStringTermsFacet.TermEntry(it.key(), it.value()));
                 }
-                InternalStringTermsFacet.StringEntry[] list = new InternalStringTermsFacet.StringEntry[ordered.size()];
+                InternalStringTermsFacet.TermEntry[] list = new InternalStringTermsFacet.TermEntry[ordered.size()];
                 for (int i = ordered.size() - 1; i >= 0; i--) {
-                    list[i] = ((InternalStringTermsFacet.StringEntry) ordered.pop());
+                    list[i] = ((InternalStringTermsFacet.TermEntry) ordered.pop());
                 }
                 CacheRecycler.pushObjectIntMap(facets);
                 return new InternalStringTermsFacet(facetName, comparatorType, size, Arrays.asList(list), aggregator.missing(), aggregator.total());
             } else {
-                BoundedTreeSet<InternalStringTermsFacet.StringEntry> ordered = new BoundedTreeSet<InternalStringTermsFacet.StringEntry>(comparatorType.comparator(), size);
-                for (TObjectIntIterator<String> it = facets.iterator(); it.hasNext(); ) {
+                BoundedTreeSet<InternalStringTermsFacet.TermEntry> ordered = new BoundedTreeSet<InternalStringTermsFacet.TermEntry>(comparatorType.comparator(), size);
+                for (TObjectIntIterator<BytesRef> it = facets.iterator(); it.hasNext(); ) {
                     it.advance();
-                    ordered.add(new InternalStringTermsFacet.StringEntry(it.key(), it.value()));
+                    ordered.add(new InternalStringTermsFacet.TermEntry(it.key(), it.value()));
                 }
                 CacheRecycler.pushObjectIntMap(facets);
                 return new InternalStringTermsFacet(facetName, comparatorType, size, ordered, aggregator.missing(), aggregator.total());
@@ -174,13 +175,13 @@ public class FieldsTermsStringFacetCollector extends AbstractFacetCollector {
 
     public static class AggregatorValueProc extends StaticAggregatorValueProc {
 
-        private final ImmutableSet<String> excluded;
+        private final ImmutableSet<BytesRef> excluded;
 
         private final Matcher matcher;
 
         private final SearchScript script;
 
-        public AggregatorValueProc(TObjectIntHashMap<String> facets, ImmutableSet<String> excluded, Pattern pattern, SearchScript script) {
+        public AggregatorValueProc(TObjectIntHashMap<BytesRef> facets, ImmutableSet<BytesRef> excluded, Pattern pattern, SearchScript script) {
             super(facets);
             this.excluded = excluded;
             this.matcher = pattern != null ? pattern.matcher("") : null;
@@ -188,11 +189,13 @@ public class FieldsTermsStringFacetCollector extends AbstractFacetCollector {
         }
 
         @Override
-        public void onValue(int docId, String value) {
+        public void onValue(int docId, BytesRef value) {
             if (excluded != null && excluded.contains(value)) {
                 return;
             }
-            if (matcher != null && !matcher.reset(value).matches()) {
+
+            // LUCENE 4 UPGRADE: use Lucene's RegexCapabilities
+            if (matcher != null && !matcher.reset(value.utf8ToString()).matches()) {
                 return;
             }
             if (script != null) {
@@ -207,7 +210,8 @@ public class FieldsTermsStringFacetCollector extends AbstractFacetCollector {
                         return;
                     }
                 } else {
-                    value = scriptValue.toString();
+                    // LUCENE 4 UPGRADE: make script return BR?
+                    value = new BytesRef(scriptValue.toString());
                 }
             }
             super.onValue(docId, value);
@@ -216,22 +220,23 @@ public class FieldsTermsStringFacetCollector extends AbstractFacetCollector {
 
     public static class StaticAggregatorValueProc implements FieldData.StringValueInDocProc, FieldData.StringValueProc {
 
-        private final TObjectIntHashMap<String> facets;
+        // LUCENE 4 UPGRADE: check if hashcode is not too expensive
+        private final TObjectIntHashMap<BytesRef> facets;
 
         private int missing;
         private int total;
 
-        public StaticAggregatorValueProc(TObjectIntHashMap<String> facets) {
+        public StaticAggregatorValueProc(TObjectIntHashMap<BytesRef> facets) {
             this.facets = facets;
         }
 
         @Override
-        public void onValue(String value) {
+        public void onValue(BytesRef value) {
             facets.putIfAbsent(value, 0);
         }
 
         @Override
-        public void onValue(int docId, String value) {
+        public void onValue(int docId, BytesRef value) {
             facets.adjustOrPutValue(value, 1, 1);
             total++;
         }
@@ -241,7 +246,7 @@ public class FieldsTermsStringFacetCollector extends AbstractFacetCollector {
             missing++;
         }
 
-        public final TObjectIntHashMap<String> facets() {
+        public final TObjectIntHashMap<BytesRef> facets() {
             return facets;
         }
 

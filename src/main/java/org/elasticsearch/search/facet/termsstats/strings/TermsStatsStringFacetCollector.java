@@ -21,8 +21,9 @@ package org.elasticsearch.search.facet.termsstats.strings;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.trove.ExtTHashMap;
@@ -114,12 +115,12 @@ public class TermsStatsStringFacetCollector extends AbstractFacetCollector {
     }
 
     @Override
-    protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
-        keyFieldData = fieldDataCache.cache(keyFieldDataType, reader, keyFieldName);
+    protected void doSetNextReader(AtomicReaderContext context) throws IOException {
+        keyFieldData = fieldDataCache.cache(keyFieldDataType, context.reader(), keyFieldName);
         if (script != null) {
-            script.setNextReader(reader);
+            script.setNextReader(context.reader());
         } else {
-            aggregator.valueFieldData = (NumericFieldData) fieldDataCache.cache(valueFieldDataType, reader, valueFieldName);
+            aggregator.valueFieldData = (NumericFieldData) fieldDataCache.cache(valueFieldDataType, context.reader(), valueFieldName);
         }
     }
 
@@ -156,7 +157,8 @@ public class TermsStatsStringFacetCollector extends AbstractFacetCollector {
 
     public static class Aggregator implements FieldData.StringValueInDocProc {
 
-        final ExtTHashMap<String, InternalTermsStatsStringFacet.StringEntry> entries = CacheRecycler.popHashMap();
+        // LUCENE 4 UPGRADE: check if hashcode is not too expensive
+        final ExtTHashMap<BytesRef, InternalTermsStatsStringFacet.StringEntry> entries = CacheRecycler.popHashMap();
 
         int missing = 0;
 
@@ -165,7 +167,7 @@ public class TermsStatsStringFacetCollector extends AbstractFacetCollector {
         ValueAggregator valueAggregator = new ValueAggregator();
 
         @Override
-        public void onValue(int docId, String value) {
+        public void onValue(int docId, BytesRef value) {
             InternalTermsStatsStringFacet.StringEntry stringEntry = entries.get(value);
             if (stringEntry == null) {
                 stringEntry = new InternalTermsStatsStringFacet.StringEntry(value, 0, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);
@@ -207,7 +209,7 @@ public class TermsStatsStringFacetCollector extends AbstractFacetCollector {
         }
 
         @Override
-        public void onValue(int docId, String value) {
+        public void onValue(int docId, BytesRef value) {
             InternalTermsStatsStringFacet.StringEntry stringEntry = entries.get(value);
             if (stringEntry == null) {
                 stringEntry = new InternalTermsStatsStringFacet.StringEntry(value, 1, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);

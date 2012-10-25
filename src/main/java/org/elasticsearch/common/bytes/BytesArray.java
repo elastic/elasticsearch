@@ -20,6 +20,7 @@
 package org.elasticsearch.common.bytes;
 
 import com.google.common.base.Charsets;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Bytes;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
@@ -41,6 +42,23 @@ public class BytesArray implements BytesReference {
 
     public BytesArray(String bytes) {
         this(bytes.getBytes(Charsets.UTF_8));
+    }
+
+    public BytesArray(BytesRef bytesRef) {
+        this(bytesRef, false);
+    }
+
+    public BytesArray(BytesRef bytesRef, boolean deepCopy) {
+        if (deepCopy) {
+            BytesRef copy = BytesRef.deepCopyOf(bytesRef);
+            bytes = copy.bytes;
+            offset = copy.offset;
+            length = copy.length;
+        } else {
+            bytes = bytesRef.bytes;
+            offset = bytesRef.offset;
+            length = bytesRef.length;
+        }
     }
 
     public BytesArray(byte[] bytes) {

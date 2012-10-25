@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.facet.geodistance;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldData;
@@ -55,9 +55,9 @@ public class ScriptGeoDistanceFacetCollector extends GeoDistanceFacetCollector {
     }
 
     @Override
-    protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
-        super.doSetNextReader(reader, docBase);
-        script.setNextReader(reader);
+    protected void doSetNextReader(AtomicReaderContext context) throws IOException {
+        super.doSetNextReader(context);
+        script.setNextReader(context.reader());
     }
 
     @Override

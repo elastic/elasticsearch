@@ -20,7 +20,8 @@
 package org.elasticsearch.search.facet.terms.strings;
 
 import com.google.common.collect.ImmutableSet;
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.CacheRecycler;
@@ -71,12 +72,12 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
     long missing;
     long total;
 
-    private final ImmutableSet<String> excluded;
+    private final ImmutableSet<BytesRef> excluded;
 
     private final Matcher matcher;
 
     public TermsStringOrdinalsFacetCollector(String facetName, String fieldName, int size, TermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
-                                             ImmutableSet<String> excluded, Pattern pattern) {
+                                             ImmutableSet<BytesRef> excluded, Pattern pattern) {
         super(facetName);
         this.fieldDataCache = context.fieldDataCache();
         this.size = size;
@@ -113,11 +114,11 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
             minCount = 0;
         }
 
-        this.aggregators = new ArrayList<ReaderAggregator>(context.searcher().subReaders().length);
+        this.aggregators = new ArrayList<ReaderAggregator>(context.searcher().getIndexReader().leaves().size());
     }
 
     @Override
-    protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
+    protected void doSetNextReader(AtomicReaderContext context) throws IOException {
         if (current != null) {
             missing += current.counts[0];
             total += current.total - current.counts[0];
@@ -125,7 +126,7 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
                 aggregators.add(current);
             }
         }
-        fieldData = (StringFieldData) fieldDataCache.cache(fieldDataType, reader, indexFieldName);
+        fieldData = (StringFieldData) fieldDataCache.cache(fieldDataType, context.reader(), indexFieldName);
         current = new ReaderAggregator(fieldData);
     }
 
@@ -160,7 +161,7 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
 
             while (queue.size() > 0) {
                 ReaderAggregator agg = queue.top();
-                String value = agg.current;
+                BytesRef value = agg.current;
                 int count = 0;
                 do {
                     count += agg.counts[agg.position];
@@ -177,16 +178,17 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
                     if (excluded != null && excluded.contains(value)) {
                         continue;
                     }
-                    if (matcher != null && !matcher.reset(value).matches()) {
+                    // LUCENE 4 UPGRADE: use Lucene's RegexCapabilities
+                    if (matcher != null && !matcher.reset(value.utf8ToString()).matches()) {
                         continue;
                     }
-                    InternalStringTermsFacet.StringEntry entry = new InternalStringTermsFacet.StringEntry(value, count);
+                    InternalStringTermsFacet.TermEntry entry = new InternalStringTermsFacet.TermEntry(value, count);
                     ordered.insertWithOverflow(entry);
                 }
             }
-            InternalStringTermsFacet.StringEntry[] list = new InternalStringTermsFacet.StringEntry[ordered.size()];
+            InternalStringTermsFacet.TermEntry[] list = new InternalStringTermsFacet.TermEntry[ordered.size()];
             for (int i = ordered.size() - 1; i >= 0; i--) {
-                list[i] = (InternalStringTermsFacet.StringEntry) ordered.pop();
+                list[i] = (InternalStringTermsFacet.TermEntry) ordered.pop();
             }
 
             for (ReaderAggregator aggregator : aggregators) {
@@ -196,11 +198,11 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
             return new InternalStringTermsFacet(facetName, comparatorType, size, Arrays.asList(list), missing, total);
         }
 
-        BoundedTreeSet<InternalStringTermsFacet.StringEntry> ordered = new BoundedTreeSet<InternalStringTermsFacet.StringEntry>(comparatorType.comparator(), size);
+        BoundedTreeSet<InternalStringTermsFacet.TermEntry> ordered = new BoundedTreeSet<InternalStringTermsFacet.TermEntry>(comparatorType.comparator(), size);
 
         while (queue.size() > 0) {
             ReaderAggregator agg = queue.top();
-            String value = agg.current;
+            BytesRef value = agg.current;
             int count = 0;
             do {
                 count += agg.counts[agg.position];
@@ -217,10 +219,11 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
                 if (excluded != null && excluded.contains(value)) {
                     continue;
                 }
-                if (matcher != null && !matcher.reset(value).matches()) {
+                // LUCENE 4 UPGRADE: use Lucene's RegexCapabilities
+                if (matcher != null && !matcher.reset(value.utf8ToString()).matches()) {
                     continue;
                 }
-                InternalStringTermsFacet.StringEntry entry = new InternalStringTermsFacet.StringEntry(value, count);
+                InternalStringTermsFacet.TermEntry entry = new InternalStringTermsFacet.TermEntry(value, count);
                 ordered.add(entry);
             }
         }
@@ -235,11 +238,11 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
 
     public static class ReaderAggregator implements FieldData.OrdinalInDocProc {
 
-        final String[] values;
+        final BytesRef[] values;
         final int[] counts;
 
         int position = 0;
-        String current;
+        BytesRef current;
         int total;
 
         public ReaderAggregator(StringFieldData fieldData) {
@@ -265,7 +268,7 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
     public static class AggregatorPriorityQueue extends PriorityQueue<ReaderAggregator> {
 
         public AggregatorPriorityQueue(int size) {
-            initialize(size);
+            super(size);
         }
 
         @Override

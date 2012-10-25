@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.field.data.strings;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.RamUsage;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.ThreadLocals;
 
 /**
@@ -28,17 +28,19 @@ import org.elasticsearch.common.util.concurrent.ThreadLocals;
  */
 public class SingleValueStringFieldData extends StringFieldData {
 
-    private static ThreadLocal<ThreadLocals.CleanableValue<String[]>> valuesCache = new ThreadLocal<ThreadLocals.CleanableValue<String[]>>() {
+    private static final BytesRef[] EMPTY_ARRAY = new BytesRef[0];
+
+    private static ThreadLocal<ThreadLocals.CleanableValue<BytesRef[]>> valuesCache = new ThreadLocal<ThreadLocals.CleanableValue<BytesRef[]>>() {
         @Override
-        protected ThreadLocals.CleanableValue<String[]> initialValue() {
-            return new ThreadLocals.CleanableValue<String[]>(new String[1]);
+        protected ThreadLocals.CleanableValue<BytesRef[]> initialValue() {
+            return new ThreadLocals.CleanableValue<BytesRef[]>(new BytesRef[1]);
         }
     };
 
     // order with value 0 indicates no value
     private final int[] ordinals;
 
-    public SingleValueStringFieldData(String fieldName, int[] ordinals, String[] values) {
+    public SingleValueStringFieldData(String fieldName, int[] ordinals, BytesRef[] values) {
         super(fieldName, values);
         this.ordinals = ordinals;
     }
@@ -79,17 +81,17 @@ public class SingleValueStringFieldData extends StringFieldData {
     }
 
     @Override
-    public String value(int docId) {
+    public BytesRef value(int docId) {
         return values[ordinals[docId]];
     }
 
     @Override
-    public String[] values(int docId) {
+    public BytesRef[] values(int docId) {
         int loc = ordinals[docId];
         if (loc == 0) {
-            return Strings.EMPTY_ARRAY;
+            return EMPTY_ARRAY;
         }
-        String[] ret = valuesCache.get().get();
+        BytesRef[] ret = valuesCache.get().get();
         ret[0] = values[loc];
         return ret;
     }

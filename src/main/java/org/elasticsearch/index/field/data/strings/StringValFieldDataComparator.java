@@ -19,8 +19,10 @@
 
 package org.elasticsearch.index.field.data.strings;
 
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldComparator;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.index.field.data.FieldDataType;
@@ -31,7 +33,7 @@ import java.io.IOException;
  *
  */
 // LUCENE MONITOR: Monitor against FieldComparator#String
-public class StringValFieldDataComparator extends FieldComparator {
+public class StringValFieldDataComparator extends FieldComparator<BytesRef> {
 
     private final String fieldName;
 
@@ -39,20 +41,20 @@ public class StringValFieldDataComparator extends FieldComparator {
 
     protected FieldData currentFieldData;
 
-    private String[] values;
+    private BytesRef[] values;
 
-    private String bottom;
+    private BytesRef bottom;
 
     public StringValFieldDataComparator(int numHits, String fieldName, FieldDataCache fieldDataCache) {
         this.fieldName = fieldName;
         this.fieldDataCache = fieldDataCache;
-        values = new String[numHits];
+        values = new BytesRef[numHits];
     }
 
     @Override
     public int compare(int slot1, int slot2) {
-        final String val1 = values[slot1];
-        final String val2 = values[slot2];
+        final BytesRef val1 = values[slot1];
+        final BytesRef val2 = values[slot2];
         if (val1 == null) {
             if (val2 == null) {
                 return 0;
@@ -67,7 +69,7 @@ public class StringValFieldDataComparator extends FieldComparator {
 
     @Override
     public int compareBottom(int doc) {
-        final String val2 = currentFieldData.stringValue(doc);
+        final BytesRef val2 = currentFieldData.stringValue(doc);
         if (bottom == null) {
             if (val2 == null) {
                 return 0;
@@ -85,8 +87,23 @@ public class StringValFieldDataComparator extends FieldComparator {
     }
 
     @Override
-    public void setNextReader(IndexReader reader, int docBase) throws IOException {
-        currentFieldData = fieldDataCache.cache(FieldDataType.DefaultTypes.STRING, reader, fieldName);
+    public FieldComparator<BytesRef> setNextReader(AtomicReaderContext context) throws IOException {
+        currentFieldData = fieldDataCache.cache(FieldDataType.DefaultTypes.STRING, context.reader(), fieldName);
+        return this;
+    }
+
+    @Override
+    public int compareDocToValue(int doc, BytesRef val2) throws IOException {
+        BytesRef val1 = currentFieldData.stringValue(doc);
+        if (val1 == null) {
+            if (val2 == null) {
+                return 0;
+            }
+            return -1;
+        } else if (val2 == null) {
+            return 1;
+        }
+        return currentFieldData.stringValue(doc).compareTo(val2);
     }
 
     @Override
@@ -95,7 +112,7 @@ public class StringValFieldDataComparator extends FieldComparator {
     }
 
     @Override
-    public Comparable value(int slot) {
+    public BytesRef value(int slot) {
         return values[slot];
     }
 }

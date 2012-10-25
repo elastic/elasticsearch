@@ -24,7 +24,9 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PayloadAttribute;
 import org.apache.lucene.document.AbstractField;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.Term;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.lucene.Lucene;
 
@@ -38,25 +40,23 @@ public class UidField extends AbstractField {
 
     public static class DocIdAndVersion {
         public final int docId;
-        public final int docStart;
         public final long version;
-        public final IndexReader reader;
+        public final AtomicReaderContext reader;
 
-        public DocIdAndVersion(int docId, long version, IndexReader reader, int docStart) {
+        public DocIdAndVersion(int docId, long version, AtomicReaderContext reader) {
             this.docId = docId;
             this.version = version;
             this.reader = reader;
-            this.docStart = docStart;
         }
     }
 
     // this works fine for nested docs since they don't have the payload which has the version
     // so we iterate till we find the one with the payload
-    public static DocIdAndVersion loadDocIdAndVersion(IndexReader subReader, int docStart, Term term) {
+    public static DocIdAndVersion loadDocIdAndVersion(AtomicReaderContext reader, Term term) {
         int docId = Lucene.NO_DOC;
         TermPositions uid = null;
         try {
-            uid = subReader.termPositions(term);
+            uid = reader.termPositions(term);
             if (!uid.next()) {
                 return null; // no doc
             }
@@ -72,11 +72,11 @@ public class UidField extends AbstractField {
                     continue;
                 }
                 byte[] payload = uid.getPayload(new byte[8], 0);
-                return new DocIdAndVersion(docId, Numbers.bytesToLong(payload), subReader, docStart);
+                return new DocIdAndVersion(docId, Numbers.bytesToLong(payload), reader);
             } while (uid.next());
-            return new DocIdAndVersion(docId, -2, subReader, docStart);
+            return new DocIdAndVersion(docId, -2, reader);
         } catch (Exception e) {
-            return new DocIdAndVersion(docId, -2, subReader, docStart);
+            return new DocIdAndVersion(docId, -2, reader);
         } finally {
             if (uid != null) {
                 try {
@@ -92,7 +92,7 @@ public class UidField extends AbstractField {
      * Load the version for the uid from the reader, returning -1 if no doc exists, or -2 if
      * no version is available (for backward comp.)
      */
-    public static long loadVersion(IndexReader reader, Term term) {
+    public static long loadVersion(AtomicReaderContext reader, Term term) {
         TermPositions uid = null;
         try {
             uid = reader.termPositions(term);

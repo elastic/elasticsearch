@@ -43,6 +43,7 @@ public class UidFilter extends Filter {
 
     private final BloomCache bloomCache;
 
+    // LUCENE 4 UPGRADE: We removed the bloom cache, so once we rewrite this filter, do it without
     public UidFilter(Collection<String> types, List<String> ids, BloomCache bloomCache) {
         this.bloomCache = bloomCache;
         this.uids = new Term[types.size() * ids.size()];

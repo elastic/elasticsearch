@@ -23,15 +23,12 @@ import com.google.common.collect.Lists;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
-import org.elasticsearch.common.Unicode;
-import org.elasticsearch.common.bloom.BloomFilter;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
@@ -43,12 +40,10 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.cache.bloom.BloomCache;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.*;
 import org.elasticsearch.index.indexing.ShardIndexingService;
-import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.merge.policy.EnableMergePolicy;
 import org.elasticsearch.index.merge.policy.MergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
@@ -91,7 +86,6 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
     private volatile int indexConcurrency;
     private long gcDeletesInMillis;
     private volatile boolean enableGcDeletes = true;
-    private final boolean asyncLoadBloomFilter;
 
     private final ThreadPool threadPool;
 
@@ -106,7 +100,6 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
     private final MergeSchedulerProvider mergeScheduler;
     private final AnalysisService analysisService;
     private final SimilarityService similarityService;
-    private final BloomCache bloomCache;
 
 
     private final ReadWriteLock rwl = new ReentrantReadWriteLock();
@@ -154,8 +147,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                        IndexSettingsService indexSettingsService, ShardIndexingService indexingService, @Nullable IndicesWarmer warmer,
                        Store store, SnapshotDeletionPolicy deletionPolicy, Translog translog,
                        MergePolicyProvider mergePolicyProvider, MergeSchedulerProvider mergeScheduler,
-                       AnalysisService analysisService, SimilarityService similarityService,
-                       BloomCache bloomCache) throws EngineException {
+                       AnalysisService analysisService, SimilarityService similarityService) throws EngineException {
         super(shardId, indexSettings);
         Preconditions.checkNotNull(store, "Store must be provided to the engine");
         Preconditions.checkNotNull(deletionPolicy, "Snapshot deletion policy must be provided to the engine");
@@ -165,7 +157,6 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         this.indexingBufferSize = componentSettings.getAsBytesSize("index_buffer_size", new ByteSizeValue(64, ByteSizeUnit.MB)); // not really important, as it is set by the IndexingMemory manager
         this.termIndexInterval = indexSettings.getAsInt("index.term_index_interval", IndexWriterConfig.DEFAULT_TERM_INDEX_INTERVAL);
         this.termIndexDivisor = indexSettings.getAsInt("index.term_index_divisor", 1); // IndexReader#DEFAULT_TERMS_INDEX_DIVISOR
-        this.asyncLoadBloomFilter = componentSettings.getAsBoolean("async_load_bloom", true); // Here for testing, should always be true
 
         this.threadPool = threadPool;
         this.indexSettingsService = indexSettingsService;
@@ -178,7 +169,6 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         this.mergeScheduler = mergeScheduler;
         this.analysisService = analysisService;
         this.similarityService = similarityService;
-        this.bloomCache = bloomCache;
 
         this.indexConcurrency = indexSettings.getAsInt("index.index_concurrency", IndexWriterConfig.DEFAULT_MAX_THREAD_STATES);
         this.versionMap = ConcurrentCollections.newConcurrentMap();
@@ -328,16 +318,10 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             // no version, get the version from the index, we know that we refresh on flush
             Searcher searcher = searcher();
             try {
-                UnicodeUtil.UTF8Result utf8 = Unicode.fromStringAsUtf8(get.uid().text());
-                for (int i = 0; i < searcher.searcher().subReaders().length; i++) {
-                    IndexReader subReader = searcher.searcher().subReaders()[i];
-                    BloomFilter filter = bloomCache.filter(subReader, UidFieldMapper.NAME, asyncLoadBloomFilter);
-                    // we know that its not there...
-                    if (!filter.isPresent(utf8.result, 0, utf8.length)) {
-                        continue;
-                    }
-                    int docStart = searcher.searcher().docStarts()[i];
-                    UidField.DocIdAndVersion docIdAndVersion = UidField.loadDocIdAndVersion(subReader, docStart, get.uid());
+                List<AtomicReaderContext> readers = searcher.reader().leaves();
+                for (int i = 0; i < readers.size(); i++) {
+                    AtomicReaderContext readerContext = readers.get(i);
+                    UidField.DocIdAndVersion docIdAndVersion = UidField.loadDocIdAndVersion(readerContext, get.uid());
                     if (docIdAndVersion != null && docIdAndVersion.docId != Lucene.NO_DOC) {
                         return new GetResult(searcher, docIdAndVersion);
                     }
@@ -1321,16 +1305,12 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
     }
 
     private long loadCurrentVersionFromIndex(Term uid) {
-        UnicodeUtil.UTF8Result utf8 = Unicode.fromStringAsUtf8(uid.text());
         Searcher searcher = searcher();
         try {
-            for (IndexReader reader : searcher.searcher().subReaders()) {
-                BloomFilter filter = bloomCache.filter(reader, UidFieldMapper.NAME, asyncLoadBloomFilter);
-                // we know that its not there...
-                if (!filter.isPresent(utf8.result, 0, utf8.length)) {
-                    continue;
-                }
-                long version = UidField.loadVersion(reader, uid);
+            List<AtomicReaderContext> readers = searcher.reader().leaves();
+            for (int i = 0; i < readers.size(); i++) {
+                AtomicReaderContext readerContext = readers.get(i);
+                long version = UidField.loadVersion(readerContext, uid);
                 // either -2 (its there, but no version associated), or an actual version
                 if (version != -1) {
                     return version;

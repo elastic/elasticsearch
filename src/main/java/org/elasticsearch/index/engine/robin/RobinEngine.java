@@ -1362,7 +1362,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             config.setReaderTermsIndexDivisor(termIndexDivisor);
             config.setMaxThreadStates(indexConcurrency);
 
-            indexWriter = new XIndexWriter(store.directory(), config, logger, bloomCache);
+            indexWriter = new IndexWriter(store.directory(), config);
         } catch (IOException e) {
             safeClose(indexWriter);
             throw e;

@@ -20,7 +20,10 @@
 package org.elasticsearch.search.facet.termsstats.strings;
 
 import com.google.common.collect.ImmutableList;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.trove.ExtTHashMap;
@@ -57,14 +60,18 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
 
     public static class StringEntry implements Entry {
 
-        String term;
+        BytesReference term;
         long count;
         long totalCount;
         double total;
         double min;
         double max;
 
-        public StringEntry(String term, long count, long totalCount, double total, double min, double max) {
+        public StringEntry(BytesRef term, long count, long totalCount, double total, double min, double max) {
+            this(new BytesArray(term), count, totalCount, total, min, max);
+        }
+
+        public StringEntry(BytesReference term, long count, long totalCount, double total, double min, double max) {
             this.term = term;
             this.count = count;
             this.totalCount = totalCount;
@@ -74,18 +81,18 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
         }
 
         @Override
-        public String term() {
+        public BytesReference term() {
             return term;
         }
 
         @Override
-        public String getTerm() {
+        public BytesReference getTerm() {
             return term();
         }
 
         @Override
         public Number termAsNumber() {
-            return Double.parseDouble(term);
+            return Double.parseDouble(term.toUtf8());
         }
 
         @Override
@@ -158,7 +165,7 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
 
         @Override
         public int compareTo(Entry o) {
-            return term.compareTo(o.term());
+            return BytesReference.utf8SortedAsUnicodeSortOrder.compare(this.term, o.term());
         }
     }
 
@@ -250,7 +257,7 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
             return facets.get(0);
         }
         int missing = 0;
-        ExtTHashMap<String, StringEntry> map = CacheRecycler.popHashMap();
+        ExtTHashMap<BytesReference, StringEntry> map = CacheRecycler.popHashMap();
         for (Facet facet : facets) {
             InternalTermsStatsStringFacet tsFacet = (InternalTermsStatsStringFacet) facet;
             missing += tsFacet.missing;
@@ -346,7 +353,7 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
         int size = in.readVInt();
         entries = new ArrayList<StringEntry>(size);
         for (int i = 0; i < size; i++) {
-            entries.add(new StringEntry(in.readUTF(), in.readVLong(), in.readVLong(), in.readDouble(), in.readDouble(), in.readDouble()));
+            entries.add(new StringEntry(in.readBytesReference(), in.readVLong(), in.readVLong(), in.readDouble(), in.readDouble(), in.readDouble()));
         }
     }
 
@@ -359,7 +366,7 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
 
         out.writeVInt(entries.size());
         for (Entry entry : entries) {
-            out.writeUTF(entry.term());
+            out.writeBytesReference(entry.term());
             out.writeVLong(entry.count());
             out.writeVLong(entry.totalCount());
             out.writeDouble(entry.total());

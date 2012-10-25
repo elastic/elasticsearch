@@ -22,7 +22,10 @@ package org.elasticsearch.search.facet.terms.ip;
 import com.google.common.collect.ImmutableList;
 import gnu.trove.iterator.TLongIntIterator;
 import gnu.trove.map.hash.TLongIntHashMap;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -72,11 +75,11 @@ public class InternalIpTermsFacet extends InternalTermsFacet {
             this.count = count;
         }
 
-        public String term() {
-            return IpFieldMapper.longToIp(term);
+        public BytesReference term() {
+            return new BytesArray(IpFieldMapper.longToIp(term));
         }
 
-        public String getTerm() {
+        public BytesReference getTerm() {
             return term();
         }
 

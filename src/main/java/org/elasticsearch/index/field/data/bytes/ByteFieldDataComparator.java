@@ -23,11 +23,13 @@ import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.support.NumericFieldDataComparator;
 
+import java.io.IOException;
+
 /**
  *
  */
 // LUCENE MONITOR: Monitor against FieldComparator.Short
-public class ByteFieldDataComparator extends NumericFieldDataComparator {
+public class ByteFieldDataComparator extends NumericFieldDataComparator<Byte> {
 
     private final byte[] values;
     private short bottom;
@@ -53,6 +55,12 @@ public class ByteFieldDataComparator extends NumericFieldDataComparator {
     }
 
     @Override
+    public int compareDocToValue(int doc, Byte val2) throws IOException {
+        byte val1 = currentFieldData.byteValue(doc);
+        return val1 - val2;
+    }
+
+    @Override
     public void copy(int slot, int doc) {
         values[slot] = currentFieldData.byteValue(doc);
     }
@@ -63,7 +71,7 @@ public class ByteFieldDataComparator extends NumericFieldDataComparator {
     }
 
     @Override
-    public Comparable value(int slot) {
-        return Byte.valueOf(values[slot]);
+    public Byte value(int slot) {
+        return values[slot];
     }
 }

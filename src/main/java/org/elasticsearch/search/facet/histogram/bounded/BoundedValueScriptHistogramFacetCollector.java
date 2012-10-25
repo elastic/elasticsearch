@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.facet.histogram.bounded;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
@@ -100,9 +100,9 @@ public class BoundedValueScriptHistogramFacetCollector extends AbstractFacetColl
     }
 
     @Override
-    protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
-        fieldData = (NumericFieldData) fieldDataCache.cache(fieldDataType, reader, indexFieldName);
-        valueScript.setNextReader(reader);
+    protected void doSetNextReader(AtomicReaderContext context) throws IOException {
+        fieldData = (NumericFieldData) fieldDataCache.cache(fieldDataType, context.reader(), indexFieldName);
+        valueScript.setNextReader(context.reader());
     }
 
     @Override

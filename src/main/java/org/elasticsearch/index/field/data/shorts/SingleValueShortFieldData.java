@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.field.data.shorts;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.common.util.concurrent.ThreadLocals;
 import org.elasticsearch.index.field.data.doubles.DoubleFieldData;
@@ -73,7 +74,7 @@ public class SingleValueShortFieldData extends ShortFieldData {
             proc.onMissing(docId);
             return;
         }
-        proc.onValue(docId, Short.toString(values[loc]));
+        proc.onValue(docId, new BytesRef(Short.toString(values[loc])));
     }
 
     @Override

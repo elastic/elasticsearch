@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.field.data.shorts;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
@@ -42,8 +42,8 @@ public class ShortFieldDataType implements FieldDataType<ShortFieldData> {
                 }
 
                 @Override
-                public int reducedType() {
-                    return SortField.SHORT;
+                public SortField.Type reducedType() {
+                    return SortField.Type.SHORT;
                 }
             };
         }
@@ -55,8 +55,8 @@ public class ShortFieldDataType implements FieldDataType<ShortFieldData> {
                 }
 
                 @Override
-                public int reducedType() {
-                    return SortField.SHORT;
+                public SortField.Type reducedType() {
+                    return SortField.Type.SHORT;
                 }
             };
         }
@@ -68,8 +68,8 @@ public class ShortFieldDataType implements FieldDataType<ShortFieldData> {
                 }
 
                 @Override
-                public int reducedType() {
-                    return SortField.SHORT;
+                public SortField.Type reducedType() {
+                    return SortField.Type.SHORT;
                 }
             };
         }
@@ -80,14 +80,14 @@ public class ShortFieldDataType implements FieldDataType<ShortFieldData> {
             }
 
             @Override
-            public int reducedType() {
-                return SortField.SHORT;
+            public SortField.Type reducedType() {
+                return SortField.Type.SHORT;
             }
         };
     }
 
     @Override
-    public ShortFieldData load(IndexReader reader, String fieldName) throws IOException {
+    public ShortFieldData load(AtomicReader reader, String fieldName) throws IOException {
         return ShortFieldData.load(reader, fieldName);
     }
 }

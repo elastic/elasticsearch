@@ -23,11 +23,13 @@ import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.support.NumericFieldDataComparator;
 
+import java.io.IOException;
+
 /**
  *
  */
 // LUCENE MONITOR: Monitor against FieldComparator.Double
-public class DoubleFieldDataMissingComparator extends NumericFieldDataComparator {
+public class DoubleFieldDataMissingComparator extends NumericFieldDataComparator<Double> {
 
     private final double[] values;
     private double bottom;
@@ -73,6 +75,15 @@ public class DoubleFieldDataMissingComparator extends NumericFieldDataComparator
     }
 
     @Override
+    public int compareDocToValue(int doc, Double val2) throws IOException {
+        double val1 = missingValue;
+        if (currentFieldData.hasValue(doc)) {
+            val1 = currentFieldData.doubleValue(doc);
+        }
+        return Double.compare(val1, val2);
+    }
+
+    @Override
     public void copy(int slot, int doc) {
         double value = missingValue;
         if (currentFieldData.hasValue(doc)) {
@@ -87,7 +98,7 @@ public class DoubleFieldDataMissingComparator extends NumericFieldDataComparator
     }
 
     @Override
-    public Comparable value(int slot) {
-        return Double.valueOf(values[slot]);
+    public Double value(int slot) {
+        return values[slot];
     }
 }

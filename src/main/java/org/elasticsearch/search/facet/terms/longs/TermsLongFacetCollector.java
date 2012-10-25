@@ -24,8 +24,11 @@ import com.google.common.collect.ImmutableSet;
 import gnu.trove.iterator.TLongIntIterator;
 import gnu.trove.map.hash.TLongIntHashMap;
 import gnu.trove.set.hash.TLongHashSet;
+import org.apache.lucene.index.AtomicReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.collect.BoundedTreeSet;
@@ -77,7 +80,7 @@ public class TermsLongFacetCollector extends AbstractFacetCollector {
     private final SearchScript script;
 
     public TermsLongFacetCollector(String facetName, String fieldName, int size, TermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
-                                   ImmutableSet<String> excluded, String scriptLang, String script, Map<String, Object> params) {
+                                   ImmutableSet<BytesRef> excluded, String scriptLang, String script, Map<String, Object> params) {
         super(facetName);
         this.fieldDataCache = context.fieldDataCache();
         this.size = size;
@@ -114,8 +117,8 @@ public class TermsLongFacetCollector extends AbstractFacetCollector {
 
         if (allTerms) {
             try {
-                for (IndexReader reader : context.searcher().subReaders()) {
-                    LongFieldData fieldData = (LongFieldData) fieldDataCache.cache(fieldDataType, reader, indexFieldName);
+                for (AtomicReaderContext readerContext : context.searcher().getTopReaderContext().leaves()) {
+                    LongFieldData fieldData = (LongFieldData) fieldDataCache.cache(fieldDataType, readerContext.reader(), indexFieldName);
                     fieldData.forEachValue(aggregator);
                 }
             } catch (Exception e) {
@@ -132,10 +135,10 @@ public class TermsLongFacetCollector extends AbstractFacetCollector {
     }
 
     @Override
-    protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
-        fieldData = (LongFieldData) fieldDataCache.cache(fieldDataType, reader, indexFieldName);
+    protected void doSetNextReader(AtomicReaderContext context) throws IOException {
+        fieldData = (LongFieldData) fieldDataCache.cache(fieldDataType, context.reader(), indexFieldName);
         if (script != null) {
-            script.setNextReader(reader);
+            script.setNextReader(context.reader());
         }
     }
 
@@ -181,15 +184,15 @@ public class TermsLongFacetCollector extends AbstractFacetCollector {
 
         private final TLongHashSet excluded;
 
-        public AggregatorValueProc(TLongIntHashMap facets, Set<String> excluded, SearchScript script) {
+        public AggregatorValueProc(TLongIntHashMap facets, Set<BytesRef> excluded, SearchScript script) {
             super(facets);
             this.script = script;
             if (excluded == null || excluded.isEmpty()) {
                 this.excluded = null;
             } else {
                 this.excluded = new TLongHashSet(excluded.size());
-                for (String s : excluded) {
-                    this.excluded.add(Long.parseLong(s));
+                for (BytesRef s : excluded) {
+                    this.excluded.add(Long.parseLong(s.utf8ToString()));
                 }
             }
         }

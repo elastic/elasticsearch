@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.field.data.longs;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
@@ -42,8 +42,8 @@ public class LongFieldDataType implements FieldDataType<LongFieldData> {
                 }
 
                 @Override
-                public int reducedType() {
-                    return SortField.LONG;
+                public SortField.Type reducedType() {
+                    return SortField.Type.LONG;
                 }
             };
         }
@@ -55,8 +55,8 @@ public class LongFieldDataType implements FieldDataType<LongFieldData> {
                 }
 
                 @Override
-                public int reducedType() {
-                    return SortField.LONG;
+                public SortField.Type reducedType() {
+                    return SortField.Type.LONG;
                 }
             };
         }
@@ -68,8 +68,8 @@ public class LongFieldDataType implements FieldDataType<LongFieldData> {
                 }
 
                 @Override
-                public int reducedType() {
-                    return SortField.LONG;
+                public SortField.Type reducedType() {
+                    return SortField.Type.LONG;
                 }
             };
         }
@@ -80,14 +80,14 @@ public class LongFieldDataType implements FieldDataType<LongFieldData> {
             }
 
             @Override
-            public int reducedType() {
-                return SortField.LONG;
+            public SortField.Type reducedType() {
+                return SortField.Type.LONG;
             }
         };
     }
 
     @Override
-    public LongFieldData load(IndexReader reader, String fieldName) throws IOException {
+    public LongFieldData load(AtomicReader reader, String fieldName) throws IOException {
         return LongFieldData.load(reader, fieldName);
     }
 }

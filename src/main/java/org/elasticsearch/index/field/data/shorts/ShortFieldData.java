@@ -20,8 +20,9 @@
 package org.elasticsearch.index.field.data.shorts;
 
 import gnu.trove.list.array.TShortArrayList;
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.search.FieldCache;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.NumericFieldData;
@@ -69,13 +70,13 @@ public abstract class ShortFieldData extends NumericFieldData<ShortDocFieldData>
     @Override
     public void forEachValue(StringValueProc proc) {
         for (int i = 1; i < values.length; i++) {
-            proc.onValue(Short.toString(values[i]));
+            proc.onValue(new BytesRef(Short.toString(values[i])));
         }
     }
 
     @Override
-    public String stringValue(int docId) {
-        return Short.toString(value(docId));
+    public BytesRef stringValue(int docId) {
+        return new BytesRef(Short.toString(value(docId)));
     }
 
     @Override
@@ -131,7 +132,7 @@ public abstract class ShortFieldData extends NumericFieldData<ShortDocFieldData>
         void onMissing(int docId);
     }
 
-    public static ShortFieldData load(IndexReader reader, String field) throws IOException {
+    public static ShortFieldData load(AtomicReader reader, String field) throws IOException {
         return FieldDataLoader.load(reader, field, new ShortTypeLoader());
     }
 
@@ -146,7 +147,7 @@ public abstract class ShortFieldData extends NumericFieldData<ShortDocFieldData>
         }
 
         @Override
-        public void collectTerm(String term) {
+        public void collectTerm(BytesRef term) {
             terms.add((short) FieldCache.NUMERIC_UTILS_INT_PARSER.parseInt(term));
         }
 

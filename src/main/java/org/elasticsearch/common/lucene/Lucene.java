@@ -134,7 +134,7 @@ public class Lucene {
                 if (in.readBoolean()) {
                     field = in.readUTF();
                 }
-                fields[i] = new SortField(field, in.readVInt(), in.readBoolean());
+                fields[i] = new SortField(field, readSortType(in), in.readBoolean());
             }
 
             FieldDoc[] fieldDocs = new FieldDoc[in.readVInt()];
@@ -201,9 +201,9 @@ public class Lucene {
                     out.writeUTF(sortField.getField());
                 }
                 if (sortField.getComparatorSource() != null) {
-                    out.writeVInt(((FieldDataType.ExtendedFieldComparatorSource) sortField.getComparatorSource()).reducedType());
+                    writeSortType(out, ((FieldDataType.ExtendedFieldComparatorSource) sortField.getComparatorSource()).reducedType());
                 } else {
-                    out.writeVInt(sortField.getType());
+                    writeSortType(out, sortField.getType());
                 }
                 out.writeBoolean(sortField.getReverse());
             }
@@ -269,6 +269,15 @@ public class Lucene {
                 out.writeFloat(doc.score);
             }
         }
+    }
+
+    // LUCENE 4 UPGRADE: We might want to maintain our own ordinal, instead of Lucene's ordinal
+    public static SortField.Type readSortType(StreamInput in) throws IOException {
+        return SortField.Type.values()[in.readVInt()];
+    }
+
+    public static void writeSortType(StreamOutput out, SortField.Type sortType) throws IOException {
+        out.writeVInt(sortType.ordinal());
     }
 
     public static Explanation readExplanation(StreamInput in) throws IOException {

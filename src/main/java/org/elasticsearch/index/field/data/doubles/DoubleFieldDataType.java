@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.field.data.doubles;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
@@ -42,8 +42,8 @@ public class DoubleFieldDataType implements FieldDataType<DoubleFieldData> {
                 }
 
                 @Override
-                public int reducedType() {
-                    return SortField.DOUBLE;
+                public SortField.Type reducedType() {
+                    return SortField.Type.DOUBLE;
                 }
             };
         }
@@ -55,8 +55,8 @@ public class DoubleFieldDataType implements FieldDataType<DoubleFieldData> {
                 }
 
                 @Override
-                public int reducedType() {
-                    return SortField.DOUBLE;
+                public SortField.Type reducedType() {
+                    return SortField.Type.DOUBLE;
                 }
             };
         }
@@ -68,8 +68,8 @@ public class DoubleFieldDataType implements FieldDataType<DoubleFieldData> {
                 }
 
                 @Override
-                public int reducedType() {
-                    return SortField.DOUBLE;
+                public SortField.Type reducedType() {
+                    return SortField.Type.DOUBLE;
                 }
             };
         }
@@ -80,14 +80,14 @@ public class DoubleFieldDataType implements FieldDataType<DoubleFieldData> {
             }
 
             @Override
-            public int reducedType() {
-                return SortField.DOUBLE;
+            public SortField.Type reducedType() {
+                return SortField.Type.DOUBLE;
             }
         };
     }
 
     @Override
-    public DoubleFieldData load(IndexReader reader, String fieldName) throws IOException {
+    public DoubleFieldData load(AtomicReader reader, String fieldName) throws IOException {
         return DoubleFieldData.load(reader, fieldName);
     }
 }

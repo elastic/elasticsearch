@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.field.data.bytes;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
@@ -42,8 +42,8 @@ public class ByteFieldDataType implements FieldDataType<ByteFieldData> {
                 }
 
                 @Override
-                public int reducedType() {
-                    return SortField.BYTE;
+                public SortField.Type reducedType() {
+                    return SortField.Type.BYTE;
                 }
             };
         }
@@ -55,8 +55,8 @@ public class ByteFieldDataType implements FieldDataType<ByteFieldData> {
                 }
 
                 @Override
-                public int reducedType() {
-                    return SortField.BYTE;
+                public SortField.Type reducedType() {
+                    return SortField.Type.BYTE;
                 }
             };
         }
@@ -68,8 +68,8 @@ public class ByteFieldDataType implements FieldDataType<ByteFieldData> {
                 }
 
                 @Override
-                public int reducedType() {
-                    return SortField.BYTE;
+                public SortField.Type reducedType() {
+                    return SortField.Type.BYTE;
                 }
             };
         }
@@ -80,14 +80,14 @@ public class ByteFieldDataType implements FieldDataType<ByteFieldData> {
             }
 
             @Override
-            public int reducedType() {
-                return SortField.BYTE;
+            public SortField.Type reducedType() {
+                return SortField.Type.BYTE;
             }
         };
     }
 
     @Override
-    public ByteFieldData load(IndexReader reader, String fieldName) throws IOException {
+    public ByteFieldData load(AtomicReader reader, String fieldName) throws IOException {
         return ByteFieldData.load(reader, fieldName);
     }
 }

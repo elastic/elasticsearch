@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.facet.range;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.NumericFieldData;
@@ -80,9 +80,9 @@ public class KeyValueRangeFacetCollector extends AbstractFacetCollector {
     }
 
     @Override
-    protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
-        keyFieldData = (NumericFieldData) fieldDataCache.cache(keyFieldDataType, reader, keyIndexFieldName);
-        rangeProc.valueFieldData = (NumericFieldData) fieldDataCache.cache(valueFieldDataType, reader, valueIndexFieldName);
+    protected void doSetNextReader(AtomicReaderContext context) throws IOException {
+        keyFieldData = (NumericFieldData) fieldDataCache.cache(keyFieldDataType, context.reader(), keyIndexFieldName);
+        rangeProc.valueFieldData = (NumericFieldData) fieldDataCache.cache(valueFieldDataType, context.reader(), valueIndexFieldName);
     }
 
     @Override

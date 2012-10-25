@@ -24,8 +24,10 @@ import com.google.common.collect.ImmutableSet;
 import gnu.trove.iterator.TByteIntIterator;
 import gnu.trove.map.hash.TByteIntHashMap;
 import gnu.trove.set.hash.TByteHashSet;
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.collect.BoundedTreeSet;
@@ -70,7 +72,7 @@ public class TermsByteFacetCollector extends AbstractFacetCollector {
     private final SearchScript script;
 
     public TermsByteFacetCollector(String facetName, String fieldName, int size, TermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
-                                   ImmutableSet<String> excluded, String scriptLang, String script, Map<String, Object> params) {
+                                   ImmutableSet<BytesRef> excluded, String scriptLang, String script, Map<String, Object> params) {
         super(facetName);
         this.fieldDataCache = context.fieldDataCache();
         this.size = size;
@@ -108,8 +110,8 @@ public class TermsByteFacetCollector extends AbstractFacetCollector {
 
         if (allTerms) {
             try {
-                for (IndexReader reader : context.searcher().subReaders()) {
-                    ByteFieldData fieldData = (ByteFieldData) fieldDataCache.cache(fieldDataType, reader, indexFieldName);
+                for (AtomicReaderContext readerContext : context.searcher().getTopReaderContext().leaves()) {
+                    ByteFieldData fieldData = (ByteFieldData) fieldDataCache.cache(fieldDataType, readerContext.reader(), indexFieldName);
                     fieldData.forEachValue(aggregator);
                 }
             } catch (Exception e) {
@@ -126,10 +128,10 @@ public class TermsByteFacetCollector extends AbstractFacetCollector {
     }
 
     @Override
-    protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
-        fieldData = (ByteFieldData) fieldDataCache.cache(fieldDataType, reader, indexFieldName);
+    protected void doSetNextReader(AtomicReaderContext context) throws IOException {
+        fieldData = (ByteFieldData) fieldDataCache.cache(fieldDataType, context.reader(), indexFieldName);
         if (script != null) {
-            script.setNextReader(reader);
+            script.setNextReader(context.reader());
         }
     }
 
@@ -175,14 +177,14 @@ public class TermsByteFacetCollector extends AbstractFacetCollector {
 
         private final TByteHashSet excluded;
 
-        public AggregatorValueProc(TByteIntHashMap facets, Set<String> excluded, SearchScript script) {
+        public AggregatorValueProc(TByteIntHashMap facets, Set<BytesRef> excluded, SearchScript script) {
             super(facets);
             if (excluded == null || excluded.isEmpty()) {
                 this.excluded = null;
             } else {
                 this.excluded = new TByteHashSet(excluded.size());
-                for (String s : excluded) {
-                    this.excluded.add(Byte.parseByte(s));
+                for (BytesRef s : excluded) {
+                    this.excluded.add(Byte.parseByte(s.utf8ToString()));
                 }
             }
             this.script = script;

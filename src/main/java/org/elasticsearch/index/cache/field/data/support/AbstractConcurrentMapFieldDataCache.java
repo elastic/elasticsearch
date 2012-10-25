@@ -20,6 +20,7 @@
 package org.elasticsearch.index.cache.field.data.support;
 
 import com.google.common.cache.Cache;
+import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SegmentReader;
 import org.elasticsearch.ElasticSearchException;
@@ -106,7 +107,7 @@ public abstract class AbstractConcurrentMapFieldDataCache extends AbstractIndexC
     }
 
     @Override
-    public FieldData cache(FieldDataType type, IndexReader reader, String fieldName) throws IOException {
+    public FieldData cache(FieldDataType type, AtomicReader reader, String fieldName) throws IOException {
         Cache<String, FieldData> fieldDataCache = cache.get(reader.getCoreCacheKey());
         if (fieldDataCache == null) {
             synchronized (creationMutex) {

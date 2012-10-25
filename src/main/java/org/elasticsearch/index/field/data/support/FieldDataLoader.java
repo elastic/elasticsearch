@@ -19,11 +19,11 @@
 
 package org.elasticsearch.index.field.data.support;
 
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.index.TermDocs;
-import org.apache.lucene.index.TermEnum;
-import org.apache.lucene.util.StringHelper;
+import org.apache.lucene.index.AtomicReader;
+import org.apache.lucene.index.DocsEnum;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.field.data.FieldData;
 
 import java.io.IOException;
@@ -35,57 +35,44 @@ import java.util.ArrayList;
 public class FieldDataLoader {
 
     @SuppressWarnings({"StringEquality"})
-    public static <T extends FieldData> T load(IndexReader reader, String field, TypeLoader<T> loader) throws IOException {
+    public static <T extends FieldData> T load(AtomicReader reader, String field, TypeLoader<T> loader) throws IOException {
 
         loader.init();
 
-        field = StringHelper.intern(field);
+        // LUCENE 4 UPGRADE: StringHelper?
+        field = field.intern();//StringHelper.intern(field);
         ArrayList<int[]> ordinals = new ArrayList<int[]>();
         int[] idx = new int[reader.maxDoc()];
         ordinals.add(new int[reader.maxDoc()]);
 
         int t = 1;  // current term number
 
-        TermDocs termDocs = reader.termDocs();
-        TermEnum termEnum = reader.terms(new Term(field));
-        try {
-            // bulk read (in lucene 4 it won't be needed).
-            int size = Math.min(128, reader.maxDoc());
-            int[] docs = new int[size];
-            int[] freqs = new int[size];
-            do {
-                Term term = termEnum.term();
-                if (term == null || term.field() != field) break;
-                loader.collectTerm(term.text());
-                termDocs.seek(termEnum);
+        Terms terms = reader.terms(field);
+        TermsEnum termsEnum = terms.iterator(null);
 
-                int number = termDocs.read(docs, freqs);
-                while (number > 0) {
-                    for (int i = 0; i < number; i++) {
-                        int doc = docs[i];
-                        int[] ordinal;
-                        if (idx[doc] >= ordinals.size()) {
-                            ordinal = new int[reader.maxDoc()];
-                            ordinals.add(ordinal);
-                        } else {
-                            ordinal = ordinals.get(idx[doc]);
-                        }
-                        ordinal[doc] = t;
-                        idx[doc]++;
+        try {
+            DocsEnum docsEnum = null;
+            for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.term()) {
+                loader.collectTerm(BytesRef.deepCopyOf(term));
+                docsEnum = termsEnum.docs(reader.getLiveDocs(), docsEnum, 0);
+                for (int docId = docsEnum.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
+                    int[] ordinal;
+                    if (idx[docId] >= ordinals.size()) {
+                        ordinal = new int[reader.maxDoc()];
+                        ordinals.add(ordinal);
+                    } else {
+                        ordinal = ordinals.get(idx[docId]);
                     }
-                    number = termDocs.read(docs, freqs);
+                    ordinal[docId] = t;
+                    idx[docId]++;
                 }
-                t++;
-            } while (termEnum.next());
+            }
         } catch (RuntimeException e) {
             if (e.getClass().getName().endsWith("StopFillCacheException")) {
                 // all is well, in case numeric parsers are used.
             } else {
                 throw e;
             }
-        } finally {
-            termDocs.close();
-            termEnum.close();
         }
 
         if (ordinals.size() == 1) {
@@ -103,7 +90,7 @@ public class FieldDataLoader {
 
         void init();
 
-        void collectTerm(String term);
+        void collectTerm(BytesRef term);
 
         T buildSingleValue(String fieldName, int[] ordinals);
 

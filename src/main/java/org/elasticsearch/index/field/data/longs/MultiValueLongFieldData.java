@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.field.data.longs;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.common.util.concurrent.ThreadLocals;
 import org.elasticsearch.index.field.data.doubles.DoubleFieldData;
@@ -112,7 +113,7 @@ public class MultiValueLongFieldData extends LongFieldData {
                 }
                 break;
             }
-            proc.onValue(docId, Long.toString(values[loc]));
+            proc.onValue(docId, new BytesRef(Long.toString(values[loc])));
         }
     }
 

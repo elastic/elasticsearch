@@ -19,7 +19,8 @@
 
 package org.elasticsearch.index.field.data.strings;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReader;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.index.field.data.FieldDataType;
@@ -33,9 +34,9 @@ import java.util.ArrayList;
  */
 public abstract class StringFieldData extends FieldData<StringDocFieldData> {
 
-    protected final String[] values;
+    protected final BytesRef[] values;
 
-    protected StringFieldData(String fieldName, String[] values) {
+    protected StringFieldData(String fieldName, BytesRef[] values) {
         super(fieldName);
         this.values = values;
     }
@@ -43,21 +44,21 @@ public abstract class StringFieldData extends FieldData<StringDocFieldData> {
     @Override
     protected long computeSizeInBytes() {
         long size = RamUsage.NUM_BYTES_ARRAY_HEADER;
-        for (String value : values) {
+        for (BytesRef value : values) {
             if (value != null) {
-                size += RamUsage.NUM_BYTES_OBJECT_HEADER + ((value.length() * RamUsage.NUM_BYTES_CHAR) + (3 * RamUsage.NUM_BYTES_INT));
+                size += RamUsage.NUM_BYTES_OBJECT_HEADER + (value.length + (2 * RamUsage.NUM_BYTES_INT));
             }
         }
         return size;
     }
 
-    public String[] values() {
+    public BytesRef[] values() {
         return this.values;
     }
 
-    abstract public String value(int docId);
+    abstract public BytesRef value(int docId);
 
-    abstract public String[] values(int docId);
+    abstract public BytesRef[] values(int docId);
 
     @Override
     public StringDocFieldData docFieldData(int docId) {
@@ -65,7 +66,7 @@ public abstract class StringFieldData extends FieldData<StringDocFieldData> {
     }
 
     @Override
-    public String stringValue(int docId) {
+    public BytesRef stringValue(int docId) {
         return value(docId);
     }
 
@@ -86,13 +87,13 @@ public abstract class StringFieldData extends FieldData<StringDocFieldData> {
         }
     }
 
-    public static StringFieldData load(IndexReader reader, String field) throws IOException {
+    public static StringFieldData load(AtomicReader reader, String field) throws IOException {
         return FieldDataLoader.load(reader, field, new StringTypeLoader());
     }
 
     static class StringTypeLoader extends FieldDataLoader.FreqsTypeLoader<StringFieldData> {
 
-        private final ArrayList<String> terms = new ArrayList<String>();
+        private final ArrayList<BytesRef> terms = new ArrayList<BytesRef>();
 
         StringTypeLoader() {
             super();
@@ -101,18 +102,18 @@ public abstract class StringFieldData extends FieldData<StringDocFieldData> {
         }
 
         @Override
-        public void collectTerm(String term) {
+        public void collectTerm(BytesRef term) {
             terms.add(term);
         }
 
         @Override
         public StringFieldData buildSingleValue(String field, int[] ordinals) {
-            return new SingleValueStringFieldData(field, ordinals, terms.toArray(new String[terms.size()]));
+            return new SingleValueStringFieldData(field, ordinals, terms.toArray(new BytesRef[terms.size()]));
         }
 
         @Override
         public StringFieldData buildMultiValue(String field, int[][] ordinals) {
-            return new MultiValueStringFieldData(field, ordinals, terms.toArray(new String[terms.size()]));
+            return new MultiValueStringFieldData(field, ordinals, terms.toArray(new BytesRef[terms.size()]));
         }
     }
 }

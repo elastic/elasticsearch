@@ -24,8 +24,10 @@ import com.google.common.collect.ImmutableSet;
 import gnu.trove.iterator.TDoubleIntIterator;
 import gnu.trove.map.hash.TDoubleIntHashMap;
 import gnu.trove.set.hash.TDoubleHashSet;
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.collect.BoundedTreeSet;
@@ -70,7 +72,7 @@ public class TermsDoubleFacetCollector extends AbstractFacetCollector {
     private final SearchScript script;
 
     public TermsDoubleFacetCollector(String facetName, String fieldName, int size, TermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
-                                     ImmutableSet<String> excluded, String scriptLang, String script, Map<String, Object> params) {
+                                     ImmutableSet<BytesRef> excluded, String scriptLang, String script, Map<String, Object> params) {
         super(facetName);
         this.fieldDataCache = context.fieldDataCache();
         this.size = size;
@@ -107,8 +109,8 @@ public class TermsDoubleFacetCollector extends AbstractFacetCollector {
 
         if (allTerms) {
             try {
-                for (IndexReader reader : context.searcher().subReaders()) {
-                    DoubleFieldData fieldData = (DoubleFieldData) fieldDataCache.cache(fieldDataType, reader, indexFieldName);
+                for (AtomicReaderContext readerContext : context.searcher().getTopReaderContext().leaves()) {
+                    DoubleFieldData fieldData = (DoubleFieldData) fieldDataCache.cache(fieldDataType, readerContext.reader(), indexFieldName);
                     fieldData.forEachValue(aggregator);
                 }
             } catch (Exception e) {
@@ -125,10 +127,10 @@ public class TermsDoubleFacetCollector extends AbstractFacetCollector {
     }
 
     @Override
-    protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
-        fieldData = (DoubleFieldData) fieldDataCache.cache(fieldDataType, reader, indexFieldName);
+    protected void doSetNextReader(AtomicReaderContext context) throws IOException {
+        fieldData = (DoubleFieldData) fieldDataCache.cache(fieldDataType, context.reader(), indexFieldName);
         if (script != null) {
-            script.setNextReader(reader);
+            script.setNextReader(context.reader());
         }
     }
 
@@ -174,15 +176,15 @@ public class TermsDoubleFacetCollector extends AbstractFacetCollector {
 
         private final TDoubleHashSet excluded;
 
-        public AggregatorValueProc(TDoubleIntHashMap facets, Set<String> excluded, SearchScript script) {
+        public AggregatorValueProc(TDoubleIntHashMap facets, Set<BytesRef> excluded, SearchScript script) {
             super(facets);
             this.script = script;
             if (excluded == null || excluded.isEmpty()) {
                 this.excluded = null;
             } else {
                 this.excluded = new TDoubleHashSet(excluded.size());
-                for (String s : excluded) {
-                    this.excluded.add(Double.parseDouble(s));
+                for (BytesRef s : excluded) {
+                    this.excluded.add(Double.parseDouble(s.utf8ToString()));
                 }
             }
         }

@@ -21,7 +21,8 @@ package org.elasticsearch.search.facet.terms.floats;
 
 import com.google.common.collect.ImmutableSet;
 import gnu.trove.set.hash.TFloatHashSet;
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.CacheRecycler;
@@ -73,7 +74,7 @@ public class TermsFloatOrdinalsFacetCollector extends AbstractFacetCollector {
     private final TFloatHashSet excluded;
 
     public TermsFloatOrdinalsFacetCollector(String facetName, String fieldName, int size, TermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
-                                            ImmutableSet<String> excluded) {
+                                            ImmutableSet<BytesRef> excluded) {
         super(facetName);
         this.fieldDataCache = context.fieldDataCache();
         this.size = size;
@@ -100,8 +101,8 @@ public class TermsFloatOrdinalsFacetCollector extends AbstractFacetCollector {
             this.excluded = null;
         } else {
             this.excluded = new TFloatHashSet(excluded.size());
-            for (String s : excluded) {
-                this.excluded.add(Float.parseFloat(s));
+            for (BytesRef s : excluded) {
+                this.excluded.add(Float.parseFloat(s.utf8ToString()));
             }
         }
 
@@ -112,11 +113,11 @@ public class TermsFloatOrdinalsFacetCollector extends AbstractFacetCollector {
             minCount = 0;
         }
 
-        this.aggregators = new ArrayList<ReaderAggregator>(context.searcher().subReaders().length);
+        this.aggregators = new ArrayList<ReaderAggregator>(context.searcher().getIndexReader().leaves().size());
     }
 
     @Override
-    protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
+    protected void doSetNextReader(AtomicReaderContext context) throws IOException {
         if (current != null) {
             missing += current.counts[0];
             total += current.total - current.counts[0];
@@ -124,7 +125,7 @@ public class TermsFloatOrdinalsFacetCollector extends AbstractFacetCollector {
                 aggregators.add(current);
             }
         }
-        fieldData = (FloatFieldData) fieldDataCache.cache(fieldDataType, reader, indexFieldName);
+        fieldData = (FloatFieldData) fieldDataCache.cache(fieldDataType, context.reader(), indexFieldName);
         current = new ReaderAggregator(fieldData);
     }
 
@@ -255,7 +256,7 @@ public class TermsFloatOrdinalsFacetCollector extends AbstractFacetCollector {
     public static class AggregatorPriorityQueue extends PriorityQueue<ReaderAggregator> {
 
         public AggregatorPriorityQueue(int size) {
-            initialize(size);
+            super(size);
         }
 
         @Override

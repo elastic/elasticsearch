@@ -23,6 +23,8 @@ import com.google.common.collect.ImmutableList;
 import gnu.trove.iterator.TLongIntIterator;
 import gnu.trove.map.hash.TLongIntHashMap;
 import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -71,11 +73,11 @@ public class InternalLongTermsFacet extends InternalTermsFacet {
             this.count = count;
         }
 
-        public String term() {
-            return Long.toString(term);
+        public BytesReference term() {
+            return new BytesArray(Long.toString(term));
         }
 
-        public String getTerm() {
+        public BytesReference getTerm() {
             return term();
         }
 

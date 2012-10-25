@@ -21,6 +21,8 @@ package org.elasticsearch.search.facet.termsstats.doubles;
 
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.trove.ExtTDoubleObjectHashMap;
@@ -74,12 +76,12 @@ public class InternalTermsStatsDoubleFacet extends InternalTermsStatsFacet {
         }
 
         @Override
-        public String term() {
-            return Double.toString(term);
+        public BytesReference term() {
+            return new BytesArray(Double.toString(term));
         }
 
         @Override
-        public String getTerm() {
+        public BytesReference getTerm() {
             return term();
         }
 

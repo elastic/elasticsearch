@@ -1419,8 +1419,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         }
 
         @Override
-        public ExtendedIndexSearcher searcher() {
-            return (ExtendedIndexSearcher) searcher;
+        public IndexSearcher searcher() {
+            return searcher;
         }
 
         @Override
@@ -1468,13 +1468,13 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
         @Override
         public IndexSearcher newSearcher(IndexReader reader) throws IOException {
-            ExtendedIndexSearcher searcher = new ExtendedIndexSearcher(reader);
+            IndexSearcher searcher = new IndexSearcher(reader);
             searcher.setSimilarity(similarityService.defaultSearchSimilarity());
             if (warmer != null) {
                 // we need to pass a custom searcher that does not release anything on Engine.Search Release,
                 // we will release explicitly
                 Searcher currentSearcher = null;
-                ExtendedIndexSearcher newSearcher = null;
+                IndexSearcher newSearcher = null;
                 boolean closeNewSearcher = false;
                 try {
                     if (searcherManager == null) {
@@ -1484,21 +1484,21 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                         currentSearcher = searcher();
                         // figure out the newSearcher, with only the new readers that are relevant for us
                         List<IndexReader> readers = Lists.newArrayList();
-                        for (IndexReader subReader : searcher.subReaders()) {
+                        for (AtomicReaderContext newReaderContext : searcher.getIndexReader().leaves()) {
                             boolean found = false;
-                            for (IndexReader currentReader : currentSearcher.searcher().subReaders()) {
-                                if (currentReader.getCoreCacheKey().equals(subReader.getCoreCacheKey())) {
+                            for (AtomicReaderContext currentReaderContext : currentSearcher.reader().leaves()) {
+                                if (currentReaderContext.reader().getCoreCacheKey().equals(newReaderContext.reader().getCoreCacheKey())) {
                                     found = true;
                                     break;
                                 }
                             }
                             if (!found) {
-                                readers.add(subReader);
+                                readers.add(newReaderContext.reader());
                             }
                         }
                         if (!readers.isEmpty()) {
                             // we don't want to close the inner readers, just increase ref on them
-                            newSearcher = new ExtendedIndexSearcher(new MultiReader(readers.toArray(new IndexReader[readers.size()]), false));
+                            newSearcher = new IndexSearcher(new MultiReader(readers.toArray(new IndexReader[readers.size()]), false));
                             closeNewSearcher = true;
                         }
                     }
@@ -1520,13 +1520,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                     }
                     if (newSearcher != null && closeNewSearcher) {
                         try {
-                            newSearcher.close();
-                        } catch (Exception e) {
-                            // ignore
-                        }
-                        try {
-                            // close the reader as well, since closing the searcher does nothing
-                            // and we want to decRef the inner readers
+                            // close the reader since we want decRef the inner readers
                             newSearcher.getIndexReader().close();
                         } catch (IOException e) {
                             // ignore

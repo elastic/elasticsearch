@@ -13,7 +13,7 @@ class XFSIndexOutput extends FSDirectory.FSIndexOutput {
     private final StoreRateLimiting.Listener rateListener;
 
     XFSIndexOutput(FSDirectory parent, String name, RateLimiter rateLimiter, StoreRateLimiting.Listener rateListener) throws IOException {
-        super(parent, name);
+        super(parent, name, null /* we have our own rate limiter */);
         this.rateLimiter = rateLimiter;
         this.rateListener = rateListener;
     }

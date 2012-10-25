@@ -24,6 +24,7 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.ElasticSearchException;
@@ -752,7 +753,8 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
 
             IndexInput indexInput = null;
             try {
-                indexInput = indexShard.store().openInputRaw(fileInfo.physicalName());
+                // TODO: maybe use IOContext.READONCE?
+                indexInput = indexShard.store().openInputRaw(fileInfo.physicalName(), IOContext.READ);
                 indexInput.seek(partNumber * chunkBytes);
                 InputStreamIndexInput is = new ThreadSafeInputStreamIndexInput(indexInput, chunkBytes);
 

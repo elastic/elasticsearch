@@ -34,8 +34,6 @@ public class StoreFileMetaData implements Streamable {
 
     private String name;
 
-    private long lastModified;
-
     // the actual file size on "disk", if compressed, the compressed size
     private long length;
 
@@ -43,16 +41,15 @@ public class StoreFileMetaData implements Streamable {
 
     private transient Directory directory;
 
-    StoreFileMetaData() {
+    private StoreFileMetaData() {
     }
 
-    public StoreFileMetaData(String name, long length, long lastModified, String checksum) {
-        this(name, length, lastModified, checksum, null);
+    public StoreFileMetaData(String name, long length, String checksum) {
+        this(name, length, checksum, null);
     }
 
-    public StoreFileMetaData(String name, long length, long lastModified, String checksum, @Nullable Directory directory) {
+    public StoreFileMetaData(String name, long length, String checksum, @Nullable Directory directory) {
         this.name = name;
-        this.lastModified = lastModified;
         this.length = length;
         this.checksum = checksum;
         this.directory = directory;
@@ -64,10 +61,6 @@ public class StoreFileMetaData implements Streamable {
 
     public String name() {
         return name;
-    }
-
-    public long lastModified() {
-        return this.lastModified;
     }
 
     /**
@@ -102,22 +95,22 @@ public class StoreFileMetaData implements Streamable {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        name = in.readUTF();
+        name = in.readString();
         length = in.readVLong();
         if (in.readBoolean()) {
-            checksum = in.readUTF();
+            checksum = in.readString();
         }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeUTF(name);
+        out.writeString(name);
         out.writeVLong(length);
         if (checksum == null) {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeUTF(checksum);
+            out.writeString(checksum);
         }
     }
 }

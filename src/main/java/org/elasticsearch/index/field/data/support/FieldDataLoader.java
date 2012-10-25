@@ -38,9 +38,6 @@ public class FieldDataLoader {
     public static <T extends FieldData> T load(AtomicReader reader, String field, TypeLoader<T> loader) throws IOException {
 
         loader.init();
-
-        // LUCENE 4 UPGRADE: StringHelper?
-        field = field.intern();//StringHelper.intern(field);
         ArrayList<int[]> ordinals = new ArrayList<int[]>();
         int[] idx = new int[reader.maxDoc()];
         ordinals.add(new int[reader.maxDoc()]);
@@ -48,8 +45,11 @@ public class FieldDataLoader {
         int t = 1;  // current term number
 
         Terms terms = reader.terms(field);
-        TermsEnum termsEnum = terms.iterator(null);
+        if (terms == null) {
+            return  loader.buildSingleValue(field, new int[0]); // Return empty field data if field doesn't exists.
+        }
 
+        TermsEnum termsEnum = terms.iterator(null);
         try {
             DocsEnum docsEnum = null;
             for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.term()) {

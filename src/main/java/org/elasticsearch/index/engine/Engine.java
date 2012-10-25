@@ -21,7 +21,6 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Document;
-import org.apache.lucene.index.ExtendedIndexSearcher;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Filter;
@@ -156,7 +155,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
         IndexReader reader();
 
-        ExtendedIndexSearcher searcher();
+        IndexSearcher searcher();
     }
 
     static class SimpleSearcher implements Searcher {
@@ -173,8 +172,8 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         }
 
         @Override
-        public ExtendedIndexSearcher searcher() {
-            return (ExtendedIndexSearcher) searcher;
+        public IndexSearcher searcher() {
+            return searcher;
         }
 
         @Override

@@ -22,7 +22,6 @@ package org.elasticsearch.search.internal;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import org.apache.lucene.index.ExtendedIndexSearcher;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.*;
 import org.elasticsearch.common.lucene.MinimumScoreCollector;
@@ -39,7 +38,7 @@ import java.util.Map;
 /**
  *
  */
-public class ContextIndexSearcher extends ExtendedIndexSearcher {
+public class ContextIndexSearcher extends IndexSearcher {
 
     public static final class Scopes {
         public static final String MAIN = "_main_";
@@ -58,9 +57,9 @@ public class ContextIndexSearcher extends ExtendedIndexSearcher {
     private String processingScope;
 
     public ContextIndexSearcher(SearchContext searchContext, Engine.Searcher searcher) {
-        super(searcher.searcher());
+        super(searcher.reader());
         this.searchContext = searchContext;
-        this.reader = searcher.searcher().getIndexReader();
+        this.reader = searcher.reader();
     }
 
     public void dfSource(CachedDfSource dfSource) {

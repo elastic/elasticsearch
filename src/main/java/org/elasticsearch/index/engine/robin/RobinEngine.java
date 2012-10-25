@@ -1179,21 +1179,20 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             // first, go over and compute the search ones...
             Searcher searcher = searcher();
             try {
-                IndexReader[] readers = searcher.reader().getSequentialSubReaders();
-                for (IndexReader reader : readers) {
-                    assert reader instanceof SegmentReader;
-                    SegmentInfo info = Lucene.getSegmentInfo((SegmentReader) reader);
-                    assert !segments.containsKey(info.name);
-                    Segment segment = new Segment(info.name);
+                for (AtomicReaderContext reader : searcher.reader().leaves()) {
+                    assert reader.reader() instanceof SegmentReader;
+                    SegmentInfoPerCommit info = Lucene.getSegmentInfo((SegmentReader) reader.reader());
+                    assert !segments.containsKey(info.info.name);
+                    Segment segment = new Segment(info.info.name);
                     segment.search = true;
-                    segment.docCount = reader.numDocs();
-                    segment.delDocCount = reader.numDeletedDocs();
+                    segment.docCount = reader.reader().numDocs();
+                    segment.delDocCount = reader.reader().numDeletedDocs();
                     try {
-                        segment.sizeInBytes = info.sizeInBytes(true);
+                        segment.sizeInBytes = info.sizeInBytes();
                     } catch (IOException e) {
-                        logger.trace("failed to get size for [{}]", e, info.name);
+                        logger.trace("failed to get size for [{}]", e, info.info.name);
                     }
-                    segments.put(info.name, segment);
+                    segments.put(info.info.name, segment);
                 }
             } finally {
                 searcher.release();
@@ -1202,24 +1201,20 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             // now, correlate or add the committed ones...
             if (lastCommittedSegmentInfos != null) {
                 SegmentInfos infos = lastCommittedSegmentInfos;
-                for (SegmentInfo info : infos) {
-                    Segment segment = segments.get(info.name);
+                for (SegmentInfoPerCommit info : infos) {
+                    Segment segment = segments.get(info.info.name);
                     if (segment == null) {
-                        segment = new Segment(info.name);
+                        segment = new Segment(info.info.name);
                         segment.search = false;
                         segment.committed = true;
-                        segment.docCount = info.docCount;
+                        segment.docCount = info.info.getDocCount();
+                        segment.delDocCount = info.getDelCount();
                         try {
-                            segment.delDocCount = indexWriter.numDeletedDocs(info);
+                            segment.sizeInBytes = info.sizeInBytes();
                         } catch (IOException e) {
-                            logger.trace("failed to get deleted docs for committed segment", e);
+                            logger.trace("failed to get size for [{}]", e, info.info.name);
                         }
-                        try {
-                            segment.sizeInBytes = info.sizeInBytes(true);
-                        } catch (IOException e) {
-                            logger.trace("failed to get size for [{}]", e, info.name);
-                        }
-                        segments.put(info.name, segment);
+                        segments.put(info.info.name, segment);
                     } else {
                         segment.committed = true;
                     }

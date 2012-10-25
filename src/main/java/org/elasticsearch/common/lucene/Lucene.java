@@ -312,9 +312,9 @@ public class Lucene {
         segmentReaderSegmentInfoField = segmentReaderSegmentInfoFieldX;
     }
 
-    public static SegmentInfo getSegmentInfo(SegmentReader reader) {
+    public static SegmentInfoPerCommit getSegmentInfo(SegmentReader reader) {
         try {
-            return (SegmentInfo) segmentReaderSegmentInfoField.get(reader);
+            return (SegmentInfoPerCommit) segmentReaderSegmentInfoField.get(reader);
         } catch (IllegalAccessException e) {
             return null;
         }

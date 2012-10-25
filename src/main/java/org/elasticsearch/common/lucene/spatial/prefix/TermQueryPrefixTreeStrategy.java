@@ -24,7 +24,7 @@ import java.util.List;
  */
 public class TermQueryPrefixTreeStrategy extends SpatialStrategy {
 
-    private static final double CONTAINS_BUFFER_DISTANCE = 0.5;
+    private static final double WITHIN_BUFFER_DISTANCE = 0.5;
     private static final BufferParameters BUFFER_PARAMETERS = new BufferParameters(3, BufferParameters.CAP_SQUARE);
 
     /**
@@ -113,11 +113,11 @@ public class TermQueryPrefixTreeStrategy extends SpatialStrategy {
      * {@inheritDoc}
      */
     @Override
-    public Filter createContainsFilter(Shape shape) {
+    public Filter createWithinFilter(Shape shape) {
         Filter intersectsFilter = createIntersectsFilter(shape);
 
         Geometry shapeGeometry = ShapeBuilder.toJTSGeometry(shape);
-        Geometry buffer = BufferOp.bufferOp(shapeGeometry, CONTAINS_BUFFER_DISTANCE, BUFFER_PARAMETERS);
+        Geometry buffer = BufferOp.bufferOp(shapeGeometry, WITHIN_BUFFER_DISTANCE, BUFFER_PARAMETERS);
         Shape bufferedShape = new JtsGeometry(buffer.difference(shapeGeometry), GeoShapeConstants.SPATIAL_CONTEXT, true);
         Filter bufferedFilter = createIntersectsFilter(bufferedShape);
 
@@ -132,11 +132,11 @@ public class TermQueryPrefixTreeStrategy extends SpatialStrategy {
      * {@inheritDoc}
      */
     @Override
-    public Query createContainsQuery(Shape shape) {
+    public Query createWithinQuery(Shape shape) {
         Query intersectsQuery = createIntersectsQuery(shape);
 
         Geometry shapeGeometry = ShapeBuilder.toJTSGeometry(shape);
-        Geometry buffer = BufferOp.bufferOp(shapeGeometry, CONTAINS_BUFFER_DISTANCE, BUFFER_PARAMETERS);
+        Geometry buffer = BufferOp.bufferOp(shapeGeometry, WITHIN_BUFFER_DISTANCE, BUFFER_PARAMETERS);
         Shape bufferedShape = new JtsGeometry(buffer.difference(shapeGeometry), GeoShapeConstants.SPATIAL_CONTEXT, true);
         Query bufferedQuery = createIntersectsQuery(bufferedShape);
 

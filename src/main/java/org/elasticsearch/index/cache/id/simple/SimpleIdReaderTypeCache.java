@@ -21,6 +21,7 @@ package org.elasticsearch.index.cache.id.simple;
 
 import gnu.trove.impl.hash.TObjectHash;
 import org.elasticsearch.common.RamUsage;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.trove.ExtTObjectIntHasMap;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
@@ -30,7 +31,7 @@ import org.elasticsearch.index.cache.id.IdReaderTypeCache;
  */
 public class SimpleIdReaderTypeCache implements IdReaderTypeCache {
 
-    private final String type;
+    private final BytesReference type;
 
     private final ExtTObjectIntHasMap<HashedBytesArray> idToDoc;
 
@@ -42,7 +43,7 @@ public class SimpleIdReaderTypeCache implements IdReaderTypeCache {
 
     private long sizeInBytes = -1;
 
-    public SimpleIdReaderTypeCache(String type, ExtTObjectIntHasMap<HashedBytesArray> idToDoc, HashedBytesArray[] docIdToId,
+    public SimpleIdReaderTypeCache(BytesReference type, ExtTObjectIntHasMap<HashedBytesArray> idToDoc, HashedBytesArray[] docIdToId,
                                    HashedBytesArray[] parentIdsValues, int[] parentIdsOrdinals) {
         this.type = type;
         this.idToDoc = idToDoc;
@@ -52,7 +53,7 @@ public class SimpleIdReaderTypeCache implements IdReaderTypeCache {
         this.parentIdsOrdinals = parentIdsOrdinals;
     }
 
-    public String type() {
+    public BytesReference type() {
         return this.type;
     }
 

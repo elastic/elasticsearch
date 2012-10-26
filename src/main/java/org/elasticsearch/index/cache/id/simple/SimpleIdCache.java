@@ -20,10 +20,11 @@
 package org.elasticsearch.index.cache.id.simple;
 
 import gnu.trove.impl.Constants;
-import gnu.trove.map.hash.TIntObjectHashMap;
 import org.apache.lucene.index.*;
-import org.apache.lucene.util.StringHelper;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
@@ -39,10 +40,7 @@ import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.settings.IndexSettings;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentMap;
 
 /**
@@ -91,20 +89,20 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
 
     @SuppressWarnings({"StringEquality"})
     @Override
-    public void refresh(IndexReader[] readers) throws Exception {
+    public void refresh(List<AtomicReaderContext> atomicReaderContexts) throws Exception {
         // do a quick check for the common case, that all are there
-        if (refreshNeeded(readers)) {
+        if (refreshNeeded(atomicReaderContexts)) {
             synchronized (idReaders) {
-                if (!refreshNeeded(readers)) {
+                if (!refreshNeeded(atomicReaderContexts)) {
                     return;
                 }
 
                 // do the refresh
-
-                Map<Object, Map<String, TypeBuilder>> builders = new HashMap<Object, Map<String, TypeBuilder>>();
+                Map<Object, Map<BytesReference, TypeBuilder>> builders = new HashMap<Object, Map<BytesReference, TypeBuilder>>();
 
                 // first, go over and load all the id->doc map for all types
-                for (IndexReader reader : readers) {
+                for (AtomicReaderContext context : atomicReaderContexts) {
+                    AtomicReader reader = context.reader();
                     if (idReaders.containsKey(reader.getCoreCacheKey())) {
                         // no need, continue
                         continue;
@@ -113,98 +111,84 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
                     if (reader instanceof SegmentReader) {
                         ((SegmentReader) reader).addCoreClosedListener(this);
                     }
-                    HashMap<String, TypeBuilder> readerBuilder = new HashMap<String, TypeBuilder>();
+                    Map<BytesReference, TypeBuilder> readerBuilder = new HashMap<BytesReference, TypeBuilder>();
                     builders.put(reader.getCoreCacheKey(), readerBuilder);
 
-                    String field = StringHelper.intern(UidFieldMapper.NAME);
-                    TermDocs termDocs = reader.termDocs();
-                    TermEnum termEnum = reader.terms(new Term(field));
-                    try {
-                        do {
-                            Term term = termEnum.term();
-                            if (term == null || term.field() != field) break;
-                            // TODO we can optimize this, since type is the prefix, and we get terms ordered
-                            // so, only need to move to the next type once its different
-                            Uid uid = Uid.createUid(term.text());
 
-                            TypeBuilder typeBuilder = readerBuilder.get(uid.type());
-                            if (typeBuilder == null) {
-                                typeBuilder = new TypeBuilder(reader);
-                                readerBuilder.put(StringHelper.intern(uid.type()), typeBuilder);
-                            }
+                    Terms terms = reader.terms(UidFieldMapper.NAME);
+                    if (terms == null) { // Should not happen
+                        throw new ElasticSearchIllegalArgumentException("Id cache needs _uid field");
+                    }
 
-                            HashedBytesArray idAsBytes = checkIfCanReuse(builders, new HashedBytesArray(uid.id()));
-                            termDocs.seek(termEnum);
-                            while (termDocs.next()) {
-                                // when traversing, make sure to ignore deleted docs, so the key->docId will be correct
-                                if (!reader.isDeleted(termDocs.doc())) {
-                                    typeBuilder.idToDoc.put(idAsBytes, termDocs.doc());
-                                    typeBuilder.docToId[termDocs.doc()] = idAsBytes;
-                                }
-                            }
-                        } while (termEnum.next());
-                    } finally {
-                        termDocs.close();
-                        termEnum.close();
+                    TermsEnum termsEnum = terms.iterator(null);
+                    DocsEnum docsEnum = null;
+                    for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.term()) {
+                        HashedBytesArray[] typeAndId = splitUidIntoTypeAndId(term);
+                        TypeBuilder typeBuilder = readerBuilder.get(typeAndId[0]);
+                        if (typeBuilder == null) {
+                            typeBuilder = new TypeBuilder(reader);
+                            readerBuilder.put(typeAndId[0], typeBuilder);
+                        }
+
+                        HashedBytesArray idAsBytes = checkIfCanReuse(builders, typeAndId[1]);
+                        docsEnum = termsEnum.docs(reader.getLiveDocs(), docsEnum, 0);
+                        for (int docId = docsEnum.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
+                            typeBuilder.idToDoc.put(idAsBytes, docId);
+                            typeBuilder.docToId[docId] = idAsBytes;
+                        }
                     }
                 }
 
                 // now, go and load the docId->parentId map
 
-                for (IndexReader reader : readers) {
+                for (AtomicReaderContext context : atomicReaderContexts) {
+                    AtomicReader reader = context.reader();
                     if (idReaders.containsKey(reader.getCoreCacheKey())) {
                         // no need, continue
                         continue;
                     }
 
-                    Map<String, TypeBuilder> readerBuilder = builders.get(reader.getCoreCacheKey());
+                    Map<BytesReference, TypeBuilder> readerBuilder = builders.get(reader.getCoreCacheKey());
 
-                    String field = StringHelper.intern(ParentFieldMapper.NAME);
-                    TermDocs termDocs = reader.termDocs();
-                    TermEnum termEnum = reader.terms(new Term(field));
-                    try {
-                        do {
-                            Term term = termEnum.term();
-                            if (term == null || term.field() != field) break;
-                            // TODO we can optimize this, since type is the prefix, and we get terms ordered
-                            // so, only need to move to the next type once its different
-                            Uid uid = Uid.createUid(term.text());
+                    Terms terms = reader.terms(ParentFieldMapper.NAME);
+                    if (terms == null) { // Should not happen
+                        throw new ElasticSearchIllegalArgumentException("Id cache needs _parent field");
+                    }
 
-                            TypeBuilder typeBuilder = readerBuilder.get(uid.type());
-                            if (typeBuilder == null) {
-                                typeBuilder = new TypeBuilder(reader);
-                                readerBuilder.put(StringHelper.intern(uid.type()), typeBuilder);
+                    TermsEnum termsEnum = terms.iterator(null);
+                    DocsEnum docsEnum = null;
+                    for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.term()) {
+                        HashedBytesArray[] typeAndId = splitUidIntoTypeAndId(term);
+
+                        TypeBuilder typeBuilder = readerBuilder.get(typeAndId[0]);
+                        if (typeBuilder == null) {
+                            typeBuilder = new TypeBuilder(reader);
+                            readerBuilder.put(typeAndId[0], typeBuilder);
+                        }
+
+                        HashedBytesArray idAsBytes = checkIfCanReuse(builders, typeAndId[1]);
+                        boolean added = false; // optimize for when all the docs are deleted for this id
+
+                        docsEnum = termsEnum.docs(reader.getLiveDocs(), docsEnum, 0);
+                        for (int docId = docsEnum.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
+                            if (!added) {
+                                typeBuilder.parentIdsValues.add(idAsBytes);
+                                added = true;
                             }
+                            typeBuilder.parentIdsOrdinals[docId] = typeBuilder.t;
+                        }
 
-                            HashedBytesArray idAsBytes = checkIfCanReuse(builders, new HashedBytesArray(uid.id()));
-                            boolean added = false; // optimize for when all the docs are deleted for this id
-
-                            termDocs.seek(termEnum);
-                            while (termDocs.next()) {
-                                // ignore deleted docs while we are at it
-                                if (!reader.isDeleted(termDocs.doc())) {
-                                    if (!added) {
-                                        typeBuilder.parentIdsValues.add(idAsBytes);
-                                        added = true;
-                                    }
-                                    typeBuilder.parentIdsOrdinals[termDocs.doc()] = typeBuilder.t;
-                                }
-                            }
-                            if (added) {
-                                typeBuilder.t++;
-                            }
-                        } while (termEnum.next());
-                    } finally {
-                        termDocs.close();
-                        termEnum.close();
+                        if (added) {
+                            typeBuilder.t++;
+                        }
                     }
                 }
 
 
                 // now, build it back
-                for (Map.Entry<Object, Map<String, TypeBuilder>> entry : builders.entrySet()) {
-                    MapBuilder<String, SimpleIdReaderTypeCache> types = MapBuilder.newMapBuilder();
-                    for (Map.Entry<String, TypeBuilder> typeBuilderEntry : entry.getValue().entrySet()) {
+                for (Map.Entry<Object, Map<BytesReference, TypeBuilder>> entry : builders.entrySet()) {
+                    MapBuilder<BytesReference, SimpleIdReaderTypeCache> types = MapBuilder.newMapBuilder();
+                    for (Map.Entry<BytesReference, TypeBuilder> typeBuilderEntry : entry.getValue().entrySet()) {
                         types.put(typeBuilderEntry.getKey(), new SimpleIdReaderTypeCache(typeBuilderEntry.getKey(),
                                 typeBuilderEntry.getValue().idToDoc,
                                 typeBuilderEntry.getValue().docToId,
@@ -226,7 +210,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
         return sizeInBytes;
     }
 
-    private HashedBytesArray checkIfCanReuse(Map<Object, Map<String, TypeBuilder>> builders, HashedBytesArray idAsBytes) {
+    private HashedBytesArray checkIfCanReuse(Map<Object, Map<BytesReference, TypeBuilder>> builders, HashedBytesArray idAsBytes) {
         HashedBytesArray finalIdAsBytes;
         // go over and see if we can reuse this id
         for (SimpleIdReaderCache idReaderCache : idReaders.values()) {
@@ -235,7 +219,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
                 return finalIdAsBytes;
             }
         }
-        for (Map<String, TypeBuilder> map : builders.values()) {
+        for (Map<BytesReference, TypeBuilder> map : builders.values()) {
             for (TypeBuilder typeBuilder : map.values()) {
                 finalIdAsBytes = typeBuilder.canReuse(idAsBytes);
                 if (finalIdAsBytes != null) {
@@ -246,13 +230,35 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
         return idAsBytes;
     }
 
-    private boolean refreshNeeded(IndexReader[] readers) {
-        for (IndexReader reader : readers) {
-            if (!idReaders.containsKey(reader.getCoreCacheKey())) {
+    private boolean refreshNeeded(List<AtomicReaderContext> atomicReaderContexts) {
+        for (AtomicReaderContext atomicReaderContext : atomicReaderContexts) {
+            if (!idReaders.containsKey(atomicReaderContext.reader().getCoreCacheKey())) {
                 return true;
             }
         }
         return false;
+    }
+
+    // LUCENE 4 UPGRADE: This logic should go to Uid class. Uid class should BR based instead of string
+    private static HashedBytesArray[] splitUidIntoTypeAndId(BytesRef term) {
+        int loc = -1;
+        for (int i = term.offset; i < term.length; i++) {
+            if (term.bytes[i] == 0x23) { // 0x23 is equal to '#'
+                loc = i;
+                break;
+            }
+        }
+
+        if (loc == -1) {
+            return null;
+        }
+
+        byte[] type = new byte[loc - term.offset];
+        System.arraycopy(term.bytes, term.offset, type, 0, type.length);
+
+        byte[] id = new byte[term.length - type.length -1];
+        System.arraycopy(term.bytes, loc + 1, id, 0, id.length);
+        return new HashedBytesArray[]{new HashedBytesArray(type), new HashedBytesArray(id)};
     }
 
     static class TypeBuilder {

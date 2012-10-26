@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.field.function.sort;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SortField;
@@ -32,7 +32,7 @@ import java.io.IOException;
  *
  */
 // LUCENE MONITOR: Monitor against FieldComparator.Double
-public class DoubleFieldsFunctionDataComparator extends FieldComparator {
+public class DoubleFieldsFunctionDataComparator extends FieldComparator<Double> {
 
     public static FieldDataType.ExtendedFieldComparatorSource comparatorSource(SearchScript script) {
         return new InnerSource(script);
@@ -53,7 +53,7 @@ public class DoubleFieldsFunctionDataComparator extends FieldComparator {
 
         @Override
         public SortField.Type reducedType() {
-            return SortField.DOUBLE;
+            return SortField.Type.DOUBLE;
         }
     }
 
@@ -68,8 +68,9 @@ public class DoubleFieldsFunctionDataComparator extends FieldComparator {
     }
 
     @Override
-    public void setNextReader(IndexReader reader, int docBase) throws IOException {
-        script.setNextReader(reader);
+    public FieldComparator<Double> setNextReader(AtomicReaderContext context) throws IOException {
+        script.setNextReader(context.reader());
+        return this;
     }
 
     @Override
@@ -104,6 +105,13 @@ public class DoubleFieldsFunctionDataComparator extends FieldComparator {
     }
 
     @Override
+    public int compareDocToValue(int doc, Double val2) throws IOException {
+        script.setNextDocId(doc);
+        double val1 = script.runAsDouble();
+        return Double.compare(val1, val2);
+    }
+
+    @Override
     public void copy(int slot, int doc) {
         script.setNextDocId(doc);
         values[slot] = script.runAsDouble();
@@ -115,7 +123,7 @@ public class DoubleFieldsFunctionDataComparator extends FieldComparator {
     }
 
     @Override
-    public Comparable value(int slot) {
-        return Double.valueOf(values[slot]);
+    public Double value(int slot) {
+        return values[slot];
     }
 }

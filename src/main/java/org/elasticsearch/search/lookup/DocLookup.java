@@ -21,7 +21,7 @@ package org.elasticsearch.search.lookup;
 
 import com.google.common.collect.Maps;
 import org.apache.lucene.index.AtomicReader;
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
@@ -73,11 +73,11 @@ public class DocLookup implements Map {
         return this.fieldDataCache;
     }
 
-    public void setNextReader(AtomicReader reader) {
-        if (this.reader == reader) { // if we are called with the same reader, don't invalidate source
+    public void setNextReader(AtomicReaderContext context) {
+        if (this.reader == context.reader()) { // if we are called with the same reader, don't invalidate source
             return;
         }
-        this.reader = reader;
+        this.reader = context.reader();
         this.docId = -1;
         localCacheFieldData.clear();
     }

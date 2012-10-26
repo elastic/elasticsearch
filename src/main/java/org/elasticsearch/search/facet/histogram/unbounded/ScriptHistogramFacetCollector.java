@@ -92,8 +92,8 @@ public class ScriptHistogramFacetCollector extends AbstractFacetCollector {
 
     @Override
     protected void doSetNextReader(AtomicReaderContext context) throws IOException {
-        keyScript.setNextReader(context.reader());
-        valueScript.setNextReader(context.reader());
+        keyScript.setNextReader(context);
+        valueScript.setNextReader(context);
     }
 
     @Override

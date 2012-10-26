@@ -57,7 +57,7 @@ public class ScriptGeoDistanceFacetCollector extends GeoDistanceFacetCollector {
     @Override
     protected void doSetNextReader(AtomicReaderContext context) throws IOException {
         super.doSetNextReader(context);
-        script.setNextReader(context.reader());
+        script.setNextReader(context);
     }
 
     @Override

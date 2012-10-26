@@ -96,7 +96,7 @@ public class ValueScriptDateHistogramFacetCollector extends AbstractFacetCollect
     @Override
     protected void doSetNextReader(AtomicReaderContext context) throws IOException {
         fieldData = (LongFieldData) fieldDataCache.cache(fieldDataType, context.reader(), indexFieldName);
-        valueScript.setNextReader(context.reader());
+        valueScript.setNextReader(context);
     }
 
     @Override

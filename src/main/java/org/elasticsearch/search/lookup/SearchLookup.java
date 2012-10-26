@@ -20,8 +20,7 @@
 package org.elasticsearch.search.lookup;
 
 import com.google.common.collect.ImmutableMap;
-import org.apache.lucene.index.AtomicReader;
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
@@ -67,10 +66,10 @@ public class SearchLookup {
         docMap.setScorer(scorer);
     }
 
-    public void setNextReader(AtomicReader reader) {
-        docMap.setNextReader(reader);
-        sourceLookup.setNextReader(reader);
-        fieldsLookup.setNextReader(reader);
+    public void setNextReader(AtomicReaderContext context) {
+        docMap.setNextReader(context);
+        sourceLookup.setNextReader(context);
+        fieldsLookup.setNextReader(context);
     }
 
     public void setNextDocId(int docId) {

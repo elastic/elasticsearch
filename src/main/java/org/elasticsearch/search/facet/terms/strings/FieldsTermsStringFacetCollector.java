@@ -131,7 +131,7 @@ public class FieldsTermsStringFacetCollector extends AbstractFacetCollector {
             fieldsData[i] = fieldDataCache.cache(fieldsDataType[i], context.reader(), indexFieldsNames[i]);
         }
         if (script != null) {
-            script.setNextReader(context.reader());
+            script.setNextReader(context);
         }
     }
 

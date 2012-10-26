@@ -96,7 +96,7 @@ public class ValueScriptHistogramFacetCollector extends AbstractFacetCollector {
     @Override
     protected void doSetNextReader(AtomicReaderContext context) throws IOException {
         fieldData = (NumericFieldData) fieldDataCache.cache(fieldDataType, context.reader(), indexFieldName);
-        valueScript.setNextReader(context.reader());
+        valueScript.setNextReader(context);
     }
 
     @Override

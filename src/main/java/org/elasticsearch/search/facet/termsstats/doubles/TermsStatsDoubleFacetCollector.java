@@ -116,7 +116,7 @@ public class TermsStatsDoubleFacetCollector extends AbstractFacetCollector {
     protected void doSetNextReader(AtomicReaderContext context) throws IOException {
         keyFieldData = (NumericFieldData) fieldDataCache.cache(keyFieldDataType, context.reader(), keyFieldName);
         if (script != null) {
-            script.setNextReader(context.reader());
+            script.setNextReader(context);
         } else {
             aggregator.valueFieldData = (NumericFieldData) fieldDataCache.cache(valueFieldDataType, context.reader(), valueFieldName);
         }

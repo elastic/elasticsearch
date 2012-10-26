@@ -19,7 +19,7 @@
 
 package org.elasticsearch.script.mvel;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -163,7 +163,7 @@ public class MvelScriptEngineService extends AbstractComponent implements Script
         }
 
         @Override
-        public void setNextReader(IndexReader reader) {
+        public void setNextReader(AtomicReader reader) {
             lookup.setNextReader(reader);
         }
 

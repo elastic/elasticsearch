@@ -24,7 +24,6 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
@@ -35,7 +34,6 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.id.IdCache;
 import org.elasticsearch.index.cache.id.IdReaderCache;
-import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -77,7 +75,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
     }
 
     @Override
-    public IdReaderCache reader(IndexReader reader) {
+    public IdReaderCache reader(AtomicReader reader) {
         return idReaders.get(reader.getCoreCacheKey());
     }
 
@@ -98,7 +96,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
                 }
 
                 // do the refresh
-                Map<Object, Map<BytesReference, TypeBuilder>> builders = new HashMap<Object, Map<BytesReference, TypeBuilder>>();
+                Map<Object, Map<String, TypeBuilder>> builders = new HashMap<Object, Map<String, TypeBuilder>>();
 
                 // first, go over and load all the id->doc map for all types
                 for (AtomicReaderContext context : atomicReaderContexts) {
@@ -111,7 +109,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
                     if (reader instanceof SegmentReader) {
                         ((SegmentReader) reader).addCoreClosedListener(this);
                     }
-                    Map<BytesReference, TypeBuilder> readerBuilder = new HashMap<BytesReference, TypeBuilder>();
+                    Map<String, TypeBuilder> readerBuilder = new HashMap<String, TypeBuilder>();
                     builders.put(reader.getCoreCacheKey(), readerBuilder);
 
 
@@ -124,10 +122,10 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
                     DocsEnum docsEnum = null;
                     for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.term()) {
                         HashedBytesArray[] typeAndId = splitUidIntoTypeAndId(term);
-                        TypeBuilder typeBuilder = readerBuilder.get(typeAndId[0]);
+                        TypeBuilder typeBuilder = readerBuilder.get(typeAndId[0].toUtf8());
                         if (typeBuilder == null) {
                             typeBuilder = new TypeBuilder(reader);
-                            readerBuilder.put(typeAndId[0], typeBuilder);
+                            readerBuilder.put(typeAndId[0].toUtf8(), typeBuilder);
                         }
 
                         HashedBytesArray idAsBytes = checkIfCanReuse(builders, typeAndId[1]);
@@ -148,7 +146,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
                         continue;
                     }
 
-                    Map<BytesReference, TypeBuilder> readerBuilder = builders.get(reader.getCoreCacheKey());
+                    Map<String, TypeBuilder> readerBuilder = builders.get(reader.getCoreCacheKey());
 
                     Terms terms = reader.terms(ParentFieldMapper.NAME);
                     if (terms == null) { // Should not happen
@@ -160,10 +158,10 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
                     for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.term()) {
                         HashedBytesArray[] typeAndId = splitUidIntoTypeAndId(term);
 
-                        TypeBuilder typeBuilder = readerBuilder.get(typeAndId[0]);
+                        TypeBuilder typeBuilder = readerBuilder.get(typeAndId[0].toUtf8());
                         if (typeBuilder == null) {
                             typeBuilder = new TypeBuilder(reader);
-                            readerBuilder.put(typeAndId[0], typeBuilder);
+                            readerBuilder.put(typeAndId[0].toUtf8(), typeBuilder);
                         }
 
                         HashedBytesArray idAsBytes = checkIfCanReuse(builders, typeAndId[1]);
@@ -186,9 +184,9 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
 
 
                 // now, build it back
-                for (Map.Entry<Object, Map<BytesReference, TypeBuilder>> entry : builders.entrySet()) {
-                    MapBuilder<BytesReference, SimpleIdReaderTypeCache> types = MapBuilder.newMapBuilder();
-                    for (Map.Entry<BytesReference, TypeBuilder> typeBuilderEntry : entry.getValue().entrySet()) {
+                for (Map.Entry<Object, Map<String, TypeBuilder>> entry : builders.entrySet()) {
+                    MapBuilder<String, SimpleIdReaderTypeCache> types = MapBuilder.newMapBuilder();
+                    for (Map.Entry<String, TypeBuilder> typeBuilderEntry : entry.getValue().entrySet()) {
                         types.put(typeBuilderEntry.getKey(), new SimpleIdReaderTypeCache(typeBuilderEntry.getKey(),
                                 typeBuilderEntry.getValue().idToDoc,
                                 typeBuilderEntry.getValue().docToId,
@@ -210,7 +208,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
         return sizeInBytes;
     }
 
-    private HashedBytesArray checkIfCanReuse(Map<Object, Map<BytesReference, TypeBuilder>> builders, HashedBytesArray idAsBytes) {
+    private HashedBytesArray checkIfCanReuse(Map<Object, Map<String, TypeBuilder>> builders, HashedBytesArray idAsBytes) {
         HashedBytesArray finalIdAsBytes;
         // go over and see if we can reuse this id
         for (SimpleIdReaderCache idReaderCache : idReaders.values()) {
@@ -219,7 +217,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
                 return finalIdAsBytes;
             }
         }
-        for (Map<BytesReference, TypeBuilder> map : builders.values()) {
+        for (Map<String, TypeBuilder> map : builders.values()) {
             for (TypeBuilder typeBuilder : map.values()) {
                 finalIdAsBytes = typeBuilder.canReuse(idAsBytes);
                 if (finalIdAsBytes != null) {

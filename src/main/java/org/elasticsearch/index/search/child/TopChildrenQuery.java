@@ -20,9 +20,9 @@
 package org.elasticsearch.index.search.child;
 
 import gnu.trove.map.hash.TIntObjectHashMap;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.Term;
+import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.ToStringUtils;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
@@ -124,20 +124,21 @@ public class TopChildrenQuery extends Query implements ScopePhase.TopDocsPhase {
     public void processResults(TopDocs topDocs, SearchContext context) {
         Map<Object, TIntObjectHashMap<ParentDoc>> parentDocsPerReader = new HashMap<Object, TIntObjectHashMap<ParentDoc>>();
         for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
-            int readerIndex = context.searcher().readerIndex(scoreDoc.doc);
-            IndexReader subReader = context.searcher().subReaders()[readerIndex];
-            int subDoc = scoreDoc.doc - context.searcher().docStarts()[readerIndex];
+            int readerIndex = ReaderUtil.subIndex(scoreDoc.doc, context.searcher().getIndexReader().leaves());
+            AtomicReaderContext subContext = context.searcher().getIndexReader().leaves().get(readerIndex);
+            int subDoc = scoreDoc.doc - subContext.docBase;
 
             // find the parent id
-            HashedBytesArray parentId = context.idCache().reader(subReader).parentIdByDoc(parentType, subDoc);
+            HashedBytesArray parentId = context.idCache().reader(subContext.reader()).parentIdByDoc(parentType, subDoc);
             if (parentId == null) {
                 // no parent found
                 continue;
             }
             // now go over and find the parent doc Id and reader tuple
-            for (IndexReader indexReader : context.searcher().subReaders()) {
+            for (AtomicReaderContext atomicReaderContext : context.searcher().getIndexReader().leaves()) {
+                AtomicReader indexReader = atomicReaderContext.reader();
                 int parentDocId = context.idCache().reader(indexReader).docById(parentType, parentId);
-                if (parentDocId != -1 && !indexReader.isDeleted(parentDocId)) {
+                if (parentDocId != -1 && !indexReader.getLiveDocs().get(parentDocId)) {
                     // we found a match, add it and break
 
                     TIntObjectHashMap<ParentDoc> readerParentDocs = parentDocsPerReader.get(indexReader.getCoreCacheKey());
@@ -205,15 +206,15 @@ public class TopChildrenQuery extends Query implements ScopePhase.TopDocsPhase {
     }
 
     @Override
-    public Weight createWeight(Searcher searcher) throws IOException {
+    public Weight createWeight(IndexSearcher searcher) throws IOException {
         if (!properlyInvoked) {
             throw new ElasticSearchIllegalStateException("top_children query hasn't executed properly");
         }
 
         if (parentDocs != null) {
-            return new ParentWeight(searcher, query.weight(searcher));
+            return new ParentWeight(searcher, query.createWeight(searcher));
         }
-        return query.weight(searcher);
+        return query.createWeight(searcher);
     }
 
     public String toString(String field) {
@@ -225,11 +226,11 @@ public class TopChildrenQuery extends Query implements ScopePhase.TopDocsPhase {
 
     class ParentWeight extends Weight {
 
-        final Searcher searcher;
+        final IndexSearcher searcher;
 
         final Weight queryWeight;
 
-        public ParentWeight(Searcher searcher, Weight queryWeight) throws IOException {
+        public ParentWeight(IndexSearcher searcher, Weight queryWeight) throws IOException {
             this.searcher = searcher;
             this.queryWeight = queryWeight;
         }
@@ -243,28 +244,28 @@ public class TopChildrenQuery extends Query implements ScopePhase.TopDocsPhase {
         }
 
         @Override
-        public float sumOfSquaredWeights() throws IOException {
-            float sum = queryWeight.sumOfSquaredWeights();
+        public float getValueForNormalization() throws IOException {
+            float sum = queryWeight.getValueForNormalization();
             sum *= getBoost() * getBoost();
             return sum;
         }
 
         @Override
-        public void normalize(float norm) {
-            // nothing to do here....
+        public void normalize(float norm, float topLevelBoost) {
+            // Nothing to normalize
         }
 
         @Override
-        public Scorer scorer(IndexReader reader, boolean scoreDocsInOrder, boolean topScorer) throws IOException {
-            ParentDoc[] readerParentDocs = parentDocs.get(reader.getCoreCacheKey());
+        public Scorer scorer(AtomicReaderContext context, boolean scoreDocsInOrder, boolean topScorer, Bits acceptDocs) throws IOException {
+            ParentDoc[] readerParentDocs = parentDocs.get(context.reader().getCoreCacheKey());
             if (readerParentDocs != null) {
-                return new ParentScorer(getSimilarity(searcher), readerParentDocs);
+                return new ParentScorer(this, readerParentDocs);
             }
-            return new EmptyScorer(getSimilarity(searcher));
+            return new EmptyScorer(this);
         }
 
         @Override
-        public Explanation explain(IndexReader reader, int doc) throws IOException {
+        public Explanation explain(AtomicReaderContext context, int doc) throws IOException {
             return new Explanation(getBoost(), "not implemented yet...");
         }
     }
@@ -275,8 +276,8 @@ public class TopChildrenQuery extends Query implements ScopePhase.TopDocsPhase {
 
         private int index = -1;
 
-        private ParentScorer(Similarity similarity, ParentDoc[] docs) throws IOException {
-            super(similarity);
+        private ParentScorer(ParentWeight weight, ParentDoc[] docs) throws IOException {
+            super(weight);
             this.docs = docs;
         }
 
@@ -314,6 +315,11 @@ public class TopChildrenQuery extends Query implements ScopePhase.TopDocsPhase {
                 return docs[index].sumScores;
             }
             throw new ElasticSearchIllegalStateException("No support for score type [" + scoreType + "]");
+        }
+
+        @Override
+        public float freq() throws IOException {
+            return docs[index].count; // The number of matches in the child doc, which is propagated to parent
         }
     }
 }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.cache.id;
 
+import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.component.CloseableComponent;
@@ -37,7 +38,7 @@ public interface IdCache extends IndexComponent, CloseableComponent, Iterable<Id
 
     void refresh(List<AtomicReaderContext> readers) throws Exception;
 
-    IdReaderCache reader(IndexReader reader);
+    IdReaderCache reader(AtomicReader reader);
 
     long sizeInBytes();
 

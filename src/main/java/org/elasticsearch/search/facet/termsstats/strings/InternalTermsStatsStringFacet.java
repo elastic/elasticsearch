@@ -26,6 +26,8 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.text.BytesText;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.trove.ExtTHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
@@ -60,7 +62,7 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
 
     public static class StringEntry implements Entry {
 
-        BytesReference term;
+        Text term;
         long count;
         long totalCount;
         double total;
@@ -68,10 +70,10 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
         double max;
 
         public StringEntry(BytesRef term, long count, long totalCount, double total, double min, double max) {
-            this(new BytesArray(term), count, totalCount, total, min, max);
+            this(new BytesText(new BytesArray(term)), count, totalCount, total, min, max);
         }
 
-        public StringEntry(BytesReference term, long count, long totalCount, double total, double min, double max) {
+        public StringEntry(Text term, long count, long totalCount, double total, double min, double max) {
             this.term = term;
             this.count = count;
             this.totalCount = totalCount;
@@ -81,18 +83,18 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
         }
 
         @Override
-        public BytesReference term() {
+        public Text term() {
             return term;
         }
 
         @Override
-        public BytesReference getTerm() {
+        public Text getTerm() {
             return term();
         }
 
         @Override
         public Number termAsNumber() {
-            return Double.parseDouble(term.toUtf8());
+            return Double.parseDouble(term.string());
         }
 
         @Override
@@ -164,8 +166,8 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
         }
 
         @Override
-        public int compareTo(Entry o) {
-            return BytesReference.utf8SortedAsUnicodeSortOrder.compare(this.term, o.term());
+        public int compareTo(Entry other) {
+            return term.compareTo(other.term());
         }
     }
 
@@ -257,7 +259,7 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
             return facets.get(0);
         }
         int missing = 0;
-        ExtTHashMap<BytesReference, StringEntry> map = CacheRecycler.popHashMap();
+        ExtTHashMap<Text, StringEntry> map = CacheRecycler.popHashMap();
         for (Facet facet : facets) {
             InternalTermsStatsStringFacet tsFacet = (InternalTermsStatsStringFacet) facet;
             missing += tsFacet.missing;
@@ -353,7 +355,7 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
         int size = in.readVInt();
         entries = new ArrayList<StringEntry>(size);
         for (int i = 0; i < size; i++) {
-            entries.add(new StringEntry(in.readBytesReference(), in.readVLong(), in.readVLong(), in.readDouble(), in.readDouble(), in.readDouble()));
+            entries.add(new StringEntry(in.readText(), in.readVLong(), in.readVLong(), in.readDouble(), in.readDouble(), in.readDouble()));
         }
     }
 
@@ -366,7 +368,7 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
 
         out.writeVInt(entries.size());
         for (Entry entry : entries) {
-            out.writeBytesReference(entry.term());
+            out.writeText(entry.term());
             out.writeVLong(entry.count());
             out.writeVLong(entry.totalCount());
             out.writeDouble(entry.total());

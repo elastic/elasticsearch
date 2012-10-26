@@ -22,6 +22,7 @@ package org.elasticsearch.search.facet.terms;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.search.facet.Facet;
 
 import java.util.Comparator;
@@ -41,9 +42,9 @@ public interface TermsFacet extends Facet, Iterable<TermsFacet.Entry> {
 
     public interface Entry extends Comparable<Entry> {
 
-        BytesReference term();
+        Text term();
 
-        BytesReference getTerm();
+        Text getTerm();
 
         Number termAsNumber();
 

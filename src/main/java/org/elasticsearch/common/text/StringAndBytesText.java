@@ -97,4 +97,13 @@ public class StringAndBytesText implements Text {
     public boolean equals(Object obj) {
         return bytes().equals(((Text) obj).bytes());
     }
+
+    @Override
+    public int compareTo(Text other) {
+        if (text == null) {
+            return UTF8SortedAsUnicodeComparator.utf8SortedAsUnicodeSortOrder.compare(bytes, other.bytes());
+        } else {
+            return text.compareTo(other.string());
+        }
+    }
 }

@@ -21,10 +21,10 @@ package org.elasticsearch.search.facet.termsstats.longs;
 
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.CacheRecycler;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.text.StringText;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
@@ -76,12 +76,12 @@ public class InternalTermsStatsLongFacet extends InternalTermsStatsFacet {
         }
 
         @Override
-        public BytesReference term() {
-            return new BytesArray(Long.toString(term));
+        public Text term() {
+            return new StringText(Long.toString(term));
         }
 
         @Override
-        public BytesReference getTerm() {
+        public Text getTerm() {
             return term();
         }
 

@@ -83,4 +83,9 @@ public class StringText implements Text {
         // we use bytes here so we can be consistent with other text implementations
         return bytes().equals(((Text) obj).bytes());
     }
+
+    @Override
+    public int compareTo(Text text) {
+        return this.text.compareTo(text.string());
+    }
 }

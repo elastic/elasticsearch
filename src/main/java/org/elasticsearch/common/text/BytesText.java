@@ -61,4 +61,14 @@ public class BytesText implements Text {
     public String toString() {
         return string();
     }
+
+    @Override
+    public int hashCode() {
+        return bytes().hashCode();
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        return bytes().equals(((Text) obj).bytes());
+    }
 }

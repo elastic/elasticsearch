@@ -106,4 +106,14 @@ public class ChannelBufferBytesReference implements BytesReference {
     public String toUtf8() {
         return buffer.toString(Charsets.UTF_8);
     }
+
+    @Override
+    public int hashCode() {
+        return Helper.bytesHashCode(this);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        return Helper.bytesEqual(this, (BytesReference) obj);
+    }
 }

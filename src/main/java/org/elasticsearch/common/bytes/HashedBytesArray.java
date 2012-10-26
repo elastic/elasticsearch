@@ -124,14 +124,12 @@ public class HashedBytesArray implements BytesReference {
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        HashedBytesArray bytesWrap = (HashedBytesArray) o;
-        return Arrays.equals(bytes, bytesWrap.bytes);
+    public int hashCode() {
+        return Helper.bytesHashCode(this);
     }
 
     @Override
-    public int hashCode() {
-        return hashCode;
+    public boolean equals(Object obj) {
+        return Helper.bytesEqual(this, (BytesReference) obj);
     }
 }

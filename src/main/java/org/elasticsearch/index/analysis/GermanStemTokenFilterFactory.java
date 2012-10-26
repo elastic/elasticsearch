@@ -19,38 +19,31 @@
 
 package org.elasticsearch.index.analysis;
 
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterators;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.de.GermanStemFilter;
+import org.apache.lucene.analysis.miscellaneous.KeywordMarkerFilter;
+import org.apache.lucene.analysis.util.CharArraySet;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
-import java.util.Set;
-
 /**
  *
  */
 public class GermanStemTokenFilterFactory extends AbstractTokenFilterFactory {
 
-    private final Set<?> exclusions;
+    private final CharArraySet exclusions;
 
     @Inject
     public GermanStemTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
-        String[] stemExclusion = settings.getAsArray("stem_exclusion");
-        if (stemExclusion.length > 0) {
-            this.exclusions = ImmutableSet.copyOf(Iterators.forArray(stemExclusion));
-        } else {
-            this.exclusions = ImmutableSet.of();
-        }
+        this.exclusions = Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET, version);
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new GermanStemFilter(tokenStream, exclusions);
+        return new GermanStemFilter(new KeywordMarkerFilter(tokenStream, exclusions));
     }
 }

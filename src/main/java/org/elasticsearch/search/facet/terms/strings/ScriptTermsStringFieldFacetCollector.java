@@ -135,7 +135,7 @@ public class ScriptTermsStringFieldFacetCollector extends AbstractFacetCollector
     }
 
     private boolean match(String value) {
-        if (excluded != null && excluded.contains(value)) {
+        if (excluded != null && excluded.contains(new BytesRef(value))) {
             return false;
         }
         if (matcher != null && !matcher.reset(value).matches()) {

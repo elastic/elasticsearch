@@ -25,10 +25,12 @@ import gnu.trove.map.hash.TObjectIntHashMap;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.text.BytesText;
+import org.elasticsearch.common.text.StringText;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.facet.Facet;
@@ -66,36 +68,36 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
 
     public static class TermEntry implements Entry {
 
-        private BytesReference term;
+        private Text term;
         private int count;
 
         public TermEntry(String term, int count) {
-            this.term = new BytesArray(term);
+            this.term = new StringText(term);
             this.count = count;
         }
 
         public TermEntry(BytesRef term, int count) {
-            this.term = new BytesArray(term);
+            this.term = new BytesText(new BytesArray(term));
             this.count = count;
         }
 
-        public TermEntry(BytesReference term, int count) {
+        public TermEntry(Text term, int count) {
             this.term = term;
             this.count = count;
         }
 
-        public BytesReference term() {
+        public Text term() {
             return term;
         }
 
-        public BytesReference getTerm() {
+        public Text getTerm() {
             return term;
         }
 
         @Override
         public Number termAsNumber() {
             // LUCENE 4 UPGRADE: better way?
-            return Double.parseDouble(term.toUtf8());
+            return Double.parseDouble(term.string());
         }
 
         @Override
@@ -113,7 +115,7 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
 
         @Override
         public int compareTo(Entry o) {
-            int i = BytesReference.utf8SortedAsUnicodeSortOrder.compare(this.term, o.term());
+            int i = this.term.compareTo(o.term());
             if (i == 0) {
                 i = count - o.count();
                 if (i == 0) {
@@ -227,7 +229,7 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
             return facets.get(0);
         }
         InternalStringTermsFacet first = (InternalStringTermsFacet) facets.get(0);
-        TObjectIntHashMap<BytesReference> aggregated = CacheRecycler.popObjectIntMap();
+        TObjectIntHashMap<Text> aggregated = CacheRecycler.popObjectIntMap();
         long missing = 0;
         long total = 0;
         for (Facet facet : facets) {
@@ -240,7 +242,7 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
         }
 
         BoundedTreeSet<TermEntry> ordered = new BoundedTreeSet<TermEntry>(first.comparatorType.comparator(), first.requiredSize);
-        for (TObjectIntIterator<BytesReference> it = aggregated.iterator(); it.hasNext(); ) {
+        for (TObjectIntIterator<Text> it = aggregated.iterator(); it.hasNext(); ) {
             it.advance();
             ordered.add(new TermEntry(it.key(), it.value()));
         }
@@ -290,7 +292,7 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        name = in.readUTF();
+        name = in.readString();
         comparatorType = ComparatorType.fromId(in.readByte());
         requiredSize = in.readVInt();
         missing = in.readVLong();
@@ -299,7 +301,7 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
         int size = in.readVInt();
         entries = new ArrayList<TermEntry>(size);
         for (int i = 0; i < size; i++) {
-            entries.add(new TermEntry(in.readBytesReference(), in.readVInt()));
+            entries.add(new TermEntry(in.readText(), in.readVInt()));
         }
     }
 
@@ -313,7 +315,7 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
 
         out.writeVInt(entries.size());
         for (Entry entry : entries) {
-            out.writeBytesReference(entry.term());
+            out.writeText(entry.term());
             out.writeVInt(entry.count());
         }
     }

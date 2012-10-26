@@ -20,6 +20,7 @@
 package org.elasticsearch.search.lookup;
 
 import com.google.common.collect.Maps;
+import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.ElasticSearchException;
@@ -52,7 +53,7 @@ public class DocLookup implements Map {
     @Nullable
     private final String[] types;
 
-    private IndexReader reader;
+    private AtomicReader reader;
 
     private Scorer scorer;
 
@@ -72,7 +73,7 @@ public class DocLookup implements Map {
         return this.fieldDataCache;
     }
 
-    public void setNextReader(IndexReader reader) {
+    public void setNextReader(AtomicReader reader) {
         if (this.reader == reader) { // if we are called with the same reader, don't invalidate source
             return;
         }

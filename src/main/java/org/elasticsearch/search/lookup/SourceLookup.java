@@ -22,7 +22,10 @@ package org.elasticsearch.search.lookup;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -41,7 +44,7 @@ import java.util.Set;
 // TODO: If we are processing it in the per hit fetch phase, we cna initialize it with a source if it was loaded..
 public class SourceLookup implements Map {
 
-    private IndexReader reader;
+    private AtomicReader reader;
 
     private int docId = -1;
 
@@ -62,11 +65,12 @@ public class SourceLookup implements Map {
         }
         try {
             Document doc = reader.document(docId, SourceFieldSelector.INSTANCE);
-            Fieldable sourceField = doc.getFieldable(SourceFieldMapper.NAME);
+            IndexableField sourceField = doc.getField(SourceFieldMapper.NAME);
             if (sourceField == null) {
                 source = ImmutableMap.of();
             } else {
-                this.source = sourceAsMap(sourceField.getBinaryValue(), sourceField.getBinaryOffset(), sourceField.getBinaryLength());
+                BytesRef source = sourceField.binaryValue();
+                this.source = sourceAsMap(source.bytes, source.offset, source.length);
             }
         } catch (Exception e) {
             throw new ElasticSearchParseException("failed to parse / load source", e);
@@ -82,7 +86,7 @@ public class SourceLookup implements Map {
         return XContentHelper.convertToMap(bytes, offset, length, false).v2();
     }
 
-    public void setNextReader(IndexReader reader) {
+    public void setNextReader(AtomicReader reader) {
         if (this.reader == reader) { // if we are called with the same reader, don't invalidate source
             return;
         }

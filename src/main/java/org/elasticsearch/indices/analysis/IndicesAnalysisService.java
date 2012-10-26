@@ -658,7 +658,7 @@ public class IndicesAnalysisService extends AbstractComponent {
             }
 
             @Override
-            public CharStream create(CharStream tokenStream) {
+            public Reader create(Reader tokenStream) {
                 return new HTMLStripCharFilter(tokenStream);
             }
         }));
@@ -670,7 +670,7 @@ public class IndicesAnalysisService extends AbstractComponent {
             }
 
             @Override
-            public CharStream create(CharStream tokenStream) {
+            public Reader create(Reader tokenStream) {
                 return new HTMLStripCharFilter(tokenStream);
             }
         }));

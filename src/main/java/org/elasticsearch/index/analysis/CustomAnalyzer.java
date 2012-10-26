@@ -106,11 +106,9 @@ public final class CustomAnalyzer extends Analyzer {
 
     private Reader charFilterIfNeeded(Reader reader) {
         if (charFilters != null && charFilters.length > 0) {
-            CharStream charStream = CharReader.get(reader);
             for (CharFilterFactory charFilter : charFilters) {
-                charStream = charFilter.create(charStream);
+                reader = charFilter.create(reader);
             }
-            reader = charStream;
         }
         return reader;
     }

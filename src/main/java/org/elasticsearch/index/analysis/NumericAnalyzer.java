@@ -31,25 +31,14 @@ import java.io.Reader;
 public abstract class NumericAnalyzer<T extends NumericTokenizer> extends Analyzer {
 
     @Override
-    public final TokenStream tokenStream(String fieldName, Reader reader) {
+    protected TokenStreamComponents createComponents(String fieldName, Reader reader) {
         try {
-            return createNumericTokenizer(reader, new char[32]);
+            // LUCENE 4 UPGRADE: in reusableTokenStream the buffer size was char[120]
+            // Not sure if this is intentional or not
+            return new TokenStreamComponents(createNumericTokenizer(reader, new char[32]));
         } catch (IOException e) {
             throw new RuntimeException("Failed to create numeric tokenizer", e);
         }
-    }
-
-    @Override
-    public final TokenStream reusableTokenStream(String fieldName, Reader reader) throws IOException {
-        Holder holder = (Holder) getPreviousTokenStream();
-        if (holder == null) {
-            char[] buffer = new char[120];
-            holder = new Holder(createNumericTokenizer(reader, buffer), buffer);
-            setPreviousTokenStream(holder);
-        } else {
-            holder.tokenizer.reset(reader, holder.buffer);
-        }
-        return holder.tokenizer;
     }
 
     protected abstract T createNumericTokenizer(Reader reader, char[] buffer) throws IOException;

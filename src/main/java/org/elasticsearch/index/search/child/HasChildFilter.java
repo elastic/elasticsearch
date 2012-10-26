@@ -20,11 +20,13 @@
 package org.elasticsearch.index.search.child;
 
 import gnu.trove.set.hash.THashSet;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.CacheRecycler;
@@ -106,13 +108,15 @@ public abstract class HasChildFilter extends Filter implements ScopePhase.Collec
             parentDocs = null;
         }
 
-        public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
+        public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
             if (parentDocs == null) {
                 throw new ElasticSearchIllegalStateException("has_child filter/query hasn't executed properly");
             }
 
+            // np need to use acceptDocs, since the parentDocs were collected with a collector, which means those
+            // collected docs are not deleted
             // ok to return null
-            return parentDocs.get(reader.getCoreCacheKey());
+            return parentDocs.get(context.reader().getCoreCacheKey());
         }
 
     }
@@ -138,14 +142,14 @@ public abstract class HasChildFilter extends Filter implements ScopePhase.Collec
             collectedUids = ((UidCollector) collector).collectedUids;
         }
 
-        public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
+        public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
             if (collectedUids == null) {
                 throw new ElasticSearchIllegalStateException("has_child filter/query hasn't executed properly");
             }
 
-            IdReaderTypeCache idReaderTypeCache = searchContext.idCache().reader(reader).type(parentType);
+            IdReaderTypeCache idReaderTypeCache = searchContext.idCache().reader(context.reader()).type(parentType);
             if (idReaderTypeCache != null) {
-                return new ParentDocSet(reader, collectedUids, idReaderTypeCache);
+                return new ParentDocSet(context.reader(), collectedUids, idReaderTypeCache, acceptDocs);
             } else {
                 return null;
             }
@@ -163,16 +167,18 @@ public abstract class HasChildFilter extends Filter implements ScopePhase.Collec
             final IndexReader reader;
             final THashSet<HashedBytesArray> parents;
             final IdReaderTypeCache typeCache;
+            final Bits acceptDocs;
 
-            ParentDocSet(IndexReader reader, THashSet<HashedBytesArray> parents, IdReaderTypeCache typeCache) {
+            ParentDocSet(IndexReader reader, THashSet<HashedBytesArray> parents, IdReaderTypeCache typeCache, Bits acceptDocs) {
                 super(reader.maxDoc());
                 this.reader = reader;
                 this.parents = parents;
                 this.typeCache = typeCache;
+                this.acceptDocs = acceptDocs;
             }
 
             public boolean get(int doc) {
-                return !reader.isDeleted(doc) && parents.contains(typeCache.idByDoc(doc));
+                return !acceptDocs.get(doc) && parents.contains(typeCache.idByDoc(doc));
             }
         }
 
@@ -196,8 +202,8 @@ public abstract class HasChildFilter extends Filter implements ScopePhase.Collec
             }
 
             @Override
-            public void setNextReader(IndexReader reader, int docBase) throws IOException {
-                typeCache = context.idCache().reader(reader).type(parentType);
+            public void setNextReader(AtomicReaderContext readerContext) throws IOException {
+                typeCache = context.idCache().reader(readerContext.reader()).type(parentType);
             }
         }
     }

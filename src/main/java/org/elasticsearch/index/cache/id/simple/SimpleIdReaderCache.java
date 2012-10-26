@@ -20,8 +20,6 @@
 package org.elasticsearch.index.cache.id.simple;
 
 import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.index.cache.id.IdReaderCache;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
@@ -33,9 +31,9 @@ public class SimpleIdReaderCache implements IdReaderCache {
 
     private final Object readerCacheKey;
 
-    private final ImmutableMap<BytesReference, SimpleIdReaderTypeCache> types;
+    private final ImmutableMap<String, SimpleIdReaderTypeCache> types;
 
-    public SimpleIdReaderCache(Object readerCacheKey, ImmutableMap<BytesReference, SimpleIdReaderTypeCache> types) {
+    public SimpleIdReaderCache(Object readerCacheKey, ImmutableMap<String, SimpleIdReaderTypeCache> types) {
         this.readerCacheKey = readerCacheKey;
         this.types = types;
     }
@@ -47,12 +45,12 @@ public class SimpleIdReaderCache implements IdReaderCache {
 
     @Override
     public IdReaderTypeCache type(String type) {
-        return types.get(new BytesArray(type));
+        return types.get(type);
     }
 
     @Override
     public HashedBytesArray parentIdByDoc(String type, int docId) {
-        SimpleIdReaderTypeCache typeCache = types.get(new BytesArray(type));
+        SimpleIdReaderTypeCache typeCache = types.get(type);
         if (typeCache != null) {
             return typeCache.parentIdByDoc(docId);
         }
@@ -61,7 +59,7 @@ public class SimpleIdReaderCache implements IdReaderCache {
 
     @Override
     public int docById(String type, HashedBytesArray id) {
-        SimpleIdReaderTypeCache typeCache = types.get(new BytesArray(type));
+        SimpleIdReaderTypeCache typeCache = types.get(type);
         if (typeCache != null) {
             return typeCache.docById(id);
         }

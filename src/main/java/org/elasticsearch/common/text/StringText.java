@@ -86,6 +86,6 @@ public class StringText implements Text {
 
     @Override
     public int compareTo(Text text) {
-        return this.text.compareTo(text.string());
+        return UTF8SortedAsUnicodeComparator.utf8SortedAsUnicodeSortOrder.compare(bytes(), text.bytes());
     }
 }

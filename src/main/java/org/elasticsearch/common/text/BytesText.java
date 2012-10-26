@@ -22,8 +22,6 @@ package org.elasticsearch.common.text;
 import com.google.common.base.Charsets;
 import org.elasticsearch.common.bytes.BytesReference;
 
-import java.util.Comparator;
-
 /**
  * A {@link BytesReference} representation of the text, will always convert on the fly to a {@link String}.
  */
@@ -76,7 +74,6 @@ public class BytesText implements Text {
 
     @Override
     public int compareTo(Text text) {
-       return UTF8SortedAsUnicodeComparator.utf8SortedAsUnicodeSortOrder.compare(text.bytes(), text.bytes());
+        return UTF8SortedAsUnicodeComparator.utf8SortedAsUnicodeSortOrder.compare(bytes(), text.bytes());
     }
-
 }

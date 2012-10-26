@@ -19,10 +19,10 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter;
 import org.apache.lucene.analysis.miscellaneous.WordDelimiterIterator;
+import org.apache.lucene.analysis.util.CharArraySet;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.lucene.Lucene;

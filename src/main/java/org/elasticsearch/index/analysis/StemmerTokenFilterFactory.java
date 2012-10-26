@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.PorterStemFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.ar.ArabicStemFilter;
 import org.apache.lucene.analysis.bg.BulgarianStemFilter;
@@ -31,6 +30,7 @@ import org.apache.lucene.analysis.el.GreekStemFilter;
 import org.apache.lucene.analysis.en.EnglishMinimalStemFilter;
 import org.apache.lucene.analysis.en.EnglishPossessiveFilter;
 import org.apache.lucene.analysis.en.KStemFilter;
+import org.apache.lucene.analysis.en.PorterStemFilter;
 import org.apache.lucene.analysis.es.SpanishLightStemFilter;
 import org.apache.lucene.analysis.fi.FinnishLightStemFilter;
 import org.apache.lucene.analysis.fr.FrenchLightStemFilter;

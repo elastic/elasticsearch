@@ -20,15 +20,13 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.AnalyzerWrapper;
-
-import java.io.Reader;
+import org.apache.lucene.analysis.CustomAnalyzerWrapper;
 
 /**
  * Named analyzer is an analyzer wrapper around an actual analyzer ({@link #analyzer} that is associated
  * with a name ({@link #name()}.
  */
-public class NamedAnalyzer extends AnalyzerWrapper {
+public class NamedAnalyzer extends CustomAnalyzerWrapper {
 
     private final String name;
 

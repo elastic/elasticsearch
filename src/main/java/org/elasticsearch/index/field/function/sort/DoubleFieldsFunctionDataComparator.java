@@ -69,7 +69,7 @@ public class DoubleFieldsFunctionDataComparator extends FieldComparator<Double> 
 
     @Override
     public FieldComparator<Double> setNextReader(AtomicReaderContext context) throws IOException {
-        script.setNextReader(context.reader());
+        script.setNextReader(context);
         return this;
     }
 

@@ -23,7 +23,7 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.AtomicReader;
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchParseException;
@@ -86,11 +86,11 @@ public class SourceLookup implements Map {
         return XContentHelper.convertToMap(bytes, offset, length, false).v2();
     }
 
-    public void setNextReader(AtomicReader reader) {
-        if (this.reader == reader) { // if we are called with the same reader, don't invalidate source
+    public void setNextReader(AtomicReaderContext context) {
+        if (this.reader == context.reader()) { // if we are called with the same reader, don't invalidate source
             return;
         }
-        this.reader = reader;
+        this.reader = context.reader();
         this.source = null;
         this.sourceAsBytes = null;
         this.docId = -1;

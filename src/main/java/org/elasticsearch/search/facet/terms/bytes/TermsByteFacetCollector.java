@@ -130,7 +130,7 @@ public class TermsByteFacetCollector extends AbstractFacetCollector {
     protected void doSetNextReader(AtomicReaderContext context) throws IOException {
         fieldData = (ByteFieldData) fieldDataCache.cache(fieldDataType, context.reader(), indexFieldName);
         if (script != null) {
-            script.setNextReader(context.reader());
+            script.setNextReader(context);
         }
     }
 

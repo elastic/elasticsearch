@@ -69,7 +69,7 @@ public class StringFieldsFunctionDataComparator extends FieldComparator<String> 
 
     @Override
     public FieldComparator<String> setNextReader(AtomicReaderContext context) throws IOException {
-        script.setNextReader(context.reader());
+        script.setNextReader(context);
         return this;
     }
 

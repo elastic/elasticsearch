@@ -73,7 +73,7 @@ public class ScriptStatisticalFacetCollector extends AbstractFacetCollector {
 
     @Override
     protected void doSetNextReader(AtomicReaderContext context) throws IOException {
-        script.setNextReader(context.reader());
+        script.setNextReader(context);
     }
 
     @Override

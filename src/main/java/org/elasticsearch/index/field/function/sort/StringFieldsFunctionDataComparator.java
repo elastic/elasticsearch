@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.field.function.sort;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SortField;
@@ -31,7 +31,7 @@ import java.io.IOException;
 /**
  *
  */
-public class StringFieldsFunctionDataComparator extends FieldComparator {
+public class StringFieldsFunctionDataComparator extends FieldComparator<String> {
 
     public static FieldDataType.ExtendedFieldComparatorSource comparatorSource(SearchScript script) {
         return new InnerSource(script);
@@ -52,7 +52,7 @@ public class StringFieldsFunctionDataComparator extends FieldComparator {
 
         @Override
         public SortField.Type reducedType() {
-            return SortField.STRING;
+            return SortField.Type.STRING;
         }
     }
 
@@ -68,8 +68,9 @@ public class StringFieldsFunctionDataComparator extends FieldComparator {
     }
 
     @Override
-    public void setNextReader(IndexReader reader, int docBase) throws IOException {
-        script.setNextReader(reader);
+    public FieldComparator<String> setNextReader(AtomicReaderContext context) throws IOException {
+        script.setNextReader(context.reader());
+        return this;
     }
 
     @Override
@@ -109,6 +110,13 @@ public class StringFieldsFunctionDataComparator extends FieldComparator {
     }
 
     @Override
+    public int compareDocToValue(int doc, String val2) throws IOException {
+        script.setNextDocId(doc);
+        String val1 = script.run().toString();
+        return val1.compareTo(val2);
+    }
+
+    @Override
     public void copy(int slot, int doc) {
         script.setNextDocId(doc);
         values[slot] = script.run().toString();
@@ -120,7 +128,7 @@ public class StringFieldsFunctionDataComparator extends FieldComparator {
     }
 
     @Override
-    public Comparable value(int slot) {
+    public String value(int slot) {
         return values[slot];
     }
 }

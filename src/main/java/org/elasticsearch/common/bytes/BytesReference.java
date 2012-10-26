@@ -31,6 +31,46 @@ import java.util.Comparator;
  */
 public interface BytesReference {
 
+    public static class Helper {
+
+        public static boolean bytesEqual(BytesReference a, BytesReference b) {
+            if (a == b) {
+                return true;
+            }
+            if (a.length() != b.length()) {
+                return false;
+            }
+            if (!a.hasArray()) {
+                a = a.toBytesArray();
+            }
+            if (!b.hasArray()) {
+                b = b.toBytesArray();
+            }
+            int bUpTo = b.arrayOffset();
+            final byte[] aArray = a.array();
+            final byte[] bArray = b.array();
+            final int end = a.arrayOffset() + a.length();
+            for (int aUpTo = a.arrayOffset(); aUpTo < end; aUpTo++, bUpTo++) {
+                if (aArray[aUpTo] != bArray[bUpTo]) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        public static int bytesHashCode(BytesReference a) {
+            if (!a.hasArray()) {
+                a = a.toBytesArray();
+            }
+            int result = 0;
+            final int end = a.arrayOffset() + a.length();
+            for (int i = a.arrayOffset(); i < end; i++) {
+                result = 31 * result + a.array()[i];
+            }
+            return result;
+        }
+    }
+
     /**
      * Returns the byte at the specified index. Need to be between 0 and length.
      */
@@ -103,7 +143,8 @@ public interface BytesReference {
     public static class UTF8SortedAsUnicodeComparator implements Comparator<BytesReference> {
 
         // Only singleton
-        private UTF8SortedAsUnicodeComparator() {}
+        private UTF8SortedAsUnicodeComparator() {
+        }
 
         public int compare(BytesReference a, BytesReference b) {
             if (a.hasArray() && b.hasArray()) {
@@ -113,7 +154,7 @@ public interface BytesReference {
                 int bUpto = b.arrayOffset();
 
                 final int aStop = aUpto + Math.min(a.length(), b.length());
-                while(aUpto < aStop) {
+                while (aUpto < aStop) {
                     int aByte = aBytes[aUpto++] & 0xff;
                     int bByte = bBytes[bUpto++] & 0xff;
 
@@ -132,7 +173,7 @@ public interface BytesReference {
                 int bUpto = 0;
 
                 final int aStop = aUpto + Math.min(a.length(), b.length());
-                while(aUpto < aStop) {
+                while (aUpto < aStop) {
                     int aByte = aBytes[aUpto++] & 0xff;
                     int bByte = bBytes[bUpto++] & 0xff;
 

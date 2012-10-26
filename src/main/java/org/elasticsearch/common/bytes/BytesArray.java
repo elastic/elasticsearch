@@ -148,33 +148,12 @@ public class BytesArray implements BytesReference {
     }
 
     @Override
-    public boolean equals(Object obj) {
-        return bytesEquals((BytesArray) obj);
-    }
-
-    public boolean bytesEquals(BytesArray other) {
-        if (length == other.length) {
-            int otherUpto = other.offset;
-            final byte[] otherBytes = other.bytes;
-            final int end = offset + length;
-            for (int upto = offset; upto < end; upto++, otherUpto++) {
-                if (bytes[upto] != otherBytes[otherUpto]) {
-                    return false;
-                }
-            }
-            return true;
-        } else {
-            return false;
-        }
+    public int hashCode() {
+        return Helper.bytesHashCode(this);
     }
 
     @Override
-    public int hashCode() {
-        int result = 0;
-        final int end = offset + length;
-        for (int i = offset; i < end; i++) {
-            result = 31 * result + bytes[i];
-        }
-        return result;
+    public boolean equals(Object obj) {
+        return Helper.bytesEqual(this, (BytesReference) obj);
     }
 }

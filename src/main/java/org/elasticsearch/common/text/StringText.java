@@ -71,4 +71,16 @@ public class StringText implements Text {
     public String toString() {
         return string();
     }
+
+    @Override
+    public int hashCode() {
+        // we use bytes here so we can be consistent with other text implementations
+        return bytes().hashCode();
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        // we use bytes here so we can be consistent with other text implementations
+        return bytes().equals(((Text) obj).bytes());
+    }
 }

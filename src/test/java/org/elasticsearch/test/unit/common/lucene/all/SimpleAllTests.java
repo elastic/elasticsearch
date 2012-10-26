@@ -110,8 +110,6 @@ public class SimpleAllTests {
         assertThat(docs.scoreDocs[0].doc, equalTo(0));
         assertThat(docs.scoreDocs[1].doc, equalTo(1));
 
-        searcher.close();
-
         indexWriter.close();
     }
 
@@ -153,8 +151,6 @@ public class SimpleAllTests {
         assertThat(docs.totalHits, equalTo(2));
         assertThat(docs.scoreDocs[0].doc, equalTo(0));
         assertThat(docs.scoreDocs[1].doc, equalTo(1));
-
-        searcher.close();
 
         indexWriter.close();
     }
@@ -207,8 +203,6 @@ public class SimpleAllTests {
         assertThat(docs.scoreDocs[0].doc, equalTo(0));
         assertThat(docs.scoreDocs[1].doc, equalTo(1));
 
-        searcher.close();
-
         indexWriter.close();
     }
 
@@ -259,8 +253,6 @@ public class SimpleAllTests {
         assertThat(docs.totalHits, equalTo(2));
         assertThat(docs.scoreDocs[0].doc, equalTo(0));
         assertThat(docs.scoreDocs[1].doc, equalTo(1));
-
-        searcher.close();
 
         indexWriter.close();
     }

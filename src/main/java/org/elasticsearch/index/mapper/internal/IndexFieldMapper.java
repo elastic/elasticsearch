@@ -21,7 +21,7 @@ package org.elasticsearch.index.mapper.internal;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.elasticsearch.common.Strings;
@@ -48,10 +48,18 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
     public static class Defaults extends AbstractFieldMapper.Defaults {
         public static final String NAME = IndexFieldMapper.NAME;
         public static final String INDEX_NAME = IndexFieldMapper.NAME;
-        public static final Field.Index INDEX = Field.Index.NOT_ANALYZED;
-        public static final Field.Store STORE = Field.Store.NO;
-        public static final boolean OMIT_NORMS = true;
-        public static final IndexOptions INDEX_OPTIONS = IndexOptions.DOCS_ONLY;
+
+        public static final FieldType INDEX_FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
+
+        static {
+            INDEX_FIELD_TYPE.setIndexed(true);
+            INDEX_FIELD_TYPE.setTokenized(false);
+            INDEX_FIELD_TYPE.setStored(false);
+            INDEX_FIELD_TYPE.setOmitNorms(true);
+            INDEX_FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_ONLY);
+            INDEX_FIELD_TYPE.freeze();
+        }
+
         public static final boolean ENABLED = false;
     }
 
@@ -60,12 +68,8 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
         private boolean enabled = Defaults.ENABLED;
 
         public Builder() {
-            super(Defaults.NAME);
+            super(Defaults.NAME, new FieldType(Defaults.INDEX_FIELD_TYPE));
             indexName = Defaults.INDEX_NAME;
-            index = Defaults.INDEX;
-            store = Defaults.STORE;
-            omitNorms = Defaults.OMIT_NORMS;
-            indexOptions = Defaults.INDEX_OPTIONS;
         }
 
         public Builder enabled(boolean enabled) {
@@ -75,7 +79,7 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
 
         @Override
         public IndexFieldMapper build(BuilderContext context) {
-            return new IndexFieldMapper(name, indexName, store, termVector, boost, omitNorms, indexOptions, enabled);
+            return new IndexFieldMapper(name, indexName, boost, fieldType, enabled);
         }
     }
 
@@ -103,13 +107,11 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
     }
 
     protected IndexFieldMapper(String name, String indexName) {
-        this(name, indexName, Defaults.STORE, Defaults.TERM_VECTOR, Defaults.BOOST,
-                Defaults.OMIT_NORMS, Defaults.INDEX_OPTIONS, Defaults.ENABLED);
+        this(name, indexName, Defaults.BOOST, new FieldType(Defaults.INDEX_FIELD_TYPE), Defaults.ENABLED);
     }
 
-    public IndexFieldMapper(String name, String indexName, Field.Store store, Field.TermVector termVector,
-                            float boost, boolean omitNorms, IndexOptions indexOptions, boolean enabled) {
-        super(new Names(name, indexName, indexName, name), Defaults.INDEX, store, termVector, boost, omitNorms, indexOptions, Lucene.KEYWORD_ANALYZER,
+    public IndexFieldMapper(String name, String indexName, float boost, FieldType fieldType, boolean enabled) {
+        super(new Names(name, indexName, indexName, name), boost, fieldType, Lucene.KEYWORD_ANALYZER,
                 Lucene.KEYWORD_ANALYZER);
         this.enabled = enabled;
     }
@@ -119,12 +121,12 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
     }
 
     public String value(Document document) {
-        Fieldable field = document.getFieldable(names.indexName());
+        Field field = (Field) document.getField(names.indexName());
         return field == null ? null : value(field);
     }
 
     @Override
-    public String value(Fieldable field) {
+    public String value(Field field) {
         return field.stringValue();
     }
 
@@ -134,7 +136,7 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
     }
 
     @Override
-    public String valueAsString(Fieldable field) {
+    public String valueAsString(Field field) {
         return value(field);
     }
 
@@ -176,7 +178,7 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
         if (!enabled) {
             return null;
         }
-        return new Field(names.indexName(), context.index(), store, index);
+        return new Field(names.indexName(), context.index(), fieldType);
     }
 
     @Override
@@ -187,12 +189,12 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // if all defaults, no need to write it at all
-        if (store == Defaults.STORE && enabled == Defaults.ENABLED) {
+        if (stored() == Defaults.INDEX_FIELD_TYPE.stored() && enabled == Defaults.ENABLED) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
-        if (store != Defaults.STORE) {
-            builder.field("store", store.name().toLowerCase());
+        if (stored() != Defaults.INDEX_FIELD_TYPE.stored()) {
+            builder.field("store", stored());
         }
         if (enabled != Defaults.ENABLED) {
             builder.field("enabled", enabled);

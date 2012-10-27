@@ -23,8 +23,9 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -56,10 +57,17 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
     public static class Defaults extends AbstractFieldMapper.Defaults {
         public static final String NAME = IdFieldMapper.NAME;
         public static final String INDEX_NAME = IdFieldMapper.NAME;
-        public static final Field.Index INDEX = Field.Index.NO;
-        public static final Field.Store STORE = Field.Store.NO;
-        public static final boolean OMIT_NORMS = true;
-        public static final IndexOptions INDEX_OPTIONS = IndexOptions.DOCS_ONLY;
+
+        public static final FieldType ID_FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
+
+        static {
+            ID_FIELD_TYPE.setIndexed(false);
+            ID_FIELD_TYPE.setStored(false);
+            ID_FIELD_TYPE.setOmitNorms(true);
+            ID_FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_ONLY);
+            ID_FIELD_TYPE.freeze();
+        }
+
         public static final String PATH = null;
     }
 
@@ -68,12 +76,8 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         private String path = Defaults.PATH;
 
         public Builder() {
-            super(Defaults.NAME);
+            super(Defaults.NAME, new FieldType(Defaults.ID_FIELD_TYPE));
             indexName = Defaults.INDEX_NAME;
-            store = Defaults.STORE;
-            index = Defaults.INDEX;
-            omitNorms = Defaults.OMIT_NORMS;
-            indexOptions = Defaults.INDEX_OPTIONS;
         }
 
         public Builder path(String path) {
@@ -83,7 +87,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
 
         @Override
         public IdFieldMapper build(BuilderContext context) {
-            return new IdFieldMapper(name, indexName, index, store, termVector, boost, omitNorms, indexOptions, path);
+            return new IdFieldMapper(name, indexName, boost, fieldType, path);
         }
     }
 
@@ -106,21 +110,19 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
     private final String path;
 
     public IdFieldMapper() {
-        this(Defaults.NAME, Defaults.INDEX_NAME, Defaults.INDEX);
+        this(Defaults.NAME, Defaults.INDEX_NAME, new FieldType(Defaults.ID_FIELD_TYPE));
     }
 
-    public IdFieldMapper(Field.Index index) {
-        this(Defaults.NAME, Defaults.INDEX_NAME, index);
+    public IdFieldMapper(FieldType fieldType) {
+        this(Defaults.NAME, Defaults.INDEX_NAME, fieldType);
     }
 
-    protected IdFieldMapper(String name, String indexName, Field.Index index) {
-        this(name, indexName, index, Defaults.STORE, Defaults.TERM_VECTOR, Defaults.BOOST,
-                Defaults.OMIT_NORMS, Defaults.INDEX_OPTIONS, Defaults.PATH);
+    protected IdFieldMapper(String name, String indexName, FieldType fieldType) {
+        this(name, indexName, Defaults.BOOST, fieldType, Defaults.PATH);
     }
 
-    protected IdFieldMapper(String name, String indexName, Field.Index index, Field.Store store, Field.TermVector termVector,
-                            float boost, boolean omitNorms, IndexOptions indexOptions, String path) {
-        super(new Names(name, indexName, indexName, name), index, store, termVector, boost, omitNorms, indexOptions, Lucene.KEYWORD_ANALYZER,
+    protected IdFieldMapper(String name, String indexName, float boost, FieldType fieldType, String path) {
+        super(new Names(name, indexName, indexName, name), boost, fieldType, Lucene.KEYWORD_ANALYZER,
                 Lucene.KEYWORD_ANALYZER);
         this.path = path;
     }
@@ -130,12 +132,12 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
     }
 
     public String value(Document document) {
-        Fieldable field = document.getFieldable(names.indexName());
+        Field field = (Field) document.getField(names.indexName());
         return field == null ? null : value(field);
     }
 
     @Override
-    public String value(Fieldable field) {
+    public String value(Field field) {
         return field.stringValue();
     }
 
@@ -145,7 +147,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
     }
 
     @Override
-    public String valueAsString(Fieldable field) {
+    public String valueAsString(Field field) {
         return value(field);
     }
 
@@ -184,14 +186,14 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         }
         Collection<String> queryTypes = context.queryTypes();
         if (queryTypes.size() == 1) {
-            PrefixQuery prefixQuery = new PrefixQuery(UidFieldMapper.TERM_FACTORY.createTerm(Uid.createUid(Iterables.getFirst(queryTypes, null), value)));
+            PrefixQuery prefixQuery = new PrefixQuery(new Term(UidFieldMapper.NAME, Uid.createUid(Iterables.getFirst(queryTypes, null), value)));
             if (method != null) {
                 prefixQuery.setRewriteMethod(method);
             }
         }
         BooleanQuery query = new BooleanQuery();
         for (String queryType : queryTypes) {
-            PrefixQuery prefixQuery = new PrefixQuery(UidFieldMapper.TERM_FACTORY.createTerm(Uid.createUid(queryType, value)));
+            PrefixQuery prefixQuery = new PrefixQuery(new Term(UidFieldMapper.NAME, Uid.createUid(queryType, value)));
             if (method != null) {
                 prefixQuery.setRewriteMethod(method);
             }
@@ -207,11 +209,11 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         }
         Collection<String> queryTypes = context.queryTypes();
         if (queryTypes.size() == 1) {
-            return new PrefixFilter(UidFieldMapper.TERM_FACTORY.createTerm(Uid.createUid(Iterables.getFirst(queryTypes, null), value)));
+            return new PrefixFilter(new Term(UidFieldMapper.NAME, Uid.createUid(Iterables.getFirst(queryTypes, null), value)));
         }
         XBooleanFilter filter = new XBooleanFilter();
         for (String queryType : queryTypes) {
-            filter.addShould(new PrefixFilter(UidFieldMapper.TERM_FACTORY.createTerm(Uid.createUid(queryType, value))));
+            filter.addShould(new PrefixFilter(new Term(UidFieldMapper.NAME, Uid.createUid(queryType, value))));
         }
         return filter;
     }
@@ -256,16 +258,16 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
                 throw new MapperParsingException("Provided id [" + context.id() + "] does not match the content one [" + id + "]");
             }
             context.id(id);
-            if (index == Field.Index.NO && store == Field.Store.NO) {
+            if (!fieldType.indexed() && !fieldType.stored()) {
                 return null;
             }
-            return new Field(names.indexName(), false, context.id(), store, index, termVector);
+            return new Field(names.indexName(), context.id(), fieldType);
         } else {
             // we are in the pre/post parse phase
-            if (index == Field.Index.NO && store == Field.Store.NO) {
+            if (!fieldType.indexed() && !fieldType.stored()) {
                 return null;
             }
-            return new Field(names.indexName(), false, context.id(), store, index, termVector);
+            return new Field(names.indexName(), context.id(), fieldType);
         }
     }
 
@@ -277,15 +279,16 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // if all are defaults, no sense to write it at all
-        if (store == Defaults.STORE && index == Defaults.INDEX && path == Defaults.PATH) {
+        if (fieldType.stored() == Defaults.ID_FIELD_TYPE.stored() &&
+            fieldType.indexed() == Defaults.ID_FIELD_TYPE.indexed() && path == Defaults.PATH) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
-        if (store != Defaults.STORE) {
-            builder.field("store", store.name().toLowerCase());
+        if (fieldType.stored() != Defaults.ID_FIELD_TYPE.stored()) {
+            builder.field("store", fieldType.stored());
         }
-        if (index != Defaults.INDEX) {
-            builder.field("index", index.name().toLowerCase());
+        if (fieldType.indexed() != Defaults.ID_FIELD_TYPE.indexed()) {
+            builder.field("index", fieldType.indexed());
         }
         if (path != Defaults.PATH) {
             builder.field("path", path);

@@ -22,7 +22,8 @@ package org.elasticsearch.index.mapper.internal;
 import com.google.common.base.Objects;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.Strings;
@@ -67,10 +68,17 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
         public static final boolean ENABLED = true;
         public static final long COMPRESS_THRESHOLD = -1;
         public static final String FORMAT = null; // default format is to use the one provided
-        public static final Field.Index INDEX = Field.Index.NO;
-        public static final Field.Store STORE = Field.Store.YES;
-        public static final boolean OMIT_NORMS = true;
-        public static final IndexOptions INDEX_OPTIONS = IndexOptions.DOCS_ONLY;
+
+        public static final FieldType SOURCE_FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
+
+        static {
+            SOURCE_FIELD_TYPE.setIndexed(false);
+            SOURCE_FIELD_TYPE.setStored(true);
+            SOURCE_FIELD_TYPE.setOmitNorms(true);
+            SOURCE_FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_ONLY);
+            SOURCE_FIELD_TYPE.freeze();
+        }
+
         public static final String[] INCLUDES = Strings.EMPTY_ARRAY;
         public static final String[] EXCLUDES = Strings.EMPTY_ARRAY;
     }
@@ -190,8 +198,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
     }
 
     protected SourceFieldMapper(String name, boolean enabled, String format, Boolean compress, long compressThreshold, String[] includes, String[] excludes) {
-        super(new Names(name, name, name, name), Defaults.INDEX, Defaults.STORE, Defaults.TERM_VECTOR, Defaults.BOOST,
-                Defaults.OMIT_NORMS, Defaults.INDEX_OPTIONS, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
+        super(new Names(name, name, name, name), Defaults.BOOST, new FieldType(Defaults.SOURCE_FIELD_TYPE), Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
         this.enabled = enabled;
         this.compress = compress;
         this.compressThreshold = compressThreshold;
@@ -237,7 +244,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
         if (!enabled) {
             return null;
         }
-        if (store == Field.Store.NO) {
+        if (!stored()) {
             return null;
         }
         if (context.flyweight()) {
@@ -335,21 +342,21 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
             }
         }
         assert source.hasArray();
-        return new Field(names().indexName(), source.array(), source.arrayOffset(), source.length());
+        return new StoredField(names().indexName(), source.array(), source.arrayOffset(), source.length());
     }
 
     public byte[] value(Document document) {
-        Fieldable field = document.getFieldable(names.indexName());
+        Field field = (Field) document.getField(names.indexName());
         return field == null ? null : value(field);
     }
 
-    public byte[] nativeValue(Fieldable field) {
-        return field.getBinaryValue();
+    public byte[] nativeValue(Field field) {
+        return field.binaryValue().bytes;
     }
 
     @Override
-    public byte[] value(Fieldable field) {
-        byte[] value = field.getBinaryValue();
+    public byte[] value(Field field) {
+        byte[] value = field.binaryValue().bytes;
         if (value == null) {
             return value;
         }
@@ -366,7 +373,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
     }
 
     @Override
-    public String valueAsString(Fieldable field) {
+    public String valueAsString(Field field) {
         throw new UnsupportedOperationException();
     }
 

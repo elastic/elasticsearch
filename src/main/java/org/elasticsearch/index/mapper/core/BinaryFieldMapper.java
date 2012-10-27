@@ -20,8 +20,8 @@
 package org.elasticsearch.index.mapper.core;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.Fieldable;
-import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.apache.lucene.document.FieldType;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Strings;
@@ -50,7 +50,12 @@ public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
 
     public static class Defaults extends AbstractFieldMapper.Defaults {
         public static final long COMPRESS_THRESHOLD = -1;
-        public static final Field.Store STORE = Field.Store.YES;
+        public static final FieldType BINARY_FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
+
+        static {
+            BINARY_FIELD_TYPE.setStored(false);
+            BINARY_FIELD_TYPE.freeze();
+        }
     }
 
     public static class Builder extends AbstractFieldMapper.Builder<Builder, BinaryFieldMapper> {
@@ -60,8 +65,7 @@ public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
         private long compressThreshold = Defaults.COMPRESS_THRESHOLD;
 
         public Builder(String name) {
-            super(name);
-            store = Defaults.STORE;
+            super(name, new FieldType(Defaults.BINARY_FIELD_TYPE));
             builder = this;
         }
 
@@ -82,7 +86,7 @@ public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
 
         @Override
         public BinaryFieldMapper build(BuilderContext context) {
-            return new BinaryFieldMapper(buildNames(context), store, compress, compressThreshold);
+            return new BinaryFieldMapper(buildNames(context), fieldType, compress, compressThreshold);
         }
     }
 
@@ -114,22 +118,22 @@ public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
 
     private long compressThreshold;
 
-    protected BinaryFieldMapper(Names names, Field.Store store, Boolean compress, long compressThreshold) {
-        super(names, Field.Index.NO, store, Field.TermVector.NO, 1.0f, true, IndexOptions.DOCS_ONLY, null, null);
+    protected BinaryFieldMapper(Names names, FieldType fieldType, Boolean compress, long compressThreshold) {
+        super(names, 1.0f, fieldType, null, null);
         this.compress = compress;
         this.compressThreshold = compressThreshold;
     }
 
     @Override
-    public Object valueForSearch(Fieldable field) {
+    public Object valueForSearch(Field field) {
         return value(field);
     }
 
     @Override
-    public byte[] value(Fieldable field) {
-        byte[] value = field.getBinaryValue();
+    public byte[] value(Field field) {
+        BytesRef value = field.binaryValue();
         if (value == null) {
-            return value;
+            return null;
         }
         try {
             return CompressorFactory.uncompressIfNeeded(new BytesArray(value)).toBytes();
@@ -149,7 +153,7 @@ public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
     }
 
     @Override
-    public String valueAsString(Fieldable field) {
+    public String valueAsString(Field field) {
         return null;
     }
 
@@ -184,7 +188,7 @@ public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
         if (value == null) {
             return null;
         }
-        return new Field(names.indexName(), value);
+        return new Field(names.indexName(), value, fieldType);
     }
 
     @Override

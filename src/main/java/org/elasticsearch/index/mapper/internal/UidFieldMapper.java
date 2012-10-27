@@ -20,7 +20,7 @@
 package org.elasticsearch.index.mapper.internal;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.Term;
 import org.elasticsearch.common.lucene.Lucene;
@@ -47,9 +47,17 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
 
     public static class Defaults extends AbstractFieldMapper.Defaults {
         public static final String NAME = UidFieldMapper.NAME;
-        public static final Field.Index INDEX = Field.Index.NOT_ANALYZED;
-        public static final boolean OMIT_NORMS = true;
-        public static final FieldInfo.IndexOptions INDEX_OPTIONS = FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS; // we store payload (otherwise, we really need just docs)
+
+        public static final FieldType UID_FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
+
+        static {
+            UID_FIELD_TYPE.setIndexed(true);
+            UID_FIELD_TYPE.setTokenized(false);
+            UID_FIELD_TYPE.setStored(true);
+            UID_FIELD_TYPE.setOmitNorms(true);
+            UID_FIELD_TYPE.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS); // we store payload (otherwise, we really need just docs)
+            UID_FIELD_TYPE.freeze();
+        }
     }
 
     public static class Builder extends Mapper.Builder<Builder, UidFieldMapper> {
@@ -90,8 +98,8 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
     }
 
     protected UidFieldMapper(String name, String indexName) {
-        super(new Names(name, indexName, indexName, name), Defaults.INDEX, Field.Store.YES, Defaults.TERM_VECTOR, Defaults.BOOST,
-                Defaults.OMIT_NORMS, Defaults.INDEX_OPTIONS, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
+        super(new Names(name, indexName, indexName, name), Defaults.BOOST, new FieldType(Defaults.UID_FIELD_TYPE),
+                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
     }
 
     @Override
@@ -115,7 +123,7 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
             // since we did not have the uid in the pre phase, we did not add it automatically to the nested docs
             // as they were created we need to make sure we add it to all the nested docs...
             if (context.docs().size() > 1) {
-                UidField uidField = (UidField) context.rootDoc().getFieldable(UidFieldMapper.NAME);
+                UidField uidField = (UidField) context.rootDoc().getField(UidFieldMapper.NAME);
                 assert uidField != null;
                 // we need to go over the docs and add it...
                 for (int i = 1; i < context.docs().size(); i++) {
@@ -141,7 +149,7 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
     }
 
     @Override
-    protected Fieldable parseCreateField(ParseContext context) throws IOException {
+    protected Field parseCreateField(ParseContext context) throws IOException {
         context.uid(Uid.createUid(context.stringBuilder(), context.type(), context.id()));
         // so, caching uid stream and field is fine
         // since we don't do any mapping parsing without immediate indexing
@@ -152,7 +160,7 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
     }
 
     @Override
-    public Uid value(Fieldable field) {
+    public Uid value(Field field) {
         return Uid.createUid(field.stringValue());
     }
 
@@ -162,7 +170,7 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
     }
 
     @Override
-    public String valueAsString(Fieldable field) {
+    public String valueAsString(Field field) {
         return field.stringValue();
     }
 

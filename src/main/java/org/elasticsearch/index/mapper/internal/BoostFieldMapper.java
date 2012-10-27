@@ -20,12 +20,12 @@
 package org.elasticsearch.index.mapper.internal;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.Fieldable;
-import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
@@ -59,8 +59,13 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
     public static class Defaults extends NumberFieldMapper.Defaults {
         public static final String NAME = "_boost";
         public static final Float NULL_VALUE = null;
-        public static final Field.Index INDEX = Field.Index.NO;
-        public static final Field.Store STORE = Field.Store.NO;
+
+        public static final FieldType BOOST_FIELD_TYPE = new FieldType(NumberFieldMapper.Defaults.NUMBER_FIELD_TYPE);
+
+        static {
+            BOOST_FIELD_TYPE.setIndexed(false);
+            BOOST_FIELD_TYPE.setStored(false);
+        }
     }
 
     public static class Builder extends NumberFieldMapper.Builder<Builder, BoostFieldMapper> {
@@ -68,10 +73,8 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
         protected Float nullValue = Defaults.NULL_VALUE;
 
         public Builder(String name) {
-            super(name);
+            super(name, new FieldType(Defaults.BOOST_FIELD_TYPE));
             builder = this;
-            index = Defaults.INDEX;
-            store = Defaults.STORE;
         }
 
         public Builder nullValue(float nullValue) {
@@ -82,7 +85,7 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
         @Override
         public BoostFieldMapper build(BuilderContext context) {
             return new BoostFieldMapper(name, buildIndexName(context),
-                    precisionStep, index, store, boost, omitNorms, indexOptions, nullValue);
+                    precisionStep, boost, fieldType, nullValue);
         }
     }
 
@@ -110,14 +113,12 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
     }
 
     protected BoostFieldMapper(String name, String indexName) {
-        this(name, indexName, Defaults.PRECISION_STEP, Defaults.INDEX, Defaults.STORE,
-                Defaults.BOOST, Defaults.OMIT_NORMS, Defaults.INDEX_OPTIONS, Defaults.NULL_VALUE);
+        this(name, indexName, Defaults.PRECISION_STEP, Defaults.BOOST, new FieldType(Defaults.BOOST_FIELD_TYPE), Defaults.NULL_VALUE);
     }
 
-    protected BoostFieldMapper(String name, String indexName, int precisionStep, Field.Index index, Field.Store store,
-                               float boost, boolean omitNorms, IndexOptions indexOptions,
-                               Float nullValue) {
-        super(new Names(name, indexName, indexName, name), precisionStep, null, index, store, boost, omitNorms, indexOptions,
+    protected BoostFieldMapper(String name, String indexName, int precisionStep,
+                               float boost, FieldType fieldType, Float nullValue) {
+        super(new Names(name, indexName, indexName, name), precisionStep, null, boost, fieldType,
                 Defaults.IGNORE_MALFORMED, new NamedAnalyzer("_float/" + precisionStep, new NumericFloatAnalyzer(precisionStep)),
                 new NamedAnalyzer("_float/max", new NumericFloatAnalyzer(Integer.MAX_VALUE)));
         this.nullValue = nullValue;
@@ -129,12 +130,12 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
     }
 
     @Override
-    public Float value(Fieldable field) {
-        byte[] value = field.getBinaryValue();
+    public Float value(Field field) {
+        BytesRef value = field.binaryValue();
         if (value == null) {
             return null;
         }
-        return Numbers.bytesToFloat(value);
+        return Numbers.bytesToFloat(value.bytes);
     }
 
     @Override
@@ -144,7 +145,10 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
 
     @Override
     public String indexedValue(String value) {
-        return NumericUtils.floatToPrefixCoded(Float.parseFloat(value));
+        int intValue = NumericUtils.floatToSortableInt(Float.parseFloat(value));
+        BytesRef bytesRef = new BytesRef();
+        NumericUtils.intToPrefixCoded(intValue, precisionStep(), bytesRef);
+        return bytesRef.utf8ToString();
     }
 
     @Override
@@ -230,13 +234,13 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
     }
 
     @Override
-    protected Fieldable innerParseCreateField(ParseContext context) throws IOException {
+    protected Field innerParseCreateField(ParseContext context) throws IOException {
         final float value = parseFloatValue(context);
         if (Float.isNaN(value)) {
             return null;
         }
         context.doc().setBoost(value);
-        return new FloatFieldMapper.CustomFloatNumericField(this, value);
+        return new FloatFieldMapper.CustomFloatNumericField(this, value, fieldType);
     }
 
     private float parseFloatValue(ParseContext context) throws IOException {

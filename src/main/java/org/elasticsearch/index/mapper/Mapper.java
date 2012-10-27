@@ -116,6 +116,10 @@ public interface Mapper extends ToXContent {
 
     String name();
 
+    /**
+     * Parse part of a document's JSON representation from context.parser(),
+     * and instantiate and add the appropriate {@link Field}s to context.doc().
+     */
     void parse(ParseContext context) throws IOException;
 
     void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException;

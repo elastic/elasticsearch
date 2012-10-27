@@ -38,7 +38,11 @@ import static org.elasticsearch.index.mapper.MapperBuilders.multiField;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parsePathType;
 
 /**
+ * Allows multiple mappers for a single field.
  *
+ * One mapper can be the default; if this default mapper is set, it is accessible
+ * via the field's name, and it is the only mapper that can (optionally) be included
+ * in _all.
  */
 public class MultiFieldMapper implements Mapper, AllFieldMapper.IncludeInAll {
 
@@ -170,6 +174,11 @@ public class MultiFieldMapper implements Mapper, AllFieldMapper.IncludeInAll {
         return this.name;
     }
 
+    /**
+     * Includes the default mapper in _all only if the default mapper is not null
+     * and includeInAll is true.  No other mappers in this MultiFieldMapper are
+     * included in _all under any circumstances.
+     */
     @Override
     public void includeInAll(Boolean includeInAll) {
         if (includeInAll != null && defaultMapper != null && (defaultMapper instanceof AllFieldMapper.IncludeInAll)) {

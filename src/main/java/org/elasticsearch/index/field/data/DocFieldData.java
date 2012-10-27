@@ -22,7 +22,7 @@ package org.elasticsearch.index.field.data;
 import org.apache.lucene.util.BytesRef;
 
 /**
- *
+ * Provides the {@link FieldData} for a single Document.
  */
 public abstract class DocFieldData<T extends FieldData> {
 

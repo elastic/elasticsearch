@@ -30,13 +30,13 @@ import java.util.Map;
  * {@link org.elasticsearch.index.query.GeoShapeFilterParser}, consequently
  * a lot of behavior in this Mapper is disabled.
  * <p/>
- * Format supported:
+ * Format supported is equivalent to GeoJSON:
  * <p/>
  * "field" : {
- * "type" : "polygon",
- * "coordinates" : [
- * [ [100.0, 0.0], [101.0, 0.0], [101.0, 1.0], [100.0, 1.0], [100.0, 0.0] ]
- * ]
+ *     "type" : "polygon",
+ *     "coordinates" : [
+ *         [ [100.0, 0.0], [101.0, 0.0], [101.0, 1.0], [100.0, 1.0], [100.0, 0.0] ]
+ *     ]
  * }
  */
 public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {

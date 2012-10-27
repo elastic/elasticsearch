@@ -48,6 +48,10 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parsePathType;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseStore;
 
 /**
+ * A mapping for points on a grid that encapsulates a String field for "lat,lon".
+ * Also optionally indexes a String field for geohash and/or two fields containing
+ * the lat and lon separately as Doubles.
+ * <p/>
  * Parsing: We handle:
  * <p/>
  * - "field" : "geo_hash"

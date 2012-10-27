@@ -31,6 +31,9 @@ import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import java.io.IOException;
 
 /**
+ * Filters documents to within a spatial bounding box (topLeft to bottomRight) based
+ * on an indexed GeoPoint field (by delegating to range filters on the indexed
+ * GeoPoint's lat and lon).
  */
 public class IndexedGeoBoundingBoxFilter {
 

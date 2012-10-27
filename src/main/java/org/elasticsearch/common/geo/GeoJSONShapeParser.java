@@ -49,7 +49,7 @@ import java.util.Locale;
  * ]
  * }
  * <p/>
- * Note, currently MultiPolygon and GeometryCollections are not supported
+ * Note, currently GeometryCollections are not supported
  */
 public class GeoJSONShapeParser {
 

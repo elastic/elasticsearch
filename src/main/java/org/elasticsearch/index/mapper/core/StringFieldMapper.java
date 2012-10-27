@@ -21,7 +21,7 @@ package org.elasticsearch.index.mapper.core;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.Strings;
@@ -47,6 +47,12 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
     public static final String CONTENT_TYPE = "string";
 
     public static class Defaults extends AbstractFieldMapper.Defaults {
+        public static final FieldType STRING_FIELD_TYPE = new FieldType(NumberFieldMapper.Defaults.NUMBER_FIELD_TYPE);
+
+        static {
+            STRING_FIELD_TYPE.freeze();
+        }
+
         // NOTE, when adding defaults here, make sure you add them in the builder
         public static final String NULL_VALUE = null;
         public static final int POSITION_OFFSET_GAP = 0;
@@ -64,7 +70,7 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
         protected int ignoreAbove = Defaults.IGNORE_ABOVE;
 
         public Builder(String name) {
-            super(name);
+            super(name, new FieldType(Defaults.STRING_FIELD_TYPE));
             builder = this;
         }
 
@@ -113,16 +119,16 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
             // if the field is not analyzed, then by default, we should omit norms and have docs only
             // index options, as probably what the user really wants
             // if they are set explicitly, we will use those values
-            if (index == Field.Index.NOT_ANALYZED) {
+            if (fieldType.indexed() && fieldType.tokenized()) {
                 if (!omitNormsSet) {
-                    omitNorms = true;
+                    fieldType.setOmitNorms(true);
                 }
                 if (!indexOptionsSet) {
-                    indexOptions = IndexOptions.DOCS_ONLY;
+                    fieldType.setIndexOptions(IndexOptions.DOCS_ONLY);
                 }
             }
             StringFieldMapper fieldMapper = new StringFieldMapper(buildNames(context),
-                    index, store, termVector, boost, omitNorms, indexOptions, nullValue,
+                    boost, fieldType, nullValue,
                     indexAnalyzer, searchAnalyzer, searchQuotedAnalyzer, positionOffsetGap, ignoreAbove);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
@@ -176,18 +182,16 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
 
     private int ignoreAbove;
 
-    protected StringFieldMapper(Names names, Field.Index index, Field.Store store, Field.TermVector termVector,
-                                float boost, boolean omitNorms, IndexOptions indexOptions,
+    protected StringFieldMapper(Names names, float boost, FieldType fieldType,
                                 String nullValue, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer) {
-        this(names, index, store, termVector, boost, omitNorms, indexOptions, nullValue, indexAnalyzer,
+        this(names, boost, fieldType, nullValue, indexAnalyzer,
                 searchAnalyzer, searchAnalyzer, Defaults.POSITION_OFFSET_GAP, Defaults.IGNORE_ABOVE);
     }
 
-    protected StringFieldMapper(Names names, Field.Index index, Field.Store store, Field.TermVector termVector,
-                                float boost, boolean omitNorms, IndexOptions indexOptions,
+    protected StringFieldMapper(Names names, float boost, FieldType fieldType,
                                 String nullValue, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer,
                                 NamedAnalyzer searchQuotedAnalyzer, int positionOffsetGap, int ignoreAbove) {
-        super(names, index, store, termVector, boost, omitNorms, indexOptions, indexAnalyzer, searchAnalyzer);
+        super(names, boost, fieldType, indexAnalyzer, searchAnalyzer);
         this.nullValue = nullValue;
         this.positionOffsetGap = positionOffsetGap;
         this.searchQuotedAnalyzer = searchQuotedAnalyzer != null ? searchQuotedAnalyzer : this.searchAnalyzer;
@@ -209,7 +213,7 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
     }
 
     @Override
-    public String value(Fieldable field) {
+    public String value(Field field) {
         return field.stringValue();
     }
 
@@ -219,7 +223,7 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
     }
 
     @Override
-    public String valueAsString(Fieldable field) {
+    public String valueAsString(Field field) {
         return value(field);
     }
 
@@ -291,7 +295,7 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
             context.ignoredValue(names.indexName(), value);
             return null;
         }
-        Field field = new Field(names.indexName(), false, value, store, index, termVector);
+        Field field = new Field(names.indexName(), value, fieldType);
         field.setBoost(boost);
         return field;
     }
@@ -317,20 +321,30 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
     @Override
     protected void doXContentBody(XContentBuilder builder) throws IOException {
         super.doXContentBody(builder);
-        if (index != Defaults.INDEX) {
-            builder.field("index", index.name().toLowerCase());
+        if (indexed() != Defaults.STRING_FIELD_TYPE.indexed() ||
+                analyzed() != Defaults.STRING_FIELD_TYPE.tokenized()) {
+            builder.field("index", indexTokenizeOptionToString(indexed(), analyzed()));
         }
-        if (store != Defaults.STORE) {
-            builder.field("store", store.name().toLowerCase());
+        if (stored() != Defaults.STRING_FIELD_TYPE.stored()) {
+            builder.field("store", stored());
         }
-        if (termVector != Defaults.TERM_VECTOR) {
-            builder.field("term_vector", termVector.name().toLowerCase());
+        if (storeTermVectors() != Defaults.STRING_FIELD_TYPE.storeTermVectors()) {
+            builder.field("store_term_vector", storeTermVectors());
         }
-        if (omitNorms != Defaults.OMIT_NORMS) {
-            builder.field("omit_norms", omitNorms);
+        if (storeTermVectorOffsets() != Defaults.STRING_FIELD_TYPE.storeTermVectorOffsets()) {
+            builder.field("store_term_vector_offsets", storeTermVectorOffsets());
         }
-        if (indexOptions != Defaults.INDEX_OPTIONS) {
-            builder.field("index_options", indexOptionToString(indexOptions));
+        if (storeTermVectorPositions() != Defaults.STRING_FIELD_TYPE.storeTermVectorPositions()) {
+            builder.field("store_term_vector_positions", storeTermVectorPositions());
+        }
+        if (storeTermVectorPayloads() != Defaults.STRING_FIELD_TYPE.storeTermVectorPayloads()) {
+            builder.field("store_term_vector_payloads", storeTermVectorPayloads());
+        }
+        if (omitNorms() != Defaults.STRING_FIELD_TYPE.omitNorms()) {
+            builder.field("omit_norms", omitNorms());
+        }
+        if (indexOptions() != Defaults.STRING_FIELD_TYPE.indexOptions()) {
+            builder.field("index_options", indexOptionToString(indexOptions()));
         }
         if (nullValue != null) {
             builder.field("null_value", nullValue);

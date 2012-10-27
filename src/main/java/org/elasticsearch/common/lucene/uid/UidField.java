@@ -36,7 +36,7 @@ import java.io.Reader;
 /**
  *
  */
-public class UidField extends AbstractField {
+public class UidField extends Field {
 
     public static class DocIdAndVersion {
         public final int docId;

@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Filter;
@@ -120,17 +119,21 @@ public interface FieldMapper<T> {
 
     Names names();
 
-    Field.Index index();
+    // LUCENE 4 UPGRADE Consider replacing these all with fieldType() and letting consumer pick and choose
 
     boolean indexed();
 
     boolean analyzed();
 
-    Field.Store store();
-
     boolean stored();
 
-    Field.TermVector termVector();
+    boolean storeTermVectors();
+
+    boolean storeTermVectorOffsets();
+
+    boolean storeTermVectorPositions();
+
+    boolean storeTermVectorPayloads();
 
     float boost();
 
@@ -156,19 +159,19 @@ public interface FieldMapper<T> {
     /**
      * Returns the value that will be used as a result for search. Can be only of specific types... .
      */
-    Object valueForSearch(Fieldable field);
+    Object valueForSearch(Field field);
 
     /**
      * Returns the actual value of the field.
      */
-    T value(Fieldable field);
+    T value(Field field);
 
     T valueFromString(String value);
 
     /**
      * Returns the actual value of the field as string.
      */
-    String valueAsString(Fieldable field);
+    String valueAsString(Field field);
 
     /**
      * Returns the indexed value.

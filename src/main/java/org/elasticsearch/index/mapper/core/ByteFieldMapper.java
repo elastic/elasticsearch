@@ -19,14 +19,15 @@
 
 package org.elasticsearch.index.mapper.core;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.Fieldable;
-import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
@@ -56,6 +57,11 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
     public static final String CONTENT_TYPE = "byte";
 
     public static class Defaults extends NumberFieldMapper.Defaults {
+        public static final FieldType BYTE_FIELD_TYPE = new FieldType(NumberFieldMapper.Defaults.NUMBER_FIELD_TYPE);
+
+        static {
+            BYTE_FIELD_TYPE.freeze();
+        }
         public static final Byte NULL_VALUE = null;
     }
 
@@ -64,7 +70,7 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
         protected Byte nullValue = Defaults.NULL_VALUE;
 
         public Builder(String name) {
-            super(name);
+            super(name, new FieldType(Defaults.BYTE_FIELD_TYPE));
             builder = this;
         }
 
@@ -75,8 +81,9 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
 
         @Override
         public ByteFieldMapper build(BuilderContext context) {
+            fieldType.setOmitNorms(fieldType.omitNorms() || boost != 1.0f);
             ByteFieldMapper fieldMapper = new ByteFieldMapper(buildNames(context),
-                    precisionStep, fuzzyFactor, index, store, boost, omitNorms, indexOptions, nullValue, ignoreMalformed(context));
+                    precisionStep, fuzzyFactor, boost, fieldType, nullValue, ignoreMalformed(context));
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -102,10 +109,9 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
 
     private String nullValueAsString;
 
-    protected ByteFieldMapper(Names names, int precisionStep, String fuzzyFactor, Field.Index index, Field.Store store,
-                              float boost, boolean omitNorms, IndexOptions indexOptions,
+    protected ByteFieldMapper(Names names, int precisionStep, String fuzzyFactor, float boost, FieldType fieldType,
                               Byte nullValue, Explicit<Boolean> ignoreMalformed) {
-        super(names, precisionStep, fuzzyFactor, index, store, boost, omitNorms, indexOptions,
+        super(names, precisionStep, fuzzyFactor, boost, fieldType,
                 ignoreMalformed, new NamedAnalyzer("_byte/" + precisionStep, new NumericIntegerAnalyzer(precisionStep)),
                 new NamedAnalyzer("_byte/max", new NumericIntegerAnalyzer(Integer.MAX_VALUE)));
         this.nullValue = nullValue;
@@ -118,12 +124,12 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
     }
 
     @Override
-    public Byte value(Fieldable field) {
-        byte[] value = field.getBinaryValue();
+    public Byte value(Field field) {
+        BytesRef value = field.binaryValue();
         if (value == null) {
             return null;
         }
-        return value[0];
+        return value.bytes[value.offset];
     }
 
     @Override
@@ -133,7 +139,9 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
 
     @Override
     public String indexedValue(String value) {
-        return NumericUtils.intToPrefixCoded(Byte.parseByte(value));
+        BytesRef bytesRef = new BytesRef();
+        NumericUtils.intToPrefixCoded(Byte.parseByte(value), precisionStep(), bytesRef);
+        return bytesRef.utf8ToString();
     }
 
     @Override
@@ -216,7 +224,7 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
     }
 
     @Override
-    protected Fieldable innerParseCreateField(ParseContext context) throws IOException {
+    protected Field innerParseCreateField(ParseContext context) throws IOException {
         byte value;
         float boost = this.boost;
         if (context.externalValueSet()) {
@@ -282,7 +290,7 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
                 }
             }
         }
-        CustomByteNumericField field = new CustomByteNumericField(this, value);
+        CustomByteNumericField field = new CustomByteNumericField(this, value, fieldType);
         field.setBoost(boost);
         return field;
     }
@@ -312,20 +320,30 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
     @Override
     protected void doXContentBody(XContentBuilder builder) throws IOException {
         super.doXContentBody(builder);
-        if (index != Defaults.INDEX) {
-            builder.field("index", index.name().toLowerCase());
+        if (indexed() != Defaults.BYTE_FIELD_TYPE.indexed() ||
+                analyzed() != Defaults.BYTE_FIELD_TYPE.tokenized()) {
+            builder.field("index", indexTokenizeOptionToString(indexed(), analyzed()));
         }
-        if (store != Defaults.STORE) {
-            builder.field("store", store.name().toLowerCase());
+        if (stored() != Defaults.BYTE_FIELD_TYPE.stored()) {
+            builder.field("store", stored());
         }
-        if (termVector != Defaults.TERM_VECTOR) {
-            builder.field("term_vector", termVector.name().toLowerCase());
+        if (storeTermVectors() != Defaults.BYTE_FIELD_TYPE.storeTermVectors()) {
+            builder.field("store_term_vector", storeTermVectors());
         }
-        if (omitNorms != Defaults.OMIT_NORMS) {
-            builder.field("omit_norms", omitNorms);
+        if (storeTermVectorOffsets() != Defaults.BYTE_FIELD_TYPE.storeTermVectorOffsets()) {
+            builder.field("store_term_vector_offsets", storeTermVectorOffsets());
         }
-        if (indexOptions != Defaults.INDEX_OPTIONS) {
-            builder.field("index_options", indexOptionToString(indexOptions));
+        if (storeTermVectorPositions() != Defaults.BYTE_FIELD_TYPE.storeTermVectorPositions()) {
+            builder.field("store_term_vector_positions", storeTermVectorPositions());
+        }
+        if (storeTermVectorPayloads() != Defaults.BYTE_FIELD_TYPE.storeTermVectorPayloads()) {
+            builder.field("store_term_vector_payloads", storeTermVectorPayloads());
+        }
+        if (omitNorms() != Defaults.BYTE_FIELD_TYPE.omitNorms()) {
+            builder.field("omit_norms", omitNorms());
+        }
+        if (indexOptions() != Defaults.BYTE_FIELD_TYPE.indexOptions()) {
+            builder.field("index_options", indexOptionToString(indexOptions()));
         }
         if (precisionStep != Defaults.PRECISION_STEP) {
             builder.field("precision_step", precisionStep);
@@ -347,15 +365,15 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
 
         private final NumberFieldMapper mapper;
 
-        public CustomByteNumericField(NumberFieldMapper mapper, byte number) {
-            super(mapper, mapper.stored() ? new byte[]{number} : null);
+        public CustomByteNumericField(NumberFieldMapper mapper, byte number, FieldType fieldType) {
+            super(mapper, mapper.stored() ? new byte[]{number} : null, fieldType);
             this.mapper = mapper;
             this.number = number;
         }
 
         @Override
-        public TokenStream tokenStreamValue() {
-            if (isIndexed) {
+        public TokenStream tokenStream(Analyzer analyzer) {
+            if (fieldType().indexed()) {
                 return mapper.popCachedStream().setIntValue(number);
             }
             return null;

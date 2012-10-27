@@ -20,12 +20,12 @@
 package org.elasticsearch.index.mapper.core;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.Fieldable;
-import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
@@ -63,6 +63,12 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     public static class Defaults extends NumberFieldMapper.Defaults {
         public static final FormatDateTimeFormatter DATE_TIME_FORMATTER = Joda.forPattern("dateOptionalTime");
 
+        public static final FieldType DATE_FIELD_TYPE = new FieldType(NumberFieldMapper.Defaults.NUMBER_FIELD_TYPE);
+
+        static {
+            DATE_FIELD_TYPE.freeze();
+        }
+
         public static final String NULL_VALUE = null;
 
         public static final TimeUnit TIME_UNIT = TimeUnit.MILLISECONDS;
@@ -78,7 +84,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         protected FormatDateTimeFormatter dateTimeFormatter = Defaults.DATE_TIME_FORMATTER;
 
         public Builder(String name) {
-            super(name);
+            super(name, new FieldType(Defaults.DATE_FIELD_TYPE));
             builder = this;
         }
 
@@ -103,8 +109,9 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
             if (context.indexSettings() != null) {
                 parseUpperInclusive = context.indexSettings().getAsBoolean("index.mapping.date.parse_upper_inclusive", Defaults.PARSE_UPPER_INCLUSIVE);
             }
+            fieldType.setOmitNorms(fieldType.omitNorms() || boost != 1.0f);
             DateFieldMapper fieldMapper = new DateFieldMapper(buildNames(context), dateTimeFormatter,
-                    precisionStep, fuzzyFactor, index, store, boost, omitNorms, indexOptions, nullValue,
+                    precisionStep, fuzzyFactor, boost, fieldType, nullValue,
                     timeUnit, parseUpperInclusive, ignoreMalformed(context));
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
@@ -142,10 +149,9 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     protected final TimeUnit timeUnit;
 
     protected DateFieldMapper(Names names, FormatDateTimeFormatter dateTimeFormatter, int precisionStep, String fuzzyFactor,
-                              Field.Index index, Field.Store store,
-                              float boost, boolean omitNorms, IndexOptions indexOptions,
+                              float boost, FieldType fieldType,
                               String nullValue, TimeUnit timeUnit, boolean parseUpperInclusive, Explicit<Boolean> ignoreMalformed) {
-        super(names, precisionStep, fuzzyFactor, index, store, boost, omitNorms, indexOptions,
+        super(names, precisionStep, fuzzyFactor, boost, fieldType,
                 ignoreMalformed, new NamedAnalyzer("_date/" + precisionStep,
                 new NumericDateAnalyzer(precisionStep, dateTimeFormatter.parser())),
                 new NamedAnalyzer("_date/max", new NumericDateAnalyzer(Integer.MAX_VALUE, dateTimeFormatter.parser())));
@@ -174,12 +180,12 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
-    public Long value(Fieldable field) {
-        byte[] value = field.getBinaryValue();
+    public Long value(Field field) {
+        BytesRef value = field.binaryValue();
         if (value == null) {
             return null;
         }
-        return Numbers.bytesToLong(value);
+        return Numbers.bytesToLong(value.bytes);
     }
 
     @Override
@@ -188,15 +194,15 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     }
 
     /**
-     * Dates should return as a string, delegates to {@link #valueAsString(org.apache.lucene.document.Fieldable)}.
+     * Dates should return as a string.
      */
     @Override
-    public Object valueForSearch(Fieldable field) {
+    public Object valueForSearch(Field field) {
         return valueAsString(field);
     }
 
     @Override
-    public String valueAsString(Fieldable field) {
+    public String valueAsString(Field field) {
         Long value = value(field);
         if (value == null) {
             return null;
@@ -206,7 +212,9 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
 
     @Override
     public String indexedValue(String value) {
-        return NumericUtils.longToPrefixCoded(dateTimeFormatter.parser().parseMillis(value));
+        BytesRef bytesRef = new BytesRef();
+        NumericUtils.longToPrefixCoded(dateTimeFormatter.parser().parseMillis(value), precisionStep(), bytesRef);
+        return bytesRef.utf8ToString();
     }
 
     @Override
@@ -297,7 +305,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
-    protected Fieldable innerParseCreateField(ParseContext context) throws IOException {
+    protected Field innerParseCreateField(ParseContext context) throws IOException {
         String dateAsString = null;
         Long value = null;
         float boost = this.boost;
@@ -343,7 +351,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         }
 
         if (value != null) {
-            LongFieldMapper.CustomLongNumericField field = new LongFieldMapper.CustomLongNumericField(this, timeUnit.toMillis(value));
+            LongFieldMapper.CustomLongNumericField field = new LongFieldMapper.CustomLongNumericField(this, timeUnit.toMillis(value), fieldType);
             field.setBoost(boost);
             return field;
         }
@@ -356,7 +364,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         }
 
         value = parseStringValue(dateAsString);
-        LongFieldMapper.CustomLongNumericField field = new LongFieldMapper.CustomLongNumericField(this, value);
+        LongFieldMapper.CustomLongNumericField field = new LongFieldMapper.CustomLongNumericField(this, value, fieldType);
         field.setBoost(boost);
         return field;
     }
@@ -385,20 +393,30 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     @Override
     protected void doXContentBody(XContentBuilder builder) throws IOException {
         super.doXContentBody(builder);
-        if (index != Defaults.INDEX) {
-            builder.field("index", index.name().toLowerCase());
+        if (indexed() != Defaults.DATE_FIELD_TYPE.indexed() ||
+                analyzed() != Defaults.DATE_FIELD_TYPE.tokenized()) {
+            builder.field("index", indexTokenizeOptionToString(indexed(), analyzed()));
         }
-        if (store != Defaults.STORE) {
-            builder.field("store", store.name().toLowerCase());
+        if (stored() != Defaults.DATE_FIELD_TYPE.stored()) {
+            builder.field("store", stored());
         }
-        if (termVector != Defaults.TERM_VECTOR) {
-            builder.field("term_vector", termVector.name().toLowerCase());
+        if (storeTermVectors() != Defaults.DATE_FIELD_TYPE.storeTermVectors()) {
+            builder.field("store_term_vector", storeTermVectors());
         }
-        if (omitNorms != Defaults.OMIT_NORMS) {
-            builder.field("omit_norms", omitNorms);
+        if (storeTermVectorOffsets() != Defaults.DATE_FIELD_TYPE.storeTermVectorOffsets()) {
+            builder.field("store_term_vector_offsets", storeTermVectorOffsets());
         }
-        if (indexOptions != Defaults.INDEX_OPTIONS) {
-            builder.field("index_options", indexOptionToString(indexOptions));
+        if (storeTermVectorPositions() != Defaults.DATE_FIELD_TYPE.storeTermVectorPositions()) {
+            builder.field("store_term_vector_positions", storeTermVectorPositions());
+        }
+        if (storeTermVectorPayloads() != Defaults.DATE_FIELD_TYPE.storeTermVectorPayloads()) {
+            builder.field("store_term_vector_payloads", storeTermVectorPayloads());
+        }
+        if (omitNorms() != Defaults.DATE_FIELD_TYPE.omitNorms()) {
+            builder.field("omit_norms", omitNorms());
+        }
+        if (indexOptions() != Defaults.DATE_FIELD_TYPE.indexOptions()) {
+            builder.field("index_options", indexOptionToString(indexOptions()));
         }
         if (precisionStep != Defaults.PRECISION_STEP) {
             builder.field("precision_step", precisionStep);

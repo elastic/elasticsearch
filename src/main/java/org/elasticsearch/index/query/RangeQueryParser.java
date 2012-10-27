@@ -72,9 +72,9 @@ public class RangeQueryParser implements QueryParser {
                 currentFieldName = parser.currentName();
             } else {
                 if ("from".equals(currentFieldName)) {
-                    from = parser.bytesOrNull(from);
+                    from = parser.bytesOrNull();
                 } else if ("to".equals(currentFieldName)) {
-                    to = parser.bytesOrNull(to);
+                    to = parser.bytesOrNull();
                 } else if ("include_lower".equals(currentFieldName) || "includeLower".equals(currentFieldName)) {
                     includeLower = parser.booleanValue();
                 } else if ("include_upper".equals(currentFieldName) || "includeUpper".equals(currentFieldName)) {
@@ -82,16 +82,16 @@ public class RangeQueryParser implements QueryParser {
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else if ("gt".equals(currentFieldName)) {
-                    from = parser.bytesOrNull(from);
+                    from = parser.bytesOrNull();
                     includeLower = false;
                 } else if ("gte".equals(currentFieldName) || "ge".equals(currentFieldName)) {
-                    from = parser.bytesOrNull(from);
+                    from = parser.bytesOrNull();
                     includeLower = true;
                 } else if ("lt".equals(currentFieldName)) {
-                    to = parser.bytesOrNull(to);
+                    to = parser.bytesOrNull();
                     includeUpper = false;
                 } else if ("lte".equals(currentFieldName) || "le".equals(currentFieldName)) {
-                    to = parser.bytesOrNull(to);
+                    to = parser.bytesOrNull();
                     includeUpper = true;
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[range] query does not support [" + currentFieldName + "]");

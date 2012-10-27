@@ -19,11 +19,11 @@
 
 package org.elasticsearch.common.xcontent;
 
+import org.apache.lucene.util.BytesRef;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Map;
-
-import org.apache.lucene.util.BytesRef;
 
 /**
  *
@@ -130,10 +130,10 @@ public interface XContentParser extends Closeable {
     String text() throws IOException;
 
     String textOrNull() throws IOException;
-    
-    BytesRef bytesOrNull(BytesRef spare) throws IOException;
-    
-    BytesRef bytes(BytesRef spare) throws IOException;
+
+    BytesRef bytesOrNull() throws IOException;
+
+    BytesRef bytes() throws IOException;
 
     boolean hasTextCharacters();
 

@@ -20,6 +20,7 @@
 package org.elasticsearch.common.xcontent.support;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -106,26 +107,21 @@ public abstract class AbstractXContentParser implements XContentParser {
         }
         return text();
     }
-    
-    
+
 
     @Override
-    public BytesRef bytesOrNull(BytesRef spare) throws IOException {
-      if (currentToken() == Token.VALUE_NULL) {
-        return null;
-      }
-      return bytes(spare);
+    public BytesRef bytesOrNull() throws IOException {
+        if (currentToken() == Token.VALUE_NULL) {
+            return null;
+        }
+        return bytes();
     }
 
     @Override
-    public BytesRef bytes(BytesRef spare) throws IOException {
-      // LUCENE 4 UPGRADE: we can possibly make this more efficient for now I just forward to text
-      if (spare == null) {
-        return new BytesRef(text());
-      } else {
-        spare.copyChars(text());
-        return spare;
-      }
+    public BytesRef bytes() throws IOException {
+        BytesRef bytes = new BytesRef();
+        UnicodeUtil.UTF16toUTF8(textCharacters(), textOffset(), textLength(), bytes);
+        return bytes;
     }
 
     @Override

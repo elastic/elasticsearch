@@ -24,6 +24,7 @@ import com.google.common.collect.Maps;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
@@ -154,7 +155,9 @@ public class DocumentMapper implements ToXContent {
             if (indexSettings != null) {
                 String idIndexed = indexSettings.get("index.mapping._id.indexed");
                 if (idIndexed != null && Booleans.parseBoolean(idIndexed, false)) {
-                    idFieldMapper = new IdFieldMapper(Field.Index.NOT_ANALYZED);
+                    FieldType fieldType = new FieldType(IdFieldMapper.Defaults.ID_FIELD_TYPE);
+                    fieldType.setTokenized(false);
+                    idFieldMapper = new IdFieldMapper(fieldType);
                 }
             }
             this.rootMappers.put(IdFieldMapper.class, idFieldMapper);

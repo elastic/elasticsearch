@@ -20,7 +20,6 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.TokenStream;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -42,14 +41,4 @@ public abstract class NumericAnalyzer<T extends NumericTokenizer> extends Analyz
     }
 
     protected abstract T createNumericTokenizer(Reader reader, char[] buffer) throws IOException;
-
-    private static final class Holder {
-        final NumericTokenizer tokenizer;
-        final char[] buffer;
-
-        private Holder(NumericTokenizer tokenizer, char[] buffer) {
-            this.tokenizer = tokenizer;
-            this.buffer = buffer;
-        }
-    }
 }

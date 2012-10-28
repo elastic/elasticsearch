@@ -143,7 +143,7 @@ public abstract class HasParentFilter extends Filter implements ScopePhase.Colle
             }
 
             public boolean get(int doc) {
-                return !acceptDocs.get(doc) && parents.contains(idReaderTypeCache.parentIdByDoc(doc));
+                return acceptDocs.get(doc) && parents.contains(idReaderTypeCache.parentIdByDoc(doc));
             }
 
         }
@@ -229,7 +229,7 @@ public abstract class HasParentFilter extends Filter implements ScopePhase.Colle
             }
 
             public boolean get(int doc) {
-                if (acceptDocs.get(doc) || doc == -1) {
+                if (!acceptDocs.get(doc) || doc == -1) {
                     return false;
                 }
 

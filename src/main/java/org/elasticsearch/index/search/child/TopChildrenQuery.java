@@ -138,7 +138,7 @@ public class TopChildrenQuery extends Query implements ScopePhase.TopDocsPhase {
             for (AtomicReaderContext atomicReaderContext : context.searcher().getIndexReader().leaves()) {
                 AtomicReader indexReader = atomicReaderContext.reader();
                 int parentDocId = context.idCache().reader(indexReader).docById(parentType, parentId);
-                if (parentDocId != -1 && !indexReader.getLiveDocs().get(parentDocId)) {
+                if (parentDocId != -1 && indexReader.getLiveDocs().get(parentDocId)) {
                     // we found a match, add it and break
 
                     TIntObjectHashMap<ParentDoc> readerParentDocs = parentDocsPerReader.get(indexReader.getCoreCacheKey());

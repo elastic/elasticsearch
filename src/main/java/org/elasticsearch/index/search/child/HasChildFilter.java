@@ -178,7 +178,7 @@ public abstract class HasChildFilter extends Filter implements ScopePhase.Collec
             }
 
             public boolean get(int doc) {
-                return !acceptDocs.get(doc) && parents.contains(typeCache.idByDoc(doc));
+                return acceptDocs.get(doc) && parents.contains(typeCache.idByDoc(doc));
             }
         }
 

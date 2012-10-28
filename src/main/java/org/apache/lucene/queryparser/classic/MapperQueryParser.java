@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.lucene.queryParser;
+package org.apache.lucene.queryparser.classic;
 
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
@@ -25,7 +25,9 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.*;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -287,7 +289,7 @@ public class MapperQueryParser extends QueryParser {
     }
 
     @Override
-    protected Query getRangeQuery(String field, String part1, String part2, boolean inclusive) throws ParseException {
+    protected Query getRangeQuery(String field, String part1, String part2, boolean startInclusive, boolean endInclusive) throws ParseException {
         if ("*".equals(part1)) {
             part1 = null;
         }
@@ -297,13 +299,13 @@ public class MapperQueryParser extends QueryParser {
         Collection<String> fields = extractMultiFields(field);
         if (fields != null) {
             if (fields.size() == 1) {
-                return getRangeQuerySingle(fields.iterator().next(), part1, part2, inclusive);
+                return getRangeQuerySingle(fields.iterator().next(), part1, part2, startInclusive, endInclusive);
             }
             if (settings.useDisMax()) {
                 DisjunctionMaxQuery disMaxQuery = new DisjunctionMaxQuery(settings.tieBreaker());
                 boolean added = false;
                 for (String mField : fields) {
-                    Query q = getRangeQuerySingle(mField, part1, part2, inclusive);
+                    Query q = getRangeQuerySingle(mField, part1, part2, startInclusive, endInclusive);
                     if (q != null) {
                         added = true;
                         applyBoost(mField, q);
@@ -317,7 +319,7 @@ public class MapperQueryParser extends QueryParser {
             } else {
                 List<BooleanClause> clauses = new ArrayList<BooleanClause>();
                 for (String mField : fields) {
-                    Query q = getRangeQuerySingle(mField, part1, part2, inclusive);
+                    Query q = getRangeQuerySingle(mField, part1, part2, startInclusive, endInclusive);
                     if (q != null) {
                         applyBoost(mField, q);
                         clauses.add(new BooleanClause(q, BooleanClause.Occur.SHOULD));
@@ -328,18 +330,18 @@ public class MapperQueryParser extends QueryParser {
                 return getBooleanQuery(clauses, true);
             }
         } else {
-            return getRangeQuerySingle(field, part1, part2, inclusive);
+            return getRangeQuerySingle(field, part1, part2, startInclusive, endInclusive);
         }
     }
 
-    private Query getRangeQuerySingle(String field, String part1, String part2, boolean inclusive) {
+    private Query getRangeQuerySingle(String field, String part1, String part2, boolean startInclusive, boolean endInclusive) {
         currentMapper = null;
         MapperService.SmartNameFieldMappers fieldMappers = parseContext.smartFieldMappers(field);
         if (fieldMappers != null) {
             currentMapper = fieldMappers.fieldMappers().mapper();
             if (currentMapper != null) {
                 try {
-                    Query rangeQuery = currentMapper.rangeQuery(part1, part2, inclusive, inclusive, parseContext);
+                    Query rangeQuery = currentMapper.rangeQuery(part1, part2, startInclusive, startInclusive, parseContext);
                     return wrapSmartNameQuery(rangeQuery, fieldMappers, parseContext);
                 } catch (RuntimeException e) {
                     if (settings.lenient()) {
@@ -349,7 +351,7 @@ public class MapperQueryParser extends QueryParser {
                 }
             }
         }
-        return newRangeQuery(field, part1, part2, inclusive);
+        return newRangeQuery(field, part1, part2, startInclusive, endInclusive);
     }
 
     @Override
@@ -410,7 +412,11 @@ public class MapperQueryParser extends QueryParser {
 
     @Override
     protected Query newFuzzyQuery(Term term, float minimumSimilarity, int prefixLength) {
-        FuzzyQuery query = new FuzzyQuery(term, minimumSimilarity, prefixLength, settings.fuzzyMaxExpansions());
+        String text = term.text();
+        int numEdits = FuzzyQuery.floatToEdits(minimumSimilarity, 
+            text.codePointCount(0, text.length()));
+        //LUCENE 4 UPGRADE I disabled transpositions here by default - maybe this needs to be changed 
+        FuzzyQuery query = new FuzzyQuery(term, numEdits, prefixLength, settings.fuzzyMaxExpansions(), false);
         QueryParsers.setRewriteMethod(query, settings.fuzzyRewriteMethod());
         return query;
     }
@@ -503,7 +509,7 @@ public class MapperQueryParser extends QueryParser {
         // get Analyzer from superclass and tokenize the term
         TokenStream source;
         try {
-            source = getAnalyzer().reusableTokenStream(field, new StringReader(termStr));
+            source = getAnalyzer().tokenStream(field, new StringReader(termStr));
         } catch (IOException e) {
             return super.getPrefixQuery(field, termStr);
         }
@@ -631,7 +637,7 @@ public class MapperQueryParser extends QueryParser {
             if (c == '?' || c == '*') {
                 if (isWithinToken) {
                     try {
-                        TokenStream source = getAnalyzer().reusableTokenStream(field, new FastStringReader(tmp.toString()));
+                        TokenStream source = getAnalyzer().tokenStream(field, new FastStringReader(tmp.toString()));
                         CharTermAttribute termAtt = source.addAttribute(CharTermAttribute.class);
                         if (source.incrementToken()) {
                             String term = termAtt.toString();
@@ -660,7 +666,7 @@ public class MapperQueryParser extends QueryParser {
         }
         if (isWithinToken) {
             try {
-                TokenStream source = getAnalyzer().reusableTokenStream(field, new FastStringReader(tmp.toString()));
+                TokenStream source = getAnalyzer().tokenStream(field, new FastStringReader(tmp.toString()));
                 CharTermAttribute termAtt = source.addAttribute(CharTermAttribute.class);
                 if (source.incrementToken()) {
                     String term = termAtt.toString();

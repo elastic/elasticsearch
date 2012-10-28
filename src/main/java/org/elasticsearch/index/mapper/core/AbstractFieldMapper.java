@@ -76,27 +76,27 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         }
 
         @Override
-        protected T storeTermVectors(boolean termVectors) {
+        public T storeTermVectors(boolean termVectors) {
             return super.storeTermVectors(termVectors);
         }
 
         @Override
-        protected T storeTermVectorOffsets(boolean termVectorOffsets) {
+        public T storeTermVectorOffsets(boolean termVectorOffsets) {
             return super.storeTermVectorOffsets(termVectorOffsets);
         }
 
         @Override
-        protected T storeTermVectorPositions(boolean termVectorPositions) {
+        public T storeTermVectorPositions(boolean termVectorPositions) {
             return super.storeTermVectorPositions(termVectorPositions);
         }
 
         @Override
-        protected T storeTermVectorPayloads(boolean termVectorPayloads) {
+        public T storeTermVectorPayloads(boolean termVectorPayloads) {
             return super.storeTermVectorPayloads(termVectorPayloads);
         }
 
         @Override
-        protected T tokenized(boolean tokenized) {
+        public T tokenized(boolean tokenized) {
             return super.tokenized(tokenized);
         }
 

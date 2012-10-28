@@ -113,7 +113,7 @@ public interface FieldMapper<T> {
          * Creates a new index term based on the provided value.
          */
         public Term createIndexNameTerm(String value) {
-            return indexNameTermFactory.createTerm(value);
+            return new Term(indexName, value);
         }
     }
 

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.lucene.queryParser;
+package org.apache.lucene.queryparser.classic;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.query.QueryParseContext;

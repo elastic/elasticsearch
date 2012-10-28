@@ -17,13 +17,12 @@
  * under the License.
  */
 
-package org.apache.lucene.queryParser;
+package org.apache.lucene.queryparser.classic;
 
 import org.apache.lucene.search.DeletionAwareConstantScoreQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeFilter;
-import org.elasticsearch.common.lucene.search.NotFilter;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryParseContext;
 
@@ -32,14 +31,13 @@ import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameFi
 /**
  *
  */
-public class MissingFieldQueryExtension implements FieldQueryExtension {
+public class ExistsFieldQueryExtension implements FieldQueryExtension {
 
-    public static final String NAME = "_missing_";
+    public static final String NAME = "_exists_";
 
     @Override
     public Query query(QueryParseContext parseContext, String queryText) {
         String fieldName = queryText;
-
         Filter filter = null;
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
         if (smartNameFieldMappers != null) {
@@ -51,10 +49,7 @@ public class MissingFieldQueryExtension implements FieldQueryExtension {
             filter = new TermRangeFilter(fieldName, null, null, true, true);
         }
 
-        // we always cache this one, really does not change... (exists)
-        filter = parseContext.cacheFilter(filter, null);
-        filter = new NotFilter(filter);
-        // cache the not filter as well, so it will be faster
+        // we always cache this one, really does not change...
         filter = parseContext.cacheFilter(filter, null);
 
         filter = wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext);

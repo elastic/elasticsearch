@@ -23,6 +23,8 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Map;
 
+import org.apache.lucene.util.BytesRef;
+
 /**
  *
  */
@@ -128,6 +130,10 @@ public interface XContentParser extends Closeable {
     String text() throws IOException;
 
     String textOrNull() throws IOException;
+    
+    BytesRef bytesOrNull(BytesRef spare) throws IOException;
+    
+    BytesRef bytes(BytesRef spare) throws IOException;
 
     boolean hasTextCharacters();
 

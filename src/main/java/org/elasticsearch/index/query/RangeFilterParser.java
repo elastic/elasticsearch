@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.TermRangeFilter;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
@@ -53,8 +54,8 @@ public class RangeFilterParser implements FilterParser {
         boolean cache = true;
         CacheKeyFilter.Key cacheKey = null;
         String fieldName = null;
-        String from = null;
-        String to = null;
+        BytesRef from = null;
+        BytesRef to = null;
         boolean includeLower = true;
         boolean includeUpper = true;
 
@@ -71,24 +72,24 @@ public class RangeFilterParser implements FilterParser {
                         currentFieldName = parser.currentName();
                     } else {
                         if ("from".equals(currentFieldName)) {
-                            from = parser.textOrNull();
+                            from = parser.bytesOrNull(from);
                         } else if ("to".equals(currentFieldName)) {
-                            to = parser.textOrNull();
+                            to = parser.bytesOrNull(to);
                         } else if ("include_lower".equals(currentFieldName) || "includeLower".equals(currentFieldName)) {
                             includeLower = parser.booleanValue();
                         } else if ("include_upper".equals(currentFieldName) || "includeUpper".equals(currentFieldName)) {
                             includeUpper = parser.booleanValue();
                         } else if ("gt".equals(currentFieldName)) {
-                            from = parser.textOrNull();
+                            from = parser.bytesOrNull(from);
                             includeLower = false;
                         } else if ("gte".equals(currentFieldName) || "ge".equals(currentFieldName)) {
-                            from = parser.textOrNull();
+                            from = parser.bytesOrNull(from);
                             includeLower = true;
                         } else if ("lt".equals(currentFieldName)) {
-                            to = parser.textOrNull();
+                            to = parser.bytesOrNull(to);
                             includeUpper = false;
                         } else if ("lte".equals(currentFieldName) || "le".equals(currentFieldName)) {
-                            to = parser.textOrNull();
+                            to = parser.bytesOrNull(to);
                             includeUpper = true;
                         } else {
                             throw new QueryParsingException(parseContext.index(), "[range] filter does not support [" + currentFieldName + "]");
@@ -116,7 +117,8 @@ public class RangeFilterParser implements FilterParser {
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
         if (smartNameFieldMappers != null) {
             if (smartNameFieldMappers.hasMapper()) {
-                filter = smartNameFieldMappers.mapper().rangeFilter(from, to, includeLower, includeUpper, parseContext);
+                //LUCENE 4 UPGRADE range filter should use bytesref too? 
+                filter = smartNameFieldMappers.mapper().rangeFilter(from.utf8ToString(), to.utf8ToString(), includeLower, includeUpper, parseContext);
             }
         }
         if (filter == null) {

@@ -64,7 +64,7 @@ public class FuzzyQueryParser implements QueryParser {
         String minSimilarity = "0.5";
         int prefixLength = FuzzyQuery.defaultPrefixLength;
         int maxExpansions = FuzzyQuery.defaultMaxExpansions;
-        boolean transpositions = true;
+        boolean transpositions = false;
         MultiTermQuery.RewriteMethod rewriteMethod = null;
         token = parser.nextToken();
         if (token == XContentParser.Token.START_OBJECT) {
@@ -113,8 +113,8 @@ public class FuzzyQueryParser implements QueryParser {
             }
         }
         if (query == null) {
-          //LUCENE 4 UPGRADE we need to document that this should now be an int rather than a float
-          int edits = FuzzyQuery.floatToEdits(Float.parseFloat(minSimilarity), 
+            //LUCENE 4 UPGRADE we need to document that this should now be an int rather than a float
+            int edits = FuzzyQuery.floatToEdits(Float.parseFloat(minSimilarity), 
               value.codePointCount(0, value.length()));
             query = new FuzzyQuery(new Term(fieldName, value), edits, prefixLength, maxExpansions, transpositions);
         }

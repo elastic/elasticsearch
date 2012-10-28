@@ -22,9 +22,10 @@ package org.elasticsearch.index.query;
 import com.google.common.collect.Lists;
 import gnu.trove.impl.Constants;
 import gnu.trove.map.hash.TObjectFloatHashMap;
-import org.apache.lucene.queryParser.MapperQueryParser;
-import org.apache.lucene.queryParser.ParseException;
-import org.apache.lucene.queryParser.QueryParserSettings;
+
+import org.apache.lucene.queryparser.classic.MapperQueryParser;
+import org.apache.lucene.queryparser.classic.ParseException;
+import org.apache.lucene.queryparser.classic.QueryParserSettings;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
@@ -130,9 +131,9 @@ public class QueryStringQueryParser implements QueryParser {
                 } else if ("default_operator".equals(currentFieldName) || "defaultOperator".equals(currentFieldName)) {
                     String op = parser.text();
                     if ("or".equalsIgnoreCase(op)) {
-                        qpSettings.defaultOperator(org.apache.lucene.queryParser.QueryParser.Operator.OR);
+                        qpSettings.defaultOperator(org.apache.lucene.queryparser.classic.QueryParser.Operator.OR);
                     } else if ("and".equalsIgnoreCase(op)) {
-                        qpSettings.defaultOperator(org.apache.lucene.queryParser.QueryParser.Operator.AND);
+                        qpSettings.defaultOperator(org.apache.lucene.queryparser.classic.QueryParser.Operator.AND);
                     } else {
                         throw new QueryParsingException(parseContext.index(), "Query default operator [" + op + "] is not allowed");
                     }
@@ -196,7 +197,7 @@ public class QueryStringQueryParser implements QueryParser {
         qpSettings.defaultQuoteAnalyzer(parseContext.mapperService().searchQuoteAnalyzer());
 
         if (qpSettings.escape()) {
-            qpSettings.queryString(org.apache.lucene.queryParser.QueryParser.escape(qpSettings.queryString()));
+            qpSettings.queryString(org.apache.lucene.queryparser.classic.QueryParser.escape(qpSettings.queryString()));
         }
 
         qpSettings.queryTypes(parseContext.queryTypes());
@@ -220,7 +221,7 @@ public class QueryStringQueryParser implements QueryParser {
             }
             parseContext.indexCache().queryParserCache().put(qpSettings, query);
             return query;
-        } catch (ParseException e) {
+        } catch (org.apache.lucene.queryparser.classic.ParseException e) {
             throw new QueryParsingException(parseContext.index(), "Failed to parse query [" + qpSettings.queryString() + "]", e);
         }
     }

@@ -24,10 +24,14 @@ import org.apache.lucene.analysis.CachingTokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
+import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
@@ -64,6 +68,9 @@ public class MatchQuery {
     protected String fuzziness = null;
     protected int fuzzyPrefixLength = FuzzyQuery.defaultPrefixLength;
     protected int maxExpansions = FuzzyQuery.defaultMaxExpansions;
+    //LUCENE 4 UPGRADE we need a default value for this!
+    protected boolean transpositions = false;
+    
 
     protected MultiTermQuery.RewriteMethod rewriteMethod;
     protected MultiTermQuery.RewriteMethod fuzzyRewriteMethod;
@@ -101,6 +108,10 @@ public class MatchQuery {
     public void setMaxExpansions(int maxExpansions) {
         this.maxExpansions = maxExpansions;
     }
+    
+    public void setTranspositions(boolean transpositions) {
+        this.transpositions = transpositions;
+    }
 
     public void setRewriteMethod(MultiTermQuery.RewriteMethod rewriteMethod) {
         this.rewriteMethod = rewriteMethod;
@@ -116,13 +127,13 @@ public class MatchQuery {
 
     public Query parse(Type type, String fieldName, String text) {
         FieldMapper mapper = null;
-        Term fieldTerm;
+        final String field;
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
         if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
             mapper = smartNameFieldMappers.mapper();
-            fieldTerm = mapper.names().indexNameTerm();
+            field = mapper.names().indexName();
         } else {
-            fieldTerm = new Term(fieldName);
+            field = fieldName;
         }
 
         if (mapper != null && mapper.useFieldQueryWithQueryString()) {
@@ -169,13 +180,13 @@ public class MatchQuery {
         }
 
         // Logic similar to QueryParser#getFieldQuery
-
-        TokenStream source;
+        final TokenStream source;
         try {
-            source = analyzer.reusableTokenStream(fieldTerm.field(), new FastStringReader(text));
+            source = analyzer.tokenStream(field, new FastStringReader(text));
             source.reset();
-        } catch (IOException e) {
-            source = analyzer.tokenStream(fieldTerm.field(), new FastStringReader(text));
+        } catch(IOException ex) {
+            //LUCENE 4 UPGRADE not sure what todo here really lucene 3.6 had a tokenStream that didn't throw an exc. 
+            throw new ElasticSearchParseException("failed to process query", ex);
         }
         CachingTokenFilter buffer = new CachingTokenFilter(source);
         CharTermAttribute termAtt = null;
@@ -183,12 +194,7 @@ public class MatchQuery {
         int numTokens = 0;
 
         boolean success = false;
-        try {
-            buffer.reset();
-            success = true;
-        } catch (IOException e) {
-            // success==false if we hit an exception
-        }
+        buffer.reset();
         if (success) {
             if (buffer.hasAttribute(CharTermAttribute.class)) {
                 termAtt = buffer.getAttribute(CharTermAttribute.class);
@@ -233,29 +239,26 @@ public class MatchQuery {
             return MatchNoDocsQuery.INSTANCE;
         } else if (type == Type.BOOLEAN) {
             if (numTokens == 1) {
-                String term = null;
                 try {
                     boolean hasNext = buffer.incrementToken();
                     assert hasNext == true;
-                    term = termAtt.toString();
                 } catch (IOException e) {
                     // safe to ignore, because we know the number of tokens
                 }
-                Query q = newTermQuery(mapper, fieldTerm.createTerm(term));
+                //LUCENE 4 UPGRADE instead of string term we can convert directly from utf-16 to utf-8
+                Query q = newTermQuery(mapper, new Term(field, termToByteRef(termAtt, new BytesRef())));
                 return wrapSmartNameQuery(q, smartNameFieldMappers, parseContext);
             }
             BooleanQuery q = new BooleanQuery(positionCount == 1);
             for (int i = 0; i < numTokens; i++) {
-                String term = null;
                 try {
                     boolean hasNext = buffer.incrementToken();
                     assert hasNext == true;
-                    term = termAtt.toString();
                 } catch (IOException e) {
                     // safe to ignore, because we know the number of tokens
                 }
-
-                Query currentQuery = newTermQuery(mapper, fieldTerm.createTerm(term));
+                //LUCENE 4 UPGRADE instead of string term we can convert directly from utf-16 to utf-8
+                Query currentQuery = newTermQuery(mapper, new Term(field, termToByteRef(termAtt, new BytesRef())));
                 q.add(currentQuery, occur);
             }
             return wrapSmartNameQuery(q, smartNameFieldMappers, parseContext);
@@ -266,12 +269,10 @@ public class MatchQuery {
                 List<Term> multiTerms = new ArrayList<Term>();
                 int position = -1;
                 for (int i = 0; i < numTokens; i++) {
-                    String term = null;
                     int positionIncrement = 1;
                     try {
                         boolean hasNext = buffer.incrementToken();
                         assert hasNext == true;
-                        term = termAtt.toString();
                         if (posIncrAtt != null) {
                             positionIncrement = posIncrAtt.getPositionIncrement();
                         }
@@ -288,7 +289,8 @@ public class MatchQuery {
                         multiTerms.clear();
                     }
                     position += positionIncrement;
-                    multiTerms.add(fieldTerm.createTerm(term));
+                    //LUCENE 4 UPGRADE instead of string term we can convert directly from utf-16 to utf-8 
+                    multiTerms.add(new Term(field, termToByteRef(termAtt, new BytesRef())));
                 }
                 if (enablePositionIncrements) {
                     mpq.add(multiTerms.toArray(new Term[multiTerms.size()]), position);
@@ -303,13 +305,11 @@ public class MatchQuery {
 
 
                 for (int i = 0; i < numTokens; i++) {
-                    String term = null;
                     int positionIncrement = 1;
 
                     try {
                         boolean hasNext = buffer.incrementToken();
                         assert hasNext == true;
-                        term = termAtt.toString();
                         if (posIncrAtt != null) {
                             positionIncrement = posIncrAtt.getPositionIncrement();
                         }
@@ -319,9 +319,10 @@ public class MatchQuery {
 
                     if (enablePositionIncrements) {
                         position += positionIncrement;
-                        pq.add(fieldTerm.createTerm(term), position);
+                        //LUCENE 4 UPGRADE instead of string term we can convert directly from utf-16 to utf-8
+                        pq.add(new Term(field, termToByteRef(termAtt, new BytesRef())), position);
                     } else {
-                        pq.add(fieldTerm.createTerm(term));
+                        pq.add(new Term(field, termToByteRef(termAtt, new BytesRef())));
                     }
                 }
                 return wrapSmartNameQuery(pq, smartNameFieldMappers, parseContext);
@@ -333,12 +334,10 @@ public class MatchQuery {
             List<Term> multiTerms = new ArrayList<Term>();
             int position = -1;
             for (int i = 0; i < numTokens; i++) {
-                String term = null;
                 int positionIncrement = 1;
                 try {
                     boolean hasNext = buffer.incrementToken();
                     assert hasNext == true;
-                    term = termAtt.toString();
                     if (posIncrAtt != null) {
                         positionIncrement = posIncrAtt.getPositionIncrement();
                     }
@@ -355,7 +354,8 @@ public class MatchQuery {
                     multiTerms.clear();
                 }
                 position += positionIncrement;
-                multiTerms.add(fieldTerm.createTerm(term));
+                //LUCENE 4 UPGRADE instead of string term we can convert directly from utf-16 to utf-8
+                multiTerms.add(new Term(field, termToByteRef(termAtt, new BytesRef())));
             }
             if (enablePositionIncrements) {
                 mpq.add(multiTerms.toArray(new Term[multiTerms.size()]), position);
@@ -376,7 +376,11 @@ public class MatchQuery {
                     QueryParsers.setRewriteMethod((FuzzyQuery) query, fuzzyRewriteMethod);
                 }
             }
-            FuzzyQuery query = new FuzzyQuery(term, Float.parseFloat(fuzziness), fuzzyPrefixLength, maxExpansions);
+            String text = term.text();
+            //LUCENE 4 UPGRADE we need to document that this should now be an int rather than a float
+            int edits = FuzzyQuery.floatToEdits(Float.parseFloat(fuzziness), 
+              text.codePointCount(0, text.length()));
+            FuzzyQuery query = new FuzzyQuery(term, edits, fuzzyPrefixLength, maxExpansions, transpositions);
             QueryParsers.setRewriteMethod(query, rewriteMethod);
             return query;
         }
@@ -387,5 +391,10 @@ public class MatchQuery {
             }
         }
         return new TermQuery(term);
+    }
+    
+    private static BytesRef termToByteRef(CharTermAttribute attr, BytesRef ref) {
+        UnicodeUtil.UTF16toUTF8WithHash(attr.buffer(), 0, attr.length(), ref);
+        return ref;
     }
 }

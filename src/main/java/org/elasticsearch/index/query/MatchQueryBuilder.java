@@ -77,6 +77,8 @@ public class MatchQueryBuilder extends BaseQueryBuilder implements BoostableQuer
     private String fuzzyRewrite = null;
 
     private Boolean lenient;
+    
+    private Boolean fuzzyTranspositions = null;
 
     /**
      * Constructs a new text query.
@@ -163,6 +165,12 @@ public class MatchQueryBuilder extends BaseQueryBuilder implements BoostableQuer
         this.fuzzyRewrite = fuzzyRewrite;
         return this;
     }
+    
+    public MatchQueryBuilder fuzzyTranspositions(boolean fuzzyTranspositions) {
+        //LUCENE 4 UPGRADE add documentation
+        this.fuzzyTranspositions = fuzzyTranspositions;
+        return this;
+    }
 
     /**
      * Sets whether format based failures will be ignored.
@@ -211,7 +219,10 @@ public class MatchQueryBuilder extends BaseQueryBuilder implements BoostableQuer
         if (fuzzyRewrite != null) {
             builder.field("fuzzy_rewrite", fuzzyRewrite);
         }
-
+        if (fuzzyTranspositions != null) {
+            //LUCENE 4 UPGRADE we need to document this & test this
+            builder.field("fuzzy_transpositions", fuzzyTranspositions);
+        }
         if (lenient != null) {
             builder.field("lenient", lenient);
         }

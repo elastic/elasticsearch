@@ -43,7 +43,7 @@ public class FuzzyQueryBuilder extends BaseQueryBuilder implements BoostableQuer
     private Integer maxExpansions;
     
     //LUCENE 4 UPGRADE  we need a testcase for this + documentation
-    private Boolean transpositions = true;
+    private Boolean transpositions;
 
     /**
      * Constructs a new term query.
@@ -101,7 +101,7 @@ public class FuzzyQueryBuilder extends BaseQueryBuilder implements BoostableQuer
             if (boost != -1) {
                 builder.field("boost", boost);
             }
-            if (!transpositions) {
+            if (transpositions != null) {
                 builder.field("transpositions", transpositions);
             }
             if (minSimilarity != null) {

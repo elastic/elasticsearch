@@ -102,7 +102,7 @@ public class IdsQueryParser implements QueryParser {
             types = parseContext.mapperService().types();
         }
 
-        UidFilter filter = new UidFilter(types, ids, parseContext.indexCache().bloomCache());
+        UidFilter filter = new UidFilter(types, ids);
         // no need for constant score filter, since we don't cache the filter, and it always takes deletes into account
         ConstantScoreQuery query = new ConstantScoreQuery(filter);
         query.setBoost(boost);

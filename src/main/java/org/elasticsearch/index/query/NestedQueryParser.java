@@ -19,8 +19,15 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.*;
+import java.io.IOException;
+
+import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.search.DeletionAwareConstantScoreQuery;
+import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FilteredQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -29,8 +36,6 @@ import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.search.nested.BlockJoinQuery;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.search.internal.SearchContext;
-
-import java.io.IOException;
 
 public class NestedQueryParser implements QueryParser {
 
@@ -184,8 +189,9 @@ public class NestedQueryParser implements QueryParser {
         }
 
         @Override
-        public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
-            return filter.getDocIdSet(reader);
+        public DocIdSet getDocIdSet(AtomicReaderContext ctx, Bits liveDocs) throws IOException {
+            //LUCENE 4 UPGRADE just passing on ctx and live docs here
+            return filter.getDocIdSet(ctx, liveDocs);
         }
     }
 }

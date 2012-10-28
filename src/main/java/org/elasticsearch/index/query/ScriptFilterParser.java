@@ -20,9 +20,14 @@
 package org.elasticsearch.index.query;
 
 import com.google.common.collect.Maps;
+
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.BitsFilteredDocIdSet;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FilteredDocIdSet;
+import org.apache.lucene.util.Bits;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.inject.Inject;
@@ -160,9 +165,10 @@ public class ScriptFilterParser implements FilterParser {
         }
 
         @Override
-        public DocIdSet getDocIdSet(final IndexReader reader) throws IOException {
-            searchScript.setNextReader(reader);
-            return new ScriptDocSet(reader, searchScript);
+        public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+            searchScript.setNextReader(context.reader());
+            // LUCENE 4 UPGRADE: we can simply wrap this here since it is not cacheable and if we are not top level we will get a null passed anyway 
+            return BitsFilteredDocIdSet.wrap(new ScriptDocSet(context.reader(), searchScript), acceptDocs);
         }
 
         static class ScriptDocSet extends GetDocSet {

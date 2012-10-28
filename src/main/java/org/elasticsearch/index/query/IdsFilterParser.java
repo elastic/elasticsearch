@@ -98,7 +98,7 @@ public class IdsFilterParser implements FilterParser {
             types = parseContext.mapperService().types();
         }
 
-        UidFilter filter = new UidFilter(types, ids, parseContext.indexCache().bloomCache());
+        UidFilter filter = new UidFilter(types, ids);
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);
         }

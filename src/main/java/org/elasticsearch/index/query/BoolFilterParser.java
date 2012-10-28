@@ -21,7 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilterClause;
+import org.apache.lucene.queries.FilterClause;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.xcontent.XContentParser;

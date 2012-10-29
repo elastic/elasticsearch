@@ -186,8 +186,8 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                 try {
                     for (Object textToHighlight : textsToHighlight) {
                         String text = textToHighlight.toString();
-                        Analyzer analyzer = context.mapperService().documentMapper(hitContext.hit().type()).mappers().indexAnalyzer()
-                        TokenStream tokenStream = analyzer.reusableTokenStream(mapper.names().indexName(), new FastStringReader(text));
+                        Analyzer analyzer = context.mapperService().documentMapper(hitContext.hit().type()).mappers().indexAnalyzer();
+                        TokenStream tokenStream = analyzer.tokenStream(mapper.names().indexName(), new FastStringReader(text));
                         TextFragment[] bestTextFragments = entry.highlighter.getBestTextFragments(tokenStream, text, false, numberOfFragments);
                         for (TextFragment bestTextFragment : bestTextFragments) {
                             if (bestTextFragment != null && bestTextFragment.getScore() > 0) {

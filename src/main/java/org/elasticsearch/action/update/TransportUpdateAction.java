@@ -179,7 +179,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 listener.onFailure(new DocumentMissingException(new ShardId(request.index(), request.shardId()), request.type(), request.id()));
                 return;
             }
-            IndexRequest indexRequest = request.upsertRequest();
+            final IndexRequest indexRequest = request.upsertRequest();
             indexRequest.index(request.index()).type(request.type()).id(request.id())
                     // it has to be a "create!"
                     .create(true)
@@ -195,8 +195,12 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 public void onResponse(IndexResponse response) {
                     UpdateResponse update = new UpdateResponse(response.index(), response.type(), response.id(), response.version());
                     update.matches(response.matches());
-                    // TODO: we can parse the index _source and extractGetResult if applicable
-                    update.getResult(null);
+                    if (request.fields() != null && request.fields().length > 0) {
+                        Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(updateSourceBytes, true);
+                        update.getResult(extractGetResult(request, response.version(), sourceAndContent.v2(), sourceAndContent.v1(), updateSourceBytes));
+                    } else {
+                        update.getResult(null);
+                    }
                     listener.onResponse(update);
                 }
 

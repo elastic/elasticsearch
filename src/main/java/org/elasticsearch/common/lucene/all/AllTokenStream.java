@@ -23,7 +23,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.PayloadAttribute;
-import org.apache.lucene.index.Payload;
+import org.apache.lucene.util.BytesRef;
 
 import java.io.IOException;
 
@@ -35,8 +35,10 @@ import static org.apache.lucene.analysis.payloads.PayloadHelper.encodeFloat;
 public final class AllTokenStream extends TokenFilter {
 
     public static TokenStream allTokenStream(String allFieldName, AllEntries allEntries, Analyzer analyzer) throws IOException {
-        return new AllTokenStream(analyzer.reusableTokenStream(allFieldName, allEntries), allEntries);
+        return new AllTokenStream(analyzer.tokenStream(allFieldName, allEntries), allEntries);
     }
+    
+    private final BytesRef payloadSpare = new BytesRef(new byte[4]);
 
     private final AllEntries allEntries;
 
@@ -60,7 +62,8 @@ public final class AllTokenStream extends TokenFilter {
         if (allEntries.current() != null) {
             float boost = allEntries.current().boost();
             if (boost != 1.0f) {
-                payloadAttribute.setPayload(new Payload(encodeFloat(boost)));
+                encodeFloat(boost, payloadSpare.bytes, payloadSpare.offset);
+                payloadAttribute.setPayload(payloadSpare);
             } else {
                 payloadAttribute.setPayload(null);
             }

@@ -23,6 +23,9 @@ import com.google.common.collect.Lists;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -245,8 +248,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             try {
                 // commit on a just opened writer will commit even if there are no changes done to it
                 // we rely on that for the commit data translog id key
-                if (IndexReader.indexExists(store.directory())) {
-                    Map<String, String> commitUserData = IndexReader.getCommitUserData(store.directory());
+                if (DirectoryReader.indexExists(store.directory())) {
+                    Map<String, String> commitUserData = getCommitUserData(store.directory());
                     if (commitUserData.containsKey(Translog.TRANSLOG_ID_KEY)) {
                         translogIdGenerator.set(Long.parseLong(commitUserData.get(Translog.TRANSLOG_ID_KEY)));
                     } else {
@@ -861,7 +864,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                             indexWriter.commit(MapBuilder.<String, String>newMapBuilder().put(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)).map());
                             if (flush.force()) {
                                 // if we force, we might not have committed, we need to check that its the same id
-                                Map<String, String> commitUserData = IndexReader.getCommitUserData(store.directory());
+                                Map<String, String> commitUserData = getCommitUserData(store.directory());
                                 long committedTranslogId = Long.parseLong(commitUserData.get(Translog.TRANSLOG_ID_KEY));
                                 if (committedTranslogId != translogId) {
                                     // we did not commit anything, revert to the old translog
@@ -1325,7 +1328,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                 logger.warn("shard is locked, releasing lock");
                 IndexWriter.unlock(store.directory());
             }
-            boolean create = !IndexReader.indexExists(store.directory());
+            boolean create = !DirectoryReader.indexExists(store.directory());
             IndexWriterConfig config = new IndexWriterConfig(Lucene.VERSION, analysisService.defaultIndexAnalyzer());
             config.setOpenMode(create ? IndexWriterConfig.OpenMode.CREATE : IndexWriterConfig.OpenMode.APPEND);
             config.setIndexDeletionPolicy(deletionPolicy);
@@ -1530,5 +1533,14 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             }
             return searcher;
         }
+    }
+    
+    /**
+     * Reads the latest commit and loads the userdata
+     */
+    private static final Map<String, String> getCommitUserData(final Directory directory) throws IOException {
+        final SegmentInfos sis = new SegmentInfos();
+        sis.read(directory);
+        return sis.getUserData();
     }
 }

@@ -74,11 +74,6 @@ public class MultipleFieldsVisitor extends BaseFieldVisitor {
     }
 
     @Override
-    public void reset() {
-        doc = null;
-    }
-
-    @Override
     public Document createDocument() {
         return doc;
     }

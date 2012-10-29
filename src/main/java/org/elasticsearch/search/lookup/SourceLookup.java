@@ -60,8 +60,9 @@ public class SourceLookup implements Map {
             return source;
         }
         try {
-            reader.document(docId, SourceFieldVisitor.INSTANCE);
-            BytesRef source = SourceFieldVisitor.INSTANCE.source();
+            SourceFieldVisitor sourceFieldVisitor = new SourceFieldVisitor();
+            reader.document(docId, sourceFieldVisitor);
+            BytesRef source = sourceFieldVisitor.source();
             if (source == null) {
                 this.source = ImmutableMap.of();
             } else {
@@ -69,8 +70,6 @@ public class SourceLookup implements Map {
             }
         } catch (Exception e) {
             throw new ElasticSearchParseException("failed to parse / load source", e);
-        } finally {
-            SourceFieldVisitor.INSTANCE.reset();
         }
         return this.source;
     }

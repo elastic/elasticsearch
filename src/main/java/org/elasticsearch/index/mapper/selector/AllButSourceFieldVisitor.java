@@ -28,7 +28,6 @@ import java.io.IOException;
 /**
  * A field selector that loads all fields except the source field.
  */
-// LUCENE 4 UPGRADE: change into singleton
 public class AllButSourceFieldVisitor extends MultipleFieldsVisitor {
 
     @Override

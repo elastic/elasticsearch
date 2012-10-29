@@ -32,7 +32,6 @@ import java.io.IOException;
 /**
  * An optimized field selector that loads just the uid and the source.
  */
-// LUCENE 4 UPGRADE: change into singleton
 public class UidAndSourceFieldVisitor extends BaseFieldVisitor {
 
     private String uid;
@@ -55,12 +54,6 @@ public class UidAndSourceFieldVisitor extends BaseFieldVisitor {
         }
 
         return uid != null && source != null ? Status.STOP : Status.NO;
-    }
-
-    @Override
-    public void reset() {
-        uid = null;
-        source = null;
     }
 
     @Override

@@ -213,7 +213,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
     }
 
     public BaseFieldVisitor fieldSelector() {
-        return SourceFieldVisitor.INSTANCE;
+        return new SourceFieldVisitor();
     }
 
     @Override

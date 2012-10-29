@@ -20,11 +20,13 @@
 package org.elasticsearch.index.get;
 
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.Term;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.document.ResetFieldSelector;
+import org.elasticsearch.common.lucene.document.BaseFieldVisitor;
 import org.elasticsearch.common.lucene.uid.UidField;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
@@ -33,7 +35,7 @@ import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.internal.*;
-import org.elasticsearch.index.mapper.selector.FieldMappersFieldSelector;
+import org.elasticsearch.index.mapper.selector.FieldMappersFieldVisitor;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
@@ -140,7 +142,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
         Engine.GetResult get = null;
         if (type == null || type.equals("_all")) {
             for (String typeX : mapperService.types()) {
-                get = indexShard.get(new Engine.Get(realtime, UidFieldMapper.TERM_FACTORY.createTerm(Uid.createUid(typeX, id))).loadSource(loadSource));
+                get = indexShard.get(new Engine.Get(realtime, new Term(UidFieldMapper.NAME, Uid.createUid(typeX, id))).loadSource(loadSource));
                 if (get.exists()) {
                     type = typeX;
                     break;
@@ -156,7 +158,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
                 return new GetResult(shardId.index().name(), type, id, -1, false, null, null);
             }
         } else {
-            get = indexShard.get(new Engine.Get(realtime, UidFieldMapper.TERM_FACTORY.createTerm(Uid.createUid(type, id))).loadSource(loadSource));
+            get = indexShard.get(new Engine.Get(realtime, new Term(UidFieldMapper.NAME, Uid.createUid(type, id))).loadSource(loadSource));
             if (!get.exists()) {
                 get.release();
                 return new GetResult(shardId.index().name(), type, id, -1, false, null, null);
@@ -277,19 +279,21 @@ public class ShardGetService extends AbstractIndexShardComponent {
         Map<String, GetField> fields = null;
         byte[] source = null;
         UidField.DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
-        ResetFieldSelector fieldSelector = buildFieldSelectors(docMapper, gFields);
-        if (fieldSelector != null) {
-            fieldSelector.reset();
+        // LUCENE 4 UPGRADE: optimize when only a single field needs to be loaded
+        BaseFieldVisitor fieldVisitor = buildFieldSelectors(docMapper, gFields);
+        if (fieldVisitor != null) {
+            fieldVisitor.reset();
             Document doc;
             try {
-                doc = docIdAndVersion.reader.document(docIdAndVersion.docId, fieldSelector);
+                docIdAndVersion.reader.reader().document(docIdAndVersion.docId, fieldVisitor);
+                doc = fieldVisitor.createDocument();
             } catch (IOException e) {
                 throw new ElasticSearchException("Failed to get type [" + type + "] and id [" + id + "]", e);
             }
             source = extractSource(doc, docMapper);
 
             for (Object oField : doc.getFields()) {
-                Fieldable field = (Fieldable) oField;
+                Field field = (Field) oField;
                 String name = field.name();
                 Object value = null;
                 FieldMappers fieldMappers = docMapper.mappers().indexName(field.name());
@@ -301,8 +305,8 @@ public class ShardGetService extends AbstractIndexShardComponent {
                     }
                 }
                 if (value == null) {
-                    if (field.isBinary()) {
-                        value = new BytesArray(field.getBinaryValue(), field.getBinaryOffset(), field.getBinaryLength());
+                    if (field.binaryValue() != null) {
+                        value = new BytesArray(field.binaryValue());
                     } else {
                         value = field.stringValue();
                     }
@@ -371,7 +375,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
         return new GetResult(shardId.index().name(), type, id, get.version(), get.exists(), source == null ? null : new BytesArray(source), fields);
     }
 
-    private static ResetFieldSelector buildFieldSelectors(DocumentMapper docMapper, String... fields) {
+    private static BaseFieldVisitor buildFieldSelectors(DocumentMapper docMapper, String... fields) {
         if (fields == null) {
             return docMapper.sourceMapper().fieldSelector();
         }
@@ -381,25 +385,26 @@ public class ShardGetService extends AbstractIndexShardComponent {
             return null;
         }
 
-        FieldMappersFieldSelector fieldSelector = null;
+        FieldMappersFieldVisitor fieldVisitor = null;
         for (String fieldName : fields) {
             FieldMappers x = docMapper.mappers().smartName(fieldName);
             if (x != null && x.mapper().stored()) {
-                if (fieldSelector == null) {
-                    fieldSelector = new FieldMappersFieldSelector();
+                if (fieldVisitor == null) {
+                    fieldVisitor = new FieldMappersFieldVisitor();
                 }
-                fieldSelector.add(x);
+                fieldVisitor.add(x);
             }
         }
 
-        return fieldSelector;
+        return fieldVisitor;
     }
 
     private static byte[] extractSource(Document doc, DocumentMapper documentMapper) {
         byte[] source = null;
-        Fieldable sourceField = doc.getFieldable(documentMapper.sourceMapper().names().indexName());
+        IndexableField sourceField = doc.getField(documentMapper.sourceMapper().names().indexName());
         if (sourceField != null) {
-            source = documentMapper.sourceMapper().nativeValue(sourceField);
+            // LUCENE 4 UPGRADE: Field instead of IndexableField?
+            source = documentMapper.sourceMapper().nativeValue((Field) sourceField);
             doc.removeField(documentMapper.sourceMapper().names().indexName());
         }
         return source;

@@ -19,27 +19,24 @@
 
 package org.elasticsearch.index.mapper.selector;
 
-import org.apache.lucene.document.FieldSelectorResult;
-import org.elasticsearch.common.lucene.document.ResetFieldSelector;
+import org.apache.lucene.index.FieldInfo;
+import org.elasticsearch.common.lucene.document.MultipleFieldsVisitor;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
+
+import java.io.IOException;
 
 /**
  * A field selector that loads all fields except the source field.
  */
-public class AllButSourceFieldSelector implements ResetFieldSelector {
-
-    public static final AllButSourceFieldSelector INSTANCE = new AllButSourceFieldSelector();
+// LUCENE 4 UPGRADE: change into singleton
+public class AllButSourceFieldVisitor extends MultipleFieldsVisitor {
 
     @Override
-    public FieldSelectorResult accept(String fieldName) {
-        if (SourceFieldMapper.NAME.equals(fieldName)) {
-            return FieldSelectorResult.NO_LOAD;
+    public Status needsField(FieldInfo fieldInfo) throws IOException {
+        if (SourceFieldMapper.NAME.equals(fieldInfo.name)) {
+            return Status.NO;
         }
-        return FieldSelectorResult.LOAD;
-    }
-
-    @Override
-    public void reset() {
+        return super.needsField(fieldInfo);
     }
 
     @Override

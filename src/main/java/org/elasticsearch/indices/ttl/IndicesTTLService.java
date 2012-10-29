@@ -19,8 +19,8 @@
 
 package org.elasticsearch.indices.ttl;
 
-import org.apache.lucene.document.Document;
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
@@ -44,16 +44,16 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.mapper.internal.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.mapper.selector.UidAndRoutingFieldSelector;
+import org.elasticsearch.index.mapper.selector.UidAndRoutingFieldVisitor;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.settings.NodeSettingsService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -220,7 +220,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
     }
 
     private class ExpiredDocsCollector extends Collector {
-        private IndexReader indexReader;
+        private AtomicReaderContext context;
         private List<DocToPurge> docsToPurge = new ArrayList<DocToPurge>();
 
         public ExpiredDocsCollector() {
@@ -235,17 +235,18 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
 
         public void collect(int doc) {
             try {
-                Document document = indexReader.document(doc, new UidAndRoutingFieldSelector());
-                String uid = document.getFieldable(UidFieldMapper.NAME).stringValue();
-                long version = UidField.loadVersion(indexReader, UidFieldMapper.TERM_FACTORY.createTerm(uid));
-                docsToPurge.add(new DocToPurge(Uid.typeFromUid(uid), Uid.idFromUid(uid), version, document.get(RoutingFieldMapper.NAME)));
+                UidAndRoutingFieldVisitor fieldVisitor = new UidAndRoutingFieldVisitor();
+                context.reader().document(doc, new UidAndRoutingFieldVisitor());
+                String uid = fieldVisitor.uid();
+                long version = UidField.loadVersion(context, new Term(UidFieldMapper.NAME, uid));
+                docsToPurge.add(new DocToPurge(Uid.typeFromUid(uid), Uid.idFromUid(uid), version, fieldVisitor.routing()));
             } catch (Exception e) {
                 logger.trace("failed to collect doc", e);
             }
         }
 
-        public void setNextReader(IndexReader reader, int docBase) {
-            this.indexReader = reader;
+        public void setNextReader(AtomicReaderContext context) throws IOException {
+            this.context = context;
         }
 
         public List<DocToPurge> getDocsToPurge() {

@@ -36,7 +36,7 @@ import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.CachedStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.document.ResetFieldSelector;
+import org.elasticsearch.common.lucene.document.BaseFieldVisitor;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -212,8 +212,8 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
         return this.enabled;
     }
 
-    public ResetFieldSelector fieldSelector() {
-        return SourceFieldSelector.INSTANCE;
+    public BaseFieldVisitor fieldSelector() {
+        return SourceFieldVisitor.INSTANCE;
     }
 
     @Override

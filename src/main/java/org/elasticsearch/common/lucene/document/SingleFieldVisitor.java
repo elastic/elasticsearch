@@ -81,9 +81,4 @@ public class SingleFieldVisitor extends BaseFieldVisitor {
             values.add(value);
         }
     }
-
-    @Override
-    public void reset() {
-        values = null;
-    }
 }

@@ -32,15 +32,14 @@ import java.io.IOException;
  */
 public class UidFieldVisitor extends BaseFieldVisitor {
 
-    public static final UidFieldVisitor INSTANCE = new UidFieldVisitor();
-    private static ThreadLocal<String> loadingContext = new ThreadLocal<String>();
+    private String uid;
 
-    private UidFieldVisitor() {
+    public UidFieldVisitor() {
     }
 
     @Override
     public void stringField(FieldInfo fieldInfo, String value) throws IOException {
-        loadingContext.set(value);
+        uid = value;
     }
 
     @Override
@@ -48,23 +47,18 @@ public class UidFieldVisitor extends BaseFieldVisitor {
         if (UidFieldMapper.NAME.equals(fieldInfo.name)) {
             return Status.YES;
         }
-        return loadingContext.get() != null ? Status.STOP : Status.NO;
-    }
-
-    @Override
-    public void reset() {
-        loadingContext.remove();
+        return uid != null ? Status.STOP : Status.NO;
     }
 
     @Override
     public Document createDocument() {
         Document document = new Document();
-        document.add(new StoredField("_uid", loadingContext.get()));
+        document.add(new StoredField("_uid", uid));
         return document;
     }
 
     public String uid() {
-        return loadingContext.get();
+        return uid;
     }
 
     @Override

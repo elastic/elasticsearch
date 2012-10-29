@@ -31,7 +31,6 @@ import java.io.IOException;
 /**
  * An optimized field selector that loads just the uid and the routing.
  */
-// LUCENE 4 UPGRADE: change into singleton
 public class UidAndRoutingFieldVisitor extends BaseFieldVisitor {
 
     private String uid;
@@ -63,12 +62,6 @@ public class UidAndRoutingFieldVisitor extends BaseFieldVisitor {
         } else if (UidFieldMapper.NAME.equals(fieldInfo.name)) {
             uid = value;
         }
-    }
-
-    @Override
-    public void reset() {
-        uid = null;
-        routing = null;
     }
 
     public String uid() {

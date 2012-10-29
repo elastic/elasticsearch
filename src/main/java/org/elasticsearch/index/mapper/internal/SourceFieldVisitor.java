@@ -32,39 +32,30 @@ import java.io.IOException;
  */
 public class SourceFieldVisitor extends BaseFieldVisitor {
 
-    public static final SourceFieldVisitor INSTANCE = new SourceFieldVisitor();
-    private static ThreadLocal<BytesRef> loadingContext = new ThreadLocal<BytesRef>();
-
-    private SourceFieldVisitor() {
-    }
+    private BytesRef source;
 
     @Override
     public Status needsField(FieldInfo fieldInfo) throws IOException {
         if (SourceFieldMapper.NAME.equals(fieldInfo.name)) {
             return Status.YES;
         }
-        return loadingContext.get() != null ? Status.STOP : Status.NO;
+        return source != null ? Status.STOP : Status.NO;
     }
 
     @Override
     public void binaryField(FieldInfo fieldInfo, byte[] value) throws IOException {
-        loadingContext.set(new BytesRef(value));
-    }
-
-    @Override
-    public void reset() {
-        loadingContext.remove();
+        source = new BytesRef(value);
     }
 
     @Override
     public Document createDocument() {
         Document document = new Document();
-        document.add(new StoredField("_source", loadingContext.get().utf8ToString()));
+        document.add(new StoredField("_source", source));
         return document;
     }
 
     public BytesRef source() {
-        return loadingContext.get();
+        return source;
     }
 
     @Override

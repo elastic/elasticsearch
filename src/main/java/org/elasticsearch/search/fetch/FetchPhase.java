@@ -100,14 +100,14 @@ public class FetchPhase implements SearchPhase {
                 sourceRequested = false;
             } else if (context.hasScriptFields()) {
                 // we ask for script fields, and no field names, don't load the source
-                fieldVisitor = UidFieldVisitor.INSTANCE;
+                fieldVisitor = new UidFieldVisitor();
                 sourceRequested = false;
             } else {
                 fieldVisitor = new UidAndSourceFieldVisitor();
                 sourceRequested = true;
             }
         } else if (context.fieldNames().isEmpty()) {
-            fieldVisitor = UidFieldVisitor.INSTANCE;
+            fieldVisitor = new UidFieldVisitor();
             sourceRequested = false;
         } else {
             boolean loadAllStored = false;
@@ -151,7 +151,7 @@ public class FetchPhase implements SearchPhase {
             } else if (extractFieldNames != null || sourceRequested) {
                 fieldVisitor = new UidAndSourceFieldVisitor();
             } else {
-                fieldVisitor = UidFieldVisitor.INSTANCE;
+                fieldVisitor = new UidFieldVisitor();
             }
         }
 
@@ -288,9 +288,7 @@ public class FetchPhase implements SearchPhase {
 
     private Document loadDocument(SearchContext context, @Nullable BaseFieldVisitor fieldVisitor, int docId) {
         try {
-            if (fieldVisitor != null) {
-                fieldVisitor.reset();
-            } else {
+            if (fieldVisitor == null) {
                 return context.searcher().doc(docId);
             }
             context.searcher().doc(docId, fieldVisitor);

@@ -20,7 +20,7 @@
 package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.index.mapper.FieldMapper;
 
@@ -89,7 +89,7 @@ public class FieldLookup {
         if (field == null) {
             return null;
         }
-        value = mapper.value(field);
+        value = mapper.value((Field) field);
         return value;
     }
 
@@ -101,7 +101,7 @@ public class FieldLookup {
         values.clear();
         IndexableField[] fields = doc.getFields(mapper.names().indexName());
         for (IndexableField field : fields) {
-            values.add(mapper.value(field));
+            values.add(mapper.value((Field) field));
         }
         return values;
     }

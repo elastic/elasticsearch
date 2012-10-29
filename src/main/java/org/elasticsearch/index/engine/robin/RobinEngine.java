@@ -188,12 +188,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         ByteSizeValue preValue = this.indexingBufferSize;
         rwl.readLock().lock();
         try {
-            // LUCENE MONITOR - If this restriction is removed from Lucene, remove it from here
-            if (indexingBufferSize.mbFrac() > 2048.0) {
-                this.indexingBufferSize = new ByteSizeValue(2048, ByteSizeUnit.MB);
-            } else {
-                this.indexingBufferSize = indexingBufferSize;
-            }
+            this.indexingBufferSize = indexingBufferSize;
             IndexWriter indexWriter = this.indexWriter;
             if (indexWriter != null) {
                 indexWriter.getConfig().setRAMBufferSizeMB(this.indexingBufferSize.mbFrac());

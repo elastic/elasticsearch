@@ -19,31 +19,52 @@
 
 package org.elasticsearch.index.mapper.selector;
 
-import org.apache.lucene.document.FieldSelectorResult;
-import org.elasticsearch.common.lucene.document.ResetFieldSelector;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.FieldInfo;
+import org.elasticsearch.common.lucene.document.BaseFieldVisitor;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+
+import java.io.IOException;
 
 /**
  * An optimized field selector that loads just the uid.
  */
-public class UidFieldSelector implements ResetFieldSelector {
+public class UidFieldVisitor extends BaseFieldVisitor {
 
-    public static final UidFieldSelector INSTANCE = new UidFieldSelector();
+    public static final UidFieldVisitor INSTANCE = new UidFieldVisitor();
+    private static ThreadLocal<String> loadingContext = new ThreadLocal<String>();
 
-    private UidFieldSelector() {
-
+    private UidFieldVisitor() {
     }
 
     @Override
-    public FieldSelectorResult accept(String fieldName) {
-        if (UidFieldMapper.NAME.equals(fieldName)) {
-            return FieldSelectorResult.LOAD_AND_BREAK;
+    public void stringField(FieldInfo fieldInfo, String value) throws IOException {
+        loadingContext.set(value);
+    }
+
+    @Override
+    public Status needsField(FieldInfo fieldInfo) throws IOException {
+        if (UidFieldMapper.NAME.equals(fieldInfo.name)) {
+            return Status.YES;
         }
-        return FieldSelectorResult.NO_LOAD;
+        return loadingContext.get() != null ? Status.STOP : Status.NO;
     }
 
     @Override
     public void reset() {
+        loadingContext.remove();
+    }
+
+    @Override
+    public Document createDocument() {
+        Document document = new Document();
+        document.add(new StoredField("_uid", loadingContext.get()));
+        return document;
+    }
+
+    public String uid() {
+        return loadingContext.get();
     }
 
     @Override

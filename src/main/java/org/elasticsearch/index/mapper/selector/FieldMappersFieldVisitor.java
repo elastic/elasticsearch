@@ -17,36 +17,29 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper.internal;
+package org.elasticsearch.index.mapper.selector;
 
-import org.apache.lucene.document.FieldSelectorResult;
-import org.elasticsearch.common.lucene.document.ResetFieldSelector;
+import org.elasticsearch.common.lucene.document.MultipleFieldsVisitor;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.FieldMappers;
 
 /**
- * An optimized field selector that loads just the uid.
+ *
  */
-public class SourceFieldSelector implements ResetFieldSelector {
+public class FieldMappersFieldVisitor extends MultipleFieldsVisitor {
 
-    public static final SourceFieldSelector INSTANCE = new SourceFieldSelector();
-
-    private SourceFieldSelector() {
-
+    public void add(String fieldName) {
+        fieldsToAdd.add(fieldName);
     }
 
-    @Override
-    public FieldSelectorResult accept(String fieldName) {
-        if (SourceFieldMapper.NAME.equals(fieldName)) {
-            return FieldSelectorResult.LOAD_AND_BREAK;
+    public void add(FieldMappers fieldMappers) {
+        for (FieldMapper fieldMapper : fieldMappers) {
+            fieldsToAdd.add(fieldMapper.names().indexName());
         }
-        return FieldSelectorResult.NO_LOAD;
-    }
-
-    @Override
-    public void reset() {
     }
 
     @Override
     public String toString() {
-        return "source";
+        return "fields(" + fieldsToAdd + ")";
     }
 }

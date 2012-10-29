@@ -92,18 +92,6 @@ public class Lucene {
         return countCollector.getTotalHits();
     }
 
-    public static int docId(IndexReader reader, Term term) throws IOException {
-        TermDocs termDocs = reader.termDocs(term);
-        try {
-            if (termDocs.next()) {
-                return termDocs.doc();
-            }
-            return NO_DOC;
-        } finally {
-            termDocs.close();
-        }
-    }
-
     /**
      * Closes the index writer, returning <tt>false</tt> if it failed to close.
      */
@@ -352,7 +340,7 @@ public class Lucene {
         }
 
         @Override
-        public void setNextReader(IndexReader reader, int docBase) throws IOException {
+        public void setNextReader(AtomicReaderContext context) throws IOException {
         }
 
         @Override

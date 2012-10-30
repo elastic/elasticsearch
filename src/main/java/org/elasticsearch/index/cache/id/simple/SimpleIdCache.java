@@ -34,6 +34,7 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.id.IdCache;
 import org.elasticsearch.index.cache.id.IdReaderCache;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -121,7 +122,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
                     TermsEnum termsEnum = terms.iterator(null);
                     DocsEnum docsEnum = null;
                     for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.term()) {
-                        HashedBytesArray[] typeAndId = splitUidIntoTypeAndId(term);
+                        HashedBytesArray[] typeAndId = Uid.splitUidIntoTypeAndId(term);
                         TypeBuilder typeBuilder = readerBuilder.get(typeAndId[0].toUtf8());
                         if (typeBuilder == null) {
                             typeBuilder = new TypeBuilder(reader);
@@ -156,7 +157,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
                     TermsEnum termsEnum = terms.iterator(null);
                     DocsEnum docsEnum = null;
                     for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.term()) {
-                        HashedBytesArray[] typeAndId = splitUidIntoTypeAndId(term);
+                        HashedBytesArray[] typeAndId = Uid.splitUidIntoTypeAndId(term);
 
                         TypeBuilder typeBuilder = readerBuilder.get(typeAndId[0].toUtf8());
                         if (typeBuilder == null) {

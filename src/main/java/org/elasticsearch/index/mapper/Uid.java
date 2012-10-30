@@ -107,7 +107,7 @@ public final class Uid {
     }
 
     // LUCENE 4 UPGRADE: HashedBytesArray or BytesRef as return type?
-    private static HashedBytesArray[] splitUidIntoTypeAndId(BytesRef uid) {
+    public static HashedBytesArray[] splitUidIntoTypeAndId(BytesRef uid) {
         int loc = -1;
         for (int i = uid.offset; i < uid.length; i++) {
             if (uid.bytes[i] == 0x23) { // 0x23 is equal to '#'

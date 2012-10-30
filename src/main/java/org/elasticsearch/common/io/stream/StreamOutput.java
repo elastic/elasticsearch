@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.io.stream;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -104,6 +105,16 @@ public abstract class StreamOutput extends OutputStream {
         }
         writeVInt(bytes.length());
         bytes.writeTo(this);
+    }
+
+    public void writeBytesRef(BytesRef bytes) throws IOException {
+        if (bytes == null) {
+            writeVInt(0);
+            return;
+        }
+        writeVInt(bytes.length);
+        writeVInt(bytes.offset);
+        write(bytes.bytes, bytes.offset, bytes.length);
     }
 
     public final void writeShort(short v) throws IOException {

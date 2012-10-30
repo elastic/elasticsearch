@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.io.stream;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -82,6 +83,14 @@ public abstract class StreamInput extends InputStream {
         byte[] bytes = new byte[length];
         readBytes(bytes, 0, length);
         return new BytesArray(bytes, 0, length);
+    }
+
+    public BytesRef readBytesRef() throws IOException {
+        int length = readVInt();
+        int offset = readVInt();
+        byte[] bytes = new byte[length];
+        readBytes(bytes, offset, length);
+        return new BytesRef(bytes, offset, length);
     }
 
     public void readFully(byte[] b) throws IOException {

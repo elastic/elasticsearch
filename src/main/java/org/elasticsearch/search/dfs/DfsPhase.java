@@ -21,7 +21,10 @@ package org.elasticsearch.search.dfs;
 
 import com.google.common.collect.ImmutableMap;
 import gnu.trove.set.hash.THashSet;
+import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TermContext;
+import org.apache.lucene.search.TermStatistics;
 import org.elasticsearch.common.util.concurrent.ThreadLocals;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
@@ -60,12 +63,21 @@ public class DfsPhase implements SearchPhase {
             termsSet.clear();
             context.query().extractTerms(termsSet);
             Term[] terms = termsSet.toArray(new Term[termsSet.size()]);
-            int[] freqs = context.searcher().docFreqs(terms);
+            TermStatistics[] termStatistics = new TermStatistics[terms.length];
+            IndexReaderContext indexReaderContext = context.searcher().getTopReaderContext();
+            for (int i = 0; i < terms.length; i++) {
+                // LUCENE 4 UPGRADE: cache TermContext?
+                TermContext termContext = TermContext.build(indexReaderContext, terms[i], false);
+                termStatistics[i] = context.searcher().termStatistics(terms[i], termContext);
+            }
 
-            context.dfsResult().termsAndFreqs(terms, freqs);
+            // TODO: LUCENE 4 UPGRADE - add collection stats for each unique field, for distributed scoring
+//            context.searcher().collectionStatistics()
+
+            context.dfsResult().termsAndFreqs(terms, termStatistics);
             context.dfsResult().maxDoc(context.searcher().getIndexReader().maxDoc());
         } catch (Exception e) {
-            throw new DfsPhaseExecutionException(context, "", e);
+            throw new DfsPhaseExecutionException(context, "Exception during dfs phase", e);
         }
     }
 }

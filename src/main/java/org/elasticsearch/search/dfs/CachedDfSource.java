@@ -20,22 +20,26 @@
 package org.elasticsearch.search.dfs;
 
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.FieldSelector;
-import org.apache.lucene.index.Term;
+import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
+import org.apache.lucene.search.similarities.Similarity;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  *
  */
-public class CachedDfSource extends Searcher {
+public class CachedDfSource extends IndexSearcher {
 
     private final AggregatedDfs dfs;
 
     private final int maxDoc;
 
-    public CachedDfSource(AggregatedDfs dfs, Similarity similarity) throws IOException {
+    public CachedDfSource(IndexReader reader, AggregatedDfs dfs, Similarity similarity) throws IOException {
+        super(reader);
         this.dfs = dfs;
         setSimilarity(similarity);
         if (dfs.maxDoc() > Integer.MAX_VALUE) {
@@ -45,21 +49,19 @@ public class CachedDfSource extends Searcher {
         }
     }
 
-    public int docFreq(Term term) {
-        int df = dfs.dfMap().get(term);
-        if (df == -1) {
-            return 1;
-//            throw new IllegalArgumentException("df for term " + term + " not available");
+
+    @Override
+    public TermStatistics termStatistics(Term term, TermContext context) throws IOException {
+        TermStatistics termStatistics = dfs.dfMap().get(term);
+        if (termStatistics == null) {
+            throw new ElasticSearchIllegalArgumentException("Not distributed term statistics for term: " + term);
         }
-        return df;
+        return termStatistics;
     }
 
-    public int[] docFreqs(Term[] terms) {
-        int[] result = new int[terms.length];
-        for (int i = 0; i < terms.length; i++) {
-            result[i] = docFreq(terms[i]);
-        }
-        return result;
+    @Override
+    public CollectionStatistics collectionStatistics(String field) throws IOException {
+        throw new UnsupportedOperationException();
     }
 
     public int maxDoc() {
@@ -74,15 +76,11 @@ public class CachedDfSource extends Searcher {
         return query;
     }
 
-    public void close() {
-        throw new UnsupportedOperationException();
-    }
-
     public Document doc(int i) {
         throw new UnsupportedOperationException();
     }
 
-    public Document doc(int i, FieldSelector fieldSelector) {
+    public void doc(int docID, StoredFieldVisitor fieldVisitor) throws IOException {
         throw new UnsupportedOperationException();
     }
 
@@ -90,15 +88,33 @@ public class CachedDfSource extends Searcher {
         throw new UnsupportedOperationException();
     }
 
-    public void search(Weight weight, Filter filter, Collector results) {
+    @Override
+    protected void search(List<AtomicReaderContext> leaves, Weight weight, Collector collector) throws IOException {
         throw new UnsupportedOperationException();
     }
 
-    public TopDocs search(Weight weight, Filter filter, int n) {
+    @Override
+    protected TopDocs search(Weight weight, ScoreDoc after, int nDocs) throws IOException {
         throw new UnsupportedOperationException();
     }
 
-    public TopFieldDocs search(Weight weight, Filter filter, int n, Sort sort) {
+    @Override
+    protected TopDocs search(List<AtomicReaderContext> leaves, Weight weight, ScoreDoc after, int nDocs) throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    protected TopFieldDocs search(Weight weight, int nDocs, Sort sort, boolean doDocScores, boolean doMaxScore) throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    protected TopFieldDocs search(Weight weight, FieldDoc after, int nDocs, Sort sort, boolean fillFields, boolean doDocScores, boolean doMaxScore) throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    protected TopFieldDocs search(List<AtomicReaderContext> leaves, Weight weight, FieldDoc after, int nDocs, Sort sort, boolean fillFields, boolean doDocScores, boolean doMaxScore) throws IOException {
         throw new UnsupportedOperationException();
     }
 

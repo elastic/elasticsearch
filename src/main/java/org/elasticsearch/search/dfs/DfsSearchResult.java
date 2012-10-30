@@ -20,6 +20,8 @@
 package org.elasticsearch.search.dfs;
 
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.TermStatistics;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -33,13 +35,13 @@ import java.io.IOException;
  */
 public class DfsSearchResult extends TransportResponse implements SearchPhaseResult {
 
-    private static Term[] EMPTY_TERMS = new Term[0];
-    private static int[] EMPTY_FREQS = new int[0];
+    private static final Term[] EMPTY_TERMS = new Term[0];
+    private static final TermStatistics[] EMPTY_TERM_STATS = new TermStatistics[0];
 
     private SearchShardTarget shardTarget;
     private long id;
     private Term[] terms;
-    private int[] freqs;
+    private TermStatistics[] termStatistics;
     private int maxDoc;
 
     public DfsSearchResult() {
@@ -73,9 +75,9 @@ public class DfsSearchResult extends TransportResponse implements SearchPhaseRes
         return maxDoc;
     }
 
-    public DfsSearchResult termsAndFreqs(Term[] terms, int[] freqs) {
+    public DfsSearchResult termsAndFreqs(Term[] terms, TermStatistics[] termStatistics) {
         this.terms = terms;
-        this.freqs = freqs;
+        this.termStatistics = termStatistics;
         return this;
     }
 
@@ -83,8 +85,8 @@ public class DfsSearchResult extends TransportResponse implements SearchPhaseRes
         return terms;
     }
 
-    public int[] freqs() {
-        return freqs;
+    public TermStatistics[] termStatistics() {
+        return termStatistics;
     }
 
     public static DfsSearchResult readDfsSearchResult(StreamInput in) throws IOException, ClassNotFoundException {
@@ -104,16 +106,19 @@ public class DfsSearchResult extends TransportResponse implements SearchPhaseRes
         } else {
             terms = new Term[termsSize];
             for (int i = 0; i < terms.length; i++) {
-                terms[i] = new Term(in.readUTF(), in.readUTF());
+                terms[i] = new Term(in.readString(), in.readBytesRef());
             }
         }
-        int freqsSize = in.readVInt();
-        if (freqsSize == 0) {
-            freqs = EMPTY_FREQS;
+        int termsStatsSize = in.readVInt();
+        if (termsStatsSize == 0) {
+            termStatistics = EMPTY_TERM_STATS;
         } else {
-            freqs = new int[freqsSize];
-            for (int i = 0; i < freqs.length; i++) {
-                freqs[i] = in.readVInt();
+            termStatistics = new TermStatistics[termsStatsSize];
+            for (int i = 0; i < termStatistics.length; i++) {
+                BytesRef term = terms[i].bytes();
+                long docFreq = in.readVLong();
+                long totalTermFreq = in.readVLong();
+                termStatistics[i] = new TermStatistics(term, docFreq, totalTermFreq);
             }
         }
         maxDoc = in.readVInt();
@@ -126,12 +131,13 @@ public class DfsSearchResult extends TransportResponse implements SearchPhaseRes
 //        shardTarget.writeTo(out);
         out.writeVInt(terms.length);
         for (Term term : terms) {
-            out.writeUTF(term.field());
-            out.writeUTF(term.text());
+            out.writeString(term.field());
+            out.writeBytesRef(term.bytes());
         }
-        out.writeVInt(freqs.length);
-        for (int freq : freqs) {
-            out.writeVInt(freq);
+        out.writeVInt(termStatistics.length);
+        for (TermStatistics termStatistic : termStatistics) {
+            out.writeVLong(termStatistic.docFreq());
+            out.writeVLong(termStatistic.totalTermFreq());
         }
         out.writeVInt(maxDoc);
     }

@@ -409,13 +409,15 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
     }
 
     @Override
-    public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions) {
-        return new FuzzyQuery(names().createIndexNameTerm(indexedValue(value)), Float.parseFloat(minSim), prefixLength, maxExpansions);
+    public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions, boolean transpositions) {
+        int edits = FuzzyQuery.floatToEdits(Float.parseFloat(minSim), value.codePointCount(0, value.length()));
+        return new FuzzyQuery(names.createIndexNameTerm(indexedValue(value)), edits, prefixLength, maxExpansions, transpositions);
     }
 
     @Override
-    public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions) {
-        return new FuzzyQuery(names().createIndexNameTerm(value), (float) minSim, prefixLength, maxExpansions);
+    public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions, boolean transpositions) {
+        int edits = FuzzyQuery.floatToEdits((float) minSim, value.codePointCount(0, value.length()));
+        return new FuzzyQuery(names.createIndexNameTerm(indexedValue(value)), edits, prefixLength, maxExpansions, transpositions);
     }
 
     @Override

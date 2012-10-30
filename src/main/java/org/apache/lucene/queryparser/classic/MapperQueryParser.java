@@ -397,7 +397,8 @@ public class MapperQueryParser extends QueryParser {
             currentMapper = fieldMappers.fieldMappers().mapper();
             if (currentMapper != null) {
                 try {
-                    Query fuzzyQuery = currentMapper.fuzzyQuery(termStr, minSimilarity, fuzzyPrefixLength, settings.fuzzyMaxExpansions());
+                    //LUCENE 4 UPGRADE I disabled transpositions here by default - maybe this needs to be changed
+                    Query fuzzyQuery = currentMapper.fuzzyQuery(termStr, minSimilarity, fuzzyPrefixLength, settings.fuzzyMaxExpansions(), false);
                     return wrapSmartNameQuery(fuzzyQuery, fieldMappers, parseContext);
                 } catch (RuntimeException e) {
                     if (settings.lenient()) {

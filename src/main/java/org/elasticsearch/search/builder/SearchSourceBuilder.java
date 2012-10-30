@@ -721,6 +721,86 @@ public class SearchSourceBuilder implements ToXContent {
         return builder;
     }
 
+    public QueryBuilder getQueryBuilder() {
+        return queryBuilder;
+    }
+
+    public BytesReference getQueryBinary() {
+        return queryBinary;
+    }
+
+    public FilterBuilder getFilterBuilder() {
+        return filterBuilder;
+    }
+
+    public BytesReference getFilterBinary() {
+        return filterBinary;
+    }
+
+    public int getFrom() {
+        return from;
+    }
+
+    public int getSize() {
+        return size;
+    }
+
+    public Boolean getExplain() {
+        return explain;
+    }
+
+    public Boolean getVersion() {
+        return version;
+    }
+
+    public List<SortBuilder> getSorts() {
+        return sorts;
+    }
+
+    public boolean isTrackScores() {
+        return trackScores;
+    }
+
+    public Float getMinScore() {
+        return minScore;
+    }
+
+    public long getTimeoutInMillis() {
+        return timeoutInMillis;
+    }
+
+    public List<String> getFieldNames() {
+        return fieldNames;
+    }
+
+    public List<ScriptField> getScriptFields() {
+        return scriptFields;
+    }
+
+    public List<PartialField> getPartialFields() {
+        return partialFields;
+    }
+
+    public List<AbstractFacetBuilder> getFacets() {
+        return facets;
+    }
+
+    public BytesReference getFacetsBinary() {
+        return facetsBinary;
+    }
+
+    public HighlightBuilder getHighlightBuilder() {
+        return highlightBuilder;
+    }
+
+    public TObjectFloatHashMap<String> getIndexBoost() {
+        return indexBoost;
+    }
+
+    public String[] getStats() {
+        return stats;
+    }
+
     private static class ScriptField {
         private final String fieldName;
         private final String script;

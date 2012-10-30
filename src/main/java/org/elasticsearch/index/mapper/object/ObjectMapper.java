@@ -520,16 +520,16 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                     objectMapper = mappers.get(currentFieldName);
                     if (objectMapper == null) {
                         newMapper = true;
+                        // remove the current field name from path, since template search and the object builder add it as well...
+                        context.path().remove();
                         Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "object");
                         if (builder == null) {
                             builder = MapperBuilders.object(currentFieldName).enabled(true).dynamic(dynamic).pathType(pathType);
                         }
-                        // remove the current field name from path, since the object builder adds it as well...
-                        context.path().remove();
                         BuilderContext builderContext = new BuilderContext(context.indexSettings(), context.path());
                         objectMapper = builder.build(builderContext);
                         putMapper(objectMapper);
-                        // now re add it
+                        // ...now re add it
                         context.path().add(currentFieldName);
                         context.setMappingsModified();
                     }

@@ -19,16 +19,20 @@
 
 package org.elasticsearch.search.dfs;
 
+import gnu.trove.map.TMap;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.trove.ExtTHashMap;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  *
@@ -42,6 +46,7 @@ public class DfsSearchResult extends TransportResponse implements SearchPhaseRes
     private long id;
     private Term[] terms;
     private TermStatistics[] termStatistics;
+    private TMap<String, CollectionStatistics> fieldStatistics = new ExtTHashMap<String, CollectionStatistics>();
     private int maxDoc;
 
     public DfsSearchResult() {
@@ -75,9 +80,14 @@ public class DfsSearchResult extends TransportResponse implements SearchPhaseRes
         return maxDoc;
     }
 
-    public DfsSearchResult termsAndFreqs(Term[] terms, TermStatistics[] termStatistics) {
+    public DfsSearchResult termsStatistics(Term[] terms, TermStatistics[] termStatistics) {
         this.terms = terms;
         this.termStatistics = termStatistics;
+        return this;
+    }
+
+    public DfsSearchResult fieldStatistics(TMap<String, CollectionStatistics> fieldStatistics) {
+        this.fieldStatistics = fieldStatistics;
         return this;
     }
 
@@ -87,6 +97,10 @@ public class DfsSearchResult extends TransportResponse implements SearchPhaseRes
 
     public TermStatistics[] termStatistics() {
         return termStatistics;
+    }
+
+    public TMap<String, CollectionStatistics> fieldStatistics() {
+        return fieldStatistics;
     }
 
     public static DfsSearchResult readDfsSearchResult(StreamInput in) throws IOException, ClassNotFoundException {
@@ -121,6 +135,13 @@ public class DfsSearchResult extends TransportResponse implements SearchPhaseRes
                 termStatistics[i] = new TermStatistics(term, docFreq, totalTermFreq);
             }
         }
+        int numFieldStatistics = in.readVInt();
+        for (int i = 0; i < numFieldStatistics; i++) {
+            String field = in.readString();
+            CollectionStatistics stats = new CollectionStatistics(field, in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong());
+            fieldStatistics.put(field, stats);
+        }
+
         maxDoc = in.readVInt();
     }
 
@@ -139,6 +160,15 @@ public class DfsSearchResult extends TransportResponse implements SearchPhaseRes
             out.writeVLong(termStatistic.docFreq());
             out.writeVLong(termStatistic.totalTermFreq());
         }
+        out.writeVInt(fieldStatistics.size());
+        for (Map.Entry<String, CollectionStatistics> entry : fieldStatistics.entrySet()) {
+            out.writeString(entry.getKey());
+            out.writeVLong(entry.getValue().maxDoc());
+            out.writeVLong(entry.getValue().docCount());
+            out.writeVLong(entry.getValue().sumTotalTermFreq());
+            out.writeVLong(entry.getValue().sumDocFreq());
+        }
         out.writeVInt(maxDoc);
     }
+
 }

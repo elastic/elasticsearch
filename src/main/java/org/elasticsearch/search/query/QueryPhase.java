@@ -173,7 +173,8 @@ public class QueryPhase implements SearchPhase {
             } else if (searchContext.searchType() == SearchType.SCAN) {
                 topDocs = searchContext.scanContext().execute(searchContext);
             } else if (searchContext.sort() != null) {
-                topDocs = searchContext.searcher().search(query, null, numDocs, searchContext.sort());
+                topDocs = searchContext.searcher().search(query, null, numDocs, searchContext.sort(),
+                        searchContext.trackScores(), searchContext.trackScores());
             } else {
                 topDocs = searchContext.searcher().search(query, numDocs);
             }

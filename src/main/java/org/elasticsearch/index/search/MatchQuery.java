@@ -371,7 +371,7 @@ public class MatchQuery {
     private Query newTermQuery(@Nullable FieldMapper mapper, Term term) {
         if (fuzziness != null) {
             if (mapper != null) {
-                Query query = mapper.fuzzyQuery(term.text(), fuzziness, fuzzyPrefixLength, maxExpansions);
+                Query query = mapper.fuzzyQuery(term.text(), fuzziness, fuzzyPrefixLength, maxExpansions, transpositions);
                 if (query instanceof FuzzyQuery) {
                     QueryParsers.setRewriteMethod((FuzzyQuery) query, fuzzyRewriteMethod);
                 }

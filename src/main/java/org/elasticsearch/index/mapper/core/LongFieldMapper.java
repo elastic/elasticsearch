@@ -149,7 +149,7 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
-    public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions) {
+    public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions, boolean transpositions) {
         long iValue = Long.parseLong(value);
         long iSim;
         try {
@@ -164,7 +164,7 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
-    public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions) {
+    public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions, boolean transpositions) {
         long iValue = Long.parseLong(value);
         long iSim = (long) (minSim * dFuzzyFactor);
         return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,

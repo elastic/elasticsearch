@@ -148,7 +148,7 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
     }
 
     @Override
-    public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions) {
+    public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions, boolean transpositions) {
         short iValue = Short.parseShort(value);
         short iSim;
         try {
@@ -163,7 +163,7 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
     }
 
     @Override
-    public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions) {
+    public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions, boolean transpositions) {
         short iValue = Short.parseShort(value);
         short iSim = (short) (minSim * dFuzzyFactor);
         return NumericRangeQuery.newIntRange(names.indexName(), precisionStep,

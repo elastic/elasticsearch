@@ -189,7 +189,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
-    public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions) {
+    public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions, boolean transpositions) {
         long iValue = ipToLong(value);
         long iSim;
         try {
@@ -208,8 +208,10 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
-    public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions) {
-        return new FuzzyQuery(names().createIndexNameTerm(value), (float) minSim, prefixLength, maxExpansions);
+    public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions, boolean transpositions) {
+        // Lucene 4 Upgrade: It's surprising this uses FuzzyQuery instead of NumericRangeQuery
+        int edits = FuzzyQuery.floatToEdits((float) minSim, value.codePointCount(0, value.length()));
+        return new FuzzyQuery(names.createIndexNameTerm(indexedValue(value)), edits, prefixLength, maxExpansions, transpositions);
     }
 
     @Override

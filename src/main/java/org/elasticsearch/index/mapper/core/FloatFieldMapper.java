@@ -149,7 +149,7 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
     }
 
     @Override
-    public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions) {
+    public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions, boolean transpositions) {
         float iValue = Float.parseFloat(value);
         float iSim = Float.parseFloat(minSim);
         return NumericRangeQuery.newFloatRange(names.indexName(), precisionStep,
@@ -159,7 +159,7 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
     }
 
     @Override
-    public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions) {
+    public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions, boolean transpositions) {
         float iValue = Float.parseFloat(value);
         float iSim = (float) (minSim * dFuzzyFactor);
         return NumericRangeQuery.newFloatRange(names.indexName(), precisionStep,

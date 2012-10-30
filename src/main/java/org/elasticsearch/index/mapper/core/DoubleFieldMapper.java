@@ -148,7 +148,7 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
     }
 
     @Override
-    public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions) {
+    public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions, boolean transpositions) {
         double iValue = Double.parseDouble(value);
         double iSim = Double.parseDouble(minSim);
         return NumericRangeQuery.newDoubleRange(names.indexName(), precisionStep,
@@ -158,7 +158,7 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
     }
 
     @Override
-    public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions) {
+    public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions, boolean transpositions) {
         double iValue = Double.parseDouble(value);
         double iSim = minSim * dFuzzyFactor;
         return NumericRangeQuery.newDoubleRange(names.indexName(), precisionStep,

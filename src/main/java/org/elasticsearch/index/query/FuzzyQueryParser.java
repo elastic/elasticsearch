@@ -109,7 +109,7 @@ public class FuzzyQueryParser implements QueryParser {
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
         if (smartNameFieldMappers != null) {
             if (smartNameFieldMappers.hasMapper()) {
-                query = smartNameFieldMappers.mapper().fuzzyQuery(value, minSimilarity, prefixLength, maxExpansions);
+                query = smartNameFieldMappers.mapper().fuzzyQuery(value, minSimilarity, prefixLength, maxExpansions, transpositions);
             }
         }
         if (query == null) {

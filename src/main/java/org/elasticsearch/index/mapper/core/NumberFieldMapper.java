@@ -216,10 +216,10 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
     }
 
     @Override
-    public abstract Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions);
+    public abstract Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions, boolean transpositions);
 
     @Override
-    public abstract Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions);
+    public abstract Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions, boolean transpositions);
 
     /**
      * Numeric field level filter are basically range queries with same value and included. That's the recommended

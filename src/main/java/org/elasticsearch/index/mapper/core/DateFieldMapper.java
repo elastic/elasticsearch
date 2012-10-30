@@ -218,7 +218,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
-    public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions) {
+    public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions, boolean transpositions) {
         long iValue = dateMathParser.parse(value, System.currentTimeMillis());
         long iSim;
         try {
@@ -234,7 +234,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
-    public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions) {
+    public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions, boolean transpositions) {
         long iValue = dateMathParser.parse(value, System.currentTimeMillis());
         long iSim = (long) (minSim * dFuzzyFactor);
         return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,

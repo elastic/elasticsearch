@@ -19,6 +19,9 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.HashedBytesArray;
+
 /**
  *
  */
@@ -77,6 +80,14 @@ public final class Uid {
         return uid.substring(delimiterIndex + 1);
     }
 
+    public static HashedBytesArray idFromUid(BytesRef uid) {
+        return splitUidIntoTypeAndId(uid)[1];
+    }
+
+    public static HashedBytesArray typeFromUid(BytesRef uid) {
+        return splitUidIntoTypeAndId(uid)[0];
+    }
+
     public static String typeFromUid(String uid) {
         int delimiterIndex = uid.indexOf(DELIMITER); // type is not allowed to have # in it..., ids can
         return uid.substring(0, delimiterIndex);
@@ -94,4 +105,27 @@ public final class Uid {
     public static String createUid(StringBuilder sb, String type, String id) {
         return sb.append(type).append(DELIMITER).append(id).toString();
     }
+
+    // LUCENE 4 UPGRADE: HashedBytesArray or BytesRef as return type?
+    private static HashedBytesArray[] splitUidIntoTypeAndId(BytesRef uid) {
+        int loc = -1;
+        for (int i = uid.offset; i < uid.length; i++) {
+            if (uid.bytes[i] == 0x23) { // 0x23 is equal to '#'
+                loc = i;
+                break;
+            }
+        }
+
+        if (loc == -1) {
+            return null;
+        }
+
+        byte[] type = new byte[loc - uid.offset];
+        System.arraycopy(uid.bytes, uid.offset, type, 0, type.length);
+
+        byte[] id = new byte[uid.length - type.length -1];
+        System.arraycopy(uid.bytes, loc + 1, id, 0, id.length);
+        return new HashedBytesArray[]{new HashedBytesArray(type), new HashedBytesArray(id)};
+    }
+
 }

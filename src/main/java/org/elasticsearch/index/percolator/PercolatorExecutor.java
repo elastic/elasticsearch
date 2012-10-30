@@ -20,13 +20,14 @@
 package org.elasticsearch.index.percolator;
 
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.document.Fieldable;
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.memory.CustomMemoryIndex;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
@@ -292,22 +293,29 @@ public class PercolatorExecutor extends AbstractIndexComponent {
         final CustomMemoryIndex memoryIndex = new CustomMemoryIndex();
 
         // TODO: This means percolation does not support nested docs...
-        for (Fieldable field : request.doc().rootDoc().getFields()) {
-            if (!field.isIndexed()) {
+        for (IndexableField field : request.doc().rootDoc().getFields()) {
+            if (!field.fieldType().indexed()) {
                 continue;
             }
             // no need to index the UID field
             if (field.name().equals(UidFieldMapper.NAME)) {
                 continue;
             }
-            TokenStream tokenStream = field.tokenStreamValue();
+            TokenStream tokenStream;
+            try {
+                tokenStream = field.tokenStream(
+                        mapperService.documentMapper(request.doc().type()).mappers().smartNameFieldMapper(field.name()).indexAnalyzer()
+                );
+            } catch (IOException e) {
+                throw new ElasticSearchException("Failed to create token stream", e);
+            }
             if (tokenStream != null) {
-                memoryIndex.addField(field.name(), tokenStream, field.getBoost());
+                memoryIndex.addField(field.name(), tokenStream, field.boost());
             } else {
                 Reader reader = field.readerValue();
                 if (reader != null) {
                     try {
-                        memoryIndex.addField(field.name(), request.doc().analyzer().reusableTokenStream(field.name(), reader), field.getBoost() * request.doc().rootDoc().getBoost());
+                        memoryIndex.addField(field.name(), request.doc().analyzer().tokenStream(field.name(), reader), field.boost() /** request.doc().rootDoc().getBoost()*/);
                     } catch (IOException e) {
                         throw new MapperParsingException("Failed to analyze field [" + field.name() + "]", e);
                     }
@@ -315,7 +323,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
                     String value = field.stringValue();
                     if (value != null) {
                         try {
-                            memoryIndex.addField(field.name(), request.doc().analyzer().reusableTokenStream(field.name(), new FastStringReader(value)), field.getBoost() * request.doc().rootDoc().getBoost());
+                            memoryIndex.addField(field.name(), request.doc().analyzer().tokenStream(field.name(), new FastStringReader(value)), field.boost() /** request.doc().rootDoc().getBoost()*/);
                         } catch (IOException e) {
                             throw new MapperParsingException("Failed to analyze field [" + field.name() + "]", e);
                         }
@@ -398,11 +406,11 @@ public class PercolatorExecutor extends AbstractIndexComponent {
 
         @Override
         public void collect(int doc) throws IOException {
-            String uid = fieldData.stringValue(doc);
+            BytesRef uid = fieldData.stringValue(doc);
             if (uid == null) {
                 return;
             }
-            String id = Uid.idFromUid(uid);
+            String id = Uid.idFromUid(uid).toUtf8();
             Query query = queries.get(id);
             if (query == null) {
                 // log???
@@ -421,9 +429,9 @@ public class PercolatorExecutor extends AbstractIndexComponent {
         }
 
         @Override
-        public void setNextReader(IndexReader reader, int docBase) throws IOException {
+        public void setNextReader(AtomicReaderContext context) throws IOException {
             // we use the UID because id might not be indexed
-            fieldData = percolatorIndex.cache().fieldData().cache(FieldDataType.DefaultTypes.STRING, reader, UidFieldMapper.NAME);
+            fieldData = percolatorIndex.cache().fieldData().cache(FieldDataType.DefaultTypes.STRING, context.reader(), UidFieldMapper.NAME);
         }
 
         @Override

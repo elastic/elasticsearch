@@ -237,28 +237,6 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
         return false;
     }
 
-    // LUCENE 4 UPGRADE: This logic should go to Uid class. Uid class should BR based instead of string
-    private static HashedBytesArray[] splitUidIntoTypeAndId(BytesRef term) {
-        int loc = -1;
-        for (int i = term.offset; i < term.length; i++) {
-            if (term.bytes[i] == 0x23) { // 0x23 is equal to '#'
-                loc = i;
-                break;
-            }
-        }
-
-        if (loc == -1) {
-            return null;
-        }
-
-        byte[] type = new byte[loc - term.offset];
-        System.arraycopy(term.bytes, term.offset, type, 0, type.length);
-
-        byte[] id = new byte[term.length - type.length -1];
-        System.arraycopy(term.bytes, loc + 1, id, 0, id.length);
-        return new HashedBytesArray[]{new HashedBytesArray(type), new HashedBytesArray(id)};
-    }
-
     static class TypeBuilder {
         final ExtTObjectIntHasMap<HashedBytesArray> idToDoc = new ExtTObjectIntHasMap<HashedBytesArray>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, -1);
         final HashedBytesArray[] docToId;

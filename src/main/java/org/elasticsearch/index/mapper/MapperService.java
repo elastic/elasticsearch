@@ -26,11 +26,10 @@ import com.google.common.collect.Sets;
 import com.google.common.collect.UnmodifiableIterator;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.FilterClause;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilterClause;
 import org.apache.lucene.search.XTermsFilter;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -436,7 +435,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         if (useTermsFilter) {
             Term[] typesTerms = new Term[types.length];
             for (int i = 0; i < typesTerms.length; i++) {
-                typesTerms[i] = TypeFieldMapper.TERM_FACTORY.createTerm(types[i]);
+                typesTerms[i] = new Term(TypeFieldMapper.NAME, types[i]);
             }
             return new XTermsFilter(typesTerms);
         } else {
@@ -444,7 +443,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             for (String type : types) {
                 DocumentMapper docMapper = documentMapper(type);
                 if (docMapper == null) {
-                    bool.add(new FilterClause(new TermFilter(TypeFieldMapper.TERM_FACTORY.createTerm(type)), BooleanClause.Occur.SHOULD));
+                    bool.add(new FilterClause(new TermFilter(new Term(TypeFieldMapper.NAME, type)), BooleanClause.Occur.SHOULD));
                 } else {
                     bool.add(new FilterClause(docMapper.typeFilter(), BooleanClause.Occur.SHOULD));
                 }

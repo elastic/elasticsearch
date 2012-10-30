@@ -20,16 +20,14 @@
 package org.elasticsearch.search.dfs;
 
 import gnu.trove.impl.Constants;
-import gnu.trove.iterator.TObjectIntIterator;
 import gnu.trove.map.TMap;
-import gnu.trove.map.hash.TObjectIntHashMap;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.TermStatistics;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.trove.ExtTHashMap;
-import org.elasticsearch.common.trove.ExtTObjectIntHasMap;
 
 import java.io.IOException;
 import java.util.Map;
@@ -39,21 +37,26 @@ import java.util.Map;
  */
 public class AggregatedDfs implements Streamable {
 
-    private TMap<Term, TermStatistics> dfMap;
-
+    private TMap<Term, TermStatistics> termStatistics;
+    private TMap<String, CollectionStatistics> fieldStatistics;
     private long maxDoc;
 
     private AggregatedDfs() {
 
     }
 
-    public AggregatedDfs(TMap<Term, TermStatistics> dfMap, long maxDoc) {
-        this.dfMap = dfMap;
+    public AggregatedDfs(TMap<Term, TermStatistics> termStatistics, TMap<String, CollectionStatistics> fieldStatistics, long maxDoc) {
+        this.termStatistics = termStatistics;
+        this.fieldStatistics = fieldStatistics;
         this.maxDoc = maxDoc;
     }
 
-    public TMap<Term, TermStatistics> dfMap() {
-        return dfMap;
+    public TMap<Term, TermStatistics> termStatistics() {
+        return termStatistics;
+    }
+
+    public TMap<String, CollectionStatistics> fieldStatistics() {
+        return fieldStatistics;
     }
 
     public long maxDoc() {
@@ -69,20 +72,26 @@ public class AggregatedDfs implements Streamable {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         int size = in.readVInt();
-        dfMap = new ExtTHashMap<Term, TermStatistics>(size, Constants.DEFAULT_LOAD_FACTOR);
+        termStatistics = new ExtTHashMap<Term, TermStatistics>(size, Constants.DEFAULT_LOAD_FACTOR);
         for (int i = 0; i < size; i++) {
             Term term = new Term(in.readString(), in.readBytesRef());
             TermStatistics stats = new TermStatistics(in.readBytesRef(), in.readVLong(), in.readVLong());
-            dfMap.put(term, stats);
+            termStatistics.put(term, stats);
+        }
+        size = in.readVInt();
+        fieldStatistics = new ExtTHashMap<String, CollectionStatistics>(size, Constants.DEFAULT_LOAD_FACTOR);
+        for (int i = 0; i < size; i++) {
+            String field = in.readString();
+            CollectionStatistics stats = new CollectionStatistics(field, in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong());
+            fieldStatistics.put(field, stats);
         }
         maxDoc = in.readVLong();
     }
 
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
-        out.writeVInt(dfMap.size());
-
-        for (Map.Entry<Term, TermStatistics> termTermStatisticsEntry : dfMap.entrySet()) {
+        out.writeVInt(termStatistics.size());
+        for (Map.Entry<Term, TermStatistics> termTermStatisticsEntry : termStatistics.entrySet()) {
             Term term = termTermStatisticsEntry.getKey();
             out.writeString(term.field());
             out.writeBytesRef(term.bytes());
@@ -90,6 +99,15 @@ public class AggregatedDfs implements Streamable {
             out.writeBytesRef(stats.term());
             out.writeVLong(stats.docFreq());
             out.writeVLong(stats.totalTermFreq());
+        }
+
+        out.writeVInt(fieldStatistics.size());
+        for (Map.Entry<String, CollectionStatistics> entry : fieldStatistics.entrySet()) {
+            out.writeString(entry.getKey());
+            out.writeVLong(entry.getValue().maxDoc());
+            out.writeVLong(entry.getValue().docCount());
+            out.writeVLong(entry.getValue().sumTotalTermFreq());
+            out.writeVLong(entry.getValue().sumDocFreq());
         }
 
         out.writeVLong(maxDoc);

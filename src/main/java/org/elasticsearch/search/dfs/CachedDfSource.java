@@ -24,7 +24,6 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -34,25 +33,25 @@ import java.util.List;
  */
 public class CachedDfSource extends IndexSearcher {
 
-    private final AggregatedDfs dfs;
+    private final AggregatedDfs aggregatedDfs;
 
     private final int maxDoc;
 
-    public CachedDfSource(IndexReader reader, AggregatedDfs dfs, Similarity similarity) throws IOException {
+    public CachedDfSource(IndexReader reader, AggregatedDfs aggregatedDfs, Similarity similarity) throws IOException {
         super(reader);
-        this.dfs = dfs;
+        this.aggregatedDfs = aggregatedDfs;
         setSimilarity(similarity);
-        if (dfs.maxDoc() > Integer.MAX_VALUE) {
+        if (aggregatedDfs.maxDoc() > Integer.MAX_VALUE) {
             maxDoc = Integer.MAX_VALUE;
         } else {
-            maxDoc = (int) dfs.maxDoc();
+            maxDoc = (int) aggregatedDfs.maxDoc();
         }
     }
 
 
     @Override
     public TermStatistics termStatistics(Term term, TermContext context) throws IOException {
-        TermStatistics termStatistics = dfs.dfMap().get(term);
+        TermStatistics termStatistics = aggregatedDfs.termStatistics().get(term);
         if (termStatistics == null) {
             throw new ElasticSearchIllegalArgumentException("Not distributed term statistics for term: " + term);
         }
@@ -61,7 +60,11 @@ public class CachedDfSource extends IndexSearcher {
 
     @Override
     public CollectionStatistics collectionStatistics(String field) throws IOException {
-        throw new UnsupportedOperationException();
+        CollectionStatistics collectionStatistics = aggregatedDfs.fieldStatistics().get(field);
+        if (collectionStatistics == null) {
+            throw new ElasticSearchIllegalArgumentException("Not distributed collection statistics for field: " + field);
+        }
+        return collectionStatistics;
     }
 
     public int maxDoc() {

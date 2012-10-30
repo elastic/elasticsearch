@@ -88,21 +88,36 @@ public class SearchPhaseController extends AbstractComponent {
     }
 
     public AggregatedDfs aggregateDfs(Iterable<DfsSearchResult> results) {
-        TMap<Term, TermStatistics> dfMap = new ExtTHashMap<Term, TermStatistics>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR);
+        TMap<Term, TermStatistics> termStatistics = new ExtTHashMap<Term, TermStatistics>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR);
+        TMap<String, CollectionStatistics> fieldStatistics = new ExtTHashMap<String, CollectionStatistics>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR);
         long aggMaxDoc = 0;
         for (DfsSearchResult result : results) {
             for (int i = 0; i < result.termStatistics().length; i++) {
-                TermStatistics existing = dfMap.get(result.terms()[i]);
+                TermStatistics existing = termStatistics.get(result.terms()[i]);
                 if (existing != null) {
-                    dfMap.put(result.terms()[i], new TermStatistics(existing.term(), existing.docFreq() + result.termStatistics()[i].docFreq(), existing.totalTermFreq() + result.termStatistics()[i].totalTermFreq()));
+                    termStatistics.put(result.terms()[i], new TermStatistics(existing.term(), existing.docFreq() + result.termStatistics()[i].docFreq(), existing.totalTermFreq() + result.termStatistics()[i].totalTermFreq()));
                 } else {
-                    dfMap.put(result.terms()[i], result.termStatistics()[i]);
+                    termStatistics.put(result.terms()[i], result.termStatistics()[i]);
                 }
 
             }
+            for (Map.Entry<String, CollectionStatistics> entry : result.fieldStatistics().entrySet()) {
+                CollectionStatistics existing = fieldStatistics.get(entry.getKey());
+                if (existing != null) {
+                    CollectionStatistics merged = new CollectionStatistics(
+                            entry.getKey(), existing.maxDoc() + entry.getValue().maxDoc(),
+                            existing.docCount() + entry.getValue().docCount(),
+                            existing.sumTotalTermFreq() + entry.getValue().sumTotalTermFreq(),
+                            existing.sumDocFreq() + entry.getValue().sumDocFreq()
+                    );
+                    fieldStatistics.put(entry.getKey(), merged);
+                } else {
+                    fieldStatistics.put(entry.getKey(), entry.getValue());
+                }
+            }
             aggMaxDoc += result.maxDoc();
         }
-        return new AggregatedDfs(dfMap, aggMaxDoc);
+        return new AggregatedDfs(termStatistics, fieldStatistics, aggMaxDoc);
     }
 
     public ShardDoc[] sortDocs(Collection<? extends QuerySearchResultProvider> results1) {

@@ -22,6 +22,7 @@ package org.elasticsearch.test.unit.index.mapper.dynamictemplate.pathmatch;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Fieldable;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.index.field.data.strings.StringFieldDataType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.test.unit.index.mapper.MapperTests;
@@ -31,11 +32,12 @@ import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  *
  */
-public class PathMatchDynamicTempalteTests {
+public class PathMatchDynamicTemplateTests {
 
     @Test
     public void testSimple() throws Exception {
@@ -68,5 +70,11 @@ public class PathMatchDynamicTempalteTests {
         fieldMappers = docMapper.mappers().fullName("obj1.obj2.name");
         assertThat(fieldMappers.mappers().size(), equalTo(1));
         assertThat(fieldMappers.mapper().stored(), equalTo(false));
+
+        // verify more complex path_match expressions
+
+        fieldMappers = docMapper.mappers().fullName("obj3.obj4.prop1");
+        assertThat(fieldMappers.mappers().size(), equalTo(1));
+        assertThat(fieldMappers.mapper().fieldDataType(), instanceOf(StringFieldDataType.class));
     }
 }

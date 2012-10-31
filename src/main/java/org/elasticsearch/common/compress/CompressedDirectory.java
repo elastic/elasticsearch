@@ -85,7 +85,7 @@ public class CompressedDirectory extends Directory implements ForceSyncDirectory
             IndexInput in = openInput(name);
             try {
                 return in.length();
-            } catch (Exception e) {
+            } finally {
                 in.close();
             }
         }

@@ -49,8 +49,8 @@ public class LatLonAndGeohashMappingGeoPointTests {
                 .endObject()
                 .bytes());
 
-        assertThat(doc.rootDoc().getFieldable("point.lat"), notNullValue());
-        assertThat(doc.rootDoc().getFieldable("point.lon"), notNullValue());
+        assertThat(doc.rootDoc().getField("point.lat"), notNullValue());
+        assertThat(doc.rootDoc().getField("point.lon"), notNullValue());
         assertThat(doc.rootDoc().get("point.geohash"), equalTo(GeoHashUtils.encode(1.2, 1.3)));
     }
 
@@ -68,8 +68,8 @@ public class LatLonAndGeohashMappingGeoPointTests {
                 .endObject()
                 .bytes());
 
-        assertThat(doc.rootDoc().getFieldable("point.lat"), notNullValue());
-        assertThat(doc.rootDoc().getFieldable("point.lon"), notNullValue());
+        assertThat(doc.rootDoc().getField("point.lat"), notNullValue());
+        assertThat(doc.rootDoc().getField("point.lon"), notNullValue());
         assertThat(doc.rootDoc().get("point.geohash"), equalTo(GeoHashUtils.encode(1.2, 1.3)));
     }
 
@@ -87,8 +87,8 @@ public class LatLonAndGeohashMappingGeoPointTests {
                 .endObject()
                 .bytes());
 
-        assertThat(doc.rootDoc().getFieldable("point.lat"), notNullValue());
-        assertThat(doc.rootDoc().getFieldable("point.lon"), notNullValue());
+        assertThat(doc.rootDoc().getField("point.lat"), notNullValue());
+        assertThat(doc.rootDoc().getField("point.lon"), notNullValue());
         assertThat(doc.rootDoc().get("point.geohash"), equalTo(GeoHashUtils.encode(1.2, 1.3)));
     }
 }

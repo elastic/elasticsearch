@@ -19,7 +19,8 @@
 
 package org.elasticsearch.test.unit.index.mapper.source;
 
-import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -120,8 +121,8 @@ public class DefaultSourceMappingTests {
                 .startObject("path2").field("field2", "value2").endObject()
                 .endObject().bytes());
 
-        Fieldable sourceField = doc.rootDoc().getFieldable("_source");
-        Map<String, Object> sourceAsMap = XContentFactory.xContent(XContentType.JSON).createParser(sourceField.getBinaryValue(), sourceField.getBinaryOffset(), sourceField.getBinaryLength()).mapAndClose();
+        IndexableField sourceField = doc.rootDoc().getField("_source");
+        Map<String, Object> sourceAsMap = XContentFactory.xContent(XContentType.JSON).createParser(new BytesArray(sourceField.binaryValue())).mapAndClose();
         assertThat(sourceAsMap.containsKey("path1"), equalTo(true));
         assertThat(sourceAsMap.containsKey("path2"), equalTo(false));
     }

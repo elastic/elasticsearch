@@ -78,7 +78,7 @@ public class SimpleDateMappingTests {
                 .endObject()
                 .bytes());
 
-        assertThat(doc.rootDoc().getFieldable("date_field").tokenStreamValue(), notNullValue());
+        assertThat(doc.rootDoc().getField("date_field").tokenStream(defaultMapper.indexAnalyzer()), notNullValue());
     }
 
     @Test
@@ -119,8 +119,8 @@ public class SimpleDateMappingTests {
                 .field("field2", "2010-01-01")
                 .endObject()
                 .bytes());
-        assertThat(doc.rootDoc().getFieldable("field1"), nullValue());
-        assertThat(doc.rootDoc().getFieldable("field2"), notNullValue());
+        assertThat(doc.rootDoc().getField("field1"), nullValue());
+        assertThat(doc.rootDoc().getField("field2"), notNullValue());
 
         try {
             defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
@@ -151,7 +151,7 @@ public class SimpleDateMappingTests {
                 .field("field3", "a")
                 .endObject()
                 .bytes());
-        assertThat(doc.rootDoc().getFieldable("field3"), nullValue());
+        assertThat(doc.rootDoc().getField("field3"), nullValue());
 
         // This should still throw an exception, since field2 is specifically set to ignore_malformed=false
         try {

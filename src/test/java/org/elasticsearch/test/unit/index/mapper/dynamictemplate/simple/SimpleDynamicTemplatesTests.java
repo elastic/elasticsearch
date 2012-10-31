@@ -20,7 +20,7 @@
 package org.elasticsearch.test.unit.index.mapper.dynamictemplate.simple;
 
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
@@ -44,47 +44,47 @@ public class SimpleDynamicTemplatesTests {
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/mapper/dynamictemplate/simple/test-data.json");
         Document doc = docMapper.parse(new BytesArray(json)).rootDoc();
 
-        Fieldable f = doc.getFieldable("name");
+        IndexableField f = doc.getField("name");
         assertThat(f.name(), equalTo("name"));
         assertThat(f.stringValue(), equalTo("some name"));
-        assertThat(f.isIndexed(), equalTo(true));
-        assertThat(f.isTokenized(), equalTo(false));
+        assertThat(f.fieldType().indexed(), equalTo(true));
+        assertThat(f.fieldType().tokenized(), equalTo(false));
 
         FieldMappers fieldMappers = docMapper.mappers().fullName("name");
         assertThat(fieldMappers.mappers().size(), equalTo(1));
 
-        f = doc.getFieldable("multi1");
+        f = doc.getField("multi1");
         assertThat(f.name(), equalTo("multi1"));
         assertThat(f.stringValue(), equalTo("multi 1"));
-        assertThat(f.isIndexed(), equalTo(true));
-        assertThat(f.isTokenized(), equalTo(true));
+        assertThat(f.fieldType().indexed(), equalTo(true));
+        assertThat(f.fieldType().tokenized(), equalTo(true));
 
         fieldMappers = docMapper.mappers().fullName("multi1");
         assertThat(fieldMappers.mappers().size(), equalTo(1));
 
-        f = doc.getFieldable("multi1.org");
+        f = doc.getField("multi1.org");
         assertThat(f.name(), equalTo("multi1.org"));
         assertThat(f.stringValue(), equalTo("multi 1"));
-        assertThat(f.isIndexed(), equalTo(true));
-        assertThat(f.isTokenized(), equalTo(false));
+        assertThat(f.fieldType().indexed(), equalTo(true));
+        assertThat(f.fieldType().tokenized(), equalTo(false));
 
         fieldMappers = docMapper.mappers().fullName("multi1.org");
         assertThat(fieldMappers.mappers().size(), equalTo(1));
 
-        f = doc.getFieldable("multi2");
+        f = doc.getField("multi2");
         assertThat(f.name(), equalTo("multi2"));
         assertThat(f.stringValue(), equalTo("multi 2"));
-        assertThat(f.isIndexed(), equalTo(true));
-        assertThat(f.isTokenized(), equalTo(true));
+        assertThat(f.fieldType().indexed(), equalTo(true));
+        assertThat(f.fieldType().tokenized(), equalTo(true));
 
         fieldMappers = docMapper.mappers().fullName("multi2");
         assertThat(fieldMappers.mappers().size(), equalTo(1));
 
-        f = doc.getFieldable("multi2.org");
+        f = doc.getField("multi2.org");
         assertThat(f.name(), equalTo("multi2.org"));
         assertThat(f.stringValue(), equalTo("multi 2"));
-        assertThat(f.isIndexed(), equalTo(true));
-        assertThat(f.isTokenized(), equalTo(false));
+        assertThat(f.fieldType().indexed(), equalTo(true));
+        assertThat(f.fieldType().tokenized(), equalTo(false));
 
         fieldMappers = docMapper.mappers().fullName("multi2.org");
         assertThat(fieldMappers.mappers().size(), equalTo(1));
@@ -100,47 +100,47 @@ public class SimpleDynamicTemplatesTests {
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/mapper/dynamictemplate/simple/test-data.json");
         Document doc = docMapper.parse(new BytesArray(json)).rootDoc();
 
-        Fieldable f = doc.getFieldable("name");
+        IndexableField f = doc.getField("name");
         assertThat(f.name(), equalTo("name"));
         assertThat(f.stringValue(), equalTo("some name"));
-        assertThat(f.isIndexed(), equalTo(true));
-        assertThat(f.isTokenized(), equalTo(false));
+        assertThat(f.fieldType().indexed(), equalTo(true));
+        assertThat(f.fieldType().tokenized(), equalTo(false));
 
         FieldMappers fieldMappers = docMapper.mappers().fullName("name");
         assertThat(fieldMappers.mappers().size(), equalTo(1));
 
-        f = doc.getFieldable("multi1");
+        f = doc.getField("multi1");
         assertThat(f.name(), equalTo("multi1"));
         assertThat(f.stringValue(), equalTo("multi 1"));
-        assertThat(f.isIndexed(), equalTo(true));
-        assertThat(f.isTokenized(), equalTo(true));
+        assertThat(f.fieldType().indexed(), equalTo(true));
+        assertThat(f.fieldType().tokenized(), equalTo(true));
 
         fieldMappers = docMapper.mappers().fullName("multi1");
         assertThat(fieldMappers.mappers().size(), equalTo(1));
 
-        f = doc.getFieldable("multi1.org");
+        f = doc.getField("multi1.org");
         assertThat(f.name(), equalTo("multi1.org"));
         assertThat(f.stringValue(), equalTo("multi 1"));
-        assertThat(f.isIndexed(), equalTo(true));
-        assertThat(f.isTokenized(), equalTo(false));
+        assertThat(f.fieldType().indexed(), equalTo(true));
+        assertThat(f.fieldType().tokenized(), equalTo(false));
 
         fieldMappers = docMapper.mappers().fullName("multi1.org");
         assertThat(fieldMappers.mappers().size(), equalTo(1));
 
-        f = doc.getFieldable("multi2");
+        f = doc.getField("multi2");
         assertThat(f.name(), equalTo("multi2"));
         assertThat(f.stringValue(), equalTo("multi 2"));
-        assertThat(f.isIndexed(), equalTo(true));
-        assertThat(f.isTokenized(), equalTo(true));
+        assertThat(f.fieldType().indexed(), equalTo(true));
+        assertThat(f.fieldType().tokenized(), equalTo(true));
 
         fieldMappers = docMapper.mappers().fullName("multi2");
         assertThat(fieldMappers.mappers().size(), equalTo(1));
 
-        f = doc.getFieldable("multi2.org");
+        f = doc.getField("multi2.org");
         assertThat(f.name(), equalTo("multi2.org"));
         assertThat(f.stringValue(), equalTo("multi 2"));
-        assertThat(f.isIndexed(), equalTo(true));
-        assertThat(f.isTokenized(), equalTo(false));
+        assertThat(f.fieldType().indexed(), equalTo(true));
+        assertThat(f.fieldType().tokenized(), equalTo(false));
 
         fieldMappers = docMapper.mappers().fullName("multi2.org");
         assertThat(fieldMappers.mappers().size(), equalTo(1));

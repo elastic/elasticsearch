@@ -47,7 +47,7 @@ public class SimpleMapperTests {
         DocumentMapperParser mapperParser = MapperTests.newParser();
         DocumentMapper docMapper = doc("test",
                 rootObject("person")
-                        .add(object("name").add(stringField("first").store(YES).index(Field.Index.NO)))
+                        .add(object("name").add(stringField("first").store(true).index(false)))
         ).build(mapperParser);
 
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/mapper/simple/test1.json"));

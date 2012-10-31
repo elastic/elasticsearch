@@ -424,16 +424,16 @@ public class SimpleNestedTests extends AbstractNodesTests {
 
         TermsStatsFacet termsStatsFacet = searchResponse.facets().facet("facet1");
         assertThat(termsStatsFacet.entries().size(), equalTo(4));
-        assertThat(termsStatsFacet.entries().get(0).term(), equalTo("blue"));
+        assertThat(termsStatsFacet.entries().get(0).term().string(), equalTo("blue"));
         assertThat(termsStatsFacet.entries().get(0).count(), equalTo(3l));
         assertThat(termsStatsFacet.entries().get(0).total(), equalTo(8d));
-        assertThat(termsStatsFacet.entries().get(1).term(), equalTo("yellow"));
+        assertThat(termsStatsFacet.entries().get(1).term().string(), equalTo("yellow"));
         assertThat(termsStatsFacet.entries().get(1).count(), equalTo(2l));
         assertThat(termsStatsFacet.entries().get(1).total(), equalTo(13d));
-        assertThat(termsStatsFacet.entries().get(2).term(), equalTo("green"));
+        assertThat(termsStatsFacet.entries().get(2).term().string(), equalTo("green"));
         assertThat(termsStatsFacet.entries().get(2).count(), equalTo(2l));
         assertThat(termsStatsFacet.entries().get(2).total(), equalTo(14d));
-        assertThat(termsStatsFacet.entries().get(3).term(), equalTo("red"));
+        assertThat(termsStatsFacet.entries().get(3).term().string(), equalTo("red"));
         assertThat(termsStatsFacet.entries().get(3).count(), equalTo(1l));
         assertThat(termsStatsFacet.entries().get(3).total(), equalTo(12d));
 
@@ -448,7 +448,7 @@ public class SimpleNestedTests extends AbstractNodesTests {
 
         termsStatsFacet = searchResponse.facets().facet("facet1");
         assertThat(termsStatsFacet.entries().size(), equalTo(1));
-        assertThat(termsStatsFacet.entries().get(0).term(), equalTo("blue"));
+        assertThat(termsStatsFacet.entries().get(0).term().string(), equalTo("blue"));
         assertThat(termsStatsFacet.entries().get(0).count(), equalTo(3l));
         assertThat(termsStatsFacet.entries().get(0).total(), equalTo(8d));
     }

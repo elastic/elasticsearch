@@ -166,7 +166,7 @@ public class ScriptFilterParser implements FilterParser {
 
         @Override
         public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
-            searchScript.setNextReader(context.reader());
+            searchScript.setNextReader(context);
             // LUCENE 4 UPGRADE: we can simply wrap this here since it is not cacheable and if we are not top level we will get a null passed anyway 
             return BitsFilteredDocIdSet.wrap(new ScriptDocSet(context.reader(), searchScript), acceptDocs);
         }

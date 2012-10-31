@@ -19,9 +19,11 @@
 
 package org.elasticsearch.common.lucene.search.function;
 
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.ToStringUtils;
 
 import java.io.IOException;
@@ -63,17 +65,17 @@ public class FunctionScoreQuery extends Query {
     }
 
     @Override
-    public Weight createWeight(Searcher searcher) throws IOException {
+    public Weight createWeight(IndexSearcher searcher) throws IOException {
         return new CustomBoostFactorWeight(searcher);
     }
 
     class CustomBoostFactorWeight extends Weight {
-        Searcher searcher;
+        IndexSearcher searcher;
         Weight subQueryWeight;
 
-        public CustomBoostFactorWeight(Searcher searcher) throws IOException {
+        public CustomBoostFactorWeight(IndexSearcher searcher) throws IOException {
             this.searcher = searcher;
-            this.subQueryWeight = subQuery.weight(searcher);
+            this.subQueryWeight = subQuery.createWeight(searcher);
         }
 
         public Query getQuery() {
@@ -98,23 +100,23 @@ public class FunctionScoreQuery extends Query {
         }
 
         @Override
-        public Scorer scorer(IndexReader reader, boolean scoreDocsInOrder, boolean topScorer) throws IOException {
-            Scorer subQueryScorer = subQueryWeight.scorer(reader, scoreDocsInOrder, false);
+        public Scorer scorer(AtomicReaderContext context, boolean scoreDocsInOrder, boolean topScorer, Bits acceptDocs) throws IOException {
+            Scorer subQueryScorer = subQueryWeight.scorer(context, scoreDocsInOrder, false, acceptDocs);
             if (subQueryScorer == null) {
                 return null;
             }
-            function.setNextReader(reader);
+            function.setNextReader(context);
             return new CustomBoostFactorScorer(getSimilarity(searcher), this, subQueryScorer, function);
         }
 
         @Override
-        public Explanation explain(IndexReader reader, int doc) throws IOException {
-            Explanation subQueryExpl = subQueryWeight.explain(reader, doc);
+        public Explanation explain(AtomicReaderContext context, int doc) throws IOException {
+            Explanation subQueryExpl = subQueryWeight.explain(context, doc);
             if (!subQueryExpl.isMatch()) {
                 return subQueryExpl;
             }
 
-            function.setNextReader(reader);
+            function.setNextReader(context);
             Explanation functionExplanation = function.explainScore(doc, subQueryExpl);
             float sc = getValue() * functionExplanation.getValue();
             Explanation res = new ComplexExplanation(true, sc, "custom score, product of:");

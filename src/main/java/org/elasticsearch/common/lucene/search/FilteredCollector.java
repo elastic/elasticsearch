@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.lucene.search;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Scorer;
@@ -57,9 +57,9 @@ public class FilteredCollector extends Collector {
     }
 
     @Override
-    public void setNextReader(IndexReader reader, int docBase) throws IOException {
-        collector.setNextReader(reader, docBase);
-        docSet = DocSets.convert(reader, filter.getDocIdSet(reader));
+    public void setNextReader(AtomicReaderContext context) throws IOException {
+        collector.setNextReader(context);
+        docSet = DocSets.convert(context.reader(), filter.getDocIdSet(context));
     }
 
     @Override

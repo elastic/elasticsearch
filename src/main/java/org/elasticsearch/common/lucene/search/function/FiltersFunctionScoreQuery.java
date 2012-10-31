@@ -19,9 +19,11 @@
 
 package org.elasticsearch.common.lucene.search.function;
 
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.ToStringUtils;
 import org.elasticsearch.common.lucene.docset.DocSet;
 import org.elasticsearch.common.lucene.docset.DocSets;
@@ -106,15 +108,15 @@ public class FiltersFunctionScoreQuery extends Query {
     }
 
     @Override
-    public Weight createWeight(Searcher searcher) throws IOException {
+    public Weight createWeight(IndexSearcher searcher) throws IOException {
         return new CustomBoostFactorWeight(searcher);
     }
 
     class CustomBoostFactorWeight extends Weight {
-        Searcher searcher;
+        IndexSearcher searcher;
         Weight subQueryWeight;
 
-        public CustomBoostFactorWeight(Searcher searcher) throws IOException {
+        public CustomBoostFactorWeight(IndexSearcher searcher) throws IOException {
             this.searcher = searcher;
             this.subQueryWeight = subQuery.weight(searcher);
         }
@@ -141,31 +143,31 @@ public class FiltersFunctionScoreQuery extends Query {
         }
 
         @Override
-        public Scorer scorer(IndexReader reader, boolean scoreDocsInOrder, boolean topScorer) throws IOException {
-            Scorer subQueryScorer = subQueryWeight.scorer(reader, scoreDocsInOrder, false);
+        public Scorer scorer(AtomicReaderContext context, boolean scoreDocsInOrder, boolean topScorer, Bits acceptDocs) throws IOException {
+            Scorer subQueryScorer = subQueryWeight.scorer(context, scoreDocsInOrder, false, acceptDocs);
             if (subQueryScorer == null) {
                 return null;
             }
             for (int i = 0; i < filterFunctions.length; i++) {
                 FilterFunction filterFunction = filterFunctions[i];
-                filterFunction.function.setNextReader(reader);
-                docSets[i] = DocSets.convert(reader, filterFunction.filter.getDocIdSet(reader));
+                filterFunction.function.setNextReader(context);
+                docSets[i] = DocSets.convert(context.reader(), filterFunction.filter.getDocIdSet(context, acceptDocs));
             }
             return new CustomBoostFactorScorer(getSimilarity(searcher), this, subQueryScorer, scoreMode, filterFunctions, maxBoost, docSets);
         }
 
         @Override
-        public Explanation explain(IndexReader reader, int doc) throws IOException {
-            Explanation subQueryExpl = subQueryWeight.explain(reader, doc);
+        public Explanation explain(AtomicReaderContext context, int doc) throws IOException {
+            Explanation subQueryExpl = subQueryWeight.explain(context, doc);
             if (!subQueryExpl.isMatch()) {
                 return subQueryExpl;
             }
 
             if (scoreMode == ScoreMode.First) {
                 for (FilterFunction filterFunction : filterFunctions) {
-                    DocSet docSet = DocSets.convert(reader, filterFunction.filter.getDocIdSet(reader));
+                    DocSet docSet = DocSets.convert(context.reader(), filterFunction.filter.getDocIdSet(context));
                     if (docSet.get(doc)) {
-                        filterFunction.function.setNextReader(reader);
+                        filterFunction.function.setNextReader(context);
                         Explanation functionExplanation = filterFunction.function.explainFactor(doc);
                         float sc = getValue() * subQueryExpl.getValue() * functionExplanation.getValue();
                         Explanation filterExplanation = new ComplexExplanation(true, sc, "custom score, product of:");
@@ -189,9 +191,9 @@ public class FiltersFunctionScoreQuery extends Query {
                 float min = Float.POSITIVE_INFINITY;
                 ArrayList<Explanation> filtersExplanations = new ArrayList<Explanation>();
                 for (FilterFunction filterFunction : filterFunctions) {
-                    DocSet docSet = DocSets.convert(reader, filterFunction.filter.getDocIdSet(reader));
+                    DocSet docSet = DocSets.convert(context.reader(), filterFunction.filter.getDocIdSet(context));
                     if (docSet.get(doc)) {
-                        filterFunction.function.setNextReader(reader);
+                        filterFunction.function.setNextReader(context);
                         Explanation functionExplanation = filterFunction.function.explainFactor(doc);
                         float factor = functionExplanation.getValue();
                         count++;

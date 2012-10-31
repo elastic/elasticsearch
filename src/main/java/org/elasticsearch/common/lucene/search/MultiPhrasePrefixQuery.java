@@ -19,11 +19,11 @@
 
 package org.elasticsearch.common.lucene.search;
 
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.index.TermEnum;
+import org.apache.lucene.index.*;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.ToStringUtils;
 
 import java.io.IOException;
@@ -152,23 +152,30 @@ public class MultiPhrasePrefixQuery extends Query {
     }
 
     private void getPrefixTerms(List<Term> terms, final Term prefix, final IndexReader reader) throws IOException {
-        TermEnum enumerator = reader.terms(prefix);
-        try {
-            do {
-                Term term = enumerator.term();
-                if (term != null
-                        && term.text().startsWith(prefix.text())
-                        && term.field().equals(field)) {
-                    terms.add(term);
-                } else {
+        TermsEnum termsEnum = null;
+        List<AtomicReaderContext> leaves = reader.leaves();
+        for (AtomicReaderContext leaf : leaves) {
+            Terms _terms = leaf.reader().terms(field);
+            if (_terms == null) {
+                continue;
+            }
+
+            termsEnum = _terms.iterator(termsEnum);
+            TermsEnum.SeekStatus seekStatus = termsEnum.seekCeil(prefix.bytes());
+            if (TermsEnum.SeekStatus.END == seekStatus) {
+                continue;
+            }
+
+            for (BytesRef term  = termsEnum.term(); term != null; term = termsEnum.next()) {
+                if (StringHelper.startsWith(term, prefix.bytes())) {
                     break;
                 }
+
+                terms.add(new Term(field, BytesRef.deepCopyOf(term)));
                 if (terms.size() >= maxExpansions) {
-                    break;
+                    return;
                 }
-            } while (enumerator.next());
-        } finally {
-            enumerator.close();
+            }
         }
     }
 

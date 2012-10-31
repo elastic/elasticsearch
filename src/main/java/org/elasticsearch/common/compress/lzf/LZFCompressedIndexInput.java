@@ -65,7 +65,7 @@ public class LZFCompressedIndexInput extends CompressedIndexInput<LZFCompressorC
     }
 
     @Override
-    public Object clone() {
+    public IndexInput clone() {
         LZFCompressedIndexInput cloned = (LZFCompressedIndexInput) super.clone();
         cloned.inputBuffer = new byte[LZFChunk.MAX_CHUNK_LEN];
         return cloned;

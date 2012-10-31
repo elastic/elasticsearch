@@ -19,7 +19,9 @@
 
 package org.elasticsearch.test.unit.index.field.data.ints;
 
-import org.apache.lucene.document.NumericField;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.IntField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -31,7 +33,6 @@ import org.testng.annotations.Test;
 
 import java.util.ArrayList;
 
-import static org.elasticsearch.common.lucene.DocumentBuilder.doc;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -45,28 +46,28 @@ public class IntFieldDataTests {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
 
-        indexWriter.addDocument(doc()
-                .add(new NumericField("svalue").setIntValue(4))
-                .add(new NumericField("mvalue").setIntValue(104))
-                .build());
+        Document document = new Document();
+        document.add(new IntField("svalue", 4, Field.Store.NO));
+        document.add(new IntField("mvalue", 104, Field.Store.NO));
+        indexWriter.addDocument(document);
 
-        indexWriter.addDocument(doc()
-                .add(new NumericField("svalue").setIntValue(3))
-                .add(new NumericField("mvalue").setIntValue(104))
-                .add(new NumericField("mvalue").setIntValue(105))
-                .build());
+        document = new Document();
+        document.add(new IntField("svalue", 3, Field.Store.NO));
+        document.add(new IntField("mvalue", 104, Field.Store.NO));
+        document.add(new IntField("mvalue", 105, Field.Store.NO));
+        indexWriter.addDocument(document);
 
-        indexWriter.addDocument(doc()
-                .add(new NumericField("svalue").setIntValue(7))
-                .build());
+        document = new Document();
+        document.add(new IntField("svalue", 7, Field.Store.NO));
+        indexWriter.addDocument(document);
 
-        indexWriter.addDocument(doc()
-                .add(new NumericField("mvalue").setIntValue(102))
-                .build());
+        document = new Document();
+        document.add(new IntField("mvalue", 102, Field.Store.NO));
+        indexWriter.addDocument(document);
 
-        indexWriter.addDocument(doc()
-                .add(new NumericField("svalue").setIntValue(4))
-                .build());
+        document = new Document();
+        document.add(new IntField("svalue", 4, Field.Store.NO));
+        indexWriter.addDocument(document);
 
         IndexReader reader = IndexReader.open(indexWriter, true);
 

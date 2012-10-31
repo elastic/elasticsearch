@@ -19,6 +19,9 @@
 
 package org.elasticsearch.test.unit.index.field.data.strings;
 
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.*;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
@@ -30,8 +33,6 @@ import org.testng.annotations.Test;
 
 import java.util.ArrayList;
 
-import static org.elasticsearch.common.lucene.DocumentBuilder.doc;
-import static org.elasticsearch.common.lucene.DocumentBuilder.field;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -45,22 +46,27 @@ public class StringFieldDataTests {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
 
-        indexWriter.addDocument(doc()
-                .add(field("svalue", "zzz"))
-                .add(field("mvalue", "111")).build());
+        Document document = new Document();
+        document.add(new TextField("svalue", "zzz", Field.Store.YES));
+        document.add(new TextField("mvalue", "111", Field.Store.YES));
+        indexWriter.addDocument(document);
 
-        indexWriter.addDocument(doc()
-                .add(field("svalue", "xxx"))
-                .add(field("mvalue", "222 333")).build());
+        document = new Document();
+        document.add(new TextField("svalue", "xxx", Field.Store.YES));
+        document.add(new TextField("mvalue", "222 333", Field.Store.YES));
+        indexWriter.addDocument(document);
 
-        indexWriter.addDocument(doc()
-                .add(field("mvalue", "333 444")).build());
+        document = new Document();
+        document.add(new TextField("mvalue", "333 444", Field.Store.YES));
+        indexWriter.addDocument(document);
 
-        indexWriter.addDocument(doc()
-                .add(field("svalue", "aaa")).build());
+        document = new Document();
+        document.add(new TextField("svalue", "aaa", Field.Store.YES));
+        indexWriter.addDocument(document);
 
-        indexWriter.addDocument(doc()
-                .add(field("svalue", "aaa")).build());
+        document = new Document();
+        document.add(new TextField("svalue", "aaa", Field.Store.YES));
+        indexWriter.addDocument(document);
 
         AtomicReader reader = SlowCompositeReaderWrapper.wrap(DirectoryReader.open(indexWriter, false));
 

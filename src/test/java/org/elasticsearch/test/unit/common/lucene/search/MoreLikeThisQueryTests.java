@@ -19,6 +19,9 @@
 
 package org.elasticsearch.test.unit.common.lucene.search;
 
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -29,8 +32,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
 import org.testng.annotations.Test;
 
-import static org.elasticsearch.common.lucene.DocumentBuilder.doc;
-import static org.elasticsearch.common.lucene.DocumentBuilder.field;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -47,8 +48,15 @@ public class MoreLikeThisQueryTests {
         indexWriter.commit();
 
 
-        indexWriter.addDocument(doc().add(field("_id", "1")).add(field("text", "lucene")).build());
-        indexWriter.addDocument(doc().add(field("_id", "2")).add(field("text", "lucene release")).build());
+        Document document = new Document();
+        document.add(new TextField("_id", "1", Field.Store.YES));
+        document.add(new TextField("text", "lucene", Field.Store.YES));
+        indexWriter.addDocument(document);
+
+        document = new Document();
+        document.add(new TextField("_id", "2", Field.Store.YES));
+        document.add(new TextField("text", "lucene release", Field.Store.YES));
+        indexWriter.addDocument(document);
 
         IndexReader reader = IndexReader.open(indexWriter, true);
         IndexSearcher searcher = new IndexSearcher(reader);

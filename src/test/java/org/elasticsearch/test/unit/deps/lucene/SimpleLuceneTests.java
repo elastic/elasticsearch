@@ -32,8 +32,6 @@ import org.testng.annotations.Test;
 import java.io.IOException;
 import java.util.ArrayList;
 
-import static org.elasticsearch.common.lucene.DocumentBuilder.doc;
-import static org.elasticsearch.common.lucene.DocumentBuilder.field;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -47,7 +45,9 @@ public class SimpleLuceneTests {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
         for (int i = 0; i < 10; i++) {
-            indexWriter.addDocument(doc().add(field("str", new String(new char[]{(char) (97 + i), (char) (97 + i)}))).build());
+            Document document = new Document();
+            document.add(new TextField("str", new String(new char[]{(char) (97 + i), (char) (97 + i)}), Field.Store.YES));
+            indexWriter.addDocument(document);
         }
         IndexReader reader = IndexReader.open(indexWriter, true);
         IndexSearcher searcher = new IndexSearcher(reader);
@@ -62,8 +62,9 @@ public class SimpleLuceneTests {
     public void testAddDocAfterPrepareCommit() throws Exception {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
-        indexWriter.addDocument(doc()
-                .add(field("_id", "1")).build());
+        Document document = new Document();
+        document.add(new TextField("_id", "1", Field.Store.YES));
+        indexWriter.addDocument(document);
         DirectoryReader reader = IndexReader.open(indexWriter, true);
         assertThat(reader.numDocs(), equalTo(1));
 
@@ -71,8 +72,9 @@ public class SimpleLuceneTests {
         reader = DirectoryReader.openIfChanged(reader);
         assertThat(reader.numDocs(), equalTo(1));
 
-        indexWriter.addDocument(doc()
-                .add(field("_id", "2")).build());
+        document = new Document();
+        document.add(new TextField("_id", "2", Field.Store.YES));
+        indexWriter.addDocument(document);
         indexWriter.commit();
         reader = DirectoryReader.openIfChanged(reader);
         assertThat(reader.numDocs(), equalTo(2));
@@ -83,7 +85,10 @@ public class SimpleLuceneTests {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
 
-        indexWriter.addDocument(doc().add(field("_id", "1")).add(new IntField("test", 2, IntField.TYPE_STORED)).build());
+        Document document = new Document();
+        document.add(new TextField("_id", "1", Field.Store.YES));
+        document.add(new IntField("test", 2, IntField.TYPE_STORED));
+        indexWriter.addDocument(document);
 
         IndexReader reader = IndexReader.open(indexWriter, true);
         IndexSearcher searcher = new IndexSearcher(reader);
@@ -112,9 +117,10 @@ public class SimpleLuceneTests {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
 
-        indexWriter.addDocument(doc()
-                .add(field("_id", "1"))
-                .add(field("#id", "1")).build());
+        Document document = new Document();
+        document.add(new TextField("_id", "1", Field.Store.YES));
+        document.add(new TextField("#id", "1", Field.Store.YES));
+        indexWriter.addDocument(document);
 
         IndexReader reader = IndexReader.open(indexWriter, true);
         IndexSearcher searcher = new IndexSearcher(reader);
@@ -146,10 +152,11 @@ public class SimpleLuceneTests {
             for (int j = 0; j < i; j++) {
                 value.append(" ").append("value");
             }
-            indexWriter.addDocument(doc()
-                    .add(field("id", Integer.toString(i)))
-                    .add(field("value", value.toString()))
-                    .boost(i).build());
+            Document document = new Document();
+            document.add(new TextField("_id", Integer.toString(i), Field.Store.YES));
+            document.add(new TextField("value", value.toString(), Field.Store.YES));
+            document.boost(i);
+            indexWriter.addDocument(document);
         }
 
         IndexReader reader = IndexReader.open(indexWriter, true);
@@ -173,9 +180,10 @@ public class SimpleLuceneTests {
         DirectoryReader reader = IndexReader.open(indexWriter, true);
 
         for (int i = 0; i < 100; i++) {
-            indexWriter.addDocument(doc()
-                    .add(field("id", Integer.toString(i)))
-                    .boost(i).build());
+            Document document = new Document();
+            document.add(new TextField("_id", Integer.toString(i), Field.Store.YES));
+            document.boost(i);
+            indexWriter.addDocument(document);
         }
         reader = refreshReader(reader);
 

@@ -19,7 +19,10 @@
 
 package org.elasticsearch.test.unit.deps.lucene;
 
+import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -32,8 +35,6 @@ import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.lucene.Lucene;
 import org.testng.annotations.Test;
 
-import static org.elasticsearch.common.lucene.DocumentBuilder.doc;
-import static org.elasticsearch.common.lucene.DocumentBuilder.field;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
@@ -48,7 +49,10 @@ public class VectorHighlighterTests {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
 
-        indexWriter.addDocument(doc().add(field("_id", "1")).add(field("content", "the big bad dog", Field.Store.YES, Field.Index.ANALYZED, Field.TermVector.WITH_POSITIONS_OFFSETS)).build());
+        Document document = new Document();
+        document.add(new TextField("_id", "1", Field.Store.YES));
+        document.add(new Field("content", "the big bad dog", Field.Store.YES, Field.Index.ANALYZED, Field.TermVector.WITH_POSITIONS_OFFSETS));
+        indexWriter.addDocument(document);
 
         IndexReader reader = IndexReader.open(indexWriter, true);
         IndexSearcher searcher = new IndexSearcher(reader);
@@ -68,7 +72,10 @@ public class VectorHighlighterTests {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
 
-        indexWriter.addDocument(doc().add(field("_id", "1")).add(field("content", "the big bad dog", Field.Store.YES, Field.Index.ANALYZED, Field.TermVector.WITH_POSITIONS_OFFSETS)).build());
+        Document document = new Document();
+        document.add(new TextField("_id", "1", Field.Store.YES));
+        document.add(new Field("content", "the big bad dog", Field.Store.YES, Field.Index.ANALYZED, Field.TermVector.WITH_POSITIONS_OFFSETS));
+        indexWriter.addDocument(document);
 
         IndexReader reader = IndexReader.open(indexWriter, true);
         IndexSearcher searcher = new IndexSearcher(reader);
@@ -107,7 +114,10 @@ public class VectorHighlighterTests {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
 
-        indexWriter.addDocument(doc().add(field("_id", "1")).add(field("content", "the big bad dog", Field.Store.NO, Field.Index.ANALYZED, Field.TermVector.WITH_POSITIONS_OFFSETS)).build());
+        Document document = new Document();
+        document.add(new TextField("_id", "1", Field.Store.YES));
+        document.add(new Field("content", "the big bad dog", Field.Store.NO, Field.Index.ANALYZED, Field.TermVector.WITH_POSITIONS_OFFSETS));
+        indexWriter.addDocument(document);
 
         IndexReader reader = IndexReader.open(indexWriter, true);
         IndexSearcher searcher = new IndexSearcher(reader);
@@ -126,7 +136,10 @@ public class VectorHighlighterTests {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
 
-        indexWriter.addDocument(doc().add(field("_id", "1")).add(field("content", "the big bad dog", Field.Store.YES, Field.Index.ANALYZED, Field.TermVector.NO)).build());
+        Document document = new Document();
+        document.add(new TextField("_id", "1", Field.Store.YES));
+        document.add(new Field("content", "the big bad dog", Field.Store.YES, Field.Index.ANALYZED, Field.TermVector.NO));
+        indexWriter.addDocument(document);
 
         IndexReader reader = IndexReader.open(indexWriter, true);
         IndexSearcher searcher = new IndexSearcher(reader);

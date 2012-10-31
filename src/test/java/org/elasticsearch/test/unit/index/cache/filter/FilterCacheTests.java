@@ -19,10 +19,10 @@
 
 package org.elasticsearch.test.unit.index.cache.filter;
 
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.Term;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
@@ -35,8 +35,6 @@ import org.testng.annotations.Test;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.lucene.DocumentBuilder.doc;
-import static org.elasticsearch.common.lucene.DocumentBuilder.field;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -55,12 +53,12 @@ public class FilterCacheTests {
     private void verifyCache(FilterCache filterCache) throws Exception {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
-        IndexReader reader = IndexReader.open(indexWriter, true);
+        DirectoryReader reader = IndexReader.open(indexWriter, true);
 
         for (int i = 0; i < 100; i++) {
-            indexWriter.addDocument(doc()
-                    .add(field("id", Integer.toString(i)))
-                    .boost(i).build());
+            Document document = new Document();
+            document.add(new TextField("id", Integer.toString(i), Field.Store.YES));
+            indexWriter.addDocument(document);
         }
 
         reader = refreshReader(reader);
@@ -82,9 +80,9 @@ public class FilterCacheTests {
         indexWriter.close();
     }
 
-    private IndexReader refreshReader(IndexReader reader) throws IOException {
+    private DirectoryReader refreshReader(DirectoryReader reader) throws IOException {
         IndexReader oldReader = reader;
-        reader = reader.reopen();
+        reader = DirectoryReader.openIfChanged(reader);
         if (reader != oldReader) {
             oldReader.close();
         }

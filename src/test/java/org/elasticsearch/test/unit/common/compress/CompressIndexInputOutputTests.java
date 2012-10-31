@@ -21,16 +21,11 @@ package org.elasticsearch.test.unit.common.compress;
 
 import jsr166y.ThreadLocalRandom;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.DocumentStoredFieldVisitor;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.MapFieldSelector;
-import org.apache.lucene.index.CheckIndex;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.store.RAMDirectory;
+import org.apache.lucene.index.*;
+import org.apache.lucene.store.*;
+import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.RandomStringGenerator;
 import org.elasticsearch.common.compress.CompressedDirectory;
 import org.elasticsearch.common.compress.CompressedIndexInput;
@@ -88,10 +83,10 @@ public class CompressIndexInputOutputTests {
 
     private void empty(Compressor compressor) throws Exception {
         Directory dir = new RAMDirectory();
-        IndexOutput out = compressor.indexOutput(dir.createOutput("test"));
+        IndexOutput out = compressor.indexOutput(dir.createOutput("test", IOContext.DEFAULT));
         out.close();
 
-        IndexInput in = compressor.indexInput(dir.openInput("test"));
+        IndexInput in = compressor.indexInput(dir.openInput("test", IOContext.DEFAULT));
         try {
             in.readByte();
             assert false;
@@ -110,7 +105,7 @@ public class CompressIndexInputOutputTests {
 
     private void simple(Compressor compressor) throws Exception {
         Directory dir = new RAMDirectory();
-        IndexOutput out = compressor.indexOutput(dir.createOutput("test"));
+        IndexOutput out = compressor.indexOutput(dir.createOutput("test", IOContext.DEFAULT));
         long pos1 = out.getFilePointer();
         out.writeInt(1);
         long pos2 = out.getFilePointer();
@@ -124,7 +119,7 @@ public class CompressIndexInputOutputTests {
         out.writeString("test2");
         out.close();
 
-        IndexInput in = compressor.indexInput(dir.openInput("test"));
+        IndexInput in = compressor.indexInput(dir.openInput("test", IOContext.DEFAULT));
         assertThat(in.readInt(), equalTo(1));
         assertThat(in.readString(), equalTo("test1"));
         assertThat(in.readString(), equalTo(largeString));
@@ -157,7 +152,7 @@ public class CompressIndexInputOutputTests {
 
     private void seek1(boolean compressed, Compressor compressor) throws Exception {
         Directory dir = new RAMDirectory();
-        IndexOutput out = compressed ? compressor.indexOutput(dir.createOutput("test")) : dir.createOutput("test");
+        IndexOutput out = compressed ? compressor.indexOutput(dir.createOutput("test", IOContext.DEFAULT)) : dir.createOutput("test", IOContext.DEFAULT);
         long pos1 = out.getFilePointer();
         out.writeVInt(4);
         out.writeInt(1);
@@ -182,7 +177,7 @@ public class CompressIndexInputOutputTests {
         out.close();
 
         //IndexInput in = dir.openInput("test");
-        IndexInput in = compressed ? compressor.indexInput(dir.openInput("test")) : dir.openInput("test");
+        IndexInput in = compressed ? compressor.indexInput(dir.openInput("test", IOContext.DEFAULT)) : dir.openInput("test", IOContext.DEFAULT);
         in.seek(pos2);
         // now "skip"
         int numBytes = in.readVInt();
@@ -200,7 +195,7 @@ public class CompressIndexInputOutputTests {
 
     private void copyBytes(Compressor compressor) throws Exception {
         Directory dir = new RAMDirectory();
-        IndexOutput out = compressor.indexOutput(dir.createOutput("test"));
+        IndexOutput out = compressor.indexOutput(dir.createOutput("test", IOContext.DEFAULT));
         long pos1 = out.getFilePointer();
         out.writeInt(1);
         long pos2 = out.getFilePointer();
@@ -217,17 +212,17 @@ public class CompressIndexInputOutputTests {
         long length = out.length();
         out.close();
 
-        CompressedIndexOutput out2 = compressor.indexOutput(dir.createOutput("test2"));
+        CompressedIndexOutput out2 = compressor.indexOutput(dir.createOutput("test2", IOContext.DEFAULT));
         out2.writeString("mergeStart");
         long startMergePos = out2.getFilePointer();
-        CompressedIndexInput testInput = compressor.indexInput(dir.openInput("test"));
+        CompressedIndexInput testInput = compressor.indexInput(dir.openInput("test", IOContext.DEFAULT));
         assertThat(testInput.length(), equalTo(length));
         out2.copyBytes(testInput, testInput.length());
         long endMergePos = out2.getFilePointer();
         out2.writeString("mergeEnd");
         out2.close();
 
-        IndexInput in = compressor.indexInput(dir.openInput("test2"));
+        IndexInput in = compressor.indexInput(dir.openInput("test2", IOContext.DEFAULT));
         assertThat(in.readString(), equalTo("mergeStart"));
         assertThat(in.readInt(), equalTo(1));
         assertThat(in.readString(), equalTo("test1"));
@@ -276,24 +271,29 @@ public class CompressIndexInputOutputTests {
         CheckIndex checkIndex = new CheckIndex(writer.getDirectory());
         CheckIndex.Status status = checkIndex.checkIndex();
         assertThat(status.clean, equalTo(true));
-        IndexReader reader = IndexReader.open(writer, true);
+        IndexReader reader = DirectoryReader.open(writer, true);
+        final Bits liveDocs = MultiFields.getLiveDocs(reader);
         for (int i = 0; i < reader.maxDoc(); i++) {
-            if (reader.isDeleted(i)) {
+            if (liveDocs != null && !liveDocs.get(i)) {
                 continue;
             }
             Document document = reader.document(i);
             checkDoc(document);
-            document = reader.document(i, new MapFieldSelector("id", "field", "count"));
+            DocumentStoredFieldVisitor visitor = new DocumentStoredFieldVisitor("id", "field", "count");
+            reader.document(i, visitor);
+            document = visitor.getDocument();
             checkDoc(document);
         }
         for (int i = 0; i < 100; i++) {
             int doc = ThreadLocalRandom.current().nextInt(reader.maxDoc());
-            if (reader.isDeleted(i)) {
+            if (liveDocs != null && !liveDocs.get(i)) {
                 continue;
             }
             Document document = reader.document(doc);
             checkDoc(document);
-            document = reader.document(doc, new MapFieldSelector("id", "field", "count"));
+            DocumentStoredFieldVisitor visitor = new DocumentStoredFieldVisitor("id", "field", "count");
+            reader.document(i, visitor);
+            document = visitor.getDocument();
             checkDoc(document);
         }
     }

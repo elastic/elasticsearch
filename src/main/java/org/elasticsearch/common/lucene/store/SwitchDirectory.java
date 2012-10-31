@@ -19,8 +19,10 @@
 
 package org.elasticsearch.common.lucene.store;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.index.store.support.ForceSyncDirectory;
@@ -124,16 +126,6 @@ public class SwitchDirectory extends Directory implements ForceSyncDirectory {
     }
 
     @Override
-    public long fileModified(String name) throws IOException {
-        return getDirectory(name).fileModified(name);
-    }
-
-    @Override
-    public void touchFile(String name) throws IOException {
-        getDirectory(name).touchFile(name);
-    }
-
-    @Override
     public void deleteFile(String name) throws IOException {
         getDirectory(name).deleteFile(name);
     }
@@ -144,8 +136,8 @@ public class SwitchDirectory extends Directory implements ForceSyncDirectory {
     }
 
     @Override
-    public IndexOutput createOutput(String name) throws IOException {
-        return getDirectory(name).createOutput(name);
+    public IndexOutput createOutput(String name, IOContext context) throws IOException {
+        return getDirectory(name).createOutput(name, context);
     }
 
     @Override
@@ -164,22 +156,17 @@ public class SwitchDirectory extends Directory implements ForceSyncDirectory {
     }
 
     @Override
-    public void sync(String name) throws IOException {
-        getDirectory(name).sync(name);
-    }
-
-    @Override
     public void forceSync(String name) throws IOException {
         Directory dir = getDirectory(name);
         if (dir instanceof ForceSyncDirectory) {
             ((ForceSyncDirectory) dir).forceSync(name);
         } else {
-            dir.sync(name);
+            dir.sync(ImmutableList.of(name));
         }
     }
 
     @Override
-    public IndexInput openInput(String name) throws IOException {
-        return getDirectory(name).openInput(name);
+    public IndexInput openInput(String name, IOContext context) throws IOException {
+        return getDirectory(name).openInput(name, context);
     }
 }

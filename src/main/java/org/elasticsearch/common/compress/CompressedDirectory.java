@@ -1,5 +1,6 @@
 package org.elasticsearch.common.compress;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.store.*;
 import org.elasticsearch.index.store.support.ForceSyncDirectory;
@@ -61,16 +62,6 @@ public class CompressedDirectory extends Directory implements ForceSyncDirectory
     }
 
     @Override
-    public long fileModified(String name) throws IOException {
-        return dir.fileModified(name);
-    }
-
-    @Override
-    public void touchFile(String name) throws IOException {
-        dir.touchFile(name);
-    }
-
-    @Override
     public void deleteFile(String name) throws IOException {
         dir.deleteFile(name);
     }
@@ -98,23 +89,18 @@ public class CompressedDirectory extends Directory implements ForceSyncDirectory
     }
 
     @Override
-    public void sync(String name) throws IOException {
-        dir.sync(name);
-    }
-
-    @Override
     public void forceSync(String name) throws IOException {
         if (dir instanceof ForceSyncDirectory) {
             ((ForceSyncDirectory) dir).forceSync(name);
         } else {
-            dir.sync(name);
+            dir.sync(ImmutableList.of(name));
         }
     }
 
     @Override
-    public IndexInput openInput(String name) throws IOException {
+    public IndexInput openInput(String name, IOContext context) throws IOException {
         if (decompressExtensions.contains(getExtension(name))) {
-            IndexInput in = dir.openInput(name);
+            IndexInput in = dir.openInput(name, context);
             Compressor compressor1 = CompressorFactory.compressor(in);
             if (compressor1 != null) {
                 return compressor1.indexInput(in);
@@ -122,29 +108,15 @@ public class CompressedDirectory extends Directory implements ForceSyncDirectory
                 return in;
             }
         }
-        return dir.openInput(name);
+        return dir.openInput(name, context);
     }
 
     @Override
-    public IndexInput openInput(String name, int bufferSize) throws IOException {
-        if (decompressExtensions.contains(getExtension(name))) {
-            IndexInput in = dir.openInput(name, bufferSize);
-            Compressor compressor1 = CompressorFactory.compressor(in);
-            if (compressor1 != null) {
-                return compressor1.indexInput(in);
-            } else {
-                return in;
-            }
-        }
-        return dir.openInput(name, bufferSize);
-    }
-
-    @Override
-    public IndexOutput createOutput(String name) throws IOException {
+    public IndexOutput createOutput(String name, IOContext context) throws IOException {
         if (compress && compressExtensions.contains(getExtension(name))) {
-            return compressor.indexOutput(dir.createOutput(name));
+            return compressor.indexOutput(dir.createOutput(name, context));
         }
-        return dir.createOutput(name);
+        return dir.createOutput(name, context);
     }
 
     // can't override this one, we need to open the correct compression

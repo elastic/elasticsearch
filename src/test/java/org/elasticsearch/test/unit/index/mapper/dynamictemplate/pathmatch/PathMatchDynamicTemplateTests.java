@@ -20,7 +20,7 @@
 package org.elasticsearch.test.unit.index.mapper.dynamictemplate.pathmatch;
 
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.index.field.data.strings.StringFieldDataType;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -46,26 +46,26 @@ public class PathMatchDynamicTemplateTests {
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/mapper/dynamictemplate/pathmatch/test-data.json");
         Document doc = docMapper.parse(new BytesArray(json)).rootDoc();
 
-        Fieldable f = doc.getFieldable("name");
+        IndexableField f = doc.getField("name");
         assertThat(f.name(), equalTo("name"));
         assertThat(f.stringValue(), equalTo("top_level"));
-        assertThat(f.isStored(), equalTo(false));
+        assertThat(f.fieldType().stored(), equalTo(false));
 
         FieldMappers fieldMappers = docMapper.mappers().fullName("name");
         assertThat(fieldMappers.mappers().size(), equalTo(1));
         assertThat(fieldMappers.mapper().stored(), equalTo(false));
 
-        f = doc.getFieldable("obj1.name");
+        f = doc.getField("obj1.name");
         assertThat(f.name(), equalTo("obj1.name"));
-        assertThat(f.isStored(), equalTo(true));
+        assertThat(f.fieldType().stored(), equalTo(true));
 
         fieldMappers = docMapper.mappers().fullName("obj1.name");
         assertThat(fieldMappers.mappers().size(), equalTo(1));
         assertThat(fieldMappers.mapper().stored(), equalTo(true));
 
-        f = doc.getFieldable("obj1.obj2.name");
+        f = doc.getField("obj1.obj2.name");
         assertThat(f.name(), equalTo("obj1.obj2.name"));
-        assertThat(f.isStored(), equalTo(false));
+        assertThat(f.fieldType().stored(), equalTo(false));
 
         fieldMappers = docMapper.mappers().fullName("obj1.obj2.name");
         assertThat(fieldMappers.mappers().size(), equalTo(1));

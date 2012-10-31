@@ -19,11 +19,13 @@
 
 package org.elasticsearch.common.lucene.search;
 
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.FilteredDocIdSetIterator;
+import org.apache.lucene.util.Bits;
 
 import java.io.IOException;
 
@@ -39,15 +41,15 @@ public class NotDeletedFilter extends Filter {
     }
 
     @Override
-    public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
-        DocIdSet docIdSet = filter.getDocIdSet(reader);
+    public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+        DocIdSet docIdSet = filter.getDocIdSet(context, acceptDocs);
         if (docIdSet == null) {
             return null;
         }
-        if (!reader.hasDeletions()) {
+        if (!context.reader().hasDeletions()) {
             return docIdSet;
         }
-        return new NotDeletedDocIdSet(docIdSet, reader);
+        return new NotDeletedDocIdSet(docIdSet, context.reader().getLiveDocs());
     }
 
     public Filter filter() {
@@ -63,11 +65,11 @@ public class NotDeletedFilter extends Filter {
 
         private final DocIdSet innerSet;
 
-        private final IndexReader reader;
+        private final Bits liveDocs;
 
-        NotDeletedDocIdSet(DocIdSet innerSet, IndexReader reader) {
+        NotDeletedDocIdSet(DocIdSet innerSet, Bits liveDocs) {
             this.innerSet = innerSet;
-            this.reader = reader;
+            this.liveDocs = liveDocs;
         }
 
         @Override
@@ -76,22 +78,22 @@ public class NotDeletedFilter extends Filter {
             if (iterator == null) {
                 return null;
             }
-            return new NotDeletedDocIdSetIterator(iterator, reader);
+            return new NotDeletedDocIdSetIterator(iterator, liveDocs);
         }
     }
 
     static class NotDeletedDocIdSetIterator extends FilteredDocIdSetIterator {
 
-        private final IndexReader reader;
+        private final Bits liveDocs;
 
-        NotDeletedDocIdSetIterator(DocIdSetIterator innerIter, IndexReader reader) {
+        NotDeletedDocIdSetIterator(DocIdSetIterator innerIter, Bits liveDocs) {
             super(innerIter);
-            this.reader = reader;
+            this.liveDocs = liveDocs;
         }
 
         @Override
-        protected boolean match(int doc) throws IOException {
-            return !reader.isDeleted(doc);
+        protected boolean match(int doc) {
+            return liveDocs.get(doc);
         }
     }
 }

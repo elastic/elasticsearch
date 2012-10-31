@@ -19,11 +19,12 @@
 
 package org.elasticsearch.common.lucene.search;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.queries.FilterClause;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.docset.DocSet;
 import org.elasticsearch.common.lucene.docset.DocSets;
@@ -41,9 +42,9 @@ public class XBooleanFilter extends Filter {
     ArrayList<Filter> notFilters = null;
     ArrayList<Filter> mustFilters = null;
 
-    private DocIdSet getDISI(ArrayList<Filter> filters, int index, IndexReader reader)
+    private DocIdSet getDISI(ArrayList<Filter> filters, int index, AtomicReaderContext context, Bits acceptedDocs)
             throws IOException {
-        DocIdSet docIdSet = filters.get(index).getDocIdSet(reader);
+        DocIdSet docIdSet = filters.get(index).getDocIdSet(context, acceptedDocs);
         if (docIdSet == DocIdSet.EMPTY_DOCIDSET || docIdSet == DocSet.EMPTY_DOC_SET) {
             return null;
         }
@@ -67,23 +68,26 @@ public class XBooleanFilter extends Filter {
      * of the filters that have been added.
      */
     @Override
-    public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
+    public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptedDocs) throws IOException {
         FixedBitSet res = null;
 
         if (mustFilters == null && notFilters == null && shouldFilters != null && shouldFilters.size() == 1) {
-            return shouldFilters.get(0).getDocIdSet(reader);
+            // LUCENE 4 UPGRADE: For leave acceptedDocs null, until we figure out how to deal with deleted docs...
+            return shouldFilters.get(0).getDocIdSet(context, null);
         }
 
         if (shouldFilters == null && notFilters == null && mustFilters != null && mustFilters.size() == 1) {
-            return mustFilters.get(0).getDocIdSet(reader);
+            // LUCENE 4 UPGRADE: For leave acceptedDocs null, until we figure out how to deal with deleted docs...
+            return mustFilters.get(0).getDocIdSet(context, null);
         }
 
         if (shouldFilters != null) {
             for (int i = 0; i < shouldFilters.size(); i++) {
-                final DocIdSet disi = getDISI(shouldFilters, i, reader);
+                // LUCENE 4 UPGRADE: For leave acceptedDocs null, until we figure out how to deal with deleted docs...
+                final DocIdSet disi = getDISI(shouldFilters, i, context, null);
                 if (disi == null) continue;
                 if (res == null) {
-                    res = new FixedBitSet(reader.maxDoc());
+                    res = new FixedBitSet(context.reader().maxDoc());
                 }
                 DocSets.or(res, disi);
             }
@@ -98,10 +102,11 @@ public class XBooleanFilter extends Filter {
         if (notFilters != null) {
             for (int i = 0; i < notFilters.size(); i++) {
                 if (res == null) {
-                    res = new FixedBitSet(reader.maxDoc());
-                    res.set(0, reader.maxDoc()); // NOTE: may set bits on deleted docs
+                    res = new FixedBitSet(context.reader().maxDoc());
+                    res.set(0, context.reader().maxDoc()); // NOTE: may set bits on deleted docs
                 }
-                final DocIdSet disi = getDISI(notFilters, i, reader);
+                // LUCENE 4 UPGRADE: For leave acceptedDocs null, until we figure out how to deal with deleted docs...
+                final DocIdSet disi = getDISI(notFilters, i, context, null);
                 if (disi != null) {
                     DocSets.andNot(res, disi);
                 }
@@ -110,12 +115,13 @@ public class XBooleanFilter extends Filter {
 
         if (mustFilters != null) {
             for (int i = 0; i < mustFilters.size(); i++) {
-                final DocIdSet disi = getDISI(mustFilters, i, reader);
+                // LUCENE 4 UPGRADE: For leave acceptedDocs null, until we figure out how to deal with deleted docs...
+                final DocIdSet disi = getDISI(mustFilters, i, context, null);
                 if (disi == null) {
                     return null;
                 }
                 if (res == null) {
-                    res = new FixedBitSet(reader.maxDoc());
+                    res = new FixedBitSet(context.reader().maxDoc());
                     DocSets.or(res, disi);
                 } else {
                     DocSets.and(res, disi);
@@ -219,10 +225,10 @@ public class XBooleanFilter extends Filter {
 
     private void appendFilters(ArrayList<Filter> filters, String occurString, StringBuilder buffer) {
         if (filters != null) {
-            for (int i = 0; i < filters.size(); i++) {
+            for (Filter filter : filters) {
                 buffer.append(' ');
                 buffer.append(occurString);
-                buffer.append(filters.get(i).toString());
+                buffer.append(filter.toString());
             }
         }
     }

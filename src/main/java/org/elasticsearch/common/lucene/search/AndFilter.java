@@ -50,12 +50,14 @@ public class AndFilter extends Filter {
     @Override
     public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
         if (filters.size() == 1) {
-            return filters.get(0).getDocIdSet(context, acceptDocs);
+            // LUCENE 4 UPGRADE: For leave this null, until we figure out how to deal with deleted docs...
+            return filters.get(0).getDocIdSet(context, null);
         }
         List sets = Lists.newArrayListWithExpectedSize(filters.size());
         boolean allAreDocSet = true;
         for (Filter filter : filters) {
-            DocIdSet set = filter.getDocIdSet(context, acceptDocs);
+            // LUCENE 4 UPGRADE: For leave this null, until we figure out how to deal with deleted docs...
+            DocIdSet set = filter.getDocIdSet(context, null);
             if (set == null) { // none matching for this filter, we AND, so return EMPTY
                 return DocSet.EMPTY_DOC_SET;
             }

@@ -59,7 +59,7 @@ public class FilteredCollector extends Collector {
     @Override
     public void setNextReader(AtomicReaderContext context) throws IOException {
         collector.setNextReader(context);
-        docSet = DocSets.convert(context.reader(), filter.getDocIdSet(context));
+        docSet = DocSets.convert(context.reader(), filter.getDocIdSet(context, null));
     }
 
     @Override

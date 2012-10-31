@@ -19,8 +19,10 @@
 
 package org.elasticsearch.common.lucene.search;
 
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lucene.docset.GetDocSet;
 
 import java.io.IOException;
@@ -39,11 +41,11 @@ public class LimitFilter extends NoCacheFilter {
     }
 
     @Override
-    public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
+    public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
         if (counter > limit) {
             return null;
         }
-        return new LimitDocSet(reader.maxDoc(), limit);
+        return new LimitDocSet(context.reader().maxDoc(), limit);
     }
 
     public class LimitDocSet extends GetDocSet {

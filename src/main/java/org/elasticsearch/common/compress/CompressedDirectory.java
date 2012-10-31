@@ -3,6 +3,7 @@ package org.elasticsearch.common.compress;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.store.*;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.index.store.support.ForceSyncDirectory;
 
 import java.io.IOException;
@@ -77,8 +78,8 @@ public class CompressedDirectory extends Directory implements ForceSyncDirectory
             IndexInput in = openInput(name, IOContext.READONCE);
             try {
                 return in.length();
-            } catch (Exception e) {
-                in.close();
+            } finally {
+                IOUtils.close(in);
             }
         }
         return dir.fileLength(name);

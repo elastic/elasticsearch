@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.lucene.search;
 
+import gnu.trove.set.hash.THashSet;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.Query;
@@ -137,7 +138,7 @@ public class MultiPhrasePrefixQuery extends Query {
         }
         Term[] suffixTerms = termArrays.get(sizeMinus1);
         int position = positions.get(sizeMinus1);
-        List<Term> terms = new ArrayList<Term>();
+        Set<Term> terms = new THashSet<Term>();
         for (Term term : suffixTerms) {
             getPrefixTerms(terms, term, reader);
             if (terms.size() > maxExpansions) {
@@ -151,7 +152,9 @@ public class MultiPhrasePrefixQuery extends Query {
         return query.rewrite(reader);
     }
 
-    private void getPrefixTerms(List<Term> terms, final Term prefix, final IndexReader reader) throws IOException {
+    private void getPrefixTerms(Set<Term> terms, final Term prefix, final IndexReader reader) throws IOException {
+        // SlowCompositeReaderWrapper could be used... but this would merge all terms from each segment into one terms
+        // instance, which is very expensive. Therefore I think it is better to iterate over each leaf individually.
         TermsEnum termsEnum = null;
         List<AtomicReaderContext> leaves = reader.leaves();
         for (AtomicReaderContext leaf : leaves) {
@@ -167,7 +170,7 @@ public class MultiPhrasePrefixQuery extends Query {
             }
 
             for (BytesRef term  = termsEnum.term(); term != null; term = termsEnum.next()) {
-                if (StringHelper.startsWith(term, prefix.bytes())) {
+                if (!StringHelper.startsWith(term, prefix.bytes())) {
                     break;
                 }
 

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.lucene.search.function;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Explanation;
 
 /**
@@ -27,7 +27,7 @@ import org.apache.lucene.search.Explanation;
  */
 public interface ScoreFunction {
 
-    void setNextReader(IndexReader reader);
+    void setNextReader(AtomicReaderContext context);
 
     float score(int docId, float subQueryScore);
 

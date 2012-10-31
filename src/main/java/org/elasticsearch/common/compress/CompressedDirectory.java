@@ -73,7 +73,8 @@ public class CompressedDirectory extends Directory implements ForceSyncDirectory
     @Override
     public long fileLength(String name) throws IOException {
         if (actualLength && decompressExtensions.contains(getExtension(name))) {
-            IndexInput in = openInput(name);
+            // LUCENE 4 UPGRADE: Is this the right IOContext?
+            IndexInput in = openInput(name, IOContext.READONCE);
             try {
                 return in.length();
             } catch (Exception e) {

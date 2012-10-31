@@ -20,9 +20,11 @@
 package org.elasticsearch.common.lucene.search;
 
 import com.google.common.collect.Lists;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lucene.docset.AndDocIdSet;
 import org.elasticsearch.common.lucene.docset.AndDocSet;
 import org.elasticsearch.common.lucene.docset.DocSet;
@@ -46,14 +48,14 @@ public class AndFilter extends Filter {
     }
 
     @Override
-    public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
+    public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
         if (filters.size() == 1) {
-            return filters.get(0).getDocIdSet(reader);
+            return filters.get(0).getDocIdSet(context, acceptDocs);
         }
         List sets = Lists.newArrayListWithExpectedSize(filters.size());
         boolean allAreDocSet = true;
         for (Filter filter : filters) {
-            DocIdSet set = filter.getDocIdSet(reader);
+            DocIdSet set = filter.getDocIdSet(context, acceptDocs);
             if (set == null) { // none matching for this filter, we AND, so return EMPTY
                 return DocSet.EMPTY_DOC_SET;
             }

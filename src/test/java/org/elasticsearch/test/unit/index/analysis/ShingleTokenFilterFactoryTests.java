@@ -20,7 +20,7 @@
 package org.elasticsearch.test.unit.index.analysis;
 
 import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.WhitespaceTokenizer;
+import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;

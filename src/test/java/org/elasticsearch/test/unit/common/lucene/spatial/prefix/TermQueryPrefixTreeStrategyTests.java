@@ -2,7 +2,7 @@ package org.elasticsearch.test.unit.common.lucene.spatial.prefix;
 
 import com.spatial4j.core.shape.Rectangle;
 import com.spatial4j.core.shape.Shape;
-import org.apache.lucene.analysis.KeywordAnalyzer;
+import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexReader;
@@ -75,7 +75,7 @@ public class TermQueryPrefixTreeStrategyTests {
         Set<String> foundIDs = new HashSet<String>();
         for (ScoreDoc doc : topDocs.scoreDocs) {
             Document foundDocument = indexSearcher.doc(doc.doc);
-            foundIDs.add(foundDocument.getFieldable("id").stringValue());
+            foundIDs.add(foundDocument.getField("id").stringValue());
         }
 
         for (String id : ids) {
@@ -157,6 +157,6 @@ public class TermQueryPrefixTreeStrategyTests {
 
     @AfterTest
     public void tearDown() throws IOException {
-        IOUtils.close(indexSearcher, indexReader, directory);
+        IOUtils.close(indexReader, directory);
     }
 }

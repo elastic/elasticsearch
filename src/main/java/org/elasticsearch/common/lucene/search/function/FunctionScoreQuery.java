@@ -66,47 +66,42 @@ public class FunctionScoreQuery extends Query {
 
     @Override
     public Weight createWeight(IndexSearcher searcher) throws IOException {
-        return new CustomBoostFactorWeight(searcher);
+        Weight subQueryWeight = subQuery.createWeight(searcher);
+        return new CustomBoostFactorWeight(subQueryWeight);
     }
 
     class CustomBoostFactorWeight extends Weight {
-        IndexSearcher searcher;
-        Weight subQueryWeight;
 
-        public CustomBoostFactorWeight(IndexSearcher searcher) throws IOException {
-            this.searcher = searcher;
-            this.subQueryWeight = subQuery.createWeight(searcher);
+        final Weight subQueryWeight;
+
+        public CustomBoostFactorWeight(Weight subQueryWeight) throws IOException {
+            this.subQueryWeight = subQueryWeight;
         }
 
         public Query getQuery() {
             return FunctionScoreQuery.this;
         }
 
-        public float getValue() {
-            return getBoost();
-        }
-
         @Override
-        public float sumOfSquaredWeights() throws IOException {
-            float sum = subQueryWeight.sumOfSquaredWeights();
+        public float getValueForNormalization() throws IOException {
+            float sum = subQueryWeight.getValueForNormalization();
             sum *= getBoost() * getBoost();
             return sum;
         }
 
         @Override
-        public void normalize(float norm) {
-            norm *= getBoost();
-            subQueryWeight.normalize(norm);
+        public void normalize(float norm, float topLevelBoost) {
+            subQueryWeight.normalize(norm, topLevelBoost * getBoost());
         }
 
         @Override
         public Scorer scorer(AtomicReaderContext context, boolean scoreDocsInOrder, boolean topScorer, Bits acceptDocs) throws IOException {
-            Scorer subQueryScorer = subQueryWeight.scorer(context, scoreDocsInOrder, false, acceptDocs);
+            Scorer subQueryScorer = subQueryWeight.scorer(context, scoreDocsInOrder, topScorer, acceptDocs);
             if (subQueryScorer == null) {
                 return null;
             }
             function.setNextReader(context);
-            return new CustomBoostFactorScorer(getSimilarity(searcher), this, subQueryScorer, function);
+            return new CustomBoostFactorScorer(this, subQueryScorer, function);
         }
 
         @Override
@@ -118,23 +113,24 @@ public class FunctionScoreQuery extends Query {
 
             function.setNextReader(context);
             Explanation functionExplanation = function.explainScore(doc, subQueryExpl);
-            float sc = getValue() * functionExplanation.getValue();
+            float sc = getBoost() * functionExplanation.getValue();
             Explanation res = new ComplexExplanation(true, sc, "custom score, product of:");
             res.addDetail(functionExplanation);
-            res.addDetail(new Explanation(getValue(), "queryBoost"));
+            res.addDetail(new Explanation(getBoost(), "queryBoost"));
             return res;
         }
     }
 
 
     static class CustomBoostFactorScorer extends Scorer {
-        private final float subQueryWeight;
+
+        private final float subQueryBoost;
         private final Scorer scorer;
         private final ScoreFunction function;
 
-        private CustomBoostFactorScorer(Similarity similarity, CustomBoostFactorWeight w, Scorer scorer, ScoreFunction function) throws IOException {
-            super(similarity);
-            this.subQueryWeight = w.getValue();
+        private CustomBoostFactorScorer(CustomBoostFactorWeight w, Scorer scorer, ScoreFunction function) throws IOException {
+            super(w);
+            this.subQueryBoost = w.getQuery().getBoost();
             this.scorer = scorer;
             this.function = function;
         }
@@ -156,7 +152,12 @@ public class FunctionScoreQuery extends Query {
 
         @Override
         public float score() throws IOException {
-            return subQueryWeight * function.score(scorer.docID(), scorer.score());
+            return subQueryBoost * function.score(scorer.docID(), scorer.score());
+        }
+
+        @Override
+        public float freq() throws IOException {
+            return scorer.freq();
         }
     }
 

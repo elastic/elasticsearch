@@ -86,7 +86,10 @@ public class XTermsFilter extends Filter {
       length = index;
     }
 
-    
+    public Term[] getTerms() {
+        return filterTerms;
+    }
+
     @Override
     public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
       AtomicReader reader = context.reader();

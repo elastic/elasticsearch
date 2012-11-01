@@ -22,11 +22,12 @@ package org.elasticsearch.common.lucene.uid;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PayloadAttribute;
-import org.apache.lucene.document.AbstractField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.DocsAndPositionsEnum;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.lucene.Lucene;
 
@@ -36,6 +37,7 @@ import java.io.Reader;
 /**
  *
  */
+// TODO: LUCENE 4 UPGRADE: Store version as doc values instead of as a payload.
 public class UidField extends Field {
 
     public static class DocIdAndVersion {
@@ -52,39 +54,31 @@ public class UidField extends Field {
 
     // this works fine for nested docs since they don't have the payload which has the version
     // so we iterate till we find the one with the payload
-    public static DocIdAndVersion loadDocIdAndVersion(AtomicReaderContext reader, Term term) {
+    public static DocIdAndVersion loadDocIdAndVersion(AtomicReaderContext context, Term term) {
         int docId = Lucene.NO_DOC;
-        TermPositions uid = null;
         try {
-            uid = reader.termPositions(term);
-            if (!uid.next()) {
+            DocsAndPositionsEnum uid = context.reader().termPositionsEnum(term);
+            if (uid.nextDoc() == DocIdSetIterator.NO_MORE_DOCS) {
                 return null; // no doc
             }
             // Note, only master docs uid have version payload, so we can use that info to not
             // take them into account
             do {
-                docId = uid.doc();
+                docId = uid.docID();
                 uid.nextPosition();
-                if (!uid.isPayloadAvailable()) {
+                if (uid.getPayload() == null) {
                     continue;
                 }
-                if (uid.getPayloadLength() < 8) {
+                if (uid.getPayload().length < 8) {
                     continue;
                 }
-                byte[] payload = uid.getPayload(new byte[8], 0);
-                return new DocIdAndVersion(docId, Numbers.bytesToLong(payload), reader);
-            } while (uid.next());
-            return new DocIdAndVersion(docId, -2, reader);
+                byte[] payload = new byte[uid.getPayload().length];
+                System.arraycopy(uid.getPayload().bytes, uid.getPayload().offset, payload, 0, uid.getPayload().length);
+                return new DocIdAndVersion(docId, Numbers.bytesToLong(payload), context);
+            } while (uid.nextDoc() != DocIdSetIterator.NO_MORE_DOCS);
+            return new DocIdAndVersion(docId, -2, context);
         } catch (Exception e) {
-            return new DocIdAndVersion(docId, -2, reader);
-        } finally {
-            if (uid != null) {
-                try {
-                    uid.close();
-                } catch (IOException e) {
-                    // nothing to do here...
-                }
-            }
+            return new DocIdAndVersion(docId, -2, context);
         }
     }
 
@@ -92,37 +86,29 @@ public class UidField extends Field {
      * Load the version for the uid from the reader, returning -1 if no doc exists, or -2 if
      * no version is available (for backward comp.)
      */
-    public static long loadVersion(AtomicReaderContext reader, Term term) {
-        TermPositions uid = null;
+    public static long loadVersion(AtomicReaderContext context, Term term) {
         try {
-            uid = reader.termPositions(term);
-            if (!uid.next()) {
+            DocsAndPositionsEnum uid = context.reader().termPositionsEnum(term);
+            if (uid.nextDoc() == DocIdSetIterator.NO_MORE_DOCS) {
                 return -1;
             }
             // Note, only master docs uid have version payload, so we can use that info to not
             // take them into account
             do {
                 uid.nextPosition();
-                if (!uid.isPayloadAvailable()) {
+                if (uid.getPayload() == null) {
                     continue;
                 }
-                if (uid.getPayloadLength() < 8) {
+                if (uid.getPayload().length < 8) {
                     continue;
                 }
-                byte[] payload = uid.getPayload(new byte[8], 0);
+                byte[] payload = new byte[uid.getPayload().length];
+                System.arraycopy(uid.getPayload().bytes, uid.getPayload().offset, payload, 0, uid.getPayload().length);
                 return Numbers.bytesToLong(payload);
-            } while (uid.next());
+            } while (uid.nextDoc() != DocIdSetIterator.NO_MORE_DOCS);
             return -2;
         } catch (Exception e) {
             return -2;
-        } finally {
-            if (uid != null) {
-                try {
-                    uid.close();
-                } catch (IOException e) {
-                    // nothing to do here...
-                }
-            }
         }
     }
 
@@ -133,21 +119,11 @@ public class UidField extends Field {
     private final UidPayloadTokenStream tokenStream;
 
     public UidField(String name, String uid, long version) {
-        super(name, Field.Store.YES, Field.Index.ANALYZED, Field.TermVector.NO);
+        super(name, uid, Field.Store.YES, Field.Index.ANALYZED, Field.TermVector.NO);
         this.uid = uid;
         this.version = version;
-        this.indexOptions = FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS;
+//        this.indexOptions = FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS;
         this.tokenStream = new UidPayloadTokenStream(this);
-    }
-
-    @Override
-    public void setIndexOptions(FieldInfo.IndexOptions indexOptions) {
-        // never allow to set this, since we want payload!
-    }
-
-    @Override
-    public void setOmitTermFreqAndPositions(boolean omitTermFreqAndPositions) {
-        // never allow to set this, since we want payload!
     }
 
     public String uid() {
@@ -206,7 +182,7 @@ public class UidField extends Field {
             }
             termAtt.setLength(0);
             termAtt.append(field.uid);
-            payloadAttribute.setPayload(new Payload(Numbers.longToBytes(field.version())));
+            payloadAttribute.setPayload(new BytesRef(Numbers.longToBytes(field.version())));
             added = true;
             return true;
         }

@@ -282,7 +282,6 @@ public class ShardGetService extends AbstractIndexShardComponent {
         // LUCENE 4 UPGRADE: optimize when only a single field needs to be loaded
         BaseFieldVisitor fieldVisitor = buildFieldSelectors(docMapper, gFields);
         if (fieldVisitor != null) {
-            fieldVisitor.reset();
             Document doc;
             try {
                 docIdAndVersion.reader.reader().document(docIdAndVersion.docId, fieldVisitor);

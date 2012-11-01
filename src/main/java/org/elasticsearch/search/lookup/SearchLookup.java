@@ -20,8 +20,11 @@
 package org.elasticsearch.search.lookup;
 
 import com.google.common.collect.ImmutableMap;
+import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Scorer;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.mapper.MapperService;
@@ -76,5 +79,15 @@ public class SearchLookup {
         docMap.setNextDocId(docId);
         sourceLookup.setNextDocId(docId);
         fieldsLookup.setNextDocId(docId);
+    }
+
+    // Sneaky way fvh to get the ARC. See SourceScoreOrderFragmentsBuilder. Passed reader must be atomic.
+    // but that is the case in SourceScoreOrderFragmentsBuilder.
+    public void setNextReader(IndexReader reader) {
+        if (AtomicReader.class.isInstance(reader)) {
+            throw new ElasticSearchIllegalArgumentException("reader not instance of AtomicReader, but " + reader.getClass());
+        }
+        AtomicReaderContext context = (AtomicReaderContext) reader.getContext();
+        setNextReader(context);
     }
 }

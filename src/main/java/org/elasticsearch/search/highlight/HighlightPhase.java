@@ -169,7 +169,7 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                     try {
                         SingleFieldVisitor fieldVisitor = new SingleFieldVisitor(mapper.names().indexName());
                         hitContext.reader().document(hitContext.docId(), fieldVisitor);
-                        textsToHighlight = (List<Object>) fieldVisitor.values();
+                        textsToHighlight = (List) fieldVisitor.values();
                     } catch (Exception e) {
                         throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + field.field() + "]", e);
                     }

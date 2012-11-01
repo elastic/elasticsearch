@@ -228,7 +228,7 @@ public class ParseContext {
     }
 
     public boolean includeInAll(Boolean includeInAll, FieldMapper mapper) {
-        return includeInAll(includeInAll, mapper.index());
+        return includeInAll(includeInAll, mapper.indexed());
     }
 
     /**
@@ -236,13 +236,13 @@ public class ParseContext {
      * is <tt>false</tt>. If its enabled, then will return <tt>true</tt> only if the specific flag is <tt>null</tt> or
      * its actual value (so, if not set, defaults to "true") and the field is indexed.
      */
-    private boolean includeInAll(Boolean specificIncludeInAll, Field.Index index) {
+    private boolean includeInAll(Boolean specificIncludeInAll, boolean indexed) {
         if (!docMapper.allFieldMapper().enabled()) {
             return false;
         }
         // not explicitly set
         if (specificIncludeInAll == null) {
-            return index != Field.Index.NO;
+            return indexed;
         }
         return specificIncludeInAll;
     }

@@ -66,7 +66,7 @@ public class MatchedFiltersFetchSubPhase implements FetchSubPhase {
             String name = entry.getKey();
             Filter filter = entry.getValue();
             try {
-                DocIdSet docIdSet = filter.getDocIdSet(hitContext.reader());
+                DocIdSet docIdSet = filter.getDocIdSet(hitContext.readerContext(), null); // null is fine, since we filter by hitContext.docId()
                 if (docIdSet != null) {
                     DocSet docSet = DocSets.convert(hitContext.reader(), docIdSet);
                     if (docSet.get(hitContext.docId())) {

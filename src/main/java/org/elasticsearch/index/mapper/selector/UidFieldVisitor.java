@@ -53,7 +53,7 @@ public class UidFieldVisitor extends BaseFieldVisitor {
     @Override
     public Document createDocument() {
         Document document = new Document();
-        document.add(new StoredField("_uid", uid));
+        document.add(new StoredField(UidFieldMapper.NAME, uid));
         return document;
     }
 

@@ -50,7 +50,7 @@ public class SourceFieldVisitor extends BaseFieldVisitor {
     @Override
     public Document createDocument() {
         Document document = new Document();
-        document.add(new StoredField("_source", source));
+        document.add(new StoredField(SourceFieldMapper.NAME, source));
         return document;
     }
 

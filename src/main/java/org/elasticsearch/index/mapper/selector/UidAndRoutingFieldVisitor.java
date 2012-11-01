@@ -24,6 +24,7 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.FieldInfo;
 import org.elasticsearch.common.lucene.document.BaseFieldVisitor;
 import org.elasticsearch.index.mapper.internal.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 
 import java.io.IOException;
@@ -39,8 +40,8 @@ public class UidAndRoutingFieldVisitor extends BaseFieldVisitor {
     @Override
     public Document createDocument() {
         Document document = new Document();
-        document.add(new StoredField("uid", uid));
-        document.add(new StoredField("_source", routing));
+        document.add(new StoredField(UidFieldMapper.NAME, uid));
+        document.add(new StoredField(SourceFieldMapper.NAME, routing));
         return document;
     }
 

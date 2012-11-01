@@ -19,12 +19,6 @@
 
 package org.elasticsearch.test.unit.index.percolator;
 
-import java.io.IOException;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.AbstractModule;
@@ -34,6 +28,7 @@ import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -52,12 +47,20 @@ import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.similarity.SimilarityModule;
 import org.elasticsearch.indices.query.IndicesQueriesModule;
 import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.search.highlight.HighlightBuilder;
+import org.elasticsearch.search.highlight.HighlightField;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
+
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -135,23 +138,23 @@ public class PercolatorExecutorTests {
 
         percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest("type1", source));
         assertThat(percolate.matches(), hasSize(1));
-        assertThat(percolate.matches(), hasItem("test1"));
+        assertThat(percolate.matches(), hasItem(new PercolatorExecutor.PercolationMatch("test1")));
 
         percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest("type1", sourceWithType));
         assertThat(percolate.matches(), hasSize(1));
-        assertThat(percolate.matches(), hasItem("test1"));
+        assertThat(percolate.matches(), hasItem(new PercolatorExecutor.PercolationMatch("test1")));
 
         percolatorExecutor.addQuery("test2", termQuery("field1", 1));
 
         percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest("type1", source));
         assertThat(percolate.matches(), hasSize(2));
-        assertThat(percolate.matches(), hasItems("test1", "test2"));
+        assertThat(percolate.matches(), hasItems(new PercolatorExecutor.PercolationMatch("test1"), new PercolatorExecutor.PercolationMatch("test2")));
 
 
         percolatorExecutor.removeQuery("test2");
         percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest("type1", source));
         assertThat(percolate.matches(), hasSize(1));
-        assertThat(percolate.matches(), hasItems("test1"));
+        assertThat(percolate.matches(), hasItems(new PercolatorExecutor.PercolationMatch("test1")));
 
         // add a range query (cached)
         // add a query
@@ -159,9 +162,55 @@ public class PercolatorExecutorTests {
 
         percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest("type1", source));
         assertThat(percolate.matches(), hasSize(1));
-        assertThat(percolate.matches(), hasItem("test1"));
+        assertThat(percolate.matches(), hasItem(new PercolatorExecutor.PercolationMatch("test1")));
     }
-    
+
+    @Test
+    public void testHighlightingPercolator() throws Exception {
+        // introduce the doc
+        XContentBuilder doc = XContentFactory.jsonBuilder().startObject().startObject("doc")
+                .field("field1", 1)
+                .field("field2", "value")
+                .endObject().endObject();
+        BytesReference source = doc.bytes();
+
+        XContentBuilder docWithType = XContentFactory.jsonBuilder().startObject().startObject("doc").startObject("type1")
+                .field("field1", 1)
+                .field("field2", "value")
+                .endObject().endObject().endObject();
+        BytesReference sourceWithType = docWithType.bytes();
+
+        percolatorExecutor.clearQueries(); // remove all previously added queries
+        PercolatorExecutor.Response percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest("type1", source));
+        assertThat(percolate.matches(), hasSize(0));
+
+        // add a query
+        percolatorExecutor.addQuery("test1", termQuery("field2", "value"), new HighlightBuilder().field("field2"));
+
+        HashMap<String, HighlightField> map = new HashMap<String, HighlightField>(1);
+        map.put("field2", new HighlightField("field2", new StringText[]{ new StringText("<em>value</em>")}));
+
+        percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest("type1", source));
+        assertThat(percolate.matches(), hasSize(1));
+        assertThat(percolate.matches(), hasItem(new PercolatorExecutor.PercolationMatch("test1", map)));
+
+        percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest("type1", sourceWithType));
+        assertThat(percolate.matches(), hasSize(1));
+        assertThat(percolate.matches(), hasItem(new PercolatorExecutor.PercolationMatch("test1", map)));
+
+        percolatorExecutor.addQuery("test2", termQuery("field1", 1));
+
+        percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest("type1", source));
+        assertThat(percolate.matches(), hasSize(2));
+        assertThat(percolate.matches(), hasItems(new PercolatorExecutor.PercolationMatch("test1", map), new PercolatorExecutor.PercolationMatch("test2")));
+
+
+        percolatorExecutor.removeQuery("test2");
+        percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest("type1", source));
+        assertThat(percolate.matches(), hasSize(1));
+        assertThat(percolate.matches(), hasItems(new PercolatorExecutor.PercolationMatch("test1", map)));
+    }
+
     @Test
     public void testConcurrentPerculator() throws InterruptedException, IOException {
         // introduce the doc
@@ -218,15 +267,15 @@ public class PercolatorExecutorTests {
                       if (count % 3 == 0) {
                           percolate = executor.percolate(new PercolatorExecutor.SourceRequest("type1", bothQueries));
                           assertThat(percolate.matches(), hasSize(2));
-                          assertThat(percolate.matches(), hasItems("test1", "test2"));
+                          assertThat(percolate.matches(), hasItems(new PercolatorExecutor.PercolationMatch("test1"), new PercolatorExecutor.PercolationMatch("test2")));
                       } else if (count % 3 == 1) {
                           percolate = executor.percolate(new PercolatorExecutor.SourceRequest("type1", onlyTest1));
                           assertThat(percolate.matches(), hasSize(1));
-                          assertThat(percolate.matches(), hasItems("test1"));    
+                          assertThat(percolate.matches(), hasItems(new PercolatorExecutor.PercolationMatch("test1")));
                       }  else {
                           percolate = executor.percolate(new PercolatorExecutor.SourceRequest("type1", onlyTest2));
                           assertThat(percolate.matches(), hasSize(1));
-                          assertThat(percolate.matches(), hasItems("test2"));    
+                          assertThat(percolate.matches(), hasItems(new PercolatorExecutor.PercolationMatch("test2")));
                       }
 
                       

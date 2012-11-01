@@ -41,6 +41,7 @@ import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -93,6 +94,13 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
 
     @Override
     public void hitExecute(SearchContext context, HitContext hitContext) throws ElasticSearchException {
+        hitContext.hit().highlightFields(
+            doHighlighting(context, context.highlight(), context.parsedQuery().query(), context.mapperService(), hitContext, termVectorMultiValue, null)
+                );
+    }
+
+    public static Map<String, HighlightField> doHighlighting(SearchContext context, SearchContextHighlight highlightContext, Query query,
+                                                             MapperService mapperService, HitContext hitContext, final boolean termVectorMultiValue, ParsedDocument parsedDocument) throws ElasticSearchException  {
         // we use a cache to cache heavy things, mainly the rewrite in FieldQuery for FVH
         HighlighterEntry cache = (HighlighterEntry) hitContext.cache().get("highlight");
         if (cache == null) {
@@ -100,10 +108,10 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
             hitContext.cache().put("highlight", cache);
         }
 
-        DocumentMapper documentMapper = context.mapperService().documentMapper(hitContext.hit().type());
+        DocumentMapper documentMapper = mapperService.documentMapper(hitContext.hit().type());
 
         Map<String, HighlightField> highlightFields = newHashMap();
-        for (SearchContextHighlight.Field field : context.highlight().fields()) {
+        for (SearchContextHighlight.Field field : highlightContext.fields()) {
             Encoder encoder;
             if (field.encoder().equals("html")) {
                 encoder = Encoders.HTML;
@@ -122,7 +130,7 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
 
                 FieldMapper mapper = documentMapper.mappers().smartNameFieldMapper(fieldName);
                 if (mapper == null) {
-                    MapperService.SmartNameFieldMappers fullMapper = context.mapperService().smartName(fieldName);
+                    MapperService.SmartNameFieldMappers fullMapper = mapperService.smartName(fieldName);
                     if (fullMapper == null || !fullMapper.hasDocMapper()) {
                         //Save skipping missing fields
                         continue;
@@ -156,7 +164,6 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                         // Don't use the context.query() since it might be rewritten, and we need to pass the non rewritten queries to
                         // let the highlighter handle MultiTerm ones
 
-                        Query query = context.parsedQuery().query();
                         QueryScorer queryScorer = new CustomQueryScorer(query, field.requireFieldMatch() ? mapper.names().indexName() : null);
                         queryScorer.setExpandMultiTermQuery(true);
                         Fragmenter fragmenter;
@@ -184,7 +191,12 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                     }
 
                     List<Object> textsToHighlight;
-                    if (mapper.fieldType().stored()) {
+
+					// if source was provided, get it from there; in this case, context could be null
+					if (parsedDocument != null) {
+					    textsToHighlight = new ArrayList<Object>(1);
+					    textsToHighlight.add(parsedDocument.rootDoc().get(field.field()));
+					} else if (mapper.fieldType().stored()) {
                         try {
                             CustomFieldsVisitor fieldVisitor = new CustomFieldsVisitor(ImmutableSet.of(mapper.names().indexName()), false);
                             hitContext.reader().document(hitContext.docId(), fieldVisitor);
@@ -205,7 +217,7 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                     try {
                         for (Object textToHighlight : textsToHighlight) {
                             String text = textToHighlight.toString();
-                            Analyzer analyzer = context.mapperService().documentMapper(hitContext.hit().type()).mappers().indexAnalyzer();
+                            Analyzer analyzer = mapperService.documentMapper(hitContext.hit().type()).mappers().indexAnalyzer();
                             TokenStream tokenStream = analyzer.tokenStream(mapper.names().indexName(), new FastStringReader(text));
                             tokenStream.reset();
                             TextFragment[] bestTextFragments = entry.highlighter.getBestTextFragments(tokenStream, text, false, numberOfFragments);
@@ -216,7 +228,10 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                             }
                         }
                     } catch (Exception e) {
-                        throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + fieldName + "]", e);
+						if (context != null)
+                        	throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + fieldName + "]", e);
+						else
+							throw new UnsupportedOperationException("Failed to highlight field [" + fieldName + "]", e);
                     }
                     if (field.scoreOrdered()) {
                         Collections.sort(fragsList, new Comparator<TextFragment>() {
@@ -300,13 +315,13 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                             if (field.requireFieldMatch()) {
                                 if (cache.fieldMatchFieldQuery == null) {
                                     // we use top level reader to rewrite the query against all readers, with use caching it across hits (and across readers...)
-                                    cache.fieldMatchFieldQuery = new CustomFieldQuery(context.parsedQuery().query(), hitContext.topLevelReader(), true, field.requireFieldMatch());
+                                    cache.fieldMatchFieldQuery = new CustomFieldQuery(query, hitContext.topLevelReader(), true, field.requireFieldMatch());
                                 }
                                 fieldQuery = cache.fieldMatchFieldQuery;
                             } else {
                                 if (cache.noFieldMatchFieldQuery == null) {
                                     // we use top level reader to rewrite the query against all readers, with use caching it across hits (and across readers...)
-                                    cache.noFieldMatchFieldQuery = new CustomFieldQuery(context.parsedQuery().query(), hitContext.topLevelReader(), true, field.requireFieldMatch());
+                                    cache.noFieldMatchFieldQuery = new CustomFieldQuery(query, hitContext.topLevelReader(), true, field.requireFieldMatch());
                                 }
                                 fieldQuery = cache.noFieldMatchFieldQuery;
                             }
@@ -327,13 +342,16 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                             highlightFields.put(highlightField.name(), highlightField);
                         }
                     } catch (Exception e) {
-                        throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + fieldName + "]", e);
+						if (context != null)
+                        	throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + fieldName + "]", e);
+						else
+							throw new UnsupportedOperationException("Failed to highlight field [" + field.field() + "]", e);
                     }
                 }
             }
         }
 
-        hitContext.hit().highlightFields(highlightFields);
+        return highlightFields;
     }
 
     static class MapperHighlightEntry {

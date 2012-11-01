@@ -43,6 +43,7 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.search.highlight.SearchContextHighlight;
 
 import java.io.IOException;
 import java.util.Map;
@@ -51,6 +52,24 @@ import java.util.Map;
  *
  */
 public class PercolatorService extends AbstractIndexComponent {
+
+    public static class QueryAndHighlightContext {
+        private final Query query;
+        private final SearchContextHighlight highlightContext;
+
+        public QueryAndHighlightContext(Query query, SearchContextHighlight highlightContext) {
+            this.query = query;
+            this.highlightContext = highlightContext;
+        }
+
+        public Query getQuery() {
+            return query;
+        }
+
+        public SearchContextHighlight getHighlightContext() {
+            return highlightContext;
+        }
+    }
 
     public static final String INDEX_NAME = "_percolator";
 
@@ -159,9 +178,9 @@ public class PercolatorService extends AbstractIndexComponent {
 
         private AtomicReader reader;
 
-        private Map<String, Query> queries = Maps.newHashMap();
+        private Map<String, QueryAndHighlightContext> queries = Maps.newHashMap();
 
-        public Map<String, Query> queries() {
+        public Map<String, QueryAndHighlightContext> queries() {
             return this.queries;
         }
 
@@ -176,7 +195,7 @@ public class PercolatorService extends AbstractIndexComponent {
             reader.document(doc, fieldsVisitor);
             String id = fieldsVisitor.uid().id();
             try {
-                queries.put(id, percolator.parseQuery(id, fieldsVisitor.source()));
+				queries.put(id, percolator.parseQuery(id, fieldsVisitor.source()));
             } catch (Exception e) {
                 logger.warn("failed to add query [{}]", e, id);
             }

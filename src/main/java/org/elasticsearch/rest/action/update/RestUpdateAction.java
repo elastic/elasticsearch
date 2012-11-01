@@ -29,12 +29,15 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.percolator.PercolatorExecutor;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
+import org.elasticsearch.search.highlight.HighlightField;
 
 import java.io.IOException;
 import java.util.Map;
@@ -142,8 +145,28 @@ public class RestUpdateAction extends BaseRestHandler {
 
                     if (response.matches() != null) {
                         builder.startArray(Fields.MATCHES);
-                        for (String match : response.matches()) {
-                            builder.value(match);
+                        for (PercolatorExecutor.PercolationMatch match : response.matches()) {
+                            builder.startObject();
+                            builder.field("match", match.getMatch());
+
+                            if (match.getHighlightFields() != null && !match.getHighlightFields().isEmpty()) {
+                                builder.startObject("highlight");
+                                for (HighlightField field : match.getHighlightFields().values()) {
+                                    builder.field(field.name());
+                                    if (field.fragments() == null) {
+                                        builder.nullValue();
+                                    } else {
+                                        builder.startArray();
+                                        for (Text fragment : field.fragments()) {
+                                            builder.value(fragment);
+                                        }
+                                        builder.endArray();
+                                    }
+                                }
+                                builder.endObject();
+                            }
+
+                            builder.endObject();
                         }
                         builder.endArray();
                     }

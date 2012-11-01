@@ -26,6 +26,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.percolator.PercolatorExecutor;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -226,14 +227,14 @@ public class SimplePercolatorTests extends AbstractNodesTests {
             IndexResponse index = client.prepareIndex("test", "type1", Integer.toString(i)).setSource("field1", "value1")
                     .setPercolate("*").execute().actionGet();
             assertThat(index.matches().size(), equalTo(1));
-            assertThat(index.matches(), hasItem("kuku"));
+            assertThat(index.matches(), hasItem(new PercolatorExecutor.PercolationMatch("kuku")));
         }
 
         for (int i = 0; i < 10; i++) {
             IndexResponse index = client.prepareIndex("test", "type1", Integer.toString(i)).setSource("field1", "value1")
                     .setPercolate("color:blue").execute().actionGet();
             assertThat(index.matches().size(), equalTo(1));
-            assertThat(index.matches(), hasItem("kuku"));
+            assertThat(index.matches(), hasItem(new PercolatorExecutor.PercolationMatch("kuku")));
         }
 
         for (int i = 0; i < 10; i++) {
@@ -253,7 +254,7 @@ public class SimplePercolatorTests extends AbstractNodesTests {
         for (BulkItemResponse bulkItemResponse : bulkResponse) {
             IndexResponse index = bulkItemResponse.response();
             assertThat(index.matches().size(), equalTo(1));
-            assertThat(index.matches(), hasItem("kuku"));
+            assertThat(index.matches(), hasItem(new PercolatorExecutor.PercolationMatch("kuku")));
         }
     }
 
@@ -297,14 +298,14 @@ public class SimplePercolatorTests extends AbstractNodesTests {
                 .endObject().endObject())
                 .execute().actionGet();
         assertThat(percolate.matches().size(), equalTo(1));
-        assertThat(percolate.matches(), hasItem("kuku"));
+        assertThat(percolate.matches(), hasItem(new PercolatorExecutor.PercolationMatch("kuku")));
 
         percolate = client.preparePercolate("test", "type1").setSource(jsonBuilder().startObject().startObject("doc").startObject("type1")
                 .field("field1", "value2")
                 .endObject().endObject().endObject())
                 .execute().actionGet();
         assertThat(percolate.matches().size(), equalTo(1));
-        assertThat(percolate.matches(), hasItem("bubu"));
+        assertThat(percolate.matches(), hasItem(new PercolatorExecutor.PercolationMatch("bubu")));
 
     }
 
@@ -339,7 +340,7 @@ public class SimplePercolatorTests extends AbstractNodesTests {
                 .endObject().endObject())
                 .execute().actionGet();
         assertThat(percolate.matches().size(), equalTo(1));
-        assertThat(percolate.matches(), hasItem("kuku"));
+        assertThat(percolate.matches(), hasItem(new PercolatorExecutor.PercolationMatch("kuku")));
 
         logger.info("--> register a query 2");
         client.prepareIndex("_percolator", "test", "bubu")
@@ -355,7 +356,7 @@ public class SimplePercolatorTests extends AbstractNodesTests {
                 .endObject().endObject().endObject())
                 .execute().actionGet();
         assertThat(percolate.matches().size(), equalTo(1));
-        assertThat(percolate.matches(), hasItem("bubu"));
+        assertThat(percolate.matches(), hasItem(new PercolatorExecutor.PercolationMatch("bubu")));
 
         logger.info("--> register a query 3");
         client.prepareIndex("_percolator", "test", "susu")
@@ -376,7 +377,7 @@ public class SimplePercolatorTests extends AbstractNodesTests {
                 .endObject())
                 .execute().actionGet();
         assertThat(percolate.matches().size(), equalTo(1));
-        assertThat(percolate.matches(), hasItem("susu"));
+        assertThat(percolate.matches(), hasItem(new PercolatorExecutor.PercolationMatch("susu")));
 
         logger.info("--> deleting query 1");
         client.prepareDelete("_percolator", "test", "kuku").setRefresh(true).execute().actionGet();
@@ -427,7 +428,7 @@ public class SimplePercolatorTests extends AbstractNodesTests {
                 .endObject())
                 .execute().actionGet();
         assertThat(percolate.matches().size(), equalTo(1));
-        assertThat(percolate.matches(), hasItem("kuku"));
+        assertThat(percolate.matches(), hasItem(new PercolatorExecutor.PercolationMatch("kuku")));
     }
 
 }

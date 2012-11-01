@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.geo;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.common.util.concurrent.ThreadLocals;
 import org.elasticsearch.index.field.data.doubles.DoubleFieldData;
@@ -110,7 +111,8 @@ public class MultiValueGeoPointFieldData extends GeoPointFieldData {
                 }
                 break;
             }
-            proc.onValue(docId, GeoHashUtils.encode(lat[loc], lon[loc]));
+            //LUCENE 4 UPGRADE: Make GeoHashUtils works with BytesRef instead of String
+            proc.onValue(docId, new BytesRef(GeoHashUtils.encode(lat[loc], lon[loc])));
         }
     }
 

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.search.geo;
 
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.SortField;
@@ -37,7 +38,7 @@ import java.io.IOException;
  *
  */
 // LUCENE MONITOR: Monitor against FieldComparator.Double
-public class GeoDistanceDataComparator extends FieldComparator {
+public class GeoDistanceDataComparator extends FieldComparator<Double> {
 
     public static FieldDataType.ExtendedFieldComparatorSource comparatorSource(String fieldName, double lat, double lon, DistanceUnit unit, GeoDistance geoDistance,
                                                                                FieldDataCache fieldDataCache, MapperService mapperService) {
@@ -78,7 +79,7 @@ public class GeoDistanceDataComparator extends FieldComparator {
 
         @Override
         public SortField.Type reducedType() {
-            return SortField.DOUBLE;
+            return SortField.Type.DOUBLE;
         }
     }
 
@@ -127,8 +128,9 @@ public class GeoDistanceDataComparator extends FieldComparator {
     }
 
     @Override
-    public void setNextReader(IndexReader reader, int docBase) throws IOException {
-        fieldData = (GeoPointFieldData) fieldDataCache.cache(GeoPointFieldDataType.TYPE, reader, indexFieldName);
+    public GeoDistanceDataComparator setNextReader(AtomicReaderContext context) throws IOException {
+        fieldData = (GeoPointFieldData) fieldDataCache.cache(GeoPointFieldDataType.TYPE, context.reader(), indexFieldName);
+        return this;
     }
 
     @Override
@@ -164,6 +166,18 @@ public class GeoDistanceDataComparator extends FieldComparator {
     }
 
     @Override
+    public int compareDocToValue(int doc, Double distance2) throws IOException {
+        double distance1;
+        if (!fieldData.hasValue(doc)) {
+            // is this true? push this to the "end"
+            distance1 = Double.MAX_VALUE;
+        } else {
+            distance1 = fixedSourceDistance.calculate(fieldData.latValue(doc), fieldData.lonValue(doc));
+        }
+        return (int) (distance1 - distance2);
+    }
+
+    @Override
     public void copy(int slot, int doc) {
         double distance;
         if (!fieldData.hasValue(doc)) {
@@ -181,7 +195,7 @@ public class GeoDistanceDataComparator extends FieldComparator {
     }
 
     @Override
-    public Comparable value(int slot) {
-        return Double.valueOf(values[slot]);
+    public Double value(int slot) {
+        return values[slot];
     }
 }

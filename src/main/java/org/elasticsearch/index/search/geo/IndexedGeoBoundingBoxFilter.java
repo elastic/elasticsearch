@@ -19,9 +19,10 @@
 
 package org.elasticsearch.index.search.geo;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.lucene.docset.DocSets;
@@ -58,16 +59,16 @@ public class IndexedGeoBoundingBoxFilter {
         }
 
         @Override
-        public FixedBitSet getDocIdSet(IndexReader reader) throws IOException {
+        public FixedBitSet getDocIdSet(AtomicReaderContext context, Bits acceptedDocs) throws IOException {
             FixedBitSet main;
-            DocIdSet set = lonFilter1.getDocIdSet(reader);
+            DocIdSet set = lonFilter1.getDocIdSet(context, acceptedDocs);
             if (set == null || set == DocIdSet.EMPTY_DOCIDSET) {
                 main = null;
             } else {
                 main = (FixedBitSet) set;
             }
 
-            set = lonFilter2.getDocIdSet(reader);
+            set = lonFilter2.getDocIdSet(context, acceptedDocs);
             if (set == null || set == DocIdSet.EMPTY_DOCIDSET) {
                 if (main == null) {
                     return null;
@@ -82,7 +83,7 @@ public class IndexedGeoBoundingBoxFilter {
                 }
             }
 
-            set = latFilter.getDocIdSet(reader);
+            set = latFilter.getDocIdSet(context, acceptedDocs);
             if (set == null || set == DocIdSet.EMPTY_DOCIDSET) {
                 return null;
             }
@@ -124,14 +125,14 @@ public class IndexedGeoBoundingBoxFilter {
         }
 
         @Override
-        public FixedBitSet getDocIdSet(IndexReader reader) throws IOException {
+        public FixedBitSet getDocIdSet(AtomicReaderContext context, Bits acceptedDocs) throws IOException {
             FixedBitSet main;
-            DocIdSet set = lonFilter.getDocIdSet(reader);
+            DocIdSet set = lonFilter.getDocIdSet(context, acceptedDocs);
             if (set == null || set == DocIdSet.EMPTY_DOCIDSET) {
                 return null;
             }
             main = (FixedBitSet) set;
-            set = latFilter.getDocIdSet(reader);
+            set = latFilter.getDocIdSet(context, acceptedDocs);
             if (set == null || set == DocIdSet.EMPTY_DOCIDSET) {
                 return null;
             }

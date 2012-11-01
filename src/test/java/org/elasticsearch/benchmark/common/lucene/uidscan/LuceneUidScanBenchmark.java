@@ -23,6 +23,7 @@ import jsr166y.ThreadLocalRandom;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.*;
 import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.lucene.Lucene;
@@ -68,21 +69,21 @@ public class LuceneUidScanBenchmark {
                     try {
                         for (long i = 0; i < SCAN_COUNT; i++) {
                             long id = startUid + (Math.abs(ThreadLocalRandom.current().nextInt()) % INDEX_COUNT);
-                            TermPositions uid = reader.termPositions(new Term("_uid", Long.toString(id)));
-                            uid.next();
+                            DocsAndPositionsEnum uid = MultiFields.getTermPositionsEnum(reader,
+                                    MultiFields.getLiveDocs(reader),
+                                    "_uid",
+                                    new BytesRef(Long.toString(id)));
+                            uid.nextDoc();
                             uid.nextPosition();
-                            if (!uid.isPayloadAvailable()) {
-                                uid.close();
+                            if (uid.getPayload() == null) {
                                 System.err.println("no payload...");
                                 break;
                             }
-                            byte[] payload = uid.getPayload(new byte[8], 0);
-                            if (Numbers.bytesToLong(payload) != id) {
-                                uid.close();
+                            BytesRef payload = uid.getPayload();
+                            if (Numbers.bytesToLong(BytesRef.deepCopyOf(payload).bytes) != id) {
                                 System.err.println("wrong id...");
                                 break;
                             }
-                            uid.close();
                         }
                     } catch (Exception e) {
                         e.printStackTrace();

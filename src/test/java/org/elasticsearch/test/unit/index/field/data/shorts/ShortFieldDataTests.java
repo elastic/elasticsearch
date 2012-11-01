@@ -22,9 +22,7 @@ package org.elasticsearch.test.unit.index.field.data.shorts;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.IntField;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.*;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.lucene.Lucene;
@@ -69,7 +67,7 @@ public class ShortFieldDataTests {
         document.add(new IntField("svalue", 4, Field.Store.NO));
         indexWriter.addDocument(document);
 
-        IndexReader reader = IndexReader.open(indexWriter, true);
+        AtomicReader reader = new SlowCompositeReaderWrapper(DirectoryReader.open(indexWriter, true));
 
         ShortFieldData sFieldData = ShortFieldData.load(reader, "svalue");
         ShortFieldData mFieldData = ShortFieldData.load(reader, "mvalue");

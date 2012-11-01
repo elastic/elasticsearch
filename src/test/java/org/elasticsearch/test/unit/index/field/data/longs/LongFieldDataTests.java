@@ -22,9 +22,7 @@ package org.elasticsearch.test.unit.index.field.data.longs;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongField;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.*;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.lucene.Lucene;
@@ -69,7 +67,7 @@ public class LongFieldDataTests {
         document.add(new LongField("svalue", 4, Field.Store.NO));
         indexWriter.addDocument(document);
 
-        IndexReader reader = IndexReader.open(indexWriter, true);
+        AtomicReader reader = new SlowCompositeReaderWrapper(DirectoryReader.open(indexWriter, true));
 
         LongFieldData sFieldData = LongFieldData.load(reader, "svalue");
         LongFieldData mFieldData = LongFieldData.load(reader, "mvalue");

@@ -22,9 +22,7 @@ package org.elasticsearch.test.unit.index.field.data.doubles;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.DoubleField;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.*;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.lucene.Lucene;
@@ -69,7 +67,7 @@ public class DoubleFieldDataTests {
         document.add(new DoubleField("svalue", 4, Field.Store.NO));
         indexWriter.addDocument(document);
 
-        IndexReader reader = IndexReader.open(indexWriter, true);
+        AtomicReader reader = new SlowCompositeReaderWrapper(DirectoryReader.open(indexWriter, true));
 
         DoubleFieldData sFieldData = DoubleFieldData.load(reader, "svalue");
         DoubleFieldData mFieldData = DoubleFieldData.load(reader, "mvalue");

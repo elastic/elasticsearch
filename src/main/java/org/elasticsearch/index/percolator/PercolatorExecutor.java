@@ -23,10 +23,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.memory.CustomMemoryIndex;
-import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.*;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
@@ -57,6 +54,11 @@ import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.search.fetch.FetchSubPhase;
+import org.elasticsearch.search.highlight.HighlightField;
+import org.elasticsearch.search.highlight.HighlightPhase;
+import org.elasticsearch.search.highlight.SearchContextHighlight;
+import org.elasticsearch.search.internal.InternalSearchHit;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -130,11 +132,25 @@ public class PercolatorExecutor extends AbstractIndexComponent {
         }
     }
 
+    public static final class PercolationMatch {
+        private final String match;
+        private final Map<String, HighlightField> highlightFields;
+
+        public PercolationMatch(String match) {
+            this(match,  null);
+        }
+
+        public PercolationMatch(String match, @Nullable Map<String, HighlightField> highlightFields) {
+            this.match = match;
+            this.highlightFields = highlightFields;
+        }
+    }
+
     public static final class Response {
-        private final List<String> matches;
+        private final List<PercolationMatch> matches;
         private final boolean mappersAdded;
 
-        public Response(List<String> matches, boolean mappersAdded) {
+        public Response(List<PercolationMatch> matches, boolean mappersAdded) {
             this.matches = matches;
             this.mappersAdded = mappersAdded;
         }
@@ -143,7 +159,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
             return this.mappersAdded;
         }
 
-        public List<String> matches() {
+        public List<PercolationMatch> matches() {
             return matches;
         }
     }
@@ -325,10 +341,29 @@ public class PercolatorExecutor extends AbstractIndexComponent {
         }
 
         final IndexSearcher searcher = memoryIndex.createSearcher();
-        List<String> matches = new ArrayList<String>();
+        List<PercolationMatch> matches = new ArrayList<PercolationMatch>();
 
         try {
             if (request.query() == null) {
+                final boolean doHighlight = false;
+                if (doHighlight) {
+                    FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext();
+                    for (Map.Entry<String, Query> entry : queries.entrySet()) {
+                        TopDocs hits = null;
+                        try {
+                            hits = searcher.search(entry.getValue(), 100);
+                        } catch (IOException e) {
+                            logger.warn("[" + entry.getKey() + "] failed to execute query", e);
+                        }
+
+                        for (ScoreDoc scoreDoc : hits.scoreDocs) {
+                            InternalSearchHit searchHit = new InternalSearchHit(scoreDoc.doc, uid.id(), uid.type(), sourceRequested ? source : null, null);
+                            hitContext.reset(searchHit, searcher.getIndexReader(), scoreDoc.doc, searcher.getIndexReader(), scoreDoc.doc, null);
+                            HighlightPhase.doHighlighting(null, null, entry.getValue(), mapperService, hitContext, false);
+                        }
+                    }
+                } else {
+
                 Lucene.ExistsCollector collector = new Lucene.ExistsCollector();
                 for (Map.Entry<String, Query> entry : queries.entrySet()) {
                     collector.reset();
@@ -339,8 +374,9 @@ public class PercolatorExecutor extends AbstractIndexComponent {
                     }
 
                     if (collector.exists()) {
-                        matches.add(entry.getKey());
+                        matches.add(new PercolationMatch(entry.getKey()));
                     }
+                }
                 }
             } else {
                 IndexService percolatorIndex = percolatorIndexServiceSafe();
@@ -350,7 +386,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
                 IndexShard percolatorShard = percolatorIndex.shard(0);
                 Engine.Searcher percolatorSearcher = percolatorShard.searcher();
                 try {
-                    percolatorSearcher.searcher().search(request.query(), new QueryCollector(logger, queries, searcher, percolatorIndex, matches));
+                    percolatorSearcher.searcher().search(request.query(), new QueryCollector(logger, queries, searcher, percolatorIndex, mapperService, matches));
                 } catch (IOException e) {
                     logger.warn("failed to execute", e);
                 } finally {
@@ -376,19 +412,22 @@ public class PercolatorExecutor extends AbstractIndexComponent {
     static class QueryCollector extends Collector {
         private final IndexSearcher searcher;
         private final IndexService percolatorIndex;
-        private final List<String> matches;
+        private final MapperService mapperService;
+        private final List<PercolationMatch> matches;
         private final Map<String, Query> queries;
         private final ESLogger logger;
+        private final boolean doHighlight = false;
 
         private final Lucene.ExistsCollector collector = new Lucene.ExistsCollector();
 
         private FieldData fieldData;
 
-        QueryCollector(ESLogger logger, Map<String, Query> queries, IndexSearcher searcher, IndexService percolatorIndex, List<String> matches) {
+        QueryCollector(ESLogger logger, Map<String, Query> queries, IndexSearcher searcher, IndexService percolatorIndex, MapperService mapperService, List<PercolationMatch> matches) {
             this.logger = logger;
             this.queries = queries;
             this.searcher = searcher;
             this.percolatorIndex = percolatorIndex;
+            this.mapperService = mapperService;
             this.matches = matches;
         }
 
@@ -410,10 +449,20 @@ public class PercolatorExecutor extends AbstractIndexComponent {
             }
             // run the query
             try {
-                collector.reset();
-                searcher.search(query, collector);
-                if (collector.exists()) {
-                    matches.add(id);
+                if (doHighlight) {
+                    FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext();
+                    TopDocs hits = searcher.search(query, 100);
+                    for (ScoreDoc scoreDoc : hits.scoreDocs) {
+                        InternalSearchHit searchHit = new InternalSearchHit(scoreDoc.doc, uid.id(), uid.type(), sourceRequested ? source : null, null);
+                        hitContext.reset(searchHit, searcher.getIndexReader(), scoreDoc.doc, searcher.getIndexReader(), scoreDoc.doc, null);
+                        HighlightPhase.doHighlighting(null, null, query, mapperService, null, false);
+                    }
+                } else {
+                    collector.reset();
+                    searcher.search(query, collector);
+                    if (collector.exists()) {
+                        matches.add(new PercolationMatch(id)); // TODO
+                    }
                 }
             } catch (IOException e) {
                 logger.warn("[" + id + "] failed to execute query", e);

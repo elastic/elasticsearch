@@ -19,9 +19,10 @@
 
 package org.elasticsearch.index.search.geo;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lucene.docset.GetDocSet;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldData;
@@ -62,14 +63,14 @@ public class InMemoryGeoBoundingBoxFilter extends Filter {
     }
 
     @Override
-    public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
-        final GeoPointFieldData fieldData = (GeoPointFieldData) fieldDataCache.cache(GeoPointFieldDataType.TYPE, reader, fieldName);
+    public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptedDocs) throws IOException {
+        final GeoPointFieldData fieldData = (GeoPointFieldData) fieldDataCache.cache(GeoPointFieldDataType.TYPE, context.reader(), fieldName);
 
         //checks to see if bounding box crosses 180 degrees
         if (topLeft.lon > bottomRight.lon) {
-            return new Meridian180GeoBoundingBoxDocSet(reader.maxDoc(), fieldData, topLeft, bottomRight);
+            return new Meridian180GeoBoundingBoxDocSet(context.reader().maxDoc(), fieldData, topLeft, bottomRight);
         } else {
-            return new GeoBoundingBoxDocSet(reader.maxDoc(), fieldData, topLeft, bottomRight);
+            return new GeoBoundingBoxDocSet(context.reader().maxDoc(), fieldData, topLeft, bottomRight);
         }
     }
 

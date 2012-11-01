@@ -71,4 +71,15 @@ public class StringText implements Text {
     public String toString() {
         return string();
     }
+
+    @Override
+    public boolean equals(Object o){
+        if (o instanceof StringText){
+            StringText other = (StringText) o;
+            if (this.text == null)
+                return other.text == null;
+            return this.text.equals(other.text);
+        }
+        return false;
+    }
 }

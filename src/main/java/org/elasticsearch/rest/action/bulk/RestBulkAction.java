@@ -30,9 +30,12 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.index.percolator.PercolatorExecutor;
 import org.elasticsearch.rest.*;
+import org.elasticsearch.search.highlight.HighlightField;
 
 import java.io.IOException;
 
@@ -120,8 +123,28 @@ public class RestBulkAction extends BaseRestHandler {
                             IndexResponse indexResponse = itemResponse.response();
                             if (indexResponse.matches() != null) {
                                 builder.startArray(Fields.MATCHES);
-                                for (String match : indexResponse.matches()) {
-                                    builder.value(match);
+                                for (PercolatorExecutor.PercolationMatch match : indexResponse.matches()) {
+                                    builder.startObject();
+                                    builder.field("match", match.getMatch());
+
+                                    if (match.getHighlightFields() != null && !match.getHighlightFields().isEmpty()) {
+                                        builder.startObject("highlight");
+                                        for (HighlightField field : match.getHighlightFields().values()) {
+                                            builder.field(field.name());
+                                            if (field.fragments() == null) {
+                                                builder.nullValue();
+                                            } else {
+                                                builder.startArray();
+                                                for (Text fragment : field.fragments()) {
+                                                    builder.value(fragment);
+                                                }
+                                                builder.endArray();
+                                            }
+                                        }
+                                        builder.endObject();
+                                    }
+
+                                    builder.endObject();
                                 }
                                 builder.endArray();
                             }

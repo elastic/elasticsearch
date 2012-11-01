@@ -62,6 +62,16 @@ public class HighlighterParseElement implements SearchParseElement {
 
     @Override
     public void parse(XContentParser parser, SearchContext context) throws Exception {
+        try {
+            context.highlight(parseImpl(parser));
+        }
+        catch (IllegalArgumentException ex)
+        {
+            throw new SearchParseException(context, "Highlighter global preTags are set, but global postTags are not set");
+        }
+    }
+
+    public static SearchContextHighlight parseImpl(XContentParser parser) throws Exception {
         XContentParser.Token token;
         String topLevelFieldName = null;
         List<SearchContextHighlight.Field> fields = newArrayList();
@@ -176,7 +186,7 @@ public class HighlighterParseElement implements SearchParseElement {
             }
         }
         if (globalPreTags != null && globalPostTags == null) {
-            throw new SearchParseException(context, "Highlighter global preTags are set, but global postTags are not set");
+            throw new IllegalArgumentException("Highlighter global preTags are set, but global postTags are not set");
         }
 
         // now, go over and fill all fields with default values from the global state
@@ -216,6 +226,6 @@ public class HighlighterParseElement implements SearchParseElement {
             }
         }
 
-        context.highlight(new SearchContextHighlight(fields));
+        return new SearchContextHighlight(fields);
     }
 }

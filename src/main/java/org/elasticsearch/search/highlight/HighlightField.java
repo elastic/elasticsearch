@@ -113,4 +113,18 @@ public class HighlightField implements Streamable {
             }
         }
     }
+
+    @Override
+    public boolean equals(Object o){
+        if (o instanceof HighlightField){
+            HighlightField other = (HighlightField) o;
+            if (!this.name.equals(other.name)) return false;
+
+            if (this.fragments == null || other.fragments == null)
+                return this.fragments == other.fragments;
+
+            return Arrays.equals(this.fragments, other.fragments);
+        }
+        return false;
+    }
 }

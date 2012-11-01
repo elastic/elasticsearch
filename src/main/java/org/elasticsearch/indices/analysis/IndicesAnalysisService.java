@@ -328,11 +328,14 @@ public class IndicesAnalysisService extends AbstractComponent {
 
             @Override
             public TokenStream create(TokenStream tokenStream) {
-                return new WordDelimiterFilter(tokenStream, WordDelimiterIterator.DEFAULT_WORD_DELIM_TABLE,
-                        1, 1, 0, 0, 0, 1, 0, 1, 1, null);
+                return new WordDelimiterFilter(tokenStream, 
+                        WordDelimiterFilter.GENERATE_WORD_PARTS |
+                        WordDelimiterFilter.GENERATE_NUMBER_PARTS |
+                        WordDelimiterFilter.SPLIT_ON_CASE_CHANGE | 
+                        WordDelimiterFilter.SPLIT_ON_NUMERICS |
+                        WordDelimiterFilter.STEM_ENGLISH_POSSESSIVE, null);
             }
         }));
-
         tokenFilterFactories.put("stop", new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
             @Override
             public String name() {

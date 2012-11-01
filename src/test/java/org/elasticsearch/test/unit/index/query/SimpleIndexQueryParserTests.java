@@ -20,6 +20,7 @@
 package org.elasticsearch.test.unit.index.query;
 
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.BoostingQuery;
 import org.apache.lucene.sandbox.queries.FuzzyLikeThisQuery;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.spans.*;

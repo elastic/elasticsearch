@@ -23,7 +23,9 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.store.RAMDirectory;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.deletionpolicy.KeepOnlyLastDeletionPolicy;
@@ -35,7 +37,7 @@ import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
-import static org.apache.lucene.index.IndexReader.listCommits;
+import static org.apache.lucene.index.DirectoryReader.listCommits;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -57,7 +59,10 @@ public class SnapshotDeletionPolicyTests {
     public void setUp() throws Exception {
         dir = new RAMDirectory();
         deletionPolicy = new SnapshotDeletionPolicy(new KeepOnlyLastDeletionPolicy(shardId, EMPTY_SETTINGS));
-        indexWriter = new IndexWriter(dir, Lucene.STANDARD_ANALYZER, true, deletionPolicy, IndexWriter.MaxFieldLength.UNLIMITED);
+        // LUCENE 4 UPGRADE: Not sure about version.
+        indexWriter = new IndexWriter(dir, new IndexWriterConfig(Version.LUCENE_31, Lucene.STANDARD_ANALYZER)
+                .setIndexDeletionPolicy(deletionPolicy)
+                .setOpenMode(IndexWriterConfig.OpenMode.CREATE));
     }
 
     @AfterClass

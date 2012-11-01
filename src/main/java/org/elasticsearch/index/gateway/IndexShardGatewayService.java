@@ -265,13 +265,13 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
             SnapshotStatus snapshotStatus = indexShard.snapshot(new Engine.SnapshotHandler<SnapshotStatus>() {
                 @Override
                 public SnapshotStatus snapshot(SnapshotIndexCommit snapshotIndexCommit, Translog.Snapshot translogSnapshot) throws EngineException {
-                    if (lastIndexVersion != snapshotIndexCommit.getVersion() || lastTranslogId != translogSnapshot.translogId() || lastTranslogLength < translogSnapshot.length()) {
+                    if (lastIndexVersion != snapshotIndexCommit.getGeneration() || lastTranslogId != translogSnapshot.translogId() || lastTranslogLength < translogSnapshot.length()) {
 
                         logger.debug("snapshot ({}) to {} ...", reason, shardGateway);
                         SnapshotStatus snapshotStatus =
                                 shardGateway.snapshot(new IndexShardGateway.Snapshot(snapshotIndexCommit, translogSnapshot, lastIndexVersion, lastTranslogId, lastTranslogLength, lastTotalTranslogOperations));
 
-                        lastIndexVersion = snapshotIndexCommit.getVersion();
+                        lastIndexVersion = snapshotIndexCommit.getGeneration();
                         lastTranslogId = translogSnapshot.translogId();
                         lastTranslogLength = translogSnapshot.length();
                         lastTotalTranslogOperations = translogSnapshot.estimatedTotalOperations();

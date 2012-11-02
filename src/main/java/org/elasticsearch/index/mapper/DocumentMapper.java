@@ -25,6 +25,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
@@ -519,6 +520,17 @@ public class DocumentMapper implements ToXContent {
         if (context.docs().size() > 1) {
             Collections.reverse(context.docs());
         }
+        // apply doc boost
+        if (context.docBoost() != 1.0f) {
+            for (Document doc : context.docs()) {
+                for (IndexableField field : doc) {
+                    if (field.fieldType().indexed() && !field.fieldType().omitNorms()) {
+                        ((Field) field).setBoost(context.docBoost() * field.boost());
+                    }
+                }
+            }
+        }
+
         ParsedDocument doc = new ParsedDocument(context.uid(), context.id(), context.type(), source.routing(), source.timestamp(), source.ttl(), context.docs(), context.analyzer(),
                 context.source(), context.mappingsModified()).parent(source.parent());
         // reset the context to free up memory

@@ -37,7 +37,7 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.*;
  *
  */
 public class TypeParsers {
-    
+
     public static final String INDEX_OPTIONS_DOCS = "docs";
     public static final String INDEX_OPTIONS_FREQS = "freqs";
     public static final String INDEX_OPTIONS_POSITIONS = "positions";
@@ -113,6 +113,7 @@ public class TypeParsers {
         }
     }
 
+    // LUCENE 4 UPGRADE: when ew move into feature mode, we need to support DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS
     private static IndexOptions nodeIndexOptionValue(final Object propNode) {
         final String value = propNode.toString();
         if (INDEX_OPTIONS_POSITIONS.equalsIgnoreCase(value)) {

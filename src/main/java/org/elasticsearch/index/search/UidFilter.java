@@ -19,11 +19,7 @@
 
 package org.elasticsearch.index.search;
 
-import org.apache.lucene.index.AtomicReader;
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.index.DocsEnum;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.index.*;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
@@ -36,9 +32,11 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
+// LUCENE 4 UPGRADE: we can potentially use TermsFilter here, specifically, now when we don't do bloom filter, batching, and with optimization on single field terms
 public class UidFilter extends Filter {
 
     final Term[] uids;
+
     public UidFilter(Collection<String> types, List<String> ids) {
         this.uids = new Term[types.size() * ids.size()];
         int i = 0;
@@ -60,7 +58,6 @@ public class UidFilter extends Filter {
     // - If we have a single id, we can create a SingleIdDocIdSet to save on mem
     // - We can use sorted int array DocIdSet to reserve memory compared to OpenBitSet in some cases
     @Override
-    // LUCENE 4 UPGRADE: this filter does respect acceptDocs maybe we need to change this
     public DocIdSet getDocIdSet(AtomicReaderContext ctx, Bits acceptedDocs) throws IOException {
         FixedBitSet set = null;
         final AtomicReader reader = ctx.reader();
@@ -71,8 +68,6 @@ public class UidFilter extends Filter {
                 docsEnum = termsEnum.docs(acceptedDocs, docsEnum, 0);
                 int doc;
                 while ((doc = docsEnum.nextDoc()) != DocsEnum.NO_MORE_DOCS) {
-                    // no need for batching, its on the UID, there will be only
-                    // one doc
                     if (set == null) {
                         set = new FixedBitSet(reader.maxDoc());
                     }

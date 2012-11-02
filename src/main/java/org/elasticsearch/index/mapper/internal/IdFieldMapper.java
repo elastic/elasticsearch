@@ -166,7 +166,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         if (indexed() || context == null) {
             return super.fieldQuery(value, context);
         }
-        UidFilter filter = new UidFilter(context.queryTypes(), ImmutableList.of(value), context.indexCache().bloomCache());
+        UidFilter filter = new UidFilter(context.queryTypes(), ImmutableList.of(value));
         // no need for constant score filter, since we don't cache the filter, and it always takes deletes into account
         return new ConstantScoreQuery(filter);
     }
@@ -176,7 +176,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         if (indexed() || context == null) {
             return super.fieldFilter(value, context);
         }
-        return new UidFilter(context.queryTypes(), ImmutableList.of(value), context.indexCache().bloomCache());
+        return new UidFilter(context.queryTypes(), ImmutableList.of(value));
     }
 
     @Override
@@ -280,7 +280,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // if all are defaults, no sense to write it at all
         if (fieldType.stored() == Defaults.ID_FIELD_TYPE.stored() &&
-            fieldType.indexed() == Defaults.ID_FIELD_TYPE.indexed() && path == Defaults.PATH) {
+                fieldType.indexed() == Defaults.ID_FIELD_TYPE.indexed() && path == Defaults.PATH) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);

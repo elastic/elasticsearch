@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.lucene.uid;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PayloadAttribute;
@@ -55,11 +56,12 @@ public class UidField extends Field {
 
     // this works fine for nested docs since they don't have the payload which has the version
     // so we iterate till we find the one with the payload
+    // LUCENE 4 UPGRADE: We can get rid of the do while loop, since there is only one _uid value (live docs are taken into account)
     public static DocIdAndVersion loadDocIdAndVersion(AtomicReaderContext context, Term term) {
         int docId = Lucene.NO_DOC;
         try {
             DocsAndPositionsEnum uid = context.reader().termPositionsEnum(term);
-            if (uid.nextDoc() == DocIdSetIterator.NO_MORE_DOCS) {
+            if (uid == null || uid.nextDoc() == DocIdSetIterator.NO_MORE_DOCS) {
                 return null; // no doc
             }
             // Note, only master docs uid have version payload, so we can use that info to not
@@ -87,10 +89,11 @@ public class UidField extends Field {
      * Load the version for the uid from the reader, returning -1 if no doc exists, or -2 if
      * no version is available (for backward comp.)
      */
+    // LUCENE 4 UPGRADE: We can get rid of the do while loop, since there is only one _uid value (live docs are taken into account)
     public static long loadVersion(AtomicReaderContext context, Term term) {
         try {
             DocsAndPositionsEnum uid = context.reader().termPositionsEnum(term);
-            if (uid.nextDoc() == DocIdSetIterator.NO_MORE_DOCS) {
+            if (uid == null || uid.nextDoc() == DocIdSetIterator.NO_MORE_DOCS) {
                 return -1;
             }
             // Note, only master docs uid have version payload, so we can use that info to not
@@ -117,10 +120,8 @@ public class UidField extends Field {
 
     private long version;
 
-    private final UidPayloadTokenStream tokenStream;
-
     public UidField(String name, String uid, long version) {
-        super(name, uid, UidFieldMapper.Defaults.UID_FIELD_TYPE);
+        super(name, UidFieldMapper.Defaults.UID_FIELD_TYPE);
         this.uid = uid;
         this.version = version;
         this.tokenStream = new UidPayloadTokenStream(this);
@@ -153,7 +154,7 @@ public class UidField extends Field {
     }
 
     @Override
-    public TokenStream tokenStreamValue() {
+    public TokenStream tokenStream(Analyzer analyzer) throws IOException {
         return tokenStream;
     }
 

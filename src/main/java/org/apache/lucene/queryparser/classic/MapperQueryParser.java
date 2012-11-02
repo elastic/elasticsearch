@@ -25,9 +25,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.*;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -414,8 +412,7 @@ public class MapperQueryParser extends QueryParser {
     @Override
     protected Query newFuzzyQuery(Term term, float minimumSimilarity, int prefixLength) {
         String text = term.text();
-        int numEdits = FuzzyQuery.floatToEdits(minimumSimilarity, 
-            text.codePointCount(0, text.length()));
+        int numEdits = FuzzyQuery.floatToEdits(minimumSimilarity, text.codePointCount(0, text.length()));
         //LUCENE 4 UPGRADE I disabled transpositions here by default - maybe this needs to be changed 
         FuzzyQuery query = new FuzzyQuery(term, numEdits, prefixLength, settings.fuzzyMaxExpansions(), false);
         QueryParsers.setRewriteMethod(query, settings.fuzzyRewriteMethod());

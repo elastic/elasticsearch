@@ -41,8 +41,6 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
 
     public static final String NAME = "_uid".intern();
 
-    public static final Term TERM_FACTORY = new Term(NAME, "");
-
     public static final String CONTENT_TYPE = "_uid";
 
     public static class Defaults extends AbstractFieldMapper.Defaults {

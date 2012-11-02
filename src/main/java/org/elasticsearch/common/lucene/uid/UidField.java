@@ -30,6 +30,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -119,10 +120,9 @@ public class UidField extends Field {
     private final UidPayloadTokenStream tokenStream;
 
     public UidField(String name, String uid, long version) {
-        super(name, uid, Field.Store.YES, Field.Index.ANALYZED, Field.TermVector.NO);
+        super(name, uid, UidFieldMapper.Defaults.UID_FIELD_TYPE);
         this.uid = uid;
         this.version = version;
-//        this.indexOptions = FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS;
         this.tokenStream = new UidPayloadTokenStream(this);
     }
 

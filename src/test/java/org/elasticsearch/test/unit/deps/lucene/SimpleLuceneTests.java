@@ -153,9 +153,12 @@ public class SimpleLuceneTests {
                 value.append(" ").append("value");
             }
             Document document = new Document();
-            document.add(new TextField("_id", Integer.toString(i), Field.Store.YES));
-            document.add(new TextField("value", value.toString(), Field.Store.YES));
-            document.boost(i);
+            TextField textField = new TextField("_id", Integer.toString(i), Field.Store.YES);
+            textField.setBoost(i);
+            document.add(textField);
+            textField = new TextField("value", value.toString(), Field.Store.YES);
+            textField.setBoost(i);
+            document.add(textField);
             indexWriter.addDocument(document);
         }
 
@@ -181,15 +184,16 @@ public class SimpleLuceneTests {
 
         for (int i = 0; i < 100; i++) {
             Document document = new Document();
-            document.add(new TextField("_id", Integer.toString(i), Field.Store.YES));
-            document.boost(i);
+            TextField field = new TextField("_id", Integer.toString(i), Field.Store.YES);
+            field.setBoost(i);
+            document.add(field);
             indexWriter.addDocument(document);
         }
         reader = refreshReader(reader);
 
         indexWriter.close();
 
-        TermDocs termDocs = reader.termDocs();
+        TermsEnum termDocs = SlowCompositeReaderWrapper.wrap(reader).terms("_id").iterator(null);
         termDocs.next();
     }
 
@@ -220,19 +224,16 @@ public class SimpleLuceneTests {
         indexWriter.addDocument(doc);
 
         IndexReader reader = IndexReader.open(indexWriter, true);
+        AtomicReader atomicReader = SlowCompositeReaderWrapper.wrap(reader);
 
-        TermDocs termDocs = reader.termDocs();
-
-        TermEnum termEnum = reader.terms(new Term("int1", ""));
-        termDocs.seek(termEnum);
-        assertThat(termDocs.next(), equalTo(true));
-        assertThat(termDocs.doc(), equalTo(0));
+        DocsEnum termDocs = atomicReader.termDocsEnum(new Term("int1"));
+        assertThat(termDocs.nextDoc(), equalTo(0));
+        assertThat(termDocs.docID(), equalTo(0));
         assertThat(termDocs.freq(), equalTo(1));
 
-        termEnum = reader.terms(new Term("int2", ""));
-        termDocs.seek(termEnum);
-        assertThat(termDocs.next(), equalTo(true));
-        assertThat(termDocs.doc(), equalTo(0));
+        termDocs = atomicReader.termDocsEnum(new Term("int2"));
+        assertThat(termDocs.nextDoc(), equalTo(0));
+        assertThat(termDocs.docID(), equalTo(0));
         assertThat(termDocs.freq(), equalTo(2));
 
         reader.close();
@@ -241,7 +242,7 @@ public class SimpleLuceneTests {
 
     private DirectoryReader refreshReader(DirectoryReader reader) throws IOException {
         DirectoryReader oldReader = reader;
-        reader = DirectoryReader.openIfChanged(reader);;
+        reader = DirectoryReader.openIfChanged(reader);
         if (reader != oldReader) {
             oldReader.close();
         }

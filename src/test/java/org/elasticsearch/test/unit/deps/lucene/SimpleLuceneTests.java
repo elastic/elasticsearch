@@ -49,12 +49,12 @@ public class SimpleLuceneTests {
             document.add(new TextField("str", new String(new char[]{(char) (97 + i), (char) (97 + i)}), Field.Store.YES));
             indexWriter.addDocument(document);
         }
-        IndexReader reader = IndexReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter, true);
         IndexSearcher searcher = new IndexSearcher(reader);
         TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), null, 10, new Sort(new SortField("str", SortField.Type.STRING)));
         for (int i = 0; i < 10; i++) {
             FieldDoc fieldDoc = (FieldDoc) docs.scoreDocs[i];
-            assertThat(fieldDoc.fields[0].toString(), equalTo(new String(new char[]{(char) (97 + i), (char) (97 + i)})));
+            assertThat((BytesRef) fieldDoc.fields[0], equalTo(new BytesRef(new String(new char[]{(char) (97 + i), (char) (97 + i)}))));
         }
     }
 
@@ -65,12 +65,12 @@ public class SimpleLuceneTests {
         Document document = new Document();
         document.add(new TextField("_id", "1", Field.Store.YES));
         indexWriter.addDocument(document);
-        DirectoryReader reader = IndexReader.open(indexWriter, true);
+        DirectoryReader reader = DirectoryReader.open(indexWriter, true);
         assertThat(reader.numDocs(), equalTo(1));
 
         indexWriter.prepareCommit();
-        reader = DirectoryReader.openIfChanged(reader);
-        assertThat(reader.numDocs(), equalTo(1));
+        // Returns null b/c no changes.
+        assertThat(DirectoryReader.openIfChanged(reader), equalTo(null));
 
         document = new Document();
         document.add(new TextField("_id", "2", Field.Store.YES));
@@ -90,7 +90,7 @@ public class SimpleLuceneTests {
         document.add(new IntField("test", 2, IntField.TYPE_STORED));
         indexWriter.addDocument(document);
 
-        IndexReader reader = IndexReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter, true);
         IndexSearcher searcher = new IndexSearcher(reader);
         TopDocs topDocs = searcher.search(new TermQuery(new Term("_id", "1")), 1);
         Document doc = searcher.doc(topDocs.scoreDocs[0].doc);
@@ -122,7 +122,7 @@ public class SimpleLuceneTests {
         document.add(new TextField("#id", "1", Field.Store.YES));
         indexWriter.addDocument(document);
 
-        IndexReader reader = IndexReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter, true);
         IndexSearcher searcher = new IndexSearcher(reader);
         TopDocs topDocs = searcher.search(new TermQuery(new Term("_id", "1")), 1);
         final ArrayList<String> fieldsOrder = new ArrayList<String>();
@@ -162,7 +162,7 @@ public class SimpleLuceneTests {
             indexWriter.addDocument(document);
         }
 
-        IndexReader reader = IndexReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter, true);
         IndexSearcher searcher = new IndexSearcher(reader);
         TermQuery query = new TermQuery(new Term("value", "value"));
         TopDocs topDocs = searcher.search(query, 100);
@@ -170,7 +170,7 @@ public class SimpleLuceneTests {
         for (int i = 0; i < topDocs.scoreDocs.length; i++) {
             Document doc = searcher.doc(topDocs.scoreDocs[i].doc);
 //            System.out.println(doc.get("id") + ": " + searcher.explain(query, topDocs.scoreDocs[i].doc));
-            assertThat(doc.get("id"), equalTo(Integer.toString(100 - i - 1)));
+            assertThat(doc.get("_id"), equalTo(Integer.toString(100 - i - 1)));
         }
 
         indexWriter.close();
@@ -180,7 +180,7 @@ public class SimpleLuceneTests {
     public void testNRTSearchOnClosedWriter() throws Exception {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
-        DirectoryReader reader = IndexReader.open(indexWriter, true);
+        DirectoryReader reader = DirectoryReader.open(indexWriter, true);
 
         for (int i = 0; i < 100; i++) {
             Document document = new Document();
@@ -207,10 +207,13 @@ public class SimpleLuceneTests {
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
 
         Document doc = new Document();
-        FieldType type = IntField.TYPE_STORED;
-        type.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS);
+        FieldType type = IntField.TYPE_NOT_STORED;
         IntField field = new IntField("int1", 1, type);
         doc.add(field);
+
+        type = new FieldType(IntField.TYPE_NOT_STORED);
+        type.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS);
+        type.freeze();
 
         field = new IntField("int1", 1, type);
         doc.add(field);
@@ -223,15 +226,22 @@ public class SimpleLuceneTests {
 
         indexWriter.addDocument(doc);
 
-        IndexReader reader = IndexReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter, true);
         AtomicReader atomicReader = SlowCompositeReaderWrapper.wrap(reader);
 
-        DocsEnum termDocs = atomicReader.termDocsEnum(new Term("int1"));
+        Terms terms = atomicReader.terms("int1");
+        TermsEnum termsEnum = terms.iterator(null);
+        termsEnum.next();
+
+        DocsEnum termDocs = termsEnum.docs(atomicReader.getLiveDocs(), null);
         assertThat(termDocs.nextDoc(), equalTo(0));
         assertThat(termDocs.docID(), equalTo(0));
         assertThat(termDocs.freq(), equalTo(1));
 
-        termDocs = atomicReader.termDocsEnum(new Term("int2"));
+        terms = atomicReader.terms("int2");
+        termsEnum = terms.iterator(termsEnum);
+        termsEnum.next();
+        termDocs =  termsEnum.docs(atomicReader.getLiveDocs(), termDocs);
         assertThat(termDocs.nextDoc(), equalTo(0));
         assertThat(termDocs.docID(), equalTo(0));
         assertThat(termDocs.freq(), equalTo(2));

@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -40,7 +41,7 @@ import java.lang.reflect.Field;
  */
 public class Lucene {
 
-    public static final Version VERSION = Version.LUCENE_36;
+    public static final Version VERSION = Version.LUCENE_40;
     public static final Version ANALYZER_VERSION = VERSION;
     public static final Version QUERYPARSER_VERSION = VERSION;
 
@@ -56,6 +57,9 @@ public class Lucene {
     public static Version parseVersion(@Nullable String version, Version defaultVersion, ESLogger logger) {
         if (version == null) {
             return defaultVersion;
+        }
+        if ("4.0".equals(version)) {
+            return Version.LUCENE_40;
         }
         if ("3.6".equals(version)) {
             return Version.LUCENE_36;
@@ -80,6 +84,27 @@ public class Lucene {
         }
         logger.warn("no version match {}, default to {}", version, defaultVersion);
         return defaultVersion;
+    }
+
+    /**
+     * Reads the segments infos, returning null if it doesn't exists
+     */
+    @Nullable
+    public static SegmentInfos readSegmentInfosIfExists(Directory directory) {
+        try {
+            return readSegmentInfos(directory);
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
+    /**
+     * Reads the segments infos, failing if it fails to load
+     */
+    public static SegmentInfos readSegmentInfos(Directory directory) throws IOException {
+        final SegmentInfos sis = new SegmentInfos();
+        sis.read(directory);
+        return sis;
     }
 
     public static long count(IndexSearcher searcher, Query query) throws IOException {

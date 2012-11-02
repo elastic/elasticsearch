@@ -41,6 +41,14 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.custommeta.delete.DeleteCustomMetaAction;
+import org.elasticsearch.action.admin.indices.custommeta.delete.DeleteCustomMetaRequest;
+import org.elasticsearch.action.admin.indices.custommeta.delete.DeleteCustomMetaRequestBuilder;
+import org.elasticsearch.action.admin.indices.custommeta.delete.DeleteCustomMetaResponse;
+import org.elasticsearch.action.admin.indices.custommeta.put.PutCustomMetaAction;
+import org.elasticsearch.action.admin.indices.custommeta.put.PutCustomMetaRequest;
+import org.elasticsearch.action.admin.indices.custommeta.put.PutCustomMetaRequestBuilder;
+import org.elasticsearch.action.admin.indices.custommeta.put.PutCustomMetaResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
@@ -479,7 +487,22 @@ public abstract class AbstractIndicesAdminClient implements InternalIndicesAdmin
     public PutWarmerRequestBuilder preparePutWarmer(String name) {
         return new PutWarmerRequestBuilder(this, name);
     }
+    
+    @Override
+    public ActionFuture<PutCustomMetaResponse> putCustomMeta(PutCustomMetaRequest request) {
+        return execute(PutCustomMetaAction.INSTANCE, request);
+    }
 
+    @Override
+    public void putCustomMeta(PutCustomMetaRequest request, ActionListener<PutCustomMetaResponse> listener) {
+        execute(PutCustomMetaAction.INSTANCE, request, listener);
+    }
+
+    @Override
+    public PutCustomMetaRequestBuilder preparePutCustomMeta(String name) {
+        return new PutCustomMetaRequestBuilder(this, name);
+    }
+    
     @Override
     public ActionFuture<DeleteWarmerResponse> deleteWarmer(DeleteWarmerRequest request) {
         return execute(DeleteWarmerAction.INSTANCE, request);
@@ -493,5 +516,20 @@ public abstract class AbstractIndicesAdminClient implements InternalIndicesAdmin
     @Override
     public DeleteWarmerRequestBuilder prepareDeleteWarmer() {
         return new DeleteWarmerRequestBuilder(this);
+    }
+    
+    @Override
+    public ActionFuture<DeleteCustomMetaResponse> deleteCustomMeta(DeleteCustomMetaRequest request) {
+        return execute(DeleteCustomMetaAction.INSTANCE, request);
+    }
+
+    @Override
+    public void deleteCustomMeta(DeleteCustomMetaRequest request, ActionListener<DeleteCustomMetaResponse> listener) {
+        execute(DeleteCustomMetaAction.INSTANCE, request, listener);
+    }
+
+    @Override
+    public DeleteCustomMetaRequestBuilder prepareDeleteCustomMeta() {
+        return new DeleteCustomMetaRequestBuilder(this);
     }
 }

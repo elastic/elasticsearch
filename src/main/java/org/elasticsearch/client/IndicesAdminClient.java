@@ -36,6 +36,12 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.custommeta.delete.DeleteCustomMetaRequest;
+import org.elasticsearch.action.admin.indices.custommeta.delete.DeleteCustomMetaRequestBuilder;
+import org.elasticsearch.action.admin.indices.custommeta.delete.DeleteCustomMetaResponse;
+import org.elasticsearch.action.admin.indices.custommeta.put.PutCustomMetaRequest;
+import org.elasticsearch.action.admin.indices.custommeta.put.PutCustomMetaRequestBuilder;
+import org.elasticsearch.action.admin.indices.custommeta.put.PutCustomMetaResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
@@ -606,12 +612,27 @@ public interface IndicesAdminClient {
      * Puts an index search warmer to be applies when applicable.
      */
     ActionFuture<PutWarmerResponse> putWarmer(PutWarmerRequest request);
-
+    
     /**
      * Puts an index search warmer to be applies when applicable.
      */
     void putWarmer(PutWarmerRequest request, ActionListener<PutWarmerResponse> listener);
 
+    /**
+     * Puts an index search custom meta to be applies when applicable.
+     */
+    PutCustomMetaRequestBuilder preparePutCustomMeta(String name);
+    
+    /**
+     * Puts an index search custom meta to be applies when applicable.
+     */
+    ActionFuture<PutCustomMetaResponse> putCustomMeta(PutCustomMetaRequest request);
+    
+    /**
+     * Puts an index search custom meta to be applies when applicable.
+     */
+    void putCustomMeta(PutCustomMetaRequest request, ActionListener<PutCustomMetaResponse> listener);
+    
     /**
      * Puts an index search warmer to be applies when applicable.
      */
@@ -631,4 +652,20 @@ public interface IndicesAdminClient {
      * Deletes an index warmer.
      */
     DeleteWarmerRequestBuilder prepareDeleteWarmer();
+    
+    /**
+     * Deletes an index custom meta.
+     */
+    ActionFuture<DeleteCustomMetaResponse> deleteCustomMeta(DeleteCustomMetaRequest request);
+    
+    /**
+     * Deletes an index search custom meta.
+     */
+    void deleteCustomMeta(DeleteCustomMetaRequest request, ActionListener<DeleteCustomMetaResponse> listener);
+    
+    /**
+     * Deletes an index custom meta.
+     */
+    DeleteCustomMetaRequestBuilder prepareDeleteCustomMeta();
+    
 }

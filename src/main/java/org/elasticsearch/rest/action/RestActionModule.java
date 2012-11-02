@@ -38,6 +38,9 @@ import org.elasticsearch.rest.action.admin.indices.analyze.RestAnalyzeAction;
 import org.elasticsearch.rest.action.admin.indices.cache.clear.RestClearIndicesCacheAction;
 import org.elasticsearch.rest.action.admin.indices.close.RestCloseIndexAction;
 import org.elasticsearch.rest.action.admin.indices.create.RestCreateIndexAction;
+import org.elasticsearch.rest.action.admin.indices.custommeta.delete.RestDeleteCustomMetaAction;
+import org.elasticsearch.rest.action.admin.indices.custommeta.get.RestGetCustomMetaAction;
+import org.elasticsearch.rest.action.admin.indices.custommeta.put.RestPutCustomMetaAction;
 import org.elasticsearch.rest.action.admin.indices.delete.RestDeleteIndexAction;
 import org.elasticsearch.rest.action.admin.indices.exists.indices.RestIndicesExistsAction;
 import org.elasticsearch.rest.action.admin.indices.exists.types.RestTypesExistsAction;
@@ -133,6 +136,10 @@ public class RestActionModule extends AbstractModule {
         bind(RestDeleteWarmerAction.class).asEagerSingleton();
         bind(RestGetWarmerAction.class).asEagerSingleton();
 
+        bind(RestPutCustomMetaAction.class).asEagerSingleton();
+        bind(RestDeleteCustomMetaAction.class).asEagerSingleton();
+        bind(RestGetCustomMetaAction.class).asEagerSingleton();
+        
         bind(RestPutMappingAction.class).asEagerSingleton();
         bind(RestDeleteMappingAction.class).asEagerSingleton();
         bind(RestGetMappingAction.class).asEagerSingleton();

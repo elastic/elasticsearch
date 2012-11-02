@@ -113,10 +113,12 @@ public class SimpleCustomMetaData implements IndexMetaData.Custom {
 
         @Override
         public SimpleCustomMetaData fromMap(Map<String, Object> map) throws IOException {
+
             // if it starts with the type, remove it
             if (map.size() == 1 && map.containsKey(TYPE)) {
                 map = (Map<String, Object>) map.values().iterator().next();
             }
+            
             XContentBuilder builder = XContentFactory.smileBuilder().map(map);
             XContentParser parser = XContentFactory.xContent(XContentType.SMILE).createParser(builder.bytes());
             try {
@@ -152,7 +154,8 @@ public class SimpleCustomMetaData implements IndexMetaData.Custom {
                 } else if (token == XContentParser.Token.VALUE_NULL) {
                     source = new BytesArray("".getBytes());
                 }
-                entries.add(new Entry(name,source));
+                if (name != null)
+                    entries.add(new Entry(name,source));
             }
             return new SimpleCustomMetaData(entries.toArray(new Entry[entries.size()]));
         }

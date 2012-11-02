@@ -48,6 +48,10 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
+import org.elasticsearch.action.admin.indices.custommeta.delete.DeleteCustomMetaAction;
+import org.elasticsearch.action.admin.indices.custommeta.delete.TransportDeleteCustomMetaAction;
+import org.elasticsearch.action.admin.indices.custommeta.put.PutCustomMetaAction;
+import org.elasticsearch.action.admin.indices.custommeta.put.TransportPutCustomMetaAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsAction;
@@ -196,7 +200,9 @@ public class ActionModule extends AbstractModule {
         registerAction(ClearIndicesCacheAction.INSTANCE, TransportClearIndicesCacheAction.class);
         registerAction(PutWarmerAction.INSTANCE, TransportPutWarmerAction.class);
         registerAction(DeleteWarmerAction.INSTANCE, TransportDeleteWarmerAction.class);
-
+        registerAction(PutCustomMetaAction.INSTANCE, TransportPutCustomMetaAction.class);
+        registerAction(DeleteCustomMetaAction.INSTANCE, TransportDeleteCustomMetaAction.class);
+        
         registerAction(IndexAction.INSTANCE, TransportIndexAction.class);
         registerAction(GetAction.INSTANCE, TransportGetAction.class);
         registerAction(DeleteAction.INSTANCE, TransportDeleteAction.class,

@@ -25,6 +25,7 @@ import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.custom.SimpleCustomMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
@@ -85,6 +86,7 @@ public class IndexMetaData {
     static {
         // register non plugin custom metadata
         registerFactory(IndexWarmersMetaData.TYPE, IndexWarmersMetaData.FACTORY);
+        registerFactory(SimpleCustomMetaData.TYPE, SimpleCustomMetaData.FACTORY);
     }
 
     /**

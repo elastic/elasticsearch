@@ -26,7 +26,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 /**
- * A response for a delete warmer.
+ * A response for a delete custom meta.
  */
 public class DeleteCustomMetaResponse extends ActionResponse {
 

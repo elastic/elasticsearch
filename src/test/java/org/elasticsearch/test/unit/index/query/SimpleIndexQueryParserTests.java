@@ -364,7 +364,7 @@ public class SimpleIndexQueryParserTests {
         assertThat(parsedQuery, instanceOf(FuzzyQuery.class));
         FuzzyQuery fuzzyQuery = (FuzzyQuery) parsedQuery;
         assertThat(fuzzyQuery.getTerm(), equalTo(new Term("name.first", "sh")));
-        assertThat(fuzzyQuery.getMinSimilarity(), equalTo(0.1f));
+        assertThat(fuzzyQuery.getMaxEdits(), equalTo(FuzzyQuery.floatToEdits(0.1f, "sh".length())));
         assertThat(fuzzyQuery.getPrefixLength(), equalTo(1));
         assertThat(fuzzyQuery.getBoost(), equalTo(2.0f));
     }
@@ -377,7 +377,7 @@ public class SimpleIndexQueryParserTests {
         assertThat(parsedQuery, instanceOf(FuzzyQuery.class));
         FuzzyQuery fuzzyQuery = (FuzzyQuery) parsedQuery;
         assertThat(fuzzyQuery.getTerm(), equalTo(new Term("name.first", "sh")));
-        assertThat(fuzzyQuery.getMinSimilarity(), equalTo(0.1f));
+        assertThat(fuzzyQuery.getMaxEdits(), equalTo(FuzzyQuery.floatToEdits(0.1f, "sh".length())));
         assertThat(fuzzyQuery.getPrefixLength(), equalTo(1));
         assertThat(fuzzyQuery.getBoost(), equalTo(2.0f));
     }

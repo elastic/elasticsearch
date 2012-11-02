@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -41,10 +42,7 @@ import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static com.google.common.collect.Lists.newArrayList;
@@ -522,10 +520,15 @@ public class DocumentMapper implements ToXContent {
         }
         // apply doc boost
         if (context.docBoost() != 1.0f) {
+            Set<String> encounteredFields = Sets.newHashSet();
             for (Document doc : context.docs()) {
+                encounteredFields.clear();
                 for (IndexableField field : doc) {
                     if (field.fieldType().indexed() && !field.fieldType().omitNorms()) {
-                        ((Field) field).setBoost(context.docBoost() * field.boost());
+                        if (!encounteredFields.contains(field.name())) {
+                            ((Field) field).setBoost(context.docBoost() * field.boost());
+                            encounteredFields.add(field.name());
+                        }
                     }
                 }
             }

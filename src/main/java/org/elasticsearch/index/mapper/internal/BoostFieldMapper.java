@@ -228,7 +228,7 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
         // we override parse since we want to handle cases where it is not indexed and not stored (the default)
         float value = parseFloatValue(context);
         if (!Float.isNaN(value)) {
-            context.doc().setBoost(value);
+            context.docBoost(value);
         }
         super.parse(context);
     }
@@ -239,7 +239,7 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
         if (Float.isNaN(value)) {
             return null;
         }
-        context.doc().setBoost(value);
+        context.docBoost(value);
         return new FloatFieldMapper.CustomFloatNumericField(this, value, fieldType);
     }
 

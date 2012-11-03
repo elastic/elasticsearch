@@ -108,7 +108,7 @@ public abstract class AbstractSimpleEngineTests {
             threadPool.shutdownNow();
         }
     }
-    
+
     private Document testDocumentWithTextField(String id) {
         Document document = testDocument(id);
         document.add(new TextField("value", "test", Field.Store.YES));
@@ -165,9 +165,7 @@ public abstract class AbstractSimpleEngineTests {
         assertThat(segments.isEmpty(), equalTo(true));
 
         // create a doc and refresh
-        Document document = testDocumentWithTextField("1");
-        document.add(new Field(SourceFieldMapper.NAME, B_1.toBytes(), TextField.TYPE_STORED));
-        ParsedDocument doc = new ParsedDocument("1", "1", "test", null, -1, -1, document, Lucene.STANDARD_ANALYZER, B_1, false);
+        ParsedDocument doc = new ParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField("1"), Lucene.STANDARD_ANALYZER, B_1, false);
         engine.create(new Engine.Create(null, newUid("1"), doc));
 
         ParsedDocument doc2 = new ParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField("2"), Lucene.STANDARD_ANALYZER, B_2, false);
@@ -233,7 +231,7 @@ public abstract class AbstractSimpleEngineTests {
 
         // create a document
         Document document = testDocumentWithTextField("1");
-        document.add(new Field(SourceFieldMapper.NAME, B_1.toBytes(), TextField.TYPE_STORED));
+        document.add(new Field(SourceFieldMapper.NAME, B_1.toBytes(), SourceFieldMapper.Defaults.SOURCE_FIELD_TYPE));
         ParsedDocument doc = new ParsedDocument("1", "1", "test", null, -1, -1, document, Lucene.STANDARD_ANALYZER, B_1, false);
         engine.create(new Engine.Create(null, newUid("1"), doc));
 
@@ -270,7 +268,7 @@ public abstract class AbstractSimpleEngineTests {
         // now do an update
         document = testDocument("1");
         document.add(new TextField("value", "test1", Field.Store.YES));
-        document.add(new Field(SourceFieldMapper.NAME, B_2.toBytes(), TextField.TYPE_STORED));
+        document.add(new Field(SourceFieldMapper.NAME, B_2.toBytes(), SourceFieldMapper.Defaults.SOURCE_FIELD_TYPE));
         doc = new ParsedDocument("1", "1", "test", null, -1, -1, document, Lucene.STANDARD_ANALYZER, B_2, false);
         engine.index(new Engine.Index(null, newUid("1"), doc));
 
@@ -321,7 +319,7 @@ public abstract class AbstractSimpleEngineTests {
 
         // add it back
         document = testDocumentWithTextField("1");
-        document.add(new Field(SourceFieldMapper.NAME, B_1.toBytes(), TextField.TYPE_STORED));
+        document.add(new Field(SourceFieldMapper.NAME, B_1.toBytes(), SourceFieldMapper.Defaults.SOURCE_FIELD_TYPE));
         doc = new ParsedDocument("1", "1", "test", null, -1, -1, document, Lucene.STANDARD_ANALYZER, B_1, false);
         engine.create(new Engine.Create(null, newUid("1"), doc));
 

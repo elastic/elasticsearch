@@ -292,7 +292,7 @@ public class CompressIndexInputOutputTests {
             Document document = reader.document(doc);
             checkDoc(document);
             DocumentStoredFieldVisitor visitor = new DocumentStoredFieldVisitor("id", "field", "count");
-            reader.document(i, visitor);
+            reader.document(doc, visitor);
             document = visitor.getDocument();
             checkDoc(document);
         }

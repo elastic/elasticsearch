@@ -50,7 +50,7 @@ public class StopTokenFilterFactory extends AbstractTokenFilterFactory {
         this.ignoreCase = settings.getAsBoolean("ignore_case", false);
         this.stopWords = Analysis.parseStopWords(env, settings, StopAnalyzer.ENGLISH_STOP_WORDS_SET, version, ignoreCase);
         // LUCENE 4 UPGRADE: LUCENE_29 constant is no longer defined
-        this.enablePositionIncrements = settings.getAsBoolean("enable_position_increments", version.onOrAfter(Version.parseLeniently("LUCENE_29")));
+        this.enablePositionIncrements = settings.getAsBoolean("enable_position_increments", version.onOrAfter(Version.LUCENE_30));
     }
 
     @Override

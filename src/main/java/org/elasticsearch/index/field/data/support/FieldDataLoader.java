@@ -52,7 +52,7 @@ public class FieldDataLoader {
         TermsEnum termsEnum = terms.iterator(null);
         try {
             DocsEnum docsEnum = null;
-            for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.term()) {
+            for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.next()) {
                 loader.collectTerm(BytesRef.deepCopyOf(term));
                 docsEnum = termsEnum.docs(reader.getLiveDocs(), docsEnum, 0);
                 for (int docId = docsEnum.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
@@ -66,6 +66,7 @@ public class FieldDataLoader {
                     ordinal[docId] = t;
                     idx[docId]++;
                 }
+                t++;
             }
         } catch (RuntimeException e) {
             if (e.getClass().getName().endsWith("StopFillCacheException")) {

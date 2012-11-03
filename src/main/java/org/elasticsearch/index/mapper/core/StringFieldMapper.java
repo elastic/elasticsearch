@@ -47,9 +47,10 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
     public static final String CONTENT_TYPE = "string";
 
     public static class Defaults extends AbstractFieldMapper.Defaults {
-        public static final FieldType STRING_FIELD_TYPE = new FieldType(NumberFieldMapper.Defaults.NUMBER_FIELD_TYPE);
+        public static final FieldType STRING_FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
 
         static {
+            STRING_FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_ONLY);
             STRING_FIELD_TYPE.freeze();
         }
 

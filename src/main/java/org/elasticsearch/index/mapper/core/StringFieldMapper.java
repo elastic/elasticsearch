@@ -50,7 +50,6 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
         public static final FieldType STRING_FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
 
         static {
-            STRING_FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_ONLY);
             STRING_FIELD_TYPE.freeze();
         }
 
@@ -120,7 +119,7 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
             // if the field is not analyzed, then by default, we should omit norms and have docs only
             // index options, as probably what the user really wants
             // if they are set explicitly, we will use those values
-            if (fieldType.indexed() && fieldType.tokenized()) {
+            if (fieldType.indexed() && !fieldType.tokenized()) {
                 if (!omitNormsSet) {
                     fieldType.setOmitNorms(true);
                 }

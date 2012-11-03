@@ -20,7 +20,6 @@
 
 package org.elasticsearch.test.unit.index.mapper.ttl;
 
-import org.apache.lucene.document.Field;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -72,8 +71,8 @@ public class TTLMappingTests {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().string();
         DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
         assertThat(docMapper.TTLFieldMapper().enabled(), equalTo(TTLFieldMapper.Defaults.ENABLED));
-        assertThat(docMapper.TTLFieldMapper().stored(), equalTo(TTLFieldMapper.Defaults.FIELD_TYPE.stored()));
-        assertThat(docMapper.TTLFieldMapper().indexed(), equalTo(TTLFieldMapper.Defaults.FIELD_TYPE.indexed()));
+        assertThat(docMapper.TTLFieldMapper().stored(), equalTo(TTLFieldMapper.Defaults.TTL_FIELD_TYPE.stored()));
+        assertThat(docMapper.TTLFieldMapper().indexed(), equalTo(TTLFieldMapper.Defaults.TTL_FIELD_TYPE.indexed()));
     }
 
 

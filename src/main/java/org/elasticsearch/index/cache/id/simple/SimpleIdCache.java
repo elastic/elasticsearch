@@ -121,7 +121,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
 
                     TermsEnum termsEnum = terms.iterator(null);
                     DocsEnum docsEnum = null;
-                    for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.term()) {
+                    for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.next()) {
                         HashedBytesArray[] typeAndId = Uid.splitUidIntoTypeAndId(term);
                         TypeBuilder typeBuilder = readerBuilder.get(typeAndId[0].toUtf8());
                         if (typeBuilder == null) {
@@ -156,7 +156,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
 
                     TermsEnum termsEnum = terms.iterator(null);
                     DocsEnum docsEnum = null;
-                    for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.term()) {
+                    for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.next()) {
                         HashedBytesArray[] typeAndId = Uid.splitUidIntoTypeAndId(term);
 
                         TypeBuilder typeBuilder = readerBuilder.get(typeAndId[0].toUtf8());

@@ -127,7 +127,7 @@ public class SimpleIndexQueryParserTests {
 
     private BytesRef longToPrefixCoded(long val) {
         BytesRef bytesRef = new BytesRef();
-        NumericUtils.longToPrefixCoded(val, 0, bytesRef);
+        NumericUtils.longToPrefixCoded(val, NumericUtils.PRECISION_STEP_DEFAULT, bytesRef);
         return bytesRef;
     }
 

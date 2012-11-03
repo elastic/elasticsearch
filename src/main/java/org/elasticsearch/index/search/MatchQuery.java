@@ -180,57 +180,59 @@ public class MatchQuery {
         }
 
         // Logic similar to QueryParser#getFieldQuery
-        final TokenStream source;
+        TokenStream source = null;
+        CachingTokenFilter buffer = null;
+        CharTermAttribute termAtt = null;
+        PositionIncrementAttribute posIncrAtt = null;
+        boolean success = false;
         try {
             source = analyzer.tokenStream(field, new FastStringReader(text));
             source.reset();
+            success = true;
         } catch(IOException ex) {
-            //LUCENE 4 UPGRADE not sure what todo here really lucene 3.6 had a tokenStream that didn't throw an exc. 
-            throw new ElasticSearchParseException("failed to process query", ex);
+            //LUCENE 4 UPGRADE not sure what todo here really lucene 3.6 had a tokenStream that didn't throw an exc.
+            // success==false if we hit an exception
         }
-        CachingTokenFilter buffer = new CachingTokenFilter(source);
-        CharTermAttribute termAtt = null;
-        PositionIncrementAttribute posIncrAtt = null;
         int numTokens = 0;
+        int positionCount = 0;
+        boolean severalTokensAtSamePosition = false;
 
-        boolean success = false;
-        buffer.reset();
         if (success) {
+            buffer = new CachingTokenFilter(source);
+            buffer.reset();
             if (buffer.hasAttribute(CharTermAttribute.class)) {
                 termAtt = buffer.getAttribute(CharTermAttribute.class);
             }
             if (buffer.hasAttribute(PositionIncrementAttribute.class)) {
                 posIncrAtt = buffer.getAttribute(PositionIncrementAttribute.class);
             }
-        }
 
-        int positionCount = 0;
-        boolean severalTokensAtSamePosition = false;
-
-        boolean hasMoreTokens = false;
-        if (termAtt != null) {
-            try {
-                hasMoreTokens = buffer.incrementToken();
-                while (hasMoreTokens) {
-                    numTokens++;
-                    int positionIncrement = (posIncrAtt != null) ? posIncrAtt.getPositionIncrement() : 1;
-                    if (positionIncrement != 0) {
-                        positionCount += positionIncrement;
-                    } else {
-                        severalTokensAtSamePosition = true;
-                    }
+            boolean hasMoreTokens = false;
+            if (termAtt != null) {
+                try {
                     hasMoreTokens = buffer.incrementToken();
+                    while (hasMoreTokens) {
+                        numTokens++;
+                        int positionIncrement = (posIncrAtt != null) ? posIncrAtt.getPositionIncrement() : 1;
+                        if (positionIncrement != 0) {
+                            positionCount += positionIncrement;
+                        } else {
+                            severalTokensAtSamePosition = true;
+                        }
+                        hasMoreTokens = buffer.incrementToken();
+                    }
+                } catch (IOException e) {
+                    // ignore
                 }
-            } catch (IOException e) {
-                // ignore
             }
-        }
-        try {
             // rewind the buffer stream
             buffer.reset();
-
+        }
+        try {
             // close original stream - all tokens buffered
-            source.close();
+            if (source != null) {
+                source.close();
+            }
         } catch (IOException e) {
             // ignore
         }

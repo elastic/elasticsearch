@@ -120,7 +120,7 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
             // index options, as probably what the user really wants
             // if they are set explicitly, we will use those values
             if (fieldType.indexed() && !fieldType.tokenized()) {
-                if (!omitNormsSet) {
+                if (!omitNormsSet && boost == Defaults.BOOST) {
                     fieldType.setOmitNorms(true);
                 }
                 if (!indexOptionsSet) {

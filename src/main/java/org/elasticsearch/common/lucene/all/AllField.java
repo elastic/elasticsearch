@@ -57,7 +57,7 @@ public class AllField extends Field {
     }
 
     @Override
-    public TokenStream tokenStreamValue() {
+    public TokenStream tokenStream(Analyzer analyzer) throws IOException {
         try {
             allEntries.reset(); // reset the all entries, just in case it was read already
             return AllTokenStream.allTokenStream(name, allEntries, analyzer);

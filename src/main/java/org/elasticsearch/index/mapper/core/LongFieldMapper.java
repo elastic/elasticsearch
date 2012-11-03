@@ -19,10 +19,10 @@
 
 package org.elasticsearch.index.mapper.core;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
@@ -376,7 +376,7 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
         }
 
         @Override
-        public TokenStream tokenStreamValue() {
+        public TokenStream tokenStream(Analyzer analyzer) throws IOException {
             if (fieldType().indexed()) {
                 return mapper.popCachedStream().setLongValue(number);
             }

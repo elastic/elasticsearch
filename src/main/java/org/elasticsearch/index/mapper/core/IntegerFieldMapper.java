@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.core;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -376,7 +377,7 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
         }
 
         @Override
-        public TokenStream tokenStreamValue() {
+        public TokenStream tokenStream(Analyzer analyzer) throws IOException {
             if (fieldType().indexed()) {
                 return mapper.popCachedStream().setIntValue(number);
             }

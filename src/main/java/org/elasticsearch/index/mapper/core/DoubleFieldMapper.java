@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.core;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -61,6 +62,7 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
         static {
             DOUBLE_FIELD_TYPE.freeze();
         }
+
         public static final Double NULL_VALUE = null;
     }
 
@@ -375,7 +377,7 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
         }
 
         @Override
-        public TokenStream tokenStreamValue() {
+        public TokenStream tokenStream(Analyzer analyzer) throws IOException {
             if (fieldType().indexed()) {
                 return mapper.popCachedStream().setDoubleValue(number);
             }

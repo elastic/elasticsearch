@@ -34,7 +34,6 @@ import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -49,7 +48,10 @@ import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.index.field.data.FieldDataType;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -60,7 +62,6 @@ import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 
 import java.io.IOException;
-import java.io.Reader;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -303,32 +304,12 @@ public class PercolatorExecutor extends AbstractIndexComponent {
             }
             TokenStream tokenStream;
             try {
-                tokenStream = field.tokenStream(
-                        mapperService.documentMapper(request.doc().type()).mappers().smartNameFieldMapper(field.name()).indexAnalyzer()
-                );
+                tokenStream = field.tokenStream(request.doc().analyzer());
+                if (tokenStream != null) {
+                    memoryIndex.addField(field.name(), tokenStream, field.boost());
+                }
             } catch (IOException e) {
                 throw new ElasticSearchException("Failed to create token stream", e);
-            }
-            if (tokenStream != null) {
-                memoryIndex.addField(field.name(), tokenStream, field.boost());
-            } else {
-                Reader reader = field.readerValue();
-                if (reader != null) {
-                    try {
-                        memoryIndex.addField(field.name(), request.doc().analyzer().tokenStream(field.name(), reader), field.boost() /** request.doc().rootDoc().getBoost()*/);
-                    } catch (IOException e) {
-                        throw new MapperParsingException("Failed to analyze field [" + field.name() + "]", e);
-                    }
-                } else {
-                    String value = field.stringValue();
-                    if (value != null) {
-                        try {
-                            memoryIndex.addField(field.name(), request.doc().analyzer().tokenStream(field.name(), new FastStringReader(value)), field.boost() /** request.doc().rootDoc().getBoost()*/);
-                        } catch (IOException e) {
-                            throw new MapperParsingException("Failed to analyze field [" + field.name() + "]", e);
-                        }
-                    }
-                }
             }
         }
 

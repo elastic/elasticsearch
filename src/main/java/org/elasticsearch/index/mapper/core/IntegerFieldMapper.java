@@ -83,7 +83,7 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
 
         @Override
         public IntegerFieldMapper build(BuilderContext context) {
-            fieldType.setOmitNorms(fieldType.omitNorms() || boost != 1.0f);
+            fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             IntegerFieldMapper fieldMapper = new IntegerFieldMapper(buildNames(context),
                     precisionStep, fuzzyFactor, boost, fieldType,
                     nullValue, ignoreMalformed(context));

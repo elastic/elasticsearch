@@ -53,6 +53,8 @@ public class TypeParsers {
                 builder.fuzzyFactor(propNode.toString());
             } else if (propName.equals("ignore_malformed")) {
                 builder.ignoreMalformed(nodeBooleanValue(propNode));
+            } else if (propName.equals("omit_norms")) {
+                builder.omitNorms(nodeBooleanValue(propNode));
             }
         }
     }

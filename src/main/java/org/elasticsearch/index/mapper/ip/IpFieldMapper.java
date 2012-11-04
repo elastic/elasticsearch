@@ -110,7 +110,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
 
         @Override
         public IpFieldMapper build(BuilderContext context) {
-            fieldType.setOmitNorms(fieldType.omitNorms() || boost != 1.0f);
+            fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             IpFieldMapper fieldMapper = new IpFieldMapper(buildNames(context),
                     precisionStep, boost, fieldType, nullValue, ignoreMalformed(context));
             fieldMapper.includeInAll(includeInAll);

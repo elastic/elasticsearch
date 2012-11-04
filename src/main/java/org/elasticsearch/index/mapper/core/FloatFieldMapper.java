@@ -83,7 +83,7 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
 
         @Override
         public FloatFieldMapper build(BuilderContext context) {
-            fieldType.setOmitNorms(fieldType.omitNorms() || boost != 1.0f);
+            fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             FloatFieldMapper fieldMapper = new FloatFieldMapper(buildNames(context),
                     precisionStep, fuzzyFactor, boost, fieldType, nullValue,
                     ignoreMalformed(context));

@@ -93,7 +93,7 @@ public class NotDeletedFilter extends Filter {
 
         @Override
         protected boolean match(int doc) {
-            return liveDocs.get(doc);
+            return liveDocs == null || liveDocs.get(doc);
         }
     }
 }

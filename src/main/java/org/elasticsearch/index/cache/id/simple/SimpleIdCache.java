@@ -226,6 +226,21 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
         return sizeInBytes;
     }
 
+    public Map<String, Long> sizeInBytesByTypeMap() {
+        Map<String, Long> sizeByTypeMap = new HashMap<String, Long>();
+        for (SimpleIdReaderCache idReaderCache : idReaders.values()) {
+            Map<String, Long> readerSizeByTypeMap = idReaderCache.sizeInBytesByTypeMap();
+            for (String type: readerSizeByTypeMap.keySet()) {
+                Long size = sizeByTypeMap.get(type);
+                if (size == null)
+                    sizeByTypeMap.put(type, size);
+                else
+                    sizeByTypeMap.put(type, size + readerSizeByTypeMap.get(type));
+            }
+        }
+        return sizeByTypeMap;
+    }
+    
     private HashedBytesArray checkIfCanReuse(Map<Object, Map<String, TypeBuilder>> builders, HashedBytesArray idAsBytes) {
         HashedBytesArray finalIdAsBytes;
         // go over and see if we can reuse this id

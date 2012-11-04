@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.cache.id;
 
+import java.util.Map;
+
 import org.elasticsearch.common.bytes.HashedBytesArray;
 
 /**
@@ -35,4 +37,6 @@ public interface IdReaderCache {
     int docById(String type, HashedBytesArray id);
 
     long sizeInBytes();
+    
+    Map<String, Long> sizeInBytesByTypeMap();
 }

@@ -19,6 +19,9 @@
 
 package org.elasticsearch.index.cache.id.simple;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.index.cache.id.IdReaderCache;
@@ -74,6 +77,13 @@ public class SimpleIdReaderCache implements IdReaderCache {
         return sizeInBytes;
     }
 
+    public Map<String, Long> sizeInBytesByTypeMap() {
+        Map<String, Long> sizeByTypeMap = new HashMap<String, Long>();
+        for (SimpleIdReaderTypeCache readerTypeCache : types.values()) {
+            sizeByTypeMap.put(readerTypeCache.type(), readerTypeCache.sizeInBytes());
+        }
+        return sizeByTypeMap;
+    }
     /**
      * Returns an already stored instance if exists, if not, returns null;
      */

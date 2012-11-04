@@ -85,7 +85,7 @@ public class IndexCache extends AbstractIndexComponent implements CloseableCompo
 
     public synchronized void invalidateCache() {
         FilterCache.EntriesStats filterEntriesStats = filterCache.entriesStats();
-        latestCacheStats = new CacheStats(fieldDataCache.evictions(), filterCache.evictions(), fieldDataCache.sizeInBytes(), filterEntriesStats.sizeInBytes, filterEntriesStats.count, bloomCache.sizeInBytes(), idCache.sizeInBytes());
+        latestCacheStats = new CacheStats(fieldDataCache.evictions(), filterCache.evictions(), fieldDataCache.sizeInBytes(), filterEntriesStats.sizeInBytes, filterEntriesStats.count, bloomCache.sizeInBytes(), idCache.sizeInBytes(), idCache.sizeInBytesByTypeMap());
         latestCacheStatsTimestamp = System.currentTimeMillis();
     }
 
@@ -93,7 +93,7 @@ public class IndexCache extends AbstractIndexComponent implements CloseableCompo
         long timestamp = System.currentTimeMillis();
         if ((timestamp - latestCacheStatsTimestamp) > refreshInterval.millis()) {
             FilterCache.EntriesStats filterEntriesStats = filterCache.entriesStats();
-            latestCacheStats = new CacheStats(fieldDataCache.evictions(), filterCache.evictions(), fieldDataCache.sizeInBytes(), filterEntriesStats.sizeInBytes, filterEntriesStats.count, bloomCache.sizeInBytes(), idCache.sizeInBytes());
+            latestCacheStats = new CacheStats(fieldDataCache.evictions(), filterCache.evictions(), fieldDataCache.sizeInBytes(), filterEntriesStats.sizeInBytes, filterEntriesStats.count, bloomCache.sizeInBytes(), idCache.sizeInBytes(), idCache.sizeInBytesByTypeMap());
             latestCacheStatsTimestamp = timestamp;
         }
         return latestCacheStats;

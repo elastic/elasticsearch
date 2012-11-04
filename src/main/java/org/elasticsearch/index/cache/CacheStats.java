@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  *
@@ -41,11 +42,12 @@ public class CacheStats implements Streamable, ToXContent {
     long filterSize;
     long bloomSize;
     long idCacheSize;
+    Map<String, Long> idCacheSizeByTypeMap;
 
     public CacheStats() {
     }
 
-    public CacheStats(long fieldEvictions, long filterEvictions, long fieldSize, long filterSize, long filterCount, long bloomSize, long idCacheSize) {
+    public CacheStats(long fieldEvictions, long filterEvictions, long fieldSize, long filterSize, long filterCount, long bloomSize, long idCacheSize, Map<String, Long> idCacheSizeByTypeMap) {
         this.fieldEvictions = fieldEvictions;
         this.filterEvictions = filterEvictions;
         this.fieldSize = fieldSize;
@@ -53,6 +55,7 @@ public class CacheStats implements Streamable, ToXContent {
         this.filterCount = filterCount;
         this.bloomSize = bloomSize;
         this.idCacheSize = idCacheSize;
+        this.idCacheSizeByTypeMap = idCacheSizeByTypeMap;
     }
 
     public void add(CacheStats stats) {
@@ -63,8 +66,19 @@ public class CacheStats implements Streamable, ToXContent {
         this.filterCount += stats.filterCount;
         this.bloomSize += stats.bloomSize;
         this.idCacheSize += stats.idCacheSize;
+        addIdCacheSizeByTypeMap(idCacheSizeByTypeMap);
     }
 
+    private void addIdCacheSizeByTypeMap(Map<String, Long> idCacheSizeByTypeMap) {
+        for (String type : idCacheSizeByTypeMap.keySet()) {
+            Long size = this.idCacheSizeByTypeMap.get(type);
+            if (size == null)
+                this.idCacheSizeByTypeMap.put(type, size);
+            else
+                this.idCacheSizeByTypeMap.put(type, size + idCacheSizeByTypeMap.get(type));
+        }
+    }
+    
     public long fieldEvictions() {
         return this.fieldEvictions;
     }
@@ -161,6 +175,10 @@ public class CacheStats implements Streamable, ToXContent {
         return bloomSize();
     }
 
+    public Map<String, Long> getIdCacheSizeByTypeMap() {
+        return idCacheSizeByTypeMap;
+    }
+    
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.CACHE);
@@ -175,10 +193,25 @@ public class CacheStats implements Streamable, ToXContent {
         builder.field(Fields.BLOOM_SIZE_IN_BYTES, bloomSize);
         builder.field(Fields.ID_CACHE_SIZE, idCacheSize().toString());
         builder.field(Fields.ID_CACHE_SIZE_IN_BYTES, idCacheSize);
+        
+        int size = idCacheSizeByTypeMap.size();
+        if (size > 0) {
+            builder.startObject(Fields.ID_CACHE_SIZE_BY_TYPE);
+            for (String type : idCacheSizeByTypeMap.keySet()) {
+                builder.field(Fields.ID_CACHE_SIZE + "_by_type_"  + type, idCacheSize(idCacheSizeByTypeMap.get(type).longValue()));
+                builder.field(Fields.ID_CACHE_SIZE_IN_BYTES + "_by_type_" + type, idCacheSizeByTypeMap.get(type).longValue()); 
+            }
+            builder.endObject();
+        }
+        
         builder.endObject();
         return builder;
     }
 
+    private ByteSizeValue idCacheSize(long idCacheSize) {
+        return new ByteSizeValue(idCacheSize);
+    }
+     
     static final class Fields {
         static final XContentBuilderString CACHE = new XContentBuilderString("cache");
         static final XContentBuilderString FIELD_SIZE = new XContentBuilderString("field_size");
@@ -192,6 +225,7 @@ public class CacheStats implements Streamable, ToXContent {
         static final XContentBuilderString BLOOM_SIZE_IN_BYTES = new XContentBuilderString("bloom_size_in_bytes");
         static final XContentBuilderString ID_CACHE_SIZE = new XContentBuilderString("id_cache_size");
         static final XContentBuilderString ID_CACHE_SIZE_IN_BYTES = new XContentBuilderString("id_cache_size_in_bytes");
+        static final XContentBuilderString ID_CACHE_SIZE_BY_TYPE = new XContentBuilderString("id_cache_size_by_type");
     }
 
     public static CacheStats readCacheStats(StreamInput in) throws IOException {
@@ -209,6 +243,10 @@ public class CacheStats implements Streamable, ToXContent {
         filterCount = in.readVLong();
         bloomSize = in.readVLong();
         idCacheSize = in.readVLong();
+        int types = in.readInt();
+        for (int i=0; i<types; i++) {
+            idCacheSizeByTypeMap.put(in.readString(), in.readLong());
+        }
     }
 
     @Override
@@ -220,5 +258,10 @@ public class CacheStats implements Streamable, ToXContent {
         out.writeVLong(filterCount);
         out.writeVLong(bloomSize);
         out.writeVLong(idCacheSize);
+        out.writeInt(idCacheSizeByTypeMap.size());
+        for (String type : idCacheSizeByTypeMap.keySet()) {
+            out.writeString(type);
+            out.writeLong(idCacheSizeByTypeMap.get(type).longValue());
+        }
     }
 }

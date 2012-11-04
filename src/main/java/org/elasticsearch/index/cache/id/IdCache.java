@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.cache.id;
 
+import java.util.Map;
+
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.component.CloseableComponent;
 import org.elasticsearch.index.IndexComponent;
@@ -37,5 +39,7 @@ public interface IdCache extends IndexComponent, CloseableComponent, Iterable<Id
     IdReaderCache reader(IndexReader reader);
 
     long sizeInBytes();
+    
+    Map<String, Long> sizeInBytesByTypeMap();
 
 }

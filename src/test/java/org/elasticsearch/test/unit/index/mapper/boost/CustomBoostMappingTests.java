@@ -35,13 +35,13 @@ public class CustomBoostMappingTests {
     public void testCustomBoostValues() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
                 .startObject("s_field").field("type", "string").endObject()
-                .startObject("l_field").field("type", "long").endObject()
-                .startObject("i_field").field("type", "integer").endObject()
-                .startObject("sh_field").field("type", "short").endObject()
-                .startObject("b_field").field("type", "byte").endObject()
-                .startObject("d_field").field("type", "double").endObject()
-                .startObject("f_field").field("type", "float").endObject()
-                .startObject("date_field").field("type", "date").endObject()
+                .startObject("l_field").field("type", "long").field("omit_norms", false).endObject()
+                .startObject("i_field").field("type", "integer").field("omit_norms", false).endObject()
+                .startObject("sh_field").field("type", "short").field("omit_norms", false).endObject()
+                .startObject("b_field").field("type", "byte").field("omit_norms", false).endObject()
+                .startObject("d_field").field("type", "double").field("omit_norms", false).endObject()
+                .startObject("f_field").field("type", "float").field("omit_norms", false).endObject()
+                .startObject("date_field").field("type", "date").field("omit_norms", false).endObject()
                 .endObject().endObject().endObject().string();
 
         DocumentMapper mapper = MapperTests.newParser().parse(mapping);

@@ -109,7 +109,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
             if (context.indexSettings() != null) {
                 parseUpperInclusive = context.indexSettings().getAsBoolean("index.mapping.date.parse_upper_inclusive", Defaults.PARSE_UPPER_INCLUSIVE);
             }
-            fieldType.setOmitNorms(fieldType.omitNorms() || boost != 1.0f);
+            fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             DateFieldMapper fieldMapper = new DateFieldMapper(buildNames(context), dateTimeFormatter,
                     precisionStep, fuzzyFactor, boost, fieldType, nullValue,
                     timeUnit, parseUpperInclusive, ignoreMalformed(context));

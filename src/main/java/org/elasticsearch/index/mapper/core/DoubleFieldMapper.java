@@ -82,7 +82,7 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
 
         @Override
         public DoubleFieldMapper build(BuilderContext context) {
-            fieldType.setOmitNorms(fieldType.omitNorms() || boost != 1.0f);
+            fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             DoubleFieldMapper fieldMapper = new DoubleFieldMapper(buildNames(context),
                     precisionStep, fuzzyFactor, boost, fieldType, nullValue,
                     ignoreMalformed(context));

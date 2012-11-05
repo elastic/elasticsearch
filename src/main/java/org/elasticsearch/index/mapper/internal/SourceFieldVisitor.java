@@ -54,6 +54,11 @@ public class SourceFieldVisitor extends BaseFieldVisitor {
         return document;
     }
 
+    @Override
+    public void reset() {
+        source = null;
+    }
+
     public BytesRef source() {
         return source;
     }

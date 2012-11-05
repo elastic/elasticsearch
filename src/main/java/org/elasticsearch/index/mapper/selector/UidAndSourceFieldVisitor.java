@@ -46,6 +46,12 @@ public class UidAndSourceFieldVisitor extends BaseFieldVisitor {
     }
 
     @Override
+    public void reset() {
+        source = null;
+        uid = null;
+    }
+
+    @Override
     public Status needsField(FieldInfo fieldInfo) throws IOException {
         if (SourceFieldMapper.NAME.equals(fieldInfo.name)) {
             return Status.YES;

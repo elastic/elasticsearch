@@ -57,6 +57,11 @@ public class UidFieldVisitor extends BaseFieldVisitor {
         return document;
     }
 
+    @Override
+    public void reset() {
+        uid = null;
+    }
+
     public String uid() {
         return uid;
     }

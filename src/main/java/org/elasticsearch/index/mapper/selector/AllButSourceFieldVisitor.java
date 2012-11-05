@@ -20,7 +20,7 @@
 package org.elasticsearch.index.mapper.selector;
 
 import org.apache.lucene.index.FieldInfo;
-import org.elasticsearch.common.lucene.document.MultipleFieldsVisitor;
+import org.elasticsearch.common.lucene.document.AbstractMultipleFieldsVisitor;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 
 import java.io.IOException;
@@ -28,14 +28,14 @@ import java.io.IOException;
 /**
  * A field selector that loads all fields except the source field.
  */
-public class AllButSourceFieldVisitor extends MultipleFieldsVisitor {
+public class AllButSourceFieldVisitor extends AbstractMultipleFieldsVisitor {
 
     @Override
     public Status needsField(FieldInfo fieldInfo) throws IOException {
         if (SourceFieldMapper.NAME.equals(fieldInfo.name)) {
             return Status.NO;
         }
-        return super.needsField(fieldInfo);
+        return Status.YES;
     }
 
     @Override

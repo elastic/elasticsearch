@@ -118,7 +118,7 @@ public class RangeFilterParser implements FilterParser {
         if (smartNameFieldMappers != null) {
             if (smartNameFieldMappers.hasMapper()) {
                 //LUCENE 4 UPGRADE range filter should use bytesref too? 
-                filter = smartNameFieldMappers.mapper().rangeFilter(from.utf8ToString(), to.utf8ToString(), includeLower, includeUpper, parseContext);
+                filter = smartNameFieldMappers.mapper().rangeFilter(from != null ? from.utf8ToString() : null, to != null ? to.utf8ToString() : null, includeLower, includeUpper, parseContext);
             }
         }
         if (filter == null) {

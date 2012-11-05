@@ -49,6 +49,7 @@ public class UniqueTokenFilterTests {
         };
 
         TokenStream test = analyzer.tokenStream("test", new StringReader("this test with test"));
+        test.reset();
         CharTermAttribute termAttribute = test.addAttribute(CharTermAttribute.class);
         assertThat(test.incrementToken(), equalTo(true));
         assertThat(termAttribute.toString(), equalTo("this"));

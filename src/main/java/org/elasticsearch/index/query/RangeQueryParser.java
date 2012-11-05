@@ -110,7 +110,7 @@ public class RangeQueryParser implements QueryParser {
         if (smartNameFieldMappers != null) {
             if (smartNameFieldMappers.hasMapper()) {
                 //LUCENE 4 UPGRADE Mapper#rangeQuery should use bytesref as well? 
-                query = smartNameFieldMappers.mapper().rangeQuery(from.utf8ToString(), to.utf8ToString(), includeLower, includeUpper, parseContext);
+                query = smartNameFieldMappers.mapper().rangeQuery(from != null ? from.utf8ToString() : null, to != null ? to.utf8ToString() : null, includeLower, includeUpper, parseContext);
             }
         }
         if (query == null) {

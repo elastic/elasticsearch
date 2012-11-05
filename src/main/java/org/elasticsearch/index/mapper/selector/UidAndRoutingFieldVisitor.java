@@ -46,6 +46,12 @@ public class UidAndRoutingFieldVisitor extends BaseFieldVisitor {
     }
 
     @Override
+    public void reset() {
+        uid = null;
+        routing = null;
+    }
+
+    @Override
     public Status needsField(FieldInfo fieldInfo) throws IOException {
         if (RoutingFieldMapper.NAME.equals(fieldInfo.name)) {
             return Status.YES;

@@ -37,10 +37,9 @@ import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.mapper.selector.*;
 import org.elasticsearch.index.mapper.selector.AllButSourceFieldVisitor;
 import org.elasticsearch.index.mapper.selector.FieldMappersFieldVisitor;
-import org.elasticsearch.index.mapper.selector.UidAndSourceFieldVisitor;
-import org.elasticsearch.index.mapper.selector.UidFieldVisitor;
 import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchParseElement;
@@ -291,6 +290,7 @@ public class FetchPhase implements SearchPhase {
             if (fieldVisitor == null) {
                 return context.searcher().doc(docId);
             }
+            fieldVisitor.reset();
             context.searcher().doc(docId, fieldVisitor);
             return fieldVisitor.createDocument();
         } catch (IOException e) {

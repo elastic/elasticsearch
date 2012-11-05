@@ -19,14 +19,21 @@
 
 package org.elasticsearch.index.mapper.selector;
 
-import org.elasticsearch.common.lucene.document.MultipleFieldsVisitor;
+import org.apache.lucene.index.FieldInfo;
+import org.elasticsearch.common.lucene.document.AbstractMultipleFieldsVisitor;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
+
+import java.io.IOException;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  *
  */
-public class FieldMappersFieldVisitor extends MultipleFieldsVisitor {
+public class FieldMappersFieldVisitor extends AbstractMultipleFieldsVisitor {
+
+    protected final Set<String> fieldsToAdd = new HashSet<String>();
 
     public void add(String fieldName) {
         fieldsToAdd.add(fieldName);
@@ -36,6 +43,11 @@ public class FieldMappersFieldVisitor extends MultipleFieldsVisitor {
         for (FieldMapper fieldMapper : fieldMappers) {
             fieldsToAdd.add(fieldMapper.names().indexName());
         }
+    }
+
+    @Override
+    public Status needsField(FieldInfo fieldInfo) throws IOException {
+        return fieldsToAdd.contains(fieldInfo.name) ? Status.YES : Status.NO;
     }
 
     @Override

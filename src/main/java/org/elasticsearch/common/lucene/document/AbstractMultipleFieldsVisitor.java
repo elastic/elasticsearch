@@ -10,28 +10,9 @@ import java.util.Set;
 /**
  *
  */
-public class MultipleFieldsVisitor extends BaseFieldVisitor {
+public abstract class AbstractMultipleFieldsVisitor extends BaseFieldVisitor {
 
     protected Document doc = new Document();
-    protected final Set<String> fieldsToAdd;
-
-    /** Load only fields named in the provided <code>Set&lt;String&gt;</code>. */
-    public MultipleFieldsVisitor(Set<String> fieldsToAdd) {
-        this.fieldsToAdd = fieldsToAdd;
-    }
-
-    /** Load only fields named in the provided <code>Set&lt;String&gt;</code>. */
-    public MultipleFieldsVisitor(String... fields) {
-        fieldsToAdd = new HashSet<String>(fields.length);
-        for(String field : fields) {
-            fieldsToAdd.add(field);
-        }
-    }
-
-    /** Load all stored fields. */
-    public MultipleFieldsVisitor() {
-        this.fieldsToAdd = null;
-    }
 
     @Override
     public void binaryField(FieldInfo fieldInfo, byte[] value) throws IOException {
@@ -69,12 +50,14 @@ public class MultipleFieldsVisitor extends BaseFieldVisitor {
     }
 
     @Override
-    public Status needsField(FieldInfo fieldInfo) throws IOException {
-        return fieldsToAdd == null || fieldsToAdd.contains(fieldInfo.name) ? Status.YES : Status.NO;
+    public Document createDocument() {
+        return doc;
     }
 
     @Override
-    public Document createDocument() {
-        return doc;
+    public void reset() {
+        if (!doc.getFields().isEmpty()) {
+            doc = new Document();
+        }
     }
 }

@@ -55,6 +55,11 @@ public class SingleFieldVisitor extends BaseFieldVisitor {
         return document;
     }
 
+    @Override
+    public void reset() {
+        values = null;
+    }
+
     public String value() {
         return values.get(0);
     }

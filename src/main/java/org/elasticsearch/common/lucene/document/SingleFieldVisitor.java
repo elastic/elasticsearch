@@ -30,10 +30,9 @@ import java.util.List;
 /**
  *
  */
-public class SingleFieldVisitor extends BaseFieldVisitor {
+public class SingleFieldVisitor extends AbstractMultipleFieldsVisitor {
 
     private String name;
-    private List<String> values;
 
     public SingleFieldVisitor() {
     }
@@ -47,43 +46,10 @@ public class SingleFieldVisitor extends BaseFieldVisitor {
     }
 
     @Override
-    public Document createDocument() {
-        Document document = new Document();
-        for (String value : values) {
-            document.add(new StoredField(name, value));
-        }
-        return document;
-    }
-
-    @Override
-    public void reset() {
-        values = null;
-    }
-
-    public String value() {
-        return values.get(0);
-    }
-
-    public List<String> values() {
-        return values;
-    }
-
-    @Override
     public Status needsField(FieldInfo fieldInfo) throws IOException {
         if (name.equals(fieldInfo.name)) {
             return Status.YES;
         }
-
-        return values != null ? Status.STOP : Status.NO;
-    }
-
-    @Override
-    public void stringField(FieldInfo fieldInfo, String value) throws IOException {
-        if (fieldInfo.name.equals(name)) {
-            if (values == null) {
-                values = new ArrayList<String>();
-            }
-            values.add(value);
-        }
+        return Status.NO;
     }
 }

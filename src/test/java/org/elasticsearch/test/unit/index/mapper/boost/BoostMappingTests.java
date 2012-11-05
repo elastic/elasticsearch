@@ -46,12 +46,10 @@ public class BoostMappingTests {
                 .field("field", "b")
                 .endObject().bytes());
 
-        assertThat(doc.rootDoc().getFields().size(), equalTo(2));
-        float sum = 0.0f;
-        for (IndexableField field : doc.rootDoc().getFields()) {
-            sum += field.boost();
-        }
-        assertThat(3.0f, equalTo(sum)); // 2.0 (for first field) + 1.0 (for second field)
+        // one fo the same named field will have the proper boost, the others will have 1
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertThat(fields[0].boost(), equalTo(2.0f));
+        assertThat(fields[1].boost(), equalTo(1.0f));
     }
 
     @Test
@@ -65,20 +63,13 @@ public class BoostMappingTests {
         ParsedDocument doc = mapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("field", "a")
                 .field("_boost", 2.0f)
-
                 .endObject().bytes());
-        assertThat(doc.rootDoc().getFields().size(), equalTo(1));
-        for (IndexableField field : doc.rootDoc().getFields()) {
-            assertThat(field.boost(), equalTo(1.0f));
-        }
+        assertThat(doc.rootDoc().getField("field").boost(), equalTo(1.0f));
 
         doc = mapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("field", "a")
                 .field("custom_boost", 2.0f)
                 .endObject().bytes());
-        assertThat(doc.rootDoc().getFields().size(), equalTo(1));
-        for (IndexableField field : doc.rootDoc().getFields()) {
-            assertThat(field.boost(), equalTo(2.0f));
-        }
+        assertThat(doc.rootDoc().getField("field").boost(), equalTo(2.0f));
     }
 }

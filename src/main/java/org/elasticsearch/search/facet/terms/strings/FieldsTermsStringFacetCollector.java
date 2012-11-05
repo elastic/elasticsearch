@@ -200,7 +200,8 @@ public class FieldsTermsStringFacetCollector extends AbstractFacetCollector {
             }
             if (script != null) {
                 script.setNextDocId(docId);
-                script.setNextVar("term", value);
+                // LUCENE 4 UPGRADE: needs optimization
+                script.setNextVar("term", value.utf8ToString());
                 Object scriptValue = script.run();
                 if (scriptValue == null) {
                     return;

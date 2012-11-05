@@ -23,7 +23,6 @@ import gnu.trove.impl.Constants;
 import org.apache.lucene.index.*;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
@@ -115,25 +114,23 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
 
 
                     Terms terms = reader.terms(UidFieldMapper.NAME);
-                    if (terms == null) { // Should not happen
-                        throw new ElasticSearchIllegalArgumentException("Id cache needs _uid field");
-                    }
+                    if (terms != null) {
+                        TermsEnum termsEnum = terms.iterator(null);
+                        DocsEnum docsEnum = null;
+                        for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.next()) {
+                            HashedBytesArray[] typeAndId = Uid.splitUidIntoTypeAndId(term);
+                            TypeBuilder typeBuilder = readerBuilder.get(typeAndId[0].toUtf8());
+                            if (typeBuilder == null) {
+                                typeBuilder = new TypeBuilder(reader);
+                                readerBuilder.put(typeAndId[0].toUtf8(), typeBuilder);
+                            }
 
-                    TermsEnum termsEnum = terms.iterator(null);
-                    DocsEnum docsEnum = null;
-                    for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.next()) {
-                        HashedBytesArray[] typeAndId = Uid.splitUidIntoTypeAndId(term);
-                        TypeBuilder typeBuilder = readerBuilder.get(typeAndId[0].toUtf8());
-                        if (typeBuilder == null) {
-                            typeBuilder = new TypeBuilder(reader);
-                            readerBuilder.put(typeAndId[0].toUtf8(), typeBuilder);
-                        }
-
-                        HashedBytesArray idAsBytes = checkIfCanReuse(builders, typeAndId[1]);
-                        docsEnum = termsEnum.docs(reader.getLiveDocs(), docsEnum, 0);
-                        for (int docId = docsEnum.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
-                            typeBuilder.idToDoc.put(idAsBytes, docId);
-                            typeBuilder.docToId[docId] = idAsBytes;
+                            HashedBytesArray idAsBytes = checkIfCanReuse(builders, typeAndId[1]);
+                            docsEnum = termsEnum.docs(reader.getLiveDocs(), docsEnum, 0);
+                            for (int docId = docsEnum.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
+                                typeBuilder.idToDoc.put(idAsBytes, docId);
+                                typeBuilder.docToId[docId] = idAsBytes;
+                            }
                         }
                     }
                 }
@@ -150,35 +147,33 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
                     Map<String, TypeBuilder> readerBuilder = builders.get(reader.getCoreCacheKey());
 
                     Terms terms = reader.terms(ParentFieldMapper.NAME);
-                    if (terms == null) { // Should not happen
-                        throw new ElasticSearchIllegalArgumentException("Id cache needs _parent field");
-                    }
+                    if (terms != null) {
+                        TermsEnum termsEnum = terms.iterator(null);
+                        DocsEnum docsEnum = null;
+                        for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.next()) {
+                            HashedBytesArray[] typeAndId = Uid.splitUidIntoTypeAndId(term);
 
-                    TermsEnum termsEnum = terms.iterator(null);
-                    DocsEnum docsEnum = null;
-                    for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.next()) {
-                        HashedBytesArray[] typeAndId = Uid.splitUidIntoTypeAndId(term);
-
-                        TypeBuilder typeBuilder = readerBuilder.get(typeAndId[0].toUtf8());
-                        if (typeBuilder == null) {
-                            typeBuilder = new TypeBuilder(reader);
-                            readerBuilder.put(typeAndId[0].toUtf8(), typeBuilder);
-                        }
-
-                        HashedBytesArray idAsBytes = checkIfCanReuse(builders, typeAndId[1]);
-                        boolean added = false; // optimize for when all the docs are deleted for this id
-
-                        docsEnum = termsEnum.docs(reader.getLiveDocs(), docsEnum, 0);
-                        for (int docId = docsEnum.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
-                            if (!added) {
-                                typeBuilder.parentIdsValues.add(idAsBytes);
-                                added = true;
+                            TypeBuilder typeBuilder = readerBuilder.get(typeAndId[0].toUtf8());
+                            if (typeBuilder == null) {
+                                typeBuilder = new TypeBuilder(reader);
+                                readerBuilder.put(typeAndId[0].toUtf8(), typeBuilder);
                             }
-                            typeBuilder.parentIdsOrdinals[docId] = typeBuilder.t;
-                        }
 
-                        if (added) {
-                            typeBuilder.t++;
+                            HashedBytesArray idAsBytes = checkIfCanReuse(builders, typeAndId[1]);
+                            boolean added = false; // optimize for when all the docs are deleted for this id
+
+                            docsEnum = termsEnum.docs(reader.getLiveDocs(), docsEnum, 0);
+                            for (int docId = docsEnum.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
+                                if (!added) {
+                                    typeBuilder.parentIdsValues.add(idAsBytes);
+                                    added = true;
+                                }
+                                typeBuilder.parentIdsOrdinals[docId] = typeBuilder.t;
+                            }
+
+                            if (added) {
+                                typeBuilder.t++;
+                            }
                         }
                     }
                 }

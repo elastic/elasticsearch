@@ -159,6 +159,8 @@ public class FieldsLookup implements Map {
                 data.doc(fieldVisitor.createDocument());
             } catch (IOException e) {
                 throw new ElasticSearchParseException("failed to load field [" + name + "]", e);
+            } finally {
+                fieldVisitor.reset();
             }
         }
         return data;

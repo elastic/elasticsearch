@@ -23,6 +23,8 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.highlight.*;
 import org.apache.lucene.search.highlight.Formatter;
@@ -169,7 +171,13 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                     try {
                         SingleFieldVisitor fieldVisitor = new SingleFieldVisitor(mapper.names().indexName());
                         hitContext.reader().document(hitContext.docId(), fieldVisitor);
-                        textsToHighlight = (List) fieldVisitor.values();
+                        Document doc = fieldVisitor.createDocument();
+                        textsToHighlight = new ArrayList<Object>(doc.getFields().size());
+                        for (IndexableField docField : doc.getFields()) {
+                            if (docField.stringValue() != null) {
+                                textsToHighlight.add(docField.stringValue());
+                            }
+                        }
                     } catch (Exception e) {
                         throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + field.field() + "]", e);
                     }

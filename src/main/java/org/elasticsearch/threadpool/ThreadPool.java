@@ -139,17 +139,19 @@ public class ThreadPool extends AbstractComponent {
             int queue = -1;
             int active = -1;
             long rejected = -1;
+            int largest = -1;
             if (holder.executor instanceof ThreadPoolExecutor) {
                 ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) holder.executor;
                 threads = threadPoolExecutor.getPoolSize();
                 queue = threadPoolExecutor.getQueue().size();
                 active = threadPoolExecutor.getActiveCount();
+                largest = threadPoolExecutor.getLargestPoolSize();
                 RejectedExecutionHandler rejectedExecutionHandler = threadPoolExecutor.getRejectedExecutionHandler();
                 if (rejectedExecutionHandler instanceof XRejectedExecutionHandler) {
                     rejected = ((XRejectedExecutionHandler) rejectedExecutionHandler).rejected();
                 }
             }
-            stats.add(new ThreadPoolStats.Stats(name, threads, queue, active, rejected));
+            stats.add(new ThreadPoolStats.Stats(name, threads, queue, active, rejected, largest));
         }
         return new ThreadPoolStats(stats);
     }

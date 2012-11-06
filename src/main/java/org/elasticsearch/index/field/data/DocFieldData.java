@@ -46,11 +46,15 @@ public abstract class DocFieldData<T extends FieldData> {
         return !fieldData.hasValue(docId);
     }
 
-    public BytesRef stringValue() {
-        return fieldData.stringValue(docId);
+    public String stringValue() {
+        BytesRef val = fieldData.stringValue(docId);
+        if (val == null) {
+            return null;
+        }
+        return val.utf8ToString();
     }
 
-    public BytesRef getStringValue() {
+    public String getStringValue() {
         return stringValue();
     }
 

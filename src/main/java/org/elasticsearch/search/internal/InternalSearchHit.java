@@ -21,6 +21,7 @@ package org.elasticsearch.search.internal;
 
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.search.Explanation;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.text.StringAndBytesText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
@@ -295,6 +297,14 @@ public class InternalSearchHit implements SearchHit {
     }
 
     public void sortValues(Object[] sortValues) {
+        // LUCENE 4 UPGRADE: There must be a better way
+        if (sortValues != null) {
+            for (int i=0; i<sortValues.length; i++) {
+                if (sortValues[i] instanceof BytesRef) {
+                    sortValues[i] = new StringAndBytesText(new BytesArray((BytesRef)sortValues[i]));
+                }
+            }
+        }
         this.sortValues = sortValues;
     }
 
@@ -571,6 +581,9 @@ public class InternalSearchHit implements SearchHit {
                     sortValues[i] = in.readShort();
                 } else if (type == 8) {
                     sortValues[i] = in.readBoolean();
+                } else if (type == 9) {
+                    // LUCENE 4 UPGRADE: There must be a better way
+                    sortValues[i] = new StringAndBytesText(new BytesArray(in.readBytesRef()));
                 } else {
                     throw new IOException("Can't match type [" + type + "]");
                 }
@@ -664,6 +677,9 @@ public class InternalSearchHit implements SearchHit {
                     } else if (type == Boolean.class) {
                         out.writeByte((byte) 8);
                         out.writeBoolean((Boolean) sortValue);
+                    } else if (type == BytesRef.class) {
+                        out.writeByte((byte) 9);
+                        out.writeBytesRef((BytesRef) sortValue);
                     } else {
                         throw new IOException("Can't handle sort field value of type [" + type + "]");
                     }

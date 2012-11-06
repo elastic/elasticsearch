@@ -29,6 +29,8 @@ public interface HttpServerTransport extends LifecycleComponent<HttpServerTransp
 
     BoundTransportAddress boundAddress();
 
+    HttpInfo info();
+
     HttpStats stats();
 
     void httpServerAdapter(HttpServerAdapter httpServerAdapter);

@@ -113,7 +113,6 @@ public abstract class StreamOutput extends OutputStream {
             return;
         }
         writeVInt(bytes.length);
-        writeVInt(bytes.offset);
         write(bytes.bytes, bytes.offset, bytes.length);
     }
 

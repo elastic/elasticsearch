@@ -236,7 +236,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
         public void collect(int doc) {
             try {
                 UidAndRoutingFieldVisitor fieldVisitor = new UidAndRoutingFieldVisitor();
-                context.reader().document(doc, new UidAndRoutingFieldVisitor());
+                context.reader().document(doc, fieldVisitor);
                 String uid = fieldVisitor.uid();
                 long version = UidField.loadVersion(context, new Term(UidFieldMapper.NAME, uid));
                 docsToPurge.add(new DocToPurge(Uid.typeFromUid(uid), Uid.idFromUid(uid), version, fieldVisitor.routing()));

@@ -24,6 +24,7 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -173,6 +174,8 @@ public class Lucene {
                         cFields[j] = in.readShort();
                     } else if (type == 8) {
                         cFields[j] = in.readBoolean();
+                    } else if (type == 9) {
+                        cFields[j] = in.readBytesRef();
                     } else {
                         throw new IOException("Can't match type [" + type + "]");
                     }
@@ -258,6 +261,9 @@ public class Lucene {
                         } else if (type == Boolean.class) {
                             out.writeByte((byte) 8);
                             out.writeBoolean((Boolean) field);
+                        } else if (type == BytesRef.class) {
+                            out.writeByte((byte) 9);
+                            out.writeBytesRef((BytesRef) field);
                         } else {
                             throw new IOException("Can't handle sort field value of type [" + type + "]");
                         }

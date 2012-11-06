@@ -46,7 +46,7 @@ public class FieldDataLoader {
 
         Terms terms = reader.terms(field);
         if (terms == null) {
-            return  loader.buildSingleValue(field, new int[0]); // Return empty field data if field doesn't exists.
+            return  loader.buildSingleValue(field, ordinals.get(0)); // Return empty field data if field doesn't exists.
         }
 
         TermsEnum termsEnum = terms.iterator(null);

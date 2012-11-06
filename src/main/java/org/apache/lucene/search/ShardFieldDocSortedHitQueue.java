@@ -19,13 +19,12 @@
 
 package org.apache.lucene.search;
 
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.search.controller.ShardFieldDoc;
 
 import java.io.IOException;
-import java.text.Collator;
-import java.util.Locale;
 
 /**
  *
@@ -86,8 +85,8 @@ public class ShardFieldDocSortedHitQueue extends PriorityQueue<ShardFieldDoc> {
     /**
      * Returns whether <code>a</code> is less relevant than <code>b</code>.
      *
-     * @param a ScoreDoc
-     * @param b ScoreDoc
+     * @param docA ScoreDoc
+     * @param docB ScoreDoc
      * @return <code>true</code> if document <code>a</code> should be sorted after document <code>b</code>.
      */
     @SuppressWarnings("unchecked")
@@ -98,8 +97,8 @@ public class ShardFieldDocSortedHitQueue extends PriorityQueue<ShardFieldDoc> {
         for (int i = 0; i < n && c == 0; ++i) {
             final SortField.Type type = fields[i].getType();
             if (type == SortField.Type.STRING) {
-                final String s1 = (String) docA.fields[i];
-                final String s2 = (String) docB.fields[i];
+                final BytesRef s1 = (BytesRef) docA.fields[i];
+                final BytesRef s2 = (BytesRef) docB.fields[i];
                 // null values need to be sorted first, because of how FieldCache.getStringIndex()
                 // works - in that routine, any documents without a value in the given field are
                 // put first.  If both are null, the next SortField is used

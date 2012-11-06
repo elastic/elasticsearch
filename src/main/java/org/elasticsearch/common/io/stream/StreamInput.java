@@ -87,10 +87,16 @@ public abstract class StreamInput extends InputStream {
 
     public BytesRef readBytesRef() throws IOException {
         int length = readVInt();
-        int offset = readVInt();
+        return readBytesRef(length);
+    }
+
+    public BytesRef readBytesRef(int length) throws IOException {
+        if (length == 0) {
+            return new BytesRef();
+        }
         byte[] bytes = new byte[length];
-        readBytes(bytes, offset, length);
-        return new BytesRef(bytes, offset, length);
+        readBytes(bytes, 0, length);
+        return new BytesRef(bytes, 0, length);
     }
 
     public void readFully(byte[] b) throws IOException {

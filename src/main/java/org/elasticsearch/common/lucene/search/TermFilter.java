@@ -53,8 +53,7 @@ public class TermFilter extends Filter {
         if (!termsEnum.seekExact(term.bytes(), false)) {
             return null;
         }
-        // LUCENE 4 UPGRADE: For leave acceptedDocs null, until we figure out how to deal with deleted docs...
-        DocsEnum docsEnum = termsEnum.docs(null, null);
+        DocsEnum docsEnum = termsEnum.docs(acceptDocs, null);
         int docId = docsEnum.nextDoc();
         if (docId == DocsEnum.NO_MORE_DOCS) {
             return null;

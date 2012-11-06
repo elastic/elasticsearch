@@ -46,6 +46,7 @@ public class OsService extends AbstractComponent {
 
         this.info = probe.osInfo();
         this.info.refreshInterval = refreshInterval.millis();
+        this.info.availableProcessors = Runtime.getRuntime().availableProcessors();
         this.cachedStats = probe.osStats();
 
         logger.debug("Using probe [{}] with refresh_interval [{}]", probe, refreshInterval);

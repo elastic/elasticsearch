@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
@@ -36,18 +37,22 @@ import java.io.Serializable;
 public class HttpInfo implements Streamable, Serializable, ToXContent {
 
     private BoundTransportAddress address;
+    private long maxContentLength;
 
     HttpInfo() {
     }
 
-    public HttpInfo(BoundTransportAddress address) {
+    public HttpInfo(BoundTransportAddress address, long maxContentLength) {
         this.address = address;
+        this.maxContentLength = maxContentLength;
     }
 
     static final class Fields {
         static final XContentBuilderString HTTP = new XContentBuilderString("http");
         static final XContentBuilderString BOUND_ADDRESS = new XContentBuilderString("bound_address");
         static final XContentBuilderString PUBLISH_ADDRESS = new XContentBuilderString("publish_address");
+        static final XContentBuilderString MAX_CONTENT_LENGTH = new XContentBuilderString("max_content_length");
+        static final XContentBuilderString MAX_CONTENT_LENGTH_IN_BYTES = new XContentBuilderString("max_content_length_in_bytes");
     }
 
     @Override
@@ -55,6 +60,8 @@ public class HttpInfo implements Streamable, Serializable, ToXContent {
         builder.startObject(Fields.HTTP);
         builder.field(Fields.BOUND_ADDRESS, address.boundAddress().toString());
         builder.field(Fields.PUBLISH_ADDRESS, address.publishAddress().toString());
+        builder.field(Fields.MAX_CONTENT_LENGTH, new ByteSizeValue(maxContentLength));
+        builder.field(Fields.MAX_CONTENT_LENGTH_IN_BYTES, maxContentLength);
         builder.endObject();
         return builder;
     }
@@ -68,11 +75,13 @@ public class HttpInfo implements Streamable, Serializable, ToXContent {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         address = BoundTransportAddress.readBoundTransportAddress(in);
+        maxContentLength = in.readLong();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         address.writeTo(out);
+        out.writeLong(maxContentLength);
     }
 
     public BoundTransportAddress address() {
@@ -81,5 +90,13 @@ public class HttpInfo implements Streamable, Serializable, ToXContent {
 
     public BoundTransportAddress getAddress() {
         return address();
+    }
+
+    public ByteSizeValue maxContentLength() {
+        return new ByteSizeValue(maxContentLength);
+    }
+
+    public ByteSizeValue getMaxContentLength() {
+        return maxContentLength();
     }
 }

@@ -358,6 +358,9 @@ public abstract class StreamOutput extends OutputStream {
         } else if (value instanceof Text) {
             writeByte((byte) 15);
             writeText((Text) value);
+        } else if (type == Short.class) {
+            writeByte((byte) 16);
+            writeShort((Short) value);
         } else {
             throw new IOException("Can't write type [" + type + "]");
         }

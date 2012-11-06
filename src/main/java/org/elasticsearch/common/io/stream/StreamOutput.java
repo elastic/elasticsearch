@@ -369,7 +369,7 @@ public abstract class StreamOutput extends OutputStream {
         } else if (value instanceof Text) {
             writeByte((byte) 15);
             writeText((Text) value);
-        } else if (value instanceof Short) {
+        } else if (value == Short.class) {
             writeByte((byte) 16);
             writeShort((Short) value);
         } else {

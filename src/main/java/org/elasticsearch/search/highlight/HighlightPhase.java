@@ -41,7 +41,7 @@ import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -94,11 +94,13 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
 
     @Override
     public void hitExecute(SearchContext context, HitContext hitContext) throws ElasticSearchException {
-        doHighlighting(context, context.highlight(), context.parsedQuery().query(), context.mapperService(), hitContext, termVectorMultiValue);
+        hitContext.hit().highlightFields(
+            doHighlighting(context, context.highlight(), context.parsedQuery().query(), context.mapperService(), hitContext, termVectorMultiValue, null)
+                );
     }
 
-    public static void doHighlighting(SearchContext context, SearchContextHighlight highlightContext, Query query,
-                                       MapperService mapperService, HitContext hitContext, final boolean termVectorMultiValue) throws ElasticSearchException  {
+    public static Map<String, HighlightField> doHighlighting(SearchContext context, SearchContextHighlight highlightContext, Query query,
+                                                             MapperService mapperService, HitContext hitContext, final boolean termVectorMultiValue, ParsedDocument parsedDocument) throws ElasticSearchException  {
         // we use a cache to cache heavy things, mainly the rewrite in FieldQuery for FVH
         HighlighterEntry cache = (HighlighterEntry) hitContext.cache().get("highlight");
         if (cache == null) {
@@ -172,8 +174,13 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                     cache.mappers.put(mapper, entry);
                 }
 
-                List<Object> textsToHighlight;
-                if (mapper.stored()) {
+                final List<Object> textsToHighlight;
+
+                // if source was provided, get it from there; in this case, context could be null
+                if (parsedDocument != null) {
+                    textsToHighlight = new ArrayList<Object>(1);
+                    textsToHighlight.add(parsedDocument.rootDoc().get(field.field()));
+                } else if (mapper.stored()) { // percolation doesn't have the notion of stored fields
                     try {
                         Document doc = hitContext.reader().document(hitContext.docId(), new SingleFieldSelector(mapper.names().indexName()));
                         textsToHighlight = new ArrayList<Object>(doc.getFields().size());
@@ -208,7 +215,11 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                         }
                     }
                 } catch (Exception e) {
-                    throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + field.field() + "]", e);
+                    if (context != null)
+                        throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + field.field() + "]", e);
+                    else
+                        throw new UnsupportedOperationException("Failed to highlight field [" + field.field() + "]", e);
+
                 }
                 if (field.scoreOrdered()) {
                     Collections.sort(fragsList, new Comparator<TextFragment>() {
@@ -318,12 +329,15 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                         highlightFields.put(highlightField.name(), highlightField);
                     }
                 } catch (Exception e) {
-                    throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + field.field() + "]", e);
+                    if (context != null)
+                        throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + field.field() + "]", e);
+                    else
+                        throw new UnsupportedOperationException("Failed to highlight field [" + field.field() + "]", e);
                 }
             }
         }
 
-        hitContext.hit().highlightFields(highlightFields);
+        return highlightFields;
     }
 
     static class MapperHighlightEntry {

@@ -61,4 +61,15 @@ public class BytesText implements Text {
     public String toString() {
         return string();
     }
+
+    @Override
+    public boolean equals(Object o){
+        if (o instanceof BytesText){
+            BytesText other = (BytesText) o;
+            if (this.bytes == null)
+                return other.bytes == null;
+            return this.bytes.equals(other.bytes);
+        }
+        return false;
+    }
 }

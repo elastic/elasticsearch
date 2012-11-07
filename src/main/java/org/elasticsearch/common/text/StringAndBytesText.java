@@ -87,4 +87,13 @@ public class StringAndBytesText implements Text {
     public String toString() {
         return string();
     }
+
+    @Override
+    public boolean equals(Object o){
+        if (o instanceof StringAndBytesText){
+            StringAndBytesText other = (StringAndBytesText) o;
+            return this.bytes().equals(other.bytes());
+        }
+        return false;
+    }
 }

@@ -27,6 +27,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.index.percolator.PercolatorExecutor;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
@@ -69,8 +70,8 @@ public class RestPercolateAction extends BaseRestHandler {
 
                     builder.field(Fields.OK, true);
                     builder.startArray(Fields.MATCHES);
-                    for (String match : response) {
-                        builder.value(match);
+                    for (PercolatorExecutor.PercolationMatch match : response) {
+                        builder.value(match); // TODO
                     }
                     builder.endArray();
 

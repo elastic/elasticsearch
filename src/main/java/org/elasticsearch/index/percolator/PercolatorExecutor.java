@@ -31,6 +31,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FastStringReader;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -55,18 +58,18 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.highlight.HighlightField;
-import org.elasticsearch.search.highlight.HighlightPhase;
-import org.elasticsearch.search.highlight.SearchContextHighlight;
+import org.elasticsearch.search.highlight.*;
 import org.elasticsearch.search.internal.InternalSearchHit;
 
 import java.io.IOException;
 import java.io.Reader;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.mapper.SourceToParse.source;
+import static org.elasticsearch.index.percolator.PercolatorService.*;
 
 /**
  *
@@ -111,15 +114,22 @@ public class PercolatorExecutor extends AbstractIndexComponent {
         }
     }
 
-
     public static class DocAndQueryRequest {
         private final ParsedDocument doc;
         @Nullable
         private final Query query;
 
-        public DocAndQueryRequest(ParsedDocument doc, @Nullable Query query) {
+        @Nullable
+        private final SearchContextHighlight searchContextHighlight;
+
+        public DocAndQueryRequest(ParsedDocument doc, @Nullable Query query, @Nullable SearchContextHighlight searchContextHighlight) {
             this.doc = doc;
             this.query = query;
+            this.searchContextHighlight = searchContextHighlight;
+        }
+
+        public DocAndQueryRequest(ParsedDocument doc, @Nullable Query query) {
+            this(doc, query,  null);
         }
 
         public ParsedDocument doc() {
@@ -130,20 +140,80 @@ public class PercolatorExecutor extends AbstractIndexComponent {
         Query query() {
             return this.query;
         }
+
+        @Nullable
+        public SearchContextHighlight getSearchContextHighlight() {
+            return searchContextHighlight;
+        }
     }
 
-    public static final class PercolationMatch {
-        private final String match;
+    public static final class PercolationMatch implements Streamable {
+        private String match;
         private final Map<String, HighlightField> highlightFields;
 
         public PercolationMatch(String match) {
-            this(match,  null);
+            this(match, new HashMap<String, HighlightField>());
         }
 
         public PercolationMatch(String match, @Nullable Map<String, HighlightField> highlightFields) {
+            if (match == null)
+                throw new IllegalArgumentException("match cannot be null");
+
             this.match = match;
             this.highlightFields = highlightFields;
         }
+
+        protected PercolationMatch() {
+            highlightFields = new HashMap<String, HighlightField>();
+        }
+
+        public Map<String, HighlightField> getHighlightFields() {
+            return highlightFields;
+        }
+
+        public String getMatch() {
+            return match;
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            match = in.readString();
+            int count = in.readVInt();
+            highlightFields.clear();
+            for (int j = 0; j < count; j++){
+                highlightFields.put(in.readString(), HighlightField.readHighlightField(in));
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(match);
+            out.writeVInt(highlightFields.size());
+            for (Map.Entry<String, HighlightField> entry : highlightFields.entrySet()) {
+                out.writeString(entry.getKey());
+                entry.getValue().writeTo(out);
+            }
+        }
+
+        public static PercolationMatch readPercolationMatch(StreamInput in) throws IOException {
+            PercolationMatch match = new PercolationMatch();
+            match.readFrom(in);
+            return match;
+        }
+
+        @Override
+        public boolean equals(Object o){
+            if (o instanceof PercolationMatch){
+                PercolationMatch other = (PercolationMatch)o;
+                if (!this.match.equals(other.match)) return false;
+                if (other.highlightFields == null || this.highlightFields == null) {
+                    return other.highlightFields == this.highlightFields;
+                }
+                return this.highlightFields.equals(other.highlightFields);
+            }
+            return false;
+        }
+
     }
 
     public static final class Response {
@@ -170,7 +240,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
 
     private final IndexCache indexCache;
 
-    private final Map<String, Query> queries = ConcurrentCollections.newConcurrentMap();
+    private final Map<String, QueryAndHighlightContext> queries = ConcurrentCollections.newConcurrentMap();
 
 
     private IndicesService indicesService;
@@ -194,9 +264,21 @@ public class PercolatorExecutor extends AbstractIndexComponent {
     }
 
     public void addQuery(String name, QueryBuilder queryBuilder) throws ElasticSearchException {
+        addQuery(name, queryBuilder, null);
+    }
+
+    public void addQuery(String name, QueryBuilder queryBuilder, HighlightBuilder highlightBuilder) throws ElasticSearchException {
         try {
             XContentBuilder builder = XContentFactory.smileBuilder()
-                    .startObject().field("query", queryBuilder).endObject();
+                    .startObject()
+                    .field("query", queryBuilder)
+                    ;
+
+            if (highlightBuilder != null)
+                highlightBuilder.toXContent(builder, HighlightBuilder.EMPTY_PARAMS);
+
+            builder.endObject();
+
             addQuery(name, builder.bytes());
         } catch (IOException e) {
             throw new ElasticSearchException("Failed to add query [" + name + "]", e);
@@ -207,11 +289,12 @@ public class PercolatorExecutor extends AbstractIndexComponent {
         addQuery(name, parseQuery(name, source));
     }
 
-    public Query parseQuery(String name, BytesReference source) throws ElasticSearchException {
+    public PercolatorService.QueryAndHighlightContext parseQuery(String name, BytesReference source) throws ElasticSearchException {
         XContentParser parser = null;
         try {
             parser = XContentHelper.createParser(source);
             Query query = null;
+            SearchContextHighlight searchContextHighlight = null;
             String currentFieldName = null;
             XContentParser.Token token = parser.nextToken(); // move the START_OBJECT
             if (token != XContentParser.Token.START_OBJECT) {
@@ -223,7 +306,8 @@ public class PercolatorExecutor extends AbstractIndexComponent {
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if ("query".equals(currentFieldName)) {
                         query = queryParserService.parse(parser).query();
-                        break;
+                    } else if ("highlight".equals(currentFieldName)) {
+                        searchContextHighlight = HighlighterParseElement.parseImpl(parser);
                     } else {
                         parser.skipChildren();
                     }
@@ -231,7 +315,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
                     parser.skipChildren();
                 }
             }
-            return query;
+            return new PercolatorService.QueryAndHighlightContext(query, searchContextHighlight);
         } catch (Exception e) {
             throw new ElasticSearchException("failed to parse query [" + name + "]", e);
         } finally {
@@ -241,25 +325,25 @@ public class PercolatorExecutor extends AbstractIndexComponent {
         }
     }
 
-    private void addQuery(String name, Query query) {
-        Preconditions.checkArgument(query != null, "query must be provided for percolate request");
-        this.queries.put(name, query);
+    private void addQuery(String name, QueryAndHighlightContext queryAndHighlightContext) {
+        Preconditions.checkArgument(queryAndHighlightContext.getQuery() != null, "query must be provided for percolate request");
+        this.queries.put(name, queryAndHighlightContext);
     }
 
     public void removeQuery(String name) {
         this.queries.remove(name);
     }
 
-    public void addQueries(Map<String, Query> queries) {
+    public void addQueries(Map<String, QueryAndHighlightContext> queries) {
         this.queries.putAll(queries);
     }
 
     public Response percolate(final SourceRequest request) throws ElasticSearchException {
         Query query = null;
+        SearchContextHighlight searchContextHighlight = null;
         ParsedDocument doc = null;
         XContentParser parser = null;
         try {
-
             parser = XContentFactory.xContent(request.source()).createParser(request.source());
             String currentFieldName = null;
             XContentParser.Token token;
@@ -275,6 +359,12 @@ public class PercolatorExecutor extends AbstractIndexComponent {
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if ("query".equals(currentFieldName)) {
                         query = percolatorIndexServiceSafe().queryParserService().parse(parser).query();
+                    } else if ("highlight".equals(currentFieldName)) {
+                        try {
+                            searchContextHighlight = HighlighterParseElement.parseImpl(parser);
+                        } catch (Exception e) {
+                            e.printStackTrace();  // TODO
+                        }
                     }
                 } else if (token == null) {
                     break;
@@ -292,7 +382,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
             throw new PercolatorException(index, "No doc to percolate in the request");
         }
 
-        return percolate(new DocAndQueryRequest(doc, query));
+        return percolate(new DocAndQueryRequest(doc, query, searchContextHighlight));
     }
 
     public Response percolate(DocAndSourceQueryRequest request) throws ElasticSearchException {
@@ -312,7 +402,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
             if (!field.isIndexed()) {
                 continue;
             }
-            // no need to index the UID field
+            // no need to index the UID field, but we do need to remember the type for highlighting
             if (field.name().equals(UidFieldMapper.NAME)) {
                 continue;
             }
@@ -341,47 +431,40 @@ public class PercolatorExecutor extends AbstractIndexComponent {
         }
 
         final IndexSearcher searcher = memoryIndex.createSearcher();
-        List<PercolationMatch> matches = new ArrayList<PercolationMatch>();
+        final List<PercolationMatch> matches = new ArrayList<PercolationMatch>();
 
         try {
             if (request.query() == null) {
-                final boolean doHighlight = false;
-                if (doHighlight) {
-                    FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext();
-                    for (Map.Entry<String, Query> entry : queries.entrySet()) {
-                        TopDocs hits = null;
-                        try {
-                            hits = searcher.search(entry.getValue(), 100);
-                        } catch (IOException e) {
-                            logger.warn("[" + entry.getKey() + "] failed to execute query", e);
-                        }
+                final boolean doHighlight = true;
 
-                        for (ScoreDoc scoreDoc : hits.scoreDocs) {
-                            InternalSearchHit searchHit = new InternalSearchHit(scoreDoc.doc, uid.id(), uid.type(), sourceRequested ? source : null, null);
-                            hitContext.reset(searchHit, searcher.getIndexReader(), scoreDoc.doc, searcher.getIndexReader(), scoreDoc.doc, null);
-                            HighlightPhase.doHighlighting(null, null, entry.getValue(), mapperService, hitContext, false);
-                        }
-                    }
-                } else {
+                FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext();
 
                 Lucene.ExistsCollector collector = new Lucene.ExistsCollector();
-                for (Map.Entry<String, Query> entry : queries.entrySet()) {
+                for (Map.Entry<String, QueryAndHighlightContext> entry : queries.entrySet()) {
                     collector.reset();
                     try {
-                        searcher.search(entry.getValue(), collector);
+                        searcher.search(entry.getValue().getQuery(), collector);
                     } catch (IOException e) {
                         logger.warn("[" + entry.getKey() + "] failed to execute query", e);
                     }
 
                     if (collector.exists()) {
                         matches.add(new PercolationMatch(entry.getKey()));
+
+                        if (entry.getValue().getHighlightContext() == null) continue;
+
+                        ParsedDocument parsedDocument = request.doc();
+
+                        // TODO: we are assuming there is only one document in the index, whose docid is 0
+                        InternalSearchHit searchHit = new InternalSearchHit(0/* scoreDoc.doc */, null, parsedDocument.type(), null, null);
+                        hitContext.reset(searchHit, searcher.getIndexReader(), 0 /* scoreDoc.doc */, searcher.getIndexReader(), 0 /* scoreDoc.doc */, null);
+                        HighlightPhase.doHighlighting(null, entry.getValue().getHighlightContext(), entry.getValue().getQuery(), mapperService, hitContext, true /* TODO */);
                     }
-                }
                 }
             } else {
                 IndexService percolatorIndex = percolatorIndexServiceSafe();
                 if (percolatorIndex.numberOfShards() == 0) {
-                    throw new PercolateIndexUnavailable(new Index(PercolatorService.INDEX_NAME));
+                    throw new PercolateIndexUnavailable(new Index(INDEX_NAME));
                 }
                 IndexShard percolatorShard = percolatorIndex.shard(0);
                 Engine.Searcher percolatorSearcher = percolatorShard.searcher();
@@ -402,9 +485,9 @@ public class PercolatorExecutor extends AbstractIndexComponent {
     }
 
     private IndexService percolatorIndexServiceSafe() {
-        IndexService indexService = indicesService.indexService(PercolatorService.INDEX_NAME);
+        IndexService indexService = indicesService.indexService(INDEX_NAME);
         if (indexService == null) {
-            throw new PercolateIndexUnavailable(new Index(PercolatorService.INDEX_NAME));
+            throw new PercolateIndexUnavailable(new Index(INDEX_NAME));
         }
         return indexService;
     }
@@ -414,7 +497,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
         private final IndexService percolatorIndex;
         private final MapperService mapperService;
         private final List<PercolationMatch> matches;
-        private final Map<String, Query> queries;
+        private final Map<String, QueryAndHighlightContext> queries;
         private final ESLogger logger;
         private final boolean doHighlight = false;
 
@@ -422,7 +505,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
 
         private FieldData fieldData;
 
-        QueryCollector(ESLogger logger, Map<String, Query> queries, IndexSearcher searcher, IndexService percolatorIndex, MapperService mapperService, List<PercolationMatch> matches) {
+        QueryCollector(ESLogger logger, Map<String, QueryAndHighlightContext> queries, IndexSearcher searcher, IndexService percolatorIndex, MapperService mapperService, List<PercolationMatch> matches) {
             this.logger = logger;
             this.queries = queries;
             this.searcher = searcher;
@@ -442,21 +525,25 @@ public class PercolatorExecutor extends AbstractIndexComponent {
                 return;
             }
             String id = Uid.idFromUid(uid);
-            Query query = queries.get(id);
-            if (query == null) {
+            QueryAndHighlightContext queryAndHighlightContext = queries.get(id);
+            if (queryAndHighlightContext == null || queryAndHighlightContext.getQuery() == null) {
                 // log???
                 return;
             }
+
+            Query query = queryAndHighlightContext.getQuery();
+
             // run the query
             try {
                 if (doHighlight) {
-                    FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext();
-                    TopDocs hits = searcher.search(query, 100);
-                    for (ScoreDoc scoreDoc : hits.scoreDocs) {
-                        InternalSearchHit searchHit = new InternalSearchHit(scoreDoc.doc, uid.id(), uid.type(), sourceRequested ? source : null, null);
-                        hitContext.reset(searchHit, searcher.getIndexReader(), scoreDoc.doc, searcher.getIndexReader(), scoreDoc.doc, null);
-                        HighlightPhase.doHighlighting(null, null, query, mapperService, null, false);
-                    }
+//                    ParsedDocument parsedDocument = request.doc();
+//                    FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext();
+//                    TopDocs hits = searcher.search(query, 100);
+//                    for (ScoreDoc scoreDoc : hits.scoreDocs) {
+//                        InternalSearchHit searchHit = new InternalSearchHit(scoreDoc.doc, null, parsedDocument.type(), parsedDocument.source().toBytes(), null);
+//                        hitContext.reset(searchHit, searcher.getIndexReader(), scoreDoc.doc, searcher.getIndexReader(), scoreDoc.doc, null);
+//                        HighlightPhase.doHighlighting(null, queryAndHighlightContext.getHighlightContext(), query, mapperService, hitContext, true /* TODO */);
+//                    }
                 } else {
                     collector.reset();
                     searcher.search(query, collector);

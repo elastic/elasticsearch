@@ -32,6 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.percolator.PercolatorExecutor;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
@@ -142,8 +143,8 @@ public class RestUpdateAction extends BaseRestHandler {
 
                     if (response.matches() != null) {
                         builder.startArray(Fields.MATCHES);
-                        for (String match : response.matches()) {
-                            builder.value(match);
+                        for (PercolatorExecutor.PercolationMatch match : response.matches()) {
+                            builder.value(match); // TODO
                         }
                         builder.endArray();
                     }

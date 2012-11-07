@@ -32,6 +32,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.index.percolator.PercolatorExecutor;
 import org.elasticsearch.rest.*;
 
 import java.io.IOException;
@@ -120,8 +121,8 @@ public class RestBulkAction extends BaseRestHandler {
                             IndexResponse indexResponse = itemResponse.response();
                             if (indexResponse.matches() != null) {
                                 builder.startArray(Fields.MATCHES);
-                                for (String match : indexResponse.matches()) {
-                                    builder.value(match);
+                                for (PercolatorExecutor.PercolationMatch match : indexResponse.matches()) {
+                                    builder.value(match); // TODO
                                 }
                                 builder.endArray();
                             }

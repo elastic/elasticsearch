@@ -23,6 +23,8 @@ import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.percolator.PercolatorExecutor;
+import org.elasticsearch.search.highlight.HighlightField;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -40,7 +42,7 @@ public class IndexResponse extends ActionResponse {
     private String id;
     private String type;
     private long version;
-    private List<String> matches;
+    private List<PercolatorExecutor.PercolationMatch> matches;
 
     public IndexResponse() {
 
@@ -112,21 +114,21 @@ public class IndexResponse extends ActionResponse {
     /**
      * Returns the percolate queries matches. <tt>null</tt> if no percolation was requested.
      */
-    public List<String> matches() {
+    public List<PercolatorExecutor.PercolationMatch> matches() {
         return this.matches;
     }
 
     /**
      * Returns the percolate queries matches. <tt>null</tt> if no percolation was requested.
      */
-    public List<String> getMatches() {
+    public List<PercolatorExecutor.PercolationMatch> getMatches() {
         return this.matches;
     }
 
     /**
      * Internal.
      */
-    public void matches(List<String> matches) {
+    public void matches(List<PercolatorExecutor.PercolationMatch> matches) {
         this.matches = matches;
     }
 
@@ -142,19 +144,13 @@ public class IndexResponse extends ActionResponse {
             if (size == 0) {
                 matches = ImmutableList.of();
             } else if (size == 1) {
-                matches = ImmutableList.of(in.readString());
+                matches = ImmutableList.of(PercolatorExecutor.PercolationMatch.readPercolationMatch(in));
             } else if (size == 2) {
-                matches = ImmutableList.of(in.readString(), in.readString());
-            } else if (size == 3) {
-                matches = ImmutableList.of(in.readString(), in.readString(), in.readString());
-            } else if (size == 4) {
-                matches = ImmutableList.of(in.readString(), in.readString(), in.readString(), in.readString());
-            } else if (size == 5) {
-                matches = ImmutableList.of(in.readString(), in.readString(), in.readString(), in.readString(), in.readString());
+                matches = ImmutableList.of(PercolatorExecutor.PercolationMatch.readPercolationMatch(in), PercolatorExecutor.PercolationMatch.readPercolationMatch(in));
             } else {
-                matches = new ArrayList<String>();
+                matches = new ArrayList<PercolatorExecutor.PercolationMatch>();
                 for (int i = 0; i < size; i++) {
-                    matches.add(in.readString());
+                    matches.add(PercolatorExecutor.PercolationMatch.readPercolationMatch(in));
                 }
             }
         }
@@ -172,8 +168,8 @@ public class IndexResponse extends ActionResponse {
         } else {
             out.writeBoolean(true);
             out.writeVInt(matches.size());
-            for (String match : matches) {
-                out.writeString(match);
+            for (PercolatorExecutor.PercolationMatch match : matches) {
+                match.writeTo(out);
             }
         }
     }

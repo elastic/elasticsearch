@@ -22,33 +22,33 @@ package org.elasticsearch.action.percolate;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.percolator.PercolatorExecutor;
+import org.elasticsearch.search.highlight.HighlightField;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 
 /**
  *
  */
-public class PercolateResponse extends ActionResponse implements Iterable<String> {
+public class PercolateResponse extends ActionResponse implements Iterable<PercolatorExecutor.PercolationMatch> {
 
-    private List<String> matches;
+    private List<PercolatorExecutor.PercolationMatch> matches;
 
     PercolateResponse() {
 
     }
 
-    public PercolateResponse(List<String> matches) {
+    public PercolateResponse(List<PercolatorExecutor.PercolationMatch> matches) {
         this.matches = matches;
     }
 
-    public List<String> matches() {
+    public List<PercolatorExecutor.PercolationMatch> matches() {
         return this.matches;
     }
 
     @Override
-    public Iterator<String> iterator() {
+    public Iterator<PercolatorExecutor.PercolationMatch> iterator() {
         return matches.iterator();
     }
 
@@ -56,9 +56,9 @@ public class PercolateResponse extends ActionResponse implements Iterable<String
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         int size = in.readVInt();
-        matches = new ArrayList<String>(size);
+        matches = new ArrayList<PercolatorExecutor.PercolationMatch>(size);
         for (int i = 0; i < size; i++) {
-            matches.add(in.readString());
+            matches.add(PercolatorExecutor.PercolationMatch.readPercolationMatch(in));
         }
     }
 
@@ -66,8 +66,8 @@ public class PercolateResponse extends ActionResponse implements Iterable<String
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVInt(matches.size());
-        for (String match : matches) {
-            out.writeString(match);
+        for (PercolatorExecutor.PercolationMatch match : matches) {
+            match.writeTo(out);
         }
     }
 }

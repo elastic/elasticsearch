@@ -63,9 +63,13 @@ public class PluginManager {
         }
     }
 
-    public void downloadAndExtract(String name) throws IOException {
+    public void downloadAndExtract(String name, boolean verbose) throws IOException {
         HttpDownloadHelper downloadHelper = new HttpDownloadHelper();
 
+        if (!environment.pluginsFile().canWrite()) {
+            System.out.println();
+            throw new IOException("plugin directory " + environment.pluginsFile() + " is read only");
+        }
         File pluginFile = new File(url + "/" + name + "/elasticsearch-" + name + "-" + Version.CURRENT.number() + ".zip");
         boolean downloaded = false;
         String filterZipName = null;
@@ -81,6 +85,9 @@ public class PluginManager {
                         downloaded = true;
                     } catch (IOException e) {
                         // ignore
+                        if (verbose) {
+                            System.out.println("Failed: " + ExceptionsHelper.detailedMessage(e));
+                        }
                     }
                 } else {
                     url = "http://elasticsearch.googlecode.com/svn/plugins";
@@ -105,7 +112,6 @@ public class PluginManager {
                             // remove es- prefix
                             name = name.substring("es-".length());
                         }
-                        pluginFile = new File(environment.pluginsFile(), name + ".zip");
                         if (version == null) {
                             // try with ES version from downloads
                             URL pluginUrl = new URL("https://github.com/downloads/" + userName + "/" + repoName + "/" + repoName + "-" + Version.CURRENT.number() + ".zip");
@@ -115,6 +121,9 @@ public class PluginManager {
                                 downloaded = true;
                             } catch (IOException e) {
                                 // try a tag with ES version
+                                if (verbose) {
+                                    System.out.println("Failed: " + ExceptionsHelper.detailedMessage(e));
+                                }
                                 pluginUrl = new URL("https://github.com/" + userName + "/" + repoName + "/zipball/v" + Version.CURRENT.number());
                                 System.out.println("Trying " + pluginUrl.toExternalForm() + "...");
                                 try {
@@ -122,6 +131,9 @@ public class PluginManager {
                                     downloaded = true;
                                 } catch (IOException e1) {
                                     // download master
+                                    if (verbose) {
+                                        System.out.println("Failed: " + ExceptionsHelper.detailedMessage(e1));
+                                    }
                                     pluginUrl = new URL("https://github.com/" + userName + "/" + repoName + "/zipball/master");
                                     System.out.println("Trying " + pluginUrl.toExternalForm() + "...");
                                     try {
@@ -129,6 +141,9 @@ public class PluginManager {
                                         downloaded = true;
                                     } catch (IOException e2) {
                                         // ignore
+                                        if (verbose) {
+                                            System.out.println("Failed: " + ExceptionsHelper.detailedMessage(e2));
+                                        }
                                     }
                                 }
                             }
@@ -141,6 +156,9 @@ public class PluginManager {
                                 downloaded = true;
                             } catch (IOException e) {
                                 // try a tag with ES version
+                                if (verbose) {
+                                    System.out.println("Failed: " + ExceptionsHelper.detailedMessage(e));
+                                }
                                 pluginUrl = new URL("https://github.com/" + userName + "/" + repoName + "/zipball/v" + version);
                                 System.out.println("Trying " + pluginUrl.toExternalForm() + "...");
                                 try {
@@ -148,6 +166,9 @@ public class PluginManager {
                                     downloaded = true;
                                 } catch (IOException e1) {
                                     // ignore
+                                    if (verbose) {
+                                        System.out.println("Failed: " + ExceptionsHelper.detailedMessage(e1));
+                                    }
                                 }
                             }
                         }
@@ -177,6 +198,9 @@ public class PluginManager {
 
         // extract the plugin
         File extractLocation = new File(environment.pluginsFile(), name);
+        if (extractLocation.exists()) {
+            throw new IOException("plugin directory already exists. To update the plugin, uninstall it first using -remove " + name + " command");
+        }
         ZipFile zipFile = null;
         try {
             zipFile = new ZipFile(pluginFile);
@@ -257,12 +281,16 @@ public class PluginManager {
         }
 
         String url = null;
+        boolean verbose = false;
         for (int i = 0; i < args.length; i++) {
             if ("url".equals(args[i]) || "-url".equals(args[i])) {
                 url = args[i + 1];
-                break;
+            } else if ("verbose".equals(args[i]) || "-verbose".equals(args[i])) {
+                verbose = true;
             }
         }
+
+
 
         PluginManager pluginManager = new PluginManager(initialSettings.v2(), url);
 
@@ -271,6 +299,7 @@ public class PluginManager {
             System.out.println("    -url     [plugins location]  : Set URL to download plugins from");
             System.out.println("    -install [plugin name]       : Downloads and installs listed plugins");
             System.out.println("    -remove  [plugin name]       : Removes listed plugins");
+            System.out.println("    -verbose                     : Prints verbose messages");
         }
         for (int c = 0; c < args.length; c++) {
             String command = args[c];
@@ -278,7 +307,7 @@ public class PluginManager {
                 String pluginName = args[++c];
                 System.out.println("-> Installing " + pluginName + "...");
                 try {
-                    pluginManager.downloadAndExtract(pluginName);
+                    pluginManager.downloadAndExtract(pluginName, verbose);
                 } catch (IOException e) {
                     System.out.println("Failed to install " + pluginName + ", reason: " + e.getMessage());
                 }

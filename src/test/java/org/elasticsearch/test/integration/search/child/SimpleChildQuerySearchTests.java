@@ -75,7 +75,12 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
     public void multiLevelChild() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+        client.admin().indices().prepareCreate("test")
+                .setSettings(
+                        ImmutableSettings.settingsBuilder()
+                                .put("index.number_of_shards", 1)
+                                .put("index.number_of_replicas", 0)
+                ).execute().actionGet();
         client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
         client.admin().indices().preparePutMapping("test").setType("child").setSource(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_parent").field("type", "parent").endObject()
@@ -109,7 +114,12 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
     public void simpleChildQuery() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+        client.admin().indices().prepareCreate("test")
+                .setSettings(
+                        ImmutableSettings.settingsBuilder()
+                                .put("index.number_of_shards", 1)
+                                .put("index.number_of_replicas", 0)
+                ).execute().actionGet();
         client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
         client.admin().indices().preparePutMapping("test").setType("child").setSource(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_parent").field("type", "parent").endObject()
@@ -288,7 +298,12 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
     @Test
     public void testHasParentFilter() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
-        client.admin().indices().prepareCreate("test").execute().actionGet();
+        client.admin().indices().prepareCreate("test")
+                .setSettings(
+                        ImmutableSettings.settingsBuilder()
+                                .put("index.number_of_shards", 1)
+                                .put("index.number_of_replicas", 0)
+                ).execute().actionGet();
         client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
         client.admin().indices().preparePutMapping("test").setType("child").setSource(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_parent").field("type", "parent").endObject()
@@ -345,7 +360,12 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
     public void simpleChildQueryWithFlush() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+        client.admin().indices().prepareCreate("test")
+                .setSettings(
+                        ImmutableSettings.settingsBuilder()
+                                .put("index.number_of_shards", 1)
+                                .put("index.number_of_replicas", 0)
+                ).execute().actionGet();
         client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
         client.admin().indices().preparePutMapping("test").setType("child").setSource(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_parent").field("type", "parent").endObject()
@@ -440,7 +460,11 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
     public void simpleChildQueryWithFlushAnd3Shards() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 3)).execute().actionGet();
+        client.admin().indices().prepareCreate("test").setSettings(
+                ImmutableSettings.settingsBuilder()
+                        .put("index.number_of_shards", 3)
+                        .put("index.number_of_replicas", 0)
+        ).execute().actionGet();
         client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
         client.admin().indices().preparePutMapping("test").setType("child").setSource(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_parent").field("type", "parent").endObject()
@@ -535,7 +559,12 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
     public void testScopedFacet() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+        client.admin().indices().prepareCreate("test")
+                .setSettings(
+                        ImmutableSettings.settingsBuilder()
+                                .put("index.number_of_shards", 1)
+                                .put("index.number_of_replicas", 0)
+                ).execute().actionGet();
         client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
         client.admin().indices().preparePutMapping("test").setType("child").setSource(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_parent").field("type", "parent").endObject()
@@ -574,7 +603,12 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
     public void testDeletedParent() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+        client.admin().indices().prepareCreate("test")
+                .setSettings(
+                        ImmutableSettings.settingsBuilder()
+                                .put("index.number_of_shards", 1)
+                                .put("index.number_of_replicas", 0)
+                ).execute().actionGet();
         client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
         client.admin().indices().preparePutMapping("test").setType("child").setSource(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_parent").field("type", "parent").endObject()
@@ -635,7 +669,11 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
     public void testDfsSearchType() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2)).execute().actionGet();
+        client.admin().indices().prepareCreate("test").setSettings(
+                ImmutableSettings.settingsBuilder()
+                        .put("index.number_of_shards", 2)
+                        .put("index.number_of_replicas", 0)
+        ).execute().actionGet();
         client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
         client.admin().indices().preparePutMapping("test").setType("child").setSource(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_parent").field("type", "parent").endObject()
@@ -661,7 +699,12 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
     public void testTopChildrenReSearchBug() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+        client.admin().indices().prepareCreate("test")
+                .setSettings(
+                        ImmutableSettings.settingsBuilder()
+                                .put("index.number_of_shards", 1)
+                                .put("index.number_of_replicas", 0)
+                ).execute().actionGet();
         client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
         client.admin().indices().preparePutMapping("test").setType("child").setSource(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_parent").field("type", "parent").endObject()
@@ -753,7 +796,12 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
     public void testCountApiUsage() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+        client.admin().indices().prepareCreate("test")
+                .setSettings(
+                        ImmutableSettings.settingsBuilder()
+                                .put("index.number_of_shards", 1)
+                                .put("index.number_of_replicas", 0)
+                ).execute().actionGet();
         client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
         client.admin().indices().preparePutMapping("test").setType("child").setSource(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_parent").field("type", "parent").endObject()

@@ -108,7 +108,7 @@ public class SimpleIndexQueryParserTests {
         ).createInjector();
 
         String mapping = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/query/mapping.json");
-        injector.getInstance(MapperService.class).add("person", mapping);
+        injector.getInstance(MapperService.class).add("person", mapping, true);
         injector.getInstance(MapperService.class).documentMapper("person").parse(new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/query/data.json")));
         this.queryParser = injector.getInstance(IndexQueryParserService.class);
     }

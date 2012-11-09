@@ -245,7 +245,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     // first, add the default mapping
                     if (mappings.containsKey(MapperService.DEFAULT_MAPPING)) {
                         try {
-                            mapperService.add(MapperService.DEFAULT_MAPPING, XContentFactory.jsonBuilder().map(mappings.get(MapperService.DEFAULT_MAPPING)).string());
+                            mapperService.add(MapperService.DEFAULT_MAPPING, XContentFactory.jsonBuilder().map(mappings.get(MapperService.DEFAULT_MAPPING)).string(), false);
                         } catch (Exception e) {
                             indicesService.deleteIndex(request.index, "failed on parsing default mapping on index creation");
                             throw new MapperParsingException("mapping [" + MapperService.DEFAULT_MAPPING + "]", e);
@@ -256,7 +256,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             continue;
                         }
                         try {
-                            mapperService.add(entry.getKey(), XContentFactory.jsonBuilder().map(entry.getValue()).string());
+                            // apply the default here, its the first time we parse it
+                            mapperService.add(entry.getKey(), XContentFactory.jsonBuilder().map(entry.getValue()).string(), true);
                         } catch (Exception e) {
                             indicesService.deleteIndex(request.index, "failed on parsing mappings on index creation");
                             throw new MapperParsingException("mapping [" + entry.getKey() + "]", e);

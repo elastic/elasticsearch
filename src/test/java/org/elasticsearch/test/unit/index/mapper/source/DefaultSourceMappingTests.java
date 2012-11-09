@@ -168,7 +168,7 @@ public class DefaultSourceMappingTests {
                 .endObject().endObject().string();
 
         MapperService mapperService = MapperTests.newMapperService();
-        mapperService.add(MapperService.DEFAULT_MAPPING, defaultMapping);
+        mapperService.add(MapperService.DEFAULT_MAPPING, defaultMapping, true);
 
         DocumentMapper mapper = mapperService.documentMapperWithAutoCreate("my_type");
         assertThat(mapper.type(), equalTo("my_type"));
@@ -182,12 +182,12 @@ public class DefaultSourceMappingTests {
                 .endObject().endObject().string();
 
         MapperService mapperService = MapperTests.newMapperService();
-        mapperService.add(MapperService.DEFAULT_MAPPING, defaultMapping);
+        mapperService.add(MapperService.DEFAULT_MAPPING, defaultMapping, true);
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_source").field("enabled", true).endObject()
                 .endObject().endObject().string();
-        mapperService.add("my_type", mapping);
+        mapperService.add("my_type", mapping, true);
 
         DocumentMapper mapper = mapperService.documentMapper("my_type");
         assertThat(mapper.type(), equalTo("my_type"));

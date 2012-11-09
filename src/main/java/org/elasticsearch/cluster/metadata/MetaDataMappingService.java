@@ -119,7 +119,8 @@ public class MetaDataMappingService extends AbstractComponent {
                         for (String type : sTypes) {
                             // only add the current relevant mapping (if exists)
                             if (indexMetaData.mappings().containsKey(type)) {
-                                indexService.mapperService().add(type, indexMetaData.mappings().get(type).source().string());
+                                // don't apply the default mapping, it has been applied when the mapping was created
+                                indexService.mapperService().add(type, indexMetaData.mappings().get(type).source().string(), false);
                             }
                         }
                     }
@@ -176,7 +177,7 @@ public class MetaDataMappingService extends AbstractComponent {
                         createdIndex = true;
                         // only add the current relevant mapping (if exists)
                         if (indexMetaData.mappings().containsKey(type)) {
-                            indexService.mapperService().add(type, indexMetaData.mappings().get(type).source().string());
+                            indexService.mapperService().add(type, indexMetaData.mappings().get(type).source().string(), false);
                         }
                     }
                     MapperService mapperService = indexService.mapperService();
@@ -304,7 +305,7 @@ public class MetaDataMappingService extends AbstractComponent {
                         indicesToClose.add(indexMetaData.index());
                         // only add the current relevant mapping (if exists)
                         if (indexMetaData.mappings().containsKey(request.mappingType)) {
-                            indexService.mapperService().add(request.mappingType, indexMetaData.mappings().get(request.mappingType).source().string());
+                            indexService.mapperService().add(request.mappingType, indexMetaData.mappings().get(request.mappingType).source().string(), false);
                         }
                     }
 
@@ -371,7 +372,8 @@ public class MetaDataMappingService extends AbstractComponent {
                             // we also add it to the registered parsed mapping, since that's what we do when we merge
                             // and, we won't wait for it to be created on this master node
                             IndexService indexService = indicesService.indexService(index);
-                            indexService.mapperService().add(newMapper.type(), newMapper.mappingSource().string());
+                            // don't apply default mapping, we already applied them when we parsed it
+                            indexService.mapperService().add(newMapper.type(), newMapper.mappingSource().string(), false);
                             if (logger.isDebugEnabled()) {
                                 logger.debug("[{}] create_mapping [{}] with source [{}]", index, newMapper.type(), newSource);
                             } else if (logger.isInfoEnabled()) {

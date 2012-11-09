@@ -172,7 +172,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         return this.documentParser;
     }
 
-    public void add(String type, String mappingSource) {
+    public void add(String type, String mappingSource, boolean applyDefault) {
         if (DEFAULT_MAPPING.equals(type)) {
             // verify we can parse it
             DocumentMapper mapper = documentParser.parse(type, mappingSource);
@@ -183,7 +183,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             }
             defaultMappingSource = mappingSource;
         } else {
-            add(parse(type, mappingSource));
+            add(parse(type, mappingSource, applyDefault));
         }
     }
 
@@ -358,10 +358,14 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     }
 
     /**
-     * Just parses and returns the mapper without adding it.
+     * Just parses and returns the mapper without adding it, while still applying default mapping.
      */
     public DocumentMapper parse(String mappingType, String mappingSource) throws MapperParsingException {
-        return documentParser.parse(mappingType, mappingSource, defaultMappingSource);
+        return parse(mappingType, mappingSource, true);
+    }
+
+    public DocumentMapper parse(String mappingType, String mappingSource, boolean applyDefault) throws MapperParsingException {
+        return documentParser.parse(mappingType, mappingSource, applyDefault ? defaultMappingSource : null);
     }
 
     public boolean hasMapping(String mappingType) {
@@ -390,7 +394,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             if (mapper != null) {
                 return mapper;
             }
-            add(type, null);
+            add(type, null, true);
             return mappers.get(type);
         }
     }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -33,7 +32,6 @@ import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.index.search.MultiMatchQuery;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -146,7 +144,7 @@ public class MultiMatchQueryParser implements QueryParser {
                 } else if ("use_dis_max".equals(currentFieldName) || "useDisMax".equals(currentFieldName)) {
                     multiMatchQuery.setUseDisMax(parser.booleanValue());
                 } else if ("tie_breaker".equals(currentFieldName) || "tieBreaker".equals(currentFieldName)) {
-                    multiMatchQuery.setTieBreaker(parser.intValue());
+                    multiMatchQuery.setTieBreaker(parser.floatValue());
                 } else if ("lenient".equals(currentFieldName)) {
                     multiMatchQuery.setLenient(parser.booleanValue());
                 } else {

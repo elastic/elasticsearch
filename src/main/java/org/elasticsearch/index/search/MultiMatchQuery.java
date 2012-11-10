@@ -30,13 +30,13 @@ import java.util.Map;
 public class MultiMatchQuery extends MatchQuery {
 
     private boolean useDisMax = true;
-    private int tieBreaker;
+    private float tieBreaker;
 
     public void setUseDisMax(boolean useDisMax) {
         this.useDisMax = useDisMax;
     }
 
-    public void setTieBreaker(int tieBreaker) {
+    public void setTieBreaker(float tieBreaker) {
         this.tieBreaker = tieBreaker;
     }
 

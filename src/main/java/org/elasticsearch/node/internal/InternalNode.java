@@ -88,6 +88,7 @@ import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -116,6 +117,13 @@ public final class InternalNode implements Node {
 
         ESLogger logger = Loggers.getLogger(Node.class, tuple.v1().get("name"));
         logger.info("{{}}[{}]: initializing ...", Version.CURRENT, JvmInfo.jvmInfo().pid());
+
+        if (logger.isDebugEnabled()) {
+            Environment env = tuple.v2();
+            logger.debug("using home [{}], config [{}], data [{}], logs [{}], work [{}], plugins [{}]",
+                    env.homeFile(), env.configFile(), Arrays.toString(env.dataFiles()), env.logsFile(),
+                    env.workFile(), env.pluginsFile());
+        }
 
         this.pluginsService = new PluginsService(tuple.v1(), tuple.v2());
         this.settings = pluginsService.updatedSettings();

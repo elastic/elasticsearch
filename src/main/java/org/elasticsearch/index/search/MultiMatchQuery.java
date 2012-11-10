@@ -25,19 +25,18 @@ import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.query.QueryParseContext;
 
-import java.util.List;
 import java.util.Map;
 
 public class MultiMatchQuery extends MatchQuery {
 
     private boolean useDisMax = true;
-    private int tieBreaker;
+    private float tieBreaker;
 
     public void setUseDisMax(boolean useDisMax) {
         this.useDisMax = useDisMax;
     }
 
-    public void setTieBreaker(int tieBreaker) {
+    public void setTieBreaker(float tieBreaker) {
         this.tieBreaker = tieBreaker;
     }
 
@@ -85,7 +84,7 @@ public class MultiMatchQuery extends MatchQuery {
                     booleanQuery.add(query, BooleanClause.Occur.SHOULD);
                 }
             }
-            return !booleanQuery.clauses().isEmpty() ?  booleanQuery : null;
+            return !booleanQuery.clauses().isEmpty() ? booleanQuery : null;
         }
     }
 

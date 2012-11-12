@@ -20,8 +20,7 @@
 package org.elasticsearch.test.unit.index.mapper.multifield;
 
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Field;
-import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -48,28 +47,28 @@ public class MultiFieldTests {
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/mapper/multifield/test-data.json"));
         Document doc = docMapper.parse(json).rootDoc();
 
-        Fieldable f = doc.getFieldable("name");
+        IndexableField f = doc.getField("name");
         assertThat(f.name(), equalTo("name"));
         assertThat(f.stringValue(), equalTo("some name"));
-        assertThat(f.isStored(), equalTo(true));
-        assertThat(f.isIndexed(), equalTo(true));
+        assertThat(f.fieldType().stored(), equalTo(true));
+        assertThat(f.fieldType().indexed(), equalTo(true));
 
-        f = doc.getFieldable("name.indexed");
+        f = doc.getField("name.indexed");
         assertThat(f.name(), equalTo("name.indexed"));
         assertThat(f.stringValue(), equalTo("some name"));
-        assertThat(f.isStored(), equalTo(false));
-        assertThat(f.isIndexed(), equalTo(true));
+        assertThat(f.fieldType().stored(), equalTo(false));
+        assertThat(f.fieldType().indexed(), equalTo(true));
 
-        f = doc.getFieldable("name.not_indexed");
+        f = doc.getField("name.not_indexed");
         assertThat(f.name(), equalTo("name.not_indexed"));
         assertThat(f.stringValue(), equalTo("some name"));
-        assertThat(f.isStored(), equalTo(true));
-        assertThat(f.isIndexed(), equalTo(false));
+        assertThat(f.fieldType().stored(), equalTo(true));
+        assertThat(f.fieldType().indexed(), equalTo(false));
 
-        f = doc.getFieldable("object1.multi1");
+        f = doc.getField("object1.multi1");
         assertThat(f.name(), equalTo("object1.multi1"));
 
-        f = doc.getFieldable("object1.multi1.string");
+        f = doc.getField("object1.multi1.string");
         assertThat(f.name(), equalTo("object1.multi1.string"));
         assertThat(f.stringValue(), equalTo("2010-01-01"));
     }
@@ -80,9 +79,9 @@ public class MultiFieldTests {
 
         DocumentMapper builderDocMapper = doc("test", rootObject("person").add(
                 multiField("name")
-                        .add(stringField("name").store(Field.Store.YES))
-                        .add(stringField("indexed").index(Field.Index.ANALYZED))
-                        .add(stringField("not_indexed").index(Field.Index.NO).store(Field.Store.YES))
+                        .add(stringField("name").store(true))
+                        .add(stringField("indexed").index(true).tokenized(true))
+                        .add(stringField("not_indexed").index(false).store(true))
         )).build(mapperParser);
         builderDocMapper.refreshSource();
 
@@ -95,22 +94,22 @@ public class MultiFieldTests {
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/mapper/multifield/test-data.json"));
         Document doc = docMapper.parse(json).rootDoc();
 
-        Fieldable f = doc.getFieldable("name");
+        IndexableField f = doc.getField("name");
         assertThat(f.name(), equalTo("name"));
         assertThat(f.stringValue(), equalTo("some name"));
-        assertThat(f.isStored(), equalTo(true));
-        assertThat(f.isIndexed(), equalTo(true));
+        assertThat(f.fieldType().stored(), equalTo(true));
+        assertThat(f.fieldType().indexed(), equalTo(true));
 
-        f = doc.getFieldable("name.indexed");
+        f = doc.getField("name.indexed");
         assertThat(f.name(), equalTo("name.indexed"));
         assertThat(f.stringValue(), equalTo("some name"));
-        assertThat(f.isStored(), equalTo(false));
-        assertThat(f.isIndexed(), equalTo(true));
+        assertThat(f.fieldType().stored(), equalTo(false));
+        assertThat(f.fieldType().indexed(), equalTo(true));
 
-        f = doc.getFieldable("name.not_indexed");
+        f = doc.getField("name.not_indexed");
         assertThat(f.name(), equalTo("name.not_indexed"));
         assertThat(f.stringValue(), equalTo("some name"));
-        assertThat(f.isStored(), equalTo(true));
-        assertThat(f.isIndexed(), equalTo(false));
+        assertThat(f.fieldType().stored(), equalTo(true));
+        assertThat(f.fieldType().indexed(), equalTo(false));
     }
 }

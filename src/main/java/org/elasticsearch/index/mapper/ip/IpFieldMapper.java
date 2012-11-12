@@ -21,9 +21,9 @@ package org.elasticsearch.index.mapper.ip;
 
 import org.apache.lucene.analysis.NumericTokenStream;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.Fieldable;
-import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.search.*;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Explicit;
@@ -86,6 +86,12 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
 
     public static class Defaults extends NumberFieldMapper.Defaults {
         public static final String NULL_VALUE = null;
+
+        public static final FieldType IP_FIELD_TYPE = new FieldType(NumberFieldMapper.Defaults.NUMBER_FIELD_TYPE);
+
+        static {
+            IP_FIELD_TYPE.freeze();
+        }
     }
 
     public static class Builder extends NumberFieldMapper.Builder<Builder, IpFieldMapper> {
@@ -93,7 +99,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
         protected String nullValue = Defaults.NULL_VALUE;
 
         public Builder(String name) {
-            super(name);
+            super(name, new FieldType(Defaults.IP_FIELD_TYPE));
             builder = this;
         }
 
@@ -104,8 +110,9 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
 
         @Override
         public IpFieldMapper build(BuilderContext context) {
+            fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             IpFieldMapper fieldMapper = new IpFieldMapper(buildNames(context),
-                    precisionStep, index, store, boost, omitNorms, indexOptions, nullValue, ignoreMalformed(context));
+                    precisionStep, boost, fieldType, nullValue, ignoreMalformed(context));
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -130,10 +137,9 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
     private String nullValue;
 
     protected IpFieldMapper(Names names, int precisionStep,
-                            Field.Index index, Field.Store store,
-                            float boost, boolean omitNorms, IndexOptions indexOptions,
+                            float boost, FieldType fieldType,
                             String nullValue, Explicit<Boolean> ignoreMalformed) {
-        super(names, precisionStep, null, index, store, boost, omitNorms, indexOptions,
+        super(names, precisionStep, null, boost, fieldType,
                 ignoreMalformed, new NamedAnalyzer("_ip/" + precisionStep, new NumericIpAnalyzer(precisionStep)),
                 new NamedAnalyzer("_ip/max", new NumericIpAnalyzer(Integer.MAX_VALUE)));
         this.nullValue = nullValue;
@@ -145,8 +151,8 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
-    public Long value(Fieldable field) {
-        byte[] value = field.getBinaryValue();
+    public Long value(Field field) {
+        byte[] value = field.binaryValue().bytes;
         if (value == null) {
             return null;
         }
@@ -159,15 +165,15 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
     }
 
     /**
-     * IPs should return as a string, delegates to {@link #valueAsString(org.apache.lucene.document.Fieldable)}.
+     * IPs should return as a string.
      */
     @Override
-    public Object valueForSearch(Fieldable field) {
+    public Object valueForSearch(Field field) {
         return valueAsString(field);
     }
 
     @Override
-    public String valueAsString(Fieldable field) {
+    public String valueAsString(Field field) {
         Long value = value(field);
         if (value == null) {
             return null;
@@ -177,11 +183,13 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
 
     @Override
     public String indexedValue(String value) {
-        return NumericUtils.longToPrefixCoded(ipToLong(value));
+        BytesRef bytesRef = new BytesRef();
+        NumericUtils.longToPrefixCoded(ipToLong(value), precisionStep(), bytesRef);
+        return bytesRef.utf8ToString();
     }
 
     @Override
-    public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions) {
+    public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions, boolean transpositions) {
         long iValue = ipToLong(value);
         long iSim;
         try {
@@ -200,8 +208,10 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
-    public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions) {
-        return new FuzzyQuery(names().createIndexNameTerm(value), (float) minSim, prefixLength, maxExpansions);
+    public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions, boolean transpositions) {
+        // Lucene 4 Upgrade: It's surprising this uses FuzzyQuery instead of NumericRangeQuery
+        int edits = FuzzyQuery.floatToEdits((float) minSim, value.codePointCount(0, value.length()));
+        return new FuzzyQuery(names.createIndexNameTerm(indexedValue(value)), edits, prefixLength, maxExpansions, transpositions);
     }
 
     @Override
@@ -241,7 +251,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
-    protected Fieldable innerParseCreateField(ParseContext context) throws IOException {
+    protected Field innerParseCreateField(ParseContext context) throws IOException {
         String ipAsString;
         if (context.externalValueSet()) {
             ipAsString = (String) context.externalValue();
@@ -264,7 +274,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
         }
 
         final long value = ipToLong(ipAsString);
-        return new LongFieldMapper.CustomLongNumericField(this, value);
+        return new LongFieldMapper.CustomLongNumericField(this, value, fieldType);
     }
 
     @Override
@@ -291,20 +301,30 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
     @Override
     protected void doXContentBody(XContentBuilder builder) throws IOException {
         super.doXContentBody(builder);
-        if (index != Defaults.INDEX) {
-            builder.field("index", index.name().toLowerCase());
+        if (indexed() != Defaults.IP_FIELD_TYPE.indexed() ||
+                analyzed() != Defaults.IP_FIELD_TYPE.tokenized()) {
+            builder.field("index", indexTokenizeOptionToString(indexed(), analyzed()));
         }
-        if (store != Defaults.STORE) {
-            builder.field("store", store.name().toLowerCase());
+        if (stored() != Defaults.IP_FIELD_TYPE.stored()) {
+            builder.field("store", stored());
         }
-        if (termVector != Defaults.TERM_VECTOR) {
-            builder.field("term_vector", termVector.name().toLowerCase());
+        if (storeTermVectors() != Defaults.IP_FIELD_TYPE.storeTermVectors()) {
+            builder.field("store_term_vector", storeTermVectors());
         }
-        if (omitNorms != Defaults.OMIT_NORMS) {
-            builder.field("omit_norms", omitNorms);
+        if (storeTermVectorOffsets() != Defaults.IP_FIELD_TYPE.storeTermVectorOffsets()) {
+            builder.field("store_term_vector_offsets", storeTermVectorOffsets());
         }
-        if (indexOptions != Defaults.INDEX_OPTIONS) {
-            builder.field("index_options", indexOptionToString(indexOptions));
+        if (storeTermVectorPositions() != Defaults.IP_FIELD_TYPE.storeTermVectorPositions()) {
+            builder.field("store_term_vector_positions", storeTermVectorPositions());
+        }
+        if (storeTermVectorPayloads() != Defaults.IP_FIELD_TYPE.storeTermVectorPayloads()) {
+            builder.field("store_term_vector_payloads", storeTermVectorPayloads());
+        }
+        if (omitNorms() != Defaults.IP_FIELD_TYPE.omitNorms()) {
+            builder.field("omit_norms", omitNorms());
+        }
+        if (indexOptions() != Defaults.IP_FIELD_TYPE.indexOptions()) {
+            builder.field("index_options", indexOptionToString(indexOptions()));
         }
         if (precisionStep != Defaults.PRECISION_STEP) {
             builder.field("precision_step", precisionStep);

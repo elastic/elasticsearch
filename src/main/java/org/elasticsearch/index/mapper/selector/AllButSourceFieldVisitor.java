@@ -17,32 +17,29 @@
  * under the License.
  */
 
-package org.elasticsearch.index.cache.bloom;
+package org.elasticsearch.index.mapper.selector;
 
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Scopes;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.cache.bloom.simple.SimpleBloomCache;
+import org.apache.lucene.index.FieldInfo;
+import org.elasticsearch.common.lucene.document.AbstractMultipleFieldsVisitor;
+import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
+
+import java.io.IOException;
 
 /**
- *
+ * A field selector that loads all fields except the source field.
  */
-public class BloomCacheModule extends AbstractModule {
+public class AllButSourceFieldVisitor extends AbstractMultipleFieldsVisitor {
 
-    public static final class BloomCacheSettings {
-        public static final String TYPE = "index.cache.bloom.type";
-    }
-
-    private final Settings settings;
-
-    public BloomCacheModule(Settings settings) {
-        this.settings = settings;
+    @Override
+    public Status needsField(FieldInfo fieldInfo) throws IOException {
+        if (SourceFieldMapper.NAME.equals(fieldInfo.name)) {
+            return Status.NO;
+        }
+        return Status.YES;
     }
 
     @Override
-    protected void configure() {
-        bind(BloomCache.class)
-                .to(settings.getAsClass(BloomCacheSettings.TYPE, SimpleBloomCache.class, "org.elasticsearch.index.cache.bloom.", "BloomCache"))
-                .in(Scopes.SINGLETON);
+    public String toString() {
+        return "all_but_source";
     }
 }

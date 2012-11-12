@@ -19,15 +19,18 @@
 
 package org.elasticsearch.index.field.data.shorts;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.support.NumericFieldDataComparator;
+
+import java.io.IOException;
 
 /**
  *
  */
 // LUCENE MONITOR: Monitor against FieldComparator.Short
-public class ShortFieldDataComparator extends NumericFieldDataComparator {
+public class ShortFieldDataComparator extends NumericFieldDataComparator<Short> {
 
     private final short[] values;
     private short bottom;
@@ -63,7 +66,13 @@ public class ShortFieldDataComparator extends NumericFieldDataComparator {
     }
 
     @Override
-    public Comparable value(int slot) {
-        return Short.valueOf(values[slot]);
+    public int compareDocToValue(int doc, Short val2) throws IOException {
+        short val1 = currentFieldData.shortValue(doc);
+        return val1 - val2;
+    }
+
+    @Override
+    public Short value(int slot) {
+        return values[slot];
     }
 }

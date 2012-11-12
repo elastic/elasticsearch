@@ -20,7 +20,7 @@
 package org.elasticsearch.index.mapper.internal;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -49,9 +49,17 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
 
     public static class Defaults extends AbstractFieldMapper.Defaults {
         public static final String NAME = ParentFieldMapper.NAME;
-        public static final Field.Index INDEX = Field.Index.NOT_ANALYZED;
-        public static final boolean OMIT_NORMS = true;
-        public static final IndexOptions INDEX_OPTIONS = IndexOptions.DOCS_ONLY;
+
+        public static final FieldType PARENT_FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
+
+        static {
+            PARENT_FIELD_TYPE.setIndexed(true);
+            PARENT_FIELD_TYPE.setTokenized(false);
+            PARENT_FIELD_TYPE.setStored(true);
+            PARENT_FIELD_TYPE.setOmitNorms(true);
+            PARENT_FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_ONLY);
+            PARENT_FIELD_TYPE.freeze();
+        }
     }
 
     public static class Builder extends Mapper.Builder<Builder, ParentFieldMapper> {
@@ -97,8 +105,8 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
     private final String type;
 
     protected ParentFieldMapper(String name, String indexName, String type) {
-        super(new Names(name, indexName, indexName, name), Defaults.INDEX, Field.Store.YES, Defaults.TERM_VECTOR, Defaults.BOOST,
-                Defaults.OMIT_NORMS, Defaults.INDEX_OPTIONS, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
+        super(new Names(name, indexName, indexName, name), Defaults.BOOST, new FieldType(Defaults.PARENT_FIELD_TYPE),
+                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
         this.type = type;
     }
 
@@ -130,7 +138,7 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
             // we are in the parsing of _parent phase
             String parentId = context.parser().text();
             context.sourceToParse().parent(parentId);
-            return new Field(names.indexName(), Uid.createUid(context.stringBuilder(), type, parentId), store, index);
+            return new Field(names.indexName(), Uid.createUid(context.stringBuilder(), type, parentId), fieldType);
         }
         // otherwise, we are running it post processing of the xcontent
         String parsedParentId = context.doc().get(Defaults.NAME);
@@ -141,7 +149,7 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
                     throw new MapperParsingException("No parent id provided, not within the document, and not externally");
                 }
                 // we did not add it in the parsing phase, add it now
-                return new Field(names.indexName(), Uid.createUid(context.stringBuilder(), type, parentId), store, index);
+                return new Field(names.indexName(), Uid.createUid(context.stringBuilder(), type, parentId), fieldType);
             } else if (parentId != null && !parsedParentId.equals(Uid.createUid(context.stringBuilder(), type, parentId))) {
                 throw new MapperParsingException("Parent id mismatch, document value is [" + Uid.createUid(parsedParentId).id() + "], while external value is [" + parentId + "]");
             }
@@ -151,7 +159,7 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
     }
 
     @Override
-    public Uid value(Fieldable field) {
+    public Uid value(Field field) {
         return Uid.createUid(field.stringValue());
     }
 
@@ -161,12 +169,12 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
     }
 
     @Override
-    public String valueAsString(Fieldable field) {
+    public String valueAsString(Field field) {
         return field.stringValue();
     }
 
     @Override
-    public Object valueForSearch(Fieldable field) {
+    public Object valueForSearch(Field field) {
         String fieldValue = field.stringValue();
         if (fieldValue == null) {
             return null;

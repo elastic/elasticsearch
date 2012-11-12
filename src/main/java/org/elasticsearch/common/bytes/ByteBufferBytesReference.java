@@ -126,6 +126,16 @@ public class ByteBufferBytesReference implements BytesReference {
     }
 
     @Override
+    public int hashCode() {
+        return Helper.bytesHashCode(this);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        return Helper.bytesEqual(this, (BytesReference) obj);
+    }
+
+    @Override
     public String toUtf8() {
         if (!buffer.hasRemaining()) {
             return "";

@@ -5,7 +5,6 @@ import com.spatial4j.core.shape.Point;
 import com.spatial4j.core.shape.Rectangle;
 import com.spatial4j.core.shape.Shape;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.geo.GeoShapeConstants;
@@ -56,12 +55,13 @@ public abstract class SpatialStrategy {
      * @param shape Shape to convert ints its indexable format
      * @return Fieldable for indexing the Shape
      */
-    public Fieldable createField(Shape shape) {
+    public Field createField(Shape shape) {
         int detailLevel = prefixTree.getLevelForDistance(
                 calcDistanceFromErrPct(shape, distanceErrorPct, GeoShapeConstants.SPATIAL_CONTEXT));
         List<Node> nodes = prefixTree.getNodes(shape, detailLevel, true);
         NodeTokenStream tokenStream = nodeTokenStream.get();
         tokenStream.setNodes(nodes);
+        // LUCENE 4 Upgrade: We should pass in the FieldType and use it here
         return new Field(fieldName.indexName(), tokenStream);
     }
 

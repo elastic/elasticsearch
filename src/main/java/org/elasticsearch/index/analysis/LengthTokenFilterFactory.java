@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.LengthFilter;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.miscellaneous.LengthFilter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;

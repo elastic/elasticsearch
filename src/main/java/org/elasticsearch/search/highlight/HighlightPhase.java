@@ -24,8 +24,7 @@ import com.google.common.collect.Maps;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Field;
-import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.highlight.*;
 import org.apache.lucene.search.highlight.Formatter;
@@ -34,7 +33,7 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FastStringReader;
-import org.elasticsearch.common.lucene.document.SingleFieldSelector;
+import org.elasticsearch.common.lucene.document.SingleFieldVisitor;
 import org.elasticsearch.common.lucene.search.vectorhighlight.SimpleBoundaryScanner2;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.StringText;
@@ -129,9 +128,9 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
             if (field.highlighterType() == null) {
                 // if we can do highlighting using Term Vectors, use FastVectorHighlighter, otherwise, use the
                 // slower plain highlighter
-                useFastVectorHighlighter = mapper.termVector() == Field.TermVector.WITH_POSITIONS_OFFSETS;
+                useFastVectorHighlighter = mapper.storeTermVectors() && mapper.storeTermVectorOffsets() && mapper.storeTermVectorPositions();
             } else if (field.highlighterType().equals("fast-vector-highlighter") || field.highlighterType().equals("fvh")) {
-                if (mapper.termVector() != Field.TermVector.WITH_POSITIONS_OFFSETS) {
+                if (!(mapper.storeTermVectors() && mapper.storeTermVectorOffsets() && mapper.storeTermVectorPositions())) {
                     throw new FetchPhaseExecutionException(context, "the field [" + field.field() + "] should be indexed with term vector with position offsets to be used with fast vector highlighter");
                 }
                 useFastVectorHighlighter = true;
@@ -170,9 +169,11 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                 List<Object> textsToHighlight;
                 if (mapper.stored()) {
                     try {
-                        Document doc = hitContext.reader().document(hitContext.docId(), new SingleFieldSelector(mapper.names().indexName()));
+                        SingleFieldVisitor fieldVisitor = new SingleFieldVisitor(mapper.names().indexName());
+                        hitContext.reader().document(hitContext.docId(), fieldVisitor);
+                        Document doc = fieldVisitor.createDocument();
                         textsToHighlight = new ArrayList<Object>(doc.getFields().size());
-                        for (Fieldable docField : doc.getFields()) {
+                        for (IndexableField docField : doc.getFields()) {
                             if (docField.stringValue() != null) {
                                 textsToHighlight.add(docField.stringValue());
                             }
@@ -182,7 +183,7 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                     }
                 } else {
                     SearchLookup lookup = context.lookup();
-                    lookup.setNextReader(hitContext.reader());
+                    lookup.setNextReader(hitContext.readerContext());
                     lookup.setNextDocId(hitContext.docId());
                     textsToHighlight = lookup.source().extractRawValues(mapper.names().sourcePath());
                 }
@@ -194,7 +195,7 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                     for (Object textToHighlight : textsToHighlight) {
                         String text = textToHighlight.toString();
                         Analyzer analyzer = context.mapperService().documentMapper(hitContext.hit().type()).mappers().indexAnalyzer();
-                        TokenStream tokenStream = analyzer.reusableTokenStream(mapper.names().indexName(), new FastStringReader(text));
+                        TokenStream tokenStream = analyzer.tokenStream(mapper.names().indexName(), new FastStringReader(text));
                         TextFragment[] bestTextFragments = entry.highlighter.getBestTextFragments(tokenStream, text, false, numberOfFragments);
                         for (TextFragment bestTextFragment : bestTextFragments) {
                             if (bestTextFragment != null && bestTextFragment.getScore() > 0) {

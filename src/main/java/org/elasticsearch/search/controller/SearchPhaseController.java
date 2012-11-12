@@ -24,6 +24,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Ordering;
 import gnu.trove.impl.Constants;
+import gnu.trove.map.TMap;
 import gnu.trove.map.hash.TObjectIntHashMap;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.trove.ExtTHashMap;
 import org.elasticsearch.common.trove.ExtTIntArrayList;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.dfs.AggregatedDfs;
@@ -86,15 +88,36 @@ public class SearchPhaseController extends AbstractComponent {
     }
 
     public AggregatedDfs aggregateDfs(Iterable<DfsSearchResult> results) {
-        TObjectIntHashMap<Term> dfMap = new TObjectIntHashMap<Term>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, -1);
+        TMap<Term, TermStatistics> termStatistics = new ExtTHashMap<Term, TermStatistics>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR);
+        TMap<String, CollectionStatistics> fieldStatistics = new ExtTHashMap<String, CollectionStatistics>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR);
         long aggMaxDoc = 0;
         for (DfsSearchResult result : results) {
-            for (int i = 0; i < result.freqs().length; i++) {
-                dfMap.adjustOrPutValue(result.terms()[i], result.freqs()[i], result.freqs()[i]);
+            for (int i = 0; i < result.termStatistics().length; i++) {
+                TermStatistics existing = termStatistics.get(result.terms()[i]);
+                if (existing != null) {
+                    termStatistics.put(result.terms()[i], new TermStatistics(existing.term(), existing.docFreq() + result.termStatistics()[i].docFreq(), existing.totalTermFreq() + result.termStatistics()[i].totalTermFreq()));
+                } else {
+                    termStatistics.put(result.terms()[i], result.termStatistics()[i]);
+                }
+
+            }
+            for (Map.Entry<String, CollectionStatistics> entry : result.fieldStatistics().entrySet()) {
+                CollectionStatistics existing = fieldStatistics.get(entry.getKey());
+                if (existing != null) {
+                    CollectionStatistics merged = new CollectionStatistics(
+                            entry.getKey(), existing.maxDoc() + entry.getValue().maxDoc(),
+                            existing.docCount() + entry.getValue().docCount(),
+                            existing.sumTotalTermFreq() + entry.getValue().sumTotalTermFreq(),
+                            existing.sumDocFreq() + entry.getValue().sumDocFreq()
+                    );
+                    fieldStatistics.put(entry.getKey(), merged);
+                } else {
+                    fieldStatistics.put(entry.getKey(), entry.getValue());
+                }
             }
             aggMaxDoc += result.maxDoc();
         }
-        return new AggregatedDfs(dfMap, aggMaxDoc);
+        return new AggregatedDfs(termStatistics, fieldStatistics, aggMaxDoc);
     }
 
     public ShardDoc[] sortDocs(Collection<? extends QuerySearchResultProvider> results1) {
@@ -173,7 +196,7 @@ public class SearchPhaseController extends AbstractComponent {
                         if (fDoc.fields[i] != null) {
                             allValuesAreNull = false;
                             if (fDoc.fields[i] instanceof String) {
-                                fieldDocs.fields[i] = new SortField(fieldDocs.fields[i].getField(), SortField.STRING, fieldDocs.fields[i].getReverse());
+                                fieldDocs.fields[i] = new SortField(fieldDocs.fields[i].getField(), SortField.Type.STRING, fieldDocs.fields[i].getReverse());
                             }
                             resolvedField = true;
                             break;
@@ -185,7 +208,7 @@ public class SearchPhaseController extends AbstractComponent {
                 }
                 if (!resolvedField && allValuesAreNull && fieldDocs.fields[i].getField() != null) {
                     // we did not manage to resolve a field (and its not score or doc, which have no field), and all the fields are null (which can only happen for STRING), make it a STRING
-                    fieldDocs.fields[i] = new SortField(fieldDocs.fields[i].getField(), SortField.STRING, fieldDocs.fields[i].getReverse());
+                    fieldDocs.fields[i] = new SortField(fieldDocs.fields[i].getField(), SortField.Type.STRING, fieldDocs.fields[i].getReverse());
                 }
             }
             queue = new ShardFieldDocSortedHitQueue(fieldDocs.fields, queueSize);
@@ -270,7 +293,7 @@ public class SearchPhaseController extends AbstractComponent {
             sorted = true;
             TopFieldDocs fieldDocs = (TopFieldDocs) querySearchResult.queryResult().topDocs();
             for (int i = 0; i < fieldDocs.fields.length; i++) {
-                if (fieldDocs.fields[i].getType() == SortField.SCORE) {
+                if (fieldDocs.fields[i].getType() == SortField.Type.SCORE) {
                     sortScoreIndex = i;
                 }
             }

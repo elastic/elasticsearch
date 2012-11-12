@@ -23,11 +23,13 @@ import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.support.NumericFieldDataComparator;
 
+import java.io.IOException;
+
 /**
  *
  */
 // LUCENE MONITOR - Monitor against FieldComparator.Long
-public class LongFieldDataComparator extends NumericFieldDataComparator {
+public class LongFieldDataComparator extends NumericFieldDataComparator<Long> {
 
     private final long[] values;
     private long bottom;
@@ -73,6 +75,12 @@ public class LongFieldDataComparator extends NumericFieldDataComparator {
     }
 
     @Override
+    public int compareDocToValue(int doc, Long val2) throws IOException {
+        long val1 = currentFieldData.longValue(doc);
+        return (int) (val1 - val2);
+    }
+
+    @Override
     public void copy(int slot, int doc) {
         values[slot] = currentFieldData.longValue(doc);
     }
@@ -83,8 +91,8 @@ public class LongFieldDataComparator extends NumericFieldDataComparator {
     }
 
     @Override
-    public Comparable value(int slot) {
-        return Long.valueOf(values[slot]);
+    public Long value(int slot) {
+        return values[slot];
     }
 
 }

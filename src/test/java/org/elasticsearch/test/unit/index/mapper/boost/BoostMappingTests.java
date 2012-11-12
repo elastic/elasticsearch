@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.unit.index.mapper.boost;
 
+import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -41,8 +42,14 @@ public class BoostMappingTests {
 
         ParsedDocument doc = mapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("_boost", 2.0f)
+                .field("field", "a")
+                .field("field", "b")
                 .endObject().bytes());
-        assertThat(doc.rootDoc().getBoost(), equalTo(2.0f));
+
+        // one fo the same named field will have the proper boost, the others will have 1
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertThat(fields[0].boost(), equalTo(2.0f));
+        assertThat(fields[1].boost(), equalTo(1.0f));
     }
 
     @Test
@@ -54,13 +61,15 @@ public class BoostMappingTests {
         DocumentMapper mapper = MapperTests.newParser().parse(mapping);
 
         ParsedDocument doc = mapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
+                .field("field", "a")
                 .field("_boost", 2.0f)
                 .endObject().bytes());
-        assertThat(doc.rootDoc().getBoost(), equalTo(1.0f));
+        assertThat(doc.rootDoc().getField("field").boost(), equalTo(1.0f));
 
         doc = mapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
+                .field("field", "a")
                 .field("custom_boost", 2.0f)
                 .endObject().bytes());
-        assertThat(doc.rootDoc().getBoost(), equalTo(2.0f));
+        assertThat(doc.rootDoc().getField("field").boost(), equalTo(2.0f));
     }
 }

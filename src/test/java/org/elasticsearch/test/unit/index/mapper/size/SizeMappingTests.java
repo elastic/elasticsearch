@@ -47,8 +47,8 @@ public class SizeMappingTests {
                 .bytes();
         ParsedDocument doc = docMapper.parse(SourceToParse.source(source).type("type").id("1"));
 
-        assertThat(doc.rootDoc().getFieldable("_size").isStored(), equalTo(false));
-        assertThat(doc.rootDoc().getFieldable("_size").tokenStreamValue(), notNullValue());
+        assertThat(doc.rootDoc().getField("_size").fieldType().stored(), equalTo(false));
+        assertThat(doc.rootDoc().getField("_size").tokenStream(docMapper.indexAnalyzer()), notNullValue());
     }
 
     @Test
@@ -65,8 +65,8 @@ public class SizeMappingTests {
                 .bytes();
         ParsedDocument doc = docMapper.parse(SourceToParse.source(source).type("type").id("1"));
 
-        assertThat(doc.rootDoc().getFieldable("_size").isStored(), equalTo(true));
-        assertThat(doc.rootDoc().getFieldable("_size").tokenStreamValue(), notNullValue());
+        assertThat(doc.rootDoc().getField("_size").fieldType().stored(), equalTo(true));
+        assertThat(doc.rootDoc().getField("_size").tokenStream(docMapper.indexAnalyzer()), notNullValue());
     }
 
     @Test
@@ -83,7 +83,7 @@ public class SizeMappingTests {
                 .bytes();
         ParsedDocument doc = docMapper.parse(SourceToParse.source(source).type("type").id("1"));
 
-        assertThat(doc.rootDoc().getFieldable("_size"), nullValue());
+        assertThat(doc.rootDoc().getField("_size"), nullValue());
     }
 
     @Test
@@ -99,6 +99,6 @@ public class SizeMappingTests {
                 .bytes();
         ParsedDocument doc = docMapper.parse(SourceToParse.source(source).type("type").id("1"));
 
-        assertThat(doc.rootDoc().getFieldable("_size"), nullValue());
+        assertThat(doc.rootDoc().getField("_size"), nullValue());
     }
 }

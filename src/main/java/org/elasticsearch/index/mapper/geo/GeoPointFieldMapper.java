@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.mapper.geo;
 
-import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
@@ -73,7 +73,7 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
 
     public static class Defaults {
         public static final ContentPath.Type PATH_TYPE = ContentPath.Type.FULL;
-        public static final Field.Store STORE = Field.Store.NO;
+        public static final boolean STORE = false;
         public static final boolean ENABLE_LATLON = false;
         public static final boolean ENABLE_GEOHASH = false;
         public static final int PRECISION = GeoHashUtils.PRECISION;
@@ -81,6 +81,16 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
         public static final boolean NORMALIZE_LON = true;
         public static final boolean VALIDATE_LAT = true;
         public static final boolean VALIDATE_LON = true;
+
+        public static final FieldType GEO_STRING_FIELD_TYPE = new FieldType(StringFieldMapper.Defaults.STRING_FIELD_TYPE);
+
+        static {
+            GEO_STRING_FIELD_TYPE.setIndexed(true);
+            GEO_STRING_FIELD_TYPE.setTokenized(false);
+            GEO_STRING_FIELD_TYPE.setOmitNorms(true);
+            GEO_STRING_FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_ONLY);
+            GEO_STRING_FIELD_TYPE.freeze();
+        }
     }
 
     public static class Builder extends Mapper.Builder<Builder, GeoPointFieldMapper> {
@@ -95,7 +105,7 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
 
         private int precision = Defaults.PRECISION;
 
-        private Field.Store store = Defaults.STORE;
+        private boolean store = Defaults.STORE;
 
         boolean validateLat = Defaults.VALIDATE_LAT;
         boolean validateLon = Defaults.VALIDATE_LON;
@@ -132,7 +142,7 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
             return this;
         }
 
-        public Builder store(Field.Store store) {
+        public Builder store(boolean store) {
             this.store = store;
             return this;
         }
@@ -143,7 +153,7 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
             context.path().pathType(pathType);
 
             GeoStringFieldMapper geoStringMapper = new GeoStringFieldMapper.Builder(name)
-                    .index(Field.Index.NOT_ANALYZED).omitNorms(true).indexOptions(IndexOptions.DOCS_ONLY).includeInAll(false).store(store).build(context);
+                    .includeInAll(false).store(store).build(context);
 
 
             DoubleFieldMapper latMapper = null;
@@ -162,7 +172,7 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
             }
             StringFieldMapper geohashMapper = null;
             if (enableGeoHash) {
-                geohashMapper = stringField(Names.GEOHASH).index(Field.Index.NOT_ANALYZED).includeInAll(false).omitNorms(true).indexOptions(IndexOptions.DOCS_ONLY).build(context);
+                geohashMapper = stringField(Names.GEOHASH).index(true).tokenized(false).includeInAll(false).omitNorms(true).indexOptions(IndexOptions.DOCS_ONLY).build(context);
             }
             context.path().remove();
 
@@ -493,8 +503,8 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
         if (enableGeoHash != Defaults.ENABLE_GEOHASH) {
             builder.field("geohash", enableGeoHash);
         }
-        if (geoStringMapper.store() != Defaults.STORE) {
-            builder.field("store", geoStringMapper.store().name().toLowerCase());
+        if (geoStringMapper.stored() != Defaults.STORE) {
+            builder.field("store", geoStringMapper.stored());
         }
         if (precision != Defaults.PRECISION) {
             builder.field("geohash_precision", precision);
@@ -534,7 +544,7 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
             protected String nullValue = Defaults.NULL_VALUE;
 
             public Builder(String name) {
-                super(name);
+                super(name, new FieldType(GeoPointFieldMapper.Defaults.GEO_STRING_FIELD_TYPE));
                 builder = this;
             }
 
@@ -552,7 +562,7 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
             @Override
             public GeoStringFieldMapper build(BuilderContext context) {
                 GeoStringFieldMapper fieldMapper = new GeoStringFieldMapper(buildNames(context),
-                        index, store, termVector, boost, omitNorms, indexOptions, nullValue,
+                        boost, fieldType, nullValue,
                         indexAnalyzer, searchAnalyzer);
                 fieldMapper.includeInAll(includeInAll);
                 return fieldMapper;
@@ -561,8 +571,8 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
 
         GeoPointFieldMapper geoMapper;
 
-        public GeoStringFieldMapper(Names names, Field.Index index, Field.Store store, Field.TermVector termVector, float boost, boolean omitNorms, IndexOptions indexOptions, String nullValue, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer) {
-            super(names, index, store, termVector, boost, omitNorms, indexOptions, nullValue, indexAnalyzer, searchAnalyzer);
+        public GeoStringFieldMapper(Names names, float boost, FieldType fieldType, String nullValue, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer) {
+            super(names, boost, fieldType, nullValue, indexAnalyzer, searchAnalyzer);
         }
 
         @Override

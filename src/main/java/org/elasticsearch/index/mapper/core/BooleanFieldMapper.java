@@ -20,8 +20,7 @@
 package org.elasticsearch.index.mapper.core;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.Fieldable;
-import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
@@ -49,7 +48,12 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
     public static final String CONTENT_TYPE = "boolean";
 
     public static class Defaults extends AbstractFieldMapper.Defaults {
-        public static final boolean OMIT_NORMS = true;
+        public static final FieldType BOOLEAN_FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
+
+        static {
+            BOOLEAN_FIELD_TYPE.setOmitNorms(true);
+            BOOLEAN_FIELD_TYPE.freeze();
+        }
         public static final Boolean NULL_VALUE = null;
     }
 
@@ -58,8 +62,7 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
         private Boolean nullValue = Defaults.NULL_VALUE;
 
         public Builder(String name) {
-            super(name);
-            this.omitNorms = Defaults.OMIT_NORMS;
+            super(name, new FieldType(Defaults.BOOLEAN_FIELD_TYPE));
             this.builder = this;
         }
 
@@ -69,18 +72,33 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
         }
 
         @Override
-        public Builder index(Field.Index index) {
+        public Builder index(boolean index) {
             return super.index(index);
         }
 
         @Override
-        public Builder store(Field.Store store) {
+        public Builder store(boolean store) {
             return super.store(store);
         }
 
         @Override
-        public Builder termVector(Field.TermVector termVector) {
-            return super.termVector(termVector);
+        protected Builder storeTermVectors(boolean termVectors) {
+            return super.storeTermVectors(termVectors);
+        }
+
+        @Override
+        protected Builder storeTermVectorOffsets(boolean termVectorOffsets) {
+            return super.storeTermVectorOffsets(termVectorOffsets);
+        }
+
+        @Override
+        protected Builder storeTermVectorPositions(boolean termVectorPositions) {
+            return super.storeTermVectorPositions(termVectorPositions);
+        }
+
+        @Override
+        protected Builder storeTermVectorPayloads(boolean termVectorPayloads) {
+            return super.storeTermVectorPayloads(termVectorPayloads);
         }
 
         @Override
@@ -96,8 +114,7 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
 
         @Override
         public BooleanFieldMapper build(BuilderContext context) {
-            return new BooleanFieldMapper(buildNames(context), index, store,
-                    termVector, boost, omitNorms, indexOptions, nullValue);
+            return new BooleanFieldMapper(buildNames(context), boost, fieldType, nullValue);
         }
     }
 
@@ -119,9 +136,8 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
 
     private Boolean nullValue;
 
-    protected BooleanFieldMapper(Names names, Field.Index index, Field.Store store, Field.TermVector termVector,
-                                 float boost, boolean omitNorms, IndexOptions indexOptions, Boolean nullValue) {
-        super(names, index, store, termVector, boost, omitNorms, indexOptions, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
+    protected BooleanFieldMapper(Names names, float boost, FieldType fieldType, Boolean nullValue) {
+        super(names, boost, fieldType, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
         this.nullValue = nullValue;
     }
 
@@ -131,7 +147,7 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
     }
 
     @Override
-    public Boolean value(Fieldable field) {
+    public Boolean value(Field field) {
         return field.stringValue().charAt(0) == 'T' ? Boolean.TRUE : Boolean.FALSE;
     }
 
@@ -141,7 +157,7 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
     }
 
     @Override
-    public String valueAsString(Fieldable field) {
+    public String valueAsString(Field field) {
         return field.stringValue().charAt(0) == 'T' ? "true" : "false";
     }
 
@@ -184,7 +200,7 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
         if (value == null) {
             return null;
         }
-        return new Field(names.indexName(), value, store, index, termVector);
+        return new Field(names.indexName(), value, fieldType);
     }
 
     @Override
@@ -195,20 +211,30 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
     @Override
     protected void doXContentBody(XContentBuilder builder) throws IOException {
         super.doXContentBody(builder);
-        if (index != Defaults.INDEX) {
-            builder.field("index", index.name().toLowerCase());
+        if (indexed() != Defaults.BOOLEAN_FIELD_TYPE.indexed() ||
+                analyzed() != Defaults.BOOLEAN_FIELD_TYPE.tokenized()) {
+            builder.field("index", indexTokenizeOptionToString(indexed(), analyzed()));
         }
-        if (store != Defaults.STORE) {
-            builder.field("store", store.name().toLowerCase());
+        if (stored() != Defaults.BOOLEAN_FIELD_TYPE.stored()) {
+            builder.field("store", stored());
         }
-        if (termVector != Defaults.TERM_VECTOR) {
-            builder.field("term_vector", termVector.name().toLowerCase());
+        if (storeTermVectors() != Defaults.BOOLEAN_FIELD_TYPE.storeTermVectors()) {
+            builder.field("store_term_vector", storeTermVectors());
         }
-        if (omitNorms != Defaults.OMIT_NORMS) {
-            builder.field("omit_norms", omitNorms);
+        if (storeTermVectorOffsets() != Defaults.BOOLEAN_FIELD_TYPE.storeTermVectorOffsets()) {
+            builder.field("store_term_vector_offsets", storeTermVectorOffsets());
         }
-        if (indexOptions != Defaults.INDEX_OPTIONS) {
-            builder.field("index_options", indexOptionToString(indexOptions));
+        if (storeTermVectorPositions() != Defaults.BOOLEAN_FIELD_TYPE.storeTermVectorPositions()) {
+            builder.field("store_term_vector_positions", storeTermVectorPositions());
+        }
+        if (storeTermVectorPayloads() != Defaults.BOOLEAN_FIELD_TYPE.storeTermVectorPayloads()) {
+            builder.field("store_term_vector_payloads", storeTermVectorPayloads());
+        }
+        if (omitNorms() != Defaults.BOOLEAN_FIELD_TYPE.omitNorms()) {
+            builder.field("omit_norms", omitNorms());
+        }
+        if (indexOptions() != Defaults.BOOLEAN_FIELD_TYPE.indexOptions()) {
+            builder.field("index_options", indexOptionToString(indexOptions()));
         }
         if (nullValue != null) {
             builder.field("null_value", nullValue);

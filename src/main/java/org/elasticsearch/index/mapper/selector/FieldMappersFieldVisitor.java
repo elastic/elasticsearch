@@ -19,44 +19,39 @@
 
 package org.elasticsearch.index.mapper.selector;
 
-import org.apache.lucene.document.FieldSelectorResult;
-import org.elasticsearch.common.lucene.document.ResetFieldSelector;
+import org.apache.lucene.index.FieldInfo;
+import org.elasticsearch.common.lucene.document.AbstractMultipleFieldsVisitor;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 
+import java.io.IOException;
 import java.util.HashSet;
+import java.util.Set;
 
 /**
  *
  */
-public class FieldMappersFieldSelector implements ResetFieldSelector {
+public class FieldMappersFieldVisitor extends AbstractMultipleFieldsVisitor {
 
-    private final HashSet<String> names = new HashSet<String>();
+    protected final Set<String> fieldsToAdd = new HashSet<String>();
 
     public void add(String fieldName) {
-        names.add(fieldName);
+        fieldsToAdd.add(fieldName);
     }
 
     public void add(FieldMappers fieldMappers) {
         for (FieldMapper fieldMapper : fieldMappers) {
-            names.add(fieldMapper.names().indexName());
+            fieldsToAdd.add(fieldMapper.names().indexName());
         }
     }
 
     @Override
-    public FieldSelectorResult accept(String fieldName) {
-        if (names.contains(fieldName)) {
-            return FieldSelectorResult.LOAD;
-        }
-        return FieldSelectorResult.NO_LOAD;
-    }
-
-    @Override
-    public void reset() {
+    public Status needsField(FieldInfo fieldInfo) throws IOException {
+        return fieldsToAdd.contains(fieldInfo.name) ? Status.YES : Status.NO;
     }
 
     @Override
     public String toString() {
-        return "fields(" + names + ")";
+        return "fields(" + fieldsToAdd + ")";
     }
 }

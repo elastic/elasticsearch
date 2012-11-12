@@ -20,10 +20,8 @@
 package org.elasticsearch.test.unit.deps.lucene;
 
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.NumericField;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.document.IntField;
+import org.apache.lucene.index.*;
 import org.apache.lucene.search.FieldCache;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
@@ -49,16 +47,16 @@ public class LuceneFieldCacheTests {
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
 
         Document doc = new Document();
-        NumericField field = new NumericField("int1").setIntValue(1);
+        IntField field = new IntField("int1", 1, IntField.TYPE_NOT_STORED);
         doc.add(field);
 
-        field = new NumericField("int1").setIntValue(2);
+        field = new IntField("int1", 2, IntField.TYPE_NOT_STORED);
         doc.add(field);
 
         indexWriter.addDocument(doc);
 
-        IndexReader reader = IndexReader.open(indexWriter, true);
-        int[] ints = FieldCache.DEFAULT.getInts(reader, "int1");
+        AtomicReader reader = SlowCompositeReaderWrapper.wrap(IndexReader.open(indexWriter, true));
+        int[] ints = FieldCache.DEFAULT.getInts(reader, "int1", false);
         assertThat(ints.length, equalTo(1));
         assertThat(ints[0], equalTo(2));
     }

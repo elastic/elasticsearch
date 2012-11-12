@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.io.stream;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -82,6 +83,20 @@ public abstract class StreamInput extends InputStream {
         byte[] bytes = new byte[length];
         readBytes(bytes, 0, length);
         return new BytesArray(bytes, 0, length);
+    }
+
+    public BytesRef readBytesRef() throws IOException {
+        int length = readVInt();
+        return readBytesRef(length);
+    }
+
+    public BytesRef readBytesRef(int length) throws IOException {
+        if (length == 0) {
+            return new BytesRef();
+        }
+        byte[] bytes = new byte[length];
+        readBytes(bytes, 0, length);
+        return new BytesRef(bytes, 0, length);
     }
 
     public void readFully(byte[] b) throws IOException {
@@ -347,6 +362,8 @@ public abstract class StreamInput extends InputStream {
                 return readBytesReference();
             case 15:
                 return readText();
+            case 16:
+                return readShort();
             default:
                 throw new IOException("Can't read unknown type [" + type + "]");
         }

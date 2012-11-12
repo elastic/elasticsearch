@@ -23,6 +23,8 @@ import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.text.StringText;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
@@ -74,12 +76,12 @@ public class InternalTermsStatsLongFacet extends InternalTermsStatsFacet {
         }
 
         @Override
-        public String term() {
-            return Long.toString(term);
+        public Text term() {
+            return new StringText(Long.toString(term));
         }
 
         @Override
-        public String getTerm() {
+        public Text getTerm() {
             return term();
         }
 

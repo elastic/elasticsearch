@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Query;
@@ -122,8 +123,9 @@ public class CustomScoreQueryParser implements QueryParser {
         }
 
         @Override
-        public void setNextReader(IndexReader reader) {
-            script.setNextReader(reader);
+        public void setNextReader(AtomicReaderContext ctx) {
+            //LUCENE 4 UPGRADE should this pass on a ARC or just and atomic reader? 
+            script.setNextReader(ctx);
         }
 
         @Override

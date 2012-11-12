@@ -21,9 +21,9 @@ package org.elasticsearch.index.aliases;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.UnmodifiableIterator;
+import org.apache.lucene.queries.FilterClause;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilterClause;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;

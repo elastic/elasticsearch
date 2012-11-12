@@ -20,7 +20,7 @@
 package org.elasticsearch.test.unit.index.mapper.multifield.merge;
 
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -54,9 +54,9 @@ public class JavaMultiFieldMergeTests {
 
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/mapper/multifield/merge/test-data.json"));
         Document doc = docMapper.parse(json).rootDoc();
-        Fieldable f = doc.getFieldable("name");
+        IndexableField f = doc.getField("name");
         assertThat(f, notNullValue());
-        f = doc.getFieldable("name.indexed");
+        f = doc.getField("name.indexed");
         assertThat(f, nullValue());
 
 
@@ -78,9 +78,9 @@ public class JavaMultiFieldMergeTests {
 
         json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/mapper/multifield/merge/test-data.json"));
         doc = docMapper.parse(json).rootDoc();
-        f = doc.getFieldable("name");
+        f = doc.getField("name");
         assertThat(f, notNullValue());
-        f = doc.getFieldable("name.indexed");
+        f = doc.getField("name.indexed");
         assertThat(f, notNullValue());
 
         mapping = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/mapper/multifield/merge/test-mapping3.json");

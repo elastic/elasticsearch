@@ -48,7 +48,7 @@ public class SimpleStringMappingTests {
                 .endObject()
                 .bytes());
 
-        assertThat(doc.rootDoc().getFieldable("field"), notNullValue());
+        assertThat(doc.rootDoc().getField("field"), notNullValue());
 
         doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -56,7 +56,7 @@ public class SimpleStringMappingTests {
                 .endObject()
                 .bytes());
 
-        assertThat(doc.rootDoc().getFieldable("field"), notNullValue());
+        assertThat(doc.rootDoc().getField("field"), notNullValue());
 
         doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -64,7 +64,7 @@ public class SimpleStringMappingTests {
                 .endObject()
                 .bytes());
 
-        assertThat(doc.rootDoc().getFieldable("field"), nullValue());
+        assertThat(doc.rootDoc().getField("field"), nullValue());
     }
 
     @Test
@@ -81,8 +81,8 @@ public class SimpleStringMappingTests {
                 .endObject()
                 .bytes());
 
-        assertThat(doc.rootDoc().getFieldable("field").getOmitNorms(), equalTo(false));
-        assertThat(doc.rootDoc().getFieldable("field").getIndexOptions(), equalTo(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS));
+        assertThat(doc.rootDoc().getField("field").fieldType().omitNorms(), equalTo(false));
+        assertThat(doc.rootDoc().getField("field").fieldType().indexOptions(), equalTo(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS));
     }
 
     @Test
@@ -99,8 +99,8 @@ public class SimpleStringMappingTests {
                 .endObject()
                 .bytes());
 
-        assertThat(doc.rootDoc().getFieldable("field").getOmitNorms(), equalTo(true));
-        assertThat(doc.rootDoc().getFieldable("field").getIndexOptions(), equalTo(FieldInfo.IndexOptions.DOCS_ONLY));
+        assertThat(doc.rootDoc().getField("field").fieldType().omitNorms(), equalTo(true));
+        assertThat(doc.rootDoc().getField("field").fieldType().indexOptions(), equalTo(FieldInfo.IndexOptions.DOCS_ONLY));
 
         // now test it explicitly set
 
@@ -116,7 +116,7 @@ public class SimpleStringMappingTests {
                 .endObject()
                 .bytes());
 
-        assertThat(doc.rootDoc().getFieldable("field").getOmitNorms(), equalTo(false));
-        assertThat(doc.rootDoc().getFieldable("field").getIndexOptions(), equalTo(FieldInfo.IndexOptions.DOCS_AND_FREQS));
+        assertThat(doc.rootDoc().getField("field").fieldType().omitNorms(), equalTo(false));
+        assertThat(doc.rootDoc().getField("field").fieldType().indexOptions(), equalTo(FieldInfo.IndexOptions.DOCS_AND_FREQS));
     }
 }

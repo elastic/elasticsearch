@@ -60,9 +60,11 @@ public class FuzzyQueryParser implements QueryParser {
 
         String value = null;
         float boost = 1.0f;
+        //LUCENE 4 UPGRADE we should find a good default here I'd vote for 1.0 -> 1 edit
         String minSimilarity = "0.5";
         int prefixLength = FuzzyQuery.defaultPrefixLength;
         int maxExpansions = FuzzyQuery.defaultMaxExpansions;
+        boolean transpositions = false;
         MultiTermQuery.RewriteMethod rewriteMethod = null;
         token = parser.nextToken();
         if (token == XContentParser.Token.START_OBJECT) {
@@ -83,6 +85,8 @@ public class FuzzyQueryParser implements QueryParser {
                         prefixLength = parser.intValue();
                     } else if ("max_expansions".equals(currentFieldName) || "maxExpansions".equals(currentFieldName)) {
                         maxExpansions = parser.intValue();
+                    } else if ("transpositions".equals(currentFieldName)) {
+                      transpositions = parser.booleanValue();
                     } else if ("rewrite".equals(currentFieldName)) {
                         rewriteMethod = QueryParsers.parseRewriteMethod(parser.textOrNull(), null);
                     } else {
@@ -105,11 +109,14 @@ public class FuzzyQueryParser implements QueryParser {
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
         if (smartNameFieldMappers != null) {
             if (smartNameFieldMappers.hasMapper()) {
-                query = smartNameFieldMappers.mapper().fuzzyQuery(value, minSimilarity, prefixLength, maxExpansions);
+                query = smartNameFieldMappers.mapper().fuzzyQuery(value, minSimilarity, prefixLength, maxExpansions, transpositions);
             }
         }
         if (query == null) {
-            query = new FuzzyQuery(new Term(fieldName, value), Float.parseFloat(minSimilarity), prefixLength, maxExpansions);
+            //LUCENE 4 UPGRADE we need to document that this should now be an int rather than a float
+            int edits = FuzzyQuery.floatToEdits(Float.parseFloat(minSimilarity), 
+              value.codePointCount(0, value.length()));
+            query = new FuzzyQuery(new Term(fieldName, value), edits, prefixLength, maxExpansions, transpositions);
         }
         if (query instanceof MultiTermQuery) {
             QueryParsers.setRewriteMethod((MultiTermQuery) query, rewriteMethod);

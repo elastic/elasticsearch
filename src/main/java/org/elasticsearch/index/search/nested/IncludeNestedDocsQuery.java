@@ -1,12 +1,15 @@
 package org.elasticsearch.index.search.nested;
 
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.docset.FixedBitDocSet;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Set;
 
 /**
@@ -48,7 +51,7 @@ public class IncludeNestedDocsQuery extends Query {
     }
 
     @Override
-    public Weight createWeight(Searcher searcher) throws IOException {
+    public Weight createWeight(IndexSearcher searcher) throws IOException {
         return new IncludeNestedDocsWeight(parentQuery, parentQuery.createWeight(searcher), parentFilter);
     }
 
@@ -70,30 +73,25 @@ public class IncludeNestedDocsQuery extends Query {
         }
 
         @Override
-        public float getValue() {
-            return parentWeight.getValue();
+        public void normalize(float norm, float topLevelBoost) {
+            parentWeight.normalize(norm, topLevelBoost);
         }
 
         @Override
-        public float sumOfSquaredWeights() throws IOException {
-            return parentWeight.sumOfSquaredWeights() * parentQuery.getBoost() * parentQuery.getBoost();
+        public float getValueForNormalization() throws IOException {
+            return parentWeight.getValueForNormalization(); // this query is never boosted so just delegate...
         }
 
         @Override
-        public void normalize(float norm) {
-            parentWeight.normalize(norm * parentQuery.getBoost());
-        }
-
-        @Override
-        public Scorer scorer(IndexReader reader, boolean scoreDocsInOrder, boolean topScorer) throws IOException {
-            final Scorer parentScorer = parentWeight.scorer(reader, true, false);
+        public Scorer scorer(AtomicReaderContext context, boolean scoreDocsInOrder, boolean topScorer, Bits acceptDocs) throws IOException {
+            final Scorer parentScorer = parentWeight.scorer(context, true, false, acceptDocs);
 
             // no matches
             if (parentScorer == null) {
                 return null;
             }
 
-            DocIdSet parents = parentsFilter.getDocIdSet(reader);
+            DocIdSet parents = parentsFilter.getDocIdSet(context, acceptDocs);
             if (parents == null) {
                 // No matches
                 return null;
@@ -114,8 +112,8 @@ public class IncludeNestedDocsQuery extends Query {
         }
 
         @Override
-        public Explanation explain(IndexReader reader, int doc) throws IOException {
-            return null;
+        public Explanation explain(AtomicReaderContext context, int doc) throws IOException {
+            return null; //Query is used internally and not by users, so explain can be empty
         }
 
         @Override
@@ -154,12 +152,10 @@ public class IncludeNestedDocsQuery extends Query {
         }
 
         @Override
-        public void visitSubScorers(Query parent, BooleanClause.Occur relationship, ScorerVisitor<Query, Query, Scorer> visitor) {
-            super.visitSubScorers(parent, relationship, visitor);
-            parentScorer.visitScorers(visitor);
+        public Collection<ChildScorer> getChildren() {
+            return parentScorer.getChildren();
         }
 
-        @Override
         public int nextDoc() throws IOException {
             if (currentParentPointer == NO_MORE_DOCS) {
                 return (currentDoc = NO_MORE_DOCS);
@@ -187,7 +183,6 @@ public class IncludeNestedDocsQuery extends Query {
             return currentDoc;
         }
 
-        @Override
         public int advance(int target) throws IOException {
             if (target == NO_MORE_DOCS) {
                 return (currentDoc = NO_MORE_DOCS);
@@ -222,6 +217,10 @@ public class IncludeNestedDocsQuery extends Query {
 
         public float score() throws IOException {
             return parentScorer.score();
+        }
+
+        public float freq() throws IOException {
+            return parentScorer.freq();
         }
 
         public int docID() {
@@ -269,8 +268,8 @@ public class IncludeNestedDocsQuery extends Query {
     }
 
     @Override
-    public Object clone() {
-        Query clonedQuery = (Query) origParentQuery.clone();
+    public Query clone() {
+        Query clonedQuery = origParentQuery.clone();
         return new IncludeNestedDocsQuery(clonedQuery, this);
     }
 }

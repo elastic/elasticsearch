@@ -21,7 +21,7 @@ package org.elasticsearch.index.mapper.internal;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
@@ -47,10 +47,18 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
 
     public static class Defaults extends AbstractFieldMapper.Defaults {
         public static final String NAME = "_routing";
-        public static final Field.Index INDEX = Field.Index.NOT_ANALYZED;
-        public static final Field.Store STORE = Field.Store.YES;
-        public static final boolean OMIT_NORMS = true;
-        public static final IndexOptions INDEX_OPTIONS = IndexOptions.DOCS_ONLY;
+
+        public static final FieldType ROUTING_FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
+
+        static {
+            ROUTING_FIELD_TYPE.setIndexed(true);
+            ROUTING_FIELD_TYPE.setTokenized(false);
+            ROUTING_FIELD_TYPE.setStored(true);
+            ROUTING_FIELD_TYPE.setOmitNorms(true);
+            ROUTING_FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_ONLY);
+            ROUTING_FIELD_TYPE.freeze();
+        }
+
         public static final boolean REQUIRED = false;
         public static final String PATH = null;
     }
@@ -62,9 +70,7 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
         private String path = Defaults.PATH;
 
         public Builder() {
-            super(Defaults.NAME);
-            store = Defaults.STORE;
-            index = Defaults.INDEX;
+            super(Defaults.NAME, new FieldType(Defaults.ROUTING_FIELD_TYPE));
         }
 
         public Builder required(boolean required) {
@@ -79,7 +85,7 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
 
         @Override
         public RoutingFieldMapper build(BuilderContext context) {
-            return new RoutingFieldMapper(store, index, required, path);
+            return new RoutingFieldMapper(fieldType, required, path);
         }
     }
 
@@ -107,11 +113,11 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
     private final String path;
 
     public RoutingFieldMapper() {
-        this(Defaults.STORE, Defaults.INDEX, Defaults.REQUIRED, Defaults.PATH);
+        this(new FieldType(Defaults.ROUTING_FIELD_TYPE), Defaults.REQUIRED, Defaults.PATH);
     }
 
-    protected RoutingFieldMapper(Field.Store store, Field.Index index, boolean required, String path) {
-        super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), index, store, Defaults.TERM_VECTOR, 1.0f, Defaults.OMIT_NORMS, Defaults.INDEX_OPTIONS, Lucene.KEYWORD_ANALYZER,
+    protected RoutingFieldMapper(FieldType fieldType, boolean required, String path) {
+        super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), 1.0f, fieldType, Lucene.KEYWORD_ANALYZER,
                 Lucene.KEYWORD_ANALYZER);
         this.required = required;
         this.path = path;
@@ -130,12 +136,12 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
     }
 
     public String value(Document document) {
-        Fieldable field = document.getFieldable(names.indexName());
+        Field field = (Field) document.getField(names.indexName());
         return field == null ? null : value(field);
     }
 
     @Override
-    public String value(Fieldable field) {
+    public String value(Field field) {
         return field.stringValue();
     }
 
@@ -145,7 +151,7 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
     }
 
     @Override
-    public String valueAsString(Fieldable field) {
+    public String valueAsString(Field field) {
         return value(field);
     }
 
@@ -160,7 +166,7 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
         if (path != null && routing != null) {
             // we have a path, check if we can validate we have the same routing value as the one in the doc...
             String value = null;
-            Fieldable field = context.doc().getFieldable(path);
+            Field field = (Field) context.doc().getField(path);
             if (field != null) {
                 value = field.stringValue();
                 if (value == null) {
@@ -209,7 +215,7 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
                     context.ignoredValue(names.indexName(), routing);
                     return null;
                 }
-                return new Field(names.indexName(), routing, store, index);
+                return new Field(names.indexName(), routing, fieldType);
             }
         }
         return null;
@@ -224,15 +230,16 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // if all are defaults, no sense to write it at all
-        if (index == Defaults.INDEX && store == Defaults.STORE && required == Defaults.REQUIRED && path == Defaults.PATH) {
+        if (indexed() == Defaults.ROUTING_FIELD_TYPE.indexed() &&
+            stored() == Defaults.ROUTING_FIELD_TYPE.stored() && required == Defaults.REQUIRED && path == Defaults.PATH) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
-        if (index != Defaults.INDEX) {
-            builder.field("index", index.name().toLowerCase());
+        if (indexed() != Defaults.ROUTING_FIELD_TYPE.indexed()) {
+            builder.field("index", indexed());
         }
-        if (store != Defaults.STORE) {
-            builder.field("store", store.name().toLowerCase());
+        if (stored() != Defaults.ROUTING_FIELD_TYPE.stored()) {
+            builder.field("store", stored());
         }
         if (required != Defaults.REQUIRED) {
             builder.field("required", required);

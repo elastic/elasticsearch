@@ -19,13 +19,12 @@
 
 package org.apache.lucene.search;
 
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.search.controller.ShardFieldDoc;
 
 import java.io.IOException;
-import java.text.Collator;
-import java.util.Locale;
 
 /**
  *
@@ -48,7 +47,7 @@ public class ShardFieldDocSortedHitQueue extends PriorityQueue<ShardFieldDoc> {
      * @param size   The number of hits to retain.  Must be greater than zero.
      */
     public ShardFieldDocSortedHitQueue(SortField[] fields, int size) {
-        initialize(size);
+        super(size);
         setFields(fields);
     }
 
@@ -83,31 +82,11 @@ public class ShardFieldDocSortedHitQueue extends PriorityQueue<ShardFieldDoc> {
         return fields;
     }
 
-
-    /**
-     * Returns an array of collators, possibly <code>null</code>.  The collators
-     * correspond to any SortFields which were given a specific locale.
-     *
-     * @param fields Array of sort fields.
-     * @return Array, possibly <code>null</code>.
-     */
-    private Collator[] hasCollators(final SortField[] fields) {
-        if (fields == null) return null;
-        Collator[] ret = new Collator[fields.length];
-        for (int i = 0; i < fields.length; ++i) {
-            Locale locale = fields[i].getLocale();
-            if (locale != null)
-                ret[i] = Collator.getInstance(locale);
-        }
-        return ret;
-    }
-
-
     /**
      * Returns whether <code>a</code> is less relevant than <code>b</code>.
      *
-     * @param a ScoreDoc
-     * @param b ScoreDoc
+     * @param docA ScoreDoc
+     * @param docB ScoreDoc
      * @return <code>true</code> if document <code>a</code> should be sorted after document <code>b</code>.
      */
     @SuppressWarnings("unchecked")
@@ -116,10 +95,10 @@ public class ShardFieldDocSortedHitQueue extends PriorityQueue<ShardFieldDoc> {
         final int n = fields.length;
         int c = 0;
         for (int i = 0; i < n && c == 0; ++i) {
-            final int type = fields[i].getType();
-            if (type == SortField.STRING) {
-                final String s1 = (String) docA.fields[i];
-                final String s2 = (String) docB.fields[i];
+            final SortField.Type type = fields[i].getType();
+            if (type == SortField.Type.STRING) {
+                final BytesRef s1 = (BytesRef) docA.fields[i];
+                final BytesRef s2 = (BytesRef) docB.fields[i];
                 // null values need to be sorted first, because of how FieldCache.getStringIndex()
                 // works - in that routine, any documents without a value in the given field are
                 // put first.  If both are null, the next SortField is used

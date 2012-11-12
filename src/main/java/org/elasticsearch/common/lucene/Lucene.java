@@ -19,10 +19,12 @@
 
 package org.elasticsearch.common.lucene;
 
-import org.apache.lucene.analysis.KeywordAnalyzer;
+import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -40,7 +42,7 @@ import java.lang.reflect.Field;
  */
 public class Lucene {
 
-    public static final Version VERSION = Version.LUCENE_36;
+    public static final Version VERSION = Version.LUCENE_40;
     public static final Version ANALYZER_VERSION = VERSION;
     public static final Version QUERYPARSER_VERSION = VERSION;
 
@@ -56,6 +58,9 @@ public class Lucene {
     public static Version parseVersion(@Nullable String version, Version defaultVersion, ESLogger logger) {
         if (version == null) {
             return defaultVersion;
+        }
+        if ("4.0".equals(version)) {
+            return Version.LUCENE_40;
         }
         if ("3.6".equals(version)) {
             return Version.LUCENE_36;
@@ -82,6 +87,27 @@ public class Lucene {
         return defaultVersion;
     }
 
+    /**
+     * Reads the segments infos, returning null if it doesn't exists
+     */
+    @Nullable
+    public static SegmentInfos readSegmentInfosIfExists(Directory directory) {
+        try {
+            return readSegmentInfos(directory);
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
+    /**
+     * Reads the segments infos, failing if it fails to load
+     */
+    public static SegmentInfos readSegmentInfos(Directory directory) throws IOException {
+        final SegmentInfos sis = new SegmentInfos();
+        sis.read(directory);
+        return sis;
+    }
+
     public static long count(IndexSearcher searcher, Query query) throws IOException {
         TotalHitCountCollector countCollector = new TotalHitCountCollector();
         // we don't need scores, so wrap it in a constant score query
@@ -90,18 +116,6 @@ public class Lucene {
         }
         searcher.search(query, countCollector);
         return countCollector.getTotalHits();
-    }
-
-    public static int docId(IndexReader reader, Term term) throws IOException {
-        TermDocs termDocs = reader.termDocs(term);
-        try {
-            if (termDocs.next()) {
-                return termDocs.doc();
-            }
-            return NO_DOC;
-        } finally {
-            termDocs.close();
-        }
     }
 
     /**
@@ -134,7 +148,7 @@ public class Lucene {
                 if (in.readBoolean()) {
                     field = in.readUTF();
                 }
-                fields[i] = new SortField(field, in.readVInt(), in.readBoolean());
+                fields[i] = new SortField(field, readSortType(in), in.readBoolean());
             }
 
             FieldDoc[] fieldDocs = new FieldDoc[in.readVInt()];
@@ -160,6 +174,8 @@ public class Lucene {
                         cFields[j] = in.readShort();
                     } else if (type == 8) {
                         cFields[j] = in.readBoolean();
+                    } else if (type == 9) {
+                        cFields[j] = in.readBytesRef();
                     } else {
                         throw new IOException("Can't match type [" + type + "]");
                     }
@@ -201,9 +217,9 @@ public class Lucene {
                     out.writeUTF(sortField.getField());
                 }
                 if (sortField.getComparatorSource() != null) {
-                    out.writeVInt(((FieldDataType.ExtendedFieldComparatorSource) sortField.getComparatorSource()).reducedType());
+                    writeSortType(out, ((FieldDataType.ExtendedFieldComparatorSource) sortField.getComparatorSource()).reducedType());
                 } else {
-                    out.writeVInt(sortField.getType());
+                    writeSortType(out, sortField.getType());
                 }
                 out.writeBoolean(sortField.getReverse());
             }
@@ -245,6 +261,9 @@ public class Lucene {
                         } else if (type == Boolean.class) {
                             out.writeByte((byte) 8);
                             out.writeBoolean((Boolean) field);
+                        } else if (type == BytesRef.class) {
+                            out.writeByte((byte) 9);
+                            out.writeBytesRef((BytesRef) field);
                         } else {
                             throw new IOException("Can't handle sort field value of type [" + type + "]");
                         }
@@ -269,6 +288,15 @@ public class Lucene {
                 out.writeFloat(doc.score);
             }
         }
+    }
+
+    // LUCENE 4 UPGRADE: We might want to maintain our own ordinal, instead of Lucene's ordinal
+    public static SortField.Type readSortType(StreamInput in) throws IOException {
+        return SortField.Type.values()[in.readVInt()];
+    }
+
+    public static void writeSortType(StreamOutput out, SortField.Type sortType) throws IOException {
+        out.writeVInt(sortType.ordinal());
     }
 
     public static Explanation readExplanation(StreamInput in) throws IOException {
@@ -312,9 +340,9 @@ public class Lucene {
         segmentReaderSegmentInfoField = segmentReaderSegmentInfoFieldX;
     }
 
-    public static SegmentInfo getSegmentInfo(SegmentReader reader) {
+    public static SegmentInfoPerCommit getSegmentInfo(SegmentReader reader) {
         try {
-            return (SegmentInfo) segmentReaderSegmentInfoField.get(reader);
+            return (SegmentInfoPerCommit) segmentReaderSegmentInfoField.get(reader);
         } catch (IllegalAccessException e) {
             return null;
         }
@@ -343,7 +371,7 @@ public class Lucene {
         }
 
         @Override
-        public void setNextReader(IndexReader reader, int docBase) throws IOException {
+        public void setNextReader(AtomicReaderContext context) throws IOException {
         }
 
         @Override

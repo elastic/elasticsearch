@@ -19,10 +19,14 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.*;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.core.LowerCaseFilter;
+import org.apache.lucene.analysis.core.StopAnalyzer;
+import org.apache.lucene.analysis.core.StopFilter;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.standard.StandardFilter;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
+import org.apache.lucene.analysis.util.StopwordAnalyzerBase;
 import org.apache.lucene.util.Version;
 
 import java.io.IOException;
@@ -43,9 +47,9 @@ public class StandardHtmlStripAnalyzer extends StopwordAnalyzerBase {
         tok = new StopFilter(matchVersion, tok, stopwords);
         return new TokenStreamComponents(src, tok) {
             @Override
-            protected boolean reset(final Reader reader) throws IOException {
+            protected void setReader(final Reader reader) throws IOException {
                 src.setMaxTokenLength(StandardAnalyzer.DEFAULT_MAX_TOKEN_LENGTH);
-                return super.reset(reader);
+                super.setReader(reader);
             }
         };
     }

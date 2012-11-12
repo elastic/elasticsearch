@@ -19,8 +19,9 @@
 
 package org.elasticsearch.index.field.data;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.search.FieldComparatorSource;
+import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.bytes.ByteFieldDataType;
@@ -50,13 +51,13 @@ public interface FieldDataType<T extends FieldData> {
 
     ExtendedFieldComparatorSource newFieldComparatorSource(FieldDataCache cache, @Nullable String missing);
 
-    T load(IndexReader reader, String fieldName) throws IOException;
+    T load(AtomicReader reader, String fieldName) throws IOException;
 
     // we need this extended source we we have custom comparators to reuse our field data
     // in this case, we need to reduce type that will be used when search results are reduced
     // on another node (we don't have the custom source them...)
     public abstract class ExtendedFieldComparatorSource extends FieldComparatorSource {
 
-        public abstract int reducedType();
+        public abstract SortField.Type reducedType();
     }
 }

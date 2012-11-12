@@ -20,20 +20,20 @@
 package org.elasticsearch.index.percolator;
 
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.document.Fieldable;
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.memory.CustomMemoryIndex;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -48,7 +48,10 @@ import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.index.field.data.FieldDataType;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -59,7 +62,6 @@ import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 
 import java.io.IOException;
-import java.io.Reader;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -292,35 +294,22 @@ public class PercolatorExecutor extends AbstractIndexComponent {
         final CustomMemoryIndex memoryIndex = new CustomMemoryIndex();
 
         // TODO: This means percolation does not support nested docs...
-        for (Fieldable field : request.doc().rootDoc().getFields()) {
-            if (!field.isIndexed()) {
+        for (IndexableField field : request.doc().rootDoc().getFields()) {
+            if (!field.fieldType().indexed()) {
                 continue;
             }
             // no need to index the UID field
             if (field.name().equals(UidFieldMapper.NAME)) {
                 continue;
             }
-            TokenStream tokenStream = field.tokenStreamValue();
-            if (tokenStream != null) {
-                memoryIndex.addField(field.name(), tokenStream, field.getBoost());
-            } else {
-                Reader reader = field.readerValue();
-                if (reader != null) {
-                    try {
-                        memoryIndex.addField(field.name(), request.doc().analyzer().reusableTokenStream(field.name(), reader), field.getBoost() * request.doc().rootDoc().getBoost());
-                    } catch (IOException e) {
-                        throw new MapperParsingException("Failed to analyze field [" + field.name() + "]", e);
-                    }
-                } else {
-                    String value = field.stringValue();
-                    if (value != null) {
-                        try {
-                            memoryIndex.addField(field.name(), request.doc().analyzer().reusableTokenStream(field.name(), new FastStringReader(value)), field.getBoost() * request.doc().rootDoc().getBoost());
-                        } catch (IOException e) {
-                            throw new MapperParsingException("Failed to analyze field [" + field.name() + "]", e);
-                        }
-                    }
+            TokenStream tokenStream;
+            try {
+                tokenStream = field.tokenStream(request.doc().analyzer());
+                if (tokenStream != null) {
+                    memoryIndex.addField(field.name(), tokenStream, field.boost());
                 }
+            } catch (IOException e) {
+                throw new ElasticSearchException("Failed to create token stream", e);
             }
         }
 
@@ -398,11 +387,11 @@ public class PercolatorExecutor extends AbstractIndexComponent {
 
         @Override
         public void collect(int doc) throws IOException {
-            String uid = fieldData.stringValue(doc);
+            BytesRef uid = fieldData.stringValue(doc);
             if (uid == null) {
                 return;
             }
-            String id = Uid.idFromUid(uid);
+            String id = Uid.idFromUid(uid).toUtf8();
             Query query = queries.get(id);
             if (query == null) {
                 // log???
@@ -421,9 +410,9 @@ public class PercolatorExecutor extends AbstractIndexComponent {
         }
 
         @Override
-        public void setNextReader(IndexReader reader, int docBase) throws IOException {
+        public void setNextReader(AtomicReaderContext context) throws IOException {
             // we use the UID because id might not be indexed
-            fieldData = percolatorIndex.cache().fieldData().cache(FieldDataType.DefaultTypes.STRING, reader, UidFieldMapper.NAME);
+            fieldData = percolatorIndex.cache().fieldData().cache(FieldDataType.DefaultTypes.STRING, context.reader(), UidFieldMapper.NAME);
         }
 
         @Override

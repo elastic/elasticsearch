@@ -26,7 +26,7 @@ import org.elasticsearch.common.bytes.BytesReference;
  * so we can represent it in a more optimized manner in memory as well as serializing it over the
  * network as well as converting it to json format.
  */
-public interface Text {
+public interface Text extends Comparable<Text> {
 
     /**
      * Are bytes available without the need to be converted into bytes when calling {@link #bytes()}.

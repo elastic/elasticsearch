@@ -30,7 +30,7 @@
     </parent>
 
     <properties>
-        <lucene.version>3.6.1</lucene.version>
+        <lucene.version>4.0.0</lucene.version>
     </properties>
 
     <repositories>
@@ -51,7 +51,13 @@
         </dependency>
         <dependency>
             <groupId>org.apache.lucene</groupId>
-            <artifactId>lucene-analyzers</artifactId>
+            <artifactId>lucene-analyzers-common</artifactId>
+            <version>${lucene.version}</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-codecs</artifactId>
             <version>${lucene.version}</version>
             <scope>compile</scope>
         </dependency>
@@ -79,6 +85,13 @@
             <version>${lucene.version}</version>
             <scope>compile</scope>
         </dependency>
+         <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-queryparser</artifactId>
+            <version>${lucene.version}</version>
+            <scope>compile</scope>
+        </dependency>
+        
 
         <!-- START: dependencies that are shaded -->
         <dependency>

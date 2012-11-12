@@ -19,7 +19,8 @@
 
 package org.elasticsearch.index.field.data;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReader;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.concurrent.ThreadLocals;
 
 import java.io.IOException;
@@ -80,18 +81,18 @@ public abstract class FieldData<Doc extends DocFieldData> {
      */
     public abstract boolean hasValue(int docId);
 
-    public abstract String stringValue(int docId);
+    public abstract BytesRef stringValue(int docId);
 
     public abstract void forEachValue(StringValueProc proc);
 
     public static interface StringValueProc {
-        void onValue(String value);
+        void onValue(BytesRef value);
     }
 
     public abstract void forEachValueInDoc(int docId, StringValueInDocProc proc);
 
     public static interface StringValueInDocProc {
-        void onValue(int docId, String value);
+        void onValue(int docId, BytesRef value);
 
         void onMissing(int docId);
     }
@@ -107,7 +108,7 @@ public abstract class FieldData<Doc extends DocFieldData> {
      */
     public abstract FieldDataType type();
 
-    public static FieldData load(FieldDataType type, IndexReader reader, String fieldName) throws IOException {
+    public static FieldData load(FieldDataType type, AtomicReader reader, String fieldName) throws IOException {
         return type.load(reader, fieldName);
     }
 }

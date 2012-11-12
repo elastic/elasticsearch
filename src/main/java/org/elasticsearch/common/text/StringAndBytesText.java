@@ -87,4 +87,19 @@ public class StringAndBytesText implements Text {
     public String toString() {
         return string();
     }
+
+    @Override
+    public int hashCode() {
+        return bytes().hashCode();
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        return bytes().equals(((Text) obj).bytes());
+    }
+
+    @Override
+    public int compareTo(Text text) {
+        return UTF8SortedAsUnicodeComparator.utf8SortedAsUnicodeSortOrder.compare(bytes(), text.bytes());
+    }
 }

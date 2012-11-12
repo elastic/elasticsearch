@@ -20,8 +20,10 @@
 package org.elasticsearch.index.field.data.doubles;
 
 import gnu.trove.list.array.TDoubleArrayList;
+import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldCache;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.NumericFieldData;
@@ -67,14 +69,14 @@ public abstract class DoubleFieldData extends NumericFieldData<DoubleDocFieldDat
     }
 
     @Override
-    public String stringValue(int docId) {
-        return Double.toString(value(docId));
+    public BytesRef stringValue(int docId) {
+        return new BytesRef(Double.toString(value(docId)));
     }
 
     @Override
     public void forEachValue(StringValueProc proc) {
         for (int i = 1; i < values.length; i++) {
-            proc.onValue(Double.toString(values[i]));
+            proc.onValue(new BytesRef(Double.toString(values[i])));
         }
     }
 
@@ -131,7 +133,7 @@ public abstract class DoubleFieldData extends NumericFieldData<DoubleDocFieldDat
         void onMissing(int docId);
     }
 
-    public static DoubleFieldData load(IndexReader reader, String field) throws IOException {
+    public static DoubleFieldData load(AtomicReader reader, String field) throws IOException {
         return FieldDataLoader.load(reader, field, new DoubleTypeLoader());
     }
 
@@ -146,7 +148,7 @@ public abstract class DoubleFieldData extends NumericFieldData<DoubleDocFieldDat
         }
 
         @Override
-        public void collectTerm(String term) {
+        public void collectTerm(BytesRef term) {
             terms.add(FieldCache.NUMERIC_UTILS_DOUBLE_PARSER.parseDouble(term));
         }
 

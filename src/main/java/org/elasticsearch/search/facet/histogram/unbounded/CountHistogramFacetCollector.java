@@ -20,7 +20,7 @@
 package org.elasticsearch.search.facet.histogram.unbounded;
 
 import gnu.trove.map.hash.TLongLongHashMap;
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
@@ -82,8 +82,8 @@ public class CountHistogramFacetCollector extends AbstractFacetCollector {
     }
 
     @Override
-    protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
-        fieldData = (NumericFieldData) fieldDataCache.cache(fieldDataType, reader, indexFieldName);
+    protected void doSetNextReader(AtomicReaderContext context) throws IOException {
+        fieldData = (NumericFieldData) fieldDataCache.cache(fieldDataType, context.reader(), indexFieldName);
     }
 
     @Override

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.facet.statistical;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.NumericFieldData;
@@ -73,9 +73,9 @@ public class StatisticalFieldsFacetCollector extends AbstractFacetCollector {
     }
 
     @Override
-    protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
+    protected void doSetNextReader(AtomicReaderContext context) throws IOException {
         for (int i = 0; i < indexFieldsNames.length; i++) {
-            fieldsData[i] = (NumericFieldData) fieldDataCache.cache(fieldsDataType[i], reader, indexFieldsNames[i]);
+            fieldsData[i] = (NumericFieldData) fieldDataCache.cache(fieldsDataType[i], context.reader(), indexFieldsNames[i]);
         }
     }
 

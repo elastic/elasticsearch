@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.unit.common.lucene.store;
 
+import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RAMDirectory;
@@ -39,7 +40,7 @@ public class InputStreamIndexInputTests {
     @Test
     public void testSingleReadSingleByteLimit() throws IOException {
         RAMDirectory dir = new RAMDirectory();
-        IndexOutput output = dir.createOutput("test");
+        IndexOutput output = dir.createOutput("test", IOContext.DEFAULT);
         for (int i = 0; i < 3; i++) {
             output.writeByte((byte) 1);
         }
@@ -49,7 +50,7 @@ public class InputStreamIndexInputTests {
 
         output.close();
 
-        IndexInput input = dir.openInput("test");
+        IndexInput input = dir.openInput("test", IOContext.DEFAULT);
 
         for (int i = 0; i < 3; i++) {
             InputStreamIndexInput is = new InputStreamIndexInput(input, 1);
@@ -76,7 +77,7 @@ public class InputStreamIndexInputTests {
     @Test
     public void testReadMultiSingleByteLimit1() throws IOException {
         RAMDirectory dir = new RAMDirectory();
-        IndexOutput output = dir.createOutput("test");
+        IndexOutput output = dir.createOutput("test", IOContext.DEFAULT);
         for (int i = 0; i < 3; i++) {
             output.writeByte((byte) 1);
         }
@@ -86,7 +87,7 @@ public class InputStreamIndexInputTests {
 
         output.close();
 
-        IndexInput input = dir.openInput("test");
+        IndexInput input = dir.openInput("test", IOContext.DEFAULT);
 
         byte[] read = new byte[2];
 
@@ -115,7 +116,7 @@ public class InputStreamIndexInputTests {
     @Test
     public void testSingleReadTwoBytesLimit() throws IOException {
         RAMDirectory dir = new RAMDirectory();
-        IndexOutput output = dir.createOutput("test");
+        IndexOutput output = dir.createOutput("test", IOContext.DEFAULT);
         for (int i = 0; i < 3; i++) {
             output.writeByte((byte) 1);
         }
@@ -125,7 +126,7 @@ public class InputStreamIndexInputTests {
 
         output.close();
 
-        IndexInput input = dir.openInput("test");
+        IndexInput input = dir.openInput("test", IOContext.DEFAULT);
 
         assertThat(input.getFilePointer(), lessThan(input.length()));
         InputStreamIndexInput is = new InputStreamIndexInput(input, 2);
@@ -157,7 +158,7 @@ public class InputStreamIndexInputTests {
     @Test
     public void testReadMultiTwoBytesLimit1() throws IOException {
         RAMDirectory dir = new RAMDirectory();
-        IndexOutput output = dir.createOutput("test");
+        IndexOutput output = dir.createOutput("test", IOContext.DEFAULT);
         for (int i = 0; i < 3; i++) {
             output.writeByte((byte) 1);
         }
@@ -167,7 +168,7 @@ public class InputStreamIndexInputTests {
 
         output.close();
 
-        IndexInput input = dir.openInput("test");
+        IndexInput input = dir.openInput("test", IOContext.DEFAULT);
 
         byte[] read = new byte[2];
 
@@ -201,7 +202,7 @@ public class InputStreamIndexInputTests {
     @Test
     public void testReadMultiFourBytesLimit() throws IOException {
         RAMDirectory dir = new RAMDirectory();
-        IndexOutput output = dir.createOutput("test");
+        IndexOutput output = dir.createOutput("test", IOContext.DEFAULT);
         for (int i = 0; i < 3; i++) {
             output.writeByte((byte) 1);
         }
@@ -211,7 +212,7 @@ public class InputStreamIndexInputTests {
 
         output.close();
 
-        IndexInput input = dir.openInput("test");
+        IndexInput input = dir.openInput("test", IOContext.DEFAULT);
 
         byte[] read = new byte[4];
 
@@ -240,7 +241,7 @@ public class InputStreamIndexInputTests {
     @Test
     public void testMarkRest() throws Exception {
         RAMDirectory dir = new RAMDirectory();
-        IndexOutput output = dir.createOutput("test");
+        IndexOutput output = dir.createOutput("test", IOContext.DEFAULT);
         for (int i = 0; i < 3; i++) {
             output.writeByte((byte) 1);
         }
@@ -250,7 +251,7 @@ public class InputStreamIndexInputTests {
 
         output.close();
 
-        IndexInput input = dir.openInput("test");
+        IndexInput input = dir.openInput("test", IOContext.DEFAULT);
         InputStreamIndexInput is = new InputStreamIndexInput(input, 4);
         assertThat(is.markSupported(), equalTo(true));
         assertThat(is.read(), equalTo(1));

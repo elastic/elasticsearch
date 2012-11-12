@@ -40,12 +40,12 @@ public class XNIOFSDirectory extends NIOFSDirectory {
     }
 
     @Override
-    public IndexOutput createOutput(String name) throws IOException {
+    public IndexOutput createOutput(String name, IOContext context) throws IOException {
         StoreRateLimiting rateLimiting = rateLimitingProvider.rateLimiting();
         StoreRateLimiting.Type type = rateLimiting.getType();
         RateLimiter limiter = rateLimiting.getRateLimiter();
         if (type == StoreRateLimiting.Type.NONE || limiter == null) {
-            return super.createOutput(name);
+            return super.createOutput(name, context);
         }
         if (TrackingMergeScheduler.getCurrentMerge() != null) {
             // we are mering, and type is either MERGE or ALL, rate limit...
@@ -59,6 +59,6 @@ public class XNIOFSDirectory extends NIOFSDirectory {
             return new XFSIndexOutput(this, name, limiter, rateListener);
         }
         // we shouldn't really get here...
-        return super.createOutput(name);
+        return super.createOutput(name, context);
     }
 }

@@ -19,10 +19,7 @@
 
 package org.elasticsearch.test.unit.index.store.memory;
 
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.store.Lock;
-import org.apache.lucene.store.LockObtainFailedException;
+import org.apache.lucene.store.*;
 import org.apache.lucene.store.bytebuffer.ByteBufferDirectory;
 import org.elasticsearch.cache.memory.ByteBufferCache;
 import org.testng.annotations.Test;
@@ -121,7 +118,7 @@ public class SimpleByteBufferStoreTests {
 
     private void insertData(ByteBufferDirectory dir, int bufferSizeInBytes) throws IOException {
         byte[] test = new byte[]{1, 2, 3, 4, 5, 6, 7, 8};
-        IndexOutput indexOutput = dir.createOutput("value1");
+        IndexOutput indexOutput = dir.createOutput("value1", IOContext.DEFAULT);
         indexOutput.writeBytes(new byte[]{2, 4, 6, 7, 8}, 5);
         indexOutput.writeInt(-1);
         indexOutput.writeLong(10);
@@ -145,7 +142,7 @@ public class SimpleByteBufferStoreTests {
         assertThat(dir.fileExists("value1"), equalTo(true));
         assertThat(dir.fileLength("value1"), equalTo(38l));
 
-        IndexInput indexInput = dir.openInput("value1");
+        IndexInput indexInput = dir.openInput("value1", IOContext.DEFAULT);
         indexInput.readBytes(test, 0, 5);
         assertThat(test[0], equalTo((byte) 8));
         assertThat(indexInput.readInt(), equalTo(-1));
@@ -170,7 +167,7 @@ public class SimpleByteBufferStoreTests {
 
         indexInput.close();
 
-        indexInput = dir.openInput("value1");
+        indexInput = dir.openInput("value1", IOContext.DEFAULT);
         // iterate over all the data
         for (int i = 0; i < 38; i++) {
             indexInput.readByte();

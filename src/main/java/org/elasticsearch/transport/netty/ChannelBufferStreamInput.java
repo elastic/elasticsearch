@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport.netty;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ChannelBufferBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -55,6 +56,16 @@ public class ChannelBufferStreamInput extends StreamInput {
         ChannelBufferBytesReference ref = new ChannelBufferBytesReference(buffer.slice(buffer.readerIndex(), length));
         buffer.skipBytes(length);
         return ref;
+    }
+
+    @Override
+    public BytesRef readBytesRef(int length) throws IOException {
+        if (!buffer.hasArray()) {
+            return super.readBytesRef(length);
+        }
+        BytesRef bytesRef = new BytesRef(buffer.array(), buffer.arrayOffset() + buffer.readerIndex(), length);
+        buffer.skipBytes(length);
+        return bytesRef;
     }
 
     @Override

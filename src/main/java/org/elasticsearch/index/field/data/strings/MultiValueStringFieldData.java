@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.field.data.strings;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.RamUsage;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.ThreadLocals;
 
 /**
@@ -28,23 +28,25 @@ import org.elasticsearch.common.util.concurrent.ThreadLocals;
  */
 public class MultiValueStringFieldData extends StringFieldData {
 
+    private static final BytesRef[] EMPTY_ARRAY = new BytesRef[0];
+
     private static final int VALUE_CACHE_SIZE = 100;
 
-    private static ThreadLocal<ThreadLocals.CleanableValue<String[][]>> valuesCache = new ThreadLocal<ThreadLocals.CleanableValue<String[][]>>() {
+    private static ThreadLocal<ThreadLocals.CleanableValue<BytesRef[][]>> valuesCache = new ThreadLocal<ThreadLocals.CleanableValue<BytesRef[][]>>() {
         @Override
-        protected ThreadLocals.CleanableValue<String[][]> initialValue() {
-            String[][] value = new String[VALUE_CACHE_SIZE][];
+        protected ThreadLocals.CleanableValue<BytesRef[][]> initialValue() {
+            BytesRef[][] value = new BytesRef[VALUE_CACHE_SIZE][];
             for (int i = 0; i < value.length; i++) {
-                value[i] = new String[i];
+                value[i] = new BytesRef[i];
             }
-            return new ThreadLocals.CleanableValue<java.lang.String[][]>(value);
+            return new ThreadLocals.CleanableValue<BytesRef[][]>(value);
         }
     };
 
     // order with value 0 indicates no value
     private final int[][] ordinals;
 
-    public MultiValueStringFieldData(String fieldName, int[][] ordinals, String[] values) {
+    public MultiValueStringFieldData(String fieldName, int[][] ordinals, BytesRef[] values) {
         super(fieldName, values);
         this.ordinals = ordinals;
     }
@@ -103,7 +105,7 @@ public class MultiValueStringFieldData extends StringFieldData {
     }
 
     @Override
-    public String value(int docId) {
+    public BytesRef value(int docId) {
         for (int[] ordinal : ordinals) {
             int loc = ordinal[docId];
             if (loc != 0) {
@@ -114,7 +116,7 @@ public class MultiValueStringFieldData extends StringFieldData {
     }
 
     @Override
-    public String[] values(int docId) {
+    public BytesRef[] values(int docId) {
         int length = 0;
         for (int[] ordinal : ordinals) {
             if (ordinal[docId] == 0) {
@@ -123,17 +125,17 @@ public class MultiValueStringFieldData extends StringFieldData {
             length++;
         }
         if (length == 0) {
-            return Strings.EMPTY_ARRAY;
+            return EMPTY_ARRAY;
         }
-        String[] strings;
+        BytesRef[] refs;
         if (length < VALUE_CACHE_SIZE) {
-            strings = valuesCache.get().get()[length];
+            refs = valuesCache.get().get()[length];
         } else {
-            strings = new String[length];
+            refs = new BytesRef[length];
         }
         for (int i = 0; i < length; i++) {
-            strings[i] = values[ordinals[i][docId]];
+            refs[i] = values[ordinals[i][docId]];
         }
-        return strings;
+        return refs;
     }
 }

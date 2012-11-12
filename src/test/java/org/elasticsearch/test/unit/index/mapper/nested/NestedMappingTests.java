@@ -261,8 +261,8 @@ public class NestedMappingTests {
         assertThat(doc.docs().get(5).get("nested1.nested2.field2"), equalTo("2"));
         assertThat(doc.docs().get(5).get("field"), nullValue());
         assertThat(doc.docs().get(6).get("field"), equalTo("value"));
-        assertThat(doc.docs().get(6).getFieldables("nested1.field1").length, equalTo(2));
-        assertThat(doc.docs().get(6).getFieldables("nested1.nested2.field2").length, equalTo(4));
+        assertThat(doc.docs().get(6).getFields("nested1.field1").length, equalTo(2));
+        assertThat(doc.docs().get(6).getFields("nested1.nested2.field2").length, equalTo(4));
     }
 
     @Test
@@ -314,6 +314,6 @@ public class NestedMappingTests {
         assertThat(doc.docs().get(5).get("field"), nullValue());
         assertThat(doc.docs().get(6).get("field"), equalTo("value"));
         assertThat(doc.docs().get(6).get("nested1.field1"), nullValue());
-        assertThat(doc.docs().get(6).getFieldables("nested1.nested2.field2").length, equalTo(4));
+        assertThat(doc.docs().get(6).getFields("nested1.nested2.field2").length, equalTo(4));
     }
 }

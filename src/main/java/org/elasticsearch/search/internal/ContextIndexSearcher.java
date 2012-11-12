@@ -22,7 +22,7 @@ package org.elasticsearch.search.internal;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import org.apache.lucene.index.ExtendedIndexSearcher;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.*;
 import org.elasticsearch.common.lucene.MinimumScoreCollector;
@@ -39,7 +39,7 @@ import java.util.Map;
 /**
  *
  */
-public class ContextIndexSearcher extends ExtendedIndexSearcher {
+public class ContextIndexSearcher extends IndexSearcher {
 
     public static final class Scopes {
         public static final String MAIN = "_main_";
@@ -58,9 +58,9 @@ public class ContextIndexSearcher extends ExtendedIndexSearcher {
     private String processingScope;
 
     public ContextIndexSearcher(SearchContext searchContext, Engine.Searcher searcher) {
-        super(searcher.searcher());
+        super(searcher.reader());
         this.searchContext = searchContext;
-        this.reader = searcher.searcher().getIndexReader();
+        this.reader = searcher.reader();
     }
 
     public void dfSource(CachedDfSource dfSource) {
@@ -133,25 +133,37 @@ public class ContextIndexSearcher extends ExtendedIndexSearcher {
         return super.createNormalizedWeight(query);
     }
 
-    // override from the Searcher to allow to control if scores will be tracked or not
-    // LUCENE MONITOR - We override the logic here to apply our own flags for track scores
-    @Override
-    public TopFieldDocs search(Weight weight, Filter filter, int nDocs,
-                               Sort sort, boolean fillFields) throws IOException {
-        int limit = reader.maxDoc();
-        if (limit == 0) {
-            limit = 1;
+    private Filter combinedFilter(Filter filter) {
+        Filter combinedFilter;
+        if (filter == null) {
+            combinedFilter = searchContext.aliasFilter();
+        } else {
+            if (searchContext.aliasFilter() != null) {
+                combinedFilter = new AndFilter(ImmutableList.of(filter, searchContext.aliasFilter()));
+            } else {
+                combinedFilter = filter;
+            }
         }
-        nDocs = Math.min(nDocs, limit);
-
-        TopFieldCollector collector = TopFieldCollector.create(sort, nDocs,
-                fillFields, searchContext.trackScores(), searchContext.trackScores(), !weight.scoresDocsOutOfOrder());
-        search(weight, filter, collector);
-        return (TopFieldDocs) collector.topDocs();
+        return combinedFilter;
     }
 
     @Override
-    public void search(Weight weight, Filter filter, Collector collector) throws IOException {
+    public void search(Query query, Collector results) throws IOException {
+        Filter filter = combinedFilter(null);
+        if (filter != null) {
+            super.search(wrapFilter(query, filter), results);
+        } else {
+            super.search(query, results);
+        }
+    }
+
+    @Override
+    public TopDocs search(Query query, Filter filter, int n) throws IOException {
+        return super.search(query, combinedFilter(filter), n);
+    }
+
+    @Override
+    public void search(List<AtomicReaderContext> leaves, Weight weight, Collector collector) throws IOException {
         if (searchContext.parsedFilter() != null && Scopes.MAIN.equals(processingScope)) {
             // this will only get applied to the actual search collector and not
             // to any scoped collectors, also, it will only be applied to the main collector
@@ -173,26 +185,16 @@ public class ContextIndexSearcher extends ExtendedIndexSearcher {
             collector = new MinimumScoreCollector(collector, searchContext.minimumScore());
         }
 
-        Filter combinedFilter;
-        if (filter == null) {
-            combinedFilter = searchContext.aliasFilter();
-        } else {
-            if (searchContext.aliasFilter() != null) {
-                combinedFilter = new AndFilter(ImmutableList.of(filter, searchContext.aliasFilter()));
-            } else {
-                combinedFilter = filter;
-            }
-        }
 
         // we only compute the doc id set once since within a context, we execute the same query always...
         if (searchContext.timeoutInMillis() != -1) {
             try {
-                super.search(weight, combinedFilter, collector);
+                super.search(leaves, weight, collector);
             } catch (TimeLimitingCollector.TimeExceededException e) {
                 searchContext.queryResult().searchTimedOut(true);
             }
         } else {
-            super.search(weight, combinedFilter, collector);
+            super.search(leaves, weight, collector);
         }
     }
 

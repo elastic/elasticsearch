@@ -1,7 +1,7 @@
 package org.elasticsearch.index.mapper.geo;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
@@ -55,6 +55,18 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
         public static final int GEOHASH_LEVELS = GeohashPrefixTree.getMaxLevelsPossible();
         public static final int QUADTREE_LEVELS = QuadPrefixTree.DEFAULT_MAX_LEVELS;
         public static final double DISTANCE_ERROR_PCT = 0.025d;
+
+        public static final FieldType GEO_SHAPE_FIELD_TYPE = new FieldType();
+
+        static {
+            GEO_SHAPE_FIELD_TYPE.setIndexed(true);
+            GEO_SHAPE_FIELD_TYPE.setTokenized(false);
+            GEO_SHAPE_FIELD_TYPE.setStored(false);
+            GEO_SHAPE_FIELD_TYPE.setStoreTermVectors(false);
+            GEO_SHAPE_FIELD_TYPE.setOmitNorms(true);
+            GEO_SHAPE_FIELD_TYPE.setIndexOptions(FieldInfo.IndexOptions.DOCS_ONLY);
+            GEO_SHAPE_FIELD_TYPE.freeze();
+        }
     }
 
     public static class Builder extends AbstractFieldMapper.Builder<Builder, GeoShapeFieldMapper> {
@@ -66,7 +78,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
         private SpatialPrefixTree prefixTree;
 
         public Builder(String name) {
-            super(name);
+            super(name, new FieldType(Defaults.GEO_SHAPE_FIELD_TYPE));
         }
 
         public Builder tree(String tree) {
@@ -96,7 +108,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
                 throw new ElasticSearchIllegalArgumentException("Unknown prefix tree type [" + tree + "]");
             }
 
-            return new GeoShapeFieldMapper(buildNames(context), prefixTree, distanceErrorPct);
+            return new GeoShapeFieldMapper(buildNames(context), prefixTree, distanceErrorPct, fieldType);
         }
     }
 
@@ -123,13 +135,13 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
 
     private final SpatialStrategy spatialStrategy;
 
-    public GeoShapeFieldMapper(FieldMapper.Names names, SpatialPrefixTree prefixTree, double distanceErrorPct) {
-        super(names, Field.Index.NOT_ANALYZED, Field.Store.NO, Field.TermVector.NO, 1, true, FieldInfo.IndexOptions.DOCS_ONLY, null, null);
+    public GeoShapeFieldMapper(FieldMapper.Names names, SpatialPrefixTree prefixTree, double distanceErrorPct, FieldType fieldType) {
+        super(names, 1, fieldType, null, null);
         this.spatialStrategy = new TermQueryPrefixTreeStrategy(names, prefixTree, distanceErrorPct);
     }
 
     @Override
-    protected Fieldable parseCreateField(ParseContext context) throws IOException {
+    protected Field parseCreateField(ParseContext context) throws IOException {
         return spatialStrategy.createField(GeoJSONShapeParser.parse(context.parser()));
     }
 
@@ -162,7 +174,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
     }
 
     @Override
-    public String value(Fieldable field) {
+    public String value(Field field) {
         throw new UnsupportedOperationException("GeoShape fields cannot be converted to String values");
     }
 
@@ -172,7 +184,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
     }
 
     @Override
-    public String valueAsString(Fieldable field) {
+    public String valueAsString(Field field) {
         throw new UnsupportedOperationException("GeoShape fields cannot be converted to String values");
     }
 

@@ -22,8 +22,9 @@ package org.elasticsearch.index.gateway.blobstore;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.ElasticSearchException;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.blobstore.*;
 import org.elasticsearch.common.io.FastByteArrayInputStream;
 import org.elasticsearch.common.io.FastByteArrayOutputStream;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.lucene.store.ThreadSafeInputStreamIndexInput;
 import org.elasticsearch.common.settings.Settings;
@@ -608,8 +610,8 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         // read the gateway data persisted
         long version = -1;
         try {
-            if (IndexReader.indexExists(store.directory())) {
-                version = IndexReader.getCurrentVersion(store.directory());
+            if (DirectoryReader.indexExists(store.directory())) {
+                version = Lucene.readSegmentInfos(store.directory()).getVersion();
             }
         } catch (IOException e) {
             throw new IndexShardGatewayRecoveryException(shardId(), "Failed to fetch index version after copying it over", e);
@@ -752,7 +754,8 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
 
             IndexInput indexInput = null;
             try {
-                indexInput = indexShard.store().openInputRaw(fileInfo.physicalName());
+                // TODO: maybe use IOContext.READONCE?
+                indexInput = indexShard.store().openInputRaw(fileInfo.physicalName(), IOContext.READ);
                 indexInput.seek(partNumber * chunkBytes);
                 InputStreamIndexInput is = new ThreadSafeInputStreamIndexInput(indexInput, chunkBytes);
 

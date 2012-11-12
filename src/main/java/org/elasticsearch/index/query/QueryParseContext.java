@@ -21,11 +21,12 @@ package org.elasticsearch.index.query;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
-import org.apache.lucene.queryParser.MapperQueryParser;
-import org.apache.lucene.queryParser.QueryParserSettings;
+
+import org.apache.lucene.queryparser.classic.MapperQueryParser;
+import org.apache.lucene.queryparser.classic.QueryParserSettings;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Similarity;
+import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;

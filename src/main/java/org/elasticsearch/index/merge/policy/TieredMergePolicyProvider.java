@@ -262,7 +262,7 @@ public class TieredMergePolicyProvider extends AbstractIndexShardComponent imple
         }
 
         @Override
-        public MergeSpecification findForcedMerges(SegmentInfos infos, int maxSegmentCount, Map<SegmentInfo, Boolean> segmentsToMerge) throws IOException {
+        public MergeSpecification findForcedMerges(SegmentInfos infos, int maxSegmentCount, Map<SegmentInfoPerCommit, Boolean> segmentsToMerge) throws IOException {
             if (enableMerge.get() == Boolean.FALSE) {
                 return null;
             }

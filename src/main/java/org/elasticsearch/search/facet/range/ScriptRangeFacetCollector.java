@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.facet.range;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
@@ -54,9 +54,9 @@ public class ScriptRangeFacetCollector extends AbstractFacetCollector {
     }
 
     @Override
-    protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
-        keyScript.setNextReader(reader);
-        valueScript.setNextReader(reader);
+    protected void doSetNextReader(AtomicReaderContext context) throws IOException {
+        keyScript.setNextReader(context);
+        valueScript.setNextReader(context);
     }
 
     @Override

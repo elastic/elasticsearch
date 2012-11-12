@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common;
 
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.util.concurrent.ThreadLocals;
 
@@ -29,10 +30,10 @@ import java.util.Arrays;
  */
 public class Unicode {
 
-    private static ThreadLocal<ThreadLocals.CleanableValue<UnicodeUtil.UTF8Result>> cachedUtf8Result = new ThreadLocal<ThreadLocals.CleanableValue<UnicodeUtil.UTF8Result>>() {
+    private static ThreadLocal<ThreadLocals.CleanableValue<BytesRef>> cachedUtf8Result = new ThreadLocal<ThreadLocals.CleanableValue<BytesRef>>() {
         @Override
-        protected ThreadLocals.CleanableValue<UnicodeUtil.UTF8Result> initialValue() {
-            return new ThreadLocals.CleanableValue<UnicodeUtil.UTF8Result>(new UnicodeUtil.UTF8Result());
+        protected ThreadLocals.CleanableValue<BytesRef> initialValue() {
+            return new ThreadLocals.CleanableValue<BytesRef>(new BytesRef());
         }
     };
 
@@ -47,20 +48,20 @@ public class Unicode {
         if (source == null) {
             return null;
         }
-        UnicodeUtil.UTF8Result result = unsafeFromStringAsUtf8(source);
-        return Arrays.copyOfRange(result.result, 0, result.length);
+        BytesRef result = unsafeFromStringAsUtf8(source);
+        return Arrays.copyOfRange(result.bytes, result.offset, result.length);
     }
 
-    public static UnicodeUtil.UTF8Result fromStringAsUtf8(String source) {
+    public static BytesRef fromStringAsUtf8(String source) {
         if (source == null) {
             return null;
         }
-        UnicodeUtil.UTF8Result result = new UnicodeUtil.UTF8Result();
+        BytesRef result = new BytesRef();
         UnicodeUtil.UTF16toUTF8(source, 0, source.length(), result);
         return result;
     }
 
-    public static void fromStringAsUtf8(String source, UnicodeUtil.UTF8Result result) {
+    public static void fromStringAsUtf8(String source, BytesRef result) {
         if (source == null) {
             result.length = 0;
             return;
@@ -68,11 +69,11 @@ public class Unicode {
         UnicodeUtil.UTF16toUTF8(source, 0, source.length(), result);
     }
 
-    public static UnicodeUtil.UTF8Result unsafeFromStringAsUtf8(String source) {
+    public static BytesRef unsafeFromStringAsUtf8(String source) {
         if (source == null) {
             return null;
         }
-        UnicodeUtil.UTF8Result result = cachedUtf8Result.get().get();
+        BytesRef result = cachedUtf8Result.get().get();
         UnicodeUtil.UTF16toUTF8(source, 0, source.length(), result);
         return result;
     }

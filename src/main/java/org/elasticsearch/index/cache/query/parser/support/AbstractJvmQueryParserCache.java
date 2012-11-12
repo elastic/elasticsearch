@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.cache.query.parser.support;
 
-import org.apache.lucene.queryParser.QueryParserSettings;
+import org.apache.lucene.queryparser.classic.QueryParserSettings;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.settings.Settings;

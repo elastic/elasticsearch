@@ -21,10 +21,12 @@ package org.elasticsearch.index.mapper;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
@@ -40,10 +42,7 @@ import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static com.google.common.collect.Lists.newArrayList;
@@ -114,13 +113,13 @@ public class DocumentMapper implements ToXContent {
          * Called before a field is added to the document. Return <tt>true</tt> to include
          * it in the document.
          */
-        boolean beforeFieldAdded(FieldMapper fieldMapper, Fieldable fieldable, ParseContext parseContent);
+        boolean beforeFieldAdded(FieldMapper fieldMapper, Field fieldable, ParseContext parseContent);
     }
 
     public static class ParseListenerAdapter implements ParseListener {
 
         @Override
-        public boolean beforeFieldAdded(FieldMapper fieldMapper, Fieldable fieldable, Object parseContext) {
+        public boolean beforeFieldAdded(FieldMapper fieldMapper, Field fieldable, Object parseContext) {
             return true;
         }
     }
@@ -155,7 +154,9 @@ public class DocumentMapper implements ToXContent {
             if (indexSettings != null) {
                 String idIndexed = indexSettings.get("index.mapping._id.indexed");
                 if (idIndexed != null && Booleans.parseBoolean(idIndexed, false)) {
-                    idFieldMapper = new IdFieldMapper(Field.Index.NOT_ANALYZED);
+                    FieldType fieldType = new FieldType(IdFieldMapper.Defaults.ID_FIELD_TYPE);
+                    fieldType.setTokenized(false);
+                    idFieldMapper = new IdFieldMapper(fieldType);
                 }
             }
             this.rootMappers.put(IdFieldMapper.class, idFieldMapper);
@@ -517,6 +518,22 @@ public class DocumentMapper implements ToXContent {
         if (context.docs().size() > 1) {
             Collections.reverse(context.docs());
         }
+        // apply doc boost
+        if (context.docBoost() != 1.0f) {
+            Set<String> encounteredFields = Sets.newHashSet();
+            for (Document doc : context.docs()) {
+                encounteredFields.clear();
+                for (IndexableField field : doc) {
+                    if (field.fieldType().indexed() && !field.fieldType().omitNorms()) {
+                        if (!encounteredFields.contains(field.name())) {
+                            ((Field) field).setBoost(context.docBoost() * field.boost());
+                            encounteredFields.add(field.name());
+                        }
+                    }
+                }
+            }
+        }
+
         ParsedDocument doc = new ParsedDocument(context.uid(), context.id(), context.type(), source.routing(), source.timestamp(), source.ttl(), context.docs(), context.analyzer(),
                 context.source(), context.mappingsModified()).parent(source.parent());
         // reset the context to free up memory

@@ -22,7 +22,8 @@ package org.elasticsearch.index.mapper.object;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.Strings;
@@ -304,7 +305,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
             this.mappers = copyOf(mappers);
         }
         this.nestedTypePath = "__" + fullPath;
-        this.nestedTypeFilter = new TermFilter(TypeFieldMapper.TERM_FACTORY.createTerm(nestedTypePath));
+        this.nestedTypeFilter = new TermFilter(new Term(TypeFieldMapper.NAME, nestedTypePath));
     }
 
     @Override
@@ -412,7 +413,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         if (nested.isNested()) {
             Document nestedDoc = new Document();
             // pre add the uid field if possible (id was already provided)
-            Fieldable uidField = context.doc().getFieldable(UidFieldMapper.NAME);
+            Field uidField = (Field) context.doc().getField(UidFieldMapper.NAME);
             if (uidField != null) {
                 // we don't need to add it as a full uid field in nested docs, since we don't need versioning
                 // we also rely on this for UidField#loadVersion
@@ -465,7 +466,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         if (nested.isNested()) {
             Document nestedDoc = context.switchDoc(restoreDoc);
             if (nested.isIncludeInParent()) {
-                for (Fieldable field : nestedDoc.getFields()) {
+                for (IndexableField field : nestedDoc.getFields()) {
                     if (field.name().equals(UidFieldMapper.NAME) || field.name().equals(TypeFieldMapper.NAME)) {
                         continue;
                     } else {
@@ -476,7 +477,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
             if (nested.isIncludeInRoot()) {
                 // don't add it twice, if its included in parent, and we are handling the master doc...
                 if (!(nested.isIncludeInParent() && context.doc() == context.rootDoc())) {
-                    for (Fieldable field : nestedDoc.getFields()) {
+                    for (IndexableField field : nestedDoc.getFields()) {
                         if (field.name().equals(UidFieldMapper.NAME) || field.name().equals(TypeFieldMapper.NAME)) {
                             continue;
                         } else {

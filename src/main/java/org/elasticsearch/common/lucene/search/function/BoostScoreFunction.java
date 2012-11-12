@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.lucene.search.function;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Explanation;
 
 /**
@@ -39,7 +39,7 @@ public class BoostScoreFunction implements ScoreFunction {
     }
 
     @Override
-    public void setNextReader(IndexReader reader) {
+    public void setNextReader(AtomicReaderContext context) {
         // nothing to do here...
     }
 

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.search.nested;
 
+import org.apache.lucene.index.AtomicReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
@@ -47,8 +49,6 @@ public class NestedChildrenCollector extends FacetCollector {
 
     private FixedBitSet parentDocs;
 
-    private IndexReader currentReader;
-
     public NestedChildrenCollector(FacetCollector collector, Filter parentFilter, Filter childFilter) {
         this.collector = collector;
         this.parentFilter = parentFilter;
@@ -72,11 +72,12 @@ public class NestedChildrenCollector extends FacetCollector {
     }
 
     @Override
-    public void setNextReader(IndexReader reader, int docBase) throws IOException {
-        collector.setNextReader(reader, docBase);
-        currentReader = reader;
-        childDocs = DocSets.convert(reader, childFilter.getDocIdSet(reader));
-        DocIdSet docIdSet = parentFilter.getDocIdSet(reader);
+    public void setNextReader(AtomicReaderContext context) throws IOException {
+        collector.setNextReader(context);
+        // Can use null as acceptedDocs here, since only live doc ids are being pushed to collect method.
+        DocIdSet docIdSet = parentFilter.getDocIdSet(context, null);
+        // Im ES if parent is deleted, then also the children are deleted. Therefore acceptedDocs can also null here.
+        childDocs = DocSets.convert(context.reader(), childFilter.getDocIdSet(context, null));
         if (docIdSet == null) {
             parentDocs = null;
         } else if (docIdSet instanceof FixedBitDocSet) {
@@ -98,7 +99,7 @@ public class NestedChildrenCollector extends FacetCollector {
         }
         int prevParentDoc = parentDocs.prevSetBit(parentDoc - 1);
         for (int i = (parentDoc - 1); i > prevParentDoc; i--) {
-            if (!currentReader.isDeleted(i) && childDocs.get(i)) {
+            if (childDocs.get(i)) {
                 collector.collect(i);
             }
         }

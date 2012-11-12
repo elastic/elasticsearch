@@ -20,8 +20,10 @@
 package org.elasticsearch.index.field.data.floats;
 
 import gnu.trove.list.array.TFloatArrayList;
+import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldCache;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.NumericFieldData;
@@ -67,14 +69,14 @@ public abstract class FloatFieldData extends NumericFieldData<FloatDocFieldData>
     }
 
     @Override
-    public String stringValue(int docId) {
-        return Float.toString(value(docId));
+    public BytesRef stringValue(int docId) {
+        return new BytesRef(Float.toString(value(docId)));
     }
 
     @Override
     public void forEachValue(StringValueProc proc) {
         for (int i = 1; i < values.length; i++) {
-            proc.onValue(Float.toString(values[i]));
+            proc.onValue(new BytesRef(Float.toString(values[i])));
         }
     }
 
@@ -131,7 +133,7 @@ public abstract class FloatFieldData extends NumericFieldData<FloatDocFieldData>
         void onMissing(int docId);
     }
 
-    public static FloatFieldData load(IndexReader reader, String field) throws IOException {
+    public static FloatFieldData load(AtomicReader reader, String field) throws IOException {
         return FieldDataLoader.load(reader, field, new FloatTypeLoader());
     }
 
@@ -146,7 +148,7 @@ public abstract class FloatFieldData extends NumericFieldData<FloatDocFieldData>
         }
 
         @Override
-        public void collectTerm(String term) {
+        public void collectTerm(BytesRef term) {
             terms.add(FieldCache.NUMERIC_UTILS_FLOAT_PARSER.parseFloat(term));
         }
 

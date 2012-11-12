@@ -17,10 +17,7 @@ package org.apache.lucene.store.bytebuffer;
  * limitations under the License.
  */
 
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.store.SingleInstanceLockFactory;
+import org.apache.lucene.store.*;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -99,36 +96,6 @@ public class ByteBufferDirectory extends Directory {
     }
 
     @Override
-    public long fileModified(String name) throws IOException {
-        ByteBufferFile file = files.get(name);
-        if (file == null)
-            throw new FileNotFoundException(name);
-        return file.getLastModified();
-    }
-
-    @Override
-    public void touchFile(String name) throws IOException {
-        ByteBufferFile file = files.get(name);
-        if (file == null)
-            throw new FileNotFoundException(name);
-
-        long ts2, ts1 = System.currentTimeMillis();
-        do {
-            try {
-                Thread.sleep(0, 1);
-            } catch (java.lang.InterruptedException ie) {
-                // In 3.0 we will change this to throw
-                // InterruptedException instead
-                Thread.currentThread().interrupt();
-                throw new RuntimeException(ie);
-            }
-            ts2 = System.currentTimeMillis();
-        } while (ts1 == ts2);
-
-        file.setLastModified(ts2);
-    }
-
-    @Override
     public void deleteFile(String name) throws IOException {
         ByteBufferFile file = files.remove(name);
         if (file == null)
@@ -146,7 +113,7 @@ public class ByteBufferDirectory extends Directory {
     }
 
     @Override
-    public IndexOutput createOutput(String name) throws IOException {
+    public IndexOutput createOutput(String name, IOContext context) throws IOException {
         ByteBufferAllocator.Type allocatorType = ByteBufferAllocator.Type.LARGE;
         if (name.contains("segments") || name.endsWith(".del")) {
             allocatorType = ByteBufferAllocator.Type.SMALL;
@@ -166,7 +133,7 @@ public class ByteBufferDirectory extends Directory {
     }
 
     @Override
-    public IndexInput openInput(String name) throws IOException {
+    public IndexInput openInput(String name, IOContext context) throws IOException {
         ByteBufferFile file = files.get(name);
         if (file == null)
             throw new FileNotFoundException(name);

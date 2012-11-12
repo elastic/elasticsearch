@@ -24,11 +24,52 @@ import org.jboss.netty.buffer.ChannelBuffer;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.Comparator;
 
 /**
  * A reference to bytes.
  */
 public interface BytesReference {
+
+    public static class Helper {
+
+        public static boolean bytesEqual(BytesReference a, BytesReference b) {
+            if (a == b) {
+                return true;
+            }
+            if (a.length() != b.length()) {
+                return false;
+            }
+            if (!a.hasArray()) {
+                a = a.toBytesArray();
+            }
+            if (!b.hasArray()) {
+                b = b.toBytesArray();
+            }
+            int bUpTo = b.arrayOffset();
+            final byte[] aArray = a.array();
+            final byte[] bArray = b.array();
+            final int end = a.arrayOffset() + a.length();
+            for (int aUpTo = a.arrayOffset(); aUpTo < end; aUpTo++, bUpTo++) {
+                if (aArray[aUpTo] != bArray[bUpTo]) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        public static int bytesHashCode(BytesReference a) {
+            if (!a.hasArray()) {
+                a = a.toBytesArray();
+            }
+            int result = 0;
+            final int end = a.arrayOffset() + a.length();
+            for (int i = a.arrayOffset(); i < end; i++) {
+                result = 31 * result + a.array()[i];
+            }
+            return result;
+        }
+    }
 
     /**
      * Returns the byte at the specified index. Need to be between 0 and length.
@@ -94,4 +135,6 @@ public interface BytesReference {
      * Converts to a string based on utf8.
      */
     String toUtf8();
+
+
 }

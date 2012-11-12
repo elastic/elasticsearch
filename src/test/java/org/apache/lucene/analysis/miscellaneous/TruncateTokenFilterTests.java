@@ -20,6 +20,7 @@
 package org.apache.lucene.analysis.miscellaneous;
 
 import org.apache.lucene.analysis.*;
+import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.common.lucene.Lucene;
 import org.testng.annotations.Test;
@@ -38,7 +39,7 @@ public class TruncateTokenFilterTests {
 
     @Test
     public void simpleTest() throws IOException {
-        Analyzer analyzer = new ReusableAnalyzerBase() {
+        Analyzer analyzer = new Analyzer() {
             @Override
             protected TokenStreamComponents createComponents(String fieldName,
                                                              Reader reader) {
@@ -47,7 +48,8 @@ public class TruncateTokenFilterTests {
             }
         };
 
-        TokenStream test = analyzer.reusableTokenStream("test", new StringReader("a bb ccc dddd eeeee"));
+        TokenStream test = analyzer.tokenStream("test", new StringReader("a bb ccc dddd eeeee"));
+        test.reset();
         CharTermAttribute termAttribute = test.addAttribute(CharTermAttribute.class);
         assertThat(test.incrementToken(), equalTo(true));
         assertThat(termAttribute.toString(), equalTo("a"));

@@ -199,12 +199,6 @@ public class SearchContext implements Releasable {
                 scopePhase.clear();
             }
         }
-        // we should close this searcher, since its a new one we create each time, and we use the IndexReader
-        try {
-            searcher.close();
-        } catch (Exception e) {
-            // ignore any exception here
-        }
         engineSearcher.release();
         return true;
     }

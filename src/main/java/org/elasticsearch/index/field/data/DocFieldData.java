@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.field.data;
 
+import org.apache.lucene.util.BytesRef;
+
 /**
  *
  */
@@ -45,7 +47,11 @@ public abstract class DocFieldData<T extends FieldData> {
     }
 
     public String stringValue() {
-        return fieldData.stringValue(docId);
+        BytesRef val = fieldData.stringValue(docId);
+        if (val == null) {
+            return null;
+        }
+        return val.utf8ToString();
     }
 
     public String getStringValue() {

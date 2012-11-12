@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.lucene.queryParser;
+package org.apache.lucene.queryparser.classic;
 
 import gnu.trove.map.hash.TObjectFloatHashMap;
 import org.apache.lucene.analysis.Analyzer;

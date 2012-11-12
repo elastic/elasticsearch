@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.field.data.ints;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
@@ -42,8 +42,8 @@ public class IntFieldDataType implements FieldDataType<IntFieldData> {
                 }
 
                 @Override
-                public int reducedType() {
-                    return SortField.INT;
+                public SortField.Type reducedType() {
+                    return SortField.Type.INT;
                 }
             };
         }
@@ -55,8 +55,8 @@ public class IntFieldDataType implements FieldDataType<IntFieldData> {
                 }
 
                 @Override
-                public int reducedType() {
-                    return SortField.INT;
+                public SortField.Type reducedType() {
+                    return SortField.Type.INT;
                 }
             };
         }
@@ -68,8 +68,8 @@ public class IntFieldDataType implements FieldDataType<IntFieldData> {
                 }
 
                 @Override
-                public int reducedType() {
-                    return SortField.INT;
+                public SortField.Type reducedType() {
+                    return SortField.Type.INT;
                 }
             };
         }
@@ -80,14 +80,14 @@ public class IntFieldDataType implements FieldDataType<IntFieldData> {
             }
 
             @Override
-            public int reducedType() {
-                return SortField.INT;
+            public SortField.Type reducedType() {
+                return SortField.Type.INT;
             }
         };
     }
 
     @Override
-    public IntFieldData load(IndexReader reader, String fieldName) throws IOException {
+    public IntFieldData load(AtomicReader reader, String fieldName) throws IOException {
         return IntFieldData.load(reader, fieldName);
     }
 }

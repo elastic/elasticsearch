@@ -19,10 +19,7 @@
 
 package org.elasticsearch.index.merge.policy;
 
-import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.index.LogByteSizeMergePolicy;
-import org.apache.lucene.index.SegmentInfo;
-import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.*;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Preconditions;
@@ -220,7 +217,7 @@ public class LogByteSizeMergePolicyProvider extends AbstractIndexShardComponent 
         }
 
         @Override
-        public MergeSpecification findForcedMerges(SegmentInfos infos, int maxSegmentCount, Map<SegmentInfo, Boolean> segmentsToMerge) throws IOException {
+        public MergeSpecification findForcedMerges(SegmentInfos infos, int maxSegmentCount, Map<SegmentInfoPerCommit, Boolean> segmentsToMerge) throws IOException {
             if (enableMerge.get() == Boolean.FALSE) {
                 return null;
             }

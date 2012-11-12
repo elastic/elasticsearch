@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.facet.geodistance;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.mapper.MapperService;
@@ -87,8 +87,8 @@ public class GeoDistanceFacetCollector extends AbstractFacetCollector {
     }
 
     @Override
-    protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
-        fieldData = (GeoPointFieldData) fieldDataCache.cache(GeoPointFieldDataType.TYPE, reader, indexFieldName);
+    protected void doSetNextReader(AtomicReaderContext context) throws IOException {
+        fieldData = (GeoPointFieldData) fieldDataCache.cache(GeoPointFieldDataType.TYPE, context.reader(), indexFieldName);
     }
 
     @Override

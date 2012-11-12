@@ -37,10 +37,10 @@ import java.util.List;
  */
 public class SortParseElement implements SearchParseElement {
 
-    private static final SortField SORT_SCORE = new SortField(null, SortField.SCORE);
-    private static final SortField SORT_SCORE_REVERSE = new SortField(null, SortField.SCORE, true);
-    private static final SortField SORT_DOC = new SortField(null, SortField.DOC);
-    private static final SortField SORT_DOC_REVERSE = new SortField(null, SortField.DOC, true);
+    private static final SortField SORT_SCORE = new SortField(null, SortField.Type.SCORE);
+    private static final SortField SORT_SCORE_REVERSE = new SortField(null, SortField.Type.SCORE, true);
+    private static final SortField SORT_DOC = new SortField(null, SortField.Type.DOC);
+    private static final SortField SORT_DOC_REVERSE = new SortField(null, SortField.Type.DOC, true);
 
     public static final String SCORE_FIELD_NAME = "_score";
     public static final String DOC_FIELD_NAME = "_doc";
@@ -82,7 +82,7 @@ public class SortParseElement implements SearchParseElement {
                 sort = true;
             } else {
                 SortField sortField = sortFields.get(0);
-                if (sortField.getType() == SortField.SCORE && !sortField.getReverse()) {
+                if (sortField.getType() == SortField.Type.SCORE && !sortField.getReverse()) {
                     sort = false;
                 } else {
                     sort = true;

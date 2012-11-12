@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Field;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.all.AllEntries;
@@ -80,6 +79,8 @@ public class ParseContext {
 
     private AllEntries allEntries = new AllEntries();
 
+    private float docBoost = 1.0f;
+
     public ParseContext(String index, @Nullable Settings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper, ContentPath path) {
         this.index = index;
         this.indexSettings = indexSettings;
@@ -107,6 +108,7 @@ public class ParseContext {
         this.listener = listener == null ? DocumentMapper.ParseListener.EMPTY : listener;
         this.allEntries = new AllEntries();
         this.ignoredValues.clear();
+        this.docBoost = 1.0f;
     }
 
     public boolean flyweight() {
@@ -228,7 +230,7 @@ public class ParseContext {
     }
 
     public boolean includeInAll(Boolean includeInAll, FieldMapper mapper) {
-        return includeInAll(includeInAll, mapper.index());
+        return includeInAll(includeInAll, mapper.indexed());
     }
 
     /**
@@ -236,13 +238,13 @@ public class ParseContext {
      * is <tt>false</tt>. If its enabled, then will return <tt>true</tt> only if the specific flag is <tt>null</tt> or
      * its actual value (so, if not set, defaults to "true") and the field is indexed.
      */
-    private boolean includeInAll(Boolean specificIncludeInAll, Field.Index index) {
+    private boolean includeInAll(Boolean specificIncludeInAll, boolean indexed) {
         if (!docMapper.allFieldMapper().enabled()) {
             return false;
         }
         // not explicitly set
         if (specificIncludeInAll == null) {
-            return index != Field.Index.NO;
+            return indexed;
         }
         return specificIncludeInAll;
     }
@@ -271,6 +273,14 @@ public class ParseContext {
     public Object externalValue() {
         externalValueSet = false;
         return externalValue;
+    }
+
+    public float docBoost() {
+        return this.docBoost;
+    }
+
+    public void docBoost(float docBoost) {
+        this.docBoost = docBoost;
     }
 
     /**

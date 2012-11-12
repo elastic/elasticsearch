@@ -59,7 +59,7 @@ public abstract class SnappyCompressedIndexInput extends CompressedIndexInput<Sn
     }
 
     @Override
-    public Object clone() {
+    public IndexInput clone() {
         SnappyCompressedIndexInput cloned = (SnappyCompressedIndexInput) super.clone();
         cloned.inputBuffer = new byte[inputBuffer.length];
         return cloned;

@@ -21,6 +21,7 @@ package org.elasticsearch.search.facet.terms;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
@@ -80,7 +81,7 @@ public class TermsFacetProcessor extends AbstractComponent implements FacetProce
         int size = 10;
 
         String[] fieldsNames = null;
-        ImmutableSet<String> excluded = ImmutableSet.of();
+        ImmutableSet<BytesRef> excluded = ImmutableSet.of();
         String regex = null;
         String regexFlags = null;
         TermsFacet.ComparatorType comparatorType = TermsFacet.ComparatorType.COUNT;
@@ -101,9 +102,9 @@ public class TermsFacetProcessor extends AbstractComponent implements FacetProce
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("exclude".equals(currentFieldName)) {
-                    ImmutableSet.Builder<String> builder = ImmutableSet.builder();
+                    ImmutableSet.Builder<BytesRef> builder = ImmutableSet.builder();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        builder.add(parser.text());
+                        builder.add(new BytesRef(parser.text()));
                     }
                     excluded = builder.build();
                 } else if ("fields".equals(currentFieldName)) {

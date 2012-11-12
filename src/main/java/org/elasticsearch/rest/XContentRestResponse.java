@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest;
 
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.util.concurrent.ThreadLocals;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -33,20 +34,20 @@ public class XContentRestResponse extends AbstractRestResponse {
     private static final byte[] END_JSONP;
 
     static {
-        UnicodeUtil.UTF8Result U_END_JSONP = new UnicodeUtil.UTF8Result();
+        BytesRef U_END_JSONP = new BytesRef();
         UnicodeUtil.UTF16toUTF8(");", 0, ");".length(), U_END_JSONP);
         END_JSONP = new byte[U_END_JSONP.length];
-        System.arraycopy(U_END_JSONP.result, 0, END_JSONP, 0, U_END_JSONP.length);
+        System.arraycopy(U_END_JSONP.bytes, U_END_JSONP.offset, END_JSONP, 0, U_END_JSONP.length);
     }
 
-    private static ThreadLocal<ThreadLocals.CleanableValue<UnicodeUtil.UTF8Result>> prefixCache = new ThreadLocal<ThreadLocals.CleanableValue<UnicodeUtil.UTF8Result>>() {
+    private static ThreadLocal<ThreadLocals.CleanableValue<BytesRef>> prefixCache = new ThreadLocal<ThreadLocals.CleanableValue<BytesRef>>() {
         @Override
-        protected ThreadLocals.CleanableValue<UnicodeUtil.UTF8Result> initialValue() {
-            return new ThreadLocals.CleanableValue<UnicodeUtil.UTF8Result>(new UnicodeUtil.UTF8Result());
+        protected ThreadLocals.CleanableValue<BytesRef> initialValue() {
+            return new ThreadLocals.CleanableValue<BytesRef>(new BytesRef());
         }
     };
 
-    private final UnicodeUtil.UTF8Result prefixUtf8Result;
+    private final BytesRef prefixUtf8Result;
 
     private final RestStatus status;
 
@@ -83,6 +84,11 @@ public class XContentRestResponse extends AbstractRestResponse {
     }
 
     @Override
+    public int contentOffset() throws IOException {
+        return 0;
+    }
+
+    @Override
     public RestStatus status() {
         return this.status;
     }
@@ -90,7 +96,7 @@ public class XContentRestResponse extends AbstractRestResponse {
     @Override
     public byte[] prefixContent() {
         if (prefixUtf8Result != null) {
-            return prefixUtf8Result.result;
+            return prefixUtf8Result.bytes;
         }
         return null;
     }
@@ -99,6 +105,14 @@ public class XContentRestResponse extends AbstractRestResponse {
     public int prefixContentLength() {
         if (prefixUtf8Result != null) {
             return prefixUtf8Result.length;
+        }
+        return 0;
+    }
+
+    @Override
+    public int prefixContentOffset() {
+        if (prefixUtf8Result != null) {
+            return prefixUtf8Result.offset;
         }
         return 0;
     }
@@ -119,14 +133,19 @@ public class XContentRestResponse extends AbstractRestResponse {
         return 0;
     }
 
-    private static UnicodeUtil.UTF8Result startJsonp(RestRequest request) {
+    @Override
+    public int suffixContentOffset() {
+        return 0;
+    }
+
+    private static BytesRef startJsonp(RestRequest request) {
         String callback = request.param("callback");
         if (callback == null) {
             return null;
         }
-        UnicodeUtil.UTF8Result result = prefixCache.get().get();
+        BytesRef result = prefixCache.get().get();
         UnicodeUtil.UTF16toUTF8(callback, 0, callback.length(), result);
-        result.result[result.length] = '(';
+        result.bytes[result.length] = '(';
         result.length++;
         return result;
     }

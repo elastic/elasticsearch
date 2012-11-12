@@ -26,6 +26,8 @@ import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.text.StringText;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.mapper.ip.IpFieldMapper;
@@ -72,11 +74,11 @@ public class InternalIpTermsFacet extends InternalTermsFacet {
             this.count = count;
         }
 
-        public String term() {
-            return IpFieldMapper.longToIp(term);
+        public Text term() {
+            return new StringText(IpFieldMapper.longToIp(term));
         }
 
-        public String getTerm() {
+        public Text getTerm() {
             return term();
         }
 
@@ -281,7 +283,7 @@ public class InternalIpTermsFacet extends InternalTermsFacet {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        name = in.readUTF();
+        name = in.readString();
         comparatorType = ComparatorType.fromId(in.readByte());
         requiredSize = in.readVInt();
         missing = in.readVLong();
@@ -296,7 +298,7 @@ public class InternalIpTermsFacet extends InternalTermsFacet {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeUTF(name);
+        out.writeString(name);
         out.writeByte(comparatorType.id());
         out.writeVInt(requiredSize);
         out.writeVLong(missing);

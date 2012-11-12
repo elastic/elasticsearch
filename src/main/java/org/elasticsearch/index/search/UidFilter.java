@@ -19,16 +19,11 @@
 
 package org.elasticsearch.index.search;
 
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.index.TermDocs;
+import org.apache.lucene.index.*;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.common.Unicode;
-import org.elasticsearch.common.bloom.BloomFilter;
-import org.elasticsearch.index.cache.bloom.BloomCache;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 
@@ -37,19 +32,17 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
+// LUCENE 4 UPGRADE: we can potentially use TermsFilter here, specifically, now when we don't do bloom filter, batching, and with optimization on single field terms
 public class UidFilter extends Filter {
 
     final Term[] uids;
 
-    private final BloomCache bloomCache;
-
-    public UidFilter(Collection<String> types, List<String> ids, BloomCache bloomCache) {
-        this.bloomCache = bloomCache;
+    public UidFilter(Collection<String> types, List<String> ids) {
         this.uids = new Term[types.size() * ids.size()];
         int i = 0;
         for (String type : types) {
             for (String id : ids) {
-                uids[i++] = UidFieldMapper.TERM_FACTORY.createTerm(Uid.createUid(type, id));
+                uids[i++] = new Term(UidFieldMapper.NAME, Uid.createUid(type, id));
             }
         }
         if (this.uids.length > 1) {
@@ -65,33 +58,23 @@ public class UidFilter extends Filter {
     // - If we have a single id, we can create a SingleIdDocIdSet to save on mem
     // - We can use sorted int array DocIdSet to reserve memory compared to OpenBitSet in some cases
     @Override
-    public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
-        BloomFilter filter = bloomCache.filter(reader, UidFieldMapper.NAME, true);
+    public DocIdSet getDocIdSet(AtomicReaderContext ctx, Bits acceptedDocs) throws IOException {
         FixedBitSet set = null;
-        TermDocs td = null;
-        UnicodeUtil.UTF8Result utf8 = new UnicodeUtil.UTF8Result();
-        try {
-            for (Term uid : uids) {
-                Unicode.fromStringAsUtf8(uid.text(), utf8);
-                if (!filter.isPresent(utf8.result, 0, utf8.length)) {
-                    continue;
-                }
-                if (td == null) {
-                    td = reader.termDocs();
-                }
-                td.seek(uid);
-                // no need for batching, its on the UID, there will be only one doc
-                while (td.next()) {
+        final AtomicReader reader = ctx.reader();
+        final TermsEnum termsEnum = reader.terms(UidFieldMapper.NAME).iterator(null);
+        DocsEnum docsEnum = null;
+        for (Term uid : uids) {
+            if (termsEnum.seekExact(uid.bytes(), false)) {
+                docsEnum = termsEnum.docs(acceptedDocs, docsEnum, 0);
+                int doc;
+                while ((doc = docsEnum.nextDoc()) != DocsEnum.NO_MORE_DOCS) {
                     if (set == null) {
                         set = new FixedBitSet(reader.maxDoc());
                     }
-                    set.set(td.doc());
+                    set.set(doc);
                 }
             }
-        } finally {
-            if (td != null) {
-                td.close();
-            }
+
         }
         return set;
     }

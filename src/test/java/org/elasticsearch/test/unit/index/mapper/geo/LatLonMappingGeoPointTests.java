@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.unit.index.mapper.geo;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -185,11 +186,11 @@ public class LatLonMappingGeoPointTests {
                 .endObject()
                 .bytes());
 
-        assertThat(doc.rootDoc().getFieldable("point.lat"), notNullValue());
-        assertThat(doc.rootDoc().getFieldable("point.lat").getBinaryValue(), nullValue());
-        assertThat(doc.rootDoc().getFieldable("point.lon"), notNullValue());
-        assertThat(doc.rootDoc().getFieldable("point.lon").getBinaryValue(), nullValue());
-        assertThat(doc.rootDoc().getFieldable("point.geohash"), nullValue());
+        assertThat(doc.rootDoc().getField("point.lat"), notNullValue());
+        assertThat(doc.rootDoc().getField("point.lat").binaryValue(), nullValue());
+        assertThat(doc.rootDoc().getField("point.lon"), notNullValue());
+        assertThat(doc.rootDoc().getField("point.lon").binaryValue(), nullValue());
+        assertThat(doc.rootDoc().getField("point.geohash"), nullValue());
         assertThat(doc.rootDoc().get("point"), equalTo("1.2,1.3"));
     }
 
@@ -207,11 +208,11 @@ public class LatLonMappingGeoPointTests {
                 .endObject()
                 .bytes());
 
-        assertThat(doc.rootDoc().getFieldable("point.lat"), notNullValue());
-        assertThat(doc.rootDoc().getFieldable("point.lat").getBinaryValue(), equalTo(Numbers.doubleToBytes(1.2)));
-        assertThat(doc.rootDoc().getFieldable("point.lon"), notNullValue());
-        assertThat(doc.rootDoc().getFieldable("point.lon").getBinaryValue(), equalTo(Numbers.doubleToBytes(1.3)));
-        assertThat(doc.rootDoc().getFieldable("point.geohash"), nullValue());
+        assertThat(doc.rootDoc().getField("point.lat"), notNullValue());
+        assertThat(BytesRef.deepCopyOf(doc.rootDoc().getField("point.lat").binaryValue()).bytes, equalTo(Numbers.doubleToBytes(1.2)));
+        assertThat(doc.rootDoc().getField("point.lon"), notNullValue());
+        assertThat(BytesRef.deepCopyOf(doc.rootDoc().getField("point.lon").binaryValue()).bytes, equalTo(Numbers.doubleToBytes(1.3)));
+        assertThat(doc.rootDoc().getField("point.geohash"), nullValue());
         assertThat(doc.rootDoc().get("point"), equalTo("1.2,1.3"));
     }
 
@@ -232,14 +233,14 @@ public class LatLonMappingGeoPointTests {
                 .endObject()
                 .bytes());
 
-        assertThat(doc.rootDoc().getFieldables("point.lat").length, equalTo(2));
-        assertThat(doc.rootDoc().getFieldables("point.lon").length, equalTo(2));
-        assertThat(doc.rootDoc().getFieldables("point.lat")[0].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.2)));
-        assertThat(doc.rootDoc().getFieldables("point.lon")[0].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.3)));
-        assertThat(doc.rootDoc().getFieldables("point")[0].stringValue(), equalTo("1.2,1.3"));
-        assertThat(doc.rootDoc().getFieldables("point.lat")[1].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.4)));
-        assertThat(doc.rootDoc().getFieldables("point.lon")[1].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.5)));
-        assertThat(doc.rootDoc().getFieldables("point")[1].stringValue(), equalTo("1.4,1.5"));
+        assertThat(doc.rootDoc().getFields("point.lat").length, equalTo(2));
+        assertThat(doc.rootDoc().getFields("point.lon").length, equalTo(2));
+        assertThat(BytesRef.deepCopyOf(doc.rootDoc().getFields("point.lat")[0].binaryValue()).bytes, equalTo(Numbers.doubleToBytes(1.2)));
+        assertThat(BytesRef.deepCopyOf(doc.rootDoc().getFields("point.lon")[0].binaryValue()).bytes, equalTo(Numbers.doubleToBytes(1.3)));
+        assertThat(doc.rootDoc().getFields("point")[0].stringValue(), equalTo("1.2,1.3"));
+        assertThat(BytesRef.deepCopyOf(doc.rootDoc().getFields("point.lat")[1].binaryValue()).bytes, equalTo(Numbers.doubleToBytes(1.4)));
+        assertThat(BytesRef.deepCopyOf(doc.rootDoc().getFields("point.lon")[1].binaryValue()).bytes, equalTo(Numbers.doubleToBytes(1.5)));
+        assertThat(doc.rootDoc().getFields("point")[1].stringValue(), equalTo("1.4,1.5"));
     }
 
     @Test
@@ -256,8 +257,8 @@ public class LatLonMappingGeoPointTests {
                 .endObject()
                 .bytes());
 
-        assertThat(doc.rootDoc().getFieldable("point.lat"), notNullValue());
-        assertThat(doc.rootDoc().getFieldable("point.lon"), notNullValue());
+        assertThat(doc.rootDoc().getField("point.lat"), notNullValue());
+        assertThat(doc.rootDoc().getField("point.lon"), notNullValue());
         assertThat(doc.rootDoc().get("point"), equalTo("1.2,1.3"));
     }
 
@@ -275,10 +276,10 @@ public class LatLonMappingGeoPointTests {
                 .endObject()
                 .bytes());
 
-        assertThat(doc.rootDoc().getFieldable("point.lat"), notNullValue());
-        assertThat(doc.rootDoc().getFieldable("point.lat").getBinaryValue(), equalTo(Numbers.doubleToBytes(1.2)));
-        assertThat(doc.rootDoc().getFieldable("point.lon"), notNullValue());
-        assertThat(doc.rootDoc().getFieldable("point.lon").getBinaryValue(), equalTo(Numbers.doubleToBytes(1.3)));
+        assertThat(doc.rootDoc().getField("point.lat"), notNullValue());
+        assertThat(BytesRef.deepCopyOf(doc.rootDoc().getField("point.lat").binaryValue()).bytes, equalTo(Numbers.doubleToBytes(1.2)));
+        assertThat(doc.rootDoc().getField("point.lon"), notNullValue());
+        assertThat(BytesRef.deepCopyOf(doc.rootDoc().getField("point.lon").binaryValue()).bytes, equalTo(Numbers.doubleToBytes(1.3)));
         assertThat(doc.rootDoc().get("point"), equalTo("1.2,1.3"));
     }
 
@@ -299,14 +300,14 @@ public class LatLonMappingGeoPointTests {
                 .endObject()
                 .bytes());
 
-        assertThat(doc.rootDoc().getFieldables("point.lat").length, equalTo(2));
-        assertThat(doc.rootDoc().getFieldables("point.lon").length, equalTo(2));
-        assertThat(doc.rootDoc().getFieldables("point.lat")[0].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.2)));
-        assertThat(doc.rootDoc().getFieldables("point.lon")[0].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.3)));
-        assertThat(doc.rootDoc().getFieldables("point")[0].stringValue(), equalTo("1.2,1.3"));
-        assertThat(doc.rootDoc().getFieldables("point.lat")[1].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.4)));
-        assertThat(doc.rootDoc().getFieldables("point.lon")[1].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.5)));
-        assertThat(doc.rootDoc().getFieldables("point")[1].stringValue(), equalTo("1.4,1.5"));
+        assertThat(doc.rootDoc().getFields("point.lat").length, equalTo(2));
+        assertThat(doc.rootDoc().getFields("point.lon").length, equalTo(2));
+        assertThat(BytesRef.deepCopyOf(doc.rootDoc().getFields("point.lat")[0].binaryValue()).bytes, equalTo(Numbers.doubleToBytes(1.2)));
+        assertThat(BytesRef.deepCopyOf(doc.rootDoc().getFields("point.lon")[0].binaryValue()).bytes, equalTo(Numbers.doubleToBytes(1.3)));
+        assertThat(doc.rootDoc().getFields("point")[0].stringValue(), equalTo("1.2,1.3"));
+        assertThat(BytesRef.deepCopyOf(doc.rootDoc().getFields("point.lat")[1].binaryValue()).bytes, equalTo(Numbers.doubleToBytes(1.4)));
+        assertThat(BytesRef.deepCopyOf(doc.rootDoc().getFields("point.lon")[1].binaryValue()).bytes, equalTo(Numbers.doubleToBytes(1.5)));
+        assertThat(doc.rootDoc().getFields("point")[1].stringValue(), equalTo("1.4,1.5"));
     }
 
     @Test
@@ -323,8 +324,8 @@ public class LatLonMappingGeoPointTests {
                 .endObject()
                 .bytes());
 
-        assertThat(doc.rootDoc().getFieldable("point.lat"), notNullValue());
-        assertThat(doc.rootDoc().getFieldable("point.lon"), notNullValue());
+        assertThat(doc.rootDoc().getField("point.lat"), notNullValue());
+        assertThat(doc.rootDoc().getField("point.lon"), notNullValue());
         assertThat(doc.rootDoc().get("point"), notNullValue());
     }
 
@@ -342,10 +343,10 @@ public class LatLonMappingGeoPointTests {
                 .endObject()
                 .bytes());
 
-        assertThat(doc.rootDoc().getFieldable("point.lat"), notNullValue());
-        assertThat(doc.rootDoc().getFieldable("point.lat").getBinaryValue(), nullValue());
-        assertThat(doc.rootDoc().getFieldable("point.lon"), notNullValue());
-        assertThat(doc.rootDoc().getFieldable("point.lon").getBinaryValue(), nullValue());
+        assertThat(doc.rootDoc().getField("point.lat"), notNullValue());
+        assertThat(doc.rootDoc().getField("point.lat").binaryValue(), nullValue());
+        assertThat(doc.rootDoc().getField("point.lon"), notNullValue());
+        assertThat(doc.rootDoc().getField("point.lon").binaryValue(), nullValue());
         assertThat(doc.rootDoc().get("point"), equalTo("1.2,1.3"));
     }
 
@@ -363,10 +364,10 @@ public class LatLonMappingGeoPointTests {
                 .endObject()
                 .bytes());
 
-        assertThat(doc.rootDoc().getFieldable("point.lat"), notNullValue());
-        assertThat(doc.rootDoc().getFieldable("point.lat").getBinaryValue(), equalTo(Numbers.doubleToBytes(1.2)));
-        assertThat(doc.rootDoc().getFieldable("point.lon"), notNullValue());
-        assertThat(doc.rootDoc().getFieldable("point.lon").getBinaryValue(), equalTo(Numbers.doubleToBytes(1.3)));
+        assertThat(doc.rootDoc().getField("point.lat"), notNullValue());
+        assertThat(BytesRef.deepCopyOf(doc.rootDoc().getField("point.lat").binaryValue()).bytes, equalTo(Numbers.doubleToBytes(1.2)));
+        assertThat(doc.rootDoc().getField("point.lon"), notNullValue());
+        assertThat(BytesRef.deepCopyOf(doc.rootDoc().getField("point.lon").binaryValue()).bytes, equalTo(Numbers.doubleToBytes(1.3)));
         assertThat(doc.rootDoc().get("point"), equalTo("1.2,1.3"));
     }
 
@@ -387,13 +388,13 @@ public class LatLonMappingGeoPointTests {
                 .endObject()
                 .bytes());
 
-        assertThat(doc.rootDoc().getFieldables("point.lat").length, equalTo(2));
-        assertThat(doc.rootDoc().getFieldables("point.lon").length, equalTo(2));
-        assertThat(doc.rootDoc().getFieldables("point.lat")[0].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.2)));
-        assertThat(doc.rootDoc().getFieldables("point.lon")[0].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.3)));
-        assertThat(doc.rootDoc().getFieldables("point")[0].stringValue(), equalTo("1.2,1.3"));
-        assertThat(doc.rootDoc().getFieldables("point.lat")[1].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.4)));
-        assertThat(doc.rootDoc().getFieldables("point.lon")[1].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.5)));
-        assertThat(doc.rootDoc().getFieldables("point")[1].stringValue(), equalTo("1.4,1.5"));
+        assertThat(doc.rootDoc().getFields("point.lat").length, equalTo(2));
+        assertThat(doc.rootDoc().getFields("point.lon").length, equalTo(2));
+        assertThat(BytesRef.deepCopyOf(doc.rootDoc().getFields("point.lat")[0].binaryValue()).bytes, equalTo(Numbers.doubleToBytes(1.2)));
+        assertThat(BytesRef.deepCopyOf(doc.rootDoc().getFields("point.lon")[0].binaryValue()).bytes, equalTo(Numbers.doubleToBytes(1.3)));
+        assertThat(doc.rootDoc().getFields("point")[0].stringValue(), equalTo("1.2,1.3"));
+        assertThat(BytesRef.deepCopyOf(doc.rootDoc().getFields("point.lat")[1].binaryValue()).bytes, equalTo(Numbers.doubleToBytes(1.4)));
+        assertThat(BytesRef.deepCopyOf(doc.rootDoc().getFields("point.lon")[1].binaryValue()).bytes, equalTo(Numbers.doubleToBytes(1.5)));
+        assertThat(doc.rootDoc().getFields("point")[1].stringValue(), equalTo("1.4,1.5"));
     }
 }

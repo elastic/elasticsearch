@@ -21,9 +21,11 @@ package org.elasticsearch.index.percolator;
 
 import com.google.common.collect.Maps;
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Fieldable;
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReader;
+import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.TermFilter;
@@ -36,7 +38,7 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.mapper.selector.UidAndSourceFieldSelector;
+import org.elasticsearch.index.mapper.selector.UidAndSourceFieldVisitor;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -135,7 +137,7 @@ public class PercolatorService extends AbstractIndexComponent {
     }
 
     private Filter indexQueriesFilter(String indexName) {
-        return percolatorIndexService().cache().filter().cache(new TermFilter(TypeFieldMapper.TERM_FACTORY.createTerm(indexName)));
+        return percolatorIndexService().cache().filter().cache(new TermFilter(new Term(TypeFieldMapper.NAME, indexName)));
     }
 
     private boolean percolatorAllocated() {
@@ -157,7 +159,7 @@ public class PercolatorService extends AbstractIndexComponent {
 
     class QueriesLoaderCollector extends Collector {
 
-        private IndexReader reader;
+        private AtomicReader reader;
 
         private Map<String, Query> queries = Maps.newHashMap();
 
@@ -172,19 +174,21 @@ public class PercolatorService extends AbstractIndexComponent {
         @Override
         public void collect(int doc) throws IOException {
             // the _source is the query
-            Document document = reader.document(doc, new UidAndSourceFieldSelector());
+            UidAndSourceFieldVisitor fieldVisitor = new UidAndSourceFieldVisitor();
+            reader.document(doc, fieldVisitor);
+            Document document = fieldVisitor.createDocument();
             String id = Uid.createUid(document.get(UidFieldMapper.NAME)).id();
             try {
-                Fieldable sourceField = document.getFieldable(SourceFieldMapper.NAME);
-                queries.put(id, percolator.parseQuery(id, new BytesArray(sourceField.getBinaryValue(), sourceField.getBinaryOffset(), sourceField.getBinaryLength())));
+                BytesRef sourceVal = document.getBinaryValue(SourceFieldMapper.NAME);
+                queries.put(id, percolator.parseQuery(id, new BytesArray(sourceVal.bytes, sourceVal.offset, sourceVal.length)));
             } catch (Exception e) {
                 logger.warn("failed to add query [{}]", e, id);
             }
         }
 
         @Override
-        public void setNextReader(IndexReader reader, int docBase) throws IOException {
-            this.reader = reader;
+        public void setNextReader(AtomicReaderContext context) throws IOException {
+            this.reader = context.reader();
         }
 
         @Override

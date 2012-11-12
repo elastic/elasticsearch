@@ -65,12 +65,12 @@ public class XScoreOrderFragmentsBuilder extends AbstractFragmentsBuilder {
     public static class ScoreComparator implements Comparator<WeightedFragInfo> {
 
         public int compare(WeightedFragInfo o1, WeightedFragInfo o2) {
-            if (o1.totalBoost > o2.totalBoost) return -1;
-            else if (o1.totalBoost < o2.totalBoost) return 1;
+            if (o1.getTotalBoost() > o2.getTotalBoost()) return -1;
+            else if (o1.getTotalBoost() < o2.getTotalBoost()) return 1;
                 // if same score then check startOffset
             else {
-                if (o1.startOffset < o2.startOffset) return -1;
-                else if (o1.startOffset > o2.startOffset) return 1;
+                if (o1.getStartOffset() < o2.getStartOffset()) return -1;
+                else if (o1.getStartOffset() > o2.getStartOffset()) return 1;
             }
             return 0;
         }

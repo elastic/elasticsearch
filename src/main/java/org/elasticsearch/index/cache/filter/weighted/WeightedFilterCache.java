@@ -23,10 +23,12 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
 import com.google.common.cache.Weigher;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.util.Bits;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.docset.DocSet;
@@ -142,26 +144,30 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
             this.cache = cache;
         }
 
+
         @Override
-        public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
+        public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
             Object filterKey = filter;
             if (filter instanceof CacheKeyFilter) {
                 filterKey = ((CacheKeyFilter) filter).cacheKey();
             }
-            FilterCacheKey cacheKey = new FilterCacheKey(cache.index().name(), reader.getCoreCacheKey(), filterKey);
+            FilterCacheKey cacheKey = new FilterCacheKey(cache.index().name(), context.reader().getCoreCacheKey(), filterKey);
             Cache<FilterCacheKey, DocSet> innerCache = cache.indicesFilterCache.cache();
 
             DocSet cacheValue = innerCache.getIfPresent(cacheKey);
             if (cacheValue == null) {
-                if (!cache.seenReaders.containsKey(reader.getCoreCacheKey())) {
-                    Boolean previous = cache.seenReaders.putIfAbsent(reader.getCoreCacheKey(), Boolean.TRUE);
-                    if (previous == null && (reader instanceof SegmentReader)) {
-                        ((SegmentReader) reader).addCoreClosedListener(cache);
+                if (!cache.seenReaders.containsKey(context.reader().getCoreCacheKey())) {
+                    Boolean previous = cache.seenReaders.putIfAbsent(context.reader().getCoreCacheKey(), Boolean.TRUE);
+                    if (previous == null && (context.reader() instanceof SegmentReader)) {
+                        ((SegmentReader) context.reader()).addCoreClosedListener(cache);
                         cache.seenReadersCount.inc();
                     }
                 }
 
-                cacheValue = DocSets.cacheable(reader, filter.getDocIdSet(reader));
+                // we pass down the acceptDocs so things like TermFilter will be able to make use of it
+                // but we don't wrap it with accept docs in "our own filters", we rely on it being applied
+                // on the top level
+                cacheValue = DocSets.cacheable(context.reader(), filter.getDocIdSet(context, acceptDocs));
                 // we might put the same one concurrently, that's fine, it will be replaced and the removal
                 // will be called
                 cache.totalMetric.inc(cacheValue.sizeInBytes());

@@ -20,7 +20,7 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.ru.RussianStemFilter;
+import org.apache.lucene.analysis.snowball.SnowballFilter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
@@ -39,6 +39,6 @@ public class RussianStemTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new RussianStemFilter(tokenStream);
+        return new SnowballFilter(tokenStream, "Russian");
     }
 }

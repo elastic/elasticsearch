@@ -87,18 +87,8 @@ public abstract class IndexCommitDelegate extends IndexCommit {
     }
 
     @Override
-    public long getVersion() {
-        return delegate.getVersion();
-    }
-
-    @Override
     public long getGeneration() {
         return delegate.getGeneration();
-    }
-
-    @Override
-    public long getTimestamp() throws IOException {
-        return delegate.getTimestamp();
     }
 
     @Override

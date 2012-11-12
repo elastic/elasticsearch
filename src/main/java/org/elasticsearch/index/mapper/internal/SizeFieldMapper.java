@@ -20,7 +20,7 @@
 package org.elasticsearch.index.mapper.internal;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.document.FieldType;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.*;
@@ -40,16 +40,23 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
     public static class Defaults extends IntegerFieldMapper.Defaults {
         public static final String NAME = CONTENT_TYPE;
         public static final boolean ENABLED = false;
+
+        public static final FieldType SIZE_FIELD_TYPE = new FieldType(IntegerFieldMapper.Defaults.INTEGER_FIELD_TYPE);
+
+        static {
+            SIZE_FIELD_TYPE.freeze();
+        }
     }
 
     public static class Builder extends Mapper.Builder<Builder, IntegerFieldMapper> {
 
         protected boolean enabled = Defaults.ENABLED;
 
-        protected Field.Store store = Defaults.STORE;
+        protected final FieldType fieldType;
 
         public Builder() {
             super(Defaults.NAME);
+            fieldType = new FieldType(Defaults.SIZE_FIELD_TYPE);
             builder = this;
         }
 
@@ -58,14 +65,14 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
             return builder;
         }
 
-        public Builder store(Field.Store store) {
-            this.store = store;
+        public Builder store(boolean store) {
+            this.fieldType.setStored(store);
             return builder;
         }
 
         @Override
         public SizeFieldMapper build(BuilderContext context) {
-            return new SizeFieldMapper(enabled, store);
+            return new SizeFieldMapper(enabled, fieldType);
         }
     }
 
@@ -89,12 +96,12 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
     private final boolean enabled;
 
     public SizeFieldMapper() {
-        this(Defaults.ENABLED, Defaults.STORE);
+        this(Defaults.ENABLED, new FieldType(Defaults.SIZE_FIELD_TYPE));
     }
 
-    public SizeFieldMapper(boolean enabled, Field.Store store) {
-        super(new Names(Defaults.NAME), Defaults.PRECISION_STEP, Defaults.FUZZY_FACTOR, Defaults.INDEX, store,
-                Defaults.BOOST, Defaults.OMIT_NORMS, Defaults.INDEX_OPTIONS, Defaults.NULL_VALUE,
+    public SizeFieldMapper(boolean enabled, FieldType fieldType) {
+        super(new Names(Defaults.NAME), Defaults.PRECISION_STEP, Defaults.FUZZY_FACTOR,
+                Defaults.BOOST, fieldType, Defaults.NULL_VALUE,
                 Defaults.IGNORE_MALFORMED);
         this.enabled = enabled;
     }
@@ -133,28 +140,28 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
     }
 
     @Override
-    protected Fieldable innerParseCreateField(ParseContext context) throws IOException {
+    protected Field innerParseCreateField(ParseContext context) throws IOException {
         if (!enabled) {
             return null;
         }
         if (context.flyweight()) {
             return null;
         }
-        return new CustomIntegerNumericField(this, context.source().length());
+        return new CustomIntegerNumericField(this, context.source().length(), fieldType);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // all are defaults, no need to write it at all
-        if (enabled == Defaults.ENABLED && store == Defaults.STORE) {
+        if (enabled == Defaults.ENABLED && stored() == Defaults.SIZE_FIELD_TYPE.stored()) {
             return builder;
         }
         builder.startObject(contentType());
         if (enabled != Defaults.ENABLED) {
             builder.field("enabled", enabled);
         }
-        if (store != Defaults.STORE) {
-            builder.field("store", store.name().toLowerCase());
+        if (stored() != Defaults.SIZE_FIELD_TYPE.stored()) {
+            builder.field("store", stored());
         }
         builder.endObject();
         return builder;

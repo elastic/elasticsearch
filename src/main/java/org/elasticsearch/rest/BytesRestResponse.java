@@ -53,6 +53,11 @@ public class BytesRestResponse extends AbstractRestResponse {
     }
 
     @Override
+    public int contentOffset() throws IOException {
+        return 0;
+    }
+
+    @Override
     public RestStatus status() {
         return RestStatus.OK;
     }

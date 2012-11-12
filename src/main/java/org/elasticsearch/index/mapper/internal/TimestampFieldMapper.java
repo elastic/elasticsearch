@@ -20,7 +20,7 @@
 package org.elasticsearch.index.mapper.internal;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.document.FieldType;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
@@ -50,8 +50,16 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
 
     public static class Defaults extends DateFieldMapper.Defaults {
         public static final String NAME = "_timestamp";
-        public static final Field.Store STORE = Field.Store.NO;
-        public static final Field.Index INDEX = Field.Index.NOT_ANALYZED;
+
+        public static final FieldType TIMESTAMP_FIELD_TYPE = new FieldType(DateFieldMapper.Defaults.DATE_FIELD_TYPE);
+
+        static {
+            TIMESTAMP_FIELD_TYPE.setStored(false);
+            TIMESTAMP_FIELD_TYPE.setIndexed(true);
+            TIMESTAMP_FIELD_TYPE.setTokenized(false);
+            TIMESTAMP_FIELD_TYPE.freeze();
+        }
+
         public static final boolean ENABLED = false;
         public static final String PATH = null;
         public static final FormatDateTimeFormatter DATE_TIME_FORMATTER = Joda.forPattern(DEFAULT_DATE_TIME_FORMAT);
@@ -64,9 +72,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
         private FormatDateTimeFormatter dateTimeFormatter = Defaults.DATE_TIME_FORMATTER;
 
         public Builder() {
-            super(Defaults.NAME);
-            store = Defaults.STORE;
-            index = Defaults.INDEX;
+            super(Defaults.NAME, new FieldType(Defaults.TIMESTAMP_FIELD_TYPE));
         }
 
         public Builder enabled(boolean enabled) {
@@ -90,7 +96,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
             if (context.indexSettings() != null) {
                 parseUpperInclusive = context.indexSettings().getAsBoolean("index.mapping.date.parse_upper_inclusive", Defaults.PARSE_UPPER_INCLUSIVE);
             }
-            return new TimestampFieldMapper(store, index, enabled, path, dateTimeFormatter, parseUpperInclusive, ignoreMalformed(context));
+            return new TimestampFieldMapper(fieldType, enabled, path, dateTimeFormatter, parseUpperInclusive, ignoreMalformed(context));
         }
     }
 
@@ -120,13 +126,13 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
     private final String path;
 
     public TimestampFieldMapper() {
-        this(Defaults.STORE, Defaults.INDEX, Defaults.ENABLED, Defaults.PATH, Defaults.DATE_TIME_FORMATTER, Defaults.PARSE_UPPER_INCLUSIVE, Defaults.IGNORE_MALFORMED);
+        this(new FieldType(Defaults.TIMESTAMP_FIELD_TYPE), Defaults.ENABLED, Defaults.PATH, Defaults.DATE_TIME_FORMATTER, Defaults.PARSE_UPPER_INCLUSIVE, Defaults.IGNORE_MALFORMED);
     }
 
-    protected TimestampFieldMapper(Field.Store store, Field.Index index, boolean enabled, String path,
+    protected TimestampFieldMapper(FieldType fieldType, boolean enabled, String path,
                                    FormatDateTimeFormatter dateTimeFormatter, boolean parseUpperInclusive, Explicit<Boolean> ignoreMalformed) {
         super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), dateTimeFormatter,
-                Defaults.PRECISION_STEP, Defaults.FUZZY_FACTOR, index, store, Defaults.BOOST, Defaults.OMIT_NORMS, Defaults.INDEX_OPTIONS,
+                Defaults.PRECISION_STEP, Defaults.FUZZY_FACTOR, Defaults.BOOST, fieldType,
                 Defaults.NULL_VALUE, TimeUnit.MILLISECONDS /*always milliseconds*/,
                 parseUpperInclusive, ignoreMalformed);
         this.enabled = enabled;
@@ -149,12 +155,12 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
      * Override the default behavior to return a timestamp
      */
     @Override
-    public Object valueForSearch(Fieldable field) {
+    public Object valueForSearch(Field field) {
         return value(field);
     }
 
     @Override
-    public String valueAsString(Fieldable field) {
+    public String valueAsString(Field field) {
         Long value = value(field);
         if (value == null) {
             return null;
@@ -186,14 +192,14 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
     }
 
     @Override
-    protected Fieldable innerParseCreateField(ParseContext context) throws IOException {
+    protected Field innerParseCreateField(ParseContext context) throws IOException {
         if (enabled) {
             long timestamp = context.sourceToParse().timestamp();
             if (!indexed() && !stored()) {
                 context.ignoredValue(names.indexName(), String.valueOf(timestamp));
                 return null;
             }
-            return new LongFieldMapper.CustomLongNumericField(this, timestamp);
+            return new LongFieldMapper.CustomLongNumericField(this, timestamp, fieldType);
         }
         return null;
     }
@@ -206,16 +212,17 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // if all are defaults, no sense to write it at all
-        if (index == Defaults.INDEX && store == Defaults.STORE && enabled == Defaults.ENABLED && path == Defaults.PATH
+        if (indexed() == Defaults.TIMESTAMP_FIELD_TYPE.indexed() &&
+            stored() == Defaults.TIMESTAMP_FIELD_TYPE.stored() && enabled == Defaults.ENABLED && path == Defaults.PATH
                 && dateTimeFormatter.format().equals(Defaults.DATE_TIME_FORMATTER.format())) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
-        if (index != Defaults.INDEX) {
-            builder.field("index", index.name().toLowerCase());
+        if (indexed() != Defaults.TIMESTAMP_FIELD_TYPE.indexed()) {
+            builder.field("index", indexed());
         }
-        if (store != Defaults.STORE) {
-            builder.field("store", store.name().toLowerCase());
+        if (stored() != Defaults.TIMESTAMP_FIELD_TYPE.stored()) {
+            builder.field("store", stored());
         }
         if (enabled != Defaults.ENABLED) {
             builder.field("enabled", enabled);

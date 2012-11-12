@@ -20,11 +20,12 @@
 package org.elasticsearch.search.lookup;
 
 import com.google.common.collect.Maps;
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.lucene.document.SingleFieldSelector;
+import org.elasticsearch.common.lucene.document.SingleFieldVisitor;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 
@@ -44,24 +45,24 @@ public class FieldsLookup implements Map {
     @Nullable
     private final String[] types;
 
-    private IndexReader reader;
+    private AtomicReader reader;
 
     private int docId = -1;
 
     private final Map<String, FieldLookup> cachedFieldData = Maps.newHashMap();
 
-    private final SingleFieldSelector fieldSelector = new SingleFieldSelector();
+    private final SingleFieldVisitor fieldVisitor = new SingleFieldVisitor();
 
     FieldsLookup(MapperService mapperService, @Nullable String[] types) {
         this.mapperService = mapperService;
         this.types = types;
     }
 
-    public void setNextReader(IndexReader reader) {
-        if (this.reader == reader) { // if we are called with the same reader, don't invalidate source
+    public void setNextReader(AtomicReaderContext context) {
+        if (this.reader == context.reader()) { // if we are called with the same reader, don't invalidate source
             return;
         }
-        this.reader = reader;
+        this.reader = context.reader();
         clearCache();
         this.docId = -1;
     }
@@ -151,11 +152,15 @@ public class FieldsLookup implements Map {
             cachedFieldData.put(name, data);
         }
         if (data.doc() == null) {
-            fieldSelector.name(data.mapper().names().indexName());
+            fieldVisitor.name(data.mapper().names().indexName());
             try {
-                data.doc(reader.document(docId, fieldSelector));
+                reader.document(docId, fieldVisitor);
+                // LUCENE 4 UPGRADE: Only one field we don't need document
+                data.doc(fieldVisitor.createDocument());
             } catch (IOException e) {
                 throw new ElasticSearchParseException("failed to load field [" + name + "]", e);
+            } finally {
+                fieldVisitor.reset();
             }
         }
         return data;

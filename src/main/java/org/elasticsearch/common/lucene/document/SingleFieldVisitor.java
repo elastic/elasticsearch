@@ -17,37 +17,39 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper.selector;
+package org.elasticsearch.common.lucene.document;
 
-import org.apache.lucene.document.FieldSelectorResult;
-import org.elasticsearch.common.lucene.document.ResetFieldSelector;
-import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.FieldInfo;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
- * An optimized field selector that loads just the uid.
+ *
  */
-public class UidFieldSelector implements ResetFieldSelector {
+public class SingleFieldVisitor extends AbstractMultipleFieldsVisitor {
 
-    public static final UidFieldSelector INSTANCE = new UidFieldSelector();
+    private String name;
 
-    private UidFieldSelector() {
+    public SingleFieldVisitor() {
+    }
 
+    public SingleFieldVisitor(String name) {
+        this.name = name;
+    }
+
+    public void name(String name) {
+        this.name = name;
     }
 
     @Override
-    public FieldSelectorResult accept(String fieldName) {
-        if (UidFieldMapper.NAME.equals(fieldName)) {
-            return FieldSelectorResult.LOAD_AND_BREAK;
+    public Status needsField(FieldInfo fieldInfo) throws IOException {
+        if (name.equals(fieldInfo.name)) {
+            return Status.YES;
         }
-        return FieldSelectorResult.NO_LOAD;
-    }
-
-    @Override
-    public void reset() {
-    }
-
-    @Override
-    public String toString() {
-        return "uid";
+        return Status.NO;
     }
 }

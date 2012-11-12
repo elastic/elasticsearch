@@ -198,7 +198,7 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
         List<AnalyzeResponse.AnalyzeToken> tokens = Lists.newArrayList();
         TokenStream stream = null;
         try {
-            stream = analyzer.reusableTokenStream(field, new FastStringReader(request.text()));
+            stream = analyzer.tokenStream(field, new FastStringReader(request.text()));
             stream.reset();
             CharTermAttribute term = stream.addAttribute(CharTermAttribute.class);
             PositionIncrementAttribute posIncr = stream.addAttribute(PositionIncrementAttribute.class);

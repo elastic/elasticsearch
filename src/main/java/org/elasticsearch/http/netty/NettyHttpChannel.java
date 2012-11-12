@@ -102,15 +102,15 @@ public class NettyHttpChannel implements HttpChannel {
                     releaseContentListener = new NettyTransport.CacheFutureListener((CachedStreamOutput.Entry) builder.payload());
                     buf = builder.bytes().toChannelBuffer();
                 } else if (response.contentThreadSafe()) {
-                    buf = ChannelBuffers.wrappedBuffer(response.content(), 0, response.contentLength());
+                    buf = ChannelBuffers.wrappedBuffer(response.content(), response.contentOffset(), response.contentLength());
                 } else {
-                    buf = ChannelBuffers.copiedBuffer(response.content(), 0, response.contentLength());
+                    buf = ChannelBuffers.copiedBuffer(response.content(), response.contentOffset(), response.contentLength());
                 }
             } else {
                 if (response.contentThreadSafe()) {
-                    buf = ChannelBuffers.wrappedBuffer(response.content(), 0, response.contentLength());
+                    buf = ChannelBuffers.wrappedBuffer(response.content(), response.contentOffset(), response.contentLength());
                 } else {
-                    buf = ChannelBuffers.copiedBuffer(response.content(), 0, response.contentLength());
+                    buf = ChannelBuffers.copiedBuffer(response.content(), response.contentOffset(), response.contentLength());
                 }
             }
         } catch (IOException e) {
@@ -119,11 +119,11 @@ public class NettyHttpChannel implements HttpChannel {
         if (response.prefixContent() != null || response.suffixContent() != null) {
             ChannelBuffer prefixBuf = ChannelBuffers.EMPTY_BUFFER;
             if (response.prefixContent() != null) {
-                prefixBuf = ChannelBuffers.copiedBuffer(response.prefixContent(), 0, response.prefixContentLength());
+                prefixBuf = ChannelBuffers.copiedBuffer(response.prefixContent(), response.prefixContentOffset(), response.prefixContentLength());
             }
             ChannelBuffer suffixBuf = ChannelBuffers.EMPTY_BUFFER;
             if (response.suffixContent() != null) {
-                suffixBuf = ChannelBuffers.copiedBuffer(response.suffixContent(), 0, response.suffixContentLength());
+                suffixBuf = ChannelBuffers.copiedBuffer(response.suffixContent(), response.suffixContentOffset(), response.suffixContentLength());
             }
             buf = ChannelBuffers.wrappedBuffer(prefixBuf, buf, suffixBuf);
         }

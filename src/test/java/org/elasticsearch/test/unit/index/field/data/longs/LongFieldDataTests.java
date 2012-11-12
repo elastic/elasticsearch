@@ -19,10 +19,10 @@
 
 package org.elasticsearch.test.unit.index.field.data.longs;
 
-import org.apache.lucene.document.NumericField;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.LongField;
+import org.apache.lucene.index.*;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.lucene.Lucene;
@@ -31,7 +31,6 @@ import org.testng.annotations.Test;
 
 import java.util.ArrayList;
 
-import static org.elasticsearch.common.lucene.DocumentBuilder.doc;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -45,30 +44,30 @@ public class LongFieldDataTests {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
 
-        indexWriter.addDocument(doc()
-                .add(new NumericField("svalue").setLongValue(4))
-                .add(new NumericField("mvalue").setLongValue(104))
-                .build());
+        Document document = new Document();
+        document.add(new LongField("svalue", 4, Field.Store.NO));
+        document.add(new LongField("mvalue", 104, Field.Store.NO));
+        indexWriter.addDocument(document);
 
-        indexWriter.addDocument(doc()
-                .add(new NumericField("svalue").setLongValue(3))
-                .add(new NumericField("mvalue").setLongValue(104))
-                .add(new NumericField("mvalue").setLongValue(105))
-                .build());
+        document = new Document();
+        document.add(new LongField("svalue", 3, Field.Store.NO));
+        document.add(new LongField("mvalue", 104, Field.Store.NO));
+        document.add(new LongField("mvalue", 105, Field.Store.NO));
+        indexWriter.addDocument(document);
 
-        indexWriter.addDocument(doc()
-                .add(new NumericField("svalue").setLongValue(7))
-                .build());
+        document = new Document();
+        document.add(new LongField("svalue", 7, Field.Store.NO));
+        indexWriter.addDocument(document);
 
-        indexWriter.addDocument(doc()
-                .add(new NumericField("mvalue").setLongValue(102))
-                .build());
+        document = new Document();
+        document.add(new LongField("mvalue", 102, Field.Store.NO));
+        indexWriter.addDocument(document);
 
-        indexWriter.addDocument(doc()
-                .add(new NumericField("svalue").setLongValue(4))
-                .build());
+        document = new Document();
+        document.add(new LongField("svalue", 4, Field.Store.NO));
+        indexWriter.addDocument(document);
 
-        IndexReader reader = IndexReader.open(indexWriter, true);
+        AtomicReader reader = new SlowCompositeReaderWrapper(DirectoryReader.open(indexWriter, true));
 
         LongFieldData sFieldData = LongFieldData.load(reader, "svalue");
         LongFieldData mFieldData = LongFieldData.load(reader, "mvalue");

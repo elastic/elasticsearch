@@ -19,9 +19,10 @@
 
 package org.elasticsearch.index.search;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.lucene.docset.DocSet;
 import org.elasticsearch.common.lucene.docset.GetDocSet;
@@ -43,7 +44,7 @@ import java.io.IOException;
  *
  */
 public abstract class NumericRangeFieldDataFilter<T> extends Filter {
-
+    // LUCENE 4 UPGRADE: this filter doesn't respect acceptDocs yet!
     final FieldDataCache fieldDataCache;
     final String field;
     final T lowerVal;
@@ -121,7 +122,7 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
     public static NumericRangeFieldDataFilter<Byte> newByteRange(FieldDataCache fieldDataCache, String field, Byte lowerVal, Byte upperVal, boolean includeLower, boolean includeUpper) {
         return new NumericRangeFieldDataFilter<Byte>(fieldDataCache, field, lowerVal, upperVal, includeLower, includeUpper) {
             @Override
-            public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
+            public DocIdSet getDocIdSet(AtomicReaderContext ctx, Bits acceptedDocs) throws IOException {
                 final byte inclusiveLowerPoint, inclusiveUpperPoint;
                 if (lowerVal != null) {
                     byte i = lowerVal.byteValue();
@@ -143,8 +144,8 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
                 if (inclusiveLowerPoint > inclusiveUpperPoint)
                     return DocSet.EMPTY_DOC_SET;
 
-                final ByteFieldData fieldData = (ByteFieldData) this.fieldDataCache.cache(FieldDataType.DefaultTypes.BYTE, reader, field);
-                return new GetDocSet(reader.maxDoc()) {
+                final ByteFieldData fieldData = (ByteFieldData) this.fieldDataCache.cache(FieldDataType.DefaultTypes.BYTE, ctx.reader(), field);
+                return new GetDocSet(ctx.reader().maxDoc()) {
 
                     @Override
                     public boolean isCacheable() {
@@ -181,7 +182,7 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
     public static NumericRangeFieldDataFilter<Short> newShortRange(FieldDataCache fieldDataCache, String field, Short lowerVal, Short upperVal, boolean includeLower, boolean includeUpper) {
         return new NumericRangeFieldDataFilter<Short>(fieldDataCache, field, lowerVal, upperVal, includeLower, includeUpper) {
             @Override
-            public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
+            public DocIdSet getDocIdSet(AtomicReaderContext ctx, Bits acceptedDocs) throws IOException {
                 final short inclusiveLowerPoint, inclusiveUpperPoint;
                 if (lowerVal != null) {
                     short i = lowerVal.shortValue();
@@ -203,8 +204,8 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
                 if (inclusiveLowerPoint > inclusiveUpperPoint)
                     return DocSet.EMPTY_DOC_SET;
 
-                final ShortFieldData fieldData = (ShortFieldData) this.fieldDataCache.cache(FieldDataType.DefaultTypes.SHORT, reader, field);
-                return new GetDocSet(reader.maxDoc()) {
+                final ShortFieldData fieldData = (ShortFieldData) this.fieldDataCache.cache(FieldDataType.DefaultTypes.SHORT, ctx.reader(), field);
+                return new GetDocSet(ctx.reader().maxDoc()) {
 
                     @Override
                     public boolean isCacheable() {
@@ -240,7 +241,7 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
     public static NumericRangeFieldDataFilter<Integer> newIntRange(FieldDataCache fieldDataCache, String field, Integer lowerVal, Integer upperVal, boolean includeLower, boolean includeUpper) {
         return new NumericRangeFieldDataFilter<Integer>(fieldDataCache, field, lowerVal, upperVal, includeLower, includeUpper) {
             @Override
-            public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
+            public DocIdSet getDocIdSet(AtomicReaderContext ctx, Bits acceptedDocs) throws IOException {
                 final int inclusiveLowerPoint, inclusiveUpperPoint;
                 if (lowerVal != null) {
                     int i = lowerVal.intValue();
@@ -262,8 +263,8 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
                 if (inclusiveLowerPoint > inclusiveUpperPoint)
                     return DocSet.EMPTY_DOC_SET;
 
-                final IntFieldData fieldData = (IntFieldData) this.fieldDataCache.cache(FieldDataType.DefaultTypes.INT, reader, field);
-                return new GetDocSet(reader.maxDoc()) {
+                final IntFieldData fieldData = (IntFieldData) this.fieldDataCache.cache(FieldDataType.DefaultTypes.INT, ctx.reader(), field);
+                return new GetDocSet(ctx.reader().maxDoc()) {
 
                     @Override
                     public boolean isCacheable() {
@@ -299,7 +300,7 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
     public static NumericRangeFieldDataFilter<Long> newLongRange(FieldDataCache fieldDataCache, String field, Long lowerVal, Long upperVal, boolean includeLower, boolean includeUpper) {
         return new NumericRangeFieldDataFilter<Long>(fieldDataCache, field, lowerVal, upperVal, includeLower, includeUpper) {
             @Override
-            public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
+            public DocIdSet getDocIdSet(AtomicReaderContext ctx, Bits acceptedDocs) throws IOException {
                 final long inclusiveLowerPoint, inclusiveUpperPoint;
                 if (lowerVal != null) {
                     long i = lowerVal.longValue();
@@ -321,8 +322,8 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
                 if (inclusiveLowerPoint > inclusiveUpperPoint)
                     return DocSet.EMPTY_DOC_SET;
 
-                final LongFieldData fieldData = (LongFieldData) this.fieldDataCache.cache(FieldDataType.DefaultTypes.LONG, reader, field);
-                return new GetDocSet(reader.maxDoc()) {
+                final LongFieldData fieldData = (LongFieldData) this.fieldDataCache.cache(FieldDataType.DefaultTypes.LONG, ctx.reader(), field);
+                return new GetDocSet(ctx.reader().maxDoc()) {
 
                     @Override
                     public boolean isCacheable() {
@@ -358,7 +359,7 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
     public static NumericRangeFieldDataFilter<Float> newFloatRange(FieldDataCache fieldDataCache, String field, Float lowerVal, Float upperVal, boolean includeLower, boolean includeUpper) {
         return new NumericRangeFieldDataFilter<Float>(fieldDataCache, field, lowerVal, upperVal, includeLower, includeUpper) {
             @Override
-            public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
+            public DocIdSet getDocIdSet(AtomicReaderContext ctx, Bits acceptedDocs) throws IOException {
                 // we transform the floating point numbers to sortable integers
                 // using NumericUtils to easier find the next bigger/lower value
                 final float inclusiveLowerPoint, inclusiveUpperPoint;
@@ -384,8 +385,8 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
                 if (inclusiveLowerPoint > inclusiveUpperPoint)
                     return DocSet.EMPTY_DOC_SET;
 
-                final FloatFieldData fieldData = (FloatFieldData) this.fieldDataCache.cache(FieldDataType.DefaultTypes.FLOAT, reader, field);
-                return new GetDocSet(reader.maxDoc()) {
+                final FloatFieldData fieldData = (FloatFieldData) this.fieldDataCache.cache(FieldDataType.DefaultTypes.FLOAT, ctx.reader(), field);
+                return new GetDocSet(ctx.reader().maxDoc()) {
 
                     @Override
                     public boolean isCacheable() {
@@ -421,7 +422,7 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
     public static NumericRangeFieldDataFilter<Double> newDoubleRange(FieldDataCache fieldDataCache, String field, Double lowerVal, Double upperVal, boolean includeLower, boolean includeUpper) {
         return new NumericRangeFieldDataFilter<Double>(fieldDataCache, field, lowerVal, upperVal, includeLower, includeUpper) {
             @Override
-            public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
+            public DocIdSet getDocIdSet(AtomicReaderContext ctx, Bits acceptedDocs) throws IOException {
                 // we transform the floating point numbers to sortable integers
                 // using NumericUtils to easier find the next bigger/lower value
                 final double inclusiveLowerPoint, inclusiveUpperPoint;
@@ -447,8 +448,8 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
                 if (inclusiveLowerPoint > inclusiveUpperPoint)
                     return DocSet.EMPTY_DOC_SET;
 
-                final DoubleFieldData fieldData = (DoubleFieldData) this.fieldDataCache.cache(FieldDataType.DefaultTypes.DOUBLE, reader, field);
-                return new GetDocSet(reader.maxDoc()) {
+                final DoubleFieldData fieldData = (DoubleFieldData) this.fieldDataCache.cache(FieldDataType.DefaultTypes.DOUBLE, ctx.reader(), field);
+                return new GetDocSet(ctx.reader().maxDoc()) {
 
                     @Override
                     public boolean isCacheable() {

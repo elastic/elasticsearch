@@ -21,7 +21,8 @@ package org.elasticsearch.search.facet.terms.bytes;
 
 import com.google.common.collect.ImmutableSet;
 import gnu.trove.set.hash.TByteHashSet;
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.CacheRecycler;
@@ -73,7 +74,7 @@ public class TermsByteOrdinalsFacetCollector extends AbstractFacetCollector {
     private final TByteHashSet excluded;
 
     public TermsByteOrdinalsFacetCollector(String facetName, String fieldName, int size, TermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
-                                           ImmutableSet<String> excluded) {
+                                           ImmutableSet<BytesRef> excluded) {
         super(facetName);
         this.fieldDataCache = context.fieldDataCache();
         this.size = size;
@@ -101,8 +102,8 @@ public class TermsByteOrdinalsFacetCollector extends AbstractFacetCollector {
             this.excluded = null;
         } else {
             this.excluded = new TByteHashSet(excluded.size());
-            for (String s : excluded) {
-                this.excluded.add(Byte.parseByte(s));
+            for (BytesRef s : excluded) {
+                this.excluded.add(Byte.parseByte(s.utf8ToString()));
             }
         }
 
@@ -113,11 +114,11 @@ public class TermsByteOrdinalsFacetCollector extends AbstractFacetCollector {
             minCount = 0;
         }
 
-        this.aggregators = new ArrayList<ReaderAggregator>(context.searcher().subReaders().length);
+        this.aggregators = new ArrayList<ReaderAggregator>(context.searcher().getIndexReader().leaves().size());
     }
 
     @Override
-    protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
+    protected void doSetNextReader(AtomicReaderContext context) throws IOException {
         if (current != null) {
             missing += current.counts[0];
             total += current.total - current.counts[0];
@@ -125,7 +126,7 @@ public class TermsByteOrdinalsFacetCollector extends AbstractFacetCollector {
                 aggregators.add(current);
             }
         }
-        fieldData = (ByteFieldData) fieldDataCache.cache(fieldDataType, reader, indexFieldName);
+        fieldData = (ByteFieldData) fieldDataCache.cache(fieldDataType, context.reader(), indexFieldName);
         current = new ReaderAggregator(fieldData);
     }
 
@@ -256,7 +257,7 @@ public class TermsByteOrdinalsFacetCollector extends AbstractFacetCollector {
     public static class AggregatorPriorityQueue extends PriorityQueue<ReaderAggregator> {
 
         public AggregatorPriorityQueue(int size) {
-            initialize(size);
+            super(size);
         }
 
         @Override

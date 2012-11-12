@@ -21,8 +21,8 @@ package org.elasticsearch.common.lucene.all;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.document.AbstractField;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.elasticsearch.ElasticSearchException;
 
 import java.io.IOException;
@@ -31,22 +31,21 @@ import java.io.Reader;
 /**
  *
  */
-public class AllField extends AbstractField {
+public class AllField extends Field {
 
     private final AllEntries allEntries;
 
     private final Analyzer analyzer;
 
-    public AllField(String name, Field.Store store, Field.TermVector termVector, AllEntries allEntries, Analyzer analyzer) {
-        super(name, store, Field.Index.ANALYZED, termVector);
-
+    public AllField(String name, AllEntries allEntries, Analyzer analyzer, FieldType fieldType) {
+        super(name, fieldType);
         this.allEntries = allEntries;
         this.analyzer = analyzer;
     }
 
     @Override
     public String stringValue() {
-        if (isStored()) {
+        if (fieldType().stored()) {
             return allEntries.buildText();
         }
         return null;
@@ -58,7 +57,7 @@ public class AllField extends AbstractField {
     }
 
     @Override
-    public TokenStream tokenStreamValue() {
+    public TokenStream tokenStream(Analyzer analyzer) throws IOException {
         try {
             allEntries.reset(); // reset the all entries, just in case it was read already
             return AllTokenStream.allTokenStream(name, allEntries, analyzer);

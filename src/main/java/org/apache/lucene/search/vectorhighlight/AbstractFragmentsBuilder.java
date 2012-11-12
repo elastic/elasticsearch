@@ -144,7 +144,7 @@ public abstract class AbstractFragmentsBuilder extends BaseFragmentsBuilder {
                         }
                     }
                     if (!toffsList.isEmpty()) {
-                        subInfos.add(new FieldFragList.WeightedFragInfo.SubInfo(subInfo.text, toffsList, subInfo.getSeqnum()));
+                        subInfos.add(new FieldFragList.WeightedFragInfo.SubInfo(subInfo.getText(), toffsList, subInfo.getSeqnum()));
                     }
 
                     if (subInfo.getTermsOffsets().isEmpty()) {
@@ -175,9 +175,7 @@ public abstract class AbstractFragmentsBuilder extends BaseFragmentsBuilder {
         private final static List<FieldPhraseList.WeightedPhraseInfo> EMPTY = Collections.emptyList();
 
         private WeightedFragInfo(int startOffset, int endOffset, float totalBoost, List<FieldFragList.WeightedFragInfo.SubInfo> subInfos) {
-            super(startOffset, endOffset, EMPTY);
-            this.subInfos = subInfos;
-            this.totalBoost = totalBoost;
+            super(startOffset, endOffset, subInfos, totalBoost);
         }
     }
 

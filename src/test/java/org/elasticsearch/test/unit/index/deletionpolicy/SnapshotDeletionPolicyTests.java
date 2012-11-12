@@ -19,8 +19,13 @@
 
 package org.elasticsearch.test.unit.index.deletionpolicy;
 
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.store.RAMDirectory;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.deletionpolicy.KeepOnlyLastDeletionPolicy;
@@ -32,9 +37,7 @@ import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
-import static org.apache.lucene.index.IndexReader.listCommits;
-import static org.elasticsearch.common.lucene.DocumentBuilder.doc;
-import static org.elasticsearch.common.lucene.DocumentBuilder.field;
+import static org.apache.lucene.index.DirectoryReader.listCommits;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -56,7 +59,10 @@ public class SnapshotDeletionPolicyTests {
     public void setUp() throws Exception {
         dir = new RAMDirectory();
         deletionPolicy = new SnapshotDeletionPolicy(new KeepOnlyLastDeletionPolicy(shardId, EMPTY_SETTINGS));
-        indexWriter = new IndexWriter(dir, Lucene.STANDARD_ANALYZER, true, deletionPolicy, IndexWriter.MaxFieldLength.UNLIMITED);
+        // LUCENE 4 UPGRADE: Not sure about version.
+        indexWriter = new IndexWriter(dir, new IndexWriterConfig(Version.LUCENE_31, Lucene.STANDARD_ANALYZER)
+                .setIndexDeletionPolicy(deletionPolicy)
+                .setOpenMode(IndexWriterConfig.OpenMode.CREATE));
     }
 
     @AfterClass
@@ -64,29 +70,35 @@ public class SnapshotDeletionPolicyTests {
         indexWriter.close();
         dir.close();
     }
+    
+    private Document testDocument() {
+        Document document = new Document();
+        document.add(new TextField("test", "1", Field.Store.YES));
+        return document;
+    }
 
     @Test
     public void testSimpleSnapshot() throws Exception {
         // add a document and commit, resulting in one commit point
-        indexWriter.addDocument(doc().add(field("test", "1")).build());
+        indexWriter.addDocument(testDocument());
         indexWriter.commit();
 
         assertThat(listCommits(dir).size(), equalTo(1));
 
         // add another document and commit, resulting again in one commit point
-        indexWriter.addDocument(doc().add(field("test", "1")).build());
+        indexWriter.addDocument(testDocument());
         indexWriter.commit();
         assertThat(listCommits(dir).size(), equalTo(1));
 
         // snapshot the last commit, and then add a document and commit, now we should have two commit points
         SnapshotIndexCommit snapshot = deletionPolicy.snapshot();
-        indexWriter.addDocument(doc().add(field("test", "1")).build());
+        indexWriter.addDocument(testDocument());
         indexWriter.commit();
         assertThat(listCommits(dir).size(), equalTo(2));
 
         // release the commit, add a document and commit, now we should be back to one commit point
         assertThat(snapshot.release(), equalTo(true));
-        indexWriter.addDocument(doc().add(field("test", "1")).build());
+        indexWriter.addDocument(testDocument());
         indexWriter.commit();
         assertThat(listCommits(dir).size(), equalTo(1));
     }
@@ -94,7 +106,7 @@ public class SnapshotDeletionPolicyTests {
     @Test
     public void testMultiSnapshot() throws Exception {
         // add a document and commit, resulting in one commit point
-        indexWriter.addDocument(doc().add(field("test", "1")).build());
+        indexWriter.addDocument(testDocument());
         indexWriter.commit();
         assertThat(listCommits(dir).size(), equalTo(1));
 
@@ -103,19 +115,19 @@ public class SnapshotDeletionPolicyTests {
         SnapshotIndexCommit snapshot2 = deletionPolicy.snapshot();
 
         // we should have two commits points
-        indexWriter.addDocument(doc().add(field("test", "1")).build());
+        indexWriter.addDocument(testDocument());
         indexWriter.commit();
         assertThat(listCommits(dir).size(), equalTo(2));
 
         // release one snapshot, we should still have two commit points
         assertThat(snapshot1.release(), equalTo(true));
-        indexWriter.addDocument(doc().add(field("test", "1")).build());
+        indexWriter.addDocument(testDocument());
         indexWriter.commit();
         assertThat(listCommits(dir).size(), equalTo(2));
 
         // release the second snapshot, we should be back to one commit
         assertThat(snapshot2.release(), equalTo(true));
-        indexWriter.addDocument(doc().add(field("test", "1")).build());
+        indexWriter.addDocument(testDocument());
         indexWriter.commit();
         assertThat(listCommits(dir).size(), equalTo(1));
     }
@@ -123,7 +135,7 @@ public class SnapshotDeletionPolicyTests {
     @Test
     public void testMultiReleaseException() throws Exception {
         // add a document and commit, resulting in one commit point
-        indexWriter.addDocument(doc().add(field("test", "1")).build());
+        indexWriter.addDocument(testDocument());
         indexWriter.commit();
         assertThat(listCommits(dir).size(), equalTo(1));
 
@@ -136,18 +148,18 @@ public class SnapshotDeletionPolicyTests {
     @Test
     public void testSimpleSnapshots() throws Exception {
         // add a document and commit, resulting in one commit point
-        indexWriter.addDocument(doc().add(field("test", "1")).build());
+        indexWriter.addDocument(testDocument());
         indexWriter.commit();
         assertThat(listCommits(dir).size(), equalTo(1));
 
         // add another document and commit, resulting again in one commint point
-        indexWriter.addDocument(doc().add(field("test", "1")).build());
+        indexWriter.addDocument(testDocument());
         indexWriter.commit();
         assertThat(listCommits(dir).size(), equalTo(1));
 
         // snapshot the last commit, and then add a document and commit, now we should have two commit points
         SnapshotIndexCommit snapshot = deletionPolicy.snapshot();
-        indexWriter.addDocument(doc().add(field("test", "1")).build());
+        indexWriter.addDocument(testDocument());
         indexWriter.commit();
         assertThat(listCommits(dir).size(), equalTo(2));
 
@@ -159,13 +171,13 @@ public class SnapshotDeletionPolicyTests {
         // we should have 3 commits points since we are holding onto the first two with snapshots
         // and we are using the keep only last
         assertThat(snapshot.release(), equalTo(true));
-        indexWriter.addDocument(doc().add(field("test", "1")).build());
+        indexWriter.addDocument(testDocument());
         indexWriter.commit();
         assertThat(listCommits(dir).size(), equalTo(3));
 
         // now release the snapshots, we should be back to a single commit point
         assertThat(snapshots.release(), equalTo(true));
-        indexWriter.addDocument(doc().add(field("test", "1")).build());
+        indexWriter.addDocument(testDocument());
         indexWriter.commit();
         assertThat(listCommits(dir).size(), equalTo(1));
     }

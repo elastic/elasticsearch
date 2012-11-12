@@ -84,7 +84,7 @@ public class QueryPhase implements SearchPhase {
         if (searchContext.scopePhases() != null) {
             // we have scoped queries, refresh the id cache
             try {
-                searchContext.idCache().refresh(searchContext.searcher().subReaders());
+                searchContext.idCache().refresh(searchContext.searcher().getTopReaderContext().leaves());
             } catch (Exception e) {
                 throw new QueryPhaseExecutionException(searchContext, "Failed to refresh id cache for child queries", e);
             }
@@ -173,7 +173,8 @@ public class QueryPhase implements SearchPhase {
             } else if (searchContext.searchType() == SearchType.SCAN) {
                 topDocs = searchContext.scanContext().execute(searchContext);
             } else if (searchContext.sort() != null) {
-                topDocs = searchContext.searcher().search(query, null, numDocs, searchContext.sort());
+                topDocs = searchContext.searcher().search(query, null, numDocs, searchContext.sort(),
+                        searchContext.trackScores(), searchContext.trackScores());
             } else {
                 topDocs = searchContext.searcher().search(query, numDocs);
             }

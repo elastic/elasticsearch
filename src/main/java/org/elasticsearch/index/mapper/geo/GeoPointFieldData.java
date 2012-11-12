@@ -20,7 +20,9 @@
 package org.elasticsearch.index.mapper.geo;
 
 import gnu.trove.list.array.TDoubleArrayList;
+import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.util.concurrent.ThreadLocals;
@@ -115,8 +117,8 @@ public abstract class GeoPointFieldData extends FieldData<GeoPointDocFieldData> 
     }
 
     @Override
-    public String stringValue(int docId) {
-        return value(docId).geohash();
+    public BytesRef stringValue(int docId) {
+        return new BytesRef(value(docId).geohash());
     }
 
     @Override
@@ -132,7 +134,7 @@ public abstract class GeoPointFieldData extends FieldData<GeoPointDocFieldData> 
     @Override
     public void forEachValue(StringValueProc proc) {
         for (int i = 1; i < lat.length; i++) {
-            proc.onValue(GeoHashUtils.encode(lat[i], lon[i]));
+            proc.onValue(new BytesRef(GeoHashUtils.encode(lat[i], lon[i])));
         }
     }
 
@@ -164,7 +166,7 @@ public abstract class GeoPointFieldData extends FieldData<GeoPointDocFieldData> 
         void onValue(int docId, double lat, double lon);
     }
 
-    public static GeoPointFieldData load(IndexReader reader, String field) throws IOException {
+    public static GeoPointFieldData load(AtomicReader reader, String field) throws IOException {
         return FieldDataLoader.load(reader, field, new StringTypeLoader());
     }
 
@@ -181,10 +183,12 @@ public abstract class GeoPointFieldData extends FieldData<GeoPointDocFieldData> 
         }
 
         @Override
-        public void collectTerm(String term) {
-            int comma = term.indexOf(',');
-            lat.add(Double.parseDouble(term.substring(0, comma)));
-            lon.add(Double.parseDouble(term.substring(comma + 1)));
+        public void collectTerm(BytesRef term) {
+            // LUCENE 4 UPGRADE: Not nice. We can't operate on a bytesref...
+            String location = term.utf8ToString();
+            int comma = location.indexOf(',');
+            lat.add(Double.parseDouble(location.substring(0, comma)));
+            lon.add(Double.parseDouble(location.substring(comma + 1)));
 
         }
 

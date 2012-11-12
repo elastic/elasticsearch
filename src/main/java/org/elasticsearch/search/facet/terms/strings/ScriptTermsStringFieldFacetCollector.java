@@ -23,8 +23,9 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import gnu.trove.iterator.TObjectIntIterator;
 import gnu.trove.map.hash.TObjectIntHashMap;
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.script.SearchScript;
@@ -54,15 +55,15 @@ public class ScriptTermsStringFieldFacetCollector extends AbstractFacetCollector
 
     private final Matcher matcher;
 
-    private final ImmutableSet<String> excluded;
+    private final ImmutableSet<BytesRef> excluded;
 
-    private final TObjectIntHashMap<String> facets;
+    private final TObjectIntHashMap<BytesRef> facets;
 
     private int missing;
     private int total;
 
     public ScriptTermsStringFieldFacetCollector(String facetName, int size, InternalStringTermsFacet.ComparatorType comparatorType, SearchContext context,
-                                                ImmutableSet<String> excluded, Pattern pattern, String scriptLang, String script, Map<String, Object> params) {
+                                                ImmutableSet<BytesRef> excluded, Pattern pattern, String scriptLang, String script, Map<String, Object> params) {
         super(facetName);
         this.size = size;
         this.comparatorType = comparatorType;
@@ -81,8 +82,8 @@ public class ScriptTermsStringFieldFacetCollector extends AbstractFacetCollector
     }
 
     @Override
-    protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
-        script.setNextReader(reader);
+    protected void doSetNextReader(AtomicReaderContext context) throws IOException {
+        script.setNextReader(context);
     }
 
     @Override
@@ -99,7 +100,8 @@ public class ScriptTermsStringFieldFacetCollector extends AbstractFacetCollector
                 String value = o1.toString();
                 if (match(value)) {
                     found = true;
-                    facets.adjustOrPutValue(value, 1, 1);
+                    // LUCENE 4 UPGRADE: should be possible to convert directly to BR
+                    facets.adjustOrPutValue(new BytesRef(value), 1, 1);
                     total++;
                 }
             }
@@ -112,7 +114,8 @@ public class ScriptTermsStringFieldFacetCollector extends AbstractFacetCollector
                 String value = o1.toString();
                 if (match(value)) {
                     found = true;
-                    facets.adjustOrPutValue(value, 1, 1);
+                    // LUCENE 4 UPGRADE: should be possible to convert directly to BR
+                    facets.adjustOrPutValue(new BytesRef(value), 1, 1);
                     total++;
                 }
             }
@@ -122,7 +125,8 @@ public class ScriptTermsStringFieldFacetCollector extends AbstractFacetCollector
         } else {
             String value = o.toString();
             if (match(value)) {
-                facets.adjustOrPutValue(value, 1, 1);
+                // LUCENE 4 UPGRADE: should be possible to convert directly to BR
+                facets.adjustOrPutValue(new BytesRef(value), 1, 1);
                 total++;
             } else {
                 missing++;
@@ -131,7 +135,7 @@ public class ScriptTermsStringFieldFacetCollector extends AbstractFacetCollector
     }
 
     private boolean match(String value) {
-        if (excluded != null && excluded.contains(value)) {
+        if (excluded != null && excluded.contains(new BytesRef(value))) {
             return false;
         }
         if (matcher != null && !matcher.reset(value).matches()) {
@@ -144,25 +148,25 @@ public class ScriptTermsStringFieldFacetCollector extends AbstractFacetCollector
     public Facet facet() {
         if (facets.isEmpty()) {
             CacheRecycler.pushObjectIntMap(facets);
-            return new InternalStringTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalStringTermsFacet.StringEntry>of(), missing, total);
+            return new InternalStringTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalStringTermsFacet.TermEntry>of(), missing, total);
         } else {
             if (size < EntryPriorityQueue.LIMIT) {
                 EntryPriorityQueue ordered = new EntryPriorityQueue(size, comparatorType.comparator());
-                for (TObjectIntIterator<String> it = facets.iterator(); it.hasNext(); ) {
+                for (TObjectIntIterator<BytesRef> it = facets.iterator(); it.hasNext(); ) {
                     it.advance();
-                    ordered.insertWithOverflow(new InternalStringTermsFacet.StringEntry(it.key(), it.value()));
+                    ordered.insertWithOverflow(new InternalStringTermsFacet.TermEntry(it.key(), it.value()));
                 }
-                InternalStringTermsFacet.StringEntry[] list = new InternalStringTermsFacet.StringEntry[ordered.size()];
+                InternalStringTermsFacet.TermEntry[] list = new InternalStringTermsFacet.TermEntry[ordered.size()];
                 for (int i = ordered.size() - 1; i >= 0; i--) {
-                    list[i] = ((InternalStringTermsFacet.StringEntry) ordered.pop());
+                    list[i] = ((InternalStringTermsFacet.TermEntry) ordered.pop());
                 }
                 CacheRecycler.pushObjectIntMap(facets);
                 return new InternalStringTermsFacet(facetName, comparatorType, size, Arrays.asList(list), missing, total);
             } else {
-                BoundedTreeSet<InternalStringTermsFacet.StringEntry> ordered = new BoundedTreeSet<InternalStringTermsFacet.StringEntry>(comparatorType.comparator(), size);
-                for (TObjectIntIterator<String> it = facets.iterator(); it.hasNext(); ) {
+                BoundedTreeSet<InternalStringTermsFacet.TermEntry> ordered = new BoundedTreeSet<InternalStringTermsFacet.TermEntry>(comparatorType.comparator(), size);
+                for (TObjectIntIterator<BytesRef> it = facets.iterator(); it.hasNext(); ) {
                     it.advance();
-                    ordered.add(new InternalStringTermsFacet.StringEntry(it.key(), it.value()));
+                    ordered.add(new InternalStringTermsFacet.TermEntry(it.key(), it.value()));
                 }
                 CacheRecycler.pushObjectIntMap(facets);
                 return new InternalStringTermsFacet(facetName, comparatorType, size, ordered, missing, total);

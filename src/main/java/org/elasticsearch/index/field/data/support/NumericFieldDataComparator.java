@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.field.data.support;
 
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldComparator;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
@@ -30,7 +31,7 @@ import java.io.IOException;
 /**
  *
  */
-public abstract class NumericFieldDataComparator extends FieldComparator {
+public abstract class NumericFieldDataComparator<N extends Number> extends FieldComparator<N> {
 
     private final String fieldName;
 
@@ -46,7 +47,8 @@ public abstract class NumericFieldDataComparator extends FieldComparator {
     public abstract FieldDataType fieldDataType();
 
     @Override
-    public void setNextReader(IndexReader reader, int docBase) throws IOException {
-        currentFieldData = (NumericFieldData) fieldDataCache.cache(fieldDataType(), reader, fieldName);
+    public NumericFieldDataComparator<N> setNextReader(AtomicReaderContext context) throws IOException {
+        currentFieldData = (NumericFieldData) fieldDataCache.cache(fieldDataType(), context.reader(), fieldName);
+        return this;
     }
 }

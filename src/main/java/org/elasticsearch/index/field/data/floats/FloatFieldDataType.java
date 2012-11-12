@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.field.data.floats;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
@@ -42,8 +42,8 @@ public class FloatFieldDataType implements FieldDataType<FloatFieldData> {
                 }
 
                 @Override
-                public int reducedType() {
-                    return SortField.FLOAT;
+                public SortField.Type reducedType() {
+                    return SortField.Type.FLOAT;
                 }
             };
         }
@@ -55,8 +55,8 @@ public class FloatFieldDataType implements FieldDataType<FloatFieldData> {
                 }
 
                 @Override
-                public int reducedType() {
-                    return SortField.FLOAT;
+                public SortField.Type reducedType() {
+                    return SortField.Type.FLOAT;
                 }
             };
         }
@@ -68,8 +68,8 @@ public class FloatFieldDataType implements FieldDataType<FloatFieldData> {
                 }
 
                 @Override
-                public int reducedType() {
-                    return SortField.FLOAT;
+                public SortField.Type reducedType() {
+                    return SortField.Type.FLOAT;
                 }
             };
         }
@@ -80,14 +80,14 @@ public class FloatFieldDataType implements FieldDataType<FloatFieldData> {
             }
 
             @Override
-            public int reducedType() {
-                return SortField.FLOAT;
+            public SortField.Type reducedType() {
+                return SortField.Type.FLOAT;
             }
         };
     }
 
     @Override
-    public FloatFieldData load(IndexReader reader, String fieldName) throws IOException {
+    public FloatFieldData load(AtomicReader reader, String fieldName) throws IOException {
         return FloatFieldData.load(reader, fieldName);
     }
 }

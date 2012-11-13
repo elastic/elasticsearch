@@ -53,7 +53,9 @@ public class UidFieldVisitor extends BaseFieldVisitor {
     @Override
     public Document createDocument() {
         Document document = new Document();
-        document.add(new StoredField(UidFieldMapper.NAME, uid));
+        if (uid != null) {
+            document.add(new StoredField(UidFieldMapper.NAME, uid));
+        }
         return document;
     }
 

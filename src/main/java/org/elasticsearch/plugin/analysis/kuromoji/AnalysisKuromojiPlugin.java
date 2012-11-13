@@ -19,8 +19,13 @@
 
 package org.elasticsearch.plugin.analysis.kuromoji;
 
+import org.elasticsearch.common.collect.ImmutableList;
+import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.index.analysis.*;
+import org.elasticsearch.indices.analysis.KuromojiIndicesAnalysisModule;
 import org.elasticsearch.plugins.AbstractPlugin;
+
+import java.util.Collection;
 
 /**
  *
@@ -37,12 +42,12 @@ public class AnalysisKuromojiPlugin extends AbstractPlugin {
         return "Kuromoji analysis support";
     }
 
+    @Override
+    public Collection<Class<? extends Module>> modules() {
+        return ImmutableList.<Class<? extends Module>>of(KuromojiIndicesAnalysisModule.class);
+    }
+
     public void onModule(AnalysisModule module) {
-        module.addAnalyzer("kuromoji", KuromojiAnalyzerProvider.class);
-        module.addTokenizer("kuromoji_tokenizer", KuromojiTokenizerFactory.class);
-        module.addTokenFilter("kuromoji_baseform", KuromojiBaseFormFilterFactory.class);
-        module.addTokenFilter("kuromoji_part_of_speech", KuromojiPartOfSpeechFilterFactory.class);
-        module.addTokenFilter("kuromoji_readingform", KuromojiReadingFormFilterFactory.class);
-        module.addTokenFilter("kuromoji_stemmer", KuromojiKatakanaStemmerFactory.class);
+        module.addProcessor(new KuromojiAnalysisBinderProcessor());
     }
 }

@@ -71,6 +71,10 @@ public class KuromojiAnalysisTests {
 
         NamedAnalyzer analyzer = analysisService.analyzer("kuromoji");
         assertThat(analyzer.analyzer(), instanceOf(JapaneseAnalyzer.class));
+
+        analyzer = analysisService.analyzer("my_analyzer");
+        assertThat(analyzer.analyzer(), instanceOf(CustomAnalyzer.class));
+        assertThat(analyzer.analyzer().tokenStream(null, null), instanceOf(JapaneseTokenizer.class));
     }
 
     @Test

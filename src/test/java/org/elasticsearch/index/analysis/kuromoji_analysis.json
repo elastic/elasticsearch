@@ -24,6 +24,12 @@
                    "type":"kuromoji_tokenizer"
                 }
             
+            },
+            "analyzer" : {
+                "my_analyzer" : {
+                    "type" : "custom",
+                    "tokenizer" : "kuromoji_tokenizer"
+                }
             }
             
         }

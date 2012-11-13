@@ -106,7 +106,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
      * Returns {@link GetResult} based on the specified {@link Engine.GetResult} argument.
      * This method basically loads specified fields for the associated document in the engineGetResult.
      * This method load the fields from the Lucene index and not from transaction log and therefore isn't realtime.
-     * <p>
+     * <p/>
      * Note: Call <b>must</b> release engine searcher associated with engineGetResult!
      */
     public GetResult get(Engine.GetResult engineGetResult, String id, String type, String[] fields) {
@@ -241,9 +241,6 @@ public class ShardGetService extends AbstractIndexShardComponent {
                                 // only if the field is stored or source is enabled we should add it..
                                 if (docMapper.sourceMapper().enabled() || x == null || x.stored()) {
                                     value = searchLookup.source().extractValue(field);
-                                    if (x != null && value instanceof String) {
-                                        value = x.valueFromString((String) value);
-                                    }
                                 }
                             }
                         }

@@ -222,4 +222,60 @@ public class GetActionTests extends AbstractNodesTests {
         assertThat(getResponse.exists(), equalTo(true));
         assertThat(getResponse.sourceAsMap().get("field").toString(), equalTo(fieldValue));
     }
+
+    @Test
+    public void getFieldsWithDifferentTypes() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
+                .addMapping("type1", jsonBuilder().startObject().startObject("type").startObject("_source").field("enabled", true).endObject().endObject().endObject())
+                .addMapping("type2", jsonBuilder().startObject().startObject("type")
+                        .startObject("_source").field("enabled", false).endObject()
+                        .startObject("properties")
+                        .startObject("str").field("type", "string").field("store", "yes").endObject()
+                        .startObject("int").field("type", "integer").field("store", "yes").endObject()
+                        .startObject("date").field("type", "date").field("store", "yes").endObject()
+                        .endObject()
+                        .endObject().endObject())
+                .execute().actionGet();
+
+        ClusterHealthResponse clusterHealth = client.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        assertThat(clusterHealth.timedOut(), equalTo(false));
+        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
+
+        client.prepareIndex("test", "type1", "1").setSource("str", "test", "int", 42, "date", "2012-11-13T15:26:14.000Z").execute().actionGet();
+        client.prepareIndex("test", "type2", "1").setSource("str", "test", "int", 42, "date", "2012-11-13T15:26:14.000Z").execute().actionGet();
+
+        // realtime get with stored source
+        logger.info("--> realtime get (from source)");
+        GetResponse getResponse = client.prepareGet("test", "type1", "1").setFields("str", "int", "date").execute().actionGet();
+        assertThat(getResponse.exists(), equalTo(true));
+        assertThat((String) getResponse.field("str").getValue(), equalTo("test"));
+        assertThat((Integer) getResponse.field("int").getValue(), equalTo(42));
+        assertThat((String) getResponse.field("date").getValue(), equalTo("2012-11-13T15:26:14.000Z"));
+
+        logger.info("--> realtime get (from stored fields)");
+        getResponse = client.prepareGet("test", "type2", "1").setFields("str", "int", "date").execute().actionGet();
+        assertThat(getResponse.exists(), equalTo(true));
+        assertThat((String) getResponse.field("str").getValue(), equalTo("test"));
+        assertThat((Integer) getResponse.field("int").getValue(), equalTo(42));
+        assertThat((String) getResponse.field("date").getValue(), equalTo("2012-11-13T15:26:14.000Z"));
+
+        logger.info("--> flush the index, so we load it from it");
+        client.admin().indices().prepareFlush().execute().actionGet();
+
+        logger.info("--> non realtime get (from source)");
+        getResponse = client.prepareGet("test", "type1", "1").setFields("str", "int", "date").execute().actionGet();
+        assertThat(getResponse.exists(), equalTo(true));
+        assertThat((String) getResponse.field("str").getValue(), equalTo("test"));
+        assertThat((Integer) getResponse.field("int").getValue(), equalTo(42));
+        assertThat((String) getResponse.field("date").getValue(), equalTo("2012-11-13T15:26:14.000Z"));
+
+        logger.info("--> non realtime get (from stored fields)");
+        getResponse = client.prepareGet("test", "type2", "1").setFields("str", "int", "date").execute().actionGet();
+        assertThat(getResponse.exists(), equalTo(true));
+        assertThat((String) getResponse.field("str").getValue(), equalTo("test"));
+        assertThat((Integer) getResponse.field("int").getValue(), equalTo(42));
+        assertThat((String) getResponse.field("date").getValue(), equalTo("2012-11-13T15:26:14.000Z"));
+    }
 }

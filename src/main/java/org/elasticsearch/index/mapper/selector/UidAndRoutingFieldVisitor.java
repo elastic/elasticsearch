@@ -40,8 +40,12 @@ public class UidAndRoutingFieldVisitor extends BaseFieldVisitor {
     @Override
     public Document createDocument() {
         Document document = new Document();
-        document.add(new StoredField(UidFieldMapper.NAME, uid));
-        document.add(new StoredField(SourceFieldMapper.NAME, routing));
+        if (uid != null) {
+            document.add(new StoredField(UidFieldMapper.NAME, uid));
+        }
+        if (routing != null) {
+            document.add(new StoredField(SourceFieldMapper.NAME, routing));
+        }
         return document;
     }
 

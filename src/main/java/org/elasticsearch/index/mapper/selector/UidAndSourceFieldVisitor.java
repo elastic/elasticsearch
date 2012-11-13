@@ -40,8 +40,12 @@ public class UidAndSourceFieldVisitor extends BaseFieldVisitor {
     @Override
     public Document createDocument() {
         Document document = new Document();
-        document.add(new StoredField(UidFieldMapper.NAME, uid));
-        document.add(new StoredField(SourceFieldMapper.NAME, source));
+        if (uid != null) {
+            document.add(new StoredField(UidFieldMapper.NAME, uid));
+        }
+        if (source != null) {
+            document.add(new StoredField(SourceFieldMapper.NAME, source));
+        }
         return document;
     }
 

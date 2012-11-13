@@ -93,4 +93,66 @@ public class FilteringAllocationTests extends AbstractNodesTests {
         client("node1").admin().indices().prepareRefresh().execute().actionGet();
         assertThat(client("node1").prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(100l));
     }
+
+    @Test
+    public void testDisablingAllocationFiltering() throws Exception {
+        logger.info("--> starting 2 nodes");
+        startNode("node1");
+        startNode("node2");
+
+        logger.info("--> creating an index with no replicas");
+        client("node1").admin().indices().prepareCreate("test")
+                .setSettings(settingsBuilder().put("index.number_of_replicas", 0))
+                .execute().actionGet();
+
+        ClusterHealthResponse clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        assertThat(clusterHealthResponse.timedOut(), equalTo(false));
+
+        logger.info("--> index some data");
+        for (int i = 0; i < 100; i++) {
+            client("node1").prepareIndex("test", "type", Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
+        }
+        client("node1").admin().indices().prepareRefresh().execute().actionGet();
+        assertThat(client("node1").prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(100l));
+
+        logger.info("--> remove index from the first node");
+        client("node1").admin().indices().prepareUpdateSettings("test")
+                .setSettings(settingsBuilder().put("index.routing.allocation.exclude._name", "node1"))
+                .execute().actionGet();
+
+        Thread.sleep(200);
+
+        clusterHealthResponse = client("node1").admin().cluster().prepareHealth()
+                .setWaitForGreenStatus()
+                .setWaitForRelocatingShards(0)
+                .execute().actionGet();
+        assertThat(clusterHealthResponse.timedOut(), equalTo(false));
+
+        logger.info("--> verify all shards are allocated on node2 now");
+        ClusterState clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().state();
+        IndexRoutingTable indexRoutingTable = clusterState.routingTable().index("test");
+        for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
+            for (ShardRouting shardRouting : indexShardRoutingTable) {
+                assertThat(clusterState.nodes().get(shardRouting.currentNodeId()).name(), equalTo("node2"));
+            }
+        }
+
+        logger.info("--> disable allocation filtering ");
+        client("node1").admin().indices().prepareUpdateSettings("test")
+                .setSettings(settingsBuilder().put("index.routing.allocation.exclude._name", ""))
+                .execute().actionGet();
+
+        Thread.sleep(200);
+
+        clusterHealthResponse = client("node1").admin().cluster().prepareHealth()
+                .setWaitForGreenStatus()
+                .setWaitForRelocatingShards(0)
+                .execute().actionGet();
+        assertThat(clusterHealthResponse.timedOut(), equalTo(false));
+
+        logger.info("--> verify that there are shards allocated on both nodes now");
+        clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().state();
+        assertThat(clusterState.routingTable().index("test").numberOfNodesShardsAreAllocatedOn(), equalTo(2));
+    }
 }
+

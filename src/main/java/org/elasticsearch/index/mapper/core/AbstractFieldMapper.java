@@ -32,6 +32,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -141,6 +142,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         protected NamedAnalyzer searchAnalyzer;
         protected Boolean includeInAll;
         protected boolean indexOptionsSet = false;
+        protected PostingsFormatProvider provider;
 
         protected Builder(String name, FieldType fieldType) {
             super(name);
@@ -222,6 +224,11 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
             return builder;
         }
 
+        protected T postingsFormat(PostingsFormatProvider postingsFormat) {
+            this.provider = postingsFormat;
+            return builder;
+        }
+
         protected Names buildNames(BuilderContext context) {
             return new Names(name, buildIndexName(context), indexName == null ? name : indexName, buildFullName(context), context.path().sourcePath());
         }
@@ -237,16 +244,14 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
     }
 
     protected final Names names;
-
     protected float boost;
-
     protected final FieldType fieldType;
-
     protected final NamedAnalyzer indexAnalyzer;
-
     protected final NamedAnalyzer searchAnalyzer;
+    protected PostingsFormatProvider postingsFormat;
 
-    protected AbstractFieldMapper(Names names, float boost, FieldType fieldType, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer) {
+    protected AbstractFieldMapper(Names names, float boost, FieldType fieldType, NamedAnalyzer indexAnalyzer,
+                                  NamedAnalyzer searchAnalyzer, PostingsFormatProvider postingsFormat) {
         this.names = names;
         this.boost = boost;
         this.fieldType = fieldType;
@@ -264,6 +269,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         } else {
             this.searchAnalyzer = searchAnalyzer;
         }
+        this.postingsFormat = postingsFormat;
     }
 
     @Override
@@ -510,12 +516,20 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         if (!mergeContext.mergeFlags().simulate()) {
             // apply changeable values
             this.boost = fieldMergeWith.boost;
+            if (fieldMergeWith.postingsFormat != null) {
+                this.postingsFormat = fieldMergeWith.postingsFormat;
+            }
         }
     }
 
     @Override
     public FieldDataType fieldDataType() {
         return FieldDataType.DefaultTypes.STRING;
+    }
+
+    @Override
+    public PostingsFormatProvider postingFormatProvider() {
+        return postingsFormat;
     }
 
     @Override
@@ -567,6 +581,9 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
             if (searchAnalyzer != null && !searchAnalyzer.name().startsWith("_") && !searchAnalyzer.name().equals("default")) {
                 builder.field("search_analyzer", searchAnalyzer.name());
             }
+        }
+        if (postingsFormat != null) {
+            builder.field("postings_format", postingsFormat.name());
         }
     }
 

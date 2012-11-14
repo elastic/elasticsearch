@@ -26,6 +26,7 @@ import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
@@ -85,7 +86,7 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
 
         @Override
         public RoutingFieldMapper build(BuilderContext context) {
-            return new RoutingFieldMapper(fieldType, required, path);
+            return new RoutingFieldMapper(fieldType, required, path, provider);
         }
     }
 
@@ -113,12 +114,12 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
     private final String path;
 
     public RoutingFieldMapper() {
-        this(new FieldType(Defaults.ROUTING_FIELD_TYPE), Defaults.REQUIRED, Defaults.PATH);
+        this(new FieldType(Defaults.ROUTING_FIELD_TYPE), Defaults.REQUIRED, Defaults.PATH, null);
     }
 
-    protected RoutingFieldMapper(FieldType fieldType, boolean required, String path) {
+    protected RoutingFieldMapper(FieldType fieldType, boolean required, String path, PostingsFormatProvider provider) {
         super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), 1.0f, fieldType, Lucene.KEYWORD_ANALYZER,
-                Lucene.KEYWORD_ANALYZER);
+                Lucene.KEYWORD_ANALYZER, provider);
         this.required = required;
         this.path = path;
     }
@@ -231,7 +232,7 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // if all are defaults, no sense to write it at all
         if (indexed() == Defaults.ROUTING_FIELD_TYPE.indexed() &&
-            stored() == Defaults.ROUTING_FIELD_TYPE.stored() && required == Defaults.REQUIRED && path == Defaults.PATH) {
+                stored() == Defaults.ROUTING_FIELD_TYPE.stored() && required == Defaults.REQUIRED && path == Defaults.PATH) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);

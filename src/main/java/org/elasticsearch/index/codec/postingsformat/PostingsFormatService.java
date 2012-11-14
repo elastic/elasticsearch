@@ -1,0 +1,67 @@
+package org.elasticsearch.index.codec.postingsformat;
+
+import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.AbstractIndexComponent;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.codec.CodecModule;
+import org.elasticsearch.index.settings.IndexSettings;
+
+import java.util.Map;
+
+/**
+ */
+public class PostingsFormatService extends AbstractIndexComponent {
+
+    private final ImmutableMap<String, PostingsFormatProvider> providers;
+
+    public PostingsFormatService(Index index) {
+        this(index, ImmutableSettings.Builder.EMPTY_SETTINGS);
+    }
+
+    public PostingsFormatService(Index index, @IndexSettings Settings indexSettings) {
+        this(index, indexSettings, ImmutableMap.<String, PostingsFormatProvider.Factory>of());
+    }
+
+    @Inject
+    public PostingsFormatService(Index index, @IndexSettings Settings indexSettings, Map<String, PostingsFormatProvider.Factory> postingFormatFactories) {
+        super(index, indexSettings);
+
+        MapBuilder<String, PostingsFormatProvider> providers = MapBuilder.newMapBuilder();
+
+        Map<String, Settings> postingsFormatSettings = indexSettings.getGroups("index.codec.postings_format");
+        for (Map.Entry<String, PostingsFormatProvider.Factory> entry : postingFormatFactories.entrySet()) {
+            String name = entry.getKey();
+            PostingsFormatProvider.Factory factory = entry.getValue();
+
+            Settings settings = postingsFormatSettings.get(name);
+            if (settings == null) {
+                settings = ImmutableSettings.Builder.EMPTY_SETTINGS;
+            }
+            providers.put(name, factory.create(name, settings));
+        }
+
+        // even though we have this logic in the cache module (where it should be, so posting format with delegates will work properly wiht the pre initialized map)
+        // we do it here as well so we can use just this instance for tests
+        for (PreBuiltPostingsFormatProvider.Factory factory : CodecModule.preConfiguredPostingFormats) {
+            if (providers.containsKey(factory.name())) {
+                continue;
+            }
+            providers.put(factory.name(), factory.get());
+        }
+
+        this.providers = providers.immutableMap();
+    }
+
+    public PostingsFormatProvider get(String name) throws ElasticSearchIllegalArgumentException {
+        PostingsFormatProvider provider = providers.get(name);
+        if (name == null) {
+            throw new ElasticSearchIllegalArgumentException("failed to find postings_format [" + name + "]");
+        }
+        return provider;
+    }
+}

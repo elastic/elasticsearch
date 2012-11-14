@@ -27,6 +27,7 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.query.QueryParseContext;
 
@@ -221,4 +222,7 @@ public interface FieldMapper<T> {
     Filter nullValueFilter();
 
     FieldDataType fieldDataType();
+
+    PostingsFormatProvider postingFormatProvider();
+
 }

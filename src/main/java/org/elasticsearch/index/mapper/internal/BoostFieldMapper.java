@@ -35,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericFloatAnalyzer;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
+import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.FloatFieldMapper;
@@ -85,7 +86,7 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
         @Override
         public BoostFieldMapper build(BuilderContext context) {
             return new BoostFieldMapper(name, buildIndexName(context),
-                    precisionStep, boost, fieldType, nullValue);
+                    precisionStep, boost, fieldType, nullValue, provider);
         }
     }
 
@@ -113,14 +114,15 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
     }
 
     protected BoostFieldMapper(String name, String indexName) {
-        this(name, indexName, Defaults.PRECISION_STEP, Defaults.BOOST, new FieldType(Defaults.BOOST_FIELD_TYPE), Defaults.NULL_VALUE);
+        this(name, indexName, Defaults.PRECISION_STEP, Defaults.BOOST, new FieldType(Defaults.BOOST_FIELD_TYPE),
+                Defaults.NULL_VALUE, null);
     }
 
-    protected BoostFieldMapper(String name, String indexName, int precisionStep,
-                               float boost, FieldType fieldType, Float nullValue) {
+    protected BoostFieldMapper(String name, String indexName, int precisionStep, float boost, FieldType fieldType,
+                               Float nullValue, PostingsFormatProvider provider) {
         super(new Names(name, indexName, indexName, name), precisionStep, null, boost, fieldType,
                 Defaults.IGNORE_MALFORMED, new NamedAnalyzer("_float/" + precisionStep, new NumericFloatAnalyzer(precisionStep)),
-                new NamedAnalyzer("_float/max", new NumericFloatAnalyzer(Integer.MAX_VALUE)));
+                new NamedAnalyzer("_float/max", new NumericFloatAnalyzer(Integer.MAX_VALUE)), provider);
         this.nullValue = nullValue;
     }
 

@@ -42,6 +42,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.cache.IndexCacheModule;
+import org.elasticsearch.index.codec.CodecModule;
 import org.elasticsearch.index.engine.IndexEngineModule;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceModule;
@@ -90,6 +91,7 @@ public class SimpleIndexQueryParserTests {
                 .build();
         Index index = new Index("test");
         injector = new ModulesBuilder().add(
+                new CodecModule(settings),
                 new SettingsModule(settings),
                 new ThreadPoolModule(settings),
                 new IndicesQueriesModule(),

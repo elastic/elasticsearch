@@ -35,6 +35,7 @@ import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.cache.IndexCacheModule;
+import org.elasticsearch.index.codec.CodecModule;
 import org.elasticsearch.index.engine.IndexEngineModule;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.index.query.IndexQueryParserModule;
@@ -64,6 +65,7 @@ public class IndexAliasesServiceTests {
     public static IndexQueryParserService newIndexQueryParserService() {
         Injector injector = new ModulesBuilder().add(
                 new IndicesQueriesModule(),
+                new CodecModule(ImmutableSettings.Builder.EMPTY_SETTINGS),
                 new IndexSettingsModule(new Index("test"), ImmutableSettings.Builder.EMPTY_SETTINGS),
                 new IndexNameModule(new Index("test")),
                 new IndexQueryParserModule(ImmutableSettings.Builder.EMPTY_SETTINGS),

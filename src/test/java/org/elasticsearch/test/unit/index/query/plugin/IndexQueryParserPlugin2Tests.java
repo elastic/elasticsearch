@@ -31,6 +31,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.cache.IndexCacheModule;
+import org.elasticsearch.index.codec.CodecModule;
 import org.elasticsearch.index.engine.IndexEngineModule;
 import org.elasticsearch.index.query.IndexQueryParserModule;
 import org.elasticsearch.index.query.IndexQueryParserService;
@@ -60,6 +61,7 @@ public class IndexQueryParserPlugin2Tests {
 
         Index index = new Index("test");
         Injector injector = new ModulesBuilder().add(
+                new CodecModule(settings),
                 new SettingsModule(settings),
                 new ThreadPoolModule(settings),
                 new IndicesQueriesModule(),

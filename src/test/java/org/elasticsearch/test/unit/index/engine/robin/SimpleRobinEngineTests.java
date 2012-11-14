@@ -20,6 +20,7 @@
 package org.elasticsearch.test.unit.index.engine.robin;
 
 import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.robin.RobinEngine;
 import org.elasticsearch.index.indexing.ShardIndexingService;
@@ -38,6 +39,6 @@ public class SimpleRobinEngineTests extends AbstractSimpleEngineTests {
 
     protected Engine createEngine(Store store, Translog translog) {
         return new RobinEngine(shardId, EMPTY_SETTINGS, threadPool, new IndexSettingsService(shardId.index(), EMPTY_SETTINGS), new ShardIndexingService(shardId, EMPTY_SETTINGS), null, store, createSnapshotDeletionPolicy(), translog, createMergePolicy(), createMergeScheduler(),
-                new AnalysisService(shardId.index()), new SimilarityService(shardId.index()));
+                new AnalysisService(shardId.index()), new SimilarityService(shardId.index()), new CodecService(shardId.index()));
     }
 }

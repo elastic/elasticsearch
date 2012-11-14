@@ -25,6 +25,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.codec.postingsformat.PostingsFormatService;
 
 import java.io.IOException;
 import java.util.Map;
@@ -76,17 +77,24 @@ public interface Mapper extends ToXContent {
 
         public static class ParserContext {
 
+            private final PostingsFormatService postingsFormatService;
+
             private final AnalysisService analysisService;
 
             private final ImmutableMap<String, TypeParser> typeParsers;
 
-            public ParserContext(AnalysisService analysisService, ImmutableMap<String, TypeParser> typeParsers) {
+            public ParserContext(PostingsFormatService postingsFormatService, AnalysisService analysisService, ImmutableMap<String, TypeParser> typeParsers) {
+                this.postingsFormatService = postingsFormatService;
                 this.analysisService = analysisService;
                 this.typeParsers = typeParsers;
             }
 
             public AnalysisService analysisService() {
                 return analysisService;
+            }
+
+            public PostingsFormatService postingFormatService() {
+                return postingsFormatService;
             }
 
             public TypeParser typeParser(String type) {

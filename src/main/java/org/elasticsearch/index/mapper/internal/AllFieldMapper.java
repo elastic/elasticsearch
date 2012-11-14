@@ -32,6 +32,7 @@ import org.elasticsearch.common.lucene.all.AllField;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -97,8 +98,7 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
             fieldType.setIndexed(true);
             fieldType.setTokenized(true);
 
-            return new AllFieldMapper(name, fieldType,
-                    indexAnalyzer, searchAnalyzer, enabled, autoBoost);
+            return new AllFieldMapper(name, fieldType, indexAnalyzer, searchAnalyzer, enabled, autoBoost, provider);
         }
     }
 
@@ -130,12 +130,12 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
     private volatile boolean autoBoost;
 
     public AllFieldMapper() {
-        this(Defaults.NAME, new FieldType(Defaults.ALL_FIELD_TYPE), null, null, Defaults.ENABLED, false);
+        this(Defaults.NAME, new FieldType(Defaults.ALL_FIELD_TYPE), null, null, Defaults.ENABLED, false, null);
     }
 
-    protected AllFieldMapper(String name, FieldType fieldType,
-                             NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer, boolean enabled, boolean autoBoost) {
-        super(new Names(name, name, name, name), 1.0f, fieldType, indexAnalyzer, searchAnalyzer);
+    protected AllFieldMapper(String name, FieldType fieldType, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer,
+                             boolean enabled, boolean autoBoost, PostingsFormatProvider provider) {
+        super(new Names(name, name, name, name), 1.0f, fieldType, indexAnalyzer, searchAnalyzer, provider);
         this.enabled = enabled;
         this.autoBoost = autoBoost;
 
@@ -248,8 +248,8 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // if all are defaults, no need to write it at all
         if (enabled == Defaults.ENABLED && stored() == Defaults.ALL_FIELD_TYPE.stored() &&
-            storeTermVectors() == Defaults.ALL_FIELD_TYPE.storeTermVectors() &&
-            indexAnalyzer == null && searchAnalyzer == null) {
+                storeTermVectors() == Defaults.ALL_FIELD_TYPE.storeTermVectors() &&
+                indexAnalyzer == null && searchAnalyzer == null) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);

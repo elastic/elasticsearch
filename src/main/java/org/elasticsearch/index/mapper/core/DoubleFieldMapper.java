@@ -37,6 +37,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericDoubleAnalyzer;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
+import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -85,7 +86,7 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             DoubleFieldMapper fieldMapper = new DoubleFieldMapper(buildNames(context),
                     precisionStep, fuzzyFactor, boost, fieldType, nullValue,
-                    ignoreMalformed(context));
+                    ignoreMalformed(context), provider);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -114,10 +115,11 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
 
     protected DoubleFieldMapper(Names names, int precisionStep, String fuzzyFactor,
                                 float boost, FieldType fieldType,
-                                Double nullValue, Explicit<Boolean> ignoreMalformed) {
+                                Double nullValue, Explicit<Boolean> ignoreMalformed,
+                                PostingsFormatProvider provider) {
         super(names, precisionStep, fuzzyFactor, boost, fieldType,
                 ignoreMalformed, new NamedAnalyzer("_double/" + precisionStep, new NumericDoubleAnalyzer(precisionStep)),
-                new NamedAnalyzer("_double/max", new NumericDoubleAnalyzer(Integer.MAX_VALUE)));
+                new NamedAnalyzer("_double/max", new NumericDoubleAnalyzer(Integer.MAX_VALUE)), provider);
         this.nullValue = nullValue;
         this.nullValueAsString = nullValue == null ? null : nullValue.toString();
     }

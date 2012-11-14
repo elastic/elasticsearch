@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
@@ -55,8 +56,6 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseStore;
  * "lat" : 1.1,
  * "lon" : 2.1
  * }
- *
- *
  */
 public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
 
@@ -384,7 +383,7 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
     }
 
     private void parseLatLon(ParseContext context, double lat, double lon) throws IOException {
-       if (normalizeLat || normalizeLon) {
+        if (normalizeLat || normalizeLon) {
             Point point = new Point(lat, lon);
             GeoUtils.normalizePoint(point, normalizeLat, normalizeLon);
             lat = point.lat;
@@ -562,8 +561,7 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
             @Override
             public GeoStringFieldMapper build(BuilderContext context) {
                 GeoStringFieldMapper fieldMapper = new GeoStringFieldMapper(buildNames(context),
-                        boost, fieldType, nullValue,
-                        indexAnalyzer, searchAnalyzer);
+                        boost, fieldType, nullValue, indexAnalyzer, searchAnalyzer, provider);
                 fieldMapper.includeInAll(includeInAll);
                 return fieldMapper;
             }
@@ -571,8 +569,10 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
 
         GeoPointFieldMapper geoMapper;
 
-        public GeoStringFieldMapper(Names names, float boost, FieldType fieldType, String nullValue, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer) {
-            super(names, boost, fieldType, nullValue, indexAnalyzer, searchAnalyzer);
+        public GeoStringFieldMapper(Names names, float boost, FieldType fieldType, String nullValue,
+                                    NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer,
+                                    PostingsFormatProvider provider) {
+            super(names, boost, fieldType, nullValue, indexAnalyzer, searchAnalyzer, provider);
         }
 
         @Override

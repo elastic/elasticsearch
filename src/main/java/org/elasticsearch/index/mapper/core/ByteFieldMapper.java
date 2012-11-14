@@ -37,6 +37,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericIntegerAnalyzer;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
+import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -62,6 +63,7 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
         static {
             BYTE_FIELD_TYPE.freeze();
         }
+
         public static final Byte NULL_VALUE = null;
     }
 
@@ -83,7 +85,8 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
         public ByteFieldMapper build(BuilderContext context) {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             ByteFieldMapper fieldMapper = new ByteFieldMapper(buildNames(context),
-                    precisionStep, fuzzyFactor, boost, fieldType, nullValue, ignoreMalformed(context));
+                    precisionStep, fuzzyFactor, boost, fieldType, nullValue, ignoreMalformed(context),
+                    provider);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -110,10 +113,10 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
     private String nullValueAsString;
 
     protected ByteFieldMapper(Names names, int precisionStep, String fuzzyFactor, float boost, FieldType fieldType,
-                              Byte nullValue, Explicit<Boolean> ignoreMalformed) {
+                              Byte nullValue, Explicit<Boolean> ignoreMalformed, PostingsFormatProvider provider) {
         super(names, precisionStep, fuzzyFactor, boost, fieldType,
                 ignoreMalformed, new NamedAnalyzer("_byte/" + precisionStep, new NumericIntegerAnalyzer(precisionStep)),
-                new NamedAnalyzer("_byte/max", new NumericIntegerAnalyzer(Integer.MAX_VALUE)));
+                new NamedAnalyzer("_byte/max", new NumericIntegerAnalyzer(Integer.MAX_VALUE)), provider);
         this.nullValue = nullValue;
         this.nullValueAsString = nullValue == null ? null : nullValue.toString();
     }

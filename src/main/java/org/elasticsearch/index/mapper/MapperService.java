@@ -44,6 +44,7 @@ import org.elasticsearch.env.FailedToResolveConfigException;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.codec.postingsformat.PostingsFormatService;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
@@ -54,7 +55,6 @@ import org.elasticsearch.indices.TypeMissingException;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.Reader;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Collection;
@@ -71,6 +71,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     public static final String DEFAULT_MAPPING = "_default_";
 
     private final AnalysisService analysisService;
+    private final PostingsFormatService postingsFormatService;
 
     /**
      * Will create types automatically if they do not exists in the mapping definition yet
@@ -98,10 +99,11 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     private final SmartIndexNameSearchQuoteAnalyzer searchQuoteAnalyzer;
 
     @Inject
-    public MapperService(Index index, @IndexSettings Settings indexSettings, Environment environment, AnalysisService analysisService) {
+    public MapperService(Index index, @IndexSettings Settings indexSettings, Environment environment, AnalysisService analysisService, PostingsFormatService postingsFormatService) {
         super(index, indexSettings);
         this.analysisService = analysisService;
-        this.documentParser = new DocumentMapperParser(index, indexSettings, analysisService);
+        this.postingsFormatService = postingsFormatService;
+        this.documentParser = new DocumentMapperParser(index, indexSettings, analysisService, postingsFormatService);
         this.searchAnalyzer = new SmartIndexNameSearchAnalyzer(analysisService.defaultSearchAnalyzer());
         this.searchQuoteAnalyzer = new SmartIndexNameSearchQuoteAnalyzer(analysisService.defaultSearchQuoteAnalyzer());
 

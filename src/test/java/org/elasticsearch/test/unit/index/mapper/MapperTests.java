@@ -30,6 +30,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.codec.postingsformat.PostingsFormatService;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.settings.IndexSettingsModule;
@@ -42,15 +43,16 @@ import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 public class MapperTests {
 
     public static DocumentMapperParser newParser() {
-        return new DocumentMapperParser(new Index("test"), newAnalysisService());
+        return new DocumentMapperParser(new Index("test"), newAnalysisService(), new PostingsFormatService(new Index("test")));
     }
 
     public static DocumentMapperParser newParser(Settings indexSettings) {
-        return new DocumentMapperParser(new Index("test"), indexSettings, newAnalysisService());
+        return new DocumentMapperParser(new Index("test"), indexSettings, newAnalysisService(), new PostingsFormatService(new Index("test")));
     }
 
     public static MapperService newMapperService() {
-        return new MapperService(new Index("test"), ImmutableSettings.Builder.EMPTY_SETTINGS, new Environment(), newAnalysisService());
+        return new MapperService(new Index("test"), ImmutableSettings.Builder.EMPTY_SETTINGS, new Environment(), newAnalysisService(),
+                new PostingsFormatService(new Index("test")));
     }
 
     public static AnalysisService newAnalysisService() {

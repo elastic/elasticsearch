@@ -609,6 +609,16 @@ public class SimpleIndexQueryParserTests {
     }
 
     @Test
+    public void testPrefixQueryWithUnknownField() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        Query parsedQuery = queryParser.parse(prefixQuery("unknown", "sh")).query();
+        assertThat(parsedQuery, instanceOf(PrefixQuery.class));
+        PrefixQuery prefixQuery = (PrefixQuery) parsedQuery;
+        assertThat(prefixQuery.getPrefix(), equalTo(new Term("unknown", "sh")));
+        assertThat(prefixQuery.getRewriteMethod(), notNullValue());
+    }
+
+    @Test
     public void testWildcardQueryBuilder() throws IOException {
         IndexQueryParserService queryParser = queryParser();
         Query parsedQuery = queryParser.parse(wildcardQuery("name.first", "sh*")).query();

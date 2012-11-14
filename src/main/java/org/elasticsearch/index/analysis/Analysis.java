@@ -62,10 +62,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.net.URL;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 /**
  *
@@ -157,35 +154,43 @@ public class Analysis {
             if ("_none_".equals(value)) {
                 return CharArraySet.EMPTY_SET;
             } else {
-                return new CharArraySet(version, Strings.commaDelimitedListToSet(value), ignore_case);
+                return resolveNamedStopWords(Strings.commaDelimitedListToSet(value), version, ignore_case);
             }
         }
         String[] stopWords = settings.getAsArray("stopwords", null);
         if (stopWords != null) {
-            CharArraySet setStopWords = new CharArraySet(version, stopWords.length, ignore_case);
-            for (String stopWord : stopWords) {
-                if (namedStopWords.containsKey(stopWord)) {
-                    setStopWords.addAll(namedStopWords.get(stopWord));
-                } else {
-                    setStopWords.add(stopWord);
-                }
-            }
-            return setStopWords;
+            return resolveNamedStopWords(stopWords, version, ignore_case);
         }
         List<String> pathLoadedStopWords = getWordList(env, settings, "stopwords");
         if (pathLoadedStopWords != null) {
-            CharArraySet setStopWords = new CharArraySet(version, pathLoadedStopWords.size(), ignore_case);
-            for (String stopWord : pathLoadedStopWords) {
-                if (namedStopWords.containsKey(stopWord)) {
-                    setStopWords.addAll(namedStopWords.get(stopWord));
-                } else {
-                    setStopWords.add(stopWord);
-                }
-            }
-            return setStopWords;
+            return resolveNamedStopWords(stopWords, version, ignore_case);
         }
 
         return defaultStopWords;
+    }
+
+    private static CharArraySet resolveNamedStopWords(Collection<String> words, Version version, boolean ignore_case) {
+        CharArraySet setStopWords = new CharArraySet(version, words.size(), ignore_case);
+        for (String stopWord : words) {
+            if (namedStopWords.containsKey(stopWord)) {
+                setStopWords.addAll(namedStopWords.get(stopWord));
+            } else {
+                setStopWords.add(stopWord);
+            }
+        }
+        return setStopWords;
+    }
+
+    private static CharArraySet resolveNamedStopWords(String[] words, Version version, boolean ignore_case) {
+        CharArraySet setStopWords = new CharArraySet(version, words.length, ignore_case);
+        for (String stopWord : words) {
+            if (namedStopWords.containsKey(stopWord)) {
+                setStopWords.addAll(namedStopWords.get(stopWord));
+            } else {
+                setStopWords.add(stopWord);
+            }
+        }
+        return setStopWords;
     }
 
     public static CharArraySet getWordSet(Environment env, Settings settings, String settingsPrefix, Version version) {

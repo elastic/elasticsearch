@@ -109,7 +109,9 @@ public class PrefixQueryParser implements QueryParser {
         }
         if (query == null) {
             PrefixQuery prefixQuery = new PrefixQuery(new Term(fieldName, value));
-            prefixQuery.setRewriteMethod(method);
+            if (method != null) {
+                prefixQuery.setRewriteMethod(method);
+            }
             query = prefixQuery;
         }
         query.setBoost(boost);

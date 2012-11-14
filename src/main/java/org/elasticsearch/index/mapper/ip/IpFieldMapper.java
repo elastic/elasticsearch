@@ -36,6 +36,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericAnalyzer;
 import org.elasticsearch.index.analysis.NumericTokenizer;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
+import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
@@ -112,7 +113,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
         public IpFieldMapper build(BuilderContext context) {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             IpFieldMapper fieldMapper = new IpFieldMapper(buildNames(context),
-                    precisionStep, boost, fieldType, nullValue, ignoreMalformed(context));
+                    precisionStep, boost, fieldType, nullValue, ignoreMalformed(context), provider);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -138,10 +139,11 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
 
     protected IpFieldMapper(Names names, int precisionStep,
                             float boost, FieldType fieldType,
-                            String nullValue, Explicit<Boolean> ignoreMalformed) {
+                            String nullValue, Explicit<Boolean> ignoreMalformed,
+                            PostingsFormatProvider provider) {
         super(names, precisionStep, null, boost, fieldType,
                 ignoreMalformed, new NamedAnalyzer("_ip/" + precisionStep, new NumericIpAnalyzer(precisionStep)),
-                new NamedAnalyzer("_ip/max", new NumericIpAnalyzer(Integer.MAX_VALUE)));
+                new NamedAnalyzer("_ip/max", new NumericIpAnalyzer(Integer.MAX_VALUE)), provider);
         this.nullValue = nullValue;
     }
 

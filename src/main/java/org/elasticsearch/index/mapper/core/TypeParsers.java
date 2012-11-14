@@ -111,6 +111,9 @@ public class TypeParsers {
                 builder.searchAnalyzer(analyzer);
             } else if (propName.equals("include_in_all")) {
                 builder.includeInAll(nodeBooleanValue(propNode));
+            } else if (propName.equals("postings_format")) {
+                String postingFormatName = propNode.toString();
+                builder.postingsFormat(parserContext.postingFormatService().get(postingFormatName));
             }
         }
     }

@@ -32,6 +32,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -78,7 +79,7 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
 
         @Override
         public TypeFieldMapper build(BuilderContext context) {
-            return new TypeFieldMapper(name, indexName, boost, fieldType);
+            return new TypeFieldMapper(name, indexName, boost, fieldType, provider);
         }
     }
 
@@ -97,12 +98,12 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
     }
 
     protected TypeFieldMapper(String name, String indexName) {
-        this(name, indexName, Defaults.BOOST, new FieldType(Defaults.TYPE_FIELD_TYPE));
+        this(name, indexName, Defaults.BOOST, new FieldType(Defaults.TYPE_FIELD_TYPE), null);
     }
 
-    public TypeFieldMapper(String name, String indexName, float boost, FieldType fieldType) {
+    public TypeFieldMapper(String name, String indexName, float boost, FieldType fieldType, PostingsFormatProvider provider) {
         super(new Names(name, indexName, indexName, name), boost, fieldType, Lucene.KEYWORD_ANALYZER,
-                Lucene.KEYWORD_ANALYZER);
+                Lucene.KEYWORD_ANALYZER, provider);
     }
 
     public String value(Document document) {

@@ -32,6 +32,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
+import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
@@ -139,9 +140,10 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
 
     protected NumberFieldMapper(Names names, int precisionStep, @Nullable String fuzzyFactor,
                                 float boost, FieldType fieldType,
-                                Explicit<Boolean> ignoreMalformed, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer) {
+                                Explicit<Boolean> ignoreMalformed, NamedAnalyzer indexAnalyzer,
+                                NamedAnalyzer searchAnalyzer, PostingsFormatProvider provider) {
         // LUCENE 4 UPGRADE: Since we can't do anything before the super call, we have to push the boost check down to subclasses
-        super(names, boost, fieldType, indexAnalyzer, searchAnalyzer);
+        super(names, boost, fieldType, indexAnalyzer, searchAnalyzer, provider);
         if (precisionStep <= 0 || precisionStep >= maxPrecisionStep()) {
             this.precisionStep = Integer.MAX_VALUE;
         } else {

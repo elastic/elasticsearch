@@ -38,6 +38,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericLongAnalyzer;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
+import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -86,7 +87,7 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost != 1.0f);
             LongFieldMapper fieldMapper = new LongFieldMapper(buildNames(context),
                     precisionStep, fuzzyFactor, boost, fieldType, nullValue,
-                    ignoreMalformed(context));
+                    ignoreMalformed(context), provider);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -114,10 +115,11 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
 
     protected LongFieldMapper(Names names, int precisionStep, String fuzzyFactor,
                               float boost, FieldType fieldType,
-                              Long nullValue, Explicit<Boolean> ignoreMalformed) {
+                              Long nullValue, Explicit<Boolean> ignoreMalformed,
+                              PostingsFormatProvider provider) {
         super(names, precisionStep, fuzzyFactor, boost, fieldType,
                 ignoreMalformed, new NamedAnalyzer("_long/" + precisionStep, new NumericLongAnalyzer(precisionStep)),
-                new NamedAnalyzer("_long/max", new NumericLongAnalyzer(Integer.MAX_VALUE)));
+                new NamedAnalyzer("_long/max", new NumericLongAnalyzer(Integer.MAX_VALUE)), provider);
         this.nullValue = nullValue;
         this.nullValueAsString = nullValue == null ? null : nullValue.toString();
     }

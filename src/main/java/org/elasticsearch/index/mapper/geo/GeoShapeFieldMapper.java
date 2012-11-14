@@ -13,6 +13,7 @@ import org.elasticsearch.common.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.elasticsearch.common.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.elasticsearch.common.lucene.spatial.prefix.tree.SpatialPrefixTree;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -108,7 +109,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
                 throw new ElasticSearchIllegalArgumentException("Unknown prefix tree type [" + tree + "]");
             }
 
-            return new GeoShapeFieldMapper(buildNames(context), prefixTree, distanceErrorPct, fieldType);
+            return new GeoShapeFieldMapper(buildNames(context), prefixTree, distanceErrorPct, fieldType, provider);
         }
     }
 
@@ -135,8 +136,9 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
 
     private final SpatialStrategy spatialStrategy;
 
-    public GeoShapeFieldMapper(FieldMapper.Names names, SpatialPrefixTree prefixTree, double distanceErrorPct, FieldType fieldType) {
-        super(names, 1, fieldType, null, null);
+    public GeoShapeFieldMapper(FieldMapper.Names names, SpatialPrefixTree prefixTree, double distanceErrorPct,
+                               FieldType fieldType, PostingsFormatProvider provider) {
+        super(names, 1, fieldType, null, null, provider);
         this.spatialStrategy = new TermQueryPrefixTreeStrategy(names, prefixTree, distanceErrorPct);
     }
 

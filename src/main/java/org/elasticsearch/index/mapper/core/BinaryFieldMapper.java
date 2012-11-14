@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.mapper.*;
 
 import java.io.IOException;
@@ -86,7 +87,7 @@ public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
 
         @Override
         public BinaryFieldMapper build(BuilderContext context) {
-            return new BinaryFieldMapper(buildNames(context), fieldType, compress, compressThreshold);
+            return new BinaryFieldMapper(buildNames(context), fieldType, compress, compressThreshold, provider);
         }
     }
 
@@ -118,8 +119,8 @@ public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
 
     private long compressThreshold;
 
-    protected BinaryFieldMapper(Names names, FieldType fieldType, Boolean compress, long compressThreshold) {
-        super(names, 1.0f, fieldType, null, null);
+    protected BinaryFieldMapper(Names names, FieldType fieldType, Boolean compress, long compressThreshold, PostingsFormatProvider provider) {
+        super(names, 1.0f, fieldType, null, null, provider);
         this.compress = compress;
         this.compressThreshold = compressThreshold;
     }

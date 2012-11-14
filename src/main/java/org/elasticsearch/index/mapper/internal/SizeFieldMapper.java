@@ -23,8 +23,10 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.IntegerFieldMapper;
+import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 
 import java.io.IOException;
 import java.util.Map;
@@ -48,15 +50,12 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
         }
     }
 
-    public static class Builder extends Mapper.Builder<Builder, IntegerFieldMapper> {
+    public static class Builder extends NumberFieldMapper.Builder<Builder, IntegerFieldMapper> {
 
         protected boolean enabled = Defaults.ENABLED;
 
-        protected final FieldType fieldType;
-
         public Builder() {
-            super(Defaults.NAME);
-            fieldType = new FieldType(Defaults.SIZE_FIELD_TYPE);
+            super(Defaults.NAME, new FieldType(Defaults.SIZE_FIELD_TYPE));
             builder = this;
         }
 
@@ -72,7 +71,7 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
 
         @Override
         public SizeFieldMapper build(BuilderContext context) {
-            return new SizeFieldMapper(enabled, fieldType);
+            return new SizeFieldMapper(enabled, fieldType, provider);
         }
     }
 
@@ -96,13 +95,12 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
     private final boolean enabled;
 
     public SizeFieldMapper() {
-        this(Defaults.ENABLED, new FieldType(Defaults.SIZE_FIELD_TYPE));
+        this(Defaults.ENABLED, new FieldType(Defaults.SIZE_FIELD_TYPE), null);
     }
 
-    public SizeFieldMapper(boolean enabled, FieldType fieldType) {
+    public SizeFieldMapper(boolean enabled, FieldType fieldType, PostingsFormatProvider provider) {
         super(new Names(Defaults.NAME), Defaults.PRECISION_STEP, Defaults.FUZZY_FACTOR,
-                Defaults.BOOST, fieldType, Defaults.NULL_VALUE,
-                Defaults.IGNORE_MALFORMED);
+                Defaults.BOOST, fieldType, Defaults.NULL_VALUE, Defaults.IGNORE_MALFORMED, provider);
         this.enabled = enabled;
     }
 

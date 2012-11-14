@@ -197,8 +197,10 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
         this(Defaults.NAME, Defaults.ENABLED, Defaults.FORMAT, null, -1, Defaults.INCLUDES, Defaults.EXCLUDES);
     }
 
-    protected SourceFieldMapper(String name, boolean enabled, String format, Boolean compress, long compressThreshold, String[] includes, String[] excludes) {
-        super(new Names(name, name, name, name), Defaults.BOOST, new FieldType(Defaults.SOURCE_FIELD_TYPE), Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
+    protected SourceFieldMapper(String name, boolean enabled, String format, Boolean compress, long compressThreshold,
+                                String[] includes, String[] excludes) {
+        super(new Names(name, name, name, name), Defaults.BOOST, new FieldType(Defaults.SOURCE_FIELD_TYPE),
+                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, null); // Only stored.
         this.enabled = enabled;
         this.compress = compress;
         this.compressThreshold = compressThreshold;

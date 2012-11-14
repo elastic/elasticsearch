@@ -22,11 +22,12 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.apache.lucene.index.Term;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 
@@ -79,7 +80,7 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
 
         @Override
         public IndexFieldMapper build(BuilderContext context) {
-            return new IndexFieldMapper(name, indexName, boost, fieldType, enabled);
+            return new IndexFieldMapper(name, indexName, boost, fieldType, enabled, provider);
         }
     }
 
@@ -107,12 +108,13 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
     }
 
     protected IndexFieldMapper(String name, String indexName) {
-        this(name, indexName, Defaults.BOOST, new FieldType(Defaults.INDEX_FIELD_TYPE), Defaults.ENABLED);
+        this(name, indexName, Defaults.BOOST, new FieldType(Defaults.INDEX_FIELD_TYPE), Defaults.ENABLED, null);
     }
 
-    public IndexFieldMapper(String name, String indexName, float boost, FieldType fieldType, boolean enabled) {
+    public IndexFieldMapper(String name, String indexName, float boost, FieldType fieldType, boolean enabled,
+                            PostingsFormatProvider provider) {
         super(new Names(name, indexName, indexName, name), boost, fieldType, Lucene.KEYWORD_ANALYZER,
-                Lucene.KEYWORD_ANALYZER);
+                Lucene.KEYWORD_ANALYZER, provider);
         this.enabled = enabled;
     }
 

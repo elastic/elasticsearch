@@ -40,6 +40,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.*;
@@ -86,6 +87,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
     private volatile int indexConcurrency;
     private long gcDeletesInMillis;
     private volatile boolean enableGcDeletes = true;
+    private volatile String codecName;
 
     private final ThreadPool threadPool;
 
@@ -100,6 +102,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
     private final MergeSchedulerProvider mergeScheduler;
     private final AnalysisService analysisService;
     private final SimilarityService similarityService;
+    private final CodecService codecService;
 
 
     private final ReadWriteLock rwl = new ReentrantReadWriteLock();
@@ -147,7 +150,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                        IndexSettingsService indexSettingsService, ShardIndexingService indexingService, @Nullable IndicesWarmer warmer,
                        Store store, SnapshotDeletionPolicy deletionPolicy, Translog translog,
                        MergePolicyProvider mergePolicyProvider, MergeSchedulerProvider mergeScheduler,
-                       AnalysisService analysisService, SimilarityService similarityService) throws EngineException {
+                       AnalysisService analysisService, SimilarityService similarityService, CodecService codecService) throws EngineException {
         super(shardId, indexSettings);
         Preconditions.checkNotNull(store, "Store must be provided to the engine");
         Preconditions.checkNotNull(deletionPolicy, "Snapshot deletion policy must be provided to the engine");
@@ -157,6 +160,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         this.indexingBufferSize = componentSettings.getAsBytesSize("index_buffer_size", new ByteSizeValue(64, ByteSizeUnit.MB)); // not really important, as it is set by the IndexingMemory manager
         this.termIndexInterval = indexSettings.getAsInt("index.term_index_interval", IndexWriterConfig.DEFAULT_TERM_INDEX_INTERVAL);
         this.termIndexDivisor = indexSettings.getAsInt("index.term_index_divisor", 1); // IndexReader#DEFAULT_TERMS_INDEX_DIVISOR
+        this.codecName = indexSettings.get("index.codec", "default");
 
         this.threadPool = threadPool;
         this.indexSettingsService = indexSettingsService;
@@ -169,6 +173,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         this.mergeScheduler = mergeScheduler;
         this.analysisService = analysisService;
         this.similarityService = similarityService;
+        this.codecService = codecService;
 
         this.indexConcurrency = indexSettings.getAsInt("index.index_concurrency", IndexWriterConfig.DEFAULT_MAX_THREAD_STATES);
         this.versionMap = ConcurrentCollections.newConcurrentMap();
@@ -1331,6 +1336,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             config.setTermIndexInterval(termIndexInterval);
             config.setReaderTermsIndexDivisor(termIndexDivisor);
             config.setMaxThreadStates(indexConcurrency);
+            config.setCodec(codecService.codec(codecName));
 
             indexWriter = new IndexWriter(store.directory(), config);
         } catch (IOException e) {
@@ -1345,7 +1351,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                 "index.term_index_interval",
                 "index.term_index_divisor",
                 "index.index_concurrency",
-                "index.gc_deletes"
+                "index.gc_deletes",
+                "index.codec"
         );
     }
 
@@ -1362,6 +1369,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             int termIndexInterval = settings.getAsInt("index.term_index_interval", RobinEngine.this.termIndexInterval);
             int termIndexDivisor = settings.getAsInt("index.term_index_divisor", RobinEngine.this.termIndexDivisor); // IndexReader#DEFAULT_TERMS_INDEX_DIVISOR
             int indexConcurrency = settings.getAsInt("index.index_concurrency", RobinEngine.this.indexConcurrency);
+            String codecName = settings.get("index.codec", RobinEngine.this.codecName);
             boolean requiresFlushing = false;
             if (termIndexInterval != RobinEngine.this.termIndexInterval || termIndexDivisor != RobinEngine.this.termIndexDivisor) {
                 rwl.readLock().lock();
@@ -1382,6 +1390,12 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                         logger.info("updating index.index_concurrency from [{}] to [{}]", RobinEngine.this.indexConcurrency, indexConcurrency);
                         RobinEngine.this.indexConcurrency = indexConcurrency;
                         // we have to flush in this case, since it only applies on a new index writer
+                        requiresFlushing = true;
+                    }
+                    if (!codecName.equals(RobinEngine.this.codecName)) {
+                        logger.info("updating index.codec from [{}] to [{}]", RobinEngine.this.codecName, codecName);
+                        RobinEngine.this.codecName = codecName;
+                        // TODO: Lucene 4, I think once someones changes codec, it should be reflected immediately
                         requiresFlushing = true;
                     }
                 } finally {

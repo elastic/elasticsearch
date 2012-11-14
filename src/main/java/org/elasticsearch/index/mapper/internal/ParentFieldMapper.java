@@ -31,6 +31,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -67,6 +68,7 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
         protected String indexName;
 
         private String type;
+        protected PostingsFormatProvider postingsFormat;
 
         public Builder() {
             super(Defaults.NAME);
@@ -78,12 +80,17 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
             return builder;
         }
 
+        protected Builder postingsFormat(PostingsFormatProvider postingsFormat) {
+            this.postingsFormat = postingsFormat;
+            return builder;
+        }
+
         @Override
         public ParentFieldMapper build(BuilderContext context) {
             if (type == null) {
                 throw new MapperParsingException("Parent mapping must contain the parent type");
             }
-            return new ParentFieldMapper(name, indexName, type);
+            return new ParentFieldMapper(name, indexName, type, postingsFormat);
         }
     }
 
@@ -96,6 +103,9 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("type")) {
                     builder.type(fieldNode.toString());
+                } else if (fieldName.equals("postings_format")) {
+                    String postingFormatName = fieldNode.toString();
+                    builder.postingsFormat(parserContext.postingFormatService().get(postingFormatName));
                 }
             }
             return builder;
@@ -104,9 +114,9 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
 
     private final String type;
 
-    protected ParentFieldMapper(String name, String indexName, String type) {
+    protected ParentFieldMapper(String name, String indexName, String type, PostingsFormatProvider postingsFormat) {
         super(new Names(name, indexName, indexName, name), Defaults.BOOST, new FieldType(Defaults.PARENT_FIELD_TYPE),
-                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
+                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, postingsFormat);
         this.type = type;
     }
 

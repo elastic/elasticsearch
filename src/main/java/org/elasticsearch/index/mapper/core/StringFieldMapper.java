@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NamedCustomAnalyzer;
+import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 
@@ -128,8 +129,8 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
                 }
             }
             StringFieldMapper fieldMapper = new StringFieldMapper(buildNames(context),
-                    boost, fieldType, nullValue,
-                    indexAnalyzer, searchAnalyzer, searchQuotedAnalyzer, positionOffsetGap, ignoreAbove);
+                    boost, fieldType, nullValue, indexAnalyzer, searchAnalyzer, searchQuotedAnalyzer,
+                    positionOffsetGap, ignoreAbove, provider);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -183,15 +184,17 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
     private int ignoreAbove;
 
     protected StringFieldMapper(Names names, float boost, FieldType fieldType,
-                                String nullValue, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer) {
-        this(names, boost, fieldType, nullValue, indexAnalyzer,
-                searchAnalyzer, searchAnalyzer, Defaults.POSITION_OFFSET_GAP, Defaults.IGNORE_ABOVE);
+                                String nullValue, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer,
+                                PostingsFormatProvider postingsFormat) {
+        this(names, boost, fieldType, nullValue, indexAnalyzer, searchAnalyzer, searchAnalyzer,
+                Defaults.POSITION_OFFSET_GAP, Defaults.IGNORE_ABOVE, postingsFormat);
     }
 
     protected StringFieldMapper(Names names, float boost, FieldType fieldType,
                                 String nullValue, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer,
-                                NamedAnalyzer searchQuotedAnalyzer, int positionOffsetGap, int ignoreAbove) {
-        super(names, boost, fieldType, indexAnalyzer, searchAnalyzer);
+                                NamedAnalyzer searchQuotedAnalyzer, int positionOffsetGap, int ignoreAbove,
+                                PostingsFormatProvider postingsFormat) {
+        super(names, boost, fieldType, indexAnalyzer, searchAnalyzer, postingsFormat);
         this.nullValue = nullValue;
         this.positionOffsetGap = positionOffsetGap;
         this.searchQuotedAnalyzer = searchQuotedAnalyzer != null ? searchQuotedAnalyzer : this.searchAnalyzer;

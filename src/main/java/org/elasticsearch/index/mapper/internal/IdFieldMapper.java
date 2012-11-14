@@ -33,6 +33,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -87,7 +88,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
 
         @Override
         public IdFieldMapper build(BuilderContext context) {
-            return new IdFieldMapper(name, indexName, boost, fieldType, path);
+            return new IdFieldMapper(name, indexName, boost, fieldType, path, provider);
         }
     }
 
@@ -118,12 +119,13 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
     }
 
     protected IdFieldMapper(String name, String indexName, FieldType fieldType) {
-        this(name, indexName, Defaults.BOOST, fieldType, Defaults.PATH);
+        this(name, indexName, Defaults.BOOST, fieldType, Defaults.PATH, null);
     }
 
-    protected IdFieldMapper(String name, String indexName, float boost, FieldType fieldType, String path) {
+    protected IdFieldMapper(String name, String indexName, float boost, FieldType fieldType, String path,
+                            PostingsFormatProvider provider) {
         super(new Names(name, indexName, indexName, name), boost, fieldType, Lucene.KEYWORD_ANALYZER,
-                Lucene.KEYWORD_ANALYZER);
+                Lucene.KEYWORD_ANALYZER, provider);
         this.path = path;
     }
 

@@ -120,6 +120,10 @@ public class UidField extends Field {
 
     private long version;
 
+    public UidField(String uid) {
+        this(UidFieldMapper.NAME, uid, 0);
+    }
+
     public UidField(String name, String uid, long version) {
         super(name, UidFieldMapper.Defaults.UID_FIELD_TYPE);
         this.uid = uid;

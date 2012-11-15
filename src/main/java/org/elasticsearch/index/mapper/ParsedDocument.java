@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Document;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.lucene.uid.UidField;
 
 import java.util.Arrays;
 import java.util.List;
@@ -31,7 +32,7 @@ import java.util.List;
  */
 public class ParsedDocument {
 
-    private final String uid;
+    private final UidField uid;
 
     private final String id;
 
@@ -54,10 +55,10 @@ public class ParsedDocument {
     private String parent;
 
     public ParsedDocument(String uid, String id, String type, String routing, long timestamp, long ttl, Document document, Analyzer analyzer, BytesReference source, boolean mappingsModified) {
-        this(uid, id, type, routing, timestamp, ttl, Arrays.asList(document), analyzer, source, mappingsModified);
+        this(new UidField(uid), id, type, routing, timestamp, ttl, Arrays.asList(document), analyzer, source, mappingsModified);
     }
 
-    public ParsedDocument(String uid, String id, String type, String routing, long timestamp, long ttl, List<Document> documents, Analyzer analyzer, BytesReference source, boolean mappingsModified) {
+    public ParsedDocument(UidField uid, String id, String type, String routing, long timestamp, long ttl, List<Document> documents, Analyzer analyzer, BytesReference source, boolean mappingsModified) {
         this.uid = uid;
         this.id = id;
         this.type = type;
@@ -70,7 +71,7 @@ public class ParsedDocument {
         this.mappingsModified = mappingsModified;
     }
 
-    public String uid() {
+    public UidField uid() {
         return this.uid;
     }
 

@@ -24,6 +24,7 @@ import org.apache.lucene.document.Document;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.all.AllEntries;
+import org.elasticsearch.common.lucene.uid.UidField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -65,7 +66,7 @@ public class ParseContext {
 
     private DocumentMapper.ParseListener listener;
 
-    private String uid;
+    private UidField uid;
 
     private StringBuilder stringBuilder = new StringBuilder();
 
@@ -218,14 +219,14 @@ public class ParseContext {
         this.id = id;
     }
 
-    public String uid() {
+    public UidField uid() {
         return this.uid;
     }
 
     /**
      * Really, just the uid mapper should set this.
      */
-    public void uid(String uid) {
+    public void uid(UidField uid) {
         this.uid = uid;
     }
 

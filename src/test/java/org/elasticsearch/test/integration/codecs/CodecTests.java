@@ -69,7 +69,7 @@ public class CodecTests extends AbstractNodesTests {
                 .setSettings(ImmutableSettings.settingsBuilder()
                         .put("number_of_shards", 1)
                         .put("number_of_replicas", 0)
-                        .put("codec.postings_format.test1.type", "pulsing40")
+                        .put("codec.postings_format.test1.type", "pulsing")
                 ).execute().actionGet();
 
         client.prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox").execute().actionGet();

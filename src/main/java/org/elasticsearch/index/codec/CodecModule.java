@@ -19,50 +19,23 @@
 
 package org.elasticsearch.index.codec;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.codecs.bloom.BloomFilteringPostingsFormat;
-import org.apache.lucene.codecs.lucene40.Lucene40PostingsFormat;
-import org.apache.lucene.codecs.memory.DirectPostingsFormat;
-import org.apache.lucene.codecs.memory.MemoryPostingsFormat;
-import org.apache.lucene.codecs.pulsing.Pulsing40PostingsFormat;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Scopes;
 import org.elasticsearch.common.inject.assistedinject.FactoryProvider;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.codec.postingsformat.PostingFormats;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatService;
 import org.elasticsearch.index.codec.postingsformat.PreBuiltPostingsFormatProvider;
 
-import java.util.List;
 import java.util.Map;
 
 /**
  */
 public class CodecModule extends AbstractModule {
-
-    public static final ImmutableList<PreBuiltPostingsFormatProvider.Factory> preConfiguredPostingFormats;
-
-    static {
-        List<PreBuiltPostingsFormatProvider.Factory> preConfiguredPostingFormatsX = Lists.newArrayList();
-        // add defaults ones
-        for (String luceneName : PostingsFormat.availablePostingsFormats()) {
-            preConfiguredPostingFormatsX.add(new PreBuiltPostingsFormatProvider.Factory(PostingsFormat.forName(luceneName)));
-        }
-        preConfiguredPostingFormatsX.add(new PreBuiltPostingsFormatProvider.Factory("direct", new DirectPostingsFormat()));
-        preConfiguredPostingFormatsX.add(new PreBuiltPostingsFormatProvider.Factory("memory", new MemoryPostingsFormat()));
-        // LUCENE UPGRADE: Need to change this to the relevant ones on a lucene upgrade
-        preConfiguredPostingFormatsX.add(new PreBuiltPostingsFormatProvider.Factory("pulsing", new Pulsing40PostingsFormat()));
-        preConfiguredPostingFormatsX.add(new PreBuiltPostingsFormatProvider.Factory("bloom_pulsing", new BloomFilteringPostingsFormat(new Pulsing40PostingsFormat())));
-        preConfiguredPostingFormatsX.add(new PreBuiltPostingsFormatProvider.Factory("default", new Lucene40PostingsFormat()));
-        preConfiguredPostingFormatsX.add(new PreBuiltPostingsFormatProvider.Factory("bloom_default", new BloomFilteringPostingsFormat(new Lucene40PostingsFormat())));
-
-        preConfiguredPostingFormats = ImmutableList.copyOf(preConfiguredPostingFormatsX);
-    }
 
     private final Settings indexSettings;
 
@@ -105,7 +78,7 @@ public class CodecModule extends AbstractModule {
             postingFormatFactoryBinder.addBinding(entry.getKey()).toProvider(FactoryProvider.newFactory(PostingsFormatProvider.Factory.class, entry.getValue())).in(Scopes.SINGLETON);
         }
 
-        for (PreBuiltPostingsFormatProvider.Factory factory : preConfiguredPostingFormats) {
+        for (PreBuiltPostingsFormatProvider.Factory factory : PostingFormats.listFactories()) {
             if (postingFormatProviders.containsKey(factory.name())) {
                 continue;
             }

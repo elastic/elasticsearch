@@ -27,7 +27,6 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.codec.CodecModule;
 import org.elasticsearch.index.settings.IndexSettings;
 
 import java.util.Map;
@@ -66,7 +65,7 @@ public class PostingsFormatService extends AbstractIndexComponent {
 
         // even though we have this logic in the cache module (where it should be, so posting format with delegates will work properly wiht the pre initialized map)
         // we do it here as well so we can use just this instance for tests
-        for (PreBuiltPostingsFormatProvider.Factory factory : CodecModule.preConfiguredPostingFormats) {
+        for (PreBuiltPostingsFormatProvider.Factory factory : PostingFormats.listFactories()) {
             if (providers.containsKey(factory.name())) {
                 continue;
             }

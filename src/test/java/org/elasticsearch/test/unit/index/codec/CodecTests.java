@@ -106,7 +106,7 @@ public class CodecTests {
                 .endObject().endObject().string();
 
         Settings indexSettings = ImmutableSettings.settingsBuilder()
-                .put("index.codec.postings_format.my_format1.type", "lucene40")
+                .put("index.codec.postings_format.my_format1.type", "default")
                 .put("index.codec.postings_format.my_format1.min_block_size", 16)
                 .put("index.codec.postings_format.my_format1.max_block_size", 64)
                 .build();
@@ -115,8 +115,8 @@ public class CodecTests {
         assertThat(documentMapper.mappers().name("field1").mapper().postingFormatProvider(), instanceOf(PreBuiltPostingsFormatProvider.class));
         assertThat(documentMapper.mappers().name("field1").mapper().postingFormatProvider().get(), instanceOf(Lucene40PostingsFormat.class));
 
-        assertThat(documentMapper.mappers().name("field2").mapper().postingFormatProvider(), instanceOf(Lucene40PostingsFormatProvider.class));
-        Lucene40PostingsFormatProvider provider = (Lucene40PostingsFormatProvider) documentMapper.mappers().name("field2").mapper().postingFormatProvider();
+        assertThat(documentMapper.mappers().name("field2").mapper().postingFormatProvider(), instanceOf(DefaultPostingsFormatProvider.class));
+        DefaultPostingsFormatProvider provider = (DefaultPostingsFormatProvider) documentMapper.mappers().name("field2").mapper().postingFormatProvider();
         assertThat(provider.minBlockSize(), equalTo(16));
         assertThat(provider.maxBlockSize(), equalTo(64));
     }
@@ -181,7 +181,7 @@ public class CodecTests {
                 .endObject().endObject().string();
 
         Settings indexSettings = ImmutableSettings.settingsBuilder()
-                .put("index.codec.postings_format.my_format1.type", "pulsing40")
+                .put("index.codec.postings_format.my_format1.type", "pulsing")
                 .put("index.codec.postings_format.my_format1.freq_cut_off", 2)
                 .put("index.codec.postings_format.my_format1.min_block_size", 32)
                 .put("index.codec.postings_format.my_format1.max_block_size", 64)
@@ -191,8 +191,8 @@ public class CodecTests {
         assertThat(documentMapper.mappers().name("field1").mapper().postingFormatProvider(), instanceOf(PreBuiltPostingsFormatProvider.class));
         assertThat(documentMapper.mappers().name("field1").mapper().postingFormatProvider().get(), instanceOf(Pulsing40PostingsFormat.class));
 
-        assertThat(documentMapper.mappers().name("field2").mapper().postingFormatProvider(), instanceOf(Pulsing40PostingsFormatProvider.class));
-        Pulsing40PostingsFormatProvider provider = (Pulsing40PostingsFormatProvider) documentMapper.mappers().name("field2").mapper().postingFormatProvider();
+        assertThat(documentMapper.mappers().name("field2").mapper().postingFormatProvider(), instanceOf(PulsingPostingsFormatProvider.class));
+        PulsingPostingsFormatProvider provider = (PulsingPostingsFormatProvider) documentMapper.mappers().name("field2").mapper().postingFormatProvider();
         assertThat(provider.freqCutOff(), equalTo(2));
         assertThat(provider.minBlockSize(), equalTo(32));
         assertThat(provider.maxBlockSize(), equalTo(64));

@@ -56,7 +56,7 @@ public class CodecTests extends AbstractNodesTests {
     }
 
     @Test
-    public void testIndexOptionsWithConfiguredPostingsFormat() throws Exception {
+    public void testFieldsWithCustomPostingsFormat() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
@@ -85,7 +85,7 @@ public class CodecTests extends AbstractNodesTests {
     }
 
     @Test
-    public void testIndexOptionsWithSimpleTextCodec() throws Exception {
+    public void testIndexingWithSimpleTextCodec() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {

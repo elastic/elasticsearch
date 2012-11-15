@@ -32,6 +32,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.codec.postingsformat.PostingFormats;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.mapper.*;
@@ -269,7 +270,17 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         } else {
             this.searchAnalyzer = searchAnalyzer;
         }
+        if (postingsFormat == null) {
+            if (defaultPostingFormat() != null) {
+                postingsFormat = PostingFormats.getAsProvider(defaultPostingFormat());
+            }
+        }
         this.postingsFormat = postingsFormat;
+    }
+
+    @Nullable
+    protected String defaultPostingFormat() {
+        return null;
     }
 
     @Override
@@ -583,7 +594,9 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
             }
         }
         if (postingsFormat != null) {
-            builder.field("postings_format", postingsFormat.name());
+            if (!postingsFormat.name().equals(defaultPostingFormat())) {
+                builder.field("postings_format", postingsFormat.name());
+            }
         }
     }
 

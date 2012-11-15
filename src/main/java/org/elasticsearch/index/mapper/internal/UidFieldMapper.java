@@ -23,9 +23,11 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.Term;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.UidField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 
@@ -61,6 +63,7 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
     public static class Builder extends Mapper.Builder<Builder, UidFieldMapper> {
 
         protected String indexName;
+        protected PostingsFormatProvider postingsFormat;
 
         public Builder() {
             super(Defaults.NAME);
@@ -69,14 +72,23 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
 
         @Override
         public UidFieldMapper build(BuilderContext context) {
-            return new UidFieldMapper(name, indexName);
+            return new UidFieldMapper(name, indexName, postingsFormat);
         }
     }
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            return uid();
+            Builder builder = uid();
+            for (Map.Entry<String, Object> entry : node.entrySet()) {
+                String fieldName = Strings.toUnderscoreCase(entry.getKey());
+                Object fieldNode = entry.getValue();
+                if (fieldName.equals("postings_format")) {
+                    String postingFormatName = fieldNode.toString();
+                    builder.postingsFormat = parserContext.postingFormatService().get(postingFormatName);
+                }
+            }
+            return builder;
         }
     }
 
@@ -92,12 +104,17 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
     }
 
     protected UidFieldMapper(String name) {
-        this(name, name);
+        this(name, name, null);
     }
 
-    protected UidFieldMapper(String name, String indexName) {
+    protected UidFieldMapper(String name, String indexName, PostingsFormatProvider postingsFormat) {
         super(new Names(name, indexName, indexName, name), Defaults.BOOST, new FieldType(Defaults.UID_FIELD_TYPE),
-                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, null);
+                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, postingsFormat);
+    }
+
+    @Override
+    protected String defaultPostingFormat() {
+        return "bloom_default";
     }
 
     @Override

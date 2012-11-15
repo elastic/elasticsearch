@@ -165,12 +165,12 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
 
     @Override
     protected Field parseCreateField(ParseContext context) throws IOException {
-        context.uid(Uid.createUid(context.stringBuilder(), context.type(), context.id()));
         // so, caching uid stream and field is fine
         // since we don't do any mapping parsing without immediate indexing
         // and, when percolating, we don't index the uid
         UidField field = fieldCache.get();
-        field.setUid(context.uid());
+        field.setUid(Uid.createUid(context.stringBuilder(), context.type(), context.id()));
+        context.uid(field);
         return field; // version get updated by the engine
     }
 

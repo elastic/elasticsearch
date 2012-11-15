@@ -38,7 +38,6 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.shard.IndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
@@ -475,7 +474,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         }
 
         public UidField uidField() {
-            return (UidField) doc.rootDoc().getField(UidFieldMapper.NAME);
+            return doc.uid();
         }
 
 
@@ -603,7 +602,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         }
 
         public UidField uidField() {
-            return (UidField) doc.rootDoc().getField(UidFieldMapper.NAME);
+            return doc.uid();
         }
 
         public Index startTime(long startTime) {

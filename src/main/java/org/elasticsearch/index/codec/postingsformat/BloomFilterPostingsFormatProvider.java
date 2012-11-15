@@ -37,6 +37,11 @@ import java.util.Map;
  */
 public class BloomFilterPostingsFormatProvider extends AbstractPostingsFormatProvider {
 
+    public static final class Defaults {
+        public static final float MAX_SATURATION = 0.1f;
+        public static final float SATURATION_LIMIT = 0.9f;
+    }
+
     private final float desiredMaxSaturation;
     private final float saturationLimit;
     private final PostingsFormatProvider delegate;
@@ -45,8 +50,8 @@ public class BloomFilterPostingsFormatProvider extends AbstractPostingsFormatPro
     @Inject
     public BloomFilterPostingsFormatProvider(@IndexSettings Settings indexSettings, @Nullable Map<String, Factory> postingFormatFactories, @Assisted String name, @Assisted Settings postingsFormatSettings) {
         super(name);
-        this.desiredMaxSaturation = postingsFormatSettings.getAsFloat("desired_max_saturation", 0.1f);
-        this.saturationLimit = postingsFormatSettings.getAsFloat("saturation_limit", 0.9f);
+        this.desiredMaxSaturation = postingsFormatSettings.getAsFloat("desired_max_saturation", Defaults.MAX_SATURATION);
+        this.saturationLimit = postingsFormatSettings.getAsFloat("saturation_limit", Defaults.SATURATION_LIMIT);
         this.delegate = Helper.lookup(indexSettings, postingsFormatSettings.get("delegate"), postingFormatFactories);
         this.postingsFormat = new BloomFilteringPostingsFormat(
                 delegate.get(),
@@ -71,10 +76,14 @@ public class BloomFilterPostingsFormatProvider extends AbstractPostingsFormatPro
         return postingsFormat;
     }
 
-    static class CustomBloomFilterFactory extends BloomFilterFactory {
+    public static class CustomBloomFilterFactory extends BloomFilterFactory {
 
         private final float desiredMaxSaturation;
         private final float saturationLimit;
+
+        public CustomBloomFilterFactory() {
+            this(Defaults.MAX_SATURATION, Defaults.SATURATION_LIMIT);
+        }
 
         CustomBloomFilterFactory(float desiredMaxSaturation, float saturationLimit) {
             this.desiredMaxSaturation = desiredMaxSaturation;

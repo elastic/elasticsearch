@@ -27,11 +27,18 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.settings.IndexSettings;
 
 import java.util.Map;
 
 /**
+ * The {@link PostingsFormatService} provides access to
+ * all configured {@link PostingsFormatProvider} instances by
+ * {@link PostingsFormatProvider#name() name}. 
+ * 
+ * @see CodecService 
+ * 
  */
 public class PostingsFormatService extends AbstractIndexComponent {
 
@@ -51,7 +58,7 @@ public class PostingsFormatService extends AbstractIndexComponent {
 
         MapBuilder<String, PostingsFormatProvider> providers = MapBuilder.newMapBuilder();
 
-        Map<String, Settings> postingsFormatSettings = indexSettings.getGroups("index.codec.postings_format");
+        Map<String, Settings> postingsFormatSettings = indexSettings.getGroups(PostingsFormatProvider.POSTINGS_FORMAT_SETTINGS_PREFIX);
         for (Map.Entry<String, PostingsFormatProvider.Factory> entry : postingFormatFactories.entrySet()) {
             String name = entry.getKey();
             PostingsFormatProvider.Factory factory = entry.getValue();

@@ -25,7 +25,12 @@ import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.mapper.MapperService;
 
 /**
- * This one is the "default" codec we use.
+ * {@link PerFieldMappingPostingFormatCodec This postings format} is the default
+ * {@link PostingsFormat} for Elasticsearch. It utilizes the
+ * {@link MapperService} to lookup a {@link PostingsFormat} per field. This
+ * allows users to change the low level postings format for individual fields
+ * per index in real time via the mapping API. If no specific postings format is
+ * configured for a specific field the default postings format is used.
  */
 // LUCENE UPGRADE: make sure to move to a new codec depending on the lucene version
 public class PerFieldMappingPostingFormatCodec extends Lucene40Codec {

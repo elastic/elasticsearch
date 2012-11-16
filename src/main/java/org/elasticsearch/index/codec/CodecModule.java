@@ -34,6 +34,38 @@ import org.elasticsearch.index.codec.postingsformat.PreBuiltPostingsFormatProvid
 import java.util.Map;
 
 /**
+ * The {@link CodecModule} creates and loads the {@link CodecService} and
+ * {@link PostingsFormatService} allowing low level data-structure
+ * specialization on a Lucene Segment basis.
+ * <p>
+ * The codec module is the authoritative source for build-in and custom
+ * {@link PostingsFormatProvider}. During module bootstrap it processes the
+ * index settings underneath the
+ * {@value PostingsFormatProvider#POSTINGS_FORMAT_SETTINGS_PREFIX} and
+ * instantiates the corresponding {@link PostingsFormatProvider} instances. To
+ * configure a custom provider implementations the class should reside in the
+ * <tt>org.elasticsearch.index.codec.postingsformat</tt> package and the
+ * classname should be suffixed with <tt>PostingsFormatProvider</tt>. <br>
+ * For example to expose the Elastic-Fantastic format provider one need to
+ * provide the following configuration settings and classes:
+ * <ol>
+ * <li>create a {@link PostingsFormatProvider} subclass in the package
+ * <tt>org.elasticsearch.index.codec.postingsformat</tt></li>
+ * 
+ * <li>name the subclass <tt>ElasticFantatsticPostingsFormatProvider</tt></li>
+ * 
+ * <li>configure the custom format in you index settings under
+ * <tt>index.codec.postings_format.elastic_fantatic.type : "ElasticFantatic"</tt>
+ * </li>
+ * 
+ * <li>provide any postings format settings for this custom format under the
+ * same key ie.
+ * <tt>index.codec.postings_format.elastic_fantatic.performance : "crazy_fast"</tt>
+ * </li>
+ * </ol>
+ * 
+ * @see CodecService
+ * 
  */
 public class CodecModule extends AbstractModule {
 
@@ -55,7 +87,7 @@ public class CodecModule extends AbstractModule {
 
         Map<String, Class<? extends PostingsFormatProvider>> postingFormatProviders = Maps.newHashMap(customProviders);
 
-        Map<String, Settings> postingsFormatsSettings = indexSettings.getGroups("index.codec.postings_format");
+        Map<String, Settings> postingsFormatsSettings = indexSettings.getGroups(PostingsFormatProvider.POSTINGS_FORMAT_SETTINGS_PREFIX);
         for (Map.Entry<String, Settings> entry : postingsFormatsSettings.entrySet()) {
             String name = entry.getKey();
             Settings settings = entry.getValue();

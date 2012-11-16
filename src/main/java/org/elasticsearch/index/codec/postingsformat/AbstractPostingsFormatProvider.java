@@ -19,7 +19,10 @@
 
 package org.elasticsearch.index.codec.postingsformat;
 
+import org.apache.lucene.codecs.PostingsFormat;
+
 /**
+ * Simple abstract {@link PostingsFormat} requiring a name for the provider;
  */
 public abstract class AbstractPostingsFormatProvider implements PostingsFormatProvider {
 

@@ -30,6 +30,34 @@ import org.apache.lucene.codecs.pulsing.Pulsing40PostingsFormat;
 import org.elasticsearch.common.collect.MapBuilder;
 
 /**
+ * This class represents the set of Elasticsearch "build-in"
+ * {@link PostingsFormatProvider.Factory postings format factories}
+ * <ul>
+ * <li><b>direct</b>: a postings format that uses disk-based storage but loads
+ * its terms and postings directly into memory. Note this postings format is
+ * very memory intensive and has certain limitation that don't allow segments to
+ * grow beyond 2.1GB see {@link DirectPostingsFormat} for details.</li>
+ * 
+ * <li><b>memory</b>: a postings format that stores its entire terms, postings,
+ * positions and payloads in a finite state transducer. This format should only
+ * be used for primary keys or with fields where each term is contained in a
+ * very low number of documents.</li>
+ * 
+ * <li><b>pulsing</b>: a postings format in-lines the posting lists for very low
+ * frequent terms in the term dictionary. This is useful to improve lookup
+ * performance for low-frequent terms.</li>
+ * 
+ * <li><b>bloom_default</b>: a postings format that uses a bloom filter to
+ * improve term lookup performance. This is useful for primarily keys or fields
+ * that are used as a delete key</li>
+ * 
+ * <li><b>bloom_pulsing</b>: a postings format that combines the advantages of
+ * <b>bloom</b> and <b>pulsing</b> to further improve lookup performance</li>
+ * 
+ * <li><b>default</b>: the default Elasticsearch postings format offering best
+ * general purpose performance. This format is used if no postings format is
+ * specified in the field mapping.</li>
+ * </ul>
  */
 public class PostingFormats {
 

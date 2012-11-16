@@ -33,6 +33,12 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.settings.IndexSettings;
 
 /**
+ * Since Lucene 4.0 low level index segments are read and written through a
+ * codec layer that allows to use use-case specific file formats &
+ * data-structures per field. ElasticSearch exposes the full
+ * {@link Codec} capabilities through this {@link CodecService}.
+ * 
+ * @see PostingsFormatService
  */
 public class CodecService extends AbstractIndexComponent {
 

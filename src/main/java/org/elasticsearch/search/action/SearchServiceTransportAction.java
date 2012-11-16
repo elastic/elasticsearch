@@ -44,8 +44,6 @@ import org.elasticsearch.transport.*;
 /**
  * An encapsulation of {@link org.elasticsearch.search.SearchService} operations exposed through
  * transport.
- *
- *
  */
 public class SearchServiceTransportAction extends AbstractComponent {
 
@@ -457,7 +455,9 @@ public class SearchServiceTransportAction extends AbstractComponent {
 
         @Override
         public String executor() {
-            return ThreadPool.Names.SEARCH;
+            // freeing the context is cheap,
+            // no need for fork it to another thread
+            return ThreadPool.Names.SAME;
         }
     }
 

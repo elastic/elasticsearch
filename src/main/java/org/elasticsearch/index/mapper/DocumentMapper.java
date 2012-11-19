@@ -303,26 +303,21 @@ public class DocumentMapper implements ToXContent {
             rootMapper(RoutingFieldMapper.class).markAsRequired();
         }
 
-        final List<FieldMapper> tempFieldMappers = newArrayList();
+        FieldMapperListener.Aggregator fieldMappersAgg = new FieldMapperListener.Aggregator();
         for (RootMapper rootMapper : rootMappersOrdered) {
             if (rootMapper.includeInObject()) {
                 rootObjectMapper.putMapper(rootMapper);
             } else {
                 if (rootMapper instanceof FieldMapper) {
-                    tempFieldMappers.add((FieldMapper) rootMapper);
+                    fieldMappersAgg.fieldMappers.add((FieldMapper) rootMapper);
                 }
             }
         }
 
         // now traverse and get all the statically defined ones
-        rootObjectMapper.traverse(new FieldMapperListener() {
-            @Override
-            public void fieldMapper(FieldMapper fieldMapper) {
-                tempFieldMappers.add(fieldMapper);
-            }
-        });
+        rootObjectMapper.traverse(fieldMappersAgg);
 
-        this.fieldMappers = new DocumentFieldMappers(this, tempFieldMappers);
+        this.fieldMappers = new DocumentFieldMappers(this, fieldMappersAgg.fieldMappers);
 
         final Map<String, ObjectMapper> objectMappers = Maps.newHashMap();
         rootObjectMapper.traverse(new ObjectMapperListener() {
@@ -524,12 +519,16 @@ public class DocumentMapper implements ToXContent {
         return doc;
     }
 
-    public void addFieldMapper(FieldMapper fieldMapper) {
+    public void addFieldMappers(Collection<FieldMapper> fieldMappers) {
+        addFieldMappers(fieldMappers.toArray(new FieldMapper[fieldMappers.size()]));
+    }
+
+    public void addFieldMappers(FieldMapper... fieldMappers) {
         synchronized (mutex) {
-            fieldMappers = fieldMappers.concat(this, fieldMapper);
+            this.fieldMappers = this.fieldMappers.concat(this, fieldMappers);
         }
         for (FieldMapperListener listener : fieldMapperListeners) {
-            listener.fieldMapper(fieldMapper);
+            listener.fieldMappers(fieldMappers);
         }
     }
 
@@ -549,15 +548,23 @@ public class DocumentMapper implements ToXContent {
         rootObjectMapper.traverse(listener);
     }
 
-    public void addObjectMapper(ObjectMapper objectMapper) {
+    public void addObjectMappers(Collection<ObjectMapper> objectMappers) {
+        addObjectMappers(objectMappers.toArray(new ObjectMapper[objectMappers.size()]));
+    }
+
+    public void addObjectMappers(ObjectMapper... objectMappers) {
         synchronized (mutex) {
-            objectMappers = MapBuilder.newMapBuilder(objectMappers).put(objectMapper.fullPath(), objectMapper).immutableMap();
-            if (objectMapper.nested().isNested()) {
-                hasNestedObjects = true;
+            MapBuilder<String, ObjectMapper> builder = MapBuilder.newMapBuilder(this.objectMappers);
+            for (ObjectMapper objectMapper : objectMappers) {
+                builder.put(objectMapper.fullPath(), objectMapper);
+                if (objectMapper.nested().isNested()) {
+                    hasNestedObjects = true;
+                }
             }
+            this.objectMappers = builder.immutableMap();
         }
         for (ObjectMapperListener objectMapperListener : objectMapperListeners) {
-            objectMapperListener.objectMapper(objectMapper);
+            objectMapperListener.objectMappers(objectMappers);
         }
     }
 

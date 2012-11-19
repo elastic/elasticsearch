@@ -1061,17 +1061,27 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         }
     }
 
-    class InternalFieldMapperListener implements FieldMapperListener {
+    class InternalFieldMapperListener extends FieldMapperListener {
         @Override
         public void fieldMapper(FieldMapper fieldMapper) {
             addFieldMappers(new FieldMapper[]{fieldMapper});
         }
+
+        @Override
+        public void fieldMappers(FieldMapper... fieldMappers) {
+            addFieldMappers(fieldMappers);
+        }
     }
 
-    class InternalObjectMapperListener implements ObjectMapperListener {
+    class InternalObjectMapperListener extends ObjectMapperListener {
         @Override
         public void objectMapper(ObjectMapper objectMapper) {
             addObjectMappers(new ObjectMapper[]{objectMapper});
+        }
+
+        @Override
+        public void objectMappers(ObjectMapper... objectMappers) {
+            addObjectMappers(objectMappers);
         }
     }
 }

@@ -266,9 +266,7 @@ public class MultiFieldMapper implements Mapper, AllFieldMapper.IncludeInAll {
             }
         }
         // call it outside of the mutex
-        for (FieldMapper fieldMapper : mappersToAddToDocMapper) {
-            mergeContext.docMapper().addFieldMapper(fieldMapper);
-        }
+        mergeContext.docMapper().addFieldMappers(mappersToAddToDocMapper);
     }
 
     @Override

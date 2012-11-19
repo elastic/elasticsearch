@@ -538,19 +538,13 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                 if (newMapper) {
                     // we need to traverse in case we have a dynamic template and need to add field mappers
                     // introduced by it
-                    objectMapper.traverse(new FieldMapperListener() {
-                        @Override
-                        public void fieldMapper(FieldMapper fieldMapper) {
-                            context.docMapper().addFieldMapper(fieldMapper);
-                        }
-                    });
-                    objectMapper.traverse(new ObjectMapperListener() {
-                        @Override
-                        public void objectMapper(ObjectMapper objectMapper) {
-                            context.docMapper().addObjectMapper(objectMapper);
-                        }
-                    });
+                    FieldMapperListener.Aggregator fieldMappersAgg = new FieldMapperListener.Aggregator();
+                    objectMapper.traverse(fieldMappersAgg);
+                    context.docMapper().addFieldMappers(fieldMappersAgg.fieldMappers);
 
+                    ObjectMapperListener.Aggregator objectMappersAgg = new ObjectMapperListener.Aggregator();
+                    objectMapper.traverse(objectMappersAgg);
+                    context.docMapper().addObjectMappers(objectMappersAgg.objectMappers);
                 }
                 // now, parse it
                 objectMapper.parse(context);
@@ -774,12 +768,9 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
             }
         }
         if (newMapper) {
-            mapper.traverse(new FieldMapperListener() {
-                @Override
-                public void fieldMapper(FieldMapper fieldMapper) {
-                    context.docMapper().addFieldMapper(fieldMapper);
-                }
-            });
+            FieldMapperListener.Aggregator fieldMappersAgg = new FieldMapperListener.Aggregator();
+            mapper.traverse(fieldMappersAgg);
+            context.docMapper().addFieldMappers(fieldMappersAgg.fieldMappers);
         }
         mapper.parse(context);
     }
@@ -822,20 +813,14 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
             }
         }
         // call this outside of the mutex
+        FieldMapperListener.Aggregator fieldMappersAgg = new FieldMapperListener.Aggregator();
+        ObjectMapperListener.Aggregator objectMappersAgg = new ObjectMapperListener.Aggregator();
         for (Mapper mapper : mappersToTraverse) {
-            mapper.traverse(new FieldMapperListener() {
-                @Override
-                public void fieldMapper(FieldMapper fieldMapper) {
-                    mergeContext.docMapper().addFieldMapper(fieldMapper);
-                }
-            });
-            mapper.traverse(new ObjectMapperListener() {
-                @Override
-                public void objectMapper(ObjectMapper objectMapper) {
-                    mergeContext.docMapper().addObjectMapper(objectMapper);
-                }
-            });
+            mapper.traverse(fieldMappersAgg);
+            mapper.traverse(objectMappersAgg);
         }
+        mergeContext.docMapper().addFieldMappers(fieldMappersAgg.fieldMappers);
+        mergeContext.docMapper().addObjectMappers(objectMappersAgg.objectMappers);
     }
 
     protected void doMerge(ObjectMapper mergeWith, MergeContext mergeContext) {

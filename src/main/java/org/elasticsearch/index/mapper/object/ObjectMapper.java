@@ -538,13 +538,8 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                 if (newMapper) {
                     // we need to traverse in case we have a dynamic template and need to add field mappers
                     // introduced by it
-                    FieldMapperListener.Aggregator fieldMappersAgg = new FieldMapperListener.Aggregator();
-                    objectMapper.traverse(fieldMappersAgg);
-                    context.docMapper().addFieldMappers(fieldMappersAgg.fieldMappers);
-
-                    ObjectMapperListener.Aggregator objectMappersAgg = new ObjectMapperListener.Aggregator();
-                    objectMapper.traverse(objectMappersAgg);
-                    context.docMapper().addObjectMappers(objectMappersAgg.objectMappers);
+                    objectMapper.traverse(context.newFieldMappers());
+                    objectMapper.traverse(context.newObjectMappers());
                 }
                 // now, parse it
                 objectMapper.parse(context);
@@ -768,9 +763,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
             }
         }
         if (newMapper) {
-            FieldMapperListener.Aggregator fieldMappersAgg = new FieldMapperListener.Aggregator();
-            mapper.traverse(fieldMappersAgg);
-            context.docMapper().addFieldMappers(fieldMappersAgg.fieldMappers);
+            mapper.traverse(context.newFieldMappers());
         }
         mapper.parse(context);
     }
@@ -813,14 +806,10 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
             }
         }
         // call this outside of the mutex
-        FieldMapperListener.Aggregator fieldMappersAgg = new FieldMapperListener.Aggregator();
-        ObjectMapperListener.Aggregator objectMappersAgg = new ObjectMapperListener.Aggregator();
         for (Mapper mapper : mappersToTraverse) {
-            mapper.traverse(fieldMappersAgg);
-            mapper.traverse(objectMappersAgg);
+            mapper.traverse(mergeContext.newFieldMappers());
+            mapper.traverse(mergeContext.newObjectMappers());
         }
-        mergeContext.docMapper().addFieldMappers(fieldMappersAgg.fieldMappers);
-        mergeContext.docMapper().addObjectMappers(objectMappersAgg.objectMappers);
     }
 
     protected void doMerge(ObjectMapper mergeWith, MergeContext mergeContext) {

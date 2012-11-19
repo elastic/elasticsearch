@@ -40,10 +40,7 @@ import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static com.google.common.collect.Lists.newArrayList;
@@ -309,7 +306,7 @@ public class DocumentMapper implements ToXContent {
                 rootObjectMapper.putMapper(rootMapper);
             } else {
                 if (rootMapper instanceof FieldMapper) {
-                    fieldMappersAgg.fieldMappers.add((FieldMapper) rootMapper);
+                    fieldMappersAgg.mappers.add((FieldMapper) rootMapper);
                 }
             }
         }
@@ -317,7 +314,7 @@ public class DocumentMapper implements ToXContent {
         // now traverse and get all the statically defined ones
         rootObjectMapper.traverse(fieldMappersAgg);
 
-        this.fieldMappers = new DocumentFieldMappers(this, fieldMappersAgg.fieldMappers);
+        this.fieldMappers = new DocumentFieldMappers(this, fieldMappersAgg.mappers);
 
         final Map<String, ObjectMapper> objectMappers = Maps.newHashMap();
         rootObjectMapper.traverse(new ObjectMapperListener() {
@@ -512,6 +509,15 @@ public class DocumentMapper implements ToXContent {
         if (context.docs().size() > 1) {
             Collections.reverse(context.docs());
         }
+
+        // fire up any new mappers if exists
+        if (!context.newFieldMappers().mappers.isEmpty()) {
+            addFieldMappers(context.newFieldMappers().mappers);
+        }
+        if (!context.newObjectMappers().mappers.isEmpty()) {
+            addObjectMappers(context.newObjectMappers().mappers);
+        }
+
         ParsedDocument doc = new ParsedDocument(context.uid(), context.id(), context.type(), source.routing(), source.timestamp(), source.ttl(), context.docs(), context.analyzer(),
                 context.source(), context.mappingsModified()).parent(source.parent());
         // reset the context to free up memory
@@ -519,11 +525,11 @@ public class DocumentMapper implements ToXContent {
         return doc;
     }
 
-    public void addFieldMappers(Collection<FieldMapper> fieldMappers) {
+    private void addFieldMappers(Collection<FieldMapper> fieldMappers) {
         addFieldMappers(fieldMappers.toArray(new FieldMapper[fieldMappers.size()]));
     }
 
-    public void addFieldMappers(FieldMapper... fieldMappers) {
+    private void addFieldMappers(FieldMapper... fieldMappers) {
         synchronized (mutex) {
             this.fieldMappers = this.fieldMappers.concat(this, fieldMappers);
         }
@@ -548,11 +554,11 @@ public class DocumentMapper implements ToXContent {
         rootObjectMapper.traverse(listener);
     }
 
-    public void addObjectMappers(Collection<ObjectMapper> objectMappers) {
+    private void addObjectMappers(Collection<ObjectMapper> objectMappers) {
         addObjectMappers(objectMappers.toArray(new ObjectMapper[objectMappers.size()]));
     }
 
-    public void addObjectMappers(ObjectMapper... objectMappers) {
+    private void addObjectMappers(ObjectMapper... objectMappers) {
         synchronized (mutex) {
             MapBuilder<String, ObjectMapper> builder = MapBuilder.newMapBuilder(this.objectMappers);
             for (ObjectMapper objectMapper : objectMappers) {
@@ -595,6 +601,12 @@ public class DocumentMapper implements ToXContent {
         }
 
         if (!mergeFlags.simulate()) {
+            if (!mergeContext.newFieldMappers().mappers.isEmpty()) {
+                addFieldMappers(mergeContext.newFieldMappers().mappers);
+            }
+            if (!mergeContext.newObjectMappers().mappers.isEmpty()) {
+                addObjectMappers(mergeContext.newObjectMappers().mappers);
+            }
             // let the merge with attributes to override the attributes
             meta = mergeWith.meta();
             // update the source of the merged one

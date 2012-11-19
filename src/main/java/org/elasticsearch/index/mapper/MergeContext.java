@@ -29,10 +29,11 @@ import java.util.List;
 public class MergeContext {
 
     private final DocumentMapper documentMapper;
-
     private final DocumentMapper.MergeFlags mergeFlags;
-
     private final List<String> mergeConflicts = Lists.newArrayList();
+
+    private final FieldMapperListener.Aggregator newFieldMappers = new FieldMapperListener.Aggregator();
+    private final ObjectMapperListener.Aggregator newObjectMappers = new ObjectMapperListener.Aggregator();
 
     public MergeContext(DocumentMapper documentMapper, DocumentMapper.MergeFlags mergeFlags) {
         this.documentMapper = documentMapper;
@@ -45,6 +46,14 @@ public class MergeContext {
 
     public DocumentMapper.MergeFlags mergeFlags() {
         return mergeFlags;
+    }
+
+    public FieldMapperListener.Aggregator newFieldMappers() {
+        return newFieldMappers;
+    }
+
+    public ObjectMapperListener.Aggregator newObjectMappers() {
+        return newObjectMappers;
     }
 
     public void addConflict(String mergeFailure) {

@@ -213,12 +213,12 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
 
             FieldMapperListener.Aggregator fieldMappersAgg = new FieldMapperListener.Aggregator();
             mapper.traverse(fieldMappersAgg);
-            addFieldMappers(fieldMappersAgg.fieldMappers.toArray(new FieldMapper[fieldMappersAgg.fieldMappers.size()]));
+            addFieldMappers(fieldMappersAgg.mappers.toArray(new FieldMapper[fieldMappersAgg.mappers.size()]));
             mapper.addFieldMapperListener(fieldMapperListener, false);
 
             ObjectMapperListener.Aggregator objectMappersAgg = new ObjectMapperListener.Aggregator();
             mapper.traverse(objectMappersAgg);
-            addObjectMappers(objectMappersAgg.objectMappers.toArray(new ObjectMapper[objectMappersAgg.objectMappers.size()]));
+            addObjectMappers(objectMappersAgg.mappers.toArray(new ObjectMapper[objectMappersAgg.mappers.size()]));
             mapper.addObjectMapperListener(objectMapperListener, false);
 
             mappers = newMapBuilder(mappers).put(mapper.type(), mapper).map();

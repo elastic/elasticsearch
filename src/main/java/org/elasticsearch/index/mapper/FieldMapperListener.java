@@ -28,11 +28,11 @@ import java.util.List;
 public abstract class FieldMapperListener {
 
     public static class Aggregator extends FieldMapperListener {
-        public final List<FieldMapper> fieldMappers = new ArrayList<FieldMapper>();
+        public final List<FieldMapper> mappers = new ArrayList<FieldMapper>();
 
         @Override
         public void fieldMapper(FieldMapper fieldMapper) {
-            fieldMappers.add(fieldMapper);
+            mappers.add(fieldMapper);
         }
     }
 

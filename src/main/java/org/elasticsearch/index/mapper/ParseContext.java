@@ -82,6 +82,9 @@ public class ParseContext {
 
     private float docBoost = 1.0f;
 
+    private FieldMapperListener.Aggregator newFieldMappers = new FieldMapperListener.Aggregator();
+    private ObjectMapperListener.Aggregator newObjectMappers = new ObjectMapperListener.Aggregator();
+
     public ParseContext(String index, @Nullable Settings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper, ContentPath path) {
         this.index = index;
         this.indexSettings = indexSettings;
@@ -110,10 +113,20 @@ public class ParseContext {
         this.allEntries = new AllEntries();
         this.ignoredValues.clear();
         this.docBoost = 1.0f;
+        this.newFieldMappers.mappers.clear();
+        this.newObjectMappers.mappers.clear();
     }
 
     public boolean flyweight() {
         return sourceToParse.flyweight();
+    }
+
+    public FieldMapperListener.Aggregator newFieldMappers() {
+        return newFieldMappers;
+    }
+
+    public ObjectMapperListener.Aggregator newObjectMappers() {
+        return newObjectMappers;
     }
 
     public DocumentMapperParser docMapperParser() {

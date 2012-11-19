@@ -30,11 +30,11 @@ import java.util.List;
 public abstract class ObjectMapperListener {
 
     public static class Aggregator extends ObjectMapperListener {
-        public final List<ObjectMapper> objectMappers = new ArrayList<ObjectMapper>();
+        public final List<ObjectMapper> mappers = new ArrayList<ObjectMapper>();
 
         @Override
         public void objectMapper(ObjectMapper objectMapper) {
-            objectMappers.add(objectMapper);
+            mappers.add(objectMapper);
         }
     }
 

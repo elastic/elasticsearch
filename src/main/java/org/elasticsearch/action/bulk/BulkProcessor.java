@@ -223,18 +223,29 @@ public class BulkProcessor {
         return add((ActionRequest) request);
     }
 
+    /**
+     * Adds either a delete or an index request.
+     */
     public BulkProcessor add(ActionRequest request) {
-        internalAdd(request);
+        return add(request, null);
+    }
+
+    public BulkProcessor add(ActionRequest request, @Nullable Object payload) {
+        internalAdd(request, payload);
         return this;
     }
 
-    private synchronized void internalAdd(ActionRequest request) {
-        bulkRequest.add(request);
+    private synchronized void internalAdd(ActionRequest request, @Nullable Object payload) {
+        bulkRequest.add(request, payload);
         executeIfNeeded();
     }
 
-    public synchronized BulkProcessor add(BytesReference data, boolean contentUnsafe, @Nullable String defaultIndex, @Nullable String defaultType) throws Exception {
-        bulkRequest.add(data, contentUnsafe, defaultIndex, defaultType);
+    public BulkProcessor add(BytesReference data, boolean contentUnsafe, @Nullable String defaultIndex, @Nullable String defaultType) throws Exception {
+        return add(data, contentUnsafe, defaultIndex, defaultType, null);
+    }
+
+    public synchronized BulkProcessor add(BytesReference data, boolean contentUnsafe, @Nullable String defaultIndex, @Nullable String defaultType, @Nullable Object payload) throws Exception {
+        bulkRequest.add(data, contentUnsafe, defaultIndex, defaultType, payload);
         executeIfNeeded();
         return this;
     }

@@ -48,6 +48,11 @@ public class AnalysisKuromojiPlugin extends AbstractPlugin {
     }
 
     public void onModule(AnalysisModule module) {
-        module.addProcessor(new KuromojiAnalysisBinderProcessor());
+        module.addAnalyzer("kuromoji", KuromojiAnalyzerProvider.class);
+        module.addTokenizer("kuromoji_tokenizer", KuromojiTokenizerFactory.class);
+        module.addTokenFilter("kuromoji_baseform", KuromojiBaseFormFilterFactory.class);
+        module.addTokenFilter("kuromoji_part_of_speech", KuromojiPartOfSpeechFilterFactory.class);
+        module.addTokenFilter("kuromoji_readingform", KuromojiReadingFormFilterFactory.class);
+        module.addTokenFilter("kuromoji_stemmer", KuromojiKatakanaStemmerFactory.class);
     }
 }

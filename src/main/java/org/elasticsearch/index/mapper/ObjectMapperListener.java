@@ -27,10 +27,9 @@ import java.util.List;
 /**
  *
  */
-public interface ObjectMapperListener {
+public abstract class ObjectMapperListener {
 
-    public static class Aggregator implements ObjectMapperListener {
-
+    public static class Aggregator extends ObjectMapperListener {
         public final List<ObjectMapper> objectMappers = new ArrayList<ObjectMapper>();
 
         @Override
@@ -39,5 +38,11 @@ public interface ObjectMapperListener {
         }
     }
 
-    void objectMapper(ObjectMapper objectMapper);
+    public abstract void objectMapper(ObjectMapper objectMapper);
+
+    public void objectMappers(ObjectMapper... objectMappers) {
+        for (ObjectMapper objectMapper : objectMappers) {
+            objectMapper(objectMapper);
+        }
+    }
 }

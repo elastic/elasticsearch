@@ -30,6 +30,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.similarity.SimilarityProvider;
 
 /**
  *
@@ -156,6 +157,11 @@ public interface FieldMapper<T> {
      * The analyzer that will be used for quoted search on the field.
      */
     Analyzer searchQuoteAnalyzer();
+
+    /**
+     * Similarity used for scoring queries on the field
+     */
+    SimilarityProvider similarity();
 
     /**
      * Returns the value that will be used as a result for search. Can be only of specific types... .

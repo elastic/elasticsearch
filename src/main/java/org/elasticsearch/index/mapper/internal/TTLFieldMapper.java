@@ -119,7 +119,7 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
                              PostingsFormatProvider provider) {
         super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), Defaults.PRECISION_STEP,
                 Defaults.FUZZY_FACTOR, Defaults.BOOST, fieldType, Defaults.NULL_VALUE, ignoreMalformed,
-                provider);
+                provider, null);
         this.enabled = enabled;
         this.defaultTTL = defaultTTL;
     }

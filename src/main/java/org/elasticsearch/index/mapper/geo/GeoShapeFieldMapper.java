@@ -138,7 +138,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
 
     public GeoShapeFieldMapper(FieldMapper.Names names, SpatialPrefixTree prefixTree, double distanceErrorPct,
                                FieldType fieldType, PostingsFormatProvider provider) {
-        super(names, 1, fieldType, null, null, provider);
+        super(names, 1, fieldType, null, null, provider, null);
         this.spatialStrategy = new TermQueryPrefixTreeStrategy(names, prefixTree, distanceErrorPct);
     }
 

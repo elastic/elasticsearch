@@ -33,6 +33,7 @@ import org.elasticsearch.index.analysis.NamedCustomAnalyzer;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
+import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
 import java.util.Map;
@@ -130,7 +131,7 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
             }
             StringFieldMapper fieldMapper = new StringFieldMapper(buildNames(context),
                     boost, fieldType, nullValue, indexAnalyzer, searchAnalyzer, searchQuotedAnalyzer,
-                    positionOffsetGap, ignoreAbove, provider);
+                    positionOffsetGap, ignoreAbove, provider, similarity);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -185,16 +186,16 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
 
     protected StringFieldMapper(Names names, float boost, FieldType fieldType,
                                 String nullValue, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer,
-                                PostingsFormatProvider postingsFormat) {
+                                PostingsFormatProvider postingsFormat, SimilarityProvider similarity) {
         this(names, boost, fieldType, nullValue, indexAnalyzer, searchAnalyzer, searchAnalyzer,
-                Defaults.POSITION_OFFSET_GAP, Defaults.IGNORE_ABOVE, postingsFormat);
+                Defaults.POSITION_OFFSET_GAP, Defaults.IGNORE_ABOVE, postingsFormat, similarity);
     }
 
     protected StringFieldMapper(Names names, float boost, FieldType fieldType,
                                 String nullValue, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer,
                                 NamedAnalyzer searchQuotedAnalyzer, int positionOffsetGap, int ignoreAbove,
-                                PostingsFormatProvider postingsFormat) {
-        super(names, boost, fieldType, indexAnalyzer, searchAnalyzer, postingsFormat);
+                                PostingsFormatProvider postingsFormat, SimilarityProvider similarity) {
+        super(names, boost, fieldType, indexAnalyzer, searchAnalyzer, postingsFormat, similarity);
         this.nullValue = nullValue;
         this.positionOffsetGap = positionOffsetGap;
         this.searchQuotedAnalyzer = searchQuotedAnalyzer != null ? searchQuotedAnalyzer : this.searchAnalyzer;
@@ -360,6 +361,9 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
         }
         if (searchQuotedAnalyzer != null && searchAnalyzer != searchQuotedAnalyzer) {
             builder.field("search_quote_analyzer", searchQuotedAnalyzer.name());
+        }
+        if (similarity() != null) {
+            builder.field("similarity", similarity().name());
         }
         if (ignoreAbove != Defaults.IGNORE_ABOVE) {
             builder.field("ignore_above", ignoreAbove);

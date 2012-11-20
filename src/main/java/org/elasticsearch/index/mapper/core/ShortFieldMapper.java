@@ -43,6 +43,7 @@ import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
+import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
 import java.util.Map;
@@ -87,7 +88,7 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             ShortFieldMapper fieldMapper = new ShortFieldMapper(buildNames(context),
                     precisionStep, fuzzyFactor, boost, fieldType, nullValue,
-                    ignoreMalformed(context), provider);
+                    ignoreMalformed(context), provider, similarity);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -116,10 +117,10 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
     protected ShortFieldMapper(Names names, int precisionStep, String fuzzyFactor,
                                float boost, FieldType fieldType,
                                Short nullValue, Explicit<Boolean> ignoreMalformed,
-                               PostingsFormatProvider provider) {
+                               PostingsFormatProvider provider, SimilarityProvider similarity) {
         super(names, precisionStep, fuzzyFactor, boost, fieldType,
                 ignoreMalformed, new NamedAnalyzer("_short/" + precisionStep, new NumericIntegerAnalyzer(precisionStep)),
-                new NamedAnalyzer("_short/max", new NumericIntegerAnalyzer(Integer.MAX_VALUE)), provider);
+                new NamedAnalyzer("_short/max", new NumericIntegerAnalyzer(Integer.MAX_VALUE)), provider, similarity);
         this.nullValue = nullValue;
         this.nullValueAsString = nullValue == null ? null : nullValue.toString();
     }
@@ -356,6 +357,9 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
         }
         if (fuzzyFactor != Defaults.FUZZY_FACTOR) {
             builder.field("fuzzy_factor", fuzzyFactor);
+        }
+        if (similarity() != null) {
+            builder.field("similarity", similarity().name());
         }
         if (nullValue != null) {
             builder.field("null_value", nullValue);

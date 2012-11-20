@@ -55,6 +55,8 @@ public class TypeParsers {
                 builder.ignoreMalformed(nodeBooleanValue(propNode));
             } else if (propName.equals("omit_norms")) {
                 builder.omitNorms(nodeBooleanValue(propNode));
+            } else if (propName.equals("similarity")) {
+                builder.similarity(parserContext.similarityLookupService().similarity(propNode.toString()));
             }
         }
     }
@@ -114,6 +116,8 @@ public class TypeParsers {
             } else if (propName.equals("postings_format")) {
                 String postingFormatName = propNode.toString();
                 builder.postingsFormat(parserContext.postingFormatService().get(postingFormatName));
+            } else if (propName.equals("similarity")) {
+                builder.similarity(parserContext.similarityLookupService().similarity(propNode.toString()));
             }
         }
     }

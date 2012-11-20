@@ -1331,7 +1331,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             config.setIndexDeletionPolicy(deletionPolicy);
             config.setMergeScheduler(mergeScheduler.newMergeScheduler());
             config.setMergePolicy(mergePolicyProvider.newMergePolicy());
-            config.setSimilarity(similarityService.defaultIndexSimilarity());
+            config.setSimilarity(similarityService.similarity());
             config.setRAMBufferSizeMB(indexingBufferSize.mbFrac());
             config.setTermIndexInterval(termIndexInterval);
             config.setReaderTermsIndexDivisor(termIndexDivisor);
@@ -1478,7 +1478,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         @Override
         public IndexSearcher newSearcher(IndexReader reader) throws IOException {
             IndexSearcher searcher = new IndexSearcher(reader);
-            searcher.setSimilarity(similarityService.defaultSearchSimilarity());
+            searcher.setSimilarity(similarityService.similarity());
             if (warmer != null) {
                 // we need to pass a custom searcher that does not release anything on Engine.Search Release,
                 // we will release explicitly

@@ -43,6 +43,7 @@ import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
+import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -113,7 +114,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
         public IpFieldMapper build(BuilderContext context) {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             IpFieldMapper fieldMapper = new IpFieldMapper(buildNames(context),
-                    precisionStep, boost, fieldType, nullValue, ignoreMalformed(context), provider);
+                    precisionStep, boost, fieldType, nullValue, ignoreMalformed(context), provider, similarity);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -140,10 +141,10 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
     protected IpFieldMapper(Names names, int precisionStep,
                             float boost, FieldType fieldType,
                             String nullValue, Explicit<Boolean> ignoreMalformed,
-                            PostingsFormatProvider provider) {
+                            PostingsFormatProvider provider, SimilarityProvider similarity) {
         super(names, precisionStep, null, boost, fieldType,
                 ignoreMalformed, new NamedAnalyzer("_ip/" + precisionStep, new NumericIpAnalyzer(precisionStep)),
-                new NamedAnalyzer("_ip/max", new NumericIpAnalyzer(Integer.MAX_VALUE)), provider);
+                new NamedAnalyzer("_ip/max", new NumericIpAnalyzer(Integer.MAX_VALUE)), provider, similarity);
         this.nullValue = nullValue;
     }
 
@@ -330,6 +331,9 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
         }
         if (precisionStep != Defaults.PRECISION_STEP) {
             builder.field("precision_step", precisionStep);
+        }
+        if (similarity() != null) {
+            builder.field("similarity", similarity().name());
         }
         if (nullValue != null) {
             builder.field("null_value", nullValue);

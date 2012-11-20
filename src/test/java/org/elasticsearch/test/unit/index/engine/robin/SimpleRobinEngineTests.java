@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.unit.index.engine.robin;
 
+import org.apache.lucene.search.similarities.DefaultSimilarity;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.Engine;

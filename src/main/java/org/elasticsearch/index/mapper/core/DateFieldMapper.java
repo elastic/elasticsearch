@@ -45,6 +45,7 @@ import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
+import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
 import java.util.Map;
@@ -113,7 +114,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             DateFieldMapper fieldMapper = new DateFieldMapper(buildNames(context), dateTimeFormatter,
                     precisionStep, fuzzyFactor, boost, fieldType, nullValue,
-                    timeUnit, parseUpperInclusive, ignoreMalformed(context), provider);
+                    timeUnit, parseUpperInclusive, ignoreMalformed(context), provider, similarity);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -152,12 +153,12 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     protected DateFieldMapper(Names names, FormatDateTimeFormatter dateTimeFormatter, int precisionStep, String fuzzyFactor,
                               float boost, FieldType fieldType,
                               String nullValue, TimeUnit timeUnit, boolean parseUpperInclusive, Explicit<Boolean> ignoreMalformed,
-                              PostingsFormatProvider provider) {
+                              PostingsFormatProvider provider, SimilarityProvider similarity) {
         super(names, precisionStep, fuzzyFactor, boost, fieldType,
                 ignoreMalformed, new NamedAnalyzer("_date/" + precisionStep,
                 new NumericDateAnalyzer(precisionStep, dateTimeFormatter.parser())),
                 new NamedAnalyzer("_date/max", new NumericDateAnalyzer(Integer.MAX_VALUE, dateTimeFormatter.parser())),
-                provider);
+                provider, similarity);
         this.dateTimeFormatter = dateTimeFormatter;
         this.nullValue = nullValue;
         this.timeUnit = timeUnit;
@@ -428,6 +429,9 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
             builder.field("fuzzy_factor", fuzzyFactor);
         }
         builder.field("format", dateTimeFormatter.format());
+        if (similarity() != null) {
+            builder.field("similarity", similarity().name());
+        }
         if (nullValue != null) {
             builder.field("null_value", nullValue);
         }

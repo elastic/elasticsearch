@@ -44,6 +44,7 @@ import org.elasticsearch.index.codec.postingsformat.*;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperServiceModule;
 import org.elasticsearch.index.settings.IndexSettingsModule;
+import org.elasticsearch.index.similarity.SimilarityModule;
 import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -245,6 +246,7 @@ public class CodecTests {
                 .add(new SettingsModule(settings))
                 .add(new IndexNameModule(index))
                 .add(new IndexSettingsModule(index, settings))
+                .add(new SimilarityModule(settings))
                 .add(new CodecModule(settings))
                 .add(new MapperServiceModule())
                 .add(new AnalysisModule(settings))

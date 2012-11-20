@@ -123,7 +123,7 @@ public class QueryParseContext {
     }
 
     public Similarity searchSimilarity() {
-        return indexQueryParser.similarityService != null ? indexQueryParser.similarityService.defaultSearchSimilarity() : null;
+        return indexQueryParser.similarityService != null ? indexQueryParser.similarityService.similarity() : null;
     }
 
     public IndexCache indexCache() {

@@ -37,6 +37,7 @@ import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
 
@@ -131,6 +132,11 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         public T searchAnalyzer(NamedAnalyzer searchAnalyzer) {
             return super.searchAnalyzer(searchAnalyzer);
         }
+
+        @Override
+        public T similarity(SimilarityProvider similarity) {
+            return super.similarity(similarity);
+        }
     }
 
     public abstract static class Builder<T extends Builder, Y extends AbstractFieldMapper> extends Mapper.Builder<T, Y> {
@@ -144,6 +150,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         protected Boolean includeInAll;
         protected boolean indexOptionsSet = false;
         protected PostingsFormatProvider provider;
+        protected SimilarityProvider similarity;
 
         protected Builder(String name, FieldType fieldType) {
             super(name);
@@ -230,6 +237,11 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
             return builder;
         }
 
+        protected T similarity(SimilarityProvider similarity) {
+            this.similarity = similarity;
+            return builder;
+        }
+
         protected Names buildNames(BuilderContext context) {
             return new Names(name, buildIndexName(context), indexName == null ? name : indexName, buildFullName(context), context.path().sourcePath());
         }
@@ -250,9 +262,10 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
     protected final NamedAnalyzer indexAnalyzer;
     protected final NamedAnalyzer searchAnalyzer;
     protected PostingsFormatProvider postingsFormat;
+    protected final SimilarityProvider similarity;
 
     protected AbstractFieldMapper(Names names, float boost, FieldType fieldType, NamedAnalyzer indexAnalyzer,
-                                  NamedAnalyzer searchAnalyzer, PostingsFormatProvider postingsFormat) {
+                                  NamedAnalyzer searchAnalyzer, PostingsFormatProvider postingsFormat, SimilarityProvider similarity) {
         this.names = names;
         this.boost = boost;
         this.fieldType = fieldType;
@@ -276,6 +289,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
             }
         }
         this.postingsFormat = postingsFormat;
+        this.similarity = similarity;
     }
 
     @Nullable
@@ -356,6 +370,11 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
     @Override
     public Analyzer searchQuoteAnalyzer() {
         return this.searchAnalyzer;
+    }
+
+    @Override
+    public SimilarityProvider similarity() {
+        return similarity;
     }
 
     @Override
@@ -524,6 +543,17 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         } else if (!this.searchAnalyzer.name().equals(fieldMergeWith.searchAnalyzer.name())) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different search_analyzer");
         }
+
+        if (this.similarity == null) {
+            if (fieldMergeWith.similarity() != null) {
+                mergeContext.addConflict("mapper [" + names.fullName() + "] has different similarity");
+            }
+        } else if (fieldMergeWith.similarity() == null) {
+            mergeContext.addConflict("mapper [" + names.fullName() + "] has different similarity");
+        } else if (!this.similarity().equals(fieldMergeWith.similarity())) {
+            mergeContext.addConflict("mapper [" + names.fullName() + "] has different similarity");
+        }
+
         if (!mergeContext.mergeFlags().simulate()) {
             // apply changeable values
             this.boost = fieldMergeWith.boost;

@@ -32,6 +32,7 @@ import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
 import java.util.Map;
@@ -113,10 +114,14 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
             return super.indexName(indexName);
         }
 
+        @Override
+        public Builder similarity(SimilarityProvider similarity) {
+            return super.similarity(similarity);
+        }
 
         @Override
         public BooleanFieldMapper build(BuilderContext context) {
-            return new BooleanFieldMapper(buildNames(context), boost, fieldType, nullValue, provider);
+            return new BooleanFieldMapper(buildNames(context), boost, fieldType, nullValue, provider, similarity);
         }
     }
 
@@ -138,8 +143,8 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
 
     private Boolean nullValue;
 
-    protected BooleanFieldMapper(Names names, float boost, FieldType fieldType, Boolean nullValue, PostingsFormatProvider provider) {
-        super(names, boost, fieldType, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, provider);
+    protected BooleanFieldMapper(Names names, float boost, FieldType fieldType, Boolean nullValue, PostingsFormatProvider provider, SimilarityProvider similarity) {
+        super(names, boost, fieldType, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, provider, similarity);
         this.nullValue = nullValue;
     }
 
@@ -237,6 +242,9 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
         }
         if (indexOptions() != Defaults.BOOLEAN_FIELD_TYPE.indexOptions()) {
             builder.field("index_options", indexOptionToString(indexOptions()));
+        }
+        if (similarity() != null) {
+            builder.field("similarity", similarity().name());
         }
         if (nullValue != null) {
             builder.field("null_value", nullValue);

@@ -120,7 +120,7 @@ public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
     private long compressThreshold;
 
     protected BinaryFieldMapper(Names names, FieldType fieldType, Boolean compress, long compressThreshold, PostingsFormatProvider provider) {
-        super(names, 1.0f, fieldType, null, null, provider);
+        super(names, 1.0f, fieldType, null, null, provider, null);
         this.compress = compress;
         this.compressThreshold = compressThreshold;
     }

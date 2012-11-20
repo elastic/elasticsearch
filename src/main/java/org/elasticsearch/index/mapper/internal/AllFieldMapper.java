@@ -36,6 +36,7 @@ import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
 import java.util.Map;
@@ -98,7 +99,7 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
             fieldType.setIndexed(true);
             fieldType.setTokenized(true);
 
-            return new AllFieldMapper(name, fieldType, indexAnalyzer, searchAnalyzer, enabled, autoBoost, provider);
+            return new AllFieldMapper(name, fieldType, indexAnalyzer, searchAnalyzer, enabled, autoBoost, provider, similarity);
         }
     }
 
@@ -130,12 +131,12 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
     private volatile boolean autoBoost;
 
     public AllFieldMapper() {
-        this(Defaults.NAME, new FieldType(Defaults.ALL_FIELD_TYPE), null, null, Defaults.ENABLED, false, null);
+        this(Defaults.NAME, new FieldType(Defaults.ALL_FIELD_TYPE), null, null, Defaults.ENABLED, false, null, null);
     }
 
     protected AllFieldMapper(String name, FieldType fieldType, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer,
-                             boolean enabled, boolean autoBoost, PostingsFormatProvider provider) {
-        super(new Names(name, name, name, name), 1.0f, fieldType, indexAnalyzer, searchAnalyzer, provider);
+                             boolean enabled, boolean autoBoost, PostingsFormatProvider provider, SimilarityProvider similarity) {
+        super(new Names(name, name, name, name), 1.0f, fieldType, indexAnalyzer, searchAnalyzer, provider, similarity);
         this.enabled = enabled;
         this.autoBoost = autoBoost;
 
@@ -284,6 +285,9 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
             if (searchAnalyzer != null && !searchAnalyzer.name().startsWith("_")) {
                 builder.field("search_analyzer", searchAnalyzer.name());
             }
+        }
+        if (similarity() != null) {
+            builder.field("similarity", similarity().name());
         }
         builder.endObject();
         return builder;

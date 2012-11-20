@@ -116,7 +116,7 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
 
     protected ParentFieldMapper(String name, String indexName, String type, PostingsFormatProvider postingsFormat) {
         super(new Names(name, indexName, indexName, name), Defaults.BOOST, new FieldType(Defaults.PARENT_FIELD_TYPE),
-                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, postingsFormat);
+                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, postingsFormat, null);
         this.type = type;
     }
 

@@ -19,30 +19,35 @@
 
 package org.elasticsearch.index.similarity;
 
-import org.apache.lucene.search.similarities.DefaultSimilarity;
+import org.apache.lucene.search.similarities.BM25Similarity;
+import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
 
 /**
- * {@link SimilarityProvider} for {@link DefaultSimilarity}.
+ * {@link SimilarityProvider} for the {@link BM25Similarity}.
  * <p/>
  * Configuration options available:
  * <ul>
+ *     <li>k1</li>
+ *     <li>b</li>
  *     <li>discount_overlaps</li>
  * </ul>
- * @see DefaultSimilarity For more information about configuration
+ * @see BM25Similarity For more information about configuration
  */
-public class DefaultSimilarityProvider extends AbstractSimilarityProvider {
+public class BM25SimilarityProvider extends AbstractSimilarityProvider {
 
-    private final DefaultSimilarity similarity = new DefaultSimilarity();
+    private final BM25Similarity similarity;
 
     @Inject
-    public DefaultSimilarityProvider(@Assisted String name, @Assisted Settings settings) {
+    public BM25SimilarityProvider(@Assisted String name, @Assisted Settings settings) {
         super(name);
+        float k1 = settings.getAsFloat("k1", 1.2f);
+        float b = settings.getAsFloat("b", 0.75f);
         boolean discountOverlaps = settings.getAsBoolean("discount_overlaps", true);
+
+        this.similarity = new BM25Similarity(k1, b);
         this.similarity.setDiscountOverlaps(discountOverlaps);
     }
 
@@ -50,7 +55,7 @@ public class DefaultSimilarityProvider extends AbstractSimilarityProvider {
      * {@inheritDoc}
      */
     @Override
-    public DefaultSimilarity get() {
+    public Similarity get() {
         return similarity;
     }
 }

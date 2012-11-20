@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.similarity;
 
+import com.google.common.collect.Maps;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Scopes;
 import org.elasticsearch.common.inject.assistedinject.FactoryProvider;
@@ -28,33 +30,66 @@ import org.elasticsearch.common.settings.Settings;
 import java.util.Map;
 
 /**
+ * {@link SimilarityModule} is responsible gathering registered and configured {@link SimilarityProvider}
+ * implementations and making them available through the {@link SimilarityLookupService} and {@link SimilarityService}.
  *
+ * New {@link SimilarityProvider} implementations can be registered through {@link #addSimilarity(String, Class)}
+ * while existing Providers can be referenced through Settings under the {@link #SIMILARITY_SETTINGS_PREFIX} prefix
+ * along with the "type" value.  For example, to reference the {@link BM25SimilarityProvider}, the configuration
+ * <tt>"index.similarity.my_similarity.type : "BM25"</tt> can be used.
  */
 public class SimilarityModule extends AbstractModule {
 
+    public static final String SIMILARITY_SETTINGS_PREFIX = "index.similarity";
+
     private final Settings settings;
+    private final Map<String, Class<? extends SimilarityProvider>> similarities = Maps.newHashMap();
 
     public SimilarityModule(Settings settings) {
         this.settings = settings;
     }
 
+    /**
+     * Registers the given {@link SimilarityProvider} with the given name
+     *
+     * @param name Name of the SimilarityProvider
+     * @param similarity SimilarityProvider to register
+     */
+    public void addSimilarity(String name, Class<? extends SimilarityProvider> similarity) {
+        similarities.put(name, similarity);
+    }
+
     @Override
     protected void configure() {
-        MapBinder<String, SimilarityProviderFactory> similarityBinder
-                = MapBinder.newMapBinder(binder(), String.class, SimilarityProviderFactory.class);
+        Map<String, Class<? extends SimilarityProvider>> providers = Maps.newHashMap(similarities);
 
-        Map<String, Settings> similarityProvidersSettings = settings.getGroups("index.similarity");
-        for (Map.Entry<String, Settings> entry : similarityProvidersSettings.entrySet()) {
+        Map<String, Settings> similaritySettings = settings.getGroups(SIMILARITY_SETTINGS_PREFIX);
+        for (Map.Entry<String, Settings> entry : similaritySettings.entrySet()) {
             String name = entry.getKey();
             Settings settings = entry.getValue();
 
-            Class<? extends SimilarityProvider> type = settings.getAsClass("type", null, "org.elasticsearch.index.similarity.", "SimilarityProvider");
+            Class<? extends SimilarityProvider> type =
+                    settings.getAsClass("type", null, "org.elasticsearch.index.similarity.", "SimilarityProvider");
             if (type == null) {
-                throw new IllegalArgumentException("Similarity [" + name + "] must have a type associated with it");
+                throw new ElasticSearchIllegalArgumentException("SimilarityProvider [" + name + "] must have an associated type");
             }
-            similarityBinder.addBinding(name).toProvider(FactoryProvider.newFactory(SimilarityProviderFactory.class, type)).in(Scopes.SINGLETON);
+            providers.put(name, type);
         }
 
-        bind(SimilarityService.class).in(Scopes.SINGLETON);
+        MapBinder<String, SimilarityProvider.Factory> similarityBinder =
+                MapBinder.newMapBinder(binder(), String.class, SimilarityProvider.Factory.class);
+
+        for (Map.Entry<String, Class<? extends SimilarityProvider>> entry : providers.entrySet()) {
+            similarityBinder.addBinding(entry.getKey()).toProvider(FactoryProvider.newFactory(SimilarityProvider.Factory.class, entry.getValue())).in(Scopes.SINGLETON);
+        }
+
+        for (PreBuiltSimilarityProvider.Factory factory : Similarities.listFactories()) {
+            if (!providers.containsKey(factory.name())) {
+                similarityBinder.addBinding(factory.name()).toInstance(factory);
+            }
+        }
+
+        bind(SimilarityLookupService.class).asEagerSingleton();
+        bind(SimilarityService.class).asEagerSingleton();
     }
 }

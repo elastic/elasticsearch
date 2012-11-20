@@ -61,6 +61,7 @@ public class ContextIndexSearcher extends IndexSearcher {
         super(searcher.reader());
         this.searchContext = searchContext;
         this.reader = searcher.reader();
+        setSimilarity(searcher.searcher().getSimilarity());
     }
 
     public void dfSource(CachedDfSource dfSource) {

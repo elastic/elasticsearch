@@ -572,7 +572,7 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
         public GeoStringFieldMapper(Names names, float boost, FieldType fieldType, String nullValue,
                                     NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer,
                                     PostingsFormatProvider provider) {
-            super(names, boost, fieldType, nullValue, indexAnalyzer, searchAnalyzer, provider);
+            super(names, boost, fieldType, nullValue, indexAnalyzer, searchAnalyzer, provider, null);
         }
 
         @Override

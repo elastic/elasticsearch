@@ -39,6 +39,8 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.File;
+
 /**
  *
  */
@@ -156,8 +158,11 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                     if (indexService == null) {
                         // not physical allocation of the index, delete it from the file system if applicable
                         if (nodeEnv.hasNodeFile()) {
-                            logger.debug("[{}][{}] deleting shard that is no longer used", shardId.index().name(), shardId.id());
-                            FileSystemUtils.deleteRecursively(nodeEnv.shardLocations(shardId));
+                            File[] shardLocations = nodeEnv.shardLocations(shardId);
+                            if (FileSystemUtils.exists(shardLocations)) {
+                                logger.debug("[{}][{}] deleting shard that is no longer used", shardId.index().name(), shardId.id());
+                                FileSystemUtils.deleteRecursively(shardLocations);
+                            }
                         }
                     } else {
                         if (!indexService.hasShard(shardId.id())) {

@@ -140,18 +140,20 @@ public class ThreadPool extends AbstractComponent {
             int active = -1;
             long rejected = -1;
             int largest = -1;
+            long completed = -1;
             if (holder.executor instanceof ThreadPoolExecutor) {
                 ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) holder.executor;
                 threads = threadPoolExecutor.getPoolSize();
                 queue = threadPoolExecutor.getQueue().size();
                 active = threadPoolExecutor.getActiveCount();
                 largest = threadPoolExecutor.getLargestPoolSize();
+                completed = threadPoolExecutor.getCompletedTaskCount();
                 RejectedExecutionHandler rejectedExecutionHandler = threadPoolExecutor.getRejectedExecutionHandler();
                 if (rejectedExecutionHandler instanceof XRejectedExecutionHandler) {
                     rejected = ((XRejectedExecutionHandler) rejectedExecutionHandler).rejected();
                 }
             }
-            stats.add(new ThreadPoolStats.Stats(name, threads, queue, active, rejected, largest));
+            stats.add(new ThreadPoolStats.Stats(name, threads, queue, active, rejected, largest, completed));
         }
         return new ThreadPoolStats(stats);
     }
@@ -481,8 +483,8 @@ public class ThreadPool extends AbstractComponent {
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            name = in.readUTF();
-            type = in.readUTF();
+            name = in.readString();
+            type = in.readString();
             min = in.readInt();
             max = in.readInt();
             if (in.readBoolean()) {
@@ -495,8 +497,8 @@ public class ThreadPool extends AbstractComponent {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeUTF(name);
-            out.writeUTF(type);
+            out.writeString(name);
+            out.writeString(type);
             out.writeInt(min);
             out.writeInt(max);
             if (keepAlive == null) {

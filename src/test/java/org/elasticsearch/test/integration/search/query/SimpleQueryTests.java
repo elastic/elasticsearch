@@ -95,10 +95,10 @@ public class SimpleQueryTests extends AbstractNodesTests {
         client.prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox").execute().actionGet();
         client.prepareIndex("test", "type1", "2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox").setRefresh(true).execute().actionGet();
 
-        SearchResponse searchResponse = client.prepareSearch().setQuery("{ \"text_phrase\" : { \"field2\" : \"quick brown\", \"slop\" : \"2\" }}").execute().actionGet();
+        SearchResponse searchResponse = client.prepareSearch().setQuery(QueryBuilders.matchQuery("field2", "quick brown").slop(0).type(MatchQueryBuilder.Type.PHRASE)).execute().actionGet();
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
-        SearchResponse actionGet = client.prepareSearch().setQuery("{ \"text_phrase\" : { \"field1\" : \"quick brown\", \"slop\" : \"2\" }}").execute().actionGet();
-        assertThat(actionGet.hits().totalHits(), equalTo(0l));
+        searchResponse = client.prepareSearch().setQuery(QueryBuilders.matchQuery("field1", "quick brown").slop(0).type(MatchQueryBuilder.Type.PHRASE)).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(0l));
     }
 
     @Test
@@ -117,10 +117,10 @@ public class SimpleQueryTests extends AbstractNodesTests {
         client.prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox").execute().actionGet();
         client.prepareIndex("test", "type1", "2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox").setRefresh(true).execute().actionGet();
 
-        SearchResponse searchResponse = client.prepareSearch().setQuery("{ \"text_phrase\" : { \"field2\" : \"quick brown\", \"slop\" : \"2\" }}").execute().actionGet();
+        SearchResponse searchResponse = client.prepareSearch().setQuery(QueryBuilders.matchQuery("field2", "quick brown").slop(0).type(MatchQueryBuilder.Type.PHRASE)).execute().actionGet();
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
-        SearchResponse actionGet = client.prepareSearch().setQuery("{ \"text_phrase\" : { \"field1\" : \"quick brown\", \"slop\" : \"2\" }}").execute().actionGet();
-        assertThat(actionGet.hits().totalHits(), equalTo(0l));
+        searchResponse = client.prepareSearch().setQuery(QueryBuilders.matchQuery("field1", "quick brown").slop(0).type(MatchQueryBuilder.Type.PHRASE)).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(0l));
     }
 
     @Test

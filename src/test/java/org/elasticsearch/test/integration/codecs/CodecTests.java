@@ -23,6 +23,8 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -75,10 +77,10 @@ public class CodecTests extends AbstractNodesTests {
         client.prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox").execute().actionGet();
         client.prepareIndex("test", "type1", "2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox").setRefresh(true).execute().actionGet();
 
-        SearchResponse searchResponse = client.prepareSearch().setQuery("{ \"text_phrase\" : { \"field2\" : \"quick brown\", \"slop\" : \"2\" }}").execute().actionGet();
-        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+        SearchResponse searchResponse = client.prepareSearch().setQuery(QueryBuilders.matchQuery("field1", "quick brown").type(MatchQueryBuilder.Type.BOOLEAN)).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(2l));
         try {
-            client.prepareSearch().setQuery("{ \"text_phrase\" : { \"field1\" : \"quick brown\", \"slop\" : \"2\" }}").execute().actionGet();
+            client.prepareSearch().setQuery(QueryBuilders.matchQuery("field1", "quick brown").type(MatchQueryBuilder.Type.PHRASE).slop(2)).execute().actionGet();
         } catch (SearchPhaseExecutionException e) {
             assertTrue(e.getMessage().endsWith("IllegalStateException[field \"field1\" was indexed without position data; cannot run PhraseQuery (term=quick)]; }"));
         }
@@ -102,10 +104,10 @@ public class CodecTests extends AbstractNodesTests {
         client.prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox").execute().actionGet();
         client.prepareIndex("test", "type1", "2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox").setRefresh(true).execute().actionGet();
 
-        SearchResponse searchResponse = client.prepareSearch().setQuery("{ \"text_phrase\" : { \"field2\" : \"quick brown\", \"slop\" : \"2\" }}").execute().actionGet();
-        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+        SearchResponse searchResponse = client.prepareSearch().setQuery(QueryBuilders.matchQuery("field1", "quick brown").type(MatchQueryBuilder.Type.BOOLEAN)).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(2l));
         try {
-            client.prepareSearch().setQuery("{ \"text_phrase\" : { \"field1\" : \"quick brown\", \"slop\" : \"2\" }}").execute().actionGet();
+            client.prepareSearch().setQuery(QueryBuilders.matchQuery("field1", "quick brown").type(MatchQueryBuilder.Type.PHRASE).slop(2)).execute().actionGet();
         } catch (SearchPhaseExecutionException e) {
             assertTrue(e.getMessage().endsWith("IllegalStateException[field \"field1\" was indexed without position data; cannot run PhraseQuery (term=quick)]; }"));
         }

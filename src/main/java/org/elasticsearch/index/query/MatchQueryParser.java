@@ -131,7 +131,7 @@ public class MatchQueryParser implements QueryParser {
                         } else if ("all".equalsIgnoreCase(zeroTermsDocs)) {
                             matchQuery.setZeroTermsQuery(MatchQuery.ZeroTermsQuery.ALL);
                         } else {
-                            throw new QueryParsingException(parseContext.index(), "Unsupported zero_terms_docs value [" + zeroTermsDocs +"]");
+                            throw new QueryParsingException(parseContext.index(), "Unsupported zero_terms_docs value [" + zeroTermsDocs + "]");
                         }
                     } else {
                         throw new QueryParsingException(parseContext.index(), "[match] query does not support [" + currentFieldName + "]");
@@ -142,7 +142,10 @@ public class MatchQueryParser implements QueryParser {
         } else {
             text = parser.text();
             // move to the next token
-            parser.nextToken();
+            token = parser.nextToken();
+            if (token != XContentParser.Token.END_OBJECT) {
+                throw new QueryParsingException(parseContext.index(), "[match] query parsed in simplified form, with direct field name, but included more options than just the field name, possibly use its 'options' form, with 'query' element?");
+            }
         }
 
         if (text == null) {

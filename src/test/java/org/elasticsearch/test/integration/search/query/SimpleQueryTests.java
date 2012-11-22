@@ -485,4 +485,41 @@ public class SimpleQueryTests extends AbstractNodesTests {
         assertThat("1", equalTo(searchResponse.hits().getAt(0).id()));
     }
 
+    @Test
+    public void testMatchQueryZeroTermsQuery() {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 1)).execute().actionGet();
+        client.prepareIndex("test", "type1", "1").setSource("field1", "value1").execute().actionGet();
+        client.prepareIndex("test", "type1", "2").setSource("field1", "value2").execute().actionGet();
+        client.admin().indices().prepareRefresh("test").execute().actionGet();
+
+        BoolQueryBuilder boolQuery = boolQuery()
+                .must(matchQuery("field1", "a").zeroTermsQuery(MatchQueryBuilder.ZeroTermsQuery.NONE))
+                .must(matchQuery("field1", "value1").zeroTermsQuery(MatchQueryBuilder.ZeroTermsQuery.NONE));
+        SearchResponse searchResponse = client.prepareSearch()
+                .setQuery(boolQuery)
+                .execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(0l));
+
+        boolQuery = boolQuery()
+                .must(matchQuery("field1", "a").zeroTermsQuery(MatchQueryBuilder.ZeroTermsQuery.ALL))
+                .must(matchQuery("field1", "value1").zeroTermsQuery(MatchQueryBuilder.ZeroTermsQuery.ALL));
+        searchResponse = client.prepareSearch()
+                .setQuery(boolQuery)
+                .execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+
+        boolQuery = boolQuery()
+                .must(matchQuery("field1", "a").zeroTermsQuery(MatchQueryBuilder.ZeroTermsQuery.ALL));
+        searchResponse = client.prepareSearch()
+                .setQuery(boolQuery)
+                .execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(2l));
+    }
+
 }

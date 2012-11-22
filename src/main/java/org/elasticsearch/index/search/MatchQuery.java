@@ -24,18 +24,17 @@ import org.apache.lucene.analysis.CachingTokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
-import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -53,6 +52,11 @@ public class MatchQuery {
         BOOLEAN,
         PHRASE,
         PHRASE_PREFIX
+    }
+
+    public static enum ZeroTermsQuery {
+        NONE,
+        ALL
     }
 
     protected final QueryParseContext parseContext;
@@ -76,6 +80,8 @@ public class MatchQuery {
     protected MultiTermQuery.RewriteMethod fuzzyRewriteMethod;
 
     protected boolean lenient;
+
+    protected ZeroTermsQuery zeroTermsQuery = ZeroTermsQuery.NONE;
 
     public MatchQuery(QueryParseContext parseContext) {
         this.parseContext = parseContext;
@@ -123,6 +129,10 @@ public class MatchQuery {
 
     public void setLenient(boolean lenient) {
         this.lenient = lenient;
+    }
+
+    public void setZeroTermsQuery(ZeroTermsQuery zeroTermsQuery) {
+        this.zeroTermsQuery = zeroTermsQuery;
     }
 
     public Query parse(Type type, String fieldName, String text) {
@@ -238,7 +248,7 @@ public class MatchQuery {
         }
 
         if (numTokens == 0) {
-            return MatchNoDocsQuery.INSTANCE;
+            return zeroTermsQuery();
         } else if (type == Type.BOOLEAN) {
             if (numTokens == 1) {
                 try {
@@ -398,5 +408,9 @@ public class MatchQuery {
     private static BytesRef termToByteRef(CharTermAttribute attr, BytesRef ref) {
         UnicodeUtil.UTF16toUTF8WithHash(attr.buffer(), 0, attr.length(), ref);
         return ref;
+    }
+
+    protected Query zeroTermsQuery() {
+        return zeroTermsQuery == ZeroTermsQuery.NONE ? MatchNoDocsQuery.INSTANCE : Queries.MATCH_ALL_QUERY;
     }
 }

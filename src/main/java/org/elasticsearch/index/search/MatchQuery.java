@@ -32,6 +32,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -49,6 +50,11 @@ public class MatchQuery {
         BOOLEAN,
         PHRASE,
         PHRASE_PREFIX
+    }
+
+    public static enum ZeroTermsQuery {
+        NONE,
+        ALL
     }
 
     protected final QueryParseContext parseContext;
@@ -69,6 +75,8 @@ public class MatchQuery {
     protected MultiTermQuery.RewriteMethod fuzzyRewriteMethod;
 
     protected boolean lenient;
+
+    protected ZeroTermsQuery zeroTermsQuery = ZeroTermsQuery.NONE;
 
     public MatchQuery(QueryParseContext parseContext) {
         this.parseContext = parseContext;
@@ -112,6 +120,10 @@ public class MatchQuery {
 
     public void setLenient(boolean lenient) {
         this.lenient = lenient;
+    }
+
+    public void setZeroTermsQuery(ZeroTermsQuery zeroTermsQuery) {
+        this.zeroTermsQuery = zeroTermsQuery;
     }
 
     public Query parse(Type type, String fieldName, String text) {
@@ -230,7 +242,7 @@ public class MatchQuery {
         }
 
         if (numTokens == 0) {
-            return MatchNoDocsQuery.INSTANCE;
+            return zeroTermsQuery();
         } else if (type == Type.BOOLEAN) {
             if (numTokens == 1) {
                 String term = null;
@@ -387,5 +399,9 @@ public class MatchQuery {
             }
         }
         return new TermQuery(term);
+    }
+
+    protected Query zeroTermsQuery() {
+        return zeroTermsQuery == ZeroTermsQuery.NONE ? MatchNoDocsQuery.INSTANCE : Queries.MATCH_ALL_QUERY;
     }
 }

@@ -50,6 +50,11 @@ public class MatchQueryBuilder extends BaseQueryBuilder implements BoostableQuer
         PHRASE_PREFIX
     }
 
+    public static enum ZeroTermsQuery {
+        NONE,
+        ALL
+    }
+
     private final String name;
 
     private final Object text;
@@ -77,6 +82,8 @@ public class MatchQueryBuilder extends BaseQueryBuilder implements BoostableQuer
     private String fuzzyRewrite = null;
 
     private Boolean lenient;
+
+    private ZeroTermsQuery zeroTermsQuery;
 
     /**
      * Constructs a new text query.
@@ -172,6 +179,11 @@ public class MatchQueryBuilder extends BaseQueryBuilder implements BoostableQuer
         return this;
     }
 
+    public MatchQueryBuilder zeroTermsQuery(ZeroTermsQuery zeroTermsQuery) {
+        this.zeroTermsQuery = zeroTermsQuery;
+        return this;
+    }
+
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(MatchQueryParser.NAME);
@@ -214,6 +226,9 @@ public class MatchQueryBuilder extends BaseQueryBuilder implements BoostableQuer
 
         if (lenient != null) {
             builder.field("lenient", lenient);
+        }
+        if (zeroTermsQuery != null) {
+            builder.field("zero_terms_query", zeroTermsQuery.toString());
         }
 
         builder.endObject();

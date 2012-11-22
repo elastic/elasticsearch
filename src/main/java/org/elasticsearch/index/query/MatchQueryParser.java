@@ -124,6 +124,15 @@ public class MatchQueryParser implements QueryParser {
                         matchQuery.setFuzzyRewriteMethod(QueryParsers.parseRewriteMethod(parser.textOrNull(), null));
                     } else if ("lenient".equals(currentFieldName)) {
                         matchQuery.setLenient(parser.booleanValue());
+                    } else if ("zero_terms_query".equals(currentFieldName)) {
+                        String zeroTermsDocs = parser.text();
+                        if ("none".equalsIgnoreCase(zeroTermsDocs)) {
+                            matchQuery.setZeroTermsQuery(MatchQuery.ZeroTermsQuery.NONE);
+                        } else if ("all".equalsIgnoreCase(zeroTermsDocs)) {
+                            matchQuery.setZeroTermsQuery(MatchQuery.ZeroTermsQuery.ALL);
+                        } else {
+                            throw new QueryParsingException(parseContext.index(), "Unsupported zero_terms_docs value [" + zeroTermsDocs +"]");
+                        }
                     } else {
                         throw new QueryParsingException(parseContext.index(), "[match] query does not support [" + currentFieldName + "]");
                     }

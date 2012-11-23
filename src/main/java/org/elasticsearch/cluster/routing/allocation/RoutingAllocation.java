@@ -30,10 +30,15 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- *
+ * The {@link RoutingAllocation} keep the state of the current allocation
+ * of shards and holds the {@link AllocationDeciders} which are responsible
+ *  for the current routing state.
  */
 public class RoutingAllocation {
 
+    /**
+     * this class is used to describe results of a {@link RoutingAllocation}  
+     */
     public static class Result {
 
         private final boolean changed;
@@ -42,20 +47,38 @@ public class RoutingAllocation {
 
         private final AllocationExplanation explanation;
 
+        /**
+         * Creates a new {@link RoutingAllocation.Result}
+         * 
+         * @param changed a flag to determine whether the actual {@link RoutingTable} has been changed
+         * @param routingTable the {@link RoutingTable} this Result references
+         * @param explanation Explanation of the Result
+         */
         public Result(boolean changed, RoutingTable routingTable, AllocationExplanation explanation) {
             this.changed = changed;
             this.routingTable = routingTable;
             this.explanation = explanation;
         }
 
+        /** determine whether the actual {@link RoutingTable} has been changed
+         * @return <code>true</code> if the {@link RoutingTable} has been changed by allocation. Otherwise <code>false</code>
+         */
         public boolean changed() {
             return this.changed;
         }
 
+        /**
+         * Get the {@link RoutingTable} referenced by this result
+         * @return referenced {@link RoutingTable}
+         */
         public RoutingTable routingTable() {
             return routingTable;
         }
 
+        /**
+         * Get the explanation of this result
+         * @return explanation
+         */
         public AllocationExplanation explanation() {
             return explanation;
         }
@@ -73,32 +96,63 @@ public class RoutingAllocation {
 
     private boolean ignoreDisable = false;
 
+    /**
+     * Creates a new {@link RoutingAllocation}
+     * 
+     * @param deciders {@link AllocationDeciders} to used to make decisions for routing allocations
+     * @param routingNodes Routing nodes in the current cluster 
+     * @param nodes TODO: Documentation
+     */
     public RoutingAllocation(AllocationDeciders deciders, RoutingNodes routingNodes, DiscoveryNodes nodes) {
         this.deciders = deciders;
         this.routingNodes = routingNodes;
         this.nodes = nodes;
     }
 
+    /**
+     * Get {@link AllocationDeciders} used for allocation
+     * @return {@link AllocationDeciders} used for allocation
+     */
     public AllocationDeciders deciders() {
         return this.deciders;
     }
 
+    /**
+     * Get routing table of current nodes
+     * @return current routing table
+     */
     public RoutingTable routingTable() {
         return routingNodes.routingTable();
     }
 
+    /**
+     * Get current routing nodes
+     * @return routing nodes
+     */
     public RoutingNodes routingNodes() {
         return routingNodes;
     }
 
+    /**
+     * Get metadata of routing nodes
+     * @return Metadata of routing nodes
+     */
     public MetaData metaData() {
         return routingNodes.metaData();
     }
 
+    /**
+     * Get discovery nodes in current routing
+     * @return discovery nodes
+     */
     public DiscoveryNodes nodes() {
         return nodes;
     }
 
+    /**
+     * Get explanations of current routing
+     * @return explanation of routing
+     */
     public AllocationExplanation explanation() {
         return explanation;
     }

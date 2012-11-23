@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -41,6 +42,20 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 
 /**
+ * A {@link ShardsAllocator} that tries to balance shards across nodes in the
+ * cluster such that each node holds approximatly the same number of shards. The
+ * allocations algorithm operates on a cluster ie. is index-agnostic. While the
+ * number of shards per node might be balanced across the cluster a single node
+ * can hold mulitple shards from a single index such that the shard of an index
+ * are not necessarily balanced across nodes. Yet, due to high-level
+ * {@link AllocationDecider decisions} multiple instances of the same shard
+ * won't be allocated on the same node.
+ * <p>
+ * During {@link #rebalance(RoutingAllocation) re-balancing} the allocator takes
+ * shards from the <tt>most busy</tt> nodes and tries to relocate the shards to
+ * the least busy node until the number of shards per node are equal for all
+ * nodes in the cluster or until no shards can be relocated anymore.
+ * </p>
  */
 public class EvenShardsCountAllocator extends AbstractComponent implements ShardsAllocator {
 
@@ -61,8 +76,15 @@ public class EvenShardsCountAllocator extends AbstractComponent implements Shard
     public boolean allocateUnassigned(RoutingAllocation allocation) {
         boolean changed = false;
         RoutingNodes routingNodes = allocation.routingNodes();
-
-
+        /* 
+         * 1. order nodes by the number of shards allocated on them least one first (this takes relocation into account)
+         *    ie. if a shard is relocating the target nodes shard count is incremented.
+         * 2. iterate over the unassigned shards
+         *    2a. find the least busy node in the cluster that allows allocation for the current unassigned shard
+         *    2b. if a node is found add the shard to the node and remove it from the unassigned shards
+         * 3. iterate over the remaining unassigned shards and try to allocate them on next possible node
+         */
+        // order nodes by number of shards (asc) 
         RoutingNode[] nodes = sortedNodesLeastToHigh(allocation);
 
         Iterator<MutableShardRouting> unassignedIterator = routingNodes.unassigned().iterator();
@@ -112,6 +134,7 @@ public class EvenShardsCountAllocator extends AbstractComponent implements Shard
 
     @Override
     public boolean rebalance(RoutingAllocation allocation) {
+        // take shards form busy nodes and move them to less busy nodes
         boolean changed = false;
         RoutingNode[] sortedNodesLeastToHigh = sortedNodesLeastToHigh(allocation);
         if (sortedNodesLeastToHigh.length == 0) {
@@ -138,6 +161,7 @@ public class EvenShardsCountAllocator extends AbstractComponent implements Shard
                     continue;
                 }
 
+                // Take a started shard from a "busy" node and move it to less busy node and go on 
                 boolean relocated = false;
                 List<MutableShardRouting> startedShards = highRoutingNode.shardsWithState(STARTED);
                 for (MutableShardRouting startedShard : startedShards) {

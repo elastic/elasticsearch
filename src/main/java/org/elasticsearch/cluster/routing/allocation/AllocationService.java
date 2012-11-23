@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import com.google.common.collect.Lists;
+
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cluster.ClusterState;
@@ -44,7 +45,10 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 
 /**
- *
+ * This service manages the node allocation of a cluster. For this reason the
+ * {@link AllocationService} keeps {@link AllocationDeciders} to choose nodes
+ * for shard allocation. This class also manages new nodes joining the cluster
+ * and rerouting of shards.
  */
 public class AllocationService extends AbstractComponent {
 
@@ -73,7 +77,7 @@ public class AllocationService extends AbstractComponent {
     /**
      * Applies the started shards. Note, shards can be called several times within this method.
      * <p/>
-     * <p>If the same instance of the routing table is returned, then no change has been made.
+     * <p>If the same instance of the routing table is returned, then no change has been made.</p>
      */
     public RoutingAllocation.Result applyStartedShards(ClusterState clusterState, List<? extends ShardRouting> startedShards) {
         RoutingNodes routingNodes = clusterState.routingNodes();
@@ -92,7 +96,7 @@ public class AllocationService extends AbstractComponent {
     /**
      * Applies the failed shards. Note, shards can be called several times within this method.
      * <p/>
-     * <p>If the same instance of the routing table is returned, then no change has been made.
+     * <p>If the same instance of the routing table is returned, then no change has been made.</p>
      */
     public RoutingAllocation.Result applyFailedShard(ClusterState clusterState, ShardRouting failedShard) {
         RoutingNodes routingNodes = clusterState.routingNodes();

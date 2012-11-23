@@ -32,6 +32,24 @@ import org.elasticsearch.node.settings.NodeSettingsService;
 import java.util.List;
 
 /**
+ * {@link ThrottlingAllocationDecider} controls the recovery process per node in
+ * the cluster. It exposes two settings via the cluster update API that allow
+ * changes in real-time:
+ * 
+ * <ul>
+ * <li><tt>cluster.routing.allocation.node_initial_primaries_recoveries</tt> -
+ * restricts the number of initial primary shard recovery operations on a single
+ * node. The default is <tt>4</tt></li>
+ * 
+ * <li><tt>cluster.routing.allocation.node_concurrent_recoveries</tt> -
+ * restricts the number of concurrent recovery operations on a single node. The
+ * default is <tt>2</tt></li>
+ * </ul>
+ * 
+ * If one of the above thresholds is exceeded per node this allocation decider
+ * will return {@link Decision#THROTTLE} as a hit to upstream logic to throttle
+ * the allocation process to prevent overloading nodes due to too many concurrent recovery
+ * processes.
  */
 public class ThrottlingAllocationDecider extends AllocationDecider {
 

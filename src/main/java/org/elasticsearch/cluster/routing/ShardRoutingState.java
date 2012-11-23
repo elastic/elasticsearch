@@ -22,9 +22,8 @@ package org.elasticsearch.cluster.routing;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 
 /**
- * The state of the shard as defined by the cluster.
- *
- *
+ * Represents the current state of a {@link ShardRouting} as defined by the
+ * cluster.
  */
 public enum ShardRoutingState {
     /**
@@ -51,6 +50,10 @@ public enum ShardRoutingState {
         this.value = value;
     }
 
+    /**
+     * Byte value of this {@link ShardRoutingState}
+     * @return Byte value of this {@link ShardRoutingState}
+     */
     public byte value() {
         return this.value;
     }

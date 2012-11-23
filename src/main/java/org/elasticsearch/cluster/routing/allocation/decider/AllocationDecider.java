@@ -26,30 +26,40 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 
 /**
- * A pluggable logic allowing to control if allocation of a shard is allowed on a specific node.
+ * {@link AllocationDecider} is an abstract base class that allows to make
+ * dynamic cluster- or index-wide shard allocation decisions on a per-node
+ * basis.
  */
 public abstract class AllocationDecider extends AbstractComponent {
 
+    /**
+     * Initializes a new {@link AllocationDecider}
+     * @param settings {@link Settings} used by this {@link AllocationDecider}
+     */
     protected AllocationDecider(Settings settings) {
         super(settings);
     }
 
     /**
-     * Are we allowed to rebalance this shard?
+     * Returns a {@link Decision} whether the given shard routing can be
+     * re-balanced to the given allocation. The default is
+     * {@link Decision#ALWAYS}.
      */
     public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
         return Decision.ALWAYS;
     }
 
     /**
-     * Can the provided shard routing be allocated on the node.
+     * Returns a {@link Decision} whether the given shard routing can be
+     * allocated on the given node. The default is {@link Decision#ALWAYS}.
      */
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         return Decision.ALWAYS;
     }
 
     /**
-     * Can the provided shard routing remain on the node?
+     * Returns a {@link Decision} whether the given shard routing can be remain
+     * on the given node. The default is {@link Decision#ALWAYS}.
      */
     public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         return Decision.ALWAYS;

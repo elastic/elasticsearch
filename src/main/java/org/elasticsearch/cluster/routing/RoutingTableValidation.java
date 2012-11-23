@@ -36,7 +36,8 @@ import static com.google.common.collect.Lists.newArrayListWithCapacity;
 import static com.google.common.collect.Maps.newHashMap;
 
 /**
- *
+ * Encapsulates the result of a routing table validation and provides access to
+ * validation failures.
  */
 public class RoutingTableValidation implements Serializable, Streamable {
 

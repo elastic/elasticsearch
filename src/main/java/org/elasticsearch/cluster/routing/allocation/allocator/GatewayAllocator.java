@@ -28,6 +28,10 @@ import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
  */
 public interface GatewayAllocator {
 
+    /**
+     * Apply all shards  
+     * @param allocation
+     */
     void applyStartedShards(StartedRerouteAllocation allocation);
 
     void applyFailedShards(FailedRerouteAllocation allocation);

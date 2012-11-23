@@ -58,11 +58,13 @@ import java.io.InputStreamReader;
 import java.io.Reader;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
+import static org.elasticsearch.index.mapper.DocumentMapper.MergeFlags.mergeFlags;
 
 /**
  *
@@ -172,7 +174,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         return this.documentParser;
     }
 
-    public void add(String type, String mappingSource, boolean applyDefault) {
+    public DocumentMapper merge(String type, String mappingSource, boolean applyDefault) {
         if (DEFAULT_MAPPING.equals(type)) {
             // verify we can parse it
             DocumentMapper mapper = documentParser.parse(type, mappingSource);
@@ -182,14 +184,15 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
                 mappers = newMapBuilder(mappers).put(type, mapper).map();
             }
             defaultMappingSource = mappingSource;
+            return mapper;
         } else {
-            add(parse(type, mappingSource, applyDefault));
+            return merge(parse(type, mappingSource, applyDefault));
         }
     }
 
     // never expose this to the outside world, we need to reparse the doc mapper so we get fresh
     // instances of field mappers to properly remove existing doc mapper
-    private void add(DocumentMapper mapper) {
+    private DocumentMapper merge(DocumentMapper mapper) {
         synchronized (mutex) {
             if (mapper.type().length() == 0) {
                 throw new InvalidTypeNameException("mapping type name is empty");
@@ -211,20 +214,28 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             // by instance equality
             DocumentMapper oldMapper = mappers.get(mapper.type());
 
-            FieldMapperListener.Aggregator fieldMappersAgg = new FieldMapperListener.Aggregator();
-            mapper.traverse(fieldMappersAgg);
-            addFieldMappers(fieldMappersAgg.mappers.toArray(new FieldMapper[fieldMappersAgg.mappers.size()]));
-            mapper.addFieldMapperListener(fieldMapperListener, false);
-
-            ObjectMapperListener.Aggregator objectMappersAgg = new ObjectMapperListener.Aggregator();
-            mapper.traverse(objectMappersAgg);
-            addObjectMappers(objectMappersAgg.mappers.toArray(new ObjectMapper[objectMappersAgg.mappers.size()]));
-            mapper.addObjectMapperListener(objectMapperListener, false);
-
-            mappers = newMapBuilder(mappers).put(mapper.type(), mapper).map();
             if (oldMapper != null) {
-                removeObjectAndFieldMappers(oldMapper);
-                oldMapper.close();
+                DocumentMapper.MergeResult result = oldMapper.merge(mapper, mergeFlags().simulate(false));
+                if (result.hasConflicts()) {
+                    // TODO: What should we do???
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("merging mapping for type [{}] resulted in conflicts: [{}]", mapper.type(), Arrays.toString(result.conflicts()));
+                    }
+                }
+                return oldMapper;
+            } else {
+                FieldMapperListener.Aggregator fieldMappersAgg = new FieldMapperListener.Aggregator();
+                mapper.traverse(fieldMappersAgg);
+                addFieldMappers(fieldMappersAgg.mappers.toArray(new FieldMapper[fieldMappersAgg.mappers.size()]));
+                mapper.addFieldMapperListener(fieldMapperListener, false);
+
+                ObjectMapperListener.Aggregator objectMappersAgg = new ObjectMapperListener.Aggregator();
+                mapper.traverse(objectMappersAgg);
+                addObjectMappers(objectMappersAgg.mappers.toArray(new ObjectMapper[objectMappersAgg.mappers.size()]));
+                mapper.addObjectMapperListener(objectMapperListener, false);
+
+                mappers = newMapBuilder(mappers).put(mapper.type(), mapper).map();
+                return mapper;
             }
         }
     }
@@ -394,7 +405,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             if (mapper != null) {
                 return mapper;
             }
-            add(type, null, true);
+            merge(type, null, true);
             return mappers.get(type);
         }
     }

@@ -20,7 +20,10 @@
 package org.elasticsearch.cluster.routing;
 
 /**
- *
+ * Similar to {@link ImmutableShardRouting} this class keeps metadata of the current shard. But unlike
+ * {@link ImmutableShardRouting} the information kept in this class can be modified.
+ * These modifications include changing the primary state, relocating and assigning the shard
+ * represented by this class
  */
 public class MutableShardRouting extends ImmutableShardRouting {
 
@@ -42,6 +45,11 @@ public class MutableShardRouting extends ImmutableShardRouting {
         super(index, shardId, currentNodeId, relocatingNodeId, primary, state, version);
     }
 
+    /**
+     * Assign this shard to a node.
+     * 
+     * @param nodeId id of the node to assign this shard to
+     */
     public void assignToNode(String nodeId) {
         version++;
         if (currentNodeId == null) {
@@ -58,6 +66,11 @@ public class MutableShardRouting extends ImmutableShardRouting {
         }
     }
 
+    /**
+     * Relocate the shard to another node.
+     * 
+     * @param relocatingNodeId id of the node to relocate the shard
+     */
     public void relocate(String relocatingNodeId) {
         version++;
         assert state == ShardRoutingState.STARTED;
@@ -65,6 +78,10 @@ public class MutableShardRouting extends ImmutableShardRouting {
         this.relocatingNodeId = relocatingNodeId;
     }
 
+    /**
+     * Cancel relocation of a shard. The shards state must be set
+     * to <code>RELOCATING</code>.
+     */
     public void cancelRelocation() {
         version++;
         assert state == ShardRoutingState.RELOCATING;
@@ -75,6 +92,10 @@ public class MutableShardRouting extends ImmutableShardRouting {
         relocatingNodeId = null;
     }
 
+    /**
+     * Set the shards state to <code>UNASSIGNED</code>.
+     * //TODO document the state
+     */
     public void deassignNode() {
         version++;
         assert state != ShardRoutingState.UNASSIGNED;
@@ -84,6 +105,11 @@ public class MutableShardRouting extends ImmutableShardRouting {
         this.relocatingNodeId = null;
     }
 
+    /**
+     * Set the shards state to <code>STARTED</code>. The shards state must be
+     * <code>INITIALIZING</code> or <code>RELOCATING</code>. Any relocation will be
+     * canceled. 
+     */
     public void moveToStarted() {
         version++;
         assert state == ShardRoutingState.INITIALIZING || state == ShardRoutingState.RELOCATING;
@@ -91,6 +117,10 @@ public class MutableShardRouting extends ImmutableShardRouting {
         state = ShardRoutingState.STARTED;
     }
 
+    /**
+     * Make the shard primary unless it's not Primary
+     * //TODO: doc exception
+     */
     public void moveToPrimary() {
         version++;
         if (primary) {
@@ -99,10 +129,13 @@ public class MutableShardRouting extends ImmutableShardRouting {
         primary = true;
     }
 
+    /**
+     * Set the primary shard to non-primary
+     */
     public void moveFromPrimary() {
         version++;
         if (!primary) {
-            throw new IllegalShardRoutingStateException(this, "Already primary, can't move to replica");
+            throw new IllegalShardRoutingStateException(this, "Not primary, can't move to replica");
         }
         primary = false;
     }

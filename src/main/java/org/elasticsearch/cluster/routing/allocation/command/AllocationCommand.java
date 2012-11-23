@@ -30,21 +30,60 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 
 /**
+ * This interface defines the basic methods of commands for allocation
  */
 public interface AllocationCommand {
 
+    /**
+     * Factory to create {@link AllocationCommand}s
+     * @param <T> Type of {@link AllocationCommand}s created by this {@link Factory}
+     */
     interface Factory<T extends AllocationCommand> {
 
+        /**
+         * Reads an {@link AllocationCommand} of type <code>T</code> from a {@link StreamInput}
+         * @param in {@link StreamInput} to read the {@link AllocationCommand} from 
+         * @return {@link AllocationCommand} read from the {@link StreamInput}
+         * @throws IOException if something happens during reading
+         */
         T readFrom(StreamInput in) throws IOException;
-
+        
+        /**
+         * Writes an {@link AllocationCommand} to a {@link StreamOutput}
+         * @param command {@link AllocationCommand} to write
+         * @param out {@link StreamOutput} to write the {@link AllocationCommand} to
+         * @throws IOException if something happens during writing the command
+         */
         void writeTo(T command, StreamOutput out) throws IOException;
-
+        
+        /**
+         * Reads an {@link AllocationCommand} of type <code>T</code> from a {@link XContentParser}
+         * @param parser {@link XContentParser} to use
+         * @return {@link AllocationCommand} read
+         * @throws IOException if something happens during reading
+         */
         T fromXContent(XContentParser parser) throws IOException;
-
+        
+        /**
+         * Writes an {@link AllocationCommand} using an {@link XContentBuilder}
+         * @param command {@link AllocationCommand} to write
+         * @param builder {@link XContentBuilder} to use
+         * @param params parameters to use when writing the command 
+         * @throws IOException if something happens during writing the command
+         */
         void toXContent(T command, XContentBuilder builder, ToXContent.Params params) throws IOException;
     }
 
+    /**
+     * Get the name of the command
+     * @return name of the command
+     */
     String name();
 
+    /**
+     * Executes the command on a {@link RoutingAllocation} setup
+     * @param allocation {@link RoutingAllocation} to modify
+     * @throws ElasticSearchException if something happens during reconfiguration
+     */
     void execute(RoutingAllocation allocation) throws ElasticSearchException;
 }

@@ -25,7 +25,8 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 
 /**
- *
+ * This {@link RoutingAllocation} keeps a shard which routing
+ * allocation has faild 
  */
 public class FailedRerouteAllocation extends RoutingAllocation {
 

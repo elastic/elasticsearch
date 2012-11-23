@@ -27,7 +27,8 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import java.util.List;
 
 /**
- *
+ * This {@link RoutingAllocation} holds a list of started shards within a
+ * cluster
  */
 public class StartedRerouteAllocation extends RoutingAllocation {
 
@@ -38,6 +39,10 @@ public class StartedRerouteAllocation extends RoutingAllocation {
         this.startedShards = startedShards;
     }
 
+    /**
+     * Get started shards
+     * @return list of started shards
+     */
     public List<? extends ShardRouting> startedShards() {
         return startedShards;
     }

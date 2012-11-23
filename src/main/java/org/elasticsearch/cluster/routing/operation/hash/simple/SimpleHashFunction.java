@@ -22,7 +22,7 @@ package org.elasticsearch.cluster.routing.operation.hash.simple;
 import org.elasticsearch.cluster.routing.operation.hash.HashFunction;
 
 /**
- *
+ * This class implements a simple hash function based on Java Build-In {@link Object#hashCode()}
  */
 public class SimpleHashFunction implements HashFunction {
 

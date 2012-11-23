@@ -20,7 +20,8 @@
 package org.elasticsearch.cluster.routing;
 
 /**
- *
+ * This class defines {@link RoutingException}s related to
+ * the validation of routing
  */
 public class RoutingValidationException extends RoutingException {
 

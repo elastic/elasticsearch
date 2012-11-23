@@ -36,7 +36,16 @@ import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 
 /**
- *
+ * A {@link RoutingService} listens to clusters state. When this service
+ * receives a {@link ClusterChangedEvent} the cluster state will be verified and
+ * the routing tables might be updated.
+ * <p>
+ * Note: The {@link RoutingService} is responsible for cluster wide operations
+ * that include modifications to the cluster state. Such an operation can only
+ * be performed on the clusters master node. Unless the local node this service
+ * is running on is the clusters master node this service will not perform any
+ * actions.
+ * </p>
  */
 public class RoutingService extends AbstractLifecycleComponent<RoutingService> implements ClusterStateListener {
 

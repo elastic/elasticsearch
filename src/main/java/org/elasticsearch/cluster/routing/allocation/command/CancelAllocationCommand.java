@@ -41,12 +41,15 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 
 /**
- * A command that cancel relocation, or recovery of a given shard on a node.
+ * A command that cancels relocation, or recovery of a given shard on a node.
  */
 public class CancelAllocationCommand implements AllocationCommand {
 
     public static final String NAME = "cancel";
 
+    /**
+     * Factory creating {@link CancelAllocationCommand}s
+     */
     public static class Factory implements AllocationCommand.Factory<CancelAllocationCommand> {
 
         @Override
@@ -117,6 +120,13 @@ public class CancelAllocationCommand implements AllocationCommand {
     private final String node;
     private final boolean allowPrimary;
 
+    /**
+     * Creates a new {@link CancelAllocationCommand}
+     * 
+     * @param shardId id of the shard which allocation should be canceled
+     * @param node id of the node that manages the shard which allocation should be canceled
+     * @param allowPrimary 
+     */
     public CancelAllocationCommand(ShardId shardId, String node, boolean allowPrimary) {
         this.shardId = shardId;
         this.node = node;
@@ -128,10 +138,18 @@ public class CancelAllocationCommand implements AllocationCommand {
         return NAME;
     }
 
+    /**
+     * Get the id of the shard which allocation should be canceled
+     * @return id of the shard which allocation should be canceled
+     */
     public ShardId shardId() {
         return this.shardId;
     }
 
+    /**
+     * Get the id of the node that manages the shard which allocation should be canceled
+     * @return id of the node that manages the shard which allocation should be canceled
+     */
     public String node() {
         return this.node;
     }

@@ -20,11 +20,22 @@
 package org.elasticsearch.cluster.routing.operation.hash;
 
 /**
- *
+ * Simple hash function interface used for shard routing.
  */
 public interface HashFunction {
 
+    /**
+     * Calculate a hash value for routing 
+     * @param routing String to calculate the hash value from 
+     * @return hash value of the given routing string
+     */
     int hash(String routing);
 
+    /**
+     * Calculate a hash value for routing and its type
+     * @param type types name
+     * @param routing String to calculate the hash value from 
+     * @return hash value of the given type and routing string
+     */
     int hash(String type, String id);
 }

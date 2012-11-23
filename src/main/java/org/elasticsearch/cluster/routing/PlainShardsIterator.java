@@ -22,7 +22,8 @@ package org.elasticsearch.cluster.routing;
 import java.util.List;
 
 /**
- *
+ * A simple {@link ShardsIterator} that iterates a list or sub-list of
+ * {@link ShardRouting shard routings}.
  */
 public class PlainShardsIterator implements ShardsIterator {
 

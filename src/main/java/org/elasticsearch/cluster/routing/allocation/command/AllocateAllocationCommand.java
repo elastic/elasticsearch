@@ -115,6 +115,13 @@ public class AllocateAllocationCommand implements AllocationCommand {
     private final String node;
     private final boolean allowPrimary;
 
+    /**
+     * Create a new {@link AllocateAllocationCommand}
+     * 
+     * @param shardId {@link ShardId} of the shrad to assign
+     * @param node Node to assign the shard to
+     * @param allowPrimary should the node be allow to allocate the shard as primary
+     */
     public AllocateAllocationCommand(ShardId shardId, String node, boolean allowPrimary) {
         this.shardId = shardId;
         this.node = node;
@@ -126,14 +133,26 @@ public class AllocateAllocationCommand implements AllocationCommand {
         return NAME;
     }
 
+    /**
+     * Get the shards id 
+     * @return id of the shard
+     */
     public ShardId shardId() {
         return this.shardId;
     }
 
+    /**
+     * Get the id of the Node
+     * @return id of the Node
+     */
     public String node() {
         return this.node;
     }
 
+    /**
+     * Determine if primary allocation is allowed 
+     * @return <code>true</code> if primary allocation is allowed. Otherwise <code>false</code> 
+     */
     public boolean allowPrimary() {
         return this.allowPrimary;
     }

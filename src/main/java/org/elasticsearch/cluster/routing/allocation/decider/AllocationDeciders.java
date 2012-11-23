@@ -30,12 +30,18 @@ import org.elasticsearch.node.settings.NodeSettingsService;
 import java.util.Set;
 
 /**
- * Holds several {@link AllocationDecider}s and combines them into a single allocation decision.
+ * A composite {@link AllocationDecider} combining the "decision" of multiple
+ * {@link AllocationDecider} implementations into a single allocation decision.
  */
 public class AllocationDeciders extends AllocationDecider {
 
     private final AllocationDecider[] allocations;
 
+    /**
+     * Create a new {@link AllocationDeciders} instance
+     * @param settings  settings to use
+     * @param nodeSettingsService per-node settings to use
+     */
     public AllocationDeciders(Settings settings, NodeSettingsService nodeSettingsService) {
         this(settings, ImmutableSet.<AllocationDecider>builder()
                 .add(new SameShardAllocationDecider(settings))

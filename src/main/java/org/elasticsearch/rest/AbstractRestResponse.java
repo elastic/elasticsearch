@@ -19,11 +19,16 @@
 
 package org.elasticsearch.rest;
 
+import java.io.IOException;
+import java.util.zip.Adler32;
+
 /**
  *
  */
 public abstract class AbstractRestResponse implements RestResponse {
 
+    private long checksum = -1L;    
+    
     @Override
     public byte[] prefixContent() {
         return null;
@@ -53,4 +58,24 @@ public abstract class AbstractRestResponse implements RestResponse {
     public int suffixContentOffset() {
         return 0;
     }
+
+    @Override
+    public long contentChecksum() {
+        if (checksum == -1L) {
+            createChecksum();
+        }
+        return checksum;
+    }
+
+    private long createChecksum() {
+        Adler32 adler = new Adler32();
+        try {
+            byte[] b = content();
+            adler.update(b,0,b.length);
+        } catch (IOException e) {
+        }
+        return adler.getValue();
+    }
+    
+    
 }

@@ -36,12 +36,21 @@ import org.jboss.netty.channel.ChannelFutureListener;
 import org.jboss.netty.handler.codec.http.*;
 
 import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.GregorianCalendar;
+import java.util.Locale;
 import java.util.Set;
+import java.util.TimeZone;
 
 /**
  *
  */
 public class NettyHttpChannel implements HttpChannel {
+    
+    public static final String HTTP_DATE_FORMAT = "EEE, dd MMM yyyy HH:mm:ss zzz";
+    public static final String HTTP_DATE_GMT_TIMEZONE = "GMT";    
+    
     private final NettyHttpServerTransport transport;
     private final Channel channel;
     private final org.jboss.netty.handler.codec.http.HttpRequest request;
@@ -131,6 +140,21 @@ public class NettyHttpChannel implements HttpChannel {
         resp.setHeader(HttpHeaders.Names.CONTENT_TYPE, response.contentType());
 
         resp.setHeader(HttpHeaders.Names.CONTENT_LENGTH, String.valueOf(buf.readableBytes()));
+        
+        // ETag handling, check if checksums matches, and deliver timestamped HTTP 304 "not modified" if so
+        if (transport.settings().getAsBoolean("http.cache.etag", false)) {
+            long checksum = response.contentChecksum();
+            resp.addHeader(HttpHeaders.Names.ETAG, checksum);
+            String etag = request.getHeader("If-None-Match");
+            if (etag != null && Long.parseLong(etag) == checksum) {
+                 resp.setContent(null);
+                 resp.setStatus(HttpResponseStatus.NOT_MODIFIED);
+                 SimpleDateFormat dateFormatter = new SimpleDateFormat(HTTP_DATE_FORMAT, Locale.US);
+                 dateFormatter.setTimeZone(TimeZone.getTimeZone(HTTP_DATE_GMT_TIMEZONE));
+                 Calendar time = new GregorianCalendar();
+                 resp.setHeader(HttpHeaders.Names.DATE, dateFormatter.format(time.getTime()));
+            }
+        }
 
         if (transport.resetCookies) {
             String cookieString = request.getHeader(HttpHeaders.Names.COOKIE);
@@ -147,7 +171,7 @@ public class NettyHttpChannel implements HttpChannel {
                 }
             }
         }
-
+        
         // Write the response.
         ChannelFuture future = channel.write(resp);
         if (releaseContentListener != null) {

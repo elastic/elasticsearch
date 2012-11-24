@@ -45,6 +45,8 @@ public interface RestResponse {
     int contentLength() throws IOException;
 
     int contentOffset() throws IOException;
+    
+    long contentChecksum();
 
     byte[] prefixContent();
 

@@ -84,7 +84,7 @@ public class CustomScoreSearchTests extends AbstractNodesTests {
                 .setQuery(customFiltersScoreQuery(matchAllQuery())
                         .add(termFilter("field", "value4"), "2")
                         .add(termFilter("field", "value2"), "3")
-                .scoreMode("first"))
+                        .scoreMode("first"))
                 .setExplain(true)
                 .execute().actionGet();
 
@@ -114,7 +114,7 @@ public class CustomScoreSearchTests extends AbstractNodesTests {
                         .add(termFilter("field", "value4"), "2")
                         .add(termFilter("field", "value2"), "3")
                         .boost(2)
-                .scoreMode("first"))
+                        .scoreMode("first"))
                 .setExplain(true)
                 .execute().actionGet();
 
@@ -364,5 +364,48 @@ public class CustomScoreSearchTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().getAt(2).score(), equalTo(2.0f));
         assertThat(searchResponse.hits().getAt(3).id(), equalTo("2"));
         assertThat(searchResponse.hits().getAt(3).score(), equalTo(1.0f));
+
+        searchResponse = client.prepareSearch("test")
+                .setQuery(customFiltersScoreQuery(termsQuery("field", "value1", "value2", "value3", "value4")).scoreMode("first")
+                        .add(termFilter("field", "value4"), 2)
+                        .add(termFilter("field", "value3"), 3)
+                        .add(termFilter("field", "value2"), 4))
+                .setExplain(true)
+                .execute().actionGet();
+
+        assertThat(Arrays.toString(searchResponse.shardFailures()), searchResponse.failedShards(), equalTo(0));
+        assertThat(searchResponse.hits().totalHits(), equalTo(4l));
+        assertThat(searchResponse.hits().getAt(0).id(), equalTo("2"));
+        assertThat(searchResponse.hits().getAt(0).score(), equalTo(searchResponse.hits().getAt(0).explanation().getValue()));
+        logger.info("--> Hit[0] {} Explanation {}", searchResponse.hits().getAt(0).id(), searchResponse.hits().getAt(0).explanation());
+        assertThat(searchResponse.hits().getAt(1).id(), equalTo("3"));
+        assertThat(searchResponse.hits().getAt(1).score(), equalTo(searchResponse.hits().getAt(1).explanation().getValue()));
+        assertThat(searchResponse.hits().getAt(2).id(), equalTo("4"));
+        assertThat(searchResponse.hits().getAt(2).score(), equalTo(searchResponse.hits().getAt(2).explanation().getValue()));
+        assertThat(searchResponse.hits().getAt(3).id(), equalTo("1"));
+        assertThat(searchResponse.hits().getAt(3).score(), equalTo(searchResponse.hits().getAt(3).explanation().getValue()));
+
+
+        searchResponse = client.prepareSearch("test")
+                .setQuery(customFiltersScoreQuery(termsQuery("field", "value1", "value2", "value3", "value4")).scoreMode("multiply")
+                        .add(termFilter("field", "value4"), 2)
+                        .add(termFilter("field", "value1"), 3)
+                        .add(termFilter("color", "red"), 5))
+                .setExplain(true)
+                .execute().actionGet();
+
+        assertThat(Arrays.toString(searchResponse.shardFailures()), searchResponse.failedShards(), equalTo(0));
+        assertThat(searchResponse.hits().totalHits(), equalTo(4l));
+        assertThat(searchResponse.hits().getAt(0).id(), equalTo("1"));
+        assertThat(searchResponse.hits().getAt(0).score(), equalTo(searchResponse.hits().getAt(0).explanation().getValue()));
+        logger.info("--> Hit[0] {} Explanation {}", searchResponse.hits().getAt(0).id(), searchResponse.hits().getAt(0).explanation());
+        assertThat(searchResponse.hits().getAt(1).id(), equalTo("3"));
+        assertThat(searchResponse.hits().getAt(1).score(), equalTo(searchResponse.hits().getAt(1).explanation().getValue()));
+        assertThat(searchResponse.hits().getAt(2).id(), equalTo("4"));
+        assertThat(searchResponse.hits().getAt(2).score(), equalTo(searchResponse.hits().getAt(2).explanation().getValue()));
+        assertThat(searchResponse.hits().getAt(3).id(), equalTo("2"));
+        assertThat(searchResponse.hits().getAt(3).score(), equalTo(searchResponse.hits().getAt(3).explanation().getValue()));
+
+
     }
 }

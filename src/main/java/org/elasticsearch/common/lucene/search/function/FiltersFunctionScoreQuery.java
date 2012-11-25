@@ -163,7 +163,11 @@ public class FiltersFunctionScoreQuery extends Query {
                     if (docSet.get(doc)) {
                         filterFunction.function.setNextReader(context);
                         Explanation functionExplanation = filterFunction.function.explainFactor(doc);
-                        float sc = getBoost() * subQueryExpl.getValue() * functionExplanation.getValue();
+                        float factor = functionExplanation.getValue();
+                        if (factor > maxBoost) {
+                            factor = maxBoost;
+                        }
+                        float sc = getBoost() * factor;
                         Explanation filterExplanation = new ComplexExplanation(true, sc, "custom score, product of:");
                         filterExplanation.addDetail(new Explanation(1.0f, "match filter: " + filterFunction.filter.toString()));
                         filterExplanation.addDetail(functionExplanation);

@@ -25,4 +25,6 @@ package org.elasticsearch.rest;
 public interface RestChannel {
 
     void sendResponse(RestResponse response);
+    
+    void setCacheable(boolean enabled);
 }

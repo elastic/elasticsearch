@@ -156,6 +156,7 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
     void executeHandler(RestRequest request, RestChannel channel) {
         final RestHandler handler = getHandler(request);
         if (handler != null) {
+            channel.setCacheable(settings.getAsBoolean("http.cache.etag."+ handler.getClass().getSimpleName().toLowerCase(), false));
             handler.handleRequest(request, channel);
         } else {
             if (request.method() == RestRequest.Method.OPTIONS) {

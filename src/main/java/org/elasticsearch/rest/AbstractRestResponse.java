@@ -62,7 +62,7 @@ public abstract class AbstractRestResponse implements RestResponse {
     @Override
     public long contentChecksum() {
         if (checksum == -1L) {
-            createChecksum();
+            checksum = createChecksum();
         }
         return checksum;
     }
@@ -76,6 +76,5 @@ public abstract class AbstractRestResponse implements RestResponse {
         }
         return adler.getValue();
     }
-    
     
 }

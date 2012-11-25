@@ -54,6 +54,7 @@ public class NettyHttpChannel implements HttpChannel {
     private final NettyHttpServerTransport transport;
     private final Channel channel;
     private final org.jboss.netty.handler.codec.http.HttpRequest request;
+    private boolean cacheable;
 
     public NettyHttpChannel(NettyHttpServerTransport transport, Channel channel, org.jboss.netty.handler.codec.http.HttpRequest request) {
         this.transport = transport;
@@ -61,6 +62,10 @@ public class NettyHttpChannel implements HttpChannel {
         this.request = request;
     }
 
+    public void setCacheable(boolean cacheable) {
+        this.cacheable = cacheable;
+    }
+    
     @Override
     public void sendResponse(RestResponse response) {
 
@@ -142,7 +147,7 @@ public class NettyHttpChannel implements HttpChannel {
         resp.setHeader(HttpHeaders.Names.CONTENT_LENGTH, String.valueOf(buf.readableBytes()));
         
         // ETag handling, check if checksums matches, and deliver timestamped HTTP 304 "not modified" if so
-        if (transport.settings().getAsBoolean("http.cache.etag", false)) {
+        if (cacheable) {
             long checksum = response.contentChecksum();
             resp.addHeader(HttpHeaders.Names.ETAG, checksum);
             String etag = request.getHeader("If-None-Match");

@@ -111,6 +111,8 @@ public class AwsS3Service extends AbstractLifecycleComponent<AwsS3Service> {
                 endpoint = "s3-ap-southeast-1.amazonaws.com";
             } else if ("ap-southeast-1".equals(region)) {
                 endpoint = "s3-ap-southeast-1.amazonaws.com";
+            } else if ("ap-southeast-2".equals(region)) {
+                endpoint = "s3-ap-southeast-2.amazonaws.com";
             } else if ("ap-northeast".equals(region)) {
                 endpoint = "s3-ap-northeast-1.amazonaws.com";
             } else if ("ap-northeast-1".equals(region)) {

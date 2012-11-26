@@ -43,7 +43,7 @@ The plugin will automatically use the instance level security credentials (as of
 
 ### Region
 
-The `cloud.aws.region` can be set to a region and will automatically use the relevant settings for both `ec2` and `s3`. The available values are: `us-east` (`us-east-1`), `us-west` (`us-west-1`), `us-west-1`, `us-west-2` `ap-southeast` (`ap-southeast-1`), `ap-northeast` (`ap-northeast-1`) `eu-west` (`eu-west-1`).
+The `cloud.aws.region` can be set to a region and will automatically use the relevant settings for both `ec2` and `s3`. The available values are: `us-east` (`us-east-1`), `us-west` (`us-west-1`), `us-west-1`, `us-west-2` `ap-southeast` (`ap-southeast-1`), `ap-southeast-1`, `ap-southeast-2`, `ap-northeast` (`ap-northeast-1`) `eu-west` (`eu-west-1`).
 
 
 ## EC2 Discovery

@@ -351,7 +351,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     });
 
                     return updatedState;
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     logger.warn("[{}] failed to create", e, request.index);
                     listener.onFailure(e);
                     return currentState;

@@ -112,10 +112,10 @@ public class AwsEc2Service extends AbstractLifecycleComponent<AwsEc2Service> {
                 endpoint = "ec2.us-west-1.amazonaws.com";
             } else if (region.equals("us-west-2")) {
                 endpoint = "ec2.us-west-2.amazonaws.com";
-            } else if (region.equals("ap-southeast")) {
+            } else if (region.equals("ap-southeast") || region.equals("ap-southeast-1")) {
                 endpoint = "ec2.ap-southeast-1.amazonaws.com";
-            } else if (region.equals("ap-southeast-1")) {
-                endpoint = "ec2.ap-southeast-1.amazonaws.com";
+            } else if (region.equals("ap-southeast-2")) {
+                endpoint = "ec2.ap-southeast-2.amazonaws.com";
             } else if (region.equals("ap-northeast") || region.equals("ap-northeast-1")) {
                 endpoint = "ec2.ap-northeast-1.amazonaws.com";
             } else if (region.equals("eu-west") || region.equals("eu-west-1")) {

@@ -133,7 +133,9 @@ public class MetaData implements Iterable<IndexMetaData> {
     private final ImmutableMap<String, IndexTemplateMetaData> templates;
     private final ImmutableMap<String, Custom> customs;
 
-    private final transient int totalNumberOfShards;
+    private final transient int totalNumberOfShards; // Transient ? not serializable anyway?
+    private final int numberOfShards;
+
 
     private final String[] allIndices;
     private final ImmutableSet<String> allIndicesSet;
@@ -148,6 +150,7 @@ public class MetaData implements Iterable<IndexMetaData> {
 
     private final ImmutableMap<String, String[]> aliasAndIndexToIndexMap;
 
+
     MetaData(long version, Settings transientSettings, Settings persistentSettings, ImmutableMap<String, IndexMetaData> indices, ImmutableMap<String, IndexTemplateMetaData> templates, ImmutableMap<String, Custom> customs) {
         this.version = version;
         this.transientSettings = transientSettings;
@@ -157,10 +160,13 @@ public class MetaData implements Iterable<IndexMetaData> {
         this.customs = customs;
         this.templates = templates;
         int totalNumberOfShards = 0;
+        int numberOfShards = 0;
         for (IndexMetaData indexMetaData : indices.values()) {
             totalNumberOfShards += indexMetaData.totalNumberOfShards();
+            numberOfShards += indexMetaData.numberOfShards();
         }
         this.totalNumberOfShards = totalNumberOfShards;
+        this.numberOfShards = numberOfShards;
 
         // build all indices map
         List<String> allIndicesLst = Lists.newArrayList();
@@ -689,6 +695,14 @@ public class MetaData implements Iterable<IndexMetaData> {
 
     public int getTotalNumberOfShards() {
         return totalNumberOfShards();
+    }
+    
+    public int numberOfShards() {
+        return this.numberOfShards;
+    }
+
+    public int getnumberOfShards() {
+        return numberOfShards();
     }
 
 

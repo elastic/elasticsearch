@@ -48,6 +48,6 @@ public class ShardsAllocatorModule extends AbstractModule {
     @Override
     protected void configure() {
         bind(GatewayAllocator.class).to(gatewayAllocator).asEagerSingleton();
-        bind(ShardsAllocator.class).to(shardsAllocator == null ? EvenShardsCountAllocator.class : shardsAllocator).asEagerSingleton();
+        bind(ShardsAllocator.class).to(shardsAllocator == null ? BalancedShardsAllocator.class : shardsAllocator).asEagerSingleton();
     }
 }

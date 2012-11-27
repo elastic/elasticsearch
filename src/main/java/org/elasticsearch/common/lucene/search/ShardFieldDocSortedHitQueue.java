@@ -17,8 +17,10 @@
  * under the License.
  */
 
-package org.apache.lucene.search;
+package org.elasticsearch.common.lucene.search;
 
+import org.apache.lucene.search.FieldComparator;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.ElasticSearchIllegalStateException;

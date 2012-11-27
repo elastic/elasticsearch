@@ -20,24 +20,21 @@
 package org.elasticsearch.common.lucene.search;
 
 import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.common.lucene.docset.AllDocSet;
+import org.elasticsearch.common.lucene.docset.AllDocIdSet;
 
 import java.io.IOException;
 
 /**
  * A filter that matches on all docs.
- *
- *
  */
 public class MatchAllDocsFilter extends Filter {
 
     @Override
     public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
-        return new AllDocSet(context.reader().maxDoc());
+        return new AllDocIdSet(context.reader().maxDoc());
     }
 
     @Override

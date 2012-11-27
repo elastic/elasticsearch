@@ -23,7 +23,8 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.common.lucene.docset.GetDocSet;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.lucene.docset.MatchDocIdSet;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldData;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldDataType;
@@ -59,34 +60,31 @@ public class GeoPolygonFilter extends Filter {
     @Override
     public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptedDocs) throws IOException {
         final GeoPointFieldData fieldData = (GeoPointFieldData) fieldDataCache.cache(GeoPointFieldDataType.TYPE, context.reader(), fieldName);
-        return new GeoPolygonDocSet(context.reader().maxDoc(), fieldData, points);
+        return new GeoPolygonDocIdSet(context.reader().maxDoc(), acceptedDocs, fieldData, points);
     }
 
     @Override
     public String toString() {
-        return "GeoPolygonFilter(" + fieldName + ", "  + Arrays.toString(points) + ")";
+        return "GeoPolygonFilter(" + fieldName + ", " + Arrays.toString(points) + ")";
     }
 
-    public static class GeoPolygonDocSet extends GetDocSet {
+    public static class GeoPolygonDocIdSet extends MatchDocIdSet {
         private final GeoPointFieldData fieldData;
         private final Point[] points;
 
-        public GeoPolygonDocSet(int maxDoc, GeoPointFieldData fieldData, Point[] points) {
-            super(maxDoc);
+        public GeoPolygonDocIdSet(int maxDoc, @Nullable Bits acceptDocs, GeoPointFieldData fieldData, Point[] points) {
+            super(maxDoc, acceptDocs);
             this.fieldData = fieldData;
             this.points = points;
         }
 
         @Override
         public boolean isCacheable() {
-            // not cacheable for several reasons:
-            // 1. It is only relevant when _cache is set to true, and then, we really want to create in mem bitset
-            // 2. Its already fast without in mem bitset, since it works with field data
-            return false;
+            return true;
         }
 
         @Override
-        public boolean get(int doc) {
+        protected boolean matchDoc(int doc) {
             if (!fieldData.hasValue(doc)) {
                 return false;
             }

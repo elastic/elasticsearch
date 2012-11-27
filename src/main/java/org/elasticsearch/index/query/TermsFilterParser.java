@@ -21,13 +21,10 @@ package org.elasticsearch.index.query;
 
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.XTermsFilter;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.AndFilter;
-import org.elasticsearch.common.lucene.search.OrFilter;
-import org.elasticsearch.common.lucene.search.TermFilter;
-import org.elasticsearch.common.lucene.search.XBooleanFilter;
+import org.elasticsearch.common.lucene.search.*;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -135,11 +132,11 @@ public class TermsFilterParser implements FilterParser {
                 XBooleanFilter boolFiler = new XBooleanFilter();
                 if (fieldMapper != null) {
                     for (String term : terms) {
-                        boolFiler.addShould(parseContext.cacheFilter(fieldMapper.fieldFilter(term, parseContext), null));
+                        boolFiler.add(parseContext.cacheFilter(fieldMapper.fieldFilter(term, parseContext), null), BooleanClause.Occur.SHOULD);
                     }
                 } else {
                     for (String term : terms) {
-                        boolFiler.addShould(parseContext.cacheFilter(new TermFilter(new Term(fieldName, term)), null));
+                        boolFiler.add(parseContext.cacheFilter(new TermFilter(new Term(fieldName, term)), null), BooleanClause.Occur.SHOULD);
                     }
                 }
                 filter = boolFiler;
@@ -151,11 +148,11 @@ public class TermsFilterParser implements FilterParser {
                 XBooleanFilter boolFiler = new XBooleanFilter();
                 if (fieldMapper != null) {
                     for (String term : terms) {
-                        boolFiler.addShould(fieldMapper.fieldFilter(term, parseContext));
+                        boolFiler.add(fieldMapper.fieldFilter(term, parseContext), BooleanClause.Occur.SHOULD);
                     }
                 } else {
                     for (String term : terms) {
-                        boolFiler.addShould(new TermFilter(new Term(fieldName, term)));
+                        boolFiler.add(new TermFilter(new Term(fieldName, term)), BooleanClause.Occur.SHOULD);
                     }
                 }
                 filter = boolFiler;

@@ -20,52 +20,49 @@
 package org.elasticsearch.common.lucene.docset;
 
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.common.RamUsage;
 
 import java.io.IOException;
 
 /**
- *
  */
-public class FixedBitDocSet extends DocSet {
+public abstract class MatchDocIdSetIterator extends DocIdSetIterator {
+    private final int maxDoc;
+    private int doc = -1;
 
-    private final FixedBitSet set;
-
-    public FixedBitDocSet(FixedBitSet set) {
-        this.set = set;
+    public MatchDocIdSetIterator(int maxDoc) {
+        this.maxDoc = maxDoc;
     }
 
-    public FixedBitDocSet(int numBits) {
-        this.set = new FixedBitSet(numBits);
+    protected abstract boolean matchDoc(int doc);
+
+    @Override
+    public int docID() {
+        return doc;
     }
 
     @Override
-    public boolean isCacheable() {
-        return true;
+    public int nextDoc() throws IOException {
+        do {
+            doc++;
+            if (doc >= maxDoc) {
+                return doc = NO_MORE_DOCS;
+            }
+        } while (!matchDoc(doc));
+        return doc;
     }
 
     @Override
-    public int length() {
-        return set.length();
-    }
-
-    public FixedBitSet set() {
-        return set;
-    }
-
-    @Override
-    public boolean get(int doc) {
-        return set.get(doc);
-    }
-
-    @Override
-    public DocIdSetIterator iterator() throws IOException {
-        return set.iterator();
-    }
-
-    @Override
-    public long sizeInBytes() {
-        return set.getBits().length * RamUsage.NUM_BYTES_LONG + RamUsage.NUM_BYTES_ARRAY_HEADER + RamUsage.NUM_BYTES_INT /* wlen */;
+    public int advance(int target) throws IOException {
+        if (target >= maxDoc) {
+            return doc = NO_MORE_DOCS;
+        }
+        doc = target;
+        while (!matchDoc(doc)) {
+            doc++;
+            if (doc >= maxDoc) {
+                return doc = NO_MORE_DOCS;
+            }
+        }
+        return doc;
     }
 }

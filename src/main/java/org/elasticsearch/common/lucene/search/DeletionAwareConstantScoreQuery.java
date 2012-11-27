@@ -17,9 +17,10 @@
  * under the License.
  */
 
-package org.apache.lucene.search;
+package org.elasticsearch.common.lucene.search;
 
-import org.elasticsearch.common.lucene.search.NotDeletedFilter;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.Filter;
 
 /**
  *

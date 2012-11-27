@@ -8,12 +8,13 @@ import com.vividsolutions.jts.operation.buffer.BufferParameters;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.elasticsearch.common.geo.GeoShapeConstants;
+import org.elasticsearch.common.geo.ShapeBuilder;
 import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
+import org.elasticsearch.common.lucene.search.XTermsFilter;
 import org.elasticsearch.common.lucene.spatial.SpatialStrategy;
 import org.elasticsearch.common.lucene.spatial.prefix.tree.Node;
 import org.elasticsearch.common.lucene.spatial.prefix.tree.SpatialPrefixTree;
-import org.elasticsearch.common.geo.ShapeBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
 
 import java.util.List;
@@ -30,8 +31,8 @@ public class TermQueryPrefixTreeStrategy extends SpatialStrategy {
     /**
      * Creates a new TermQueryPrefixTreeStrategy
      *
-     * @param fieldName Name of the field the Strategy applies to
-     * @param prefixTree SpatialPrefixTree that will be used to represent Shapes
+     * @param fieldName        Name of the field the Strategy applies to
+     * @param prefixTree       SpatialPrefixTree that will be used to represent Shapes
      * @param distanceErrorPct Distance Error Percentage used to guide the
      *                         SpatialPrefixTree on how precise it should be
      */
@@ -84,7 +85,7 @@ public class TermQueryPrefixTreeStrategy extends SpatialStrategy {
 
         XBooleanFilter filter = new XBooleanFilter();
         for (Node node : nodes) {
-            filter.addNot(new TermFilter(getFieldName().createIndexNameTerm(node.getTokenString())));
+            filter.add(new TermFilter(getFieldName().createIndexNameTerm(node.getTokenString())), BooleanClause.Occur.MUST_NOT);
         }
 
         return filter;
@@ -122,8 +123,8 @@ public class TermQueryPrefixTreeStrategy extends SpatialStrategy {
         Filter bufferedFilter = createIntersectsFilter(bufferedShape);
 
         XBooleanFilter filter = new XBooleanFilter();
-        filter.addShould(intersectsFilter);
-        filter.addNot(bufferedFilter);
+        filter.add(intersectsFilter, BooleanClause.Occur.SHOULD);
+        filter.add(bufferedFilter, BooleanClause.Occur.MUST_NOT);
 
         return filter;
     }

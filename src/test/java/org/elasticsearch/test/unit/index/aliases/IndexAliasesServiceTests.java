@@ -104,7 +104,7 @@ public class IndexAliasesServiceTests {
         assertThat(indexAliasesService.hasAlias("turtles"), equalTo(false));
 
         assertThat(indexAliasesService.aliasFilter("cats").toString(), equalTo("cache(animal:cat)"));
-        assertThat(indexAliasesService.aliasFilter("cats", "dogs").toString(), equalTo("BooleanFilter( cache(animal:cat) cache(animal:dog))"));
+        assertThat(indexAliasesService.aliasFilter("cats", "dogs").toString(), equalTo("BooleanFilter(cache(animal:cat) cache(animal:dog))"));
 
         // Non-filtering alias should turn off all filters because filters are ORed
         assertThat(indexAliasesService.aliasFilter("all"), nullValue());
@@ -113,7 +113,7 @@ public class IndexAliasesServiceTests {
 
         indexAliasesService.add("cats", filter(termFilter("animal", "feline")));
         indexAliasesService.add("dogs", filter(termFilter("animal", "canine")));
-        assertThat(indexAliasesService.aliasFilter("dogs", "cats").toString(), equalTo("BooleanFilter( cache(animal:canine) cache(animal:feline))"));
+        assertThat(indexAliasesService.aliasFilter("dogs", "cats").toString(), equalTo("BooleanFilter(cache(animal:canine) cache(animal:feline))"));
     }
 
     @Test
@@ -124,12 +124,12 @@ public class IndexAliasesServiceTests {
 
         assertThat(indexAliasesService.aliasFilter(), nullValue());
         assertThat(indexAliasesService.aliasFilter("dogs").toString(), equalTo("cache(animal:dog)"));
-        assertThat(indexAliasesService.aliasFilter("dogs", "cats").toString(), equalTo("BooleanFilter( cache(animal:dog) cache(animal:cat))"));
+        assertThat(indexAliasesService.aliasFilter("dogs", "cats").toString(), equalTo("BooleanFilter(cache(animal:dog) cache(animal:cat))"));
 
         indexAliasesService.add("cats", filter(termFilter("animal", "feline")));
         indexAliasesService.add("dogs", filter(termFilter("animal", "canine")));
 
-        assertThat(indexAliasesService.aliasFilter("dogs", "cats").toString(), equalTo("BooleanFilter( cache(animal:canine) cache(animal:feline))"));
+        assertThat(indexAliasesService.aliasFilter("dogs", "cats").toString(), equalTo("BooleanFilter(cache(animal:canine) cache(animal:feline))"));
     }
 
     @Test(expectedExceptions = InvalidAliasNameException.class)

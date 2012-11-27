@@ -215,7 +215,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         }
         XBooleanFilter filter = new XBooleanFilter();
         for (String queryType : queryTypes) {
-            filter.addShould(new PrefixFilter(new Term(UidFieldMapper.NAME, Uid.createUid(queryType, value))));
+            filter.add(new PrefixFilter(new Term(UidFieldMapper.NAME, Uid.createUid(queryType, value))), BooleanClause.Occur.SHOULD);
         }
         return filter;
     }

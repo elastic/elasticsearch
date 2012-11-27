@@ -31,9 +31,10 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.lucene.docset.GetDocSet;
+import org.elasticsearch.common.lucene.docset.MatchDocIdSet;
 import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
 import org.elasticsearch.search.internal.ScopePhase;
@@ -114,7 +115,7 @@ public abstract class HasParentFilter extends Filter implements ScopePhase.Colle
 
             IdReaderTypeCache idReaderTypeCache = context.idCache().reader(readerContext.reader()).type(parentType);
             if (idReaderTypeCache != null) {
-                return new ChildrenDocSet(readerContext.reader(), parents, idReaderTypeCache, acceptDocs);
+                return new ChildrenDocSet(readerContext.reader(), acceptDocs, parents, idReaderTypeCache);
             } else {
                 return null;
             }
@@ -127,23 +128,22 @@ public abstract class HasParentFilter extends Filter implements ScopePhase.Colle
             parents = null;
         }
 
-        static class ChildrenDocSet extends GetDocSet {
+        static class ChildrenDocSet extends MatchDocIdSet {
 
             final IndexReader reader;
             final THashSet<HashedBytesArray> parents;
             final IdReaderTypeCache idReaderTypeCache;
-            final Bits acceptDocs;
 
-            ChildrenDocSet(IndexReader reader, THashSet<HashedBytesArray> parents, IdReaderTypeCache idReaderTypeCache, Bits acceptDocs) {
-                super(reader.maxDoc());
+            ChildrenDocSet(IndexReader reader, @Nullable Bits acceptDocs, THashSet<HashedBytesArray> parents, IdReaderTypeCache idReaderTypeCache) {
+                super(reader.maxDoc(), acceptDocs);
                 this.reader = reader;
                 this.parents = parents;
                 this.idReaderTypeCache = idReaderTypeCache;
-                this.acceptDocs = acceptDocs;
             }
 
-            public boolean get(int doc) {
-                return (acceptDocs == null || acceptDocs.get(doc)) && parents.contains(idReaderTypeCache.parentIdByDoc(doc));
+            @Override
+            protected boolean matchDoc(int doc) {
+                return parents.contains(idReaderTypeCache.parentIdByDoc(doc));
             }
 
         }
@@ -199,25 +199,23 @@ public abstract class HasParentFilter extends Filter implements ScopePhase.Colle
                 throw new ElasticSearchIllegalStateException("has_parent filter/query hasn't executed properly");
             }
 
-            return new ChildrenDocSet(readerContext.reader(), parentDocs, context, parentType, acceptDocs);
+            return new ChildrenDocSet(readerContext.reader(), acceptDocs, parentDocs, context, parentType);
         }
 
         public void clear() {
             parentDocs = null;
         }
 
-        static class ChildrenDocSet extends GetDocSet {
+        static class ChildrenDocSet extends MatchDocIdSet {
 
             final IdReaderTypeCache currentTypeCache;
             final AtomicReader currentReader;
             final Tuple<AtomicReader, IdReaderTypeCache>[] readersToTypeCache;
             final Map<Object, FixedBitSet> parentDocs;
-            final Bits acceptDocs;
 
-            ChildrenDocSet(AtomicReader currentReader, Map<Object, FixedBitSet> parentDocs,
-                           SearchContext context, String parentType, Bits acceptDocs) {
-                super(currentReader.maxDoc());
-                this.acceptDocs = acceptDocs;
+            ChildrenDocSet(AtomicReader currentReader, @Nullable Bits acceptDocs, Map<Object, FixedBitSet> parentDocs,
+                           SearchContext context, String parentType) {
+                super(currentReader.maxDoc(), acceptDocs);
                 this.currentTypeCache = context.idCache().reader(currentReader).type(parentType);
                 this.currentReader = currentReader;
                 this.parentDocs = parentDocs;
@@ -228,8 +226,9 @@ public abstract class HasParentFilter extends Filter implements ScopePhase.Colle
                 }
             }
 
-            public boolean get(int doc) {
-                if ((acceptDocs != null && !acceptDocs.get(doc)) || doc == -1) {
+            @Override
+            protected boolean matchDoc(int doc) {
+                if (doc == -1) {
                     return false;
                 }
 

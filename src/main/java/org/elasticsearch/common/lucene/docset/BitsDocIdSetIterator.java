@@ -19,45 +19,44 @@
 
 package org.elasticsearch.common.lucene.docset;
 
-import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.FilteredDocIdSetIterator;
 import org.apache.lucene.util.Bits;
 
-import java.io.IOException;
-
 /**
- *
+ * A {@link Bits} based iterator.
  */
-public abstract class DocSet extends DocIdSet implements Bits {
+public class BitsDocIdSetIterator extends MatchDocIdSetIterator {
 
-    public static final DocSet EMPTY_DOC_SET = new DocSet() {
-        @Override
-        public boolean get(int doc) {
-            return false;
+    private final Bits bits;
+
+    public BitsDocIdSetIterator(Bits bits) {
+        super(bits.length());
+        this.bits = bits;
+    }
+
+    public BitsDocIdSetIterator(int maxDoc, Bits bits) {
+        super(maxDoc);
+        this.bits = bits;
+    }
+
+    @Override
+    protected boolean matchDoc(int doc) {
+        return bits.get(doc);
+    }
+
+    public static class FilteredIterator extends FilteredDocIdSetIterator {
+
+        private final Bits bits;
+
+        FilteredIterator(DocIdSetIterator innerIter, Bits bits) {
+            super(innerIter);
+            this.bits = bits;
         }
 
         @Override
-        public DocIdSetIterator iterator() throws IOException {
-            return DocIdSet.EMPTY_DOCIDSET.iterator();
+        protected boolean match(int doc) {
+            return bits.get(doc);
         }
-
-        @Override
-        public boolean isCacheable() {
-            return true;
-        }
-
-        @Override
-        public long sizeInBytes() {
-            return 0;
-        }
-
-        @Override
-        public int length() {
-            return 0;
-        }
-    };
-
-    public abstract boolean get(int doc);
-
-    public abstract long sizeInBytes();
+    }
 }

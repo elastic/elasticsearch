@@ -26,7 +26,6 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.common.lucene.docset.FixedBitDocSet;
 import org.elasticsearch.common.lucene.search.NoopCollector;
 
 import java.io.IOException;
@@ -173,10 +172,6 @@ public class BlockJoinQuery extends Query {
             if (parents == null) {
                 // No matches
                 return null;
-            }
-            // CHANGE:
-            if (parents instanceof FixedBitDocSet) {
-                parents = ((FixedBitDocSet) parents).set();
             }
             if (!(parents instanceof FixedBitSet)) {
                 throw new IllegalStateException("parentFilter must return OpenBitSet; got " + parents);
@@ -336,7 +331,7 @@ public class BlockJoinQuery extends Query {
                 // Parent & child docs are supposed to be orthogonal:
                 assert nextChildDoc != parentDoc;
 
-                switch(scoreMode) {
+                switch (scoreMode) {
                     case Avg:
                         parentScore = totalScore / childDocUpto;
                         parentFreq = totalFreq / childDocUpto;

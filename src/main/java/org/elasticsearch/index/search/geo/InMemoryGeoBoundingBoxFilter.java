@@ -23,7 +23,8 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.common.lucene.docset.GetDocSet;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.lucene.docset.MatchDocIdSet;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldData;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldDataType;
@@ -68,24 +69,24 @@ public class InMemoryGeoBoundingBoxFilter extends Filter {
 
         //checks to see if bounding box crosses 180 degrees
         if (topLeft.lon > bottomRight.lon) {
-            return new Meridian180GeoBoundingBoxDocSet(context.reader().maxDoc(), fieldData, topLeft, bottomRight);
+            return new Meridian180GeoBoundingBoxDocSet(context.reader().maxDoc(), acceptedDocs, fieldData, topLeft, bottomRight);
         } else {
-            return new GeoBoundingBoxDocSet(context.reader().maxDoc(), fieldData, topLeft, bottomRight);
+            return new GeoBoundingBoxDocSet(context.reader().maxDoc(), acceptedDocs, fieldData, topLeft, bottomRight);
         }
     }
 
     @Override
     public String toString() {
-        return "GeoBoundingBoxFilter(" + fieldName + ", "  + topLeft + ", " + bottomRight + ")";
+        return "GeoBoundingBoxFilter(" + fieldName + ", " + topLeft + ", " + bottomRight + ")";
     }
 
-    public static class Meridian180GeoBoundingBoxDocSet extends GetDocSet {
+    public static class Meridian180GeoBoundingBoxDocSet extends MatchDocIdSet {
         private final GeoPointFieldData fieldData;
         private final Point topLeft;
         private final Point bottomRight;
 
-        public Meridian180GeoBoundingBoxDocSet(int maxDoc, GeoPointFieldData fieldData, Point topLeft, Point bottomRight) {
-            super(maxDoc);
+        public Meridian180GeoBoundingBoxDocSet(int maxDoc, @Nullable Bits acceptDocs, GeoPointFieldData fieldData, Point topLeft, Point bottomRight) {
+            super(maxDoc, acceptDocs);
             this.fieldData = fieldData;
             this.topLeft = topLeft;
             this.bottomRight = bottomRight;
@@ -93,14 +94,11 @@ public class InMemoryGeoBoundingBoxFilter extends Filter {
 
         @Override
         public boolean isCacheable() {
-            // not cacheable for several reasons:
-            // 1. It is only relevant when _cache is set to true, and then, we really want to create in mem bitset
-            // 2. Its already fast without in mem bitset, since it works with field data
-            return false;
+            return true;
         }
 
         @Override
-        public boolean get(int doc) {
+        protected boolean matchDoc(int doc) {
             if (!fieldData.hasValue(doc)) {
                 return false;
             }
@@ -129,13 +127,13 @@ public class InMemoryGeoBoundingBoxFilter extends Filter {
         }
     }
 
-    public static class GeoBoundingBoxDocSet extends GetDocSet {
+    public static class GeoBoundingBoxDocSet extends MatchDocIdSet {
         private final GeoPointFieldData fieldData;
         private final Point topLeft;
         private final Point bottomRight;
 
-        public GeoBoundingBoxDocSet(int maxDoc, GeoPointFieldData fieldData, Point topLeft, Point bottomRight) {
-            super(maxDoc);
+        public GeoBoundingBoxDocSet(int maxDoc, @Nullable Bits acceptDocs, GeoPointFieldData fieldData, Point topLeft, Point bottomRight) {
+            super(maxDoc, acceptDocs);
             this.fieldData = fieldData;
             this.topLeft = topLeft;
             this.bottomRight = bottomRight;
@@ -143,14 +141,11 @@ public class InMemoryGeoBoundingBoxFilter extends Filter {
 
         @Override
         public boolean isCacheable() {
-            // not cacheable for several reasons:
-            // 1. It is only relevant when _cache is set to true, and then, we really want to create in mem bitset
-            // 2. Its already fast without in mem bitset, since it works with field data
-            return false;
+            return true;
         }
 
         @Override
-        public boolean get(int doc) {
+        protected boolean matchDoc(int doc) {
             if (!fieldData.hasValue(doc)) {
                 return false;
             }

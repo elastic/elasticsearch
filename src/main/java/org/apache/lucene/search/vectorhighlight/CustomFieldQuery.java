@@ -21,11 +21,13 @@ package org.apache.lucene.search.vectorhighlight;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.FilterClause;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
+import org.elasticsearch.common.lucene.search.XTermsFilter;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 
@@ -120,14 +122,9 @@ public class CustomFieldQuery extends FieldQuery {
             }
         } else if (sourceFilter instanceof XBooleanFilter) {
             XBooleanFilter booleanFilter = (XBooleanFilter) sourceFilter;
-            if (booleanFilter.getMustFilters() != null) {
-                for (Filter filter : booleanFilter.getMustFilters()) {
-                    flatten(filter, reader, flatQueries);
-                }
-            }
-            if (booleanFilter.getShouldFilters() != null) {
-                for (Filter filter : booleanFilter.getShouldFilters()) {
-                    flatten(filter, reader, flatQueries);
+            for (FilterClause clause : booleanFilter.clauses()) {
+                if (clause.getOccur() == BooleanClause.Occur.MUST || clause.getOccur() == BooleanClause.Occur.SHOULD) {
+                    flatten(clause.getFilter(), reader, flatQueries);
                 }
             }
         }

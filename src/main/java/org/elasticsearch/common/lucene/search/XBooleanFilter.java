@@ -1,135 +1,110 @@
-/*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
 package org.elasticsearch.common.lucene.search;
 
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.queries.FilterClause;
-import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.common.lucene.docset.DocSet;
-import org.elasticsearch.common.lucene.docset.DocSets;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 /**
- *
+ * Similar to {@link org.apache.lucene.queries.BooleanFilter}.
+ * <p/>
+ * Our own variance mainly differs by the fact that we pass the acceptDocs down to the filters
+ * and don't filter based on them at the end. Our logic is a bit different, and we filter based on that
+ * at the top level filter chain.
  */
-// LUCENE MONITOR: added to take into account DocSet that wraps OpenBitSet when optimizing or/and/...
-public class XBooleanFilter extends Filter {
-    ArrayList<Filter> shouldFilters = null;
-    ArrayList<Filter> notFilters = null;
-    ArrayList<Filter> mustFilters = null;
+public class XBooleanFilter extends Filter implements Iterable<FilterClause> {
 
-    private DocIdSet getDISI(ArrayList<Filter> filters, int index, AtomicReaderContext context, Bits acceptedDocs)
-            throws IOException {
-        DocIdSet docIdSet = filters.get(index).getDocIdSet(context, acceptedDocs);
-        if (docIdSet == DocIdSet.EMPTY_DOCIDSET || docIdSet == DocSet.EMPTY_DOC_SET) {
-            return null;
-        }
-        return docIdSet;
-    }
-
-    public List<Filter> getShouldFilters() {
-        return this.shouldFilters;
-    }
-
-    public List<Filter> getMustFilters() {
-        return this.mustFilters;
-    }
-
-    public List<Filter> getNotFilters() {
-        return this.notFilters;
-    }
+    final List<FilterClause> clauses = new ArrayList<FilterClause>();
 
     /**
      * Returns the a DocIdSetIterator representing the Boolean composition
      * of the filters that have been added.
      */
     @Override
-    public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptedDocs) throws IOException {
+    public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
         FixedBitSet res = null;
+        final AtomicReader reader = context.reader();
 
-        if (mustFilters == null && notFilters == null && shouldFilters != null && shouldFilters.size() == 1) {
-            // LUCENE 4 UPGRADE: For leave acceptedDocs null, until we figure out how to deal with deleted docs...
-            return shouldFilters.get(0).getDocIdSet(context, null);
-        }
-
-        if (shouldFilters == null && notFilters == null && mustFilters != null && mustFilters.size() == 1) {
-            // LUCENE 4 UPGRADE: For leave acceptedDocs null, until we figure out how to deal with deleted docs...
-            return mustFilters.get(0).getDocIdSet(context, null);
-        }
-
-        if (shouldFilters != null) {
-            for (int i = 0; i < shouldFilters.size(); i++) {
-                // LUCENE 4 UPGRADE: For leave acceptedDocs null, until we figure out how to deal with deleted docs...
-                final DocIdSet disi = getDISI(shouldFilters, i, context, null);
+        boolean hasShouldClauses = false;
+        for (final FilterClause fc : clauses) {
+            if (fc.getOccur() == Occur.SHOULD) {
+                hasShouldClauses = true;
+                final DocIdSetIterator disi = getDISI(fc.getFilter(), context, acceptDocs);
                 if (disi == null) continue;
                 if (res == null) {
-                    res = new FixedBitSet(context.reader().maxDoc());
+                    res = new FixedBitSet(reader.maxDoc());
                 }
-                DocSets.or(res, disi);
-            }
-
-            // if no should clauses match, return null (act as min_should_match set to 1)
-            if (res == null && !shouldFilters.isEmpty()) {
-                return null;
+                res.or(disi);
             }
         }
+        if (hasShouldClauses && res == null)
+            return null;
 
-
-        if (notFilters != null) {
-            for (int i = 0; i < notFilters.size(); i++) {
+        for (final FilterClause fc : clauses) {
+            if (fc.getOccur() == Occur.MUST_NOT) {
                 if (res == null) {
-                    res = new FixedBitSet(context.reader().maxDoc());
-                    res.set(0, context.reader().maxDoc()); // NOTE: may set bits on deleted docs
+                    assert !hasShouldClauses;
+                    res = new FixedBitSet(reader.maxDoc());
+                    res.set(0, reader.maxDoc()); // NOTE: may set bits on deleted docs
                 }
-                // LUCENE 4 UPGRADE: For leave acceptedDocs null, until we figure out how to deal with deleted docs...
-                final DocIdSet disi = getDISI(notFilters, i, context, null);
+                final DocIdSetIterator disi = getDISI(fc.getFilter(), context, acceptDocs);
                 if (disi != null) {
-                    DocSets.andNot(res, disi);
+                    res.andNot(disi);
                 }
             }
         }
 
-        if (mustFilters != null) {
-            for (int i = 0; i < mustFilters.size(); i++) {
-                // LUCENE 4 UPGRADE: For leave acceptedDocs null, until we figure out how to deal with deleted docs...
-                final DocIdSet disi = getDISI(mustFilters, i, context, null);
+        for (final FilterClause fc : clauses) {
+            if (fc.getOccur() == Occur.MUST) {
+                final DocIdSetIterator disi = getDISI(fc.getFilter(), context, acceptDocs);
                 if (disi == null) {
                     return null;
                 }
                 if (res == null) {
-                    res = new FixedBitSet(context.reader().maxDoc());
-                    DocSets.or(res, disi);
+                    res = new FixedBitSet(reader.maxDoc());
+                    res.or(disi);
                 } else {
-                    DocSets.and(res, disi);
+                    res.and(disi);
                 }
             }
         }
 
+        // don't wrap, based on our own strategy of doing the wrapping on the filtered query level
+        //return res != null ? BitsFilteredDocIdSet.wrap(res, acceptDocs) : DocIdSet.EMPTY_DOCIDSET;
         return res;
+    }
+
+    private static DocIdSetIterator getDISI(Filter filter, AtomicReaderContext context, Bits acceptDocs)
+            throws IOException {
+        final DocIdSet set = filter.getDocIdSet(context, acceptDocs);
+        return (set == null || set == DocIdSet.EMPTY_DOCIDSET) ? null : set.iterator();
     }
 
     /**
@@ -137,99 +112,62 @@ public class XBooleanFilter extends Filter {
      *
      * @param filterClause A FilterClause object containing a Filter and an Occur parameter
      */
-
     public void add(FilterClause filterClause) {
-        if (filterClause.getOccur().equals(BooleanClause.Occur.MUST)) {
-            if (mustFilters == null) {
-                mustFilters = new ArrayList<Filter>();
-            }
-            mustFilters.add(filterClause.getFilter());
-        }
-        if (filterClause.getOccur().equals(BooleanClause.Occur.SHOULD)) {
-            if (shouldFilters == null) {
-                shouldFilters = new ArrayList<Filter>();
-            }
-            shouldFilters.add(filterClause.getFilter());
-        }
-        if (filterClause.getOccur().equals(BooleanClause.Occur.MUST_NOT)) {
-            if (notFilters == null) {
-                notFilters = new ArrayList<Filter>();
-            }
-            notFilters.add(filterClause.getFilter());
-        }
+        clauses.add(filterClause);
     }
 
-    public void addMust(Filter filter) {
-        if (mustFilters == null) {
-            mustFilters = new ArrayList<Filter>();
-        }
-        mustFilters.add(filter);
+    public final void add(Filter filter, Occur occur) {
+        add(new FilterClause(filter, occur));
     }
 
-    public void addShould(Filter filter) {
-        if (shouldFilters == null) {
-            shouldFilters = new ArrayList<Filter>();
-        }
-        shouldFilters.add(filter);
+    /**
+     * Returns the list of clauses
+     */
+    public List<FilterClause> clauses() {
+        return clauses;
     }
 
-    public void addNot(Filter filter) {
-        if (notFilters == null) {
-            notFilters = new ArrayList<Filter>();
-        }
-        notFilters.add(filter);
-    }
-
-
-    private boolean equalFilters(ArrayList<Filter> filters1, ArrayList<Filter> filters2) {
-        return (filters1 == filters2) ||
-                ((filters1 != null) && filters1.equals(filters2));
+    /**
+     * Returns an iterator on the clauses in this query. It implements the {@link Iterable} interface to
+     * make it possible to do:
+     * <pre class="prettyprint">for (FilterClause clause : booleanFilter) {}</pre>
+     */
+    public final Iterator<FilterClause> iterator() {
+        return clauses().iterator();
     }
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj)
+        if (this == obj) {
             return true;
+        }
 
-        if ((obj == null) || (obj.getClass() != this.getClass()))
+        if ((obj == null) || (obj.getClass() != this.getClass())) {
             return false;
+        }
 
-        XBooleanFilter other = (XBooleanFilter) obj;
-        return equalFilters(notFilters, other.notFilters)
-                && equalFilters(mustFilters, other.mustFilters)
-                && equalFilters(shouldFilters, other.shouldFilters);
+        final XBooleanFilter other = (XBooleanFilter) obj;
+        return clauses.equals(other.clauses);
     }
 
     @Override
     public int hashCode() {
-        int hash = 7;
-        hash = 31 * hash + (null == mustFilters ? 0 : mustFilters.hashCode());
-        hash = 31 * hash + (null == notFilters ? 0 : notFilters.hashCode());
-        hash = 31 * hash + (null == shouldFilters ? 0 : shouldFilters.hashCode());
-        return hash;
+        return 657153718 ^ clauses.hashCode();
     }
 
     /**
-     * Prints a user-readable version of this query.
+     * Prints a user-readable version of this Filter.
      */
     @Override
     public String toString() {
-        StringBuilder buffer = new StringBuilder();
-        buffer.append("BooleanFilter(");
-        appendFilters(shouldFilters, "", buffer);
-        appendFilters(mustFilters, "+", buffer);
-        appendFilters(notFilters, "-", buffer);
-        buffer.append(")");
-        return buffer.toString();
-    }
-
-    private void appendFilters(ArrayList<Filter> filters, String occurString, StringBuilder buffer) {
-        if (filters != null) {
-            for (Filter filter : filters) {
+        final StringBuilder buffer = new StringBuilder("BooleanFilter(");
+        final int minLen = buffer.length();
+        for (final FilterClause c : clauses) {
+            if (buffer.length() > minLen) {
                 buffer.append(' ');
-                buffer.append(occurString);
-                buffer.append(filter.toString());
             }
+            buffer.append(c);
         }
+        return buffer.append(')').toString();
     }
 }

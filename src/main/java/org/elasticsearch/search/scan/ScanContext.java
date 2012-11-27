@@ -5,7 +5,7 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.common.lucene.docset.AllDocSet;
+import org.elasticsearch.common.lucene.docset.AllDocIdSet;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -138,7 +138,7 @@ public class ScanContext {
                 scanCollector.incCounter(readerState.count);
                 return null;
             }
-            return new AllDocSet(context.reader().maxDoc());
+            return new AllDocIdSet(context.reader().maxDoc());
         }
     }
 

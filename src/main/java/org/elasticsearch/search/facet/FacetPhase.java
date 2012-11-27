@@ -25,6 +25,7 @@ import com.google.common.collect.Maps;
 import org.apache.lucene.search.*;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.search.DeletionAwareConstantScoreQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.search.nested.BlockJoinQuery;
 import org.elasticsearch.search.SearchParseElement;

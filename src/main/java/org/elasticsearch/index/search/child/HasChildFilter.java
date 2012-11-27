@@ -30,8 +30,9 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.HashedBytesArray;
-import org.elasticsearch.common.lucene.docset.GetDocSet;
+import org.elasticsearch.common.lucene.docset.MatchDocIdSet;
 import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
 import org.elasticsearch.search.internal.ScopePhase;
@@ -149,7 +150,7 @@ public abstract class HasChildFilter extends Filter implements ScopePhase.Collec
 
             IdReaderTypeCache idReaderTypeCache = searchContext.idCache().reader(context.reader()).type(parentType);
             if (idReaderTypeCache != null) {
-                return new ParentDocSet(context.reader(), collectedUids, idReaderTypeCache, acceptDocs);
+                return new ParentDocSet(context.reader(), acceptDocs, collectedUids, idReaderTypeCache);
             } else {
                 return null;
             }
@@ -162,23 +163,22 @@ public abstract class HasChildFilter extends Filter implements ScopePhase.Collec
             collectedUids = null;
         }
 
-        static class ParentDocSet extends GetDocSet {
+        static class ParentDocSet extends MatchDocIdSet {
 
             final IndexReader reader;
             final THashSet<HashedBytesArray> parents;
             final IdReaderTypeCache typeCache;
-            final Bits acceptDocs;
 
-            ParentDocSet(IndexReader reader, THashSet<HashedBytesArray> parents, IdReaderTypeCache typeCache, Bits acceptDocs) {
-                super(reader.maxDoc());
+            ParentDocSet(IndexReader reader, @Nullable Bits acceptDocs, THashSet<HashedBytesArray> parents, IdReaderTypeCache typeCache) {
+                super(reader.maxDoc(), acceptDocs);
                 this.reader = reader;
                 this.parents = parents;
                 this.typeCache = typeCache;
-                this.acceptDocs = acceptDocs;
             }
 
-            public boolean get(int doc) {
-                return (acceptDocs == null || acceptDocs.get(doc)) && parents.contains(typeCache.idByDoc(doc));
+            @Override
+            protected boolean matchDoc(int doc) {
+                return parents.contains(typeCache.idByDoc(doc));
             }
         }
 

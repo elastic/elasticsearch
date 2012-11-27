@@ -25,8 +25,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.ToStringUtils;
-import org.elasticsearch.common.lucene.docset.DocSet;
-import org.elasticsearch.common.lucene.docset.DocSets;
+import org.elasticsearch.common.lucene.docset.DocIdSets;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -114,11 +113,11 @@ public class FiltersFunctionScoreQuery extends Query {
     class CustomBoostFactorWeight extends Weight {
 
         final Weight subQueryWeight;
-        final DocSet[] docSets;
+        final Bits[] docSets;
 
         public CustomBoostFactorWeight(Weight subQueryWeight, int filterFunctionLength) throws IOException {
             this.subQueryWeight = subQueryWeight;
-            this.docSets = new DocSet[filterFunctionLength];
+            this.docSets = new Bits[filterFunctionLength];
         }
 
         public Query getQuery() {
@@ -146,7 +145,7 @@ public class FiltersFunctionScoreQuery extends Query {
             for (int i = 0; i < filterFunctions.length; i++) {
                 FilterFunction filterFunction = filterFunctions[i];
                 filterFunction.function.setNextReader(context);
-                docSets[i] = DocSets.convert(context.reader(), filterFunction.filter.getDocIdSet(context, acceptDocs));
+                docSets[i] = DocIdSets.toSafeBits(context.reader(), filterFunction.filter.getDocIdSet(context, acceptDocs));
             }
             return new CustomBoostFactorScorer(this, subQueryScorer, scoreMode, filterFunctions, maxBoost, docSets);
         }
@@ -160,7 +159,7 @@ public class FiltersFunctionScoreQuery extends Query {
 
             if (scoreMode == ScoreMode.First) {
                 for (FilterFunction filterFunction : filterFunctions) {
-                    DocSet docSet = DocSets.convert(context.reader(), filterFunction.filter.getDocIdSet(context, context.reader().getLiveDocs()));
+                    Bits docSet = DocIdSets.toSafeBits(context.reader(), filterFunction.filter.getDocIdSet(context, context.reader().getLiveDocs()));
                     if (docSet.get(doc)) {
                         filterFunction.function.setNextReader(context);
                         Explanation functionExplanation = filterFunction.function.explainFactor(doc);
@@ -186,7 +185,7 @@ public class FiltersFunctionScoreQuery extends Query {
                 float min = Float.POSITIVE_INFINITY;
                 ArrayList<Explanation> filtersExplanations = new ArrayList<Explanation>();
                 for (FilterFunction filterFunction : filterFunctions) {
-                    DocSet docSet = DocSets.convert(context.reader(), filterFunction.filter.getDocIdSet(context, context.reader().getLiveDocs()));
+                    Bits docSet = DocIdSets.toSafeBits(context.reader(), filterFunction.filter.getDocIdSet(context, context.reader().getLiveDocs()));
                     if (docSet.get(doc)) {
                         filterFunction.function.setNextReader(context);
                         Explanation functionExplanation = filterFunction.function.explainFactor(doc);
@@ -252,10 +251,10 @@ public class FiltersFunctionScoreQuery extends Query {
         private final FilterFunction[] filterFunctions;
         private final ScoreMode scoreMode;
         private final float maxBoost;
-        private final DocSet[] docSets;
+        private final Bits[] docSets;
 
         private CustomBoostFactorScorer(CustomBoostFactorWeight w, Scorer scorer, ScoreMode scoreMode,
-                                        FilterFunction[] filterFunctions, float maxBoost, DocSet[] docSets) throws IOException {
+                                        FilterFunction[] filterFunctions, float maxBoost, Bits[] docSets) throws IOException {
             super(w);
             this.subQueryBoost = w.getQuery().getBoost();
             this.scorer = scorer;

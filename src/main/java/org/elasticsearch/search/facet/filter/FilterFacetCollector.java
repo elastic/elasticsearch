@@ -20,9 +20,13 @@
 package org.elasticsearch.search.facet.filter;
 
 import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.search.*;
-import org.elasticsearch.common.lucene.docset.DocSet;
-import org.elasticsearch.common.lucene.docset.DocSets;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FilteredQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TotalHitCountCollector;
+import org.apache.lucene.util.Bits;
+import org.elasticsearch.common.lucene.docset.DocIdSets;
+import org.elasticsearch.common.lucene.search.DeletionAwareConstantScoreQuery;
 import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
@@ -38,7 +42,7 @@ public class FilterFacetCollector extends AbstractFacetCollector implements Opti
 
     private final Filter filter;
 
-    private DocSet docSet;
+    private Bits bits;
 
     private int count = 0;
 
@@ -64,12 +68,12 @@ public class FilterFacetCollector extends AbstractFacetCollector implements Opti
 
     @Override
     protected void doSetNextReader(AtomicReaderContext context) throws IOException {
-        docSet = DocSets.convert(context.reader(), filter.getDocIdSet(context, context.reader().getLiveDocs()));
+        bits = DocIdSets.toSafeBits(context.reader(), filter.getDocIdSet(context, context.reader().getLiveDocs()));
     }
 
     @Override
     protected void doCollect(int doc) throws IOException {
-        if (docSet.get(doc)) {
+        if (bits.get(doc)) {
             count++;
         }
     }

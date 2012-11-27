@@ -20,10 +20,10 @@
 package org.elasticsearch.common.lucene.search;
 
 import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.common.lucene.docset.GetDocSet;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.lucene.docset.MatchDocIdSet;
 
 import java.io.IOException;
 
@@ -45,20 +45,20 @@ public class LimitFilter extends NoCacheFilter {
         if (counter > limit) {
             return null;
         }
-        return new LimitDocSet(context.reader().maxDoc(), limit);
+        return new LimitDocIdSet(context.reader().maxDoc(), acceptDocs, limit);
     }
 
-    public class LimitDocSet extends GetDocSet {
+    public class LimitDocIdSet extends MatchDocIdSet {
 
         private final int limit;
 
-        public LimitDocSet(int maxDoc, int limit) {
-            super(maxDoc);
+        public LimitDocIdSet(int maxDoc, @Nullable Bits acceptDocs, int limit) {
+            super(maxDoc, acceptDocs);
             this.limit = limit;
         }
 
         @Override
-        public boolean get(int doc) {
+        protected boolean matchDoc(int doc) {
             if (++counter > limit) {
                 return false;
             }

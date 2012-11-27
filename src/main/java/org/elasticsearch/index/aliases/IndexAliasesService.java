@@ -104,11 +104,11 @@ public class IndexAliasesService extends AbstractIndexComponent implements Itera
                     return null;
                 }
             }
-            if (combined.getShouldFilters().size() == 0) {
+            if (combined.clauses().size() == 0) {
                 return null;
             }
-            if (combined.getShouldFilters().size() == 1) {
-                return combined.getShouldFilters().get(0);
+            if (combined.clauses().size() == 1) {
+                return combined.clauses().get(0).getFilter();
             }
             return combined;
         }

@@ -21,47 +21,95 @@ package org.elasticsearch.common.lucene.docset;
 
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.util.Bits;
 
 import java.io.IOException;
 
 /**
- *
+ * A {@link DocIdSet} that matches the "inverse" of the provided doc id set.
  */
 public class NotDocIdSet extends DocIdSet {
 
     private final DocIdSet set;
+    private final int maxDoc;
 
-    private final int max;
-
-    public NotDocIdSet(DocIdSet set, int max) {
-        this.max = max;
+    public NotDocIdSet(DocIdSet set, int maxDoc) {
+        this.maxDoc = maxDoc;
         this.set = set;
     }
 
     @Override
     public boolean isCacheable() {
-        // not cacheable, the reason is that by default, when constructing the filter, it is not cacheable,
-        // so if someone wants it to be cacheable, we might as well construct a cached version of the result
-        return false;
-//        return set.isCacheable();
+        return set.isCacheable();
+    }
+
+    @Override
+    public Bits bits() throws IOException {
+        Bits bits = set.bits();
+        if (bits == null) {
+            return null;
+        }
+        return new NotBits(bits);
     }
 
     @Override
     public DocIdSetIterator iterator() throws IOException {
         DocIdSetIterator it = set.iterator();
         if (it == null) {
-            return new AllDocSet.AllDocIdSetIterator(max);
+            return new AllDocIdSet.Iterator(maxDoc);
         }
-        return new NotDocIdSetIterator(max, it);
+        // TODO: can we optimize for the FixedBitSet case?
+        // if we have bits, its much faster to just check on the flipped end potentially
+        // really depends on the nature of the Bits, specifically with FixedBitSet, where
+        // most of the docs are set?
+        Bits bits = set.bits();
+        if (bits != null) {
+            return new BitsBasedIterator(bits);
+        }
+        return new IteratorBasedIterator(maxDoc, it);
     }
 
-    public static class NotDocIdSetIterator extends DocIdSetIterator {
+    public static class NotBits implements Bits {
+
+        private final Bits bits;
+
+        public NotBits(Bits bits) {
+            this.bits = bits;
+        }
+
+        @Override
+        public boolean get(int index) {
+            return !bits.get(index);
+        }
+
+        @Override
+        public int length() {
+            return bits.length();
+        }
+    }
+
+    public static class BitsBasedIterator extends MatchDocIdSetIterator {
+
+        private final Bits bits;
+
+        public BitsBasedIterator(Bits bits) {
+            super(bits.length());
+            this.bits = bits;
+        }
+
+        @Override
+        protected boolean matchDoc(int doc) {
+            return !bits.get(doc);
+        }
+    }
+
+    public static class IteratorBasedIterator extends DocIdSetIterator {
         private final int max;
         private DocIdSetIterator it1;
-        int lastReturn = -1;
+        private int lastReturn = -1;
         private int innerDocid = -1;
 
-        NotDocIdSetIterator(int max, DocIdSetIterator it) throws IOException {
+        IteratorBasedIterator(int max, DocIdSetIterator it) throws IOException {
             this.max = max;
             this.it1 = it;
             if ((innerDocid = it1.nextDoc()) == DocIdSetIterator.NO_MORE_DOCS) it1 = null;

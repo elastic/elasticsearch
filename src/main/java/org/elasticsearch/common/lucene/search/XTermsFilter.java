@@ -17,10 +17,13 @@
  * under the License.
  */
 
-package org.apache.lucene.search;
+package org.elasticsearch.common.lucene.search;
 
 import org.apache.lucene.index.*;
 import org.apache.lucene.queries.TermsFilter;
+import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;

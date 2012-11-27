@@ -19,17 +19,16 @@
 
 package org.elasticsearch.index.search.geo;
 
-import com.google.common.collect.ImmutableList;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.common.lucene.docset.AndDocSet;
-import org.elasticsearch.common.lucene.docset.DocSet;
-import org.elasticsearch.common.lucene.docset.DocSets;
-import org.elasticsearch.common.lucene.docset.GetDocSet;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.lucene.docset.AndDocIdSet;
+import org.elasticsearch.common.lucene.docset.DocIdSets;
+import org.elasticsearch.common.lucene.docset.MatchDocIdSet;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldData;
@@ -121,20 +120,19 @@ public class GeoDistanceRangeFilter extends Filter {
 
     @Override
     public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptedDocs) throws IOException {
-        DocSet boundingBoxDocSet = null;
+        DocIdSet boundingBoxDocSet = null;
         if (boundingBoxFilter != null) {
-            DocIdSet docIdSet = boundingBoxFilter.getDocIdSet(context, acceptedDocs);
-            if (docIdSet == null) {
+            boundingBoxDocSet = boundingBoxFilter.getDocIdSet(context, acceptedDocs);
+            if (DocIdSets.isEmpty(boundingBoxDocSet)) {
                 return null;
             }
-            boundingBoxDocSet = DocSets.convert(context.reader(), docIdSet);
         }
         final GeoPointFieldData fieldData = (GeoPointFieldData) fieldDataCache.cache(GeoPointFieldDataType.TYPE, context.reader(), fieldName);
-        GeoDistanceRangeDocSet distDocSet = new GeoDistanceRangeDocSet(context.reader().maxDoc(), fieldData, fixedSourceDistance, distanceBoundingCheck, inclusiveLowerPoint, inclusiveUpperPoint);
+        GeoDistanceRangeDocSet distDocSet = new GeoDistanceRangeDocSet(context.reader().maxDoc(), acceptedDocs, fieldData, fixedSourceDistance, distanceBoundingCheck, inclusiveLowerPoint, inclusiveUpperPoint);
         if (boundingBoxDocSet == null) {
             return distDocSet;
         } else {
-            return new AndDocSet(ImmutableList.of(boundingBoxDocSet, distDocSet));
+            return new AndDocIdSet(new DocIdSet[]{boundingBoxDocSet, distDocSet});
         }
     }
 
@@ -177,7 +175,7 @@ public class GeoDistanceRangeFilter extends Filter {
         return result;
     }
 
-    public static class GeoDistanceRangeDocSet extends GetDocSet {
+    public static class GeoDistanceRangeDocSet extends MatchDocIdSet {
 
         private final GeoPointFieldData fieldData;
         private final GeoDistance.FixedSourceDistance fixedSourceDistance;
@@ -185,9 +183,9 @@ public class GeoDistanceRangeFilter extends Filter {
         private final double inclusiveLowerPoint; // in miles
         private final double inclusiveUpperPoint; // in miles
 
-        public GeoDistanceRangeDocSet(int maxDoc, GeoPointFieldData fieldData, GeoDistance.FixedSourceDistance fixedSourceDistance, GeoDistance.DistanceBoundingCheck distanceBoundingCheck,
+        public GeoDistanceRangeDocSet(int maxDoc, @Nullable Bits acceptDocs, GeoPointFieldData fieldData, GeoDistance.FixedSourceDistance fixedSourceDistance, GeoDistance.DistanceBoundingCheck distanceBoundingCheck,
                                       double inclusiveLowerPoint, double inclusiveUpperPoint) {
-            super(maxDoc);
+            super(maxDoc, acceptDocs);
             this.fieldData = fieldData;
             this.fixedSourceDistance = fixedSourceDistance;
             this.distanceBoundingCheck = distanceBoundingCheck;
@@ -197,14 +195,11 @@ public class GeoDistanceRangeFilter extends Filter {
 
         @Override
         public boolean isCacheable() {
-            // not cacheable for several reasons:
-            // 1. It is only relevant when _cache is set to true, and then, we really want to create in mem bitset
-            // 2. Its already fast without in mem bitset, since it works with field data
-            return false;
+            return true;
         }
 
         @Override
-        public boolean get(int doc) {
+        protected boolean matchDoc(int doc) {
             if (!fieldData.hasValue(doc)) {
                 return false;
             }

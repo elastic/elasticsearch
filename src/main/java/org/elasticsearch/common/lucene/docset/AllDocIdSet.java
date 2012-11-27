@@ -19,56 +19,47 @@
 
 package org.elasticsearch.common.lucene.docset;
 
+import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.elasticsearch.common.RamUsage;
+import org.apache.lucene.util.Bits;
 
 import java.io.IOException;
 
 /**
- * An always positive
- *
- *
+ * A {@link DocIdSet} that matches all docs up to a {@code maxDoc}.
  */
-public class AllDocSet extends DocSet {
+public class AllDocIdSet extends DocIdSet {
 
     private final int maxDoc;
 
-    public AllDocSet(int maxDoc) {
+    public AllDocIdSet(int maxDoc) {
         this.maxDoc = maxDoc;
     }
 
+    /**
+     * Does not go to the reader and ask for data, so can be cached.
+     */
     @Override
     public boolean isCacheable() {
         return true;
     }
 
     @Override
-    public int length() {
-        return maxDoc;
-    }
-
-    @Override
-    public boolean get(int doc) {
-        return doc < maxDoc;
-    }
-
-    @Override
-    public long sizeInBytes() {
-        return RamUsage.NUM_BYTES_INT;
-    }
-
-    @Override
     public DocIdSetIterator iterator() throws IOException {
-        return new AllDocIdSetIterator(maxDoc);
+        return new Iterator(maxDoc);
     }
 
-    public static final class AllDocIdSetIterator extends DocIdSetIterator {
+    @Override
+    public Bits bits() throws IOException {
+        return new Bits.MatchAllBits(maxDoc);
+    }
+
+    public static final class Iterator extends DocIdSetIterator {
 
         private final int maxDoc;
-
         private int doc = -1;
 
-        public AllDocIdSetIterator(int maxDoc) {
+        public Iterator(int maxDoc) {
             this.maxDoc = maxDoc;
         }
 

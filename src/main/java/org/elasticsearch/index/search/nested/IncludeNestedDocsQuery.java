@@ -6,7 +6,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.common.lucene.docset.FixedBitDocSet;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -95,9 +94,6 @@ public class IncludeNestedDocsQuery extends Query {
             if (parents == null) {
                 // No matches
                 return null;
-            }
-            if (parents instanceof FixedBitDocSet) {
-                parents = ((FixedBitDocSet) parents).set();
             }
             if (!(parents instanceof FixedBitSet)) {
                 throw new IllegalStateException("parentFilter must return FixedBitSet; got " + parents);

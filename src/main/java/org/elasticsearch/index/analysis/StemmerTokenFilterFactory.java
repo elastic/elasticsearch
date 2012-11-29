@@ -113,7 +113,7 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
         } else if ("porter".equalsIgnoreCase(language)) {
             return new PorterStemFilter(tokenStream);
         } else if ("porter2".equalsIgnoreCase(language)) {
-            return new SnowballFilter(tokenStream, new PorterStemmer());
+            return new SnowballFilter(tokenStream, new EnglishStemmer());
         } else if ("portuguese".equalsIgnoreCase(language)) {
             return new SnowballFilter(tokenStream, new PortugueseStemmer());
         } else if ("romanian".equalsIgnoreCase(language)) {

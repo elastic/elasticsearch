@@ -1,0 +1,26 @@
+{
+    "index":{
+        "analysis":{
+            "analyzer":{
+                "porter1":{
+                    "tokenizer":"standard",
+                    "filter":["lowercase", "porter1"]
+                },
+                "porter2":{
+                    "tokenizer":"standard",
+                    "filter":["lowercase", "porter2"]
+                }
+            },
+            "filter":{
+                "porter1":{
+                    "type":"stemmer",
+                    "name":"porter"
+                },
+                "porter2":{
+                    "type":"stemmer",
+                    "name":"porter2"
+                }
+            }
+        }
+    }
+}

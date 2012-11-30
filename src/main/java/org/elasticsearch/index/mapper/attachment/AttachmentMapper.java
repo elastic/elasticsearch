@@ -22,6 +22,8 @@ package org.elasticsearch.index.mapper.attachment;
 import org.apache.tika.exception.TikaException;
 import org.apache.tika.metadata.Metadata;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.*;
@@ -58,6 +60,8 @@ import static org.elasticsearch.plugin.mapper.attachments.tika.TikaInstance.tika
  */
 public class AttachmentMapper implements Mapper {
 
+    private static ESLogger logger = ESLoggerFactory.getLogger(AttachmentMapper.class.getName());
+
     public static final String CONTENT_TYPE = "attachment";
 
     public static class Defaults {
@@ -69,6 +73,8 @@ public class AttachmentMapper implements Mapper {
         private ContentPath.Type pathType = Defaults.PATH_TYPE;
 
         private Integer defaultIndexedChars = null;
+
+        private Boolean ignoreErrors = null;
 
         private Mapper.Builder contentBuilder;
 
@@ -92,11 +98,6 @@ public class AttachmentMapper implements Mapper {
 
         public Builder pathType(ContentPath.Type pathType) {
             this.pathType = pathType;
-            return this;
-        }
-
-        public Builder defaultIndexedChars(int defaultIndexedChars) {
-            this.defaultIndexedChars = defaultIndexedChars;
             return this;
         }
 
@@ -155,14 +156,21 @@ public class AttachmentMapper implements Mapper {
 
             context.path().pathType(origPathType);
 
-            if (defaultIndexedChars != null && context.indexSettings() != null) {
+            if (defaultIndexedChars == null && context.indexSettings() != null) {
                 defaultIndexedChars = context.indexSettings().getAsInt("index.mapping.attachment.indexed_chars", 100000);
             }
             if (defaultIndexedChars == null) {
                 defaultIndexedChars = 100000;
             }
 
-            return new AttachmentMapper(name, pathType, defaultIndexedChars, contentMapper, dateMapper, titleMapper, nameMapper, authorMapper, keywordsMapper, contentTypeMapper);
+            if (ignoreErrors == null && context.indexSettings() != null) {
+                ignoreErrors = context.indexSettings().getAsBoolean("index.mapping.attachment.ignore_errors", Boolean.TRUE);
+            }
+            if (ignoreErrors == null) {
+                ignoreErrors = Boolean.TRUE;
+            }
+
+            return new AttachmentMapper(name, pathType, defaultIndexedChars, ignoreErrors, contentMapper, dateMapper, titleMapper, nameMapper, authorMapper, keywordsMapper, contentTypeMapper);
         }
     }
 
@@ -239,6 +247,8 @@ public class AttachmentMapper implements Mapper {
 
     private final int defaultIndexedChars;
 
+    private final boolean ignoreErrors;
+
     private final Mapper contentMapper;
 
     private final Mapper dateMapper;
@@ -253,12 +263,13 @@ public class AttachmentMapper implements Mapper {
 
     private final Mapper contentTypeMapper;
 
-    public AttachmentMapper(String name, ContentPath.Type pathType, int defaultIndexedChars, Mapper contentMapper,
+    public AttachmentMapper(String name, ContentPath.Type pathType, int defaultIndexedChars, Boolean ignoreErrors, Mapper contentMapper,
                             Mapper dateMapper, Mapper titleMapper, Mapper nameMapper, Mapper authorMapper,
                             Mapper keywordsMapper, Mapper contentTypeMapper) {
         this.name = name;
         this.pathType = pathType;
         this.defaultIndexedChars = defaultIndexedChars;
+        this.ignoreErrors = ignoreErrors;
         this.contentMapper = contentMapper;
         this.dateMapper = dateMapper;
         this.titleMapper = titleMapper;
@@ -330,23 +341,53 @@ public class AttachmentMapper implements Mapper {
         contentMapper.parse(context);
 
 
-        context.externalValue(name);
-        nameMapper.parse(context);
+        try {
+            context.externalValue(name);
+            nameMapper.parse(context);
+        } catch(MapperParsingException e){
+            if (!ignoreErrors) throw e;
+            if (logger.isDebugEnabled()) logger.debug("Ignoring MapperParsingException catch while parsing name: {}", e.getMessage());
+        }
 
-        context.externalValue(metadata.get(Metadata.DATE));
-        dateMapper.parse(context);
+        try {
+            context.externalValue(metadata.get(Metadata.DATE));
+            dateMapper.parse(context);
+        } catch(MapperParsingException e){
+            if (!ignoreErrors) throw e;
+            if (logger.isDebugEnabled()) logger.debug("Ignoring MapperParsingException catch while parsing date: {}: {}", e.getMessage(), context.externalValue());
+        }
 
-        context.externalValue(metadata.get(Metadata.TITLE));
-        titleMapper.parse(context);
+        try {
+            context.externalValue(metadata.get(Metadata.TITLE));
+            titleMapper.parse(context);
+        } catch(MapperParsingException e){
+            if (!ignoreErrors) throw e;
+            if (logger.isDebugEnabled()) logger.debug("Ignoring MapperParsingException catch while parsing title: {}: {}", e.getMessage(), context.externalValue());
+        }
 
-        context.externalValue(metadata.get(Metadata.AUTHOR));
-        authorMapper.parse(context);
+        try {
+            context.externalValue(metadata.get(Metadata.AUTHOR));
+            authorMapper.parse(context);
+        } catch(MapperParsingException e){
+            if (!ignoreErrors) throw e;
+            if (logger.isDebugEnabled()) logger.debug("Ignoring MapperParsingException catch while parsing author: {}: {}", e.getMessage(), context.externalValue());
+        }
 
-        context.externalValue(metadata.get(Metadata.KEYWORDS));
-        keywordsMapper.parse(context);
+        try {
+            context.externalValue(metadata.get(Metadata.KEYWORDS));
+            keywordsMapper.parse(context);
+        } catch(MapperParsingException e){
+            if (!ignoreErrors) throw e;
+            if (logger.isDebugEnabled()) logger.debug("Ignoring MapperParsingException catch while parsing keywords: {}: {}", e.getMessage(), context.externalValue());
+        }
 
-        context.externalValue(metadata.get(Metadata.CONTENT_TYPE));
-        contentTypeMapper.parse(context);
+        try {
+            context.externalValue(metadata.get(Metadata.CONTENT_TYPE));
+            contentTypeMapper.parse(context);
+        } catch(MapperParsingException e){
+            if (!ignoreErrors) throw e;
+            if (logger.isDebugEnabled()) logger.debug("Ignoring MapperParsingException catch while parsing content_type: {}: {}", e.getMessage(), context.externalValue());
+        }
     }
 
     @Override

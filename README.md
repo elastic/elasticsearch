@@ -90,6 +90,14 @@ Note, this feature is support since `1.3.0` version.
 
 The plugin uses [Apache Tika](http://lucene.apache.org/tika/) to parse attachments, so many formats are supported, listed [here](http://lucene.apache.org/tika/0.10/formats.html).
 
+Metadata parsing error handling
+-------------------------------
+
+While extracting metadata content, errors could happen for example when parsing dates.
+Since version `1.9.0`, parsing errors are ignored so your document is indexed.
+
+You can disable this feature by setting the `index.mapping.attachment.ignore_errors` setting to `false`.
+
 License
 -------
 

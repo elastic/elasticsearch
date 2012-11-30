@@ -25,11 +25,12 @@ import org.elasticsearch.common.geo.GeoJSONShapeParser;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
+import org.elasticsearch.common.lucene.spatial.SpatialStrategy;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
+import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper.GeoShapeIndexFieldMapper;
 import org.elasticsearch.index.search.shape.ShapeFetchService;
 
 import java.io.IOException;
@@ -158,12 +159,12 @@ public class GeoShapeFilterParser implements FilterParser {
 
         FieldMapper fieldMapper = smartNameFieldMappers.mapper();
         // TODO: This isn't the nicest way to check this
-        if (!(fieldMapper instanceof GeoShapeFieldMapper)) {
+        if (!(fieldMapper instanceof GeoShapeIndexFieldMapper)) {
             throw new QueryParsingException(parseContext.index(), "Field [" + fieldName + "] is not a geo_shape");
         }
 
-        GeoShapeFieldMapper shapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
-        Filter filter = shapeFieldMapper.spatialStrategy().createFilter(shape, shapeRelation);
+        SpatialStrategy spatialStrategy = ((GeoShapeIndexFieldMapper) fieldMapper).spatialStrategy();
+        Filter filter = spatialStrategy.createFilter(shape, shapeRelation);
 
         if (cache) {
             filter = parseContext.cacheFilter(filter, cacheKey);

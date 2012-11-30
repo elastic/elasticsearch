@@ -249,6 +249,10 @@ public class GeoShapeFieldMapper implements Mapper {
         return builder;
     }
 
+    public boolean isStoreWkb() {
+        return this.storeWkb;
+    }
+
     @Override
     public String name() {
         return this.name;

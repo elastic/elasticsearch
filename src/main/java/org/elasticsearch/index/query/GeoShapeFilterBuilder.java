@@ -36,6 +36,7 @@ public class GeoShapeFilterBuilder extends BaseFilterBuilder {
     private ShapeRelation relation = ShapeRelation.INTERSECTS;
 
     private final Shape shape;
+    private boolean fuzzy = GeoShapeFilterParser.DEFAULTS.FUZZY;
 
     private Boolean cache;
     private String cacheKey;
@@ -87,6 +88,17 @@ public class GeoShapeFilterBuilder extends BaseFilterBuilder {
      */
     public GeoShapeFilterBuilder relation(ShapeRelation relation) {
         this.relation = relation;
+        return this;
+    }
+
+    /**
+     * Sets whether the Filter is allowed to use fuzzy matching for better efficiency,
+     * that is, whether it is allowed to return false positives.
+     * @param fuzzy true if false positives are allowed, false to only return exact matches.
+     * @return this
+     */
+    public GeoShapeFilterBuilder fuzzy(boolean fuzzy) {
+        this.fuzzy = fuzzy;
         return this;
     }
 
@@ -179,6 +191,9 @@ public class GeoShapeFilterBuilder extends BaseFilterBuilder {
         }
         if (cacheKey != null) {
             builder.field("_cache_key", cacheKey);
+        }
+        if (fuzzy != GeoShapeFilterParser.DEFAULTS.FUZZY) {
+            builder.field("fuzzy", fuzzy);
         }
 
         builder.endObject();

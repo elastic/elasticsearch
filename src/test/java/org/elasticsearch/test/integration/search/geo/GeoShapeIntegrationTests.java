@@ -32,6 +32,7 @@ import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 import static org.elasticsearch.common.geo.ShapeBuilder.newRectangle;
+import static org.elasticsearch.common.geo.ShapeBuilder.newPolygon;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.geoShapeFilter;
 import static org.elasticsearch.index.query.QueryBuilders.*;
@@ -160,5 +161,40 @@ public class GeoShapeIntegrationTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().getTotalHits(), equalTo(1l));
         assertThat(searchResponse.hits().hits().length, equalTo(1));
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("1"));
+    }
+
+    @Test
+    public void testNonFuzzyMatching() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("properties").startObject("location")
+                .field("type", "geo_shape")
+                .field("wkb", "true")
+                .field("tree", "quadtree")
+                .endObject().endObject()
+                .endObject().endObject().string();
+        client.admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        client.prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+                .field("name", "Document 1")
+                .startObject("location")
+                .field("type", "point")
+                .startArray("coordinates").value(-92.319).value(37.54).endArray()
+                .endObject()
+                .endObject()).execute().actionGet();
+
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        Shape shape = newPolygon().point(-92.34, 37.56)
+                .point(-92.34, 37.55).point(-92.32, 37.55).point(-92.32, 37.56)
+                .point(-92.34, 37.56).build();
+
+        SearchResponse searchResponse = client.prepareSearch()
+                .setFilter(geoShapeFilter("location", shape).relation(ShapeRelation.INTERSECTS).fuzzy(false))
+                .execute().actionGet();
+
+        assertThat(searchResponse.hits().getTotalHits(), equalTo(0l));
     }
 }

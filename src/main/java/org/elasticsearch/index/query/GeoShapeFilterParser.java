@@ -30,7 +30,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper.GeoShapeIndexFieldMapper;
+import org.elasticsearch.index.search.geo.VerifiedShapeRelationFilter;
 import org.elasticsearch.index.search.shape.ShapeFetchService;
 
 import java.io.IOException;
@@ -41,7 +43,9 @@ import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameFi
  * {@link FilterParser} for filtering Documents based on {@link Shape}s.
  * <p/>
  * Only those fields mapped using {@link GeoShapeFieldMapper} can be filtered
- * using this parser.
+ * using this parser.  By default the filter uses fuzzy matching for efficiency,
+ * which may return false positives; the filter may specify <tt>"fuzzy": "false"</tt>
+ * to return only exact matches.
  * <p/>
  * Format supported:
  * <p/>
@@ -66,6 +70,7 @@ public class GeoShapeFilterParser implements FilterParser {
     public static class DEFAULTS {
         public static final String INDEX_NAME = "shapes";
         public static final String SHAPE_FIELD_NAME = "shape";
+        public static final boolean FUZZY = true;
     }
 
     @Override
@@ -88,6 +93,7 @@ public class GeoShapeFilterParser implements FilterParser {
         String type = null;
         String index = DEFAULTS.INDEX_NAME;
         String shapeFieldName = DEFAULTS.SHAPE_FIELD_NAME;
+        boolean fuzzy = DEFAULTS.FUZZY;
 
         XContentParser.Token token;
         String currentFieldName = null;
@@ -142,6 +148,8 @@ public class GeoShapeFilterParser implements FilterParser {
                     cache = parser.booleanValue();
                 } else if ("_cache_key".equals(currentFieldName)) {
                     cacheKey = new CacheKeyFilter.Key(parser.text());
+                } else if ("fuzzy".equals(currentFieldName)) {
+                    fuzzy = parser.booleanValue();
                 }
             }
         }
@@ -162,9 +170,13 @@ public class GeoShapeFilterParser implements FilterParser {
         if (!(fieldMapper instanceof GeoShapeIndexFieldMapper)) {
             throw new QueryParsingException(parseContext.index(), "Field [" + fieldName + "] is not a geo_shape");
         }
-
-        SpatialStrategy spatialStrategy = ((GeoShapeIndexFieldMapper) fieldMapper).spatialStrategy();
+        GeoShapeFieldMapper geoShapeFieldMapper = ((GeoShapeIndexFieldMapper) fieldMapper).geoMapper();
+        SpatialStrategy spatialStrategy = geoShapeFieldMapper.spatialStrategy();
         Filter filter = spatialStrategy.createFilter(shape, shapeRelation);
+        if (!fuzzy) {
+            String wkbFieldName = fieldName + "." + GeoShapeFieldMapper.Names.WKB;
+            filter = new VerifiedShapeRelationFilter(filter, geoShapeFieldMapper, parseContext.indexCache().fieldData(), wkbFieldName, shapeRelation, shape);
+        }
 
         if (cache) {
             filter = parseContext.cacheFilter(filter, cacheKey);

@@ -452,7 +452,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                 return;
             }
 
-            if (!clusterName.equals(MulticastZenPing.this.clusterName.value())) {
+            if (!clusterName.equals("*") && !clusterName.equals(MulticastZenPing.this.clusterName.value())) {
                 logger.trace("got request for cluster_name {}, but our cluster_name is {}, from {}, content {}", clusterName, MulticastZenPing.this.clusterName.value(), remoteAddress, externalPingData);
                 return;
             }
@@ -469,6 +469,15 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                 builder.startObject("version").field("number", Version.CURRENT.number()).field("snapshot_build", Version.CURRENT.snapshot).endObject();
                 builder.field("transport_address", localNode.address().toString());
 
+                builder.startObject("node")
+                    .field("master", localNode.isMasterNode())
+                    .field("client", localNode.isClientNode())
+                    .field("data", localNode.isDataNode())
+                    .field("id", localNode.id())
+                    .field("version", localNode.version())
+                    .field("name", localNode.name())
+                .endObject();
+                
                 if (nodesProvider.nodeService() != null) {
                     for (Map.Entry<String, String> attr : nodesProvider.nodeService().attributes().entrySet()) {
                         builder.field(attr.getKey(), attr.getValue());

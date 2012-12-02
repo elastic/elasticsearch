@@ -20,6 +20,7 @@
 package org.elasticsearch.index.search.slowlog;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -188,6 +189,20 @@ public class ShardSlowLogSearchService extends AbstractIndexShardComponent {
         public String toString() {
             StringBuilder sb = new StringBuilder();
             sb.append("took[").append(TimeValue.timeValueNanos(tookInNanos)).append("], took_millis[").append(TimeUnit.NANOSECONDS.toMillis(tookInNanos)).append("], ");
+            if (context.types() == null) {
+                sb.append("types[], ");
+            } else {
+                sb.append("types[");
+                Strings.arrayToDelimitedString(context.types(), ",", sb);
+                sb.append("], ");
+            }
+            if (context.groupStats() == null) {
+                sb.append("stats[], ");
+            } else {
+                sb.append("stats[");
+                Strings.collectionToDelimitedString(context.groupStats(), ",", "", "", sb);
+                sb.append("], ");
+            }
             sb.append("search_type[").append(context.searchType()).append("], total_shards[").append(context.numberOfShards()).append("], ");
             if (context.request().source() != null && context.request().source().length() > 0) {
                 try {

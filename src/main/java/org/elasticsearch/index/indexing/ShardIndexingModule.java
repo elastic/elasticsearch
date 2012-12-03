@@ -20,6 +20,7 @@
 package org.elasticsearch.index.indexing;
 
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.index.indexing.slowlog.ShardSlowLogIndexingService;
 
 /**
  */
@@ -28,5 +29,6 @@ public class ShardIndexingModule extends AbstractModule {
     @Override
     protected void configure() {
         bind(ShardIndexingService.class).asEagerSingleton();
+        bind(ShardSlowLogIndexingService.class).asEagerSingleton();
     }
 }

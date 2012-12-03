@@ -26,6 +26,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -886,5 +887,36 @@ public class HighlighterSearchTests extends AbstractNodesTests {
             // With plain highlighter terms are highlighted correctly
             assertThat(hit.highlightFields().get("title").fragments()[0].string(), equalTo("This is a <em>test</em> for the <em>workaround</em> for the fast vector highlighting SOLR-3724"));
         }
+    }
+
+    @Test
+    public void testFSHHighlightAllMvFragments() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder()
+                .put("number_of_shards", 1).put("number_of_replicas", 0))
+                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("tags").field("type", "string").field("term_vector", "with_positions_offsets").endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
+
+        client.prepareIndex("test", "type1", "1")
+                .setSource(jsonBuilder().startObject().field("tags",
+                        "this is a really long tag i would like to highlight",
+                        "here is another one that is very long and has the tag token near the end").endObject())
+                .setRefresh(true).execute().actionGet();
+
+        SearchResponse response = client.prepareSearch("test")
+                .setQuery(QueryBuilders.matchQuery("tags", "tag"))
+                .addHighlightedField("tags", -1, 0)
+                .execute().actionGet();
+
+        assertThat(2, equalTo(response.hits().hits()[0].highlightFields().get("tags").fragments().length));
+        assertThat("this is a really long <em>tag</em> i would like to highlight", equalTo(response.hits().hits()[0].highlightFields().get("tags").fragments()[0].string()));
+        assertThat("here is another one that is very long and has the <em>tag</em> token near the end", equalTo(response.hits().hits()[0].highlightFields().get("tags").fragments()[1].string()));
     }
 }

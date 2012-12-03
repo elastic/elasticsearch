@@ -319,9 +319,10 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                     String[] fragments;
 
                     // a HACK to make highlighter do highlighting, even though its using the single frag list builder
-                    int numberOfFragments = field.numberOfFragments() == 0 ? 1 : field.numberOfFragments();
+                    int numberOfFragments = field.numberOfFragments() == 0 ? Integer.MAX_VALUE : field.numberOfFragments();
+                    int fragmentCharSize = field.numberOfFragments() == 0 ? Integer.MAX_VALUE : field.fragmentCharSize();
                     // we highlight against the low level reader and docId, because if we load source, we want to reuse it if possible
-                    fragments = cache.fvh.getBestFragments(fieldQuery, hitContext.reader(), hitContext.docId(), mapper.names().indexName(), field.fragmentCharSize(), numberOfFragments,
+                    fragments = cache.fvh.getBestFragments(fieldQuery, hitContext.reader(), hitContext.docId(), mapper.names().indexName(), fragmentCharSize, numberOfFragments,
                             entry.fragListBuilder, entry.fragmentsBuilder, field.preTags(), field.postTags(), encoder);
 
                     if (fragments != null && fragments.length > 0) {

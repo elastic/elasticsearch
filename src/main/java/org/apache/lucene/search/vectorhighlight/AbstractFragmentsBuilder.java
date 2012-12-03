@@ -35,20 +35,20 @@ public abstract class AbstractFragmentsBuilder extends BaseFragmentsBuilder {
 
     private boolean discreteMultiValueHighlighting = true;
 
-    protected AbstractFragmentsBuilder(){
+    protected AbstractFragmentsBuilder() {
         super();
     }
 
-    protected AbstractFragmentsBuilder(BoundaryScanner boundaryScanner){
+    protected AbstractFragmentsBuilder(BoundaryScanner boundaryScanner) {
         super(boundaryScanner);
     }
 
-    protected AbstractFragmentsBuilder( String[] preTags, String[] postTags ){
+    protected AbstractFragmentsBuilder(String[] preTags, String[] postTags) {
         super(preTags, postTags);
     }
 
     public AbstractFragmentsBuilder(String[] preTags, String[] postTags, BoundaryScanner bs) {
-        super( preTags, postTags, bs );
+        super(preTags, postTags, bs);
     }
 
     public void setDiscreteMultiValueHighlighting(boolean discreteMultiValueHighlighting) {
@@ -62,7 +62,6 @@ public abstract class AbstractFragmentsBuilder extends BaseFragmentsBuilder {
             throw new IllegalArgumentException("maxNumFragments(" + maxNumFragments + ") must be positive number.");
         }
 
-        List<String> fragments = new ArrayList<String>(maxNumFragments);
         List<FieldFragList.WeightedFragInfo> fragInfos = fieldFragList.getFragInfos();
         Field[] values = getFields(reader, docId, fieldName);
         if (values.length == 0) {
@@ -75,9 +74,12 @@ public abstract class AbstractFragmentsBuilder extends BaseFragmentsBuilder {
 
         fragInfos = getWeightedFragInfoList(fragInfos);
 
+        int limitFragments = maxNumFragments < fragInfos.size() ? maxNumFragments : fragInfos.size();
+        List<String> fragments = new ArrayList<String>(limitFragments);
+
         StringBuilder buffer = new StringBuilder();
         int[] nextValueIndex = {0};
-        for (int n = 0; n < maxNumFragments && n < fragInfos.size(); n++) {
+        for (int n = 0; n < limitFragments; n++) {
             FieldFragList.WeightedFragInfo fragInfo = fragInfos.get(n);
             fragments.add(makeFragment(buffer, nextValueIndex, values, fragInfo, preTags, postTags, encoder));
         }

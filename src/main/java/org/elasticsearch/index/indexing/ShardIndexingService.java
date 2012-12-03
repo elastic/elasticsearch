@@ -26,6 +26,7 @@ import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.indexing.slowlog.ShardSlowLogIndexingService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
@@ -39,6 +40,8 @@ import java.util.concurrent.TimeUnit;
  */
 public class ShardIndexingService extends AbstractIndexShardComponent {
 
+    private final ShardSlowLogIndexingService slowLog;
+
     private final StatsHolder totalStats = new StatsHolder();
 
     private volatile Map<String, StatsHolder> typesStats = ImmutableMap.of();
@@ -46,8 +49,9 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
     private CopyOnWriteArrayList<IndexingOperationListener> listeners = null;
 
     @Inject
-    public ShardIndexingService(ShardId shardId, @IndexSettings Settings indexSettings) {
+    public ShardIndexingService(ShardId shardId, @IndexSettings Settings indexSettings, ShardSlowLogIndexingService slowLog) {
         super(shardId, indexSettings);
+        this.slowLog = slowLog;
     }
 
     /**
@@ -95,6 +99,8 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
     }
 
     public Engine.Create preCreate(Engine.Create create) {
+        totalStats.indexCurrent.inc();
+        typeStats(create.type()).indexCurrent.inc();
         if (listeners != null) {
             for (IndexingOperationListener listener : listeners) {
                 create = listener.preCreate(create);
@@ -118,7 +124,11 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
     public void postCreate(Engine.Create create) {
         long took = create.endTime() - create.startTime();
         totalStats.indexMetric.inc(took);
-        typeStats(create.type()).indexMetric.inc(took);
+        totalStats.indexCurrent.dec();
+        StatsHolder typeStats = typeStats(create.type());
+        typeStats.indexMetric.inc(took);
+        typeStats.indexCurrent.dec();
+        slowLog.postCreate(create, took);
         if (listeners != null) {
             for (IndexingOperationListener listener : listeners) {
                 try {
@@ -160,6 +170,7 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
         StatsHolder typeStats = typeStats(index.type());
         typeStats.indexMetric.inc(took);
         typeStats.indexCurrent.dec();
+        slowLog.postIndex(index, took);
         if (listeners != null) {
             for (IndexingOperationListener listener : listeners) {
                 try {

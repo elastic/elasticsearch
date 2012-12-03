@@ -32,8 +32,6 @@ import org.elasticsearch.common.compress.CompressedIndexInput;
 import org.elasticsearch.common.compress.CompressedIndexOutput;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.lzf.LZFCompressor;
-import org.elasticsearch.common.compress.snappy.xerial.XerialSnappy;
-import org.elasticsearch.common.compress.snappy.xerial.XerialSnappyCompressor;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.SizeValue;
 import org.testng.annotations.Test;
@@ -49,26 +47,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class CompressIndexInputOutputTests {
 
     @Test
-    public void testXerialSnappy() throws Exception {
-        if (XerialSnappy.available) {
-            testCompressor(new XerialSnappyCompressor());
-        }
-    }
-
-    @Test
     public void testLZF() throws Exception {
-        testCompressor(new LZFCompressor());
-    }
-
-    @Test
-    public void testSideAffects() throws Exception {
-        if (XerialSnappy.available) {
-            testCompressor(new XerialSnappyCompressor());
-        }
-        testCompressor(new LZFCompressor());
-        if (XerialSnappy.available) {
-            testCompressor(new XerialSnappyCompressor());
-        }
         testCompressor(new LZFCompressor());
     }
 

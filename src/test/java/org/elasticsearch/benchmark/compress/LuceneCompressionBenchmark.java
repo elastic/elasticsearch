@@ -28,7 +28,6 @@ import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.elasticsearch.common.compress.CompressedDirectory;
 import org.elasticsearch.common.compress.lzf.LZFCompressor;
-import org.elasticsearch.common.compress.snappy.xerial.XerialSnappyCompressor;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -55,9 +54,6 @@ public class LuceneCompressionBenchmark {
         Directory compressedLzfDir = new CompressedDirectory(new NIOFSDirectory(new File(testFile, "compressed_lzf")), new LZFCompressor(), false, "fdt", "tvf");
         IndexWriter compressedLzfWriter = new IndexWriter(compressedLzfDir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
 
-        Directory compressedSnappyDir = new CompressedDirectory(new NIOFSDirectory(new File(testFile, "compressed_snappy")), new XerialSnappyCompressor(), false, "fdt", "tvf");
-        IndexWriter compressedSnappyWriter = new IndexWriter(compressedSnappyDir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
-
         System.out.println("feeding data...");
         TestData testData = new TestData();
         while (testData.next() && testData.getTotalSize() < MAX_SIZE) {
@@ -73,23 +69,18 @@ public class LuceneCompressionBenchmark {
             }
             uncompressedWriter.addDocument(doc);
             compressedLzfWriter.addDocument(doc);
-            compressedSnappyWriter.addDocument(doc);
         }
         System.out.println("optimizing...");
         uncompressedWriter.forceMerge(1);
         compressedLzfWriter.forceMerge(1);
-        compressedSnappyWriter.forceMerge(1);
         uncompressedWriter.waitForMerges();
         compressedLzfWriter.waitForMerges();
-        compressedSnappyWriter.waitForMerges();
 
         System.out.println("done");
         uncompressedWriter.close();
         compressedLzfWriter.close();
-        compressedSnappyWriter.close();
 
         compressedLzfDir.close();
-        compressedSnappyDir.close();
         uncompressedDir.close();
     }
 

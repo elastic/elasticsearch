@@ -27,9 +27,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.lzf.LZFCompressor;
-import org.elasticsearch.common.compress.snappy.UnavailableSnappyCompressor;
-import org.elasticsearch.common.compress.snappy.xerial.XerialSnappy;
-import org.elasticsearch.common.compress.snappy.xerial.XerialSnappyCompressor;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.CachedStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -54,19 +51,8 @@ public class CompressorFactory {
     static {
         List<Compressor> compressorsX = Lists.newArrayList();
         compressorsX.add(LZF);
-        boolean addedSnappy = false;
-        if (XerialSnappy.available) {
-            compressorsX.add(new XerialSnappyCompressor());
-            addedSnappy = true;
-        } else {
-            Loggers.getLogger(CompressorFactory.class).debug("failed to load xerial snappy-java", XerialSnappy.failure);
-        }
-        if (!addedSnappy) {
-            compressorsX.add(new UnavailableSnappyCompressor());
-        }
 
         compressors = compressorsX.toArray(new Compressor[compressorsX.size()]);
-
         MapBuilder<String, Compressor> compressorsByTypeX = MapBuilder.newMapBuilder();
         for (Compressor compressor : compressors) {
             compressorsByTypeX.put(compressor.type(), compressor);

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import java.util.Iterator;
+
 /**
  *
  */
@@ -108,5 +110,43 @@ public class ContentPath {
 
     public String sourcePath() {
         return this.sourcePath;
+    }
+    
+    public Iterator<String> iterator()
+    {
+      return new PathIter();
+    }
+    
+    private class PathIter implements Iterator<String>
+    {
+      int ind = 0;
+      int len = 0;
+      String[] iterPath;
+      
+      public PathIter()
+      {
+        len = index;
+        iterPath = new String[len + 1];
+        System.arraycopy(path, 0, iterPath, 0, len);
+        ind = 0;
+      }
+
+      @Override
+      public boolean hasNext()
+      {
+        return(ind < len);
+      }
+
+      @Override
+      public String next()
+      {
+        return(iterPath[ind++]);
+      }
+
+      @Override
+      public void remove()
+      {
+        throw new UnsupportedOperationException("Not supported yet.");
+      }
     }
 }

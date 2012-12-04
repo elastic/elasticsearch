@@ -1,0 +1,34 @@
+{
+    "_id":"1",
+    "details__o":{
+      "name_first__sni":"John",
+      "name_initial__sj":"S",
+      "name_last__sni":"Doe",
+      "age__l":42,
+      "gender__si":"male",
+      "status__si":"active",
+      "position__s":"Operations Manager",
+      "dob__d":"19700312T110000.000Z"
+    },
+    "contact__o":{
+      "phone":[
+        {"acode__si":2, "number__si":"1234 5678"},
+        {"acode__si":"+1 345", "number__si":12345678},
+        {"acode__si":"45", "number__si":"7685 4536"}
+      ],
+      "address":[
+        {"lines__s":"12 Help St", "city__si":"Ryde", "state__si":"NSW", "pcode__si":2121},
+        {"lines__s":"13 Hello Rd", "city__si":"Sydney", "state__si":"NSW", "pcode__si":"2000"}
+      ],
+      "inet":[
+        {"type__si":"email", "address__s":"me@example.com"},
+        {"type__si":"web", "address__s":"http://some.host.com"}
+      ]
+    },
+    "change":{
+      "versions__ode": [
+        {"verNo":2, "verDate":"20120502T130023.000Z", "verBy":"jim", "diff":{}},
+        {"verNo":1, "verDate":"20120302T130023.000Z", "verBy":"tom", "diff":{}}
+      ]
+    }
+}

@@ -25,6 +25,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.FilteredDocIdSetIterator;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 
 import java.io.IOException;
@@ -64,7 +65,6 @@ public class NotDeletedFilter extends Filter {
     static class NotDeletedDocIdSet extends DocIdSet {
 
         private final DocIdSet innerSet;
-
         private final Bits liveDocs;
 
         NotDeletedDocIdSet(DocIdSet innerSet, Bits liveDocs) {
@@ -73,7 +73,29 @@ public class NotDeletedFilter extends Filter {
         }
 
         @Override
+        public boolean isCacheable() {
+            return innerSet.isCacheable();
+        }
+
+        @Override
+        public Bits bits() throws IOException {
+            Bits bits = innerSet.bits();
+            if (bits == null) {
+                return null;
+            }
+            return new NotDeleteBits(bits, liveDocs);
+        }
+
+        @Override
         public DocIdSetIterator iterator() throws IOException {
+            if (!DocIdSets.isFastIterator(innerSet) && liveDocs instanceof FixedBitSet) {
+                // might as well iterate over the live docs..., since the iterator is not fast enough
+                // but we can only do that if we have Bits..., in short, we reverse the order...
+                Bits bits = innerSet.bits();
+                if (bits != null) {
+                    return new NotDeletedDocIdSetIterator(((FixedBitSet) liveDocs).iterator(), bits);
+                }
+            }
             DocIdSetIterator iterator = innerSet.iterator();
             if (iterator == null) {
                 return null;
@@ -82,18 +104,39 @@ public class NotDeletedFilter extends Filter {
         }
     }
 
-    static class NotDeletedDocIdSetIterator extends FilteredDocIdSetIterator {
+    static class NotDeleteBits implements Bits {
 
+        private final Bits bits;
         private final Bits liveDocs;
 
-        NotDeletedDocIdSetIterator(DocIdSetIterator innerIter, Bits liveDocs) {
-            super(innerIter);
+        NotDeleteBits(Bits bits, Bits liveDocs) {
+            this.bits = bits;
             this.liveDocs = liveDocs;
         }
 
         @Override
+        public boolean get(int index) {
+            return liveDocs.get(index) && bits.get(index);
+        }
+
+        @Override
+        public int length() {
+            return bits.length();
+        }
+    }
+
+    static class NotDeletedDocIdSetIterator extends FilteredDocIdSetIterator {
+
+        private final Bits match;
+
+        NotDeletedDocIdSetIterator(DocIdSetIterator innerIter, Bits match) {
+            super(innerIter);
+            this.match = match;
+        }
+
+        @Override
         protected boolean match(int doc) {
-            return liveDocs == null || liveDocs.get(doc);
+            return match.get(doc);
         }
     }
 }

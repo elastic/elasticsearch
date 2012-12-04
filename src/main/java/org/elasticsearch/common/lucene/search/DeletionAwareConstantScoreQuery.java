@@ -23,13 +23,8 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
 
 /**
- *
+ * We still need sometimes to exclude deletes, because we don't remove them always with acceptDocs on filters
  */
-// LUCENE MONITOR: Against ConstantScoreQuery, basically added logic in the doc iterator to take deletions into account
-// So it can basically be cached safely even with a reader that changes deletions but remain with teh same cache key
-// See more: https://issues.apache.org/jira/browse/LUCENE-2468
-// TODO Lucene 4.0 won't need this, since live docs are "and'ed" while scoring
-// LUCENE 4 UPGRADE: we probably don't need this anymore, because of acceptDocs
 public class DeletionAwareConstantScoreQuery extends ConstantScoreQuery {
 
     private final Filter actualFilter;

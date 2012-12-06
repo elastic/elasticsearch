@@ -22,8 +22,8 @@ package org.apache.lucene.queryparser.classic;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeFilter;
-import org.elasticsearch.common.lucene.search.DeletionAwareConstantScoreQuery;
 import org.elasticsearch.common.lucene.search.NotFilter;
+import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryParseContext;
 
@@ -59,6 +59,6 @@ public class MissingFieldQueryExtension implements FieldQueryExtension {
 
         filter = wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext);
 
-        return new DeletionAwareConstantScoreQuery(filter);
+        return new XConstantScoreQuery(filter);
     }
 }

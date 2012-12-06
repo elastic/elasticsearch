@@ -22,12 +22,12 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.DeletionAwareConstantScoreQuery;
+import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
+import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
@@ -122,7 +122,7 @@ public class NestedQueryParser implements QueryParser {
             }
 
             if (filter != null) {
-                query = new DeletionAwareConstantScoreQuery(filter);
+                query = new XConstantScoreQuery(filter);
             }
 
             MapperService.SmartNameObjectMapper mapper = parseContext.smartObjectMapper(path);
@@ -140,7 +140,7 @@ public class NestedQueryParser implements QueryParser {
             Filter childFilter = parseContext.cacheFilter(objectMapper.nestedTypeFilter(), null);
             usAsParentFilter.filter = childFilter;
             // wrap the child query to only work on the nested path type
-            query = new FilteredQuery(query, childFilter);
+            query = new XFilteredQuery(query, childFilter);
 
             Filter parentFilter = currentParentFilterContext;
             if (parentFilter == null) {

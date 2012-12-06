@@ -23,8 +23,9 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
-import org.elasticsearch.common.lucene.search.DeletionAwareConstantScoreQuery;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
+import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
@@ -73,11 +74,11 @@ public class QueryFacetCollector extends AbstractFacetCollector implements Optim
     public void optimizedGlobalExecution(SearchContext searchContext) throws IOException {
         Query query = this.query;
         if (super.filter != null) {
-            query = new FilteredQuery(query, super.filter);
+            query = new XFilteredQuery(query, super.filter);
         }
         Filter searchFilter = searchContext.mapperService().searchFilter(searchContext.types());
         if (searchFilter != null) {
-            query = new FilteredQuery(query, searchContext.filterCache().cache(searchFilter));
+            query = new XFilteredQuery(query, searchContext.filterCache().cache(searchFilter));
         }
         TotalHitCountCollector collector = new TotalHitCountCollector();
         searchContext.searcher().search(query, collector);
@@ -93,13 +94,13 @@ public class QueryFacetCollector extends AbstractFacetCollector implements Optim
      * If its a filtered query with a match all, then we just need the inner filter.
      */
     private Filter extractFilterIfApplicable(Query query) {
-        if (query instanceof FilteredQuery) {
-            FilteredQuery fQuery = (FilteredQuery) query;
+        if (query instanceof XFilteredQuery) {
+            XFilteredQuery fQuery = (XFilteredQuery) query;
             if (Queries.isConstantMatchAllQuery(fQuery.getQuery())) {
                 return fQuery.getFilter();
             }
-        } else if (query instanceof DeletionAwareConstantScoreQuery) {
-            return ((DeletionAwareConstantScoreQuery) query).getFilter();
+        } else if (query instanceof XConstantScoreQuery) {
+            return ((XConstantScoreQuery) query).getFilter();
         } else if (query instanceof ConstantScoreQuery) {
             ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) query;
             if (constantScoreQuery.getFilter() != null) {

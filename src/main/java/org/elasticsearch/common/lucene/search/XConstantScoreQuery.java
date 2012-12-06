@@ -25,12 +25,12 @@ import org.apache.lucene.search.Filter;
 /**
  * We still need sometimes to exclude deletes, because we don't remove them always with acceptDocs on filters
  */
-public class DeletionAwareConstantScoreQuery extends ConstantScoreQuery {
+public class XConstantScoreQuery extends ConstantScoreQuery {
 
     private final Filter actualFilter;
 
-    public DeletionAwareConstantScoreQuery(Filter filter) {
-        super(new NotDeletedFilter(filter));
+    public XConstantScoreQuery(Filter filter) {
+        super(new ApplyAcceptedDocsFilter(filter));
         this.actualFilter = filter;
     }
 

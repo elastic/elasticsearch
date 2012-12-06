@@ -21,7 +21,10 @@ package org.elasticsearch.index.engine.robin;
 
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.*;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.SearcherFactory;
+import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
@@ -32,6 +35,7 @@ import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.lucene.uid.UidField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -690,11 +694,11 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
             Query query;
             if (delete.nested() && delete.aliasFilter() != null) {
-                query = new IncludeNestedDocsQuery(new FilteredQuery(delete.query(), delete.aliasFilter()), delete.parentFilter());
+                query = new IncludeNestedDocsQuery(new XFilteredQuery(delete.query(), delete.aliasFilter()), delete.parentFilter());
             } else if (delete.nested()) {
                 query = new IncludeNestedDocsQuery(delete.query(), delete.parentFilter());
             } else if (delete.aliasFilter() != null) {
-                query = new FilteredQuery(delete.query(), delete.aliasFilter());
+                query = new XFilteredQuery(delete.query(), delete.aliasFilter());
             } else {
                 query = delete.query();
             }

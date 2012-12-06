@@ -20,14 +20,12 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.search.child.HasParentFilter;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -109,7 +107,7 @@ public class HasParentFilterParser implements FilterParser {
         }
 
         // wrap the query with type query
-        query = new FilteredQuery(query, parseContext.cacheFilter(parentDocMapper.typeFilter(), null));
+        query = new XFilteredQuery(query, parseContext.cacheFilter(parentDocMapper.typeFilter(), null));
 
         SearchContext searchContext = SearchContext.current();
 

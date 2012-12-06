@@ -19,10 +19,10 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.search.child.TopChildrenQuery;
@@ -118,7 +118,7 @@ public class TopChildrenQueryParser implements QueryParser {
 
         query.setBoost(boost);
         // wrap the query with type query
-        query = new FilteredQuery(query, parseContext.cacheFilter(childDocMapper.typeFilter(), null));
+        query = new XFilteredQuery(query, parseContext.cacheFilter(childDocMapper.typeFilter(), null));
 
         SearchContext searchContext = SearchContext.current();
         TopChildrenQuery childQuery = new TopChildrenQuery(query, scope, childType, parentType, scoreType, factor, incrementalFactor);

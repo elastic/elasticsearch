@@ -29,8 +29,8 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.search.DeletionAwareConstantScoreQuery;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -59,7 +59,7 @@ public class MatchAllDocsFilterTests {
         IndexReader reader = IndexReader.open(indexWriter, true);
         IndexSearcher searcher = new IndexSearcher(reader);
 
-        DeletionAwareConstantScoreQuery query = new DeletionAwareConstantScoreQuery(Queries.MATCH_ALL_FILTER);
+        XConstantScoreQuery query = new XConstantScoreQuery(Queries.MATCH_ALL_FILTER);
         long count = Lucene.count(searcher, query);
         assertThat(count, equalTo(2l));
 

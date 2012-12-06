@@ -29,6 +29,7 @@ import org.elasticsearch.common.lucene.MinimumScoreCollector;
 import org.elasticsearch.common.lucene.MultiCollector;
 import org.elasticsearch.common.lucene.search.AndFilter;
 import org.elasticsearch.common.lucene.search.FilteredCollector;
+import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.search.dfs.CachedDfSource;
 
@@ -205,7 +206,7 @@ public class ContextIndexSearcher extends IndexSearcher {
             return super.explain(query, doc);
         }
 
-        FilteredQuery filteredQuery = new FilteredQuery(query, searchContext.aliasFilter());
+        XFilteredQuery filteredQuery = new XFilteredQuery(query, searchContext.aliasFilter());
         return super.explain(filteredQuery, doc);
     }
 }

@@ -60,6 +60,8 @@ public class FilteredQueryParser implements QueryParser {
 
         String currentFieldName = null;
         XContentParser.Token token;
+        XFilteredQuery.FilterStrategy filterStrategy = XFilteredQuery.CUSTOM_FILTER_STRATEGY;
+
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -74,7 +76,28 @@ public class FilteredQueryParser implements QueryParser {
                     throw new QueryParsingException(parseContext.index(), "[filtered] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
-                if ("boost".equals(currentFieldName)) {
+                if ("strategy".equals(currentFieldName)) {
+                    String value = parser.text();
+                    if ("query_filter".equals(value) || "queryFirst".equals(value)) {
+                        filterStrategy = XFilteredQuery.QUERY_FIRST_FILTER_STRATEGY;
+                    } else if ("random_access_random".equals(value) || "randomAccessAlways".equals(value)) {
+                        filterStrategy = XFilteredQuery.ALWAYS_RANDOM_ACCESS_FILTER_STRATEGY;
+                    } else if ("leap_frog".equals(value) || "leapFrog".equals(value)) {
+                        filterStrategy = XFilteredQuery.LEAP_FROG_QUERY_FIRST_STRATEGY;
+                    } else if (value.startsWith("random_access_")) {
+                        int threshold = Integer.parseInt(value.substring("random_access_".length()));
+                        filterStrategy = new XFilteredQuery.CustomRandomAccessFilterStrategy(threshold);
+                    } else if (value.startsWith("randomAccess")) {
+                        int threshold = Integer.parseInt(value.substring("randomAccess".length()));
+                        filterStrategy = new XFilteredQuery.CustomRandomAccessFilterStrategy(threshold);
+                    } else if ("leap_frog_query_first".equals(value) || "leapFrogQueryFirst".equals(value)) {
+                        filterStrategy = XFilteredQuery.LEAP_FROG_QUERY_FIRST_STRATEGY;
+                    } else if ("leap_frog_filter_first".equals(value) || "leapFrogFilterFirst".equals(value)) {
+                        filterStrategy = XFilteredQuery.LEAP_FROG_FILTER_FIRST_STRATEGY;
+                    } else {
+                        throw new QueryParsingException(parseContext.index(), "[filtered] strategy value not supported [" + value + "]");
+                    }
+                } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else if ("_cache".equals(currentFieldName)) {
                     cache = parser.booleanValue();
@@ -114,9 +137,7 @@ public class FilteredQueryParser implements QueryParser {
             return q;
         }
 
-        // TODO: Lucene 4 Upgrade: we need to expose filter strategy
-
-        XFilteredQuery filteredQuery = new XFilteredQuery(query, filter);
+        XFilteredQuery filteredQuery = new XFilteredQuery(query, filter, filterStrategy);
         filteredQuery.setBoost(boost);
         return filteredQuery;
     }

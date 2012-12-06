@@ -60,6 +60,8 @@ public class SearchContextHighlight {
 
         private String highlighterType;
 
+        private String fragmenter;
+
         private int boundaryMaxScan = -1;
         private char[] boundaryChars = null;
 
@@ -149,6 +151,14 @@ public class SearchContextHighlight {
 
         public void highlighterType(String type) {
             this.highlighterType = type;
+        }
+
+        public String fragmenter() {
+            return fragmenter;
+        }
+
+        public void fragmenter(String fragmenter) {
+            this.fragmenter = fragmenter;
         }
 
         public int boundaryMaxScan() {

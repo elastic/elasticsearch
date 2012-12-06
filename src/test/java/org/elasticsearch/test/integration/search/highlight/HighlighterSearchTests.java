@@ -20,14 +20,17 @@
 package org.elasticsearch.test.integration.search.highlight;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndexMissingException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
@@ -49,6 +52,7 @@ import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.testng.Assert.fail;
 
 /**
  *
@@ -915,8 +919,60 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .addHighlightedField("tags", -1, 0)
                 .execute().actionGet();
 
-        assertThat(2, equalTo(response.hits().hits()[0].highlightFields().get("tags").fragments().length));
-        assertThat("this is a really long <em>tag</em> i would like to highlight", equalTo(response.hits().hits()[0].highlightFields().get("tags").fragments()[0].string()));
-        assertThat("here is another one that is very long and has the <em>tag</em> token near the end", equalTo(response.hits().hits()[0].highlightFields().get("tags").fragments()[1].string()));
+        assertThat(response.hits().hits()[0].highlightFields().get("tags").fragments().length, equalTo(2));
+        assertThat(response.hits().hits()[0].highlightFields().get("tags").fragments()[0].string(), equalTo("this is a really long <em>tag</em> i would like to highlight"));
+        assertThat(response.hits().hits()[0].highlightFields().get("tags").fragments()[1].string(), equalTo("here is another one that is very long and has the <em>tag</em> token near the end"));
     }
+
+    @Test
+    public void testPlainHighlightDifferentFragmenter() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder()
+                .put("number_of_shards", 1).put("number_of_replicas", 0))
+                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("tags").field("type", "string").endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
+
+        client.prepareIndex("test", "type1", "1")
+                .setSource(jsonBuilder().startObject().field("tags",
+                        "this is a really long tag i would like to highlight",
+                        "here is another one that is very long tag and has the tag token near the end").endObject())
+                .setRefresh(true).execute().actionGet();
+
+        SearchResponse response = client.prepareSearch("test")
+                .setQuery(QueryBuilders.matchQuery("tags", "long tag").type(MatchQueryBuilder.Type.PHRASE))
+                .addHighlightedField(new HighlightBuilder.Field("tags")
+                        .fragmentSize(-1).numOfFragments(2).fragmenter("simple"))
+                .execute().actionGet();
+        assertThat(response.hits().hits()[0].highlightFields().get("tags").fragments().length, equalTo(2));
+        assertThat(response.hits().hits()[0].highlightFields().get("tags").fragments()[0].string(), equalTo("this is a really <em>long</em> <em>tag</em> i would like to highlight"));
+        assertThat(response.hits().hits()[0].highlightFields().get("tags").fragments()[1].string(), equalTo("here is another one that is very <em>long</em> <em>tag</em> and has the tag token near the end"));
+
+        response = client.prepareSearch("test")
+                .setQuery(QueryBuilders.matchQuery("tags", "long tag").type(MatchQueryBuilder.Type.PHRASE))
+                .addHighlightedField(new HighlightBuilder.Field("tags")
+                        .fragmentSize(-1).numOfFragments(2).fragmenter("span"))
+                .execute().actionGet();
+        assertThat(response.hits().hits()[0].highlightFields().get("tags").fragments().length, equalTo(2));
+        assertThat(response.hits().hits()[0].highlightFields().get("tags").fragments()[0].string(), equalTo("this is a really <em>long</em> <em>tag</em> i would like to highlight"));
+        assertThat(response.hits().hits()[0].highlightFields().get("tags").fragments()[1].string(), equalTo("here is another one that is very <em>long</em> <em>tag</em> and has the tag token near the end"));
+
+        try {
+            client.prepareSearch("test")
+                    .setQuery(QueryBuilders.matchQuery("tags", "long tag").type(MatchQueryBuilder.Type.PHRASE))
+                    .addHighlightedField(new HighlightBuilder.Field("tags")
+                            .fragmentSize(-1).numOfFragments(2).fragmenter("invalid"))
+                    .execute().actionGet();
+            fail("Shouldn't get here");
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(e.shardFailures()[0].status(), equalTo(RestStatus.BAD_REQUEST));
+        }
+    }
+
 }

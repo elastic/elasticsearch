@@ -31,6 +31,7 @@ import org.apache.lucene.search.highlight.*;
 import org.apache.lucene.search.highlight.Formatter;
 import org.apache.lucene.search.vectorhighlight.*;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FastStringReader;
@@ -140,13 +141,13 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                 useFastVectorHighlighter = mapper.termVector() == Field.TermVector.WITH_POSITIONS_OFFSETS;
             } else if (field.highlighterType().equals("fast-vector-highlighter") || field.highlighterType().equals("fvh")) {
                 if (mapper.termVector() != Field.TermVector.WITH_POSITIONS_OFFSETS) {
-                    throw new FetchPhaseExecutionException(context, "the field [" + field.field() + "] should be indexed with term vector with position offsets to be used with fast vector highlighter");
+                    throw new ElasticSearchIllegalArgumentException("the field [" + field.field() + "] should be indexed with term vector with position offsets to be used with fast vector highlighter");
                 }
                 useFastVectorHighlighter = true;
             } else if (field.highlighterType().equals("highlighter") || field.highlighterType().equals("plain")) {
                 useFastVectorHighlighter = false;
             } else {
-                throw new FetchPhaseExecutionException(context, "unknown highlighter type [" + field.highlighterType() + "] for the field [" + field.field() + "]");
+                throw new ElasticSearchIllegalArgumentException("unknown highlighter type [" + field.highlighterType() + "] for the field [" + field.field() + "]");
             }
             if (!useFastVectorHighlighter) {
                 MapperHighlightEntry entry = cache.mappers.get(mapper);
@@ -159,8 +160,14 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                     Fragmenter fragmenter;
                     if (field.numberOfFragments() == 0) {
                         fragmenter = new NullFragmenter();
-                    } else {
+                    } else if (field.fragmenter() == null) {
                         fragmenter = new SimpleSpanFragmenter(queryScorer, field.fragmentCharSize());
+                    } else if ("simple".equals(field.fragmenter())) {
+                        fragmenter = new SimpleFragmenter(field.fragmentCharSize());
+                    } else if ("span".equals(field.fragmenter())) {
+                        fragmenter = new SimpleSpanFragmenter(queryScorer, field.fragmentCharSize());
+                    } else {
+                        throw new ElasticSearchIllegalArgumentException("unknown fragmenter option [" + field.fragmenter() + "] for the field [" + field.field() + "]");
                     }
                     Formatter formatter = new SimpleHTMLFormatter(field.preTags()[0], field.postTags()[0]);
 

@@ -22,15 +22,15 @@ package org.elasticsearch.search.internal;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lucene.search.DeletionAwareConstantScoreQuery;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
+import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -220,11 +220,11 @@ public class SearchContext implements Releasable {
         Filter searchFilter = mapperService().searchFilter(types());
         if (searchFilter != null) {
             if (Queries.isConstantMatchAllQuery(query())) {
-                Query q = new DeletionAwareConstantScoreQuery(filterCache().cache(searchFilter));
+                Query q = new XConstantScoreQuery(filterCache().cache(searchFilter));
                 q.setBoost(query().getBoost());
                 parsedQuery(new ParsedQuery(q, parsedQuery()));
             } else {
-                parsedQuery(new ParsedQuery(new FilteredQuery(query(), filterCache().cache(searchFilter)), parsedQuery()));
+                parsedQuery(new ParsedQuery(new XFilteredQuery(query(), filterCache().cache(searchFilter)), parsedQuery()));
             }
         }
     }

@@ -26,6 +26,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.highlight.QueryScorer;
 import org.apache.lucene.search.highlight.WeightedSpanTerm;
 import org.apache.lucene.search.highlight.WeightedSpanTermExtractor;
+import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 
@@ -92,6 +93,9 @@ public final class CustomQueryScorer extends QueryScorer {
                 }
             } else if (query instanceof FilteredQuery) {
                 query = ((FilteredQuery) query).getQuery();
+                extract(query, terms);
+            } else if (query instanceof XFilteredQuery) {
+                query = ((XFilteredQuery) query).getQuery();
                 extract(query, terms);
             }
         }

@@ -20,10 +20,7 @@
 package org.elasticsearch.common.lucene.search;
 
 import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.search.DocIdSet;
-import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilteredDocIdSetIterator;
+import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
@@ -31,13 +28,15 @@ import org.elasticsearch.common.lucene.docset.DocIdSets;
 import java.io.IOException;
 
 /**
- * A filter that filters out deleted documents.
+ * The assumption is that the underlying filter might not apply the accepted docs, so this filter helps to wrap
+ * the actual filter and apply the actual accepted docs.
  */
-public class NotDeletedFilter extends Filter {
+// TODO: we can try and be smart, and only apply if if a filter is cached (down the "chain") since that's the only place that acceptDocs are not applied in ES
+public class ApplyAcceptedDocsFilter extends Filter {
 
     private final Filter filter;
 
-    public NotDeletedFilter(Filter filter) {
+    public ApplyAcceptedDocsFilter(Filter filter) {
         this.filter = filter;
     }
 
@@ -47,10 +46,14 @@ public class NotDeletedFilter extends Filter {
         if (DocIdSets.isEmpty(docIdSet)) {
             return null;
         }
-        if (!context.reader().hasDeletions()) {
+        if (acceptDocs == null) {
             return docIdSet;
         }
-        return new NotDeletedDocIdSet(docIdSet, context.reader().getLiveDocs());
+        if (acceptDocs == context.reader().getLiveDocs()) {
+            // optimized wrapper for not deleted cases
+            return new NotDeletedDocIdSet(docIdSet, acceptDocs);
+        }
+        return BitsFilteredDocIdSet.wrap(docIdSet, acceptDocs);
     }
 
     public Filter filter() {
@@ -59,7 +62,7 @@ public class NotDeletedFilter extends Filter {
 
     @Override
     public String toString() {
-        return "NotDeleted(" + filter + ")";
+        return filter.toString();
     }
 
     static class NotDeletedDocIdSet extends DocIdSet {

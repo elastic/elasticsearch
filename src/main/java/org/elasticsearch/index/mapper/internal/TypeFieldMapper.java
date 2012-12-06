@@ -29,8 +29,8 @@ import org.apache.lucene.search.PrefixFilter;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.search.DeletionAwareConstantScoreQuery;
 import org.elasticsearch.common.lucene.search.TermFilter;
+import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.mapper.*;
@@ -145,7 +145,7 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
 
     @Override
     public Query fieldQuery(String value, @Nullable QueryParseContext context) {
-        return new DeletionAwareConstantScoreQuery(context.cacheFilter(fieldFilter(value, context), null));
+        return new XConstantScoreQuery(context.cacheFilter(fieldFilter(value, context), null));
     }
 
     @Override

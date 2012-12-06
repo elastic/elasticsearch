@@ -20,11 +20,11 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.DeletionAwareConstantScoreQuery;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
+import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 
@@ -109,23 +109,14 @@ public class FilteredQueryParser implements QueryParser {
 
         // if its a match_all query, use constant_score
         if (Queries.isConstantMatchAllQuery(query)) {
-            Query q = new DeletionAwareConstantScoreQuery(filter);
+            Query q = new XConstantScoreQuery(filter);
             q.setBoost(boost);
             return q;
         }
 
-        // TODO
-        // With the way filtered queries work today, both query and filter advance (one at a time)
-        // to get hits. Since all filters support random access, it might make sense to use that.
-        // But, it make more sense to apply it down at the postings level then letting the query
-        // construct doc ids and extract it.
-        // This might be possible in lucene 4.0.
-        // More info:
-        //    - https://issues.apache.org/jira/browse/LUCENE-1536
-        //    - http://chbits.blogspot.com/2010/09/fast-search-filters-using-flex.html
+        // TODO: Lucene 4 Upgrade: we need to expose filter strategy
 
-
-        FilteredQuery filteredQuery = new FilteredQuery(query, filter);
+        XFilteredQuery filteredQuery = new XFilteredQuery(query, filter);
         filteredQuery.setBoost(boost);
         return filteredQuery;
     }

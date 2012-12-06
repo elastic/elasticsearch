@@ -31,8 +31,8 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.DeletionAwareConstantScoreQuery;
 import org.elasticsearch.common.lucene.search.TermFilter;
+import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
@@ -129,7 +129,7 @@ public class PercolatorService extends AbstractIndexComponent {
         try {
             // create a query to fetch all queries that are registered under the index name (which is the type
             // in the percolator).
-            Query query = new DeletionAwareConstantScoreQuery(indexQueriesFilter(indexName));
+            Query query = new XConstantScoreQuery(indexQueriesFilter(indexName));
             QueriesLoaderCollector queries = new QueriesLoaderCollector();
             searcher.searcher().search(query, queries);
             percolator.addQueries(queries.queries());

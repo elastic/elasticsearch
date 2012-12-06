@@ -22,11 +22,15 @@ package org.elasticsearch.search.facet;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.MultiCollector;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.DeletionAwareConstantScoreQuery;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
+import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.index.search.nested.BlockJoinQuery;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
@@ -120,10 +124,10 @@ public class FacetPhase implements SearchPhase {
             // now, go and execute the filters->collector ones
             for (Map.Entry<Filter, List<Collector>> entry : filtersByCollector.entrySet()) {
                 Filter filter = entry.getKey();
-                Query query = new DeletionAwareConstantScoreQuery(filter);
+                Query query = new XConstantScoreQuery(filter);
                 Filter searchFilter = context.mapperService().searchFilter(context.types());
                 if (searchFilter != null) {
-                    query = new FilteredQuery(query, context.filterCache().cache(searchFilter));
+                    query = new XFilteredQuery(query, context.filterCache().cache(searchFilter));
                 }
                 try {
                     context.searcher().search(query, MultiCollector.wrap(entry.getValue().toArray(new Collector[entry.getValue().size()])));

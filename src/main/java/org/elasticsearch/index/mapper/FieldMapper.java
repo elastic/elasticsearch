@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.document.Field;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Filter;
@@ -166,19 +165,19 @@ public interface FieldMapper<T> {
     /**
      * Returns the value that will be used as a result for search. Can be only of specific types... .
      */
-    Object valueForSearch(Field field);
+    Object valueForSearch(Object value);
 
     /**
      * Returns the actual value of the field.
      */
-    T value(Field field);
+    T value(Object value);
 
     T valueFromString(String value);
 
     /**
      * Returns the actual value of the field as string.
      */
-    String valueAsString(Field field);
+    String valueAsString(Object value);
 
     /**
      * Returns the indexed value.

@@ -169,8 +169,8 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
     }
 
     @Override
-    public Uid value(Field field) {
-        return Uid.createUid(field.stringValue());
+    public Uid value(Object value) {
+        return Uid.createUid(String.valueOf(value));
     }
 
     @Override
@@ -179,13 +179,8 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
     }
 
     @Override
-    public String valueAsString(Field field) {
-        return field.stringValue();
-    }
-
-    @Override
-    public Object valueForSearch(Field field) {
-        String fieldValue = field.stringValue();
+    public Object valueForSearch(Object value) {
+        String fieldValue = String.valueOf(value);
         if (fieldValue == null) {
             return null;
         }

@@ -33,6 +33,7 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -129,12 +130,14 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
     }
 
     @Override
-    public Float value(Field field) {
-        BytesRef value = field.binaryValue();
+    public Float value(Object value) {
         if (value == null) {
             return null;
         }
-        return Numbers.bytesToFloat(value.bytes);
+        if (value instanceof Number) {
+            return ((Number) value).floatValue();
+        }
+        return Numbers.bytesToFloat(((BytesReference) value).array());
     }
 
     @Override

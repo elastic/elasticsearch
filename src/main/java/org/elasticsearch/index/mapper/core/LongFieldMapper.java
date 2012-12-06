@@ -33,6 +33,7 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -131,12 +132,14 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
-    public Long value(Field field) {
-        BytesRef value = field.binaryValue();
+    public Long value(Object value) {
         if (value == null) {
             return null;
         }
-        return Numbers.bytesToLong(value.bytes);
+        if (value instanceof Number) {
+            return ((Number) value).longValue();
+        }
+        return Numbers.bytesToLong(((BytesReference) value).array());
     }
 
     @Override

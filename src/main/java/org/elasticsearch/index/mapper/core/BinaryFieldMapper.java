@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper.core;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Strings;
@@ -126,18 +125,17 @@ public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
     }
 
     @Override
-    public Object valueForSearch(Field field) {
-        return value(field);
+    public Object valueForSearch(Object value) {
+        return value(value);
     }
 
     @Override
-    public byte[] value(Field field) {
-        BytesRef value = field.binaryValue();
+    public byte[] value(Object value) {
         if (value == null) {
             return null;
         }
         try {
-            return CompressorFactory.uncompressIfNeeded(new BytesArray(value)).toBytes();
+            return CompressorFactory.uncompressIfNeeded(new BytesArray((byte[]) value)).toBytes();
         } catch (IOException e) {
             throw new ElasticSearchParseException("failed to decompress source", e);
         }
@@ -154,7 +152,7 @@ public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
     }
 
     @Override
-    public String valueAsString(Field field) {
+    public String valueAsString(Object value) {
         return null;
     }
 

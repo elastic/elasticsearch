@@ -175,18 +175,13 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
     }
 
     @Override
-    public Uid value(Field field) {
-        return Uid.createUid(field.stringValue());
+    public Uid value(Object value) {
+        return Uid.createUid(String.valueOf(value));
     }
 
     @Override
     public Uid valueFromString(String value) {
         return Uid.createUid(value);
-    }
-
-    @Override
-    public String valueAsString(Field field) {
-        return field.stringValue();
     }
 
     @Override

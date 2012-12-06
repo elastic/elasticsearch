@@ -247,15 +247,17 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
 
     /**
      * Override the default behavior (to return the string, and return the actual Number instance).
+     *
+     * @param value
      */
     @Override
-    public Object valueForSearch(Field field) {
-        return value(field);
+    public Object valueForSearch(Object value) {
+        return value(value);
     }
 
     @Override
-    public String valueAsString(Field field) {
-        Number num = value(field);
+    public String valueAsString(Object value) {
+        Number num = value(value);
         return num == null ? null : num.toString();
     }
 

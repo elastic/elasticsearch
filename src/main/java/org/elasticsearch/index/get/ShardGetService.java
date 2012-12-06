@@ -19,23 +19,22 @@
 
 package org.elasticsearch.index.get;
 
-import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Field;
-import org.apache.lucene.index.IndexableField;
+import com.google.common.collect.Sets;
 import org.apache.lucene.index.Term;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.document.BaseFieldVisitor;
 import org.elasticsearch.common.lucene.uid.UidField;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
+import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
+import org.elasticsearch.index.fieldvisitor.JustSourceFieldsVisitor;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.internal.*;
-import org.elasticsearch.index.mapper.selector.FieldMappersFieldVisitor;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
@@ -48,6 +47,8 @@ import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -274,50 +275,23 @@ public class ShardGetService extends AbstractIndexShardComponent {
 
     private GetResult innerGetLoadFromStoredFields(String type, String id, String[] gFields, Engine.GetResult get, DocumentMapper docMapper) {
         Map<String, GetField> fields = null;
-        byte[] source = null;
+        BytesReference source = null;
         UidField.DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
-        // LUCENE 4 UPGRADE: optimize when only a single field needs to be loaded
-        BaseFieldVisitor fieldVisitor = buildFieldSelectors(docMapper, gFields);
+        FieldsVisitor fieldVisitor = buildFieldsVisitors(gFields);
         if (fieldVisitor != null) {
-            Document doc;
             try {
                 docIdAndVersion.reader.reader().document(docIdAndVersion.docId, fieldVisitor);
-                doc = fieldVisitor.createDocument();
             } catch (IOException e) {
                 throw new ElasticSearchException("Failed to get type [" + type + "] and id [" + id + "]", e);
             }
-            source = extractSource(doc, docMapper);
+            source = fieldVisitor.source();
 
-            for (Object oField : doc.getFields()) {
-                Field field = (Field) oField;
-                String name = field.name();
-                Object value = null;
-                FieldMappers fieldMappers = docMapper.mappers().indexName(field.name());
-                if (fieldMappers != null) {
-                    FieldMapper mapper = fieldMappers.mapper();
-                    if (mapper != null) {
-                        name = mapper.names().fullName();
-                        value = mapper.valueForSearch(field);
-                    }
+            if (fieldVisitor.fields() != null) {
+                fieldVisitor.postProcess(docMapper);
+                fields = new HashMap<String, GetField>(fieldVisitor.fields().size());
+                for (Map.Entry<String, List<Object>> entry : fieldVisitor.fields().entrySet()) {
+                    fields.put(entry.getKey(), new GetField(entry.getKey(), entry.getValue()));
                 }
-                if (value == null) {
-                    if (field.binaryValue() != null) {
-                        value = new BytesArray(field.binaryValue());
-                    } else {
-                        value = field.stringValue();
-                    }
-                }
-
-                if (fields == null) {
-                    fields = newHashMapWithExpectedSize(2);
-                }
-
-                GetField getField = fields.get(name);
-                if (getField == null) {
-                    getField = new GetField(name, new ArrayList<Object>(2));
-                    fields.put(name, getField);
-                }
-                getField.values().add(value);
             }
         }
 
@@ -368,12 +342,12 @@ public class ShardGetService extends AbstractIndexShardComponent {
             }
         }
 
-        return new GetResult(shardId.index().name(), type, id, get.version(), get.exists(), source == null ? null : new BytesArray(source), fields);
+        return new GetResult(shardId.index().name(), type, id, get.version(), get.exists(), source, fields);
     }
 
-    private static BaseFieldVisitor buildFieldSelectors(DocumentMapper docMapper, String... fields) {
+    private static FieldsVisitor buildFieldsVisitors(String... fields) {
         if (fields == null) {
-            return docMapper.sourceMapper().fieldSelector();
+            return new JustSourceFieldsVisitor();
         }
 
         // don't load anything
@@ -381,28 +355,6 @@ public class ShardGetService extends AbstractIndexShardComponent {
             return null;
         }
 
-        FieldMappersFieldVisitor fieldVisitor = null;
-        for (String fieldName : fields) {
-            FieldMappers x = docMapper.mappers().smartName(fieldName);
-            if (x != null && x.mapper().stored()) {
-                if (fieldVisitor == null) {
-                    fieldVisitor = new FieldMappersFieldVisitor();
-                }
-                fieldVisitor.add(x);
-            }
-        }
-
-        return fieldVisitor;
-    }
-
-    private static byte[] extractSource(Document doc, DocumentMapper documentMapper) {
-        byte[] source = null;
-        IndexableField sourceField = doc.getField(documentMapper.sourceMapper().names().indexName());
-        if (sourceField != null) {
-            // LUCENE 4 UPGRADE: Field instead of IndexableField?
-            source = documentMapper.sourceMapper().nativeValue((Field) sourceField);
-            doc.removeField(documentMapper.sourceMapper().names().indexName());
-        }
-        return source;
+        return new CustomFieldsVisitor(Sets.newHashSet(fields), false);
     }
 }

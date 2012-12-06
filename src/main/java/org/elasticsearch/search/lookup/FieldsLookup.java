@@ -19,13 +19,14 @@
 
 package org.elasticsearch.search.lookup;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.lucene.document.SingleFieldVisitor;
+import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 
@@ -51,11 +52,12 @@ public class FieldsLookup implements Map {
 
     private final Map<String, FieldLookup> cachedFieldData = Maps.newHashMap();
 
-    private final SingleFieldVisitor fieldVisitor = new SingleFieldVisitor();
+    private final SingleFieldsVisitor fieldVisitor;
 
     FieldsLookup(MapperService mapperService, @Nullable String[] types) {
         this.mapperService = mapperService;
         this.types = types;
+        this.fieldVisitor = new SingleFieldsVisitor(null);
     }
 
     public void setNextReader(AtomicReaderContext context) {
@@ -151,16 +153,15 @@ public class FieldsLookup implements Map {
             data = new FieldLookup(mapper);
             cachedFieldData.put(name, data);
         }
-        if (data.doc() == null) {
-            fieldVisitor.name(data.mapper().names().indexName());
+        if (data.fields() == null) {
+            String fieldName = data.mapper().names().indexName();
+            fieldVisitor.reset(fieldName);
             try {
                 reader.document(docId, fieldVisitor);
-                // LUCENE 4 UPGRADE: Only one field we don't need document
-                data.doc(fieldVisitor.createDocument());
+                fieldVisitor.postProcess(data.mapper());
+                data.fields(ImmutableMap.of(name, fieldVisitor.fields().get(data.mapper().names().indexName())));
             } catch (IOException e) {
                 throw new ElasticSearchParseException("failed to load field [" + name + "]", e);
-            } finally {
-                fieldVisitor.reset();
             }
         }
         return data;

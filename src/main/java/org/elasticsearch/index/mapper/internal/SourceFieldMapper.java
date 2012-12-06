@@ -27,7 +27,6 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedStreamInput;
@@ -36,7 +35,6 @@ import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.CachedStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.document.BaseFieldVisitor;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -214,10 +212,6 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
         return this.enabled;
     }
 
-    public BaseFieldVisitor fieldSelector() {
-        return new SourceFieldVisitor();
-    }
-
     @Override
     public void preParse(ParseContext context) throws IOException {
         super.parse(context);
@@ -357,13 +351,13 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
     }
 
     @Override
-    public byte[] value(Field field) {
-        byte[] value = field.binaryValue().bytes;
-        if (value == null) {
-            return value;
+    public byte[] value(Object value) {
+        BytesReference val = (BytesReference) value;
+        if (val == null) {
+            return null;
         }
         try {
-            return CompressorFactory.uncompressIfNeeded(new BytesArray(value)).toBytes();
+            return CompressorFactory.uncompressIfNeeded(val).toBytes();
         } catch (IOException e) {
             throw new ElasticSearchParseException("failed to decompress source", e);
         }
@@ -375,7 +369,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
     }
 
     @Override
-    public String valueAsString(Field field) {
+    public String valueAsString(Object value) {
         throw new UnsupportedOperationException();
     }
 

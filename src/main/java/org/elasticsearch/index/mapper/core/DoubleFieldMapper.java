@@ -32,6 +32,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -131,12 +132,14 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
     }
 
     @Override
-    public Double value(Field field) {
-        BytesRef value = field.binaryValue();
+    public Double value(Object value) {
         if (value == null) {
             return null;
         }
-        return Numbers.bytesToDouble(value.bytes);
+        if (value instanceof Number) {
+            return ((Number) value).doubleValue();
+        }
+        return Numbers.bytesToDouble(((BytesReference) value).array());
     }
 
     @Override

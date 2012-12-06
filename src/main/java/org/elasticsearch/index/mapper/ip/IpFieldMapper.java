@@ -154,12 +154,11 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
-    public Long value(Field field) {
-        byte[] value = field.binaryValue().bytes;
+    public Long value(Object value) {
         if (value == null) {
             return null;
         }
-        return Numbers.bytesToLong(value);
+        return Numbers.bytesToLong((byte[]) value);
     }
 
     @Override
@@ -169,19 +168,21 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
 
     /**
      * IPs should return as a string.
+     *
+     * @param value
      */
     @Override
-    public Object valueForSearch(Field field) {
-        return valueAsString(field);
+    public Object valueForSearch(Object value) {
+        return valueAsString(value);
     }
 
     @Override
-    public String valueAsString(Field field) {
-        Long value = value(field);
-        if (value == null) {
+    public String valueAsString(Object value) {
+        Long val = value(value);
+        if (val == null) {
             return null;
         }
-        return longToIp(value);
+        return longToIp(val);
     }
 
     @Override

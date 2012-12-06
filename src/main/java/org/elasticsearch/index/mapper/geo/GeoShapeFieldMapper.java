@@ -176,7 +176,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
     }
 
     @Override
-    public String value(Field field) {
+    public String value(Object value) {
         throw new UnsupportedOperationException("GeoShape fields cannot be converted to String values");
     }
 
@@ -186,7 +186,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
     }
 
     @Override
-    public String valueAsString(Field field) {
+    public String valueAsString(Object value) {
         throw new UnsupportedOperationException("GeoShape fields cannot be converted to String values");
     }
 

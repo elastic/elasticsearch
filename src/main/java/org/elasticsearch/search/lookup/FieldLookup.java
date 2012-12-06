@@ -19,13 +19,11 @@
 
 package org.elasticsearch.search.lookup;
 
-import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Field;
-import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.index.mapper.FieldMapper;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -35,7 +33,7 @@ public class FieldLookup {
     // we can cached mapper completely per name, since its on an index/shard level (the lookup, and it does not change within the scope of a search request)
     private final FieldMapper mapper;
 
-    private Document doc;
+    private Map<String, List<Object>> fields;
 
     private Object value;
 
@@ -53,12 +51,15 @@ public class FieldLookup {
         return mapper;
     }
 
-    public Document doc() {
-        return doc;
+    public Map<String, List<Object>> fields() {
+        return fields;
     }
 
-    public void doc(Document doc) {
-        this.doc = doc;
+    /**
+     * Sets the post processed values.
+     */
+    public void fields(Map<String, List<Object>> fields) {
+        this.fields = fields;
     }
 
     public void clear() {
@@ -66,7 +67,7 @@ public class FieldLookup {
         valueLoaded = false;
         values.clear();
         valuesLoaded = false;
-        doc = null;
+        fields = null;
     }
 
     public boolean isEmpty() {
@@ -85,12 +86,8 @@ public class FieldLookup {
         }
         valueLoaded = true;
         value = null;
-        IndexableField field = doc.getField(mapper.names().indexName());
-        if (field == null) {
-            return null;
-        }
-        value = mapper.value((Field) field);
-        return value;
+        List<Object> values = fields.get(mapper.names().indexName());
+        return values != null ? value = values.get(0) : null;
     }
 
     public List<Object> getValues() {
@@ -99,10 +96,6 @@ public class FieldLookup {
         }
         valuesLoaded = true;
         values.clear();
-        IndexableField[] fields = doc.getFields(mapper.names().indexName());
-        for (IndexableField field : fields) {
-            values.add(mapper.value((Field) field));
-        }
-        return values;
+        return values = fields().get(mapper.names().indexName());
     }
 }

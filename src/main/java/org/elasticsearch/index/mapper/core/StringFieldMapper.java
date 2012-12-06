@@ -217,18 +217,13 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
     }
 
     @Override
-    public String value(Field field) {
-        return field.stringValue();
+    public String value(Object value) {
+        return String.valueOf(value);
     }
 
     @Override
     public String valueFromString(String value) {
         return value;
-    }
-
-    @Override
-    public String valueAsString(Field field) {
-        return value(field);
     }
 
     @Override

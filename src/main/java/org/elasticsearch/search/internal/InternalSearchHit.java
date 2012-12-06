@@ -91,11 +91,11 @@ public class InternalSearchHit implements SearchHit {
 
     }
 
-    public InternalSearchHit(int docId, String id, String type, byte[] source, Map<String, SearchHitField> fields) {
+    public InternalSearchHit(int docId, String id, String type, BytesReference source, Map<String, SearchHitField> fields) {
         this.docId = docId;
         this.id = id;
         this.type = type;
-        this.source = source == null ? null : new BytesArray(source);
+        this.source = source;
         this.fields = fields;
     }
 

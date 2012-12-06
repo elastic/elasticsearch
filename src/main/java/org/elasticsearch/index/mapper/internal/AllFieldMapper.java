@@ -221,7 +221,7 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
     }
 
     @Override
-    public Void value(Field field) {
+    public Void value(Object value) {
         return null;
     }
 
@@ -231,12 +231,12 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
     }
 
     @Override
-    public String valueAsString(Field field) {
+    public String valueAsString(Object value) {
         return null;
     }
 
     @Override
-    public Object valueForSearch(Field field) {
+    public Object valueForSearch(Object value) {
         return null;
     }
 

@@ -20,11 +20,10 @@
 package org.elasticsearch.search.highlight;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.document.Document;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.highlight.*;
 import org.apache.lucene.search.highlight.Formatter;
@@ -34,10 +33,10 @@ import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FastStringReader;
-import org.elasticsearch.common.lucene.document.SingleFieldVisitor;
 import org.elasticsearch.common.lucene.search.vectorhighlight.SimpleBoundaryScanner2;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.StringText;
+import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -176,15 +175,9 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                 List<Object> textsToHighlight;
                 if (mapper.stored()) {
                     try {
-                        SingleFieldVisitor fieldVisitor = new SingleFieldVisitor(mapper.names().indexName());
+                        CustomFieldsVisitor fieldVisitor = new CustomFieldsVisitor(ImmutableSet.of(mapper.names().indexName()), false);
                         hitContext.reader().document(hitContext.docId(), fieldVisitor);
-                        Document doc = fieldVisitor.createDocument();
-                        textsToHighlight = new ArrayList<Object>(doc.getFields().size());
-                        for (IndexableField docField : doc.getFields()) {
-                            if (docField.stringValue() != null) {
-                                textsToHighlight.add(docField.stringValue());
-                            }
-                        }
+                        textsToHighlight = fieldVisitor.fields().get(mapper.names().indexName());
                     } catch (Exception e) {
                         throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + field.field() + "]", e);
                     }

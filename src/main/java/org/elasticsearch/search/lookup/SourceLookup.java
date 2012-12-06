@@ -22,12 +22,11 @@ package org.elasticsearch.search.lookup;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.mapper.internal.SourceFieldVisitor;
+import org.elasticsearch.index.fieldvisitor.JustSourceFieldsVisitor;
 
 import java.util.Collection;
 import java.util.List;
@@ -60,13 +59,13 @@ public class SourceLookup implements Map {
             return source;
         }
         try {
-            SourceFieldVisitor sourceFieldVisitor = new SourceFieldVisitor();
+            JustSourceFieldsVisitor sourceFieldVisitor = new JustSourceFieldsVisitor();
             reader.document(docId, sourceFieldVisitor);
-            BytesRef source = sourceFieldVisitor.source();
+            BytesReference source = sourceFieldVisitor.source();
             if (source == null) {
                 this.source = ImmutableMap.of();
             } else {
-                this.source = sourceAsMap(source.bytes, source.offset, source.length);
+                this.source = sourceAsMap(source);
             }
         } catch (Exception e) {
             throw new ElasticSearchParseException("failed to parse / load source", e);

@@ -20,11 +20,11 @@
 package org.elasticsearch.search.fetch;
 
 import com.google.common.collect.Maps;
-import org.apache.lucene.document.Document;
 import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
@@ -42,16 +42,16 @@ public interface FetchSubPhase {
         private int topLevelDocId;
         private AtomicReaderContext readerContext;
         private int docId;
-        private Document doc;
+        private FieldsVisitor fieldVisitor;
         private Map<String, Object> cache;
 
-        public void reset(InternalSearchHit hit, AtomicReaderContext context, int docId, IndexReader topLevelReader, int topLevelDocId, Document doc) {
+        public void reset(InternalSearchHit hit, AtomicReaderContext context, int docId, IndexReader topLevelReader, int topLevelDocId, FieldsVisitor fieldVisitor) {
             this.hit = hit;
             this.readerContext = context;
             this.docId = docId;
             this.topLevelReader = topLevelReader;
             this.topLevelDocId = topLevelDocId;
-            this.doc = doc;
+            this.fieldVisitor = fieldVisitor;
         }
 
         public InternalSearchHit hit() {
@@ -78,8 +78,8 @@ public interface FetchSubPhase {
             return topLevelDocId;
         }
 
-        public Document doc() {
-            return doc;
+        public FieldsVisitor fieldVisitor() {
+            return fieldVisitor;
         }
 
         public Map<String, Object> cache() {

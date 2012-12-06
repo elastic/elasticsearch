@@ -20,7 +20,6 @@
 package org.elasticsearch.index.percolator;
 
 import com.google.common.collect.Maps;
-import org.apache.lucene.document.Document;
 import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.Term;
@@ -28,8 +27,6 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
@@ -37,12 +34,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.fieldvisitor.UidAndSourceFieldsVisitor;
 import org.elasticsearch.index.indexing.IndexingOperationListener;
-import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
-import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.mapper.selector.UidAndSourceFieldVisitor;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -178,13 +172,11 @@ public class PercolatorService extends AbstractIndexComponent {
         @Override
         public void collect(int doc) throws IOException {
             // the _source is the query
-            UidAndSourceFieldVisitor fieldVisitor = new UidAndSourceFieldVisitor();
-            reader.document(doc, fieldVisitor);
-            Document document = fieldVisitor.createDocument();
-            String id = Uid.createUid(document.get(UidFieldMapper.NAME)).id();
+            UidAndSourceFieldsVisitor fieldsVisitor = new UidAndSourceFieldsVisitor();
+            reader.document(doc, fieldsVisitor);
+            String id = fieldsVisitor.uid().id();
             try {
-                BytesRef sourceVal = document.getBinaryValue(SourceFieldMapper.NAME);
-                queries.put(id, percolator.parseQuery(id, new BytesArray(sourceVal.bytes, sourceVal.offset, sourceVal.length)));
+                queries.put(id, percolator.parseQuery(id, fieldsVisitor.source()));
             } catch (Exception e) {
                 logger.warn("failed to add query [{}]", e, id);
             }

@@ -61,7 +61,7 @@ public class NodeService extends AbstractComponent {
     @Nullable
     private String hostname;
 
-    private final String version;
+    private final Version version;
 
     @Inject
     public NodeService(Settings settings, ThreadPool threadPool, MonitorService monitorService, Discovery discovery, ClusterService clusterService, TransportService transportService, IndicesService indicesService) {
@@ -76,7 +76,7 @@ public class NodeService extends AbstractComponent {
         if (address != null) {
             this.hostname = address.getHostName();
         }
-        this.version = Version.CURRENT.toString();
+        this.version = Version.CURRENT;
     }
 
     public void setHttpServer(@Nullable HttpServer httpServer) {

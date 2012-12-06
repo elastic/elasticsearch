@@ -49,6 +49,8 @@ public class NodeInfo extends NodeOperationResponse {
     @Nullable
     private String hostname;
 
+    private String version;
+
     @Nullable
     private Settings settings;
 
@@ -76,11 +78,12 @@ public class NodeInfo extends NodeOperationResponse {
     NodeInfo() {
     }
 
-    public NodeInfo(@Nullable String hostname, DiscoveryNode node, @Nullable ImmutableMap<String, String> serviceAttributes, @Nullable Settings settings,
+    public NodeInfo(@Nullable String hostname, String version, DiscoveryNode node, @Nullable ImmutableMap<String, String> serviceAttributes, @Nullable Settings settings,
                     @Nullable OsInfo os, @Nullable ProcessInfo process, @Nullable JvmInfo jvm, @Nullable ThreadPoolInfo threadPool, @Nullable NetworkInfo network,
                     @Nullable TransportInfo transport, @Nullable HttpInfo http) {
         super(node);
         this.hostname = hostname;
+        this.version = version;
         this.serviceAttributes = serviceAttributes;
         this.settings = settings;
         this.os = os;
@@ -106,6 +109,20 @@ public class NodeInfo extends NodeOperationResponse {
     @Nullable
     public String getHostname() {
         return hostname();
+    }
+
+    /**
+     * The current ES version
+     */
+    public String version() {
+        return version;
+    }
+
+    /**
+     * The current ES version
+     */
+    public String getVersion() {
+        return version();
     }
 
     /**
@@ -246,6 +263,7 @@ public class NodeInfo extends NodeOperationResponse {
         if (in.readBoolean()) {
             hostname = in.readUTF();
         }
+        version = in.readOptionalString();
         if (in.readBoolean()) {
             ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
             int size = in.readVInt();
@@ -289,6 +307,7 @@ public class NodeInfo extends NodeOperationResponse {
             out.writeBoolean(true);
             out.writeUTF(hostname);
         }
+        out.writeOptionalString(version);
         if (serviceAttributes() == null) {
             out.writeBoolean(false);
         } else {

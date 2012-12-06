@@ -139,18 +139,13 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
     }
 
     @Override
-    public String value(Field field) {
-        return field.stringValue();
+    public String value(Object value) {
+        return String.valueOf(value);
     }
 
     @Override
     public String valueFromString(String value) {
         return value;
-    }
-
-    @Override
-    public String valueAsString(Field field) {
-        return value(field);
     }
 
     @Override

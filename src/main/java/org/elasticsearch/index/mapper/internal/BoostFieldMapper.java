@@ -132,12 +132,11 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
     }
 
     @Override
-    public Float value(Field field) {
-        BytesRef value = field.binaryValue();
+    public Float value(Object value) {
         if (value == null) {
             return null;
         }
-        return Numbers.bytesToFloat(value.bytes);
+        return Numbers.bytesToFloat((byte[]) value);
     }
 
     @Override

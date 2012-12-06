@@ -60,7 +60,10 @@ public class VersionFetchSubPhase implements FetchSubPhase {
         // it might make sense to cache the TermDocs on a shared fetch context and just skip here)
         // it is going to mean we work on the high level multi reader and not the lower level reader as is
         // the case below...
-        long version = UidField.loadVersion(hitContext.readerContext(), new Term(UidFieldMapper.NAME, hitContext.doc().get(UidFieldMapper.NAME)));
+        long version = UidField.loadVersion(
+                hitContext.readerContext(),
+                new Term(UidFieldMapper.NAME, hitContext.fieldVisitor().uid().toString())
+        );
         if (version < 0) {
             version = -1;
         }

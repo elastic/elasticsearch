@@ -41,12 +41,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.fieldvisitor.UidAndRoutingFieldsVisitor;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.mapper.selector.UidAndRoutingFieldVisitor;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.service.IndexShard;
@@ -188,7 +189,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
             Engine.Searcher searcher = shardToPurge.searcher();
             try {
                 logger.debug("[{}][{}] purging shard", shardToPurge.routingEntry().index(), shardToPurge.routingEntry().id());
-                ExpiredDocsCollector expiredDocsCollector = new ExpiredDocsCollector();
+                ExpiredDocsCollector expiredDocsCollector = new ExpiredDocsCollector(shardToPurge.routingEntry().index());
                 searcher.searcher().search(query, expiredDocsCollector);
                 List<DocToPurge> docsToPurge = expiredDocsCollector.getDocsToPurge();
                 BulkRequestBuilder bulkRequest = client.prepareBulk();
@@ -220,10 +221,12 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
     }
 
     private class ExpiredDocsCollector extends Collector {
+        private final MapperService mapperService;
         private AtomicReaderContext context;
         private List<DocToPurge> docsToPurge = new ArrayList<DocToPurge>();
 
-        public ExpiredDocsCollector() {
+        public ExpiredDocsCollector(String index) {
+            mapperService = indicesService.indexService(index).mapperService();
         }
 
         public void setScorer(Scorer scorer) {
@@ -235,11 +238,11 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
 
         public void collect(int doc) {
             try {
-                UidAndRoutingFieldVisitor fieldVisitor = new UidAndRoutingFieldVisitor();
-                context.reader().document(doc, fieldVisitor);
-                String uid = fieldVisitor.uid();
-                long version = UidField.loadVersion(context, new Term(UidFieldMapper.NAME, uid));
-                docsToPurge.add(new DocToPurge(Uid.typeFromUid(uid), Uid.idFromUid(uid), version, fieldVisitor.routing()));
+                UidAndRoutingFieldsVisitor fieldsVisitor = new UidAndRoutingFieldsVisitor();
+                context.reader().document(doc, fieldsVisitor);
+                Uid uid = fieldsVisitor.uid();
+                long version = UidField.loadVersion(context, new Term(UidFieldMapper.NAME, uid.toString()));
+                docsToPurge.add(new DocToPurge(uid.type(), uid.id(), version, fieldsVisitor.routing()));
             } catch (Exception e) {
                 logger.trace("failed to collect doc", e);
             }

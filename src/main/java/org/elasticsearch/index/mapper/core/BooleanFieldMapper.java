@@ -154,8 +154,8 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
     }
 
     @Override
-    public Boolean value(Field field) {
-        return field.stringValue().charAt(0) == 'T' ? Boolean.TRUE : Boolean.FALSE;
+    public Boolean value(Object value) {
+        return valueFromString((String) value);
     }
 
     @Override
@@ -164,8 +164,8 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
     }
 
     @Override
-    public String valueAsString(Field field) {
-        return field.stringValue().charAt(0) == 'T' ? "true" : "false";
+    public String valueAsString(Object value) {
+        return ((String) value).charAt(0) == 'T' ? "true" : "false";
     }
 
     @Override

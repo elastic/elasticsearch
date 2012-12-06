@@ -415,13 +415,18 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
     }
 
     @Override
-    public Object valueForSearch(Field field) {
-        return valueAsString(field);
+    public Object valueForSearch(Object value) {
+        return valueAsString(value);
     }
 
     @Override
     public String indexedValue(String value) {
         return value;
+    }
+
+    @Override
+    public String valueAsString(Object value) {
+        return String.valueOf(value);
     }
 
     @Override

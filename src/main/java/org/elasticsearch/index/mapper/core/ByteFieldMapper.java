@@ -32,6 +32,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -128,12 +129,15 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
     }
 
     @Override
-    public Byte value(Field field) {
-        BytesRef value = field.binaryValue();
+    public Byte value(Object value) {
         if (value == null) {
             return null;
         }
-        return value.bytes[value.offset];
+        if (value instanceof Number) {
+            return ((Number) value).byteValue();
+        }
+        BytesReference bytesReference = (BytesReference) value;
+        return bytesReference.get(bytesReference.arrayOffset());
     }
 
     @Override

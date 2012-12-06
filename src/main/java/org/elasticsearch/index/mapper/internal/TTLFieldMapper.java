@@ -134,7 +134,7 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
 
     // Overrides valueForSearch to display live value of remaining ttl
     @Override
-    public Object valueForSearch(Field field) {
+    public Object valueForSearch(Object value) {
         long now;
         SearchContext searchContext = SearchContext.current();
         if (searchContext != null) {
@@ -142,8 +142,8 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
         } else {
             now = System.currentTimeMillis();
         }
-        long value = value(field);
-        return value - now;
+        long val = value(value);
+        return val - now;
     }
 
     // Other implementation for realtime get display

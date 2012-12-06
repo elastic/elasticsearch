@@ -21,7 +21,9 @@ package org.elasticsearch.action.mlt;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
@@ -33,7 +35,10 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.cluster.routing.MutableShardRouting;
+import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.get.GetField;
@@ -47,7 +52,6 @@ import org.elasticsearch.transport.*;
 
 import java.util.Collections;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Set;
 
 import static com.google.common.collect.Sets.newHashSet;
@@ -267,7 +271,7 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
                 if (fieldMapper instanceof InternalMapper) {
                     return true;
                 }
-                String value = fieldMapper.valueAsString(field);
+                String value = fieldMapper.valueAsString(convertField(field));
                 if (value == null) {
                     return false;
                 }
@@ -281,8 +285,20 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
         });
     }
 
+    private Object convertField(Field field) {
+        if (field.stringValue() != null) {
+            return field.stringValue();
+        } else if (field.binaryValue() != null) {
+            return BytesRef.deepCopyOf(field.binaryValue()).bytes;
+        } else if (field.numericValue() != null) {
+            return field.numericValue();
+        } else {
+            throw new ElasticSearchIllegalStateException("Field should have either a string, numeric or binary value");
+        }
+    }
+
     private void addMoreLikeThis(MoreLikeThisRequest request, BoolQueryBuilder boolBuilder, FieldMapper fieldMapper, Field field) {
-        addMoreLikeThis(request, boolBuilder, field.name(), fieldMapper.valueAsString(field));
+        addMoreLikeThis(request, boolBuilder, field.name(), fieldMapper.valueAsString(convertField(field)));
     }
 
     private void addMoreLikeThis(MoreLikeThisRequest request, BoolQueryBuilder boolBuilder, String fieldName, String likeText) {

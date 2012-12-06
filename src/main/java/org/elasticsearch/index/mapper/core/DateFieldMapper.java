@@ -31,6 +31,7 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
@@ -184,12 +185,14 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
-    public Long value(Field field) {
-        BytesRef value = field.binaryValue();
+    public Long value(Object value) {
         if (value == null) {
             return null;
         }
-        return Numbers.bytesToLong(value.bytes);
+        if (value instanceof Number) {
+            return ((Number) value).longValue();
+        }
+        return Numbers.bytesToLong(((BytesReference) value).array());
     }
 
     @Override
@@ -199,19 +202,21 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
 
     /**
      * Dates should return as a string.
+     *
+     * @param value
      */
     @Override
-    public Object valueForSearch(Field field) {
-        return valueAsString(field);
+    public Object valueForSearch(Object value) {
+        return valueAsString(value);
     }
 
     @Override
-    public String valueAsString(Field field) {
-        Long value = value(field);
-        if (value == null) {
+    public String valueAsString(Object value) {
+        Long val = value(value);
+        if (val == null) {
             return null;
         }
-        return dateTimeFormatter.printer().print(value);
+        return dateTimeFormatter.printer().print(val);
     }
 
     @Override

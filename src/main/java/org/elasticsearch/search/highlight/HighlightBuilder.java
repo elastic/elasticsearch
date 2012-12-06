@@ -50,6 +50,7 @@ public class HighlightBuilder implements ToXContent {
 
     private String highlighterType;
 
+    private String fragmenter;
 
     /**
      * Adds a field to be highlighted with default fragment size of 100 characters, and
@@ -188,6 +189,15 @@ public class HighlightBuilder implements ToXContent {
         return this;
     }
 
+    /**
+     * Sets what fragmenter to use to break up text that is eligible for highlighting.
+     * This option is only applicable when using plain / normal highlighter.
+     */
+    public HighlightBuilder fragmenter(String fragmenter) {
+        this.fragmenter = fragmenter;
+        return this;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("highlight");
@@ -212,6 +222,9 @@ public class HighlightBuilder implements ToXContent {
         if (highlighterType != null) {
             builder.field("type", highlighterType);
         }
+        if (fragmenter != null) {
+            builder.field("fragmenter", fragmenter);
+        }
         if (fields != null) {
             builder.startObject("fields");
             for (Field field : fields) {
@@ -231,6 +244,9 @@ public class HighlightBuilder implements ToXContent {
                 if (field.highlighterType != null) {
                     builder.field("type", field.highlighterType);
                 }
+                if (field.fragmenter != null) {
+                    builder.field("fragmenter", field.fragmenter);
+                }
 
                 builder.endObject();
             }
@@ -248,6 +264,7 @@ public class HighlightBuilder implements ToXContent {
         int numOfFragments = -1;
         Boolean requireFieldMatch;
         String highlighterType;
+        String fragmenter;
 
         public Field(String name) {
             this.name = name;
@@ -279,6 +296,11 @@ public class HighlightBuilder implements ToXContent {
 
         public Field highlighterType(String highlighterType) {
             this.highlighterType = highlighterType;
+            return this;
+        }
+
+        public Field fragmenter(String fragmenter) {
+            this.fragmenter = fragmenter;
             return this;
         }
     }

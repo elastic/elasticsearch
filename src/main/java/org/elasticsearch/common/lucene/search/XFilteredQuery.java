@@ -636,7 +636,10 @@ public class XFilteredQuery extends Query {
 
     // CHANGE: Add custom random access strategy, allowing to set the threshold
     // CHANGE: Add filter first filter strategy
-    public static final FilterStrategy FILTER_FIRST_FILTER_STRATEGY = new CustomRandomAccessFilterStrategy(0);
+    public static final FilterStrategy ALWAYS_RANDOM_ACCESS_FILTER_STRATEGY = new CustomRandomAccessFilterStrategy(0);
+
+
+    public static final CustomRandomAccessFilterStrategy CUSTOM_FILTER_STRATEGY = new CustomRandomAccessFilterStrategy();
 
     /**
      * A {@link FilterStrategy} that conditionally uses a random access filter if

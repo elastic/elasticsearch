@@ -17,37 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.index.cache.filter;
+package org.elasticsearch.common.lucene.search;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Filter;
-import org.elasticsearch.common.component.CloseableComponent;
-import org.elasticsearch.index.IndexComponent;
 
 /**
- *
+ * A marker indicating that this is a cached filter.
  */
-public interface FilterCache extends IndexComponent, CloseableComponent {
+public abstract class CachedFilter extends Filter {
 
-    static class EntriesStats {
-        public final long sizeInBytes;
-        public final long count;
-
-        public EntriesStats(long sizeInBytes, long count) {
-            this.sizeInBytes = sizeInBytes;
-            this.count = count;
-        }
+    public static boolean isCached(Filter filter) {
+        return filter instanceof CachedFilter;
     }
-
-    String type();
-
-    Filter cache(Filter filterToCache);
-
-    void clear(IndexReader reader);
-
-    void clear(String reason);
-
-    EntriesStats entriesStats();
-
-    long evictions();
 }

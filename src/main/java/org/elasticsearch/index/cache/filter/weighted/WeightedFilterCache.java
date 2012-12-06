@@ -33,6 +33,7 @@ import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
+import org.elasticsearch.common.lucene.search.CachedFilter;
 import org.elasticsearch.common.lucene.search.NoCacheFilter;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
@@ -122,18 +123,13 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
         if (filterToCache instanceof NoCacheFilter) {
             return filterToCache;
         }
-        if (isCached(filterToCache)) {
+        if (CachedFilter.isCached(filterToCache)) {
             return filterToCache;
         }
         return new FilterCacheFilterWrapper(filterToCache, this);
     }
 
-    @Override
-    public boolean isCached(Filter filter) {
-        return filter instanceof FilterCacheFilterWrapper;
-    }
-
-    static class FilterCacheFilterWrapper extends Filter {
+    static class FilterCacheFilterWrapper extends CachedFilter {
 
         private final Filter filter;
 

@@ -112,6 +112,7 @@ public class PluginManager {
                             // remove es- prefix
                             name = name.substring("es-".length());
                         }
+                        pluginFile = new File(environment.pluginsFile(), name + ".zip");
                         if (version == null) {
                             // try with ES version from downloads
                             URL pluginUrl = new URL("https://github.com/downloads/" + userName + "/" + repoName + "/" + repoName + "-" + Version.CURRENT.number() + ".zip");

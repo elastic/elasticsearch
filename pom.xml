@@ -61,6 +61,7 @@
             <artifactId>log4j</artifactId>
             <version>1.2.16</version>
             <scope>runtime</scope>
+            <optional>true</optional>
         </dependency>
 
         <dependency>

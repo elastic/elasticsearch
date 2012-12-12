@@ -114,28 +114,68 @@ public class PluginManager {
                         }
                         pluginFile = new File(environment.pluginsFile(), name + ".zip");
                         if (version == null) {
-                            // try with ES version from downloads
+                            // try with ES version from old '/downloads' URL
                             URL pluginUrl = new URL("https://github.com/downloads/" + userName + "/" + repoName + "/" + repoName + "-" + Version.CURRENT.number() + ".zip");
                             System.out.println("Trying " + pluginUrl.toExternalForm() + "...");
                             try {
                                 downloadHelper.download(pluginUrl, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out));
                                 downloaded = true;
                             } catch (IOException e) {
-                                // try a tag with ES version
-                                if (verbose) {
-                                    System.out.println("Failed: " + ExceptionsHelper.detailedMessage(e));
-                                }
-                                pluginUrl = new URL("https://github.com/" + userName + "/" + repoName + "/zipball/v" + Version.CURRENT.number());
+                                // try at a different github location within repo, because uploads to '/downloads' URL were disabled
+                                pluginUrl = new URL("https://raw.github.com/" + userName + "/" + repoName + "/master/downloads/" + repoName + "-" + Version.CURRENT.number() + ".zip");
                                 System.out.println("Trying " + pluginUrl.toExternalForm() + "...");
                                 try {
                                     downloadHelper.download(pluginUrl, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out));
                                     downloaded = true;
                                 } catch (IOException e1) {
-                                    // download master
+                                    // try a tag with ES version
+                                    if (verbose) {
+                                        System.out.println("Failed: " + ExceptionsHelper.detailedMessage(e));
+                                    }
+                                    pluginUrl = new URL("https://github.com/" + userName + "/" + repoName + "/zipball/v" + Version.CURRENT.number());
+                                    System.out.println("Trying " + pluginUrl.toExternalForm() + "...");
+                                    try {
+                                        downloadHelper.download(pluginUrl, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out));
+                                        downloaded = true;
+                                    } catch (IOException e2) {
+                                        // download master
+                                        if (verbose) {
+                                            System.out.println("Failed: " + ExceptionsHelper.detailedMessage(e2));
+                                        }
+                                        pluginUrl = new URL("https://github.com/" + userName + "/" + repoName + "/zipball/master");
+                                        System.out.println("Trying " + pluginUrl.toExternalForm() + "...");
+                                        try {
+                                            downloadHelper.download(pluginUrl, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out));
+                                            downloaded = true;
+                                        } catch (IOException e3) {
+                                            // ignore
+                                            if (verbose) {
+                                                System.out.println("Failed: " + ExceptionsHelper.detailedMessage(e3));
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            // download explicit version from obsolete '/downloads' URL
+                            URL pluginUrl = new URL("https://github.com/downloads/" + userName + "/" + repoName + "/" + repoName + "-" + version + ".zip");
+                            System.out.println("Trying " + pluginUrl.toExternalForm() + "...");
+                            try {
+                                downloadHelper.download(pluginUrl, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out));
+                                downloaded = true;
+                            } catch (IOException e) {
+                                // try at a different github location within repo, because uploads to '/downloads' URL were disabled
+                                pluginUrl = new URL("https://raw.github.com/" + userName + "/" + repoName + "/master/downloads/" + repoName + "-" + Version.CURRENT.number() + ".zip");
+                                System.out.println("Trying " + pluginUrl.toExternalForm() + "...");
+                                try {
+                                    downloadHelper.download(pluginUrl, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out));
+                                    downloaded = true;
+                                } catch (IOException e1) {
+                                    // try a tag with ES version
                                     if (verbose) {
                                         System.out.println("Failed: " + ExceptionsHelper.detailedMessage(e1));
                                     }
-                                    pluginUrl = new URL("https://github.com/" + userName + "/" + repoName + "/zipball/master");
+                                    pluginUrl = new URL("https://github.com/" + userName + "/" + repoName + "/zipball/v" + version);
                                     System.out.println("Trying " + pluginUrl.toExternalForm() + "...");
                                     try {
                                         downloadHelper.download(pluginUrl, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out));
@@ -145,30 +185,6 @@ public class PluginManager {
                                         if (verbose) {
                                             System.out.println("Failed: " + ExceptionsHelper.detailedMessage(e2));
                                         }
-                                    }
-                                }
-                            }
-                        } else {
-                            // download explicit version
-                            URL pluginUrl = new URL("https://github.com/downloads/" + userName + "/" + repoName + "/" + repoName + "-" + version + ".zip");
-                            System.out.println("Trying " + pluginUrl.toExternalForm() + "...");
-                            try {
-                                downloadHelper.download(pluginUrl, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out));
-                                downloaded = true;
-                            } catch (IOException e) {
-                                // try a tag with ES version
-                                if (verbose) {
-                                    System.out.println("Failed: " + ExceptionsHelper.detailedMessage(e));
-                                }
-                                pluginUrl = new URL("https://github.com/" + userName + "/" + repoName + "/zipball/v" + version);
-                                System.out.println("Trying " + pluginUrl.toExternalForm() + "...");
-                                try {
-                                    downloadHelper.download(pluginUrl, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out));
-                                    downloaded = true;
-                                } catch (IOException e1) {
-                                    // ignore
-                                    if (verbose) {
-                                        System.out.println("Failed: " + ExceptionsHelper.detailedMessage(e1));
                                     }
                                 }
                             }

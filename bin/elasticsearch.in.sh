@@ -37,7 +37,9 @@ JAVA_OPTS="$JAVA_OPTS -Xss256k"
 JAVA_OPTS="$JAVA_OPTS -Djava.awt.headless=true"
 
 # Force the JVM to use IPv4 stack
-# JAVA_OPTS="$JAVA_OPTS -Djava.net.preferIPv4Stack=true"
+if [ "x$ES_USE_IPV4" != "x" ]; then
+  JAVA_OPTS="$JAVA_OPTS -Djava.net.preferIPv4Stack=true"
+fi
 
 JAVA_OPTS="$JAVA_OPTS -XX:+UseParNewGC"
 JAVA_OPTS="$JAVA_OPTS -XX:+UseConcMarkSweepGC"
@@ -46,15 +48,17 @@ JAVA_OPTS="$JAVA_OPTS -XX:CMSInitiatingOccupancyFraction=75"
 JAVA_OPTS="$JAVA_OPTS -XX:+UseCMSInitiatingOccupancyOnly"
 
 # When running under Java 7
-#JAVA_OPTS="$JAVA_OPTS -XX:+UseCondCardMark"
+# JAVA_OPTS="$JAVA_OPTS -XX:+UseCondCardMark"
 
-# GC logging options -- uncomment to enable
-# JAVA_OPTS="$JAVA_OPTS -XX:+PrintGCDetails"
-# JAVA_OPTS="$JAVA_OPTS -XX:+PrintGCTimeStamps"
-# JAVA_OPTS="$JAVA_OPTS -XX:+PrintClassHistogram"
-# JAVA_OPTS="$JAVA_OPTS -XX:+PrintTenuringDistribution"
-# JAVA_OPTS="$JAVA_OPTS -XX:+PrintGCApplicationStoppedTime"
-# JAVA_OPTS="$JAVA_OPTS -Xloggc:/var/log/elasticsearch/gc.log"
+# GC logging options
+if [ "x$ES_USE_GC_LOGGING" != "x" ]; then
+  JAVA_OPTS="$JAVA_OPTS -XX:+PrintGCDetails"
+  JAVA_OPTS="$JAVA_OPTS -XX:+PrintGCTimeStamps"
+  JAVA_OPTS="$JAVA_OPTS -XX:+PrintClassHistogram"
+  JAVA_OPTS="$JAVA_OPTS -XX:+PrintTenuringDistribution"
+  JAVA_OPTS="$JAVA_OPTS -XX:+PrintGCApplicationStoppedTime"
+  JAVA_OPTS="$JAVA_OPTS -Xloggc:/var/log/elasticsearch/gc.log"
+fi
 
 # Causes the JVM to dump its heap on OutOfMemory.
 JAVA_OPTS="$JAVA_OPTS -XX:+HeapDumpOnOutOfMemoryError"

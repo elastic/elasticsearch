@@ -67,55 +67,153 @@ public class XBooleanFilter extends Filter implements Iterable<FilterClause> {
                 }
             }
             // SHOULD or MUST, just return the set...
+            if (DocIdSets.isEmpty(set)) {
+                return null;
+            }
             return set;
         }
 
+        // first, go over and see if we can shortcut the execution
+        // and gather Bits if we need to
+        List<ResultClause> results = new ArrayList<ResultClause>(clauses.size());
         boolean hasShouldClauses = false;
-        for (final FilterClause fc : clauses) {
-            if (fc.getOccur() == Occur.SHOULD) {
+        boolean hasNonEmptyShouldClause = false;
+        for (int i = 0; i < clauses.size(); i++) {
+            FilterClause clause = clauses.get(i);
+            DocIdSet set = clause.getFilter().getDocIdSet(context, acceptDocs);
+            if (clause.getOccur() == Occur.MUST) {
+                if (DocIdSets.isEmpty(set)) {
+                    return null;
+                }
+            } else if (clause.getOccur() == Occur.SHOULD) {
                 hasShouldClauses = true;
-                final DocIdSetIterator disi = getDISI(fc.getFilter(), context, acceptDocs);
-                if (disi == null) continue;
-                if (res == null) {
-                    res = new FixedBitSet(reader.maxDoc());
+                if (DocIdSets.isEmpty(set)) {
+                    continue;
                 }
-                res.or(disi);
+                hasNonEmptyShouldClause = true;
+            } else if (clause.getOccur() == Occur.MUST_NOT) {
+                if (DocIdSets.isEmpty(set)) {
+                    // we mark empty ones as null for must_not, handle it in the next run...
+                    results.add(new ResultClause(null, null, clause));
+                    continue;
+                }
             }
+            Bits bits = null;
+            if (!DocIdSets.isFastIterator(set)) {
+                bits = set.bits();
+            }
+            results.add(new ResultClause(set, bits, clause));
         }
-        if (hasShouldClauses && res == null)
+
+        if (hasShouldClauses && !hasNonEmptyShouldClause) {
             return null;
-
-        for (final FilterClause fc : clauses) {
-            if (fc.getOccur() == Occur.MUST_NOT) {
-                if (res == null) {
-                    assert !hasShouldClauses;
-                    res = new FixedBitSet(reader.maxDoc());
-                    res.set(0, reader.maxDoc()); // NOTE: may set bits on deleted docs
-                }
-                final DocIdSetIterator disi = getDISI(fc.getFilter(), context, acceptDocs);
-                if (disi != null) {
-                    res.andNot(disi);
-                }
-            }
         }
 
-        for (final FilterClause fc : clauses) {
-            if (fc.getOccur() == Occur.MUST) {
-                final DocIdSetIterator disi = getDISI(fc.getFilter(), context, acceptDocs);
-                if (disi == null) {
+        // now, go over the clauses and apply the "fast" ones...
+        boolean hasBits = false;
+        for (int i = 0; i < results.size(); i++) {
+            ResultClause clause = results.get(i);
+            // we apply bits in based ones (slow) in the second run
+            if (clause.bits != null) {
+                hasBits = true;
+                continue;
+            }
+            if (clause.clause.getOccur() == Occur.SHOULD) {
+                DocIdSetIterator it = clause.docIdSet.iterator();
+                if (it == null) {
+                    continue;
+                }
+                if (res == null) {
+                    res = new FixedBitSet(reader.maxDoc());
+                }
+                res.or(it);
+            } else if (clause.clause.getOccur() == Occur.MUST) {
+                DocIdSetIterator it = clause.docIdSet.iterator();
+                if (it == null) {
                     return null;
                 }
                 if (res == null) {
                     res = new FixedBitSet(reader.maxDoc());
-                    res.or(disi);
+                    res.or(it);
                 } else {
-                    res.and(disi);
+                    res.and(it);
+                }
+            } else if (clause.clause.getOccur() == Occur.MUST_NOT) {
+                if (res == null) {
+                    res = new FixedBitSet(reader.maxDoc());
+                    res.set(0, reader.maxDoc()); // NOTE: may set bits on deleted docs
+                }
+                if (clause.docIdSet != null) {
+                    DocIdSetIterator it = clause.docIdSet.iterator();
+                    if (it != null) {
+                        res.andNot(it);
+                    }
                 }
             }
         }
 
-        // don't wrap, based on our own strategy of doing the wrapping on the filtered query level
-        //return res != null ? BitsFilteredDocIdSet.wrap(res, acceptDocs) : DocIdSet.EMPTY_DOCIDSET;
+        if (!hasBits) {
+            return res;
+        }
+
+        // we have some clauses with bits, apply them...
+        // we let the "res" drive the computation, and check Bits for that
+        for (int i = 0; i < results.size(); i++) {
+            ResultClause clause = results.get(i);
+            // we apply bits in based ones (slow) in the second run
+            if (clause.bits == null) {
+                continue;
+            }
+            if (clause.clause.getOccur() == Occur.SHOULD) {
+                // TODO: we should let res drive it, and check on all unset bits on it with Bits
+                DocIdSetIterator it = clause.docIdSet.iterator();
+                if (it == null) {
+                    continue;
+                }
+                if (res == null) {
+                    res = new FixedBitSet(reader.maxDoc());
+                }
+                res.or(it);
+            } else if (clause.clause.getOccur() == Occur.MUST) {
+                if (res == null) {
+                    // nothing we can do, just or it...
+                    res = new FixedBitSet(reader.maxDoc());
+                    DocIdSetIterator it = clause.docIdSet.iterator();
+                    if (it == null) {
+                        return null;
+                    }
+                    res.or(it);
+                } else {
+                    Bits bits = clause.bits;
+                    // use the "res" to drive the iteration
+                    DocIdSetIterator it = res.iterator();
+                    for (int doc = it.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = it.nextDoc()) {
+                        if (!bits.get(doc)) {
+                            res.clear(doc);
+                        }
+                    }
+                }
+            } else if (clause.clause.getOccur() == Occur.MUST_NOT) {
+                if (res == null) {
+                    res = new FixedBitSet(reader.maxDoc());
+                    res.set(0, reader.maxDoc()); // NOTE: may set bits on deleted docs
+                    DocIdSetIterator it = clause.docIdSet.iterator();
+                    if (it != null) {
+                        res.andNot(it);
+                    }
+                } else {
+                    Bits bits = clause.bits;
+                    // let res drive the iteration
+                    DocIdSetIterator it = res.iterator();
+                    for (int doc = it.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = it.nextDoc()) {
+                        if (bits.get(doc)) {
+                            res.clear(doc);
+                        }
+                    }
+                }
+            }
+        }
+
         return res;
     }
 
@@ -187,5 +285,17 @@ public class XBooleanFilter extends Filter implements Iterable<FilterClause> {
             buffer.append(c);
         }
         return buffer.append(')').toString();
+    }
+
+    static class ResultClause {
+        public final DocIdSet docIdSet;
+        public final Bits bits;
+        public final FilterClause clause;
+
+        ResultClause(DocIdSet docIdSet, Bits bits, FilterClause clause) {
+            this.docIdSet = docIdSet;
+            this.bits = bits;
+            this.clause = clause;
+        }
     }
 }

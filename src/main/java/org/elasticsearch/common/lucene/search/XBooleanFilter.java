@@ -26,6 +26,9 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.common.lucene.docset.AllDocIdSet;
+import org.elasticsearch.common.lucene.docset.DocIdSets;
+import org.elasticsearch.common.lucene.docset.NotDocIdSet;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -51,6 +54,21 @@ public class XBooleanFilter extends Filter implements Iterable<FilterClause> {
     public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
         FixedBitSet res = null;
         final AtomicReader reader = context.reader();
+
+        // optimize single case...
+        if (clauses.size() == 1) {
+            FilterClause clause = clauses.get(0);
+            DocIdSet set = clause.getFilter().getDocIdSet(context, acceptDocs);
+            if (clause.getOccur() == Occur.MUST_NOT) {
+                if (DocIdSets.isEmpty(set)) {
+                    return new AllDocIdSet(reader.maxDoc());
+                } else {
+                    return new NotDocIdSet(set, reader.maxDoc());
+                }
+            }
+            // SHOULD or MUST, just return the set...
+            return set;
+        }
 
         boolean hasShouldClauses = false;
         for (final FilterClause fc : clauses) {

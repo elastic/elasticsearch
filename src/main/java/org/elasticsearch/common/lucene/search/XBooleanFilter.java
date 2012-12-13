@@ -165,15 +165,30 @@ public class XBooleanFilter extends Filter implements Iterable<FilterClause> {
                 continue;
             }
             if (clause.clause.getOccur() == Occur.SHOULD) {
-                // TODO: we should let res drive it, and check on all unset bits on it with Bits
-                DocIdSetIterator it = clause.docIdSet.iterator();
-                if (it == null) {
-                    continue;
-                }
                 if (res == null) {
+                    DocIdSetIterator it = clause.docIdSet.iterator();
+                    if (it == null) {
+                        continue;
+                    }
                     res = new FixedBitSet(reader.maxDoc());
+                    res.or(it);
+                } else {
+                    Bits bits = clause.bits;
+                    // use the "res" to drive the iteration
+                    int lastSetDoc = res.nextSetBit(0);
+                    DocIdSetIterator it = res.iterator();
+                    for (int setDoc = it.nextDoc(); setDoc != DocIdSetIterator.NO_MORE_DOCS; setDoc = it.nextDoc()) {
+                        int diff = setDoc - lastSetDoc;
+                        if (diff > 1) {
+                            for (int unsetDoc = lastSetDoc + 1; unsetDoc < setDoc; unsetDoc++) {
+                                if (bits.get(unsetDoc)) {
+                                    res.set(unsetDoc);
+                                }
+                            }
+                        }
+                        lastSetDoc = setDoc;
+                    }
                 }
-                res.or(it);
             } else if (clause.clause.getOccur() == Occur.MUST) {
                 if (res == null) {
                     // nothing we can do, just or it...
@@ -215,12 +230,6 @@ public class XBooleanFilter extends Filter implements Iterable<FilterClause> {
         }
 
         return res;
-    }
-
-    private static DocIdSetIterator getDISI(Filter filter, AtomicReaderContext context, Bits acceptDocs)
-            throws IOException {
-        final DocIdSet set = filter.getDocIdSet(context, acceptDocs);
-        return (set == null || set == DocIdSet.EMPTY_DOCIDSET) ? null : set.iterator();
     }
 
     /**

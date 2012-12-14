@@ -558,7 +558,7 @@ public class MapperQueryParser extends QueryParser {
                 if (actualField == null) {
                     return newMatchAllDocsQuery();
                 }
-                if ("_all".equals(actualField)) {
+                if ("*".equals(actualField) || "_all".equals(actualField)) {
                     return newMatchAllDocsQuery();
                 }
                 // effectively, we check if a field exists or not

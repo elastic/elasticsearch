@@ -31,6 +31,7 @@ import java.util.*;
  * multivalued (Basically fields that have the same name) and splits the highlight snippets according to a single field
  * boundary. This avoids that a highlight hit is shown as one hit whilst it is actually a hit on multiple fields.
  */
+// LUCENE 4.1: once its out, remove this class and let subclasses extend BaseFragmentsBuilder instead.
 public abstract class AbstractFragmentsBuilder extends BaseFragmentsBuilder {
 
     private boolean discreteMultiValueHighlighting = true;

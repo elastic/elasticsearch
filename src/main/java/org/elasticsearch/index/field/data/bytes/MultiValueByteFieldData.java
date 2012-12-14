@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.field.data.bytes;
 
-import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.common.util.concurrent.ThreadLocals;
+import org.elasticsearch.index.field.data.MultiValueOrdinalArray;
 import org.elasticsearch.index.field.data.doubles.DoubleFieldData;
 
 /**
@@ -53,186 +53,170 @@ public class MultiValueByteFieldData extends ByteFieldData {
     };
 
     // order with value 0 indicates no value
-    private final int[][] ordinals;
+    private final MultiValueOrdinalArray ordinals;
 
     public MultiValueByteFieldData(String fieldName, int[][] ordinals, byte[] values) {
         super(fieldName, values);
-        this.ordinals = ordinals;
+        this.ordinals = new MultiValueOrdinalArray(ordinals);
     }
 
-    @Override
-    protected long computeSizeInBytes() {
-        long size = super.computeSizeInBytes();
-        size += RamUsage.NUM_BYTES_ARRAY_HEADER; // for the top level array
-        for (int[] ordinal : ordinals) {
-            size += RamUsage.NUM_BYTES_INT * ordinal.length + RamUsage.NUM_BYTES_ARRAY_HEADER;
-        }
-        return size;
-    }
+   @Override
+   protected long computeSizeInBytes() {
+      long size = super.computeSizeInBytes();
+      size += ordinals.computeSizeInBytes();
+      return size;
+   }
 
-    @Override
-    public boolean multiValued() {
-        return true;
-    }
+   @Override
+   public boolean multiValued() {
+      return true;
+   }
 
-    @Override
-    public boolean hasValue(int docId) {
-        for (int[] ordinal : ordinals) {
-            if (ordinal[docId] != 0) {
-                return true;
-            }
-        }
-        return false;
-    }
+   @Override
+   public boolean hasValue(int docId) {
+      return ordinals.hasValue(docId);
+   }
 
-    @Override
-    public void forEachValueInDoc(int docId, StringValueInDocProc proc) {
-        for (int i = 0; i < ordinals.length; i++) {
-            int loc = ordinals[i][docId];
-            if (loc == 0) {
-                if (i == 0) {
-                    proc.onMissing(docId);
-                }
-                break;
-            }
-            proc.onValue(docId, Byte.toString(values[loc]));
-        }
-    }
+   @Override
+   public void forEachValueInDoc(int docId, StringValueInDocProc proc) {
+      MultiValueOrdinalArray.OrdinalIterator ordinalIter = ordinals.getOrdinalIteratorForDoc(docId);
+      int o = ordinalIter.getNextOrdinal();
+      if (o==0) {
+         proc.onMissing(docId); // first one is special as we need to communicate 0 if nothing is found
+         return;
+      }
 
-    @Override
-    public void forEachValueInDoc(int docId, DoubleValueInDocProc proc) {
-        for (int[] ordinal : ordinals) {
-            int loc = ordinal[docId];
-            if (loc == 0) {
-                break;
-            }
-            proc.onValue(docId, values[loc]);
-        }
-    }
+      while (o != 0) {
+         proc.onValue(docId, Byte.toString(values[o]));
+         o = ordinalIter.getNextOrdinal();
+      }
+   }
 
-    @Override
-    public void forEachValueInDoc(int docId, LongValueInDocProc proc) {
-        for (int[] ordinal : ordinals) {
-            int loc = ordinal[docId];
-            if (loc == 0) {
-                break;
-            }
-            proc.onValue(docId, values[loc]);
-        }
-    }
+   @Override
+   public void forEachValueInDoc(int docId, DoubleValueInDocProc proc) {
+      MultiValueOrdinalArray.OrdinalIterator ordinalIter = ordinals.getOrdinalIteratorForDoc(docId);
+      int o = ordinalIter.getNextOrdinal();
 
-    @Override
-    public void forEachValueInDoc(int docId, MissingDoubleValueInDocProc proc) {
-        for (int i = 0; i < ordinals.length; i++) {
-            int loc = ordinals[i][docId];
-            if (loc == 0) {
-                if (i == 0) {
-                    proc.onMissing(docId);
-                }
-                break;
-            }
-            proc.onValue(docId, values[loc]);
-        }
-    }
+      while (o != 0) {
+         proc.onValue(docId, values[o]);
+         o = ordinalIter.getNextOrdinal();
+      }
+   }
 
-    @Override
-    public void forEachValueInDoc(int docId, MissingLongValueInDocProc proc) {
-        for (int i = 0; i < ordinals.length; i++) {
-            int loc = ordinals[i][docId];
-            if (loc == 0) {
-                if (i == 0) {
-                    proc.onMissing(docId);
-                }
-                break;
-            }
-            proc.onValue(docId, values[loc]);
-        }
-    }
+   @Override
+   public void forEachValueInDoc(int docId, LongValueInDocProc proc) {
+      MultiValueOrdinalArray.OrdinalIterator ordinalIter = ordinals.getOrdinalIteratorForDoc(docId);
+      int o = ordinalIter.getNextOrdinal();
 
-    @Override
-    public void forEachValueInDoc(int docId, ValueInDocProc proc) {
-        for (int i = 0; i < ordinals.length; i++) {
-            int loc = ordinals[i][docId];
-            if (loc == 0) {
-                if (i == 0) {
-                    proc.onMissing(docId);
-                }
-                break;
-            }
-            proc.onValue(docId, values[loc]);
-        }
-    }
+      while (o != 0) {
+         proc.onValue(docId, values[o]);
+         o = ordinalIter.getNextOrdinal();
+      }
+   }
 
-    @Override
-    public void forEachOrdinalInDoc(int docId, OrdinalInDocProc proc) {
-        for (int i = 0; i < ordinals.length; i++) {
-            int loc = ordinals[i][docId];
-            if (loc == 0) {
-                if (i == 0) {
-                    proc.onOrdinal(docId, 0);
-                }
-                break;
-            }
-            proc.onOrdinal(docId, loc);
-        }
-    }
+   @Override
+   public void forEachValueInDoc(int docId, MissingDoubleValueInDocProc proc) {
+      MultiValueOrdinalArray.OrdinalIterator ordinalIter = ordinals.getOrdinalIteratorForDoc(docId);
+      int o = ordinalIter.getNextOrdinal();
+      if (o==0) {
+         proc.onMissing(docId); // first one is special as we need to communicate 0 if nothing is found
+         return;
+      }
 
-    @Override
-    public double[] doubleValues(int docId) {
-        int length = 0;
-        for (int[] ordinal : ordinals) {
-            if (ordinal[docId] == 0) {
-                break;
-            }
-            length++;
-        }
-        if (length == 0) {
-            return DoubleFieldData.EMPTY_DOUBLE_ARRAY;
-        }
-        double[] doubles;
-        if (length < VALUE_CACHE_SIZE) {
-            doubles = doublesValuesCache.get().get()[length];
-        } else {
-            doubles = new double[length];
-        }
-        for (int i = 0; i < length; i++) {
-            doubles[i] = values[ordinals[i][docId]];
-        }
-        return doubles;
-    }
+      while (o != 0) {
+         proc.onValue(docId, values[o]);
+         o = ordinalIter.getNextOrdinal();
+      }
+   }
 
-    @Override
-    public byte value(int docId) {
-        for (int[] ordinal : ordinals) {
-            int loc = ordinal[docId];
-            if (loc != 0) {
-                return values[loc];
-            }
-        }
-        return 0;
-    }
+   @Override
+   public void forEachValueInDoc(int docId, MissingLongValueInDocProc proc) {
+      MultiValueOrdinalArray.OrdinalIterator ordinalIter = ordinals.getOrdinalIteratorForDoc(docId);
+      int o = ordinalIter.getNextOrdinal();
+      if (o==0) {
+         proc.onMissing(docId); // first one is special as we need to communicate 0 if nothing is found
+         return;
+      }
 
-    @Override
-    public byte[] values(int docId) {
-        int length = 0;
-        for (int[] ordinal : ordinals) {
-            if (ordinal[docId] == 0) {
-                break;
-            }
-            length++;
-        }
-        if (length == 0) {
-            return EMPTY_BYTE_ARRAY;
-        }
-        byte[] bytes;
-        if (length < VALUE_CACHE_SIZE) {
-            bytes = valuesCache.get().get()[length];
-        } else {
-            bytes = new byte[length];
-        }
-        for (int i = 0; i < length; i++) {
-            bytes[i] = values[ordinals[i][docId]];
-        }
-        return bytes;
-    }
+      while (o != 0) {
+         proc.onValue(docId, values[o]);
+         o = ordinalIter.getNextOrdinal();
+      }
+   }
+
+   @Override
+   public void forEachValueInDoc(int docId, ValueInDocProc proc) {
+      MultiValueOrdinalArray.OrdinalIterator ordinalIter = ordinals.getOrdinalIteratorForDoc(docId);
+      int o = ordinalIter.getNextOrdinal();
+      if (o==0) {
+         proc.onMissing(docId); // first one is special as we need to communicate 0 if nothing is found
+         return;
+      }
+
+      while (o != 0) {
+         proc.onValue(docId, values[o]);
+         o = ordinalIter.getNextOrdinal();
+      }
+   }
+
+   @Override
+   public void forEachOrdinalInDoc(int docId, OrdinalInDocProc proc) {
+      ordinals.forEachOrdinalInDoc(docId,proc);
+   }
+
+   protected int geValueCount(int docId) {
+      MultiValueOrdinalArray.OrdinalIterator ordinalIter = ordinals.getOrdinalIteratorForDoc(docId);
+      int count = 0;
+      while (ordinalIter.getNextOrdinal() != 0) count++;
+      return count;
+   }
+
+   @Override
+   public double[] doubleValues(int docId) {
+      int length = geValueCount(docId);
+      if (length == 0) {
+         return DoubleFieldData.EMPTY_DOUBLE_ARRAY;
+      }
+      double[] doubles;
+      if (length < VALUE_CACHE_SIZE) {
+         doubles = doublesValuesCache.get().get()[length];
+      } else {
+         doubles = new double[length];
+      }
+
+      MultiValueOrdinalArray.OrdinalIterator ordinalIter = ordinals.getOrdinalIteratorForDoc(docId);
+
+      for (int i = 0; i < length; i++) {
+         doubles[i] = values[ordinalIter.getNextOrdinal()];
+      }
+      return doubles;
+   }
+
+   @Override
+   public byte value(int docId) {
+      MultiValueOrdinalArray.OrdinalIterator ordinalIter = ordinals.getOrdinalIteratorForDoc(docId);
+      int o = ordinalIter.getNextOrdinal();
+      return o == 0? 0 : values[o];
+   }
+
+   @Override
+   public byte[] values(int docId) {
+      int length = geValueCount(docId);
+      if (length == 0) {
+         return EMPTY_BYTE_ARRAY;
+      }
+      byte[] bytes;
+      if (length < VALUE_CACHE_SIZE) {
+         bytes = valuesCache.get().get()[length];
+      } else {
+         bytes = new byte[length];
+      }
+
+      MultiValueOrdinalArray.OrdinalIterator ordinalIter = ordinals.getOrdinalIteratorForDoc(docId);
+
+      for (int i = 0; i < length; i++) {
+         bytes[i] = values[ordinalIter.getNextOrdinal()];
+      }
+      return bytes;
+   }
 }

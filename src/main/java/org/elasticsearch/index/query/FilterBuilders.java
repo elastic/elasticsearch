@@ -267,6 +267,16 @@ public abstract class FilterBuilders {
     }
 
     /**
+     * A filter that restricts search results to field values that match a given regular expression.
+     *
+     * @param name   The field name
+     * @param regexp The regular expression
+     */
+    public static RegexpFilterBuilder regexpFilter(String name, String regexp) {
+        return new RegexpFilterBuilder(name, regexp);
+    }
+
+    /**
      * A filter that restricts search results to values that are within the given range.
      *
      * @param name The field name

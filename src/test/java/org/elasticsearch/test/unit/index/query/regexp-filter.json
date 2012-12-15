@@ -1,0 +1,14 @@
+{
+    "filtered": {
+        "query": {
+            "term": {
+                "name.first": "shay"
+            }
+        },
+        "filter": {
+            "regexp":{
+                "name.first" : "s.*y"
+            }
+        }
+    }
+}

@@ -29,6 +29,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.RegexpFilter;
 import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -473,6 +474,20 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
     @Override
     public Filter prefixFilter(String value, @Nullable QueryParseContext context) {
         return new PrefixFilter(names().createIndexNameTerm(indexedValue(value)));
+    }
+
+    @Override
+    public Query regexpQuery(String value, int flags, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
+        RegexpQuery query = new RegexpQuery(names().createIndexNameTerm(indexedValue(value)), flags);
+        if (method != null) {
+            query.setRewriteMethod(method);
+        }
+        return query;
+    }
+
+    @Override
+    public Filter regexpFilter(String value, int flags, @Nullable QueryParseContext parseContext) {
+        return new RegexpFilter(names().createIndexNameTerm(indexedValue(value)), flags);
     }
 
     @Override

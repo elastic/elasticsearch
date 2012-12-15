@@ -355,6 +355,17 @@ public abstract class QueryBuilders {
         return new WildcardQueryBuilder(name, query);
     }
 
+
+    /**
+     * A Query that matches documents containing terms with a specified regular expression.
+     *
+     * @param name   The name of the field
+     * @param regexp The regular expression
+     */
+    public static RegexpQueryBuilder regexpQuery(String name, String regexp) {
+        return new RegexpQueryBuilder(name, regexp);
+    }
+
     /**
      * A query that parses a query string and runs it. There are two modes that this operates. The first,
      * when no field is added (using {@link QueryStringQueryBuilder#field(String)}, will run the query once and non prefixed fields

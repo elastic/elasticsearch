@@ -203,6 +203,10 @@ public interface FieldMapper<T> {
 
     Filter prefixFilter(String value, @Nullable QueryParseContext context);
 
+    Query regexpQuery(String value, int flags, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context);
+
+    Filter regexpFilter(String value, int flags, @Nullable QueryParseContext parseContext);
+
     /**
      * A term query to use when parsing a query string. Can return <tt>null</tt>.
      */

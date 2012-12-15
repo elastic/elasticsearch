@@ -80,6 +80,7 @@ public class IndicesQueriesModule extends AbstractModule {
         qpBinders.addBinding().to(TermQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(TermsQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(FuzzyQueryParser.class).asEagerSingleton();
+        qpBinders.addBinding().to(RegexpQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(FieldQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(RangeQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(PrefixQueryParser.class).asEagerSingleton();
@@ -122,6 +123,7 @@ public class IndicesQueriesModule extends AbstractModule {
         fpBinders.addBinding().to(RangeFilterParser.class).asEagerSingleton();
         fpBinders.addBinding().to(NumericRangeFilterParser.class).asEagerSingleton();
         fpBinders.addBinding().to(PrefixFilterParser.class).asEagerSingleton();
+        fpBinders.addBinding().to(RegexpFilterParser.class).asEagerSingleton();
         fpBinders.addBinding().to(ScriptFilterParser.class).asEagerSingleton();
         fpBinders.addBinding().to(GeoDistanceFilterParser.class).asEagerSingleton();
         fpBinders.addBinding().to(GeoDistanceRangeFilterParser.class).asEagerSingleton();

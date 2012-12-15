@@ -86,6 +86,10 @@ public interface CacheKeyFilter {
             return key;
         }
 
+        public Filter wrappedFilter() {
+            return filter;
+        }
+
         @Override
         public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
             return filter.getDocIdSet(context, acceptDocs);

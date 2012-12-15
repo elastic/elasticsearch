@@ -1,0 +1,18 @@
+{
+    "filtered": {
+        "query": {
+            "term": {
+                "name.first": "shay"
+            }
+        },
+        "filter": {
+            "regexp":{
+                "name.first" : {
+                    "value" : "s.*y",
+                    "flags" : "INTERSECTION|COMPLEMENT|EMPTY"
+                },
+                "_name":"test"
+            }
+        }
+    }
+}

@@ -42,6 +42,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.cache.IndexCacheModule;
+import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.codec.CodecModule;
 import org.elasticsearch.index.engine.IndexEngineModule;
 import org.elasticsearch.index.mapper.MapperService;
@@ -71,6 +72,7 @@ import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.RegexpFlag.*;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
@@ -638,6 +640,94 @@ public class SimpleIndexQueryParserTests {
         PrefixQuery prefixQuery = (PrefixQuery) parsedQuery;
         assertThat(prefixQuery.getPrefix(), equalTo(new Term("unknown", "sh")));
         assertThat(prefixQuery.getRewriteMethod(), notNullValue());
+    }
+
+    @Test
+    public void testRegexpQueryBuilder() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        Query parsedQuery = queryParser.parse(regexpQuery("name.first", "s.*y")).query();
+        assertThat(parsedQuery, instanceOf(RegexpQuery.class));
+        RegexpQuery regexpQuery = (RegexpQuery) parsedQuery;
+        assertThat(regexpQuery.getField(), equalTo("name.first"));
+    }
+
+    @Test
+    public void testRegexpQuery() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/query/regexp.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(RegexpQuery.class));
+        RegexpQuery regexpQuery = (RegexpQuery) parsedQuery;
+        assertThat(regexpQuery.getField(), equalTo("name.first"));
+    }
+
+    @Test
+    public void testRegexpFilteredQuery() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/query/regexp-filter.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(XFilteredQuery.class));
+        Filter filter = ((XFilteredQuery) parsedQuery).getFilter();
+        assertThat(filter, instanceOf(RegexpFilter.class));
+        RegexpFilter regexpFilter = (RegexpFilter) filter;
+        assertThat(regexpFilter.field(), equalTo("name.first"));
+        assertThat(regexpFilter.regexp(), equalTo("s.*y"));
+    }
+
+    @Test
+    public void testNamedRegexpFilteredQuery() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/query/regexp-filter-named.json");
+        ParsedQuery parsedQuery = queryParser.parse(query);
+        assertThat(parsedQuery.namedFilters().containsKey("test"), equalTo(true));
+        assertThat(parsedQuery.query(), instanceOf(XFilteredQuery.class));
+        Filter filter = ((XFilteredQuery) parsedQuery.query()).getFilter();
+        assertThat(filter, instanceOf(RegexpFilter.class));
+        RegexpFilter regexpFilter = (RegexpFilter) filter;
+        assertThat(regexpFilter.field(), equalTo("name.first"));
+        assertThat(regexpFilter.regexp(), equalTo("s.*y"));
+    }
+
+    @Test
+    public void testRegexpWithFlagsFilteredQuery() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/query/regexp-filter-flags.json");
+        ParsedQuery parsedQuery = queryParser.parse(query);
+        assertThat(parsedQuery.query(), instanceOf(XFilteredQuery.class));
+        Filter filter = ((XFilteredQuery) parsedQuery.query()).getFilter();
+        assertThat(filter, instanceOf(RegexpFilter.class));
+        RegexpFilter regexpFilter = (RegexpFilter) filter;
+        assertThat(regexpFilter.field(), equalTo("name.first"));
+        assertThat(regexpFilter.regexp(), equalTo("s.*y"));
+        assertThat(regexpFilter.flags(), equalTo(INTERSECTION.value() | COMPLEMENT.value() | EMPTY.value()));
+    }
+
+    @Test
+    public void testNamedAndCachedRegexpWithFlagsFilteredQuery() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/query/regexp-filter-flags-named-cached.json");
+        ParsedQuery parsedQuery = queryParser.parse(query);
+        assertThat(parsedQuery.query(), instanceOf(XFilteredQuery.class));
+        Filter filter = ((XFilteredQuery) parsedQuery.query()).getFilter();
+        assertThat(filter, instanceOf(CacheKeyFilter.Wrapper.class));
+        CacheKeyFilter.Wrapper wrapper = (CacheKeyFilter.Wrapper) filter;
+        assertThat(wrapper.cacheKey().utf8ToString(), equalTo("key"));
+        assertThat(wrapper.wrappedFilter(), instanceOf(RegexpFilter.class));
+        RegexpFilter regexpFilter = (RegexpFilter) wrapper.wrappedFilter();
+        assertThat(regexpFilter.field(), equalTo("name.first"));
+        assertThat(regexpFilter.regexp(), equalTo("s.*y"));
+        assertThat(regexpFilter.flags(), equalTo(INTERSECTION.value() | COMPLEMENT.value() | EMPTY.value()));
+    }
+
+    @Test
+    public void testRegexpBoostQuery() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/query/regexp-boost.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(RegexpQuery.class));
+        RegexpQuery regexpQuery = (RegexpQuery) parsedQuery;
+        assertThat(regexpQuery.getField(), equalTo("name.first"));
+        assertThat(regexpQuery.getBoost(), equalTo(1.2f));
     }
 
     @Test

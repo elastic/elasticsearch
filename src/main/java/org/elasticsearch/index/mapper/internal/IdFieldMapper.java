@@ -30,6 +30,7 @@ import org.apache.lucene.search.*;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.RegexpFilter;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -187,6 +188,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
             if (method != null) {
                 prefixQuery.setRewriteMethod(method);
             }
+            return prefixQuery;
         }
         BooleanQuery query = new BooleanQuery();
         for (String queryType : queryTypes) {
@@ -211,6 +213,45 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         XBooleanFilter filter = new XBooleanFilter();
         for (String queryType : queryTypes) {
             filter.add(new PrefixFilter(new Term(UidFieldMapper.NAME, Uid.createUid(queryType, value))), BooleanClause.Occur.SHOULD);
+        }
+        return filter;
+    }
+
+    @Override
+    public Query regexpQuery(String value, int flags, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
+        if (indexed() || context == null) {
+            return super.regexpQuery(value, flags, method, context);
+        }
+        Collection<String> queryTypes = context.queryTypes();
+        if (queryTypes.size() == 1) {
+            RegexpQuery regexpQuery = new RegexpQuery(new Term(UidFieldMapper.NAME, Uid.createUid(Iterables.getFirst(queryTypes, null), value)), flags);
+            if (method != null) {
+                regexpQuery.setRewriteMethod(method);
+            }
+            return regexpQuery;
+        }
+        BooleanQuery query = new BooleanQuery();
+        for (String queryType : queryTypes) {
+            RegexpQuery regexpQuery = new RegexpQuery(new Term(UidFieldMapper.NAME, Uid.createUid(queryType, value)), flags);
+            if (method != null) {
+                regexpQuery.setRewriteMethod(method);
+            }
+            query.add(regexpQuery, BooleanClause.Occur.SHOULD);
+        }
+        return query;
+    }
+
+    public Filter regexpFilter(String value, int flags, @Nullable QueryParseContext context) {
+        if (indexed() || context == null) {
+            return super.regexpFilter(value, flags, context);
+        }
+        Collection<String> queryTypes = context.queryTypes();
+        if (queryTypes.size() == 1) {
+            return new RegexpFilter(new Term(UidFieldMapper.NAME, Uid.createUid(Iterables.getFirst(queryTypes, null), value)), flags);
+        }
+        XBooleanFilter filter = new XBooleanFilter();
+        for (String queryType : queryTypes) {
+            filter.add(new RegexpFilter(new Term(UidFieldMapper.NAME, Uid.createUid(queryType, value)), flags), BooleanClause.Occur.SHOULD);
         }
         return filter;
     }

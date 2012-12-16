@@ -490,6 +490,14 @@ public class DocumentMapper implements ToXContent {
                 parser.nextToken();
             }
 
+            // fire up any new mappers if exists
+            if (!context.newFieldMappers().mappers.isEmpty()) {
+                addFieldMappers(context.newFieldMappers().mappers);
+            }
+            if (!context.newObjectMappers().mappers.isEmpty()) {
+                addObjectMappers(context.newObjectMappers().mappers);
+            }
+
             for (RootMapper rootMapper : rootMappersOrdered) {
                 rootMapper.postParse(context);
             }
@@ -508,14 +516,6 @@ public class DocumentMapper implements ToXContent {
         // reverse the order of docs for nested docs support, parent should be last
         if (context.docs().size() > 1) {
             Collections.reverse(context.docs());
-        }
-
-        // fire up any new mappers if exists
-        if (!context.newFieldMappers().mappers.isEmpty()) {
-            addFieldMappers(context.newFieldMappers().mappers);
-        }
-        if (!context.newObjectMappers().mappers.isEmpty()) {
-            addObjectMappers(context.newObjectMappers().mappers);
         }
 
         ParsedDocument doc = new ParsedDocument(context.uid(), context.id(), context.type(), source.routing(), source.timestamp(), source.ttl(), context.docs(), context.analyzer(),

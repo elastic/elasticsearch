@@ -494,6 +494,15 @@ public class DocumentMapper implements ToXContent {
                 parser.nextToken();
             }
 
+            // fire up any new mappers if exists
+            // we do it here so postParse can rely on having them as part of this doc mapper
+            if (!context.newFieldMappers().mappers.isEmpty()) {
+                addFieldMappers(context.newFieldMappers().mappers);
+            }
+            if (!context.newObjectMappers().mappers.isEmpty()) {
+                addObjectMappers(context.newObjectMappers().mappers);
+            }
+
             for (RootMapper rootMapper : rootMappersOrdered) {
                 rootMapper.postParse(context);
             }
@@ -527,14 +536,6 @@ public class DocumentMapper implements ToXContent {
                     }
                 }
             }
-        }
-
-        // fire up any new mappers if exists
-        if (!context.newFieldMappers().mappers.isEmpty()) {
-            addFieldMappers(context.newFieldMappers().mappers);
-        }
-        if (!context.newObjectMappers().mappers.isEmpty()) {
-            addObjectMappers(context.newObjectMappers().mappers);
         }
 
         ParsedDocument doc = new ParsedDocument(context.uid(), context.id(), context.type(), source.routing(), source.timestamp(), source.ttl(), context.docs(), context.analyzer(),

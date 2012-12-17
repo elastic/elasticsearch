@@ -118,6 +118,7 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
                 .fields(getFields.toArray(new String[getFields.size()]))
                 .type(request.type())
                 .id(request.id())
+                .routing(request.routing())
                 .listenerThreaded(true)
                 .operationThreaded(true);
 

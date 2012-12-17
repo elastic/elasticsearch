@@ -63,6 +63,8 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
 
     private String id;
 
+    private String routing;
+
     private String[] fields;
 
     private float percentTermsToMatch = -1;
@@ -138,6 +140,17 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
     public MoreLikeThisRequest id(String id) {
         this.id = id;
         return this;
+    }
+
+    /**
+     * @return The routing for this request. This used for the `get` part of the mlt request.
+     */
+    public String routing() {
+        return routing;
+    }
+
+    public void routing(String routing) {
+        this.routing = routing;
     }
 
     /**

@@ -54,6 +54,14 @@ public class MoreLikeThisRequestBuilder extends ActionRequestBuilder<MoreLikeThi
     }
 
     /**
+     * Sets the routing. Required if routing isn't id based.
+     */
+    public MoreLikeThisRequestBuilder setRouting(String routing) {
+        request.routing(routing);
+        return this;
+    }
+
+    /**
      * The percent of the terms to match for each field. Defaults to <tt>0.3f</tt>.
      */
     public MoreLikeThisRequestBuilder setPercentTermsToMatch(float percentTermsToMatch) {

@@ -331,8 +331,8 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
     protected void doXContentBody(XContentBuilder builder) throws IOException {
         super.doXContentBody(builder);
         if (indexed() != Defaults.LONG_FIELD_TYPE.indexed() ||
-                analyzed() != Defaults.LONG_FIELD_TYPE.tokenized()) {
-            builder.field("index", indexTokenizeOptionToString(indexed(), analyzed()));
+                tokenized() != Defaults.LONG_FIELD_TYPE.tokenized()) {
+            builder.field("index", indexTokenizeOptionToString(indexed(), tokenized()));
         }
         if (stored() != Defaults.LONG_FIELD_TYPE.stored()) {
             builder.field("store", stored());

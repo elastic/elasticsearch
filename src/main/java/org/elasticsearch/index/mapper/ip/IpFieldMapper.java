@@ -306,8 +306,8 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
     protected void doXContentBody(XContentBuilder builder) throws IOException {
         super.doXContentBody(builder);
         if (indexed() != Defaults.IP_FIELD_TYPE.indexed() ||
-                analyzed() != Defaults.IP_FIELD_TYPE.tokenized()) {
-            builder.field("index", indexTokenizeOptionToString(indexed(), analyzed()));
+                tokenized() != Defaults.IP_FIELD_TYPE.tokenized()) {
+            builder.field("index", indexTokenizeOptionToString(indexed(), tokenized()));
         }
         if (stored() != Defaults.IP_FIELD_TYPE.stored()) {
             builder.field("store", stored());

@@ -319,8 +319,8 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
     protected void doXContentBody(XContentBuilder builder) throws IOException {
         super.doXContentBody(builder);
         if (indexed() != Defaults.STRING_FIELD_TYPE.indexed() ||
-                analyzed() != Defaults.STRING_FIELD_TYPE.tokenized()) {
-            builder.field("index", indexTokenizeOptionToString(indexed(), analyzed()));
+                tokenized() != Defaults.STRING_FIELD_TYPE.tokenized()) {
+            builder.field("index", indexTokenizeOptionToString(indexed(), tokenized()));
         }
         if (stored() != Defaults.STRING_FIELD_TYPE.stored()) {
             builder.field("store", stored());

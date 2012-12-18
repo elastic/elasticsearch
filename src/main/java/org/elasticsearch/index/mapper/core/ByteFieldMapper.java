@@ -329,8 +329,8 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
     protected void doXContentBody(XContentBuilder builder) throws IOException {
         super.doXContentBody(builder);
         if (indexed() != Defaults.BYTE_FIELD_TYPE.indexed() ||
-                analyzed() != Defaults.BYTE_FIELD_TYPE.tokenized()) {
-            builder.field("index", indexTokenizeOptionToString(indexed(), analyzed()));
+                tokenized() != Defaults.BYTE_FIELD_TYPE.tokenized()) {
+            builder.field("index", indexTokenizeOptionToString(indexed(), tokenized()));
         }
         if (stored() != Defaults.BYTE_FIELD_TYPE.stored()) {
             builder.field("store", stored());

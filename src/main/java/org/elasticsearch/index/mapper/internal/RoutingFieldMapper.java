@@ -49,15 +49,15 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
     public static class Defaults extends AbstractFieldMapper.Defaults {
         public static final String NAME = "_routing";
 
-        public static final FieldType ROUTING_FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
+        public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
 
         static {
-            ROUTING_FIELD_TYPE.setIndexed(true);
-            ROUTING_FIELD_TYPE.setTokenized(false);
-            ROUTING_FIELD_TYPE.setStored(true);
-            ROUTING_FIELD_TYPE.setOmitNorms(true);
-            ROUTING_FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_ONLY);
-            ROUTING_FIELD_TYPE.freeze();
+            FIELD_TYPE.setIndexed(true);
+            FIELD_TYPE.setTokenized(false);
+            FIELD_TYPE.setStored(true);
+            FIELD_TYPE.setOmitNorms(true);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_ONLY);
+            FIELD_TYPE.freeze();
         }
 
         public static final boolean REQUIRED = false;
@@ -71,7 +71,7 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
         private String path = Defaults.PATH;
 
         public Builder() {
-            super(Defaults.NAME, new FieldType(Defaults.ROUTING_FIELD_TYPE));
+            super(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE));
         }
 
         public Builder required(boolean required) {
@@ -114,7 +114,7 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
     private final String path;
 
     public RoutingFieldMapper() {
-        this(new FieldType(Defaults.ROUTING_FIELD_TYPE), Defaults.REQUIRED, Defaults.PATH, null);
+        this(new FieldType(Defaults.FIELD_TYPE), Defaults.REQUIRED, Defaults.PATH, null);
     }
 
     protected RoutingFieldMapper(FieldType fieldType, boolean required, String path, PostingsFormatProvider provider) {
@@ -122,6 +122,11 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
                 Lucene.KEYWORD_ANALYZER, provider, null);
         this.required = required;
         this.path = path;
+    }
+
+    @Override
+    public FieldType defaultFieldType() {
+        return Defaults.FIELD_TYPE;
     }
 
     public void markAsRequired() {
@@ -221,15 +226,15 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // if all are defaults, no sense to write it at all
-        if (indexed() == Defaults.ROUTING_FIELD_TYPE.indexed() &&
-                stored() == Defaults.ROUTING_FIELD_TYPE.stored() && required == Defaults.REQUIRED && path == Defaults.PATH) {
+        if (indexed() == Defaults.FIELD_TYPE.indexed() &&
+                stored() == Defaults.FIELD_TYPE.stored() && required == Defaults.REQUIRED && path == Defaults.PATH) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
-        if (indexed() != Defaults.ROUTING_FIELD_TYPE.indexed()) {
+        if (indexed() != Defaults.FIELD_TYPE.indexed()) {
             builder.field("index", indexed());
         }
-        if (stored() != Defaults.ROUTING_FIELD_TYPE.stored()) {
+        if (stored() != Defaults.FIELD_TYPE.stored()) {
             builder.field("store", stored());
         }
         if (required != Defaults.REQUIRED) {

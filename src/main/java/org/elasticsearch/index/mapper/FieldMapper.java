@@ -230,6 +230,6 @@ public interface FieldMapper<T> {
 
     FieldDataType fieldDataType();
 
-    PostingsFormatProvider postingFormatProvider();
+    PostingsFormatProvider postingsFormatProvider();
 
 }

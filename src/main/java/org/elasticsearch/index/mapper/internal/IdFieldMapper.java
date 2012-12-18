@@ -59,14 +59,14 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         public static final String NAME = IdFieldMapper.NAME;
         public static final String INDEX_NAME = IdFieldMapper.NAME;
 
-        public static final FieldType ID_FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
+        public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
 
         static {
-            ID_FIELD_TYPE.setIndexed(false);
-            ID_FIELD_TYPE.setStored(false);
-            ID_FIELD_TYPE.setOmitNorms(true);
-            ID_FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_ONLY);
-            ID_FIELD_TYPE.freeze();
+            FIELD_TYPE.setIndexed(false);
+            FIELD_TYPE.setStored(false);
+            FIELD_TYPE.setOmitNorms(true);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_ONLY);
+            FIELD_TYPE.freeze();
         }
 
         public static final String PATH = null;
@@ -77,7 +77,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         private String path = Defaults.PATH;
 
         public Builder() {
-            super(Defaults.NAME, new FieldType(Defaults.ID_FIELD_TYPE));
+            super(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE));
             indexName = Defaults.INDEX_NAME;
         }
 
@@ -111,7 +111,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
     private final String path;
 
     public IdFieldMapper() {
-        this(Defaults.NAME, Defaults.INDEX_NAME, new FieldType(Defaults.ID_FIELD_TYPE));
+        this(Defaults.NAME, Defaults.INDEX_NAME, new FieldType(Defaults.FIELD_TYPE));
     }
 
     public IdFieldMapper(FieldType fieldType) {
@@ -131,6 +131,11 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
 
     public String path() {
         return this.path;
+    }
+
+    @Override
+    public FieldType defaultFieldType() {
+        return Defaults.FIELD_TYPE;
     }
 
     @Override
@@ -306,15 +311,15 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // if all are defaults, no sense to write it at all
-        if (fieldType.stored() == Defaults.ID_FIELD_TYPE.stored() &&
-                fieldType.indexed() == Defaults.ID_FIELD_TYPE.indexed() && path == Defaults.PATH) {
+        if (fieldType.stored() == Defaults.FIELD_TYPE.stored() &&
+                fieldType.indexed() == Defaults.FIELD_TYPE.indexed() && path == Defaults.PATH) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
-        if (fieldType.stored() != Defaults.ID_FIELD_TYPE.stored()) {
+        if (fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
             builder.field("store", fieldType.stored());
         }
-        if (fieldType.indexed() != Defaults.ID_FIELD_TYPE.indexed()) {
+        if (fieldType.indexed() != Defaults.FIELD_TYPE.indexed()) {
             builder.field("index", fieldType.indexed());
         }
         if (path != Defaults.PATH) {

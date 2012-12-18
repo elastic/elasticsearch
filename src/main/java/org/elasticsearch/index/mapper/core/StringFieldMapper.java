@@ -52,10 +52,10 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
     public static final String CONTENT_TYPE = "string";
 
     public static class Defaults extends AbstractFieldMapper.Defaults {
-        public static final FieldType STRING_FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
+        public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
 
         static {
-            STRING_FIELD_TYPE.freeze();
+            FIELD_TYPE.freeze();
         }
 
         // NOTE, when adding defaults here, make sure you add them in the builder
@@ -75,7 +75,7 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
         protected int ignoreAbove = Defaults.IGNORE_ABOVE;
 
         public Builder(String name) {
-            super(name, new FieldType(Defaults.STRING_FIELD_TYPE));
+            super(name, new FieldType(Defaults.FIELD_TYPE));
             builder = this;
         }
 
@@ -206,6 +206,11 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
     }
 
     @Override
+    public FieldType defaultFieldType() {
+        return Defaults.FIELD_TYPE;
+    }
+
+    @Override
     public void includeInAll(Boolean includeInAll) {
         if (includeInAll != null) {
             this.includeInAll = includeInAll;
@@ -318,31 +323,6 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
     @Override
     protected void doXContentBody(XContentBuilder builder) throws IOException {
         super.doXContentBody(builder);
-        if (indexed() != Defaults.STRING_FIELD_TYPE.indexed() ||
-                tokenized() != Defaults.STRING_FIELD_TYPE.tokenized()) {
-            builder.field("index", indexTokenizeOptionToString(indexed(), tokenized()));
-        }
-        if (stored() != Defaults.STRING_FIELD_TYPE.stored()) {
-            builder.field("store", stored());
-        }
-        if (storeTermVectors() != Defaults.STRING_FIELD_TYPE.storeTermVectors()) {
-            builder.field("store_term_vector", storeTermVectors());
-        }
-        if (storeTermVectorOffsets() != Defaults.STRING_FIELD_TYPE.storeTermVectorOffsets()) {
-            builder.field("store_term_vector_offsets", storeTermVectorOffsets());
-        }
-        if (storeTermVectorPositions() != Defaults.STRING_FIELD_TYPE.storeTermVectorPositions()) {
-            builder.field("store_term_vector_positions", storeTermVectorPositions());
-        }
-        if (storeTermVectorPayloads() != Defaults.STRING_FIELD_TYPE.storeTermVectorPayloads()) {
-            builder.field("store_term_vector_payloads", storeTermVectorPayloads());
-        }
-        if (omitNorms() != Defaults.STRING_FIELD_TYPE.omitNorms()) {
-            builder.field("omit_norms", omitNorms());
-        }
-        if (indexOptions() != Defaults.STRING_FIELD_TYPE.indexOptions()) {
-            builder.field("index_options", indexOptionToString(indexOptions()));
-        }
         if (nullValue != null) {
             builder.field("null_value", nullValue);
         }
@@ -354,9 +334,6 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
         }
         if (searchQuotedAnalyzer != null && searchAnalyzer != searchQuotedAnalyzer) {
             builder.field("search_quote_analyzer", searchQuotedAnalyzer.name());
-        }
-        if (similarity() != null) {
-            builder.field("similarity", similarity().name());
         }
         if (ignoreAbove != Defaults.IGNORE_ABOVE) {
             builder.field("ignore_above", ignoreAbove);

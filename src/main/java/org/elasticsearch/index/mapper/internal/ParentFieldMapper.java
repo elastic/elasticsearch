@@ -52,15 +52,15 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
     public static class Defaults extends AbstractFieldMapper.Defaults {
         public static final String NAME = ParentFieldMapper.NAME;
 
-        public static final FieldType PARENT_FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
+        public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
 
         static {
-            PARENT_FIELD_TYPE.setIndexed(true);
-            PARENT_FIELD_TYPE.setTokenized(false);
-            PARENT_FIELD_TYPE.setStored(true);
-            PARENT_FIELD_TYPE.setOmitNorms(true);
-            PARENT_FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_ONLY);
-            PARENT_FIELD_TYPE.freeze();
+            FIELD_TYPE.setIndexed(true);
+            FIELD_TYPE.setTokenized(false);
+            FIELD_TYPE.setStored(true);
+            FIELD_TYPE.setOmitNorms(true);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_ONLY);
+            FIELD_TYPE.freeze();
         }
     }
 
@@ -116,13 +116,18 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
     private final String type;
 
     protected ParentFieldMapper(String name, String indexName, String type, PostingsFormatProvider postingsFormat) {
-        super(new Names(name, indexName, indexName, name), Defaults.BOOST, new FieldType(Defaults.PARENT_FIELD_TYPE),
+        super(new Names(name, indexName, indexName, name), Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE),
                 Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, postingsFormat, null);
         this.type = type;
     }
 
     public String type() {
         return type;
+    }
+
+    @Override
+    public FieldType defaultFieldType() {
+        return Defaults.FIELD_TYPE;
     }
 
     @Override

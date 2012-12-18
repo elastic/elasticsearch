@@ -154,7 +154,7 @@ public class DocumentMapper implements ToXContent {
             if (indexSettings != null) {
                 String idIndexed = indexSettings.get("index.mapping._id.indexed");
                 if (idIndexed != null && Booleans.parseBoolean(idIndexed, false)) {
-                    FieldType fieldType = new FieldType(IdFieldMapper.Defaults.ID_FIELD_TYPE);
+                    FieldType fieldType = new FieldType(IdFieldMapper.Defaults.FIELD_TYPE);
                     fieldType.setTokenized(false);
                     idFieldMapper = new IdFieldMapper(fieldType);
                 }
@@ -495,7 +495,6 @@ public class DocumentMapper implements ToXContent {
             }
 
             // fire up any new mappers if exists
-            // we do it here so postParse can rely on having them as part of this doc mapper
             if (!context.newFieldMappers().mappers.isEmpty()) {
                 addFieldMappers(context.newFieldMappers().mappers);
             }

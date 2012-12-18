@@ -51,11 +51,11 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
     public static final String CONTENT_TYPE = "boolean";
 
     public static class Defaults extends AbstractFieldMapper.Defaults {
-        public static final FieldType BOOLEAN_FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
+        public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
 
         static {
-            BOOLEAN_FIELD_TYPE.setOmitNorms(true);
-            BOOLEAN_FIELD_TYPE.freeze();
+            FIELD_TYPE.setOmitNorms(true);
+            FIELD_TYPE.freeze();
         }
 
         public static final Boolean NULL_VALUE = null;
@@ -71,7 +71,7 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
         private Boolean nullValue = Defaults.NULL_VALUE;
 
         public Builder(String name) {
-            super(name, new FieldType(Defaults.BOOLEAN_FIELD_TYPE));
+            super(name, new FieldType(Defaults.FIELD_TYPE));
             this.builder = this;
         }
 
@@ -155,6 +155,11 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
     }
 
     @Override
+    public FieldType defaultFieldType() {
+        return Defaults.FIELD_TYPE;
+    }
+
+    @Override
     public boolean useFieldQueryWithQueryString() {
         return true;
     }
@@ -224,34 +229,6 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
     @Override
     protected void doXContentBody(XContentBuilder builder) throws IOException {
         super.doXContentBody(builder);
-        if (indexed() != Defaults.BOOLEAN_FIELD_TYPE.indexed() ||
-                tokenized() != Defaults.BOOLEAN_FIELD_TYPE.tokenized()) {
-            builder.field("index", indexTokenizeOptionToString(indexed(), tokenized()));
-        }
-        if (stored() != Defaults.BOOLEAN_FIELD_TYPE.stored()) {
-            builder.field("store", stored());
-        }
-        if (storeTermVectors() != Defaults.BOOLEAN_FIELD_TYPE.storeTermVectors()) {
-            builder.field("store_term_vector", storeTermVectors());
-        }
-        if (storeTermVectorOffsets() != Defaults.BOOLEAN_FIELD_TYPE.storeTermVectorOffsets()) {
-            builder.field("store_term_vector_offsets", storeTermVectorOffsets());
-        }
-        if (storeTermVectorPositions() != Defaults.BOOLEAN_FIELD_TYPE.storeTermVectorPositions()) {
-            builder.field("store_term_vector_positions", storeTermVectorPositions());
-        }
-        if (storeTermVectorPayloads() != Defaults.BOOLEAN_FIELD_TYPE.storeTermVectorPayloads()) {
-            builder.field("store_term_vector_payloads", storeTermVectorPayloads());
-        }
-        if (omitNorms() != Defaults.BOOLEAN_FIELD_TYPE.omitNorms()) {
-            builder.field("omit_norms", omitNorms());
-        }
-        if (indexOptions() != Defaults.BOOLEAN_FIELD_TYPE.indexOptions()) {
-            builder.field("index_options", indexOptionToString(indexOptions()));
-        }
-        if (similarity() != null) {
-            builder.field("similarity", similarity().name());
-        }
         if (nullValue != null) {
             builder.field("null_value", nullValue);
         }

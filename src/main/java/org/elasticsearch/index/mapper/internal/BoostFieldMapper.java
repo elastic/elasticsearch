@@ -61,11 +61,11 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
         public static final String NAME = "_boost";
         public static final Float NULL_VALUE = null;
 
-        public static final FieldType BOOST_FIELD_TYPE = new FieldType(NumberFieldMapper.Defaults.NUMBER_FIELD_TYPE);
+        public static final FieldType FIELD_TYPE = new FieldType(NumberFieldMapper.Defaults.FIELD_TYPE);
 
         static {
-            BOOST_FIELD_TYPE.setIndexed(false);
-            BOOST_FIELD_TYPE.setStored(false);
+            FIELD_TYPE.setIndexed(false);
+            FIELD_TYPE.setStored(false);
         }
     }
 
@@ -74,7 +74,7 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
         protected Float nullValue = Defaults.NULL_VALUE;
 
         public Builder(String name) {
-            super(name, new FieldType(Defaults.BOOST_FIELD_TYPE));
+            super(name, new FieldType(Defaults.FIELD_TYPE));
             builder = this;
         }
 
@@ -114,7 +114,7 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
     }
 
     protected BoostFieldMapper(String name, String indexName) {
-        this(name, indexName, Defaults.PRECISION_STEP, Defaults.BOOST, new FieldType(Defaults.BOOST_FIELD_TYPE),
+        this(name, indexName, Defaults.PRECISION_STEP, Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE),
                 Defaults.NULL_VALUE, null);
     }
 
@@ -124,6 +124,11 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
                 Defaults.IGNORE_MALFORMED, new NamedAnalyzer("_float/" + precisionStep, new NumericFloatAnalyzer(precisionStep)),
                 new NamedAnalyzer("_float/max", new NumericFloatAnalyzer(Integer.MAX_VALUE)), provider, null);
         this.nullValue = nullValue;
+    }
+
+    @Override
+    public FieldType defaultFieldType() {
+        return Defaults.FIELD_TYPE;
     }
 
     @Override

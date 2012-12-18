@@ -57,16 +57,16 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
         public static final int QUADTREE_LEVELS = QuadPrefixTree.DEFAULT_MAX_LEVELS;
         public static final double DISTANCE_ERROR_PCT = 0.025d;
 
-        public static final FieldType GEO_SHAPE_FIELD_TYPE = new FieldType();
+        public static final FieldType FIELD_TYPE = new FieldType();
 
         static {
-            GEO_SHAPE_FIELD_TYPE.setIndexed(true);
-            GEO_SHAPE_FIELD_TYPE.setTokenized(false);
-            GEO_SHAPE_FIELD_TYPE.setStored(false);
-            GEO_SHAPE_FIELD_TYPE.setStoreTermVectors(false);
-            GEO_SHAPE_FIELD_TYPE.setOmitNorms(true);
-            GEO_SHAPE_FIELD_TYPE.setIndexOptions(FieldInfo.IndexOptions.DOCS_ONLY);
-            GEO_SHAPE_FIELD_TYPE.freeze();
+            FIELD_TYPE.setIndexed(true);
+            FIELD_TYPE.setTokenized(false);
+            FIELD_TYPE.setStored(false);
+            FIELD_TYPE.setStoreTermVectors(false);
+            FIELD_TYPE.setOmitNorms(true);
+            FIELD_TYPE.setIndexOptions(FieldInfo.IndexOptions.DOCS_ONLY);
+            FIELD_TYPE.freeze();
         }
     }
 
@@ -79,7 +79,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
         private SpatialPrefixTree prefixTree;
 
         public Builder(String name) {
-            super(name, new FieldType(Defaults.GEO_SHAPE_FIELD_TYPE));
+            super(name, new FieldType(Defaults.FIELD_TYPE));
         }
 
         public Builder tree(String tree) {
@@ -140,6 +140,11 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
                                FieldType fieldType, PostingsFormatProvider provider) {
         super(names, 1, fieldType, null, null, provider, null);
         this.spatialStrategy = new TermQueryPrefixTreeStrategy(names, prefixTree, distanceErrorPct);
+    }
+
+    @Override
+    public FieldType defaultFieldType() {
+        return Defaults.FIELD_TYPE;
     }
 
     @Override

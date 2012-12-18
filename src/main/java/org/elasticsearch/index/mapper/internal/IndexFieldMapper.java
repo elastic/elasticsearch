@@ -50,15 +50,15 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
         public static final String NAME = IndexFieldMapper.NAME;
         public static final String INDEX_NAME = IndexFieldMapper.NAME;
 
-        public static final FieldType INDEX_FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
+        public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
 
         static {
-            INDEX_FIELD_TYPE.setIndexed(true);
-            INDEX_FIELD_TYPE.setTokenized(false);
-            INDEX_FIELD_TYPE.setStored(false);
-            INDEX_FIELD_TYPE.setOmitNorms(true);
-            INDEX_FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_ONLY);
-            INDEX_FIELD_TYPE.freeze();
+            FIELD_TYPE.setIndexed(true);
+            FIELD_TYPE.setTokenized(false);
+            FIELD_TYPE.setStored(false);
+            FIELD_TYPE.setOmitNorms(true);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_ONLY);
+            FIELD_TYPE.freeze();
         }
 
         public static final boolean ENABLED = false;
@@ -69,7 +69,7 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
         private boolean enabled = Defaults.ENABLED;
 
         public Builder() {
-            super(Defaults.NAME, new FieldType(Defaults.INDEX_FIELD_TYPE));
+            super(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE));
             indexName = Defaults.INDEX_NAME;
         }
 
@@ -108,7 +108,7 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
     }
 
     protected IndexFieldMapper(String name, String indexName) {
-        this(name, indexName, Defaults.BOOST, new FieldType(Defaults.INDEX_FIELD_TYPE), Defaults.ENABLED, null);
+        this(name, indexName, Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), Defaults.ENABLED, null);
     }
 
     public IndexFieldMapper(String name, String indexName, float boost, FieldType fieldType, boolean enabled,
@@ -120,6 +120,11 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
 
     public boolean enabled() {
         return this.enabled;
+    }
+
+    @Override
+    public FieldType defaultFieldType() {
+        return Defaults.FIELD_TYPE;
     }
 
     public String value(Document document) {
@@ -181,11 +186,11 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // if all defaults, no need to write it at all
-        if (stored() == Defaults.INDEX_FIELD_TYPE.stored() && enabled == Defaults.ENABLED) {
+        if (stored() == Defaults.FIELD_TYPE.stored() && enabled == Defaults.ENABLED) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
-        if (stored() != Defaults.INDEX_FIELD_TYPE.stored()) {
+        if (stored() != Defaults.FIELD_TYPE.stored()) {
             builder.field("store", stored());
         }
         if (enabled != Defaults.ENABLED) {

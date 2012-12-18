@@ -125,7 +125,7 @@ public class UidField extends Field {
     }
 
     public UidField(String name, String uid, long version) {
-        super(name, UidFieldMapper.Defaults.UID_FIELD_TYPE);
+        super(name, UidFieldMapper.Defaults.FIELD_TYPE);
         this.uid = uid;
         this.version = version;
         this.tokenStream = new UidPayloadTokenStream(this);

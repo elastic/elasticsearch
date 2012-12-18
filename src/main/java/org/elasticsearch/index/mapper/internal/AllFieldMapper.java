@@ -66,12 +66,12 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
         public static final String INDEX_NAME = AllFieldMapper.NAME;
         public static final boolean ENABLED = true;
 
-        public static final FieldType ALL_FIELD_TYPE = new FieldType();
+        public static final FieldType FIELD_TYPE = new FieldType();
 
         static {
-            ALL_FIELD_TYPE.setIndexed(true);
-            ALL_FIELD_TYPE.setTokenized(true);
-            ALL_FIELD_TYPE.freeze();
+            FIELD_TYPE.setIndexed(true);
+            FIELD_TYPE.setTokenized(true);
+            FIELD_TYPE.freeze();
         }
     }
 
@@ -83,7 +83,7 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
         boolean autoBoost = false;
 
         public Builder() {
-            super(Defaults.NAME, new FieldType(Defaults.ALL_FIELD_TYPE));
+            super(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE));
             builder = this;
             indexName = Defaults.INDEX_NAME;
         }
@@ -131,7 +131,7 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
     private volatile boolean autoBoost;
 
     public AllFieldMapper() {
-        this(Defaults.NAME, new FieldType(Defaults.ALL_FIELD_TYPE), null, null, Defaults.ENABLED, false, null, null);
+        this(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE), null, null, Defaults.ENABLED, false, null, null);
     }
 
     protected AllFieldMapper(String name, FieldType fieldType, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer,
@@ -144,6 +144,11 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
 
     public boolean enabled() {
         return this.enabled;
+    }
+
+    @Override
+    public FieldType defaultFieldType() {
+        return Defaults.FIELD_TYPE;
     }
 
     @Override
@@ -248,8 +253,8 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // if all are defaults, no need to write it at all
-        if (enabled == Defaults.ENABLED && stored() == Defaults.ALL_FIELD_TYPE.stored() &&
-                storeTermVectors() == Defaults.ALL_FIELD_TYPE.storeTermVectors() &&
+        if (enabled == Defaults.ENABLED && stored() == Defaults.FIELD_TYPE.stored() &&
+                storeTermVectors() == Defaults.FIELD_TYPE.storeTermVectors() &&
                 indexAnalyzer == null && searchAnalyzer == null) {
             return builder;
         }
@@ -260,19 +265,19 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
         if (autoBoost != false) {
             builder.field("auto_boost", autoBoost);
         }
-        if (stored() != Defaults.ALL_FIELD_TYPE.stored()) {
+        if (stored() != Defaults.FIELD_TYPE.stored()) {
             builder.field("store", stored());
         }
-        if (storeTermVectors() != Defaults.ALL_FIELD_TYPE.storeTermVectors()) {
+        if (storeTermVectors() != Defaults.FIELD_TYPE.storeTermVectors()) {
             builder.field("store_term_vector", storeTermVectors());
         }
-        if (storeTermVectorOffsets() != Defaults.ALL_FIELD_TYPE.storeTermVectorOffsets()) {
+        if (storeTermVectorOffsets() != Defaults.FIELD_TYPE.storeTermVectorOffsets()) {
             builder.field("store_term_vector_offsets", storeTermVectorOffsets());
         }
-        if (storeTermVectorPositions() != Defaults.ALL_FIELD_TYPE.storeTermVectorPositions()) {
+        if (storeTermVectorPositions() != Defaults.FIELD_TYPE.storeTermVectorPositions()) {
             builder.field("store_term_vector_positions", storeTermVectorPositions());
         }
-        if (storeTermVectorPayloads() != Defaults.ALL_FIELD_TYPE.storeTermVectorPayloads()) {
+        if (storeTermVectorPayloads() != Defaults.FIELD_TYPE.storeTermVectorPayloads()) {
             builder.field("store_term_vector_payloads", storeTermVectorPayloads());
         }
         if (indexAnalyzer != null && searchAnalyzer != null && indexAnalyzer.name().equals(searchAnalyzer.name()) && !indexAnalyzer.name().startsWith("_")) {

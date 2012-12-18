@@ -43,7 +43,7 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
         public static final String NAME = CONTENT_TYPE;
         public static final boolean ENABLED = false;
 
-        public static final FieldType SIZE_FIELD_TYPE = new FieldType(IntegerFieldMapper.Defaults.INTEGER_FIELD_TYPE);
+        public static final FieldType SIZE_FIELD_TYPE = new FieldType(IntegerFieldMapper.Defaults.FIELD_TYPE);
 
         static {
             SIZE_FIELD_TYPE.freeze();

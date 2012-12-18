@@ -103,8 +103,8 @@ public final class Uid {
     public static BytesRef createUidAsBytes(String type, String id) {
         BytesRef ref = new BytesRef(type.length() + 1 + id.length());
         ref.copyChars(type);
-        ref.copyBytes(DELIMITER_BYTES);
-        ref.copyChars(id);
+        ref.append(DELIMITER_BYTES);
+        ref.append(new BytesRef(id));
         return ref;
     }
 

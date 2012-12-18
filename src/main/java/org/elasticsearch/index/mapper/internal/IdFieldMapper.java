@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper.internal;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
-import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
@@ -132,11 +131,6 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
 
     public String path() {
         return this.path;
-    }
-
-    public String value(Document document) {
-        Field field = (Field) document.getField(names.indexName());
-        return field == null ? null : value(field);
     }
 
     @Override

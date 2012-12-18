@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanTermQuery;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -90,15 +91,19 @@ public class SpanTermQueryParser implements QueryParser {
             throw new QueryParsingException(parseContext.index(), "No value specified for term query");
         }
 
+        BytesRef valueBytes = null;
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
         if (smartNameFieldMappers != null) {
             if (smartNameFieldMappers.hasMapper()) {
                 fieldName = smartNameFieldMappers.mapper().names().indexName();
-                value = smartNameFieldMappers.mapper().indexedValue(value);
+                valueBytes = smartNameFieldMappers.mapper().indexedValue(value);
             }
         }
+        if (valueBytes == null) {
+            valueBytes = new BytesRef(value);
+        }
 
-        SpanTermQuery query = new SpanTermQuery(new Term(fieldName, value));
+        SpanTermQuery query = new SpanTermQuery(new Term(fieldName, valueBytes));
         query.setBoost(boost);
         return wrapSmartNameQuery(query, smartNameFieldMappers, parseContext);
     }

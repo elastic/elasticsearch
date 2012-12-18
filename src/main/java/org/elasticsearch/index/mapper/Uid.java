@@ -28,6 +28,8 @@ import org.elasticsearch.common.bytes.HashedBytesArray;
 public final class Uid {
 
     public static final char DELIMITER = '#';
+    public static final byte DELIMITER_BYTE = 0x23;
+    public static final BytesRef DELIMITER_BYTES = new BytesRef(new byte[]{DELIMITER_BYTE});
 
     private final String type;
 
@@ -98,6 +100,14 @@ public final class Uid {
         return new Uid(uid.substring(0, delimiterIndex), uid.substring(delimiterIndex + 1));
     }
 
+    public static BytesRef createUidAsBytes(String type, String id) {
+        BytesRef ref = new BytesRef(type.length() + 1 + id.length());
+        ref.copyChars(type);
+        ref.copyBytes(DELIMITER_BYTES);
+        ref.copyChars(id);
+        return ref;
+    }
+
     public static String createUid(String type, String id) {
         return createUid(new StringBuilder(), type, id);
     }
@@ -110,7 +120,7 @@ public final class Uid {
     public static HashedBytesArray[] splitUidIntoTypeAndId(BytesRef uid) {
         int loc = -1;
         for (int i = uid.offset; i < uid.length; i++) {
-            if (uid.bytes[i] == 0x23) { // 0x23 is equal to '#'
+            if (uid.bytes[i] == DELIMITER_BYTE) { // 0x23 is equal to '#'
                 loc = i;
                 break;
             }
@@ -123,7 +133,7 @@ public final class Uid {
         byte[] type = new byte[loc - uid.offset];
         System.arraycopy(uid.bytes, uid.offset, type, 0, type.length);
 
-        byte[] id = new byte[uid.length - type.length -1];
+        byte[] id = new byte[uid.length - type.length - 1];
         System.arraycopy(uid.bytes, loc + 1, id, 0, id.length);
         return new HashedBytesArray[]{new HashedBytesArray(type), new HashedBytesArray(id)};
     }

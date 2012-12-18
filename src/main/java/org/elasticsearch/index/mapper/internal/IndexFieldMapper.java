@@ -137,11 +137,6 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
         return value;
     }
 
-    @Override
-    public String indexedValue(String value) {
-        return value;
-    }
-
     public Term term(String value) {
         return names().createIndexNameTerm(value);
     }

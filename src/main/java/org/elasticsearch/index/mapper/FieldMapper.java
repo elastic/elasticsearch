@@ -25,6 +25,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.field.data.FieldDataType;
@@ -106,6 +107,13 @@ public interface FieldMapper<T> {
         public Term createIndexNameTerm(String value) {
             return new Term(indexName, value);
         }
+
+        /**
+         * Creates a new index term based on the provided value.
+         */
+        public Term createIndexNameTerm(BytesRef value) {
+            return new Term(indexName, value);
+        }
     }
 
     Names names();
@@ -172,7 +180,7 @@ public interface FieldMapper<T> {
     /**
      * Returns the indexed value.
      */
-    String indexedValue(String value);
+    BytesRef indexedValue(String value);
 
     /**
      * Should the field query {@link #fieldQuery(String, org.elasticsearch.index.query.QueryParseContext)}  be used when detecting this
@@ -184,6 +192,8 @@ public interface FieldMapper<T> {
      * A field query for the specified value.
      */
     Query fieldQuery(String value, @Nullable QueryParseContext context);
+
+    Filter fieldFilter(String value, @Nullable QueryParseContext context);
 
     Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions, boolean transpositions);
 
@@ -201,8 +211,6 @@ public interface FieldMapper<T> {
      * A term query to use when parsing a query string. Can return <tt>null</tt>.
      */
     Query queryStringTermQuery(Term term);
-
-    Filter fieldFilter(String value, @Nullable QueryParseContext context);
 
     /**
      * Constructs a range query based on the mapper.

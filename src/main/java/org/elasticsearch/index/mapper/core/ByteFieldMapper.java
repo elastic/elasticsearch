@@ -146,10 +146,10 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
     }
 
     @Override
-    public String indexedValue(String value) {
+    public BytesRef indexedValue(String value) {
         BytesRef bytesRef = new BytesRef();
         NumericUtils.intToPrefixCoded(Byte.parseByte(value), precisionStep(), bytesRef);
-        return bytesRef.utf8ToString();
+        return bytesRef;
     }
 
     @Override

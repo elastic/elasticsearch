@@ -152,11 +152,6 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
     }
 
     @Override
-    public String indexedValue(String value) {
-        return value;
-    }
-
-    @Override
     public void validate(ParseContext context) throws MapperParsingException {
         String routing = context.sourceToParse().routing();
         if (path != null && routing != null) {

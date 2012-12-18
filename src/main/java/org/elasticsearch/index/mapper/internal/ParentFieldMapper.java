@@ -26,6 +26,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
@@ -192,11 +193,11 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
     }
 
     @Override
-    public String indexedValue(String value) {
+    public BytesRef indexedValue(String value) {
         if (value.indexOf(Uid.DELIMITER) == -1) {
-            return Uid.createUid(type, value);
+            return Uid.createUidAsBytes(type, value);
         }
-        return value;
+        return super.indexedValue(value);
     }
 
     @Override

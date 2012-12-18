@@ -148,10 +148,10 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
     }
 
     @Override
-    public String indexedValue(String value) {
+    public BytesRef indexedValue(String value) {
         BytesRef bytesRef = new BytesRef();
         NumericUtils.intToPrefixCoded(Integer.parseInt(value), precisionStep(), bytesRef);
-        return bytesRef.utf8ToString();
+        return bytesRef;
     }
 
     @Override

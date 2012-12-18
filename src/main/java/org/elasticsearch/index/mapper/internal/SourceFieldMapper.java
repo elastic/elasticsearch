@@ -374,11 +374,6 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
     }
 
     @Override
-    public String indexedValue(String value) {
-        return value;
-    }
-
-    @Override
     protected String contentType() {
         return CONTENT_TYPE;
     }

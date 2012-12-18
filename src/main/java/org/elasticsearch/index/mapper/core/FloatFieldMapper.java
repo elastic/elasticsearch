@@ -146,11 +146,11 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
     }
 
     @Override
-    public String indexedValue(String value) {
+    public BytesRef indexedValue(String value) {
         int intValue = NumericUtils.floatToSortableInt(Float.parseFloat(value));
         BytesRef bytesRef = new BytesRef();
         NumericUtils.intToPrefixCoded(intValue, precisionStep(), bytesRef);
-        return bytesRef.utf8ToString();
+        return bytesRef;
     }
 
     @Override

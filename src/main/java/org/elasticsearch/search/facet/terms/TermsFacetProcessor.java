@@ -104,7 +104,7 @@ public class TermsFacetProcessor extends AbstractComponent implements FacetProce
                 if ("exclude".equals(currentFieldName)) {
                     ImmutableSet.Builder<BytesRef> builder = ImmutableSet.builder();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        builder.add(new BytesRef(parser.text()));
+                        builder.add(parser.bytes());
                     }
                     excluded = builder.build();
                 } else if ("fields".equals(currentFieldName)) {

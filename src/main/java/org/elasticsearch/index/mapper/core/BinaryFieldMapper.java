@@ -50,11 +50,11 @@ public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
 
     public static class Defaults extends AbstractFieldMapper.Defaults {
         public static final long COMPRESS_THRESHOLD = -1;
-        public static final FieldType BINARY_FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
+        public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
 
         static {
-            BINARY_FIELD_TYPE.setStored(false);
-            BINARY_FIELD_TYPE.freeze();
+            FIELD_TYPE.setStored(false);
+            FIELD_TYPE.freeze();
         }
     }
 
@@ -65,7 +65,7 @@ public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
         private long compressThreshold = Defaults.COMPRESS_THRESHOLD;
 
         public Builder(String name) {
-            super(name, new FieldType(Defaults.BINARY_FIELD_TYPE));
+            super(name, new FieldType(Defaults.FIELD_TYPE));
             builder = this;
         }
 
@@ -122,6 +122,11 @@ public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
         super(names, 1.0f, fieldType, null, null, provider, null);
         this.compress = compress;
         this.compressThreshold = compressThreshold;
+    }
+
+    @Override
+    public FieldType defaultFieldType() {
+        return Defaults.FIELD_TYPE;
     }
 
     @Override

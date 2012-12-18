@@ -308,6 +308,8 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         return this.names;
     }
 
+    public abstract FieldType defaultFieldType();
+
     @Override
     public boolean stored() {
         return fieldType.stored();
@@ -589,7 +591,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
     }
 
     @Override
-    public PostingsFormatProvider postingFormatProvider() {
+    public PostingsFormatProvider postingsFormatProvider() {
         return postingsFormat;
     }
 
@@ -599,6 +601,65 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         doXContentBody(builder);
         builder.endObject();
         return builder;
+    }
+
+    protected void doXContentBody(XContentBuilder builder) throws IOException {
+        builder.field("type", contentType());
+        if (!names.name().equals(names.indexNameClean())) {
+            builder.field("index_name", names.indexNameClean());
+        }
+
+        if (boost != 1.0f) {
+            builder.field("boost", boost);
+        }
+
+        FieldType defaultFieldType = defaultFieldType();
+        if (indexed() != defaultFieldType.indexed() ||
+                tokenized() != defaultFieldType.tokenized()) {
+            builder.field("index", indexTokenizeOptionToString(indexed(), tokenized()));
+        }
+        if (stored() != defaultFieldType.stored()) {
+            builder.field("store", stored());
+        }
+        if (storeTermVectors() != defaultFieldType.storeTermVectors()) {
+            builder.field("store_term_vector", storeTermVectors());
+        }
+        if (storeTermVectorOffsets() != defaultFieldType.storeTermVectorOffsets()) {
+            builder.field("store_term_vector_offsets", storeTermVectorOffsets());
+        }
+        if (storeTermVectorPositions() != defaultFieldType.storeTermVectorPositions()) {
+            builder.field("store_term_vector_positions", storeTermVectorPositions());
+        }
+        if (storeTermVectorPayloads() != defaultFieldType.storeTermVectorPayloads()) {
+            builder.field("store_term_vector_payloads", storeTermVectorPayloads());
+        }
+        if (omitNorms() != defaultFieldType.omitNorms()) {
+            builder.field("omit_norms", omitNorms());
+        }
+        if (indexOptions() != defaultFieldType.indexOptions()) {
+            builder.field("index_options", indexOptionToString(indexOptions()));
+        }
+
+        if (indexAnalyzer != null && searchAnalyzer != null && indexAnalyzer.name().equals(searchAnalyzer.name()) && !indexAnalyzer.name().startsWith("_") && !indexAnalyzer.name().equals("default")) {
+            // same analyzers, output it once
+            builder.field("analyzer", indexAnalyzer.name());
+        } else {
+            if (indexAnalyzer != null && !indexAnalyzer.name().startsWith("_") && !indexAnalyzer.name().equals("default")) {
+                builder.field("index_analyzer", indexAnalyzer.name());
+            }
+            if (searchAnalyzer != null && !searchAnalyzer.name().startsWith("_") && !searchAnalyzer.name().equals("default")) {
+                builder.field("search_analyzer", searchAnalyzer.name());
+            }
+        }
+        if (postingsFormat != null) {
+            if (!postingsFormat.name().equals(defaultPostingFormat())) {
+                builder.field("postings_format", postingsFormat.name());
+            }
+        }
+
+        if (similarity() != null) {
+            builder.field("similarity", similarity().name());
+        }
     }
 
     protected static String indexOptionToString(IndexOptions indexOption) {
@@ -624,31 +685,6 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         }
     }
 
-    protected void doXContentBody(XContentBuilder builder) throws IOException {
-        builder.field("type", contentType());
-        if (!names.name().equals(names.indexNameClean())) {
-            builder.field("index_name", names.indexNameClean());
-        }
-        if (boost != 1.0f) {
-            builder.field("boost", boost);
-        }
-        if (indexAnalyzer != null && searchAnalyzer != null && indexAnalyzer.name().equals(searchAnalyzer.name()) && !indexAnalyzer.name().startsWith("_") && !indexAnalyzer.name().equals("default")) {
-            // same analyzers, output it once
-            builder.field("analyzer", indexAnalyzer.name());
-        } else {
-            if (indexAnalyzer != null && !indexAnalyzer.name().startsWith("_") && !indexAnalyzer.name().equals("default")) {
-                builder.field("index_analyzer", indexAnalyzer.name());
-            }
-            if (searchAnalyzer != null && !searchAnalyzer.name().startsWith("_") && !searchAnalyzer.name().equals("default")) {
-                builder.field("search_analyzer", searchAnalyzer.name());
-            }
-        }
-        if (postingsFormat != null) {
-            if (!postingsFormat.name().equals(defaultPostingFormat())) {
-                builder.field("postings_format", postingsFormat.name());
-            }
-        }
-    }
 
     protected abstract String contentType();
 

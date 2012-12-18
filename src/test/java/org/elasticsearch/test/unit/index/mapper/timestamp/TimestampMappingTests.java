@@ -73,8 +73,8 @@ public class TimestampMappingTests {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().string();
         DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
         assertThat(docMapper.timestampFieldMapper().enabled(), equalTo(TimestampFieldMapper.Defaults.ENABLED));
-        assertThat(docMapper.timestampFieldMapper().stored(), equalTo(TimestampFieldMapper.Defaults.TIMESTAMP_FIELD_TYPE.stored()));
-        assertThat(docMapper.timestampFieldMapper().indexed(), equalTo(TimestampFieldMapper.Defaults.TIMESTAMP_FIELD_TYPE.indexed()));
+        assertThat(docMapper.timestampFieldMapper().stored(), equalTo(TimestampFieldMapper.Defaults.FIELD_TYPE.stored()));
+        assertThat(docMapper.timestampFieldMapper().indexed(), equalTo(TimestampFieldMapper.Defaults.FIELD_TYPE.indexed()));
         assertThat(docMapper.timestampFieldMapper().path(), equalTo(null));
         assertThat(docMapper.timestampFieldMapper().dateTimeFormatter().format(), equalTo(TimestampFieldMapper.DEFAULT_DATE_TIME_FORMAT));
     }

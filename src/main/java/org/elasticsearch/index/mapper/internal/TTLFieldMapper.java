@@ -49,7 +49,7 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
     public static class Defaults extends LongFieldMapper.Defaults {
         public static final String NAME = TTLFieldMapper.CONTENT_TYPE;
 
-        public static final FieldType TTL_FIELD_TYPE = new FieldType(LongFieldMapper.Defaults.LONG_FIELD_TYPE);
+        public static final FieldType TTL_FIELD_TYPE = new FieldType(LongFieldMapper.Defaults.FIELD_TYPE);
 
         static {
             TTL_FIELD_TYPE.setStored(true);

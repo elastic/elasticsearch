@@ -89,10 +89,10 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
     public static class Defaults extends NumberFieldMapper.Defaults {
         public static final String NULL_VALUE = null;
 
-        public static final FieldType IP_FIELD_TYPE = new FieldType(NumberFieldMapper.Defaults.NUMBER_FIELD_TYPE);
+        public static final FieldType FIELD_TYPE = new FieldType(NumberFieldMapper.Defaults.FIELD_TYPE);
 
         static {
-            IP_FIELD_TYPE.freeze();
+            FIELD_TYPE.freeze();
         }
     }
 
@@ -101,7 +101,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
         protected String nullValue = Defaults.NULL_VALUE;
 
         public Builder(String name) {
-            super(name, new FieldType(Defaults.IP_FIELD_TYPE));
+            super(name, new FieldType(Defaults.FIELD_TYPE));
             builder = this;
         }
 
@@ -146,6 +146,11 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
                 ignoreMalformed, new NamedAnalyzer("_ip/" + precisionStep, new NumericIpAnalyzer(precisionStep)),
                 new NamedAnalyzer("_ip/max", new NumericIpAnalyzer(Integer.MAX_VALUE)), provider, similarity);
         this.nullValue = nullValue;
+    }
+
+    @Override
+    public FieldType defaultFieldType() {
+        return Defaults.FIELD_TYPE;
     }
 
     @Override
@@ -305,36 +310,8 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
     @Override
     protected void doXContentBody(XContentBuilder builder) throws IOException {
         super.doXContentBody(builder);
-        if (indexed() != Defaults.IP_FIELD_TYPE.indexed() ||
-                tokenized() != Defaults.IP_FIELD_TYPE.tokenized()) {
-            builder.field("index", indexTokenizeOptionToString(indexed(), tokenized()));
-        }
-        if (stored() != Defaults.IP_FIELD_TYPE.stored()) {
-            builder.field("store", stored());
-        }
-        if (storeTermVectors() != Defaults.IP_FIELD_TYPE.storeTermVectors()) {
-            builder.field("store_term_vector", storeTermVectors());
-        }
-        if (storeTermVectorOffsets() != Defaults.IP_FIELD_TYPE.storeTermVectorOffsets()) {
-            builder.field("store_term_vector_offsets", storeTermVectorOffsets());
-        }
-        if (storeTermVectorPositions() != Defaults.IP_FIELD_TYPE.storeTermVectorPositions()) {
-            builder.field("store_term_vector_positions", storeTermVectorPositions());
-        }
-        if (storeTermVectorPayloads() != Defaults.IP_FIELD_TYPE.storeTermVectorPayloads()) {
-            builder.field("store_term_vector_payloads", storeTermVectorPayloads());
-        }
-        if (omitNorms() != Defaults.IP_FIELD_TYPE.omitNorms()) {
-            builder.field("omit_norms", omitNorms());
-        }
-        if (indexOptions() != Defaults.IP_FIELD_TYPE.indexOptions()) {
-            builder.field("index_options", indexOptionToString(indexOptions()));
-        }
         if (precisionStep != Defaults.PRECISION_STEP) {
             builder.field("precision_step", precisionStep);
-        }
-        if (similarity() != null) {
-            builder.field("similarity", similarity().name());
         }
         if (nullValue != null) {
             builder.field("null_value", nullValue);

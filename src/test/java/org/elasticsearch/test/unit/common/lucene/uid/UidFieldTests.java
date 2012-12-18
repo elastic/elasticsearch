@@ -47,7 +47,7 @@ public class UidFieldTests {
         MatcherAssert.assertThat(UidField.loadVersion(atomicReader.getContext(), new Term("_uid", "1")), equalTo(-1l));
 
         Document doc = new Document();
-        doc.add(new Field("_uid", "1", UidFieldMapper.Defaults.UID_FIELD_TYPE));
+        doc.add(new Field("_uid", "1", UidFieldMapper.Defaults.FIELD_TYPE));
         writer.addDocument(doc);
         directoryReader = DirectoryReader.openIfChanged(directoryReader);
         atomicReader = SlowCompositeReaderWrapper.wrap(directoryReader);

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper.internal;
 
-import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
@@ -58,22 +57,22 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
         public static final String NAME = TypeFieldMapper.NAME;
         public static final String INDEX_NAME = TypeFieldMapper.NAME;
 
-        public static final FieldType TYPE_FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
+        public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
 
         static {
-            TYPE_FIELD_TYPE.setIndexed(true);
-            TYPE_FIELD_TYPE.setTokenized(false);
-            TYPE_FIELD_TYPE.setStored(false);
-            TYPE_FIELD_TYPE.setOmitNorms(true);
-            TYPE_FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_ONLY);
-            TYPE_FIELD_TYPE.freeze();
+            FIELD_TYPE.setIndexed(true);
+            FIELD_TYPE.setTokenized(false);
+            FIELD_TYPE.setStored(false);
+            FIELD_TYPE.setOmitNorms(true);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_ONLY);
+            FIELD_TYPE.freeze();
         }
     }
 
     public static class Builder extends AbstractFieldMapper.Builder<Builder, TypeFieldMapper> {
 
         public Builder() {
-            super(Defaults.NAME, new FieldType(Defaults.TYPE_FIELD_TYPE));
+            super(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE));
             indexName = Defaults.INDEX_NAME;
         }
 
@@ -98,7 +97,7 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
     }
 
     protected TypeFieldMapper(String name, String indexName) {
-        this(name, indexName, Defaults.BOOST, new FieldType(Defaults.TYPE_FIELD_TYPE), null);
+        this(name, indexName, Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), null);
     }
 
     public TypeFieldMapper(String name, String indexName, float boost, FieldType fieldType, PostingsFormatProvider provider) {
@@ -106,9 +105,9 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
                 Lucene.KEYWORD_ANALYZER, provider, null);
     }
 
-    public String value(Document document) {
-        Field field = (Field) document.getField(names.indexName());
-        return field == null ? null : value(field);
+    @Override
+    public FieldType defaultFieldType() {
+        return Defaults.FIELD_TYPE;
     }
 
     @Override
@@ -182,14 +181,14 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // if all are defaults, no sense to write it at all
-        if (stored() == Defaults.TYPE_FIELD_TYPE.stored() && indexed() == Defaults.TYPE_FIELD_TYPE.indexed()) {
+        if (stored() == Defaults.FIELD_TYPE.stored() && indexed() == Defaults.FIELD_TYPE.indexed()) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
-        if (stored() != Defaults.TYPE_FIELD_TYPE.stored()) {
+        if (stored() != Defaults.FIELD_TYPE.stored()) {
             builder.field("store", stored());
         }
-        if (indexed() != Defaults.TYPE_FIELD_TYPE.indexed()) {
+        if (indexed() != Defaults.FIELD_TYPE.indexed()) {
             builder.field("index", indexed());
         }
         builder.endObject();

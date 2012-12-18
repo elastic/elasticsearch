@@ -113,11 +113,11 @@ public class CodecTests {
                 .build();
         CodecService codecService = createCodecService(indexSettings);
         DocumentMapper documentMapper = codecService.mapperService().documentMapperParser().parse(mapping);
-        assertThat(documentMapper.mappers().name("field1").mapper().postingFormatProvider(), instanceOf(PreBuiltPostingsFormatProvider.class));
-        assertThat(documentMapper.mappers().name("field1").mapper().postingFormatProvider().get(), instanceOf(Lucene40PostingsFormat.class));
+        assertThat(documentMapper.mappers().name("field1").mapper().postingsFormatProvider(), instanceOf(PreBuiltPostingsFormatProvider.class));
+        assertThat(documentMapper.mappers().name("field1").mapper().postingsFormatProvider().get(), instanceOf(Lucene40PostingsFormat.class));
 
-        assertThat(documentMapper.mappers().name("field2").mapper().postingFormatProvider(), instanceOf(DefaultPostingsFormatProvider.class));
-        DefaultPostingsFormatProvider provider = (DefaultPostingsFormatProvider) documentMapper.mappers().name("field2").mapper().postingFormatProvider();
+        assertThat(documentMapper.mappers().name("field2").mapper().postingsFormatProvider(), instanceOf(DefaultPostingsFormatProvider.class));
+        DefaultPostingsFormatProvider provider = (DefaultPostingsFormatProvider) documentMapper.mappers().name("field2").mapper().postingsFormatProvider();
         assertThat(provider.minBlockSize(), equalTo(16));
         assertThat(provider.maxBlockSize(), equalTo(64));
     }
@@ -138,11 +138,11 @@ public class CodecTests {
                 .build();
         CodecService codecService = createCodecService(indexSettings);
         DocumentMapper documentMapper = codecService.mapperService().documentMapperParser().parse(mapping);
-        assertThat(documentMapper.mappers().name("field1").mapper().postingFormatProvider(), instanceOf(PreBuiltPostingsFormatProvider.class));
-        assertThat(documentMapper.mappers().name("field1").mapper().postingFormatProvider().get(), instanceOf(MemoryPostingsFormat.class));
+        assertThat(documentMapper.mappers().name("field1").mapper().postingsFormatProvider(), instanceOf(PreBuiltPostingsFormatProvider.class));
+        assertThat(documentMapper.mappers().name("field1").mapper().postingsFormatProvider().get(), instanceOf(MemoryPostingsFormat.class));
 
-        assertThat(documentMapper.mappers().name("field2").mapper().postingFormatProvider(), instanceOf(MemoryPostingsFormatProvider.class));
-        MemoryPostingsFormatProvider provider = (MemoryPostingsFormatProvider) documentMapper.mappers().name("field2").mapper().postingFormatProvider();
+        assertThat(documentMapper.mappers().name("field2").mapper().postingsFormatProvider(), instanceOf(MemoryPostingsFormatProvider.class));
+        MemoryPostingsFormatProvider provider = (MemoryPostingsFormatProvider) documentMapper.mappers().name("field2").mapper().postingsFormatProvider();
         assertThat(provider.packFst(), equalTo(true));
         assertThat(provider.acceptableOverheadRatio(), equalTo(0.3f));
     }
@@ -163,11 +163,11 @@ public class CodecTests {
                 .build();
         CodecService codecService = createCodecService(indexSettings);
         DocumentMapper documentMapper = codecService.mapperService().documentMapperParser().parse(mapping);
-        assertThat(documentMapper.mappers().name("field1").mapper().postingFormatProvider(), instanceOf(PreBuiltPostingsFormatProvider.class));
-        assertThat(documentMapper.mappers().name("field1").mapper().postingFormatProvider().get(), instanceOf(DirectPostingsFormat.class));
+        assertThat(documentMapper.mappers().name("field1").mapper().postingsFormatProvider(), instanceOf(PreBuiltPostingsFormatProvider.class));
+        assertThat(documentMapper.mappers().name("field1").mapper().postingsFormatProvider().get(), instanceOf(DirectPostingsFormat.class));
 
-        assertThat(documentMapper.mappers().name("field2").mapper().postingFormatProvider(), instanceOf(DirectPostingsFormatProvider.class));
-        DirectPostingsFormatProvider provider = (DirectPostingsFormatProvider) documentMapper.mappers().name("field2").mapper().postingFormatProvider();
+        assertThat(documentMapper.mappers().name("field2").mapper().postingsFormatProvider(), instanceOf(DirectPostingsFormatProvider.class));
+        DirectPostingsFormatProvider provider = (DirectPostingsFormatProvider) documentMapper.mappers().name("field2").mapper().postingsFormatProvider();
         assertThat(provider.minSkipCount(), equalTo(16));
         assertThat(provider.lowFreqCutoff(), equalTo(64));
     }
@@ -189,11 +189,11 @@ public class CodecTests {
                 .build();
         CodecService codecService = createCodecService(indexSettings);
         DocumentMapper documentMapper = codecService.mapperService().documentMapperParser().parse(mapping);
-        assertThat(documentMapper.mappers().name("field1").mapper().postingFormatProvider(), instanceOf(PreBuiltPostingsFormatProvider.class));
-        assertThat(documentMapper.mappers().name("field1").mapper().postingFormatProvider().get(), instanceOf(Pulsing40PostingsFormat.class));
+        assertThat(documentMapper.mappers().name("field1").mapper().postingsFormatProvider(), instanceOf(PreBuiltPostingsFormatProvider.class));
+        assertThat(documentMapper.mappers().name("field1").mapper().postingsFormatProvider().get(), instanceOf(Pulsing40PostingsFormat.class));
 
-        assertThat(documentMapper.mappers().name("field2").mapper().postingFormatProvider(), instanceOf(PulsingPostingsFormatProvider.class));
-        PulsingPostingsFormatProvider provider = (PulsingPostingsFormatProvider) documentMapper.mappers().name("field2").mapper().postingFormatProvider();
+        assertThat(documentMapper.mappers().name("field2").mapper().postingsFormatProvider(), instanceOf(PulsingPostingsFormatProvider.class));
+        PulsingPostingsFormatProvider provider = (PulsingPostingsFormatProvider) documentMapper.mappers().name("field2").mapper().postingsFormatProvider();
         assertThat(provider.freqCutOff(), equalTo(2));
         assertThat(provider.minBlockSize(), equalTo(32));
         assertThat(provider.maxBlockSize(), equalTo(64));
@@ -220,14 +220,14 @@ public class CodecTests {
                 .build();
         CodecService codecService = createCodecService(indexSettings);
         DocumentMapper documentMapper = codecService.mapperService().documentMapperParser().parse(mapping);
-        assertThat(documentMapper.mappers().name("field1").mapper().postingFormatProvider(), instanceOf(PreBuiltPostingsFormatProvider.class));
-        assertThat(documentMapper.mappers().name("field1").mapper().postingFormatProvider().get(), instanceOf(BloomFilteringPostingsFormat.class));
+        assertThat(documentMapper.mappers().name("field1").mapper().postingsFormatProvider(), instanceOf(PreBuiltPostingsFormatProvider.class));
+        assertThat(documentMapper.mappers().name("field1").mapper().postingsFormatProvider().get(), instanceOf(BloomFilteringPostingsFormat.class));
 
-        assertThat(documentMapper.mappers().name("field2").mapper().postingFormatProvider(), instanceOf(PreBuiltPostingsFormatProvider.class));
-        assertThat(documentMapper.mappers().name("field2").mapper().postingFormatProvider().get(), instanceOf(BloomFilteringPostingsFormat.class));
+        assertThat(documentMapper.mappers().name("field2").mapper().postingsFormatProvider(), instanceOf(PreBuiltPostingsFormatProvider.class));
+        assertThat(documentMapper.mappers().name("field2").mapper().postingsFormatProvider().get(), instanceOf(BloomFilteringPostingsFormat.class));
 
-        assertThat(documentMapper.mappers().name("field3").mapper().postingFormatProvider(), instanceOf(BloomFilterPostingsFormatProvider.class));
-        BloomFilterPostingsFormatProvider provider = (BloomFilterPostingsFormatProvider) documentMapper.mappers().name("field3").mapper().postingFormatProvider();
+        assertThat(documentMapper.mappers().name("field3").mapper().postingsFormatProvider(), instanceOf(BloomFilterPostingsFormatProvider.class));
+        BloomFilterPostingsFormatProvider provider = (BloomFilterPostingsFormatProvider) documentMapper.mappers().name("field3").mapper().postingsFormatProvider();
         assertThat(provider.desiredMaxSaturation(), equalTo(0.2f));
         assertThat(provider.saturationLimit(), equalTo(0.8f));
         assertThat(provider.delegate(), instanceOf(DirectPostingsFormatProvider.class));

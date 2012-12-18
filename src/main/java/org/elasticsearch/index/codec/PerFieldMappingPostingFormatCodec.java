@@ -45,7 +45,7 @@ public class PerFieldMappingPostingFormatCodec extends Lucene40Codec {
 
     @Override
     public PostingsFormat getPostingsFormatForField(String field) {
-        PostingsFormatProvider postingsFormat = mapperService.indexName(field).mapper().postingFormatProvider();
+        PostingsFormatProvider postingsFormat = mapperService.indexName(field).mapper().postingsFormatProvider();
         return postingsFormat != null ? postingsFormat.get() : defaultPostingFormat;
     }
 }

@@ -52,13 +52,13 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
     public static class Defaults extends DateFieldMapper.Defaults {
         public static final String NAME = "_timestamp";
 
-        public static final FieldType TIMESTAMP_FIELD_TYPE = new FieldType(DateFieldMapper.Defaults.DATE_FIELD_TYPE);
+        public static final FieldType FIELD_TYPE = new FieldType(DateFieldMapper.Defaults.FIELD_TYPE);
 
         static {
-            TIMESTAMP_FIELD_TYPE.setStored(false);
-            TIMESTAMP_FIELD_TYPE.setIndexed(true);
-            TIMESTAMP_FIELD_TYPE.setTokenized(false);
-            TIMESTAMP_FIELD_TYPE.freeze();
+            FIELD_TYPE.setStored(false);
+            FIELD_TYPE.setIndexed(true);
+            FIELD_TYPE.setTokenized(false);
+            FIELD_TYPE.freeze();
         }
 
         public static final boolean ENABLED = false;
@@ -73,7 +73,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
         private FormatDateTimeFormatter dateTimeFormatter = Defaults.DATE_TIME_FORMATTER;
 
         public Builder() {
-            super(Defaults.NAME, new FieldType(Defaults.TIMESTAMP_FIELD_TYPE));
+            super(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE));
         }
 
         public Builder enabled(boolean enabled) {
@@ -128,7 +128,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
     private final String path;
 
     public TimestampFieldMapper() {
-        this(new FieldType(Defaults.TIMESTAMP_FIELD_TYPE), Defaults.ENABLED, Defaults.PATH, Defaults.DATE_TIME_FORMATTER,
+        this(new FieldType(Defaults.FIELD_TYPE), Defaults.ENABLED, Defaults.PATH, Defaults.DATE_TIME_FORMATTER,
                 Defaults.PARSE_UPPER_INCLUSIVE, Defaults.IGNORE_MALFORMED, null);
     }
 
@@ -141,6 +141,11 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
                 parseUpperInclusive, ignoreMalformed, provider, null);
         this.enabled = enabled;
         this.path = path;
+    }
+
+    @Override
+    public FieldType defaultFieldType() {
+        return Defaults.FIELD_TYPE;
     }
 
     public boolean enabled() {
@@ -218,16 +223,16 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // if all are defaults, no sense to write it at all
-        if (indexed() == Defaults.TIMESTAMP_FIELD_TYPE.indexed() &&
-                stored() == Defaults.TIMESTAMP_FIELD_TYPE.stored() && enabled == Defaults.ENABLED && path == Defaults.PATH
+        if (indexed() == Defaults.FIELD_TYPE.indexed() &&
+                stored() == Defaults.FIELD_TYPE.stored() && enabled == Defaults.ENABLED && path == Defaults.PATH
                 && dateTimeFormatter.format().equals(Defaults.DATE_TIME_FORMATTER.format())) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
-        if (indexed() != Defaults.TIMESTAMP_FIELD_TYPE.indexed()) {
+        if (indexed() != Defaults.FIELD_TYPE.indexed()) {
             builder.field("index", indexed());
         }
-        if (stored() != Defaults.TIMESTAMP_FIELD_TYPE.stored()) {
+        if (stored() != Defaults.FIELD_TYPE.stored()) {
             builder.field("store", stored());
         }
         if (enabled != Defaults.ENABLED) {

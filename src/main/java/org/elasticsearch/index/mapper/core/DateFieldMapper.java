@@ -66,10 +66,10 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     public static class Defaults extends NumberFieldMapper.Defaults {
         public static final FormatDateTimeFormatter DATE_TIME_FORMATTER = Joda.forPattern("dateOptionalTime");
 
-        public static final FieldType DATE_FIELD_TYPE = new FieldType(NumberFieldMapper.Defaults.NUMBER_FIELD_TYPE);
+        public static final FieldType FIELD_TYPE = new FieldType(NumberFieldMapper.Defaults.FIELD_TYPE);
 
         static {
-            DATE_FIELD_TYPE.freeze();
+            FIELD_TYPE.freeze();
         }
 
         public static final String NULL_VALUE = null;
@@ -87,7 +87,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         protected FormatDateTimeFormatter dateTimeFormatter = Defaults.DATE_TIME_FORMATTER;
 
         public Builder(String name) {
-            super(name, new FieldType(Defaults.DATE_FIELD_TYPE));
+            super(name, new FieldType(Defaults.FIELD_TYPE));
             builder = this;
         }
 
@@ -165,6 +165,11 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         this.timeUnit = timeUnit;
         this.parseUpperInclusive = parseUpperInclusive;
         this.dateMathParser = new DateMathParser(dateTimeFormatter, timeUnit);
+    }
+
+    @Override
+    public FieldType defaultFieldType() {
+        return Defaults.FIELD_TYPE;
     }
 
     @Override
@@ -402,31 +407,6 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     @Override
     protected void doXContentBody(XContentBuilder builder) throws IOException {
         super.doXContentBody(builder);
-        if (indexed() != Defaults.DATE_FIELD_TYPE.indexed() ||
-                tokenized() != Defaults.DATE_FIELD_TYPE.tokenized()) {
-            builder.field("index", indexTokenizeOptionToString(indexed(), tokenized()));
-        }
-        if (stored() != Defaults.DATE_FIELD_TYPE.stored()) {
-            builder.field("store", stored());
-        }
-        if (storeTermVectors() != Defaults.DATE_FIELD_TYPE.storeTermVectors()) {
-            builder.field("store_term_vector", storeTermVectors());
-        }
-        if (storeTermVectorOffsets() != Defaults.DATE_FIELD_TYPE.storeTermVectorOffsets()) {
-            builder.field("store_term_vector_offsets", storeTermVectorOffsets());
-        }
-        if (storeTermVectorPositions() != Defaults.DATE_FIELD_TYPE.storeTermVectorPositions()) {
-            builder.field("store_term_vector_positions", storeTermVectorPositions());
-        }
-        if (storeTermVectorPayloads() != Defaults.DATE_FIELD_TYPE.storeTermVectorPayloads()) {
-            builder.field("store_term_vector_payloads", storeTermVectorPayloads());
-        }
-        if (omitNorms() != Defaults.DATE_FIELD_TYPE.omitNorms()) {
-            builder.field("omit_norms", omitNorms());
-        }
-        if (indexOptions() != Defaults.DATE_FIELD_TYPE.indexOptions()) {
-            builder.field("index_options", indexOptionToString(indexOptions()));
-        }
         if (precisionStep != Defaults.PRECISION_STEP) {
             builder.field("precision_step", precisionStep);
         }
@@ -434,9 +414,6 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
             builder.field("fuzzy_factor", fuzzyFactor);
         }
         builder.field("format", dateTimeFormatter.format());
-        if (similarity() != null) {
-            builder.field("similarity", similarity().name());
-        }
         if (nullValue != null) {
             builder.field("null_value", nullValue);
         }

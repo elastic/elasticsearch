@@ -61,10 +61,10 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
     public static final String CONTENT_TYPE = "float";
 
     public static class Defaults extends NumberFieldMapper.Defaults {
-        public static final FieldType FLOAT_FIELD_TYPE = new FieldType(NumberFieldMapper.Defaults.NUMBER_FIELD_TYPE);
+        public static final FieldType FIELD_TYPE = new FieldType(NumberFieldMapper.Defaults.FIELD_TYPE);
 
         static {
-            FLOAT_FIELD_TYPE.freeze();
+            FIELD_TYPE.freeze();
         }
 
         public static final Float NULL_VALUE = null;
@@ -75,7 +75,7 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
         protected Float nullValue = Defaults.NULL_VALUE;
 
         public Builder(String name) {
-            super(name, new FieldType(Defaults.FLOAT_FIELD_TYPE));
+            super(name, new FieldType(Defaults.FIELD_TYPE));
             builder = this;
         }
 
@@ -122,6 +122,11 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
                 new NamedAnalyzer("_float/max", new NumericFloatAnalyzer(Integer.MAX_VALUE)), provider, similarity);
         this.nullValue = nullValue;
         this.nullValueAsString = nullValue == null ? null : nullValue.toString();
+    }
+
+    @Override
+    public FieldType defaultFieldType() {
+        return Defaults.FIELD_TYPE;
     }
 
     @Override
@@ -326,39 +331,11 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
     @Override
     protected void doXContentBody(XContentBuilder builder) throws IOException {
         super.doXContentBody(builder);
-        if (indexed() != Defaults.FLOAT_FIELD_TYPE.indexed() ||
-                tokenized() != Defaults.FLOAT_FIELD_TYPE.tokenized()) {
-            builder.field("index", indexTokenizeOptionToString(indexed(), tokenized()));
-        }
-        if (stored() != Defaults.FLOAT_FIELD_TYPE.stored()) {
-            builder.field("store", stored());
-        }
-        if (storeTermVectors() != Defaults.FLOAT_FIELD_TYPE.storeTermVectors()) {
-            builder.field("store_term_vector", storeTermVectors());
-        }
-        if (storeTermVectorOffsets() != Defaults.FLOAT_FIELD_TYPE.storeTermVectorOffsets()) {
-            builder.field("store_term_vector_offsets", storeTermVectorOffsets());
-        }
-        if (storeTermVectorPositions() != Defaults.FLOAT_FIELD_TYPE.storeTermVectorPositions()) {
-            builder.field("store_term_vector_positions", storeTermVectorPositions());
-        }
-        if (storeTermVectorPayloads() != Defaults.FLOAT_FIELD_TYPE.storeTermVectorPayloads()) {
-            builder.field("store_term_vector_payloads", storeTermVectorPayloads());
-        }
-        if (omitNorms() != Defaults.FLOAT_FIELD_TYPE.omitNorms()) {
-            builder.field("omit_norms", omitNorms());
-        }
-        if (indexOptions() != Defaults.FLOAT_FIELD_TYPE.indexOptions()) {
-            builder.field("index_options", indexOptionToString(indexOptions()));
-        }
         if (precisionStep != Defaults.PRECISION_STEP) {
             builder.field("precision_step", precisionStep);
         }
         if (fuzzyFactor != Defaults.FUZZY_FACTOR) {
             builder.field("fuzzy_factor", fuzzyFactor);
-        }
-        if (similarity() != null) {
-            builder.field("similarity", similarity().name());
         }
         if (nullValue != null) {
             builder.field("null_value", nullValue);

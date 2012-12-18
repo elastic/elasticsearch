@@ -61,10 +61,10 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
     public static final String CONTENT_TYPE = "long";
 
     public static class Defaults extends NumberFieldMapper.Defaults {
-        public static final FieldType LONG_FIELD_TYPE = new FieldType(NumberFieldMapper.Defaults.NUMBER_FIELD_TYPE);
+        public static final FieldType FIELD_TYPE = new FieldType(NumberFieldMapper.Defaults.FIELD_TYPE);
 
         static {
-            LONG_FIELD_TYPE.freeze();
+            FIELD_TYPE.freeze();
         }
 
         public static final Long NULL_VALUE = null;
@@ -75,7 +75,7 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
         protected Long nullValue = Defaults.NULL_VALUE;
 
         public Builder(String name) {
-            super(name, new FieldType(Defaults.LONG_FIELD_TYPE));
+            super(name, new FieldType(Defaults.FIELD_TYPE));
             builder = this;
         }
 
@@ -86,7 +86,7 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
 
         @Override
         public LongFieldMapper build(BuilderContext context) {
-            fieldType.setOmitNorms(fieldType.omitNorms() && boost != 1.0f);
+            fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             LongFieldMapper fieldMapper = new LongFieldMapper(buildNames(context),
                     precisionStep, fuzzyFactor, boost, fieldType, nullValue,
                     ignoreMalformed(context), provider, similarity);
@@ -124,6 +124,11 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
                 new NamedAnalyzer("_long/max", new NumericLongAnalyzer(Integer.MAX_VALUE)), provider, similarity);
         this.nullValue = nullValue;
         this.nullValueAsString = nullValue == null ? null : nullValue.toString();
+    }
+
+    @Override
+    public FieldType defaultFieldType() {
+        return Defaults.FIELD_TYPE;
     }
 
     @Override
@@ -330,39 +335,11 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
     @Override
     protected void doXContentBody(XContentBuilder builder) throws IOException {
         super.doXContentBody(builder);
-        if (indexed() != Defaults.LONG_FIELD_TYPE.indexed() ||
-                tokenized() != Defaults.LONG_FIELD_TYPE.tokenized()) {
-            builder.field("index", indexTokenizeOptionToString(indexed(), tokenized()));
-        }
-        if (stored() != Defaults.LONG_FIELD_TYPE.stored()) {
-            builder.field("store", stored());
-        }
-        if (storeTermVectors() != Defaults.LONG_FIELD_TYPE.storeTermVectors()) {
-            builder.field("store_term_vector", storeTermVectors());
-        }
-        if (storeTermVectorOffsets() != Defaults.LONG_FIELD_TYPE.storeTermVectorOffsets()) {
-            builder.field("store_term_vector_offsets", storeTermVectorOffsets());
-        }
-        if (storeTermVectorPositions() != Defaults.LONG_FIELD_TYPE.storeTermVectorPositions()) {
-            builder.field("store_term_vector_positions", storeTermVectorPositions());
-        }
-        if (storeTermVectorPayloads() != Defaults.LONG_FIELD_TYPE.storeTermVectorPayloads()) {
-            builder.field("store_term_vector_payloads", storeTermVectorPayloads());
-        }
-        if (omitNorms() != Defaults.LONG_FIELD_TYPE.omitNorms()) {
-            builder.field("omit_norms", omitNorms());
-        }
-        if (indexOptions() != Defaults.LONG_FIELD_TYPE.indexOptions()) {
-            builder.field("index_options", indexOptionToString(indexOptions()));
-        }
         if (precisionStep != Defaults.PRECISION_STEP) {
             builder.field("precision_step", precisionStep);
         }
         if (fuzzyFactor != Defaults.FUZZY_FACTOR) {
             builder.field("fuzzy_factor", fuzzyFactor);
-        }
-        if (similarity() != null) {
-            builder.field("similarity", similarity().name());
         }
         if (nullValue != null) {
             builder.field("null_value", nullValue);

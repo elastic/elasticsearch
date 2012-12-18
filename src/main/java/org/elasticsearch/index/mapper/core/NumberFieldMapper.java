@@ -50,14 +50,14 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
     public static class Defaults extends AbstractFieldMapper.Defaults {
         public static final int PRECISION_STEP = NumericUtils.PRECISION_STEP_DEFAULT;
 
-        public static final FieldType NUMBER_FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
+        public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
 
         static {
-            NUMBER_FIELD_TYPE.setTokenized(false);
-            NUMBER_FIELD_TYPE.setOmitNorms(true);
-            NUMBER_FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_ONLY);
-            NUMBER_FIELD_TYPE.setStoreTermVectors(false);
-            NUMBER_FIELD_TYPE.freeze();
+            FIELD_TYPE.setTokenized(false);
+            FIELD_TYPE.setOmitNorms(true);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_ONLY);
+            FIELD_TYPE.setStoreTermVectors(false);
+            FIELD_TYPE.freeze();
         }
 
         public static final String FUZZY_FACTOR = null;

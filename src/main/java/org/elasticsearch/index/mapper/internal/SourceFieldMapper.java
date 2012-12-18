@@ -67,14 +67,14 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
         public static final long COMPRESS_THRESHOLD = -1;
         public static final String FORMAT = null; // default format is to use the one provided
 
-        public static final FieldType SOURCE_FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
+        public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
 
         static {
-            SOURCE_FIELD_TYPE.setIndexed(false);
-            SOURCE_FIELD_TYPE.setStored(true);
-            SOURCE_FIELD_TYPE.setOmitNorms(true);
-            SOURCE_FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_ONLY);
-            SOURCE_FIELD_TYPE.freeze();
+            FIELD_TYPE.setIndexed(false);
+            FIELD_TYPE.setStored(true);
+            FIELD_TYPE.setOmitNorms(true);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_ONLY);
+            FIELD_TYPE.freeze();
         }
 
         public static final String[] INCLUDES = Strings.EMPTY_ARRAY;
@@ -197,7 +197,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
 
     protected SourceFieldMapper(String name, boolean enabled, String format, Boolean compress, long compressThreshold,
                                 String[] includes, String[] excludes) {
-        super(new Names(name, name, name, name), Defaults.BOOST, new FieldType(Defaults.SOURCE_FIELD_TYPE),
+        super(new Names(name, name, name, name), Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE),
                 Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, null, null); // Only stored.
         this.enabled = enabled;
         this.compress = compress;
@@ -210,6 +210,11 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
 
     public boolean enabled() {
         return this.enabled;
+    }
+
+    @Override
+    public FieldType defaultFieldType() {
+        return Defaults.FIELD_TYPE;
     }
 
     @Override

@@ -81,14 +81,14 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
         public static final boolean VALIDATE_LAT = true;
         public static final boolean VALIDATE_LON = true;
 
-        public static final FieldType GEO_STRING_FIELD_TYPE = new FieldType(StringFieldMapper.Defaults.STRING_FIELD_TYPE);
+        public static final FieldType FIELD_TYPE = new FieldType(StringFieldMapper.Defaults.FIELD_TYPE);
 
         static {
-            GEO_STRING_FIELD_TYPE.setIndexed(true);
-            GEO_STRING_FIELD_TYPE.setTokenized(false);
-            GEO_STRING_FIELD_TYPE.setOmitNorms(true);
-            GEO_STRING_FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_ONLY);
-            GEO_STRING_FIELD_TYPE.freeze();
+            FIELD_TYPE.setIndexed(true);
+            FIELD_TYPE.setTokenized(false);
+            FIELD_TYPE.setOmitNorms(true);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_ONLY);
+            FIELD_TYPE.freeze();
         }
     }
 
@@ -543,7 +543,7 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
             protected String nullValue = Defaults.NULL_VALUE;
 
             public Builder(String name) {
-                super(name, new FieldType(GeoPointFieldMapper.Defaults.GEO_STRING_FIELD_TYPE));
+                super(name, new FieldType(GeoPointFieldMapper.Defaults.FIELD_TYPE));
                 builder = this;
             }
 
@@ -573,6 +573,11 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
                                     NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer,
                                     PostingsFormatProvider provider) {
             super(names, boost, fieldType, nullValue, indexAnalyzer, searchAnalyzer, provider, null);
+        }
+
+        @Override
+        public FieldType defaultFieldType() {
+            return GeoPointFieldMapper.Defaults.FIELD_TYPE;
         }
 
         @Override

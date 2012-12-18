@@ -48,15 +48,15 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
     public static class Defaults extends AbstractFieldMapper.Defaults {
         public static final String NAME = UidFieldMapper.NAME;
 
-        public static final FieldType UID_FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
+        public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
 
         static {
-            UID_FIELD_TYPE.setIndexed(true);
-            UID_FIELD_TYPE.setTokenized(false);
-            UID_FIELD_TYPE.setStored(true);
-            UID_FIELD_TYPE.setOmitNorms(true);
-            UID_FIELD_TYPE.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS); // we store payload (otherwise, we really need just docs)
-            UID_FIELD_TYPE.freeze();
+            FIELD_TYPE.setIndexed(true);
+            FIELD_TYPE.setTokenized(false);
+            FIELD_TYPE.setStored(true);
+            FIELD_TYPE.setOmitNorms(true);
+            FIELD_TYPE.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS); // we store payload (otherwise, we really need just docs)
+            FIELD_TYPE.freeze();
         }
     }
 
@@ -108,8 +108,13 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
     }
 
     protected UidFieldMapper(String name, String indexName, PostingsFormatProvider postingsFormat) {
-        super(new Names(name, indexName, indexName, name), Defaults.BOOST, new FieldType(Defaults.UID_FIELD_TYPE),
+        super(new Names(name, indexName, indexName, name), Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE),
                 Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, postingsFormat, null);
+    }
+
+    @Override
+    public FieldType defaultFieldType() {
+        return Defaults.FIELD_TYPE;
     }
 
     @Override
@@ -204,12 +209,32 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        // for now, don't output it at all
+        // if defaults, don't output
+        if ((postingsFormat == null || postingsFormat.name().equals(defaultPostingFormat()))) {
+            return builder;
+        }
+
+        builder.startObject(CONTENT_TYPE);
+
+        if (postingsFormat != null) {
+            if (!postingsFormat.name().equals(defaultPostingFormat())) {
+                builder.field("postings_format", postingsFormat.name());
+            }
+        }
+
+        builder.endObject();
         return builder;
     }
 
     @Override
     public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+        AbstractFieldMapper fieldMergeWith = (AbstractFieldMapper) mergeWith;
         // do nothing here, no merging, but also no exception
+        if (!mergeContext.mergeFlags().simulate()) {
+            // apply changeable values
+            if (fieldMergeWith.postingsFormatProvider() != null) {
+                this.postingsFormat = fieldMergeWith.postingsFormatProvider();
+            }
+        }
     }
 }

@@ -148,11 +148,11 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
     }
 
     @Override
-    public String indexedValue(String value) {
+    public BytesRef indexedValue(String value) {
         long longValue = NumericUtils.doubleToSortableLong(Double.parseDouble(value));
         BytesRef bytesRef = new BytesRef();
         NumericUtils.longToPrefixCoded(longValue, precisionStep(), bytesRef);
-        return bytesRef.utf8ToString();
+        return bytesRef;
     }
 
     @Override

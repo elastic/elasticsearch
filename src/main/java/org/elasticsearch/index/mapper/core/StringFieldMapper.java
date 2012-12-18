@@ -230,11 +230,6 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
     }
 
     @Override
-    public String indexedValue(String value) {
-        return value;
-    }
-
-    @Override
     protected boolean customBoost() {
         return true;
     }

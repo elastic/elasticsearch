@@ -121,11 +121,6 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
         return value;
     }
 
-    @Override
-    public String indexedValue(String value) {
-        return value;
-    }
-
     public Term term(String value) {
         return names().createIndexNameTerm(value);
     }

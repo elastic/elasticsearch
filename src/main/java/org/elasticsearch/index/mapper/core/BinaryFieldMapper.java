@@ -157,11 +157,6 @@ public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
     }
 
     @Override
-    public String indexedValue(String value) {
-        return value;
-    }
-
-    @Override
     protected Field parseCreateField(ParseContext context) throws IOException {
         if (!stored()) {
             return null;

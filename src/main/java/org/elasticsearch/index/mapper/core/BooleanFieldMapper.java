@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper.core;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
@@ -58,6 +59,11 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
         }
 
         public static final Boolean NULL_VALUE = null;
+    }
+
+    public static class Values {
+        public final static BytesRef TRUE = new BytesRef("T");
+        public final static BytesRef FALSE = new BytesRef("F");
     }
 
     public static class Builder extends AbstractFieldMapper.Builder<Builder, BooleanFieldMapper> {
@@ -169,17 +175,17 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
     }
 
     @Override
-    public String indexedValue(String value) {
+    public BytesRef indexedValue(String value) {
         if (value == null || value.length() == 0) {
-            return "F";
+            return Values.FALSE;
         }
         if (value.length() == 1 && value.charAt(0) == 'F') {
-            return "F";
+            return Values.FALSE;
         }
         if (Booleans.parseBoolean(value, false)) {
-            return "T";
+            return Values.TRUE;
         }
-        return "F";
+        return Values.FALSE;
     }
 
     @Override

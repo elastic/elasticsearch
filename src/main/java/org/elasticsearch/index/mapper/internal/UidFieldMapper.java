@@ -184,11 +184,6 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
         return Uid.createUid(value);
     }
 
-    @Override
-    public String indexedValue(String value) {
-        return value;
-    }
-
     public Term term(String type, String id) {
         return term(Uid.createUid(type, id));
     }

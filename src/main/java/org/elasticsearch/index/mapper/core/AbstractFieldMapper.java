@@ -421,8 +421,8 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
     }
 
     @Override
-    public String indexedValue(String value) {
-        return value;
+    public BytesRef indexedValue(String value) {
+        return new BytesRef(value);
     }
 
     @Override
@@ -494,16 +494,16 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
     public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         // LUCENE 4 UPGRADE: Perhaps indexedValue() should return a BytesRef?
         return new TermRangeQuery(names.indexName(),
-                lowerTerm == null ? null : new BytesRef(indexedValue(lowerTerm)),
-                upperTerm == null ? null : new BytesRef(indexedValue(upperTerm)),
+                lowerTerm == null ? null : indexedValue(lowerTerm),
+                upperTerm == null ? null : indexedValue(upperTerm),
                 includeLower, includeUpper);
     }
 
     @Override
     public Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         return new TermRangeFilter(names.indexName(),
-                lowerTerm == null ? null : new BytesRef(indexedValue(lowerTerm)),
-                upperTerm == null ? null : new BytesRef(indexedValue(upperTerm)),
+                lowerTerm == null ? null : indexedValue(lowerTerm),
+                upperTerm == null ? null : indexedValue(upperTerm),
                 includeLower, includeUpper);
     }
 

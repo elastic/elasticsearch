@@ -144,11 +144,6 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
     }
 
     @Override
-    public String indexedValue(String value) {
-        return value;
-    }
-
-    @Override
     public boolean useFieldQueryWithQueryString() {
         return true;
     }

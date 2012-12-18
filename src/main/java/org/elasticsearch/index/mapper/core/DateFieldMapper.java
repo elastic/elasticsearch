@@ -220,10 +220,10 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
-    public String indexedValue(String value) {
+    public BytesRef indexedValue(String value) {
         BytesRef bytesRef = new BytesRef();
         NumericUtils.longToPrefixCoded(dateTimeFormatter.parser().parseMillis(value), precisionStep(), bytesRef);
-        return bytesRef.utf8ToString();
+        return bytesRef;
     }
 
     @Override

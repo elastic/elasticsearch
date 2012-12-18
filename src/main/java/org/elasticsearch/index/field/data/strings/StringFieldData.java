@@ -46,7 +46,8 @@ public abstract class StringFieldData extends FieldData<StringDocFieldData> {
         long size = RamUsage.NUM_BYTES_ARRAY_HEADER;
         for (BytesRef value : values) {
             if (value != null) {
-                size += RamUsage.NUM_BYTES_OBJECT_HEADER + (value.length + (2 * RamUsage.NUM_BYTES_INT));
+                size += RamUsage.NUM_BYTES_OBJECT_REF + RamUsage.NUM_BYTES_OBJECT_HEADER +
+                        RamUsage.NUM_BYTES_ARRAY_HEADER + (value.length + (2 * RamUsage.NUM_BYTES_INT));
             }
         }
         return size;

@@ -71,8 +71,8 @@ public class TTLMappingTests {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().string();
         DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
         assertThat(docMapper.TTLFieldMapper().enabled(), equalTo(TTLFieldMapper.Defaults.ENABLED));
-        assertThat(docMapper.TTLFieldMapper().stored(), equalTo(TTLFieldMapper.Defaults.TTL_FIELD_TYPE.stored()));
-        assertThat(docMapper.TTLFieldMapper().indexed(), equalTo(TTLFieldMapper.Defaults.TTL_FIELD_TYPE.indexed()));
+        assertThat(docMapper.TTLFieldMapper().fieldType().stored(), equalTo(TTLFieldMapper.Defaults.TTL_FIELD_TYPE.stored()));
+        assertThat(docMapper.TTLFieldMapper().fieldType().indexed(), equalTo(TTLFieldMapper.Defaults.TTL_FIELD_TYPE.indexed()));
     }
 
 
@@ -85,7 +85,7 @@ public class TTLMappingTests {
                 .endObject().endObject().string();
         DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
         assertThat(docMapper.TTLFieldMapper().enabled(), equalTo(true));
-        assertThat(docMapper.TTLFieldMapper().stored(), equalTo(false));
-        assertThat(docMapper.TTLFieldMapper().indexed(), equalTo(false));
+        assertThat(docMapper.TTLFieldMapper().fieldType().stored(), equalTo(false));
+        assertThat(docMapper.TTLFieldMapper().fieldType().indexed(), equalTo(false));
     }
 }

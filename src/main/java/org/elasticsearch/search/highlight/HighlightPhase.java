@@ -128,9 +128,9 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
             if (field.highlighterType() == null) {
                 // if we can do highlighting using Term Vectors, use FastVectorHighlighter, otherwise, use the
                 // slower plain highlighter
-                useFastVectorHighlighter = mapper.storeTermVectors() && mapper.storeTermVectorOffsets() && mapper.storeTermVectorPositions();
+                useFastVectorHighlighter = mapper.fieldType().storeTermVectors() && mapper.fieldType().storeTermVectorOffsets() && mapper.fieldType().storeTermVectorPositions();
             } else if (field.highlighterType().equals("fast-vector-highlighter") || field.highlighterType().equals("fvh")) {
-                if (!(mapper.storeTermVectors() && mapper.storeTermVectorOffsets() && mapper.storeTermVectorPositions())) {
+                if (!(mapper.fieldType().storeTermVectors() && mapper.fieldType().storeTermVectorOffsets() && mapper.fieldType().storeTermVectorPositions())) {
                     throw new ElasticSearchIllegalArgumentException("the field [" + field.field() + "] should be indexed with term vector with position offsets to be used with fast vector highlighter");
                 }
                 useFastVectorHighlighter = true;
@@ -173,7 +173,7 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                 }
 
                 List<Object> textsToHighlight;
-                if (mapper.stored()) {
+                if (mapper.fieldType().stored()) {
                     try {
                         CustomFieldsVisitor fieldVisitor = new CustomFieldsVisitor(ImmutableSet.of(mapper.names().indexName()), false);
                         hitContext.reader().document(hitContext.docId(), fieldVisitor);
@@ -249,7 +249,7 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                         if (field.numberOfFragments() == 0) {
                             fragListBuilder = new SingleFragListBuilder();
 
-                            if (mapper.stored()) {
+                            if (mapper.fieldType().stored()) {
                                 fragmentsBuilder = new XSimpleFragmentsBuilder(field.preTags(), field.postTags(), boundaryScanner);
                             } else {
                                 fragmentsBuilder = new SourceSimpleFragmentsBuilder(mapper, context, field.preTags(), field.postTags(), boundaryScanner);
@@ -261,13 +261,13 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                                 fragListBuilder = new SimpleFragListBuilder(field.fragmentOffset());
 
                             if (field.scoreOrdered()) {
-                                if (mapper.stored()) {
+                                if (mapper.fieldType().stored()) {
                                     fragmentsBuilder = new XScoreOrderFragmentsBuilder(field.preTags(), field.postTags(), boundaryScanner);
                                 } else {
                                     fragmentsBuilder = new SourceScoreOrderFragmentsBuilder(mapper, context, field.preTags(), field.postTags(), boundaryScanner);
                                 }
                             } else {
-                                if (mapper.stored()) {
+                                if (mapper.fieldType().stored()) {
                                     fragmentsBuilder = new XSimpleFragmentsBuilder(field.preTags(), field.postTags(), boundaryScanner);
                                 } else {
                                     fragmentsBuilder = new SourceSimpleFragmentsBuilder(mapper, context, field.preTags(), field.postTags(), boundaryScanner);

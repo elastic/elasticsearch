@@ -356,7 +356,7 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
         private final NumberFieldMapper mapper;
 
         public CustomShortNumericField(NumberFieldMapper mapper, short number, FieldType fieldType) {
-            super(mapper, mapper.stored() ? Numbers.shortToBytes(number) : null, fieldType);
+            super(mapper, mapper.fieldType().stored() ? Numbers.shortToBytes(number) : null, fieldType);
             this.mapper = mapper;
             this.number = number;
         }

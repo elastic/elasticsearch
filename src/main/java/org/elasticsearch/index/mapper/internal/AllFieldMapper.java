@@ -253,8 +253,8 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // if all are defaults, no need to write it at all
-        if (enabled == Defaults.ENABLED && stored() == Defaults.FIELD_TYPE.stored() &&
-                storeTermVectors() == Defaults.FIELD_TYPE.storeTermVectors() &&
+        if (enabled == Defaults.ENABLED && fieldType.stored() == Defaults.FIELD_TYPE.stored() &&
+                fieldType.storeTermVectors() == Defaults.FIELD_TYPE.storeTermVectors() &&
                 indexAnalyzer == null && searchAnalyzer == null) {
             return builder;
         }
@@ -265,20 +265,20 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
         if (autoBoost != false) {
             builder.field("auto_boost", autoBoost);
         }
-        if (stored() != Defaults.FIELD_TYPE.stored()) {
-            builder.field("store", stored());
+        if (fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
+            builder.field("store", fieldType.stored());
         }
-        if (storeTermVectors() != Defaults.FIELD_TYPE.storeTermVectors()) {
-            builder.field("store_term_vector", storeTermVectors());
+        if (fieldType.storeTermVectors() != Defaults.FIELD_TYPE.storeTermVectors()) {
+            builder.field("store_term_vector", fieldType.storeTermVectors());
         }
-        if (storeTermVectorOffsets() != Defaults.FIELD_TYPE.storeTermVectorOffsets()) {
-            builder.field("store_term_vector_offsets", storeTermVectorOffsets());
+        if (fieldType.storeTermVectorOffsets() != Defaults.FIELD_TYPE.storeTermVectorOffsets()) {
+            builder.field("store_term_vector_offsets", fieldType.storeTermVectorOffsets());
         }
-        if (storeTermVectorPositions() != Defaults.FIELD_TYPE.storeTermVectorPositions()) {
-            builder.field("store_term_vector_positions", storeTermVectorPositions());
+        if (fieldType.storeTermVectorPositions() != Defaults.FIELD_TYPE.storeTermVectorPositions()) {
+            builder.field("store_term_vector_positions", fieldType.storeTermVectorPositions());
         }
-        if (storeTermVectorPayloads() != Defaults.FIELD_TYPE.storeTermVectorPayloads()) {
-            builder.field("store_term_vector_payloads", storeTermVectorPayloads());
+        if (fieldType.storeTermVectorPayloads() != Defaults.FIELD_TYPE.storeTermVectorPayloads()) {
+            builder.field("store_term_vector_payloads", fieldType.storeTermVectorPayloads());
         }
         if (indexAnalyzer != null && searchAnalyzer != null && indexAnalyzer.name().equals(searchAnalyzer.name()) && !indexAnalyzer.name().startsWith("_")) {
             // same analyzers, output it once

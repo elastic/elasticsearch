@@ -106,7 +106,7 @@ public class FetchPhase implements SearchPhase {
                     continue;
                 }
                 FieldMappers x = context.smartNameFieldMappers(fieldName);
-                if (x != null && x.mapper().stored()) {
+                if (x != null && x.mapper().fieldType().stored()) {
                     if (fieldNames == null) {
                         fieldNames = new HashSet<String>();
                     }

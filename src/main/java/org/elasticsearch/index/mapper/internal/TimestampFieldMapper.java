@@ -206,7 +206,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
     protected Field innerParseCreateField(ParseContext context) throws IOException {
         if (enabled) {
             long timestamp = context.sourceToParse().timestamp();
-            if (!indexed() && !stored()) {
+            if (!fieldType.indexed() && !fieldType.stored()) {
                 context.ignoredValue(names.indexName(), String.valueOf(timestamp));
                 return null;
             }
@@ -223,17 +223,17 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // if all are defaults, no sense to write it at all
-        if (indexed() == Defaults.FIELD_TYPE.indexed() &&
-                stored() == Defaults.FIELD_TYPE.stored() && enabled == Defaults.ENABLED && path == Defaults.PATH
+        if (fieldType.indexed() == Defaults.FIELD_TYPE.indexed() &&
+                fieldType.stored() == Defaults.FIELD_TYPE.stored() && enabled == Defaults.ENABLED && path == Defaults.PATH
                 && dateTimeFormatter.format().equals(Defaults.DATE_TIME_FORMATTER.format())) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
-        if (indexed() != Defaults.FIELD_TYPE.indexed()) {
-            builder.field("index", indexed());
+        if (fieldType.indexed() != Defaults.FIELD_TYPE.indexed()) {
+            builder.field("index", fieldType.indexed());
         }
-        if (stored() != Defaults.FIELD_TYPE.stored()) {
-            builder.field("store", stored());
+        if (fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
+            builder.field("store", fieldType.stored());
         }
         if (enabled != Defaults.ENABLED) {
             builder.field("enabled", enabled);

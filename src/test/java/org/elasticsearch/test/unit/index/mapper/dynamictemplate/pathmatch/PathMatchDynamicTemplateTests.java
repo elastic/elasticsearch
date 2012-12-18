@@ -53,7 +53,7 @@ public class PathMatchDynamicTemplateTests {
 
         FieldMappers fieldMappers = docMapper.mappers().fullName("name");
         assertThat(fieldMappers.mappers().size(), equalTo(1));
-        assertThat(fieldMappers.mapper().stored(), equalTo(false));
+        assertThat(fieldMappers.mapper().fieldType().stored(), equalTo(false));
 
         f = doc.getField("obj1.name");
         assertThat(f.name(), equalTo("obj1.name"));
@@ -61,7 +61,7 @@ public class PathMatchDynamicTemplateTests {
 
         fieldMappers = docMapper.mappers().fullName("obj1.name");
         assertThat(fieldMappers.mappers().size(), equalTo(1));
-        assertThat(fieldMappers.mapper().stored(), equalTo(true));
+        assertThat(fieldMappers.mapper().fieldType().stored(), equalTo(true));
 
         f = doc.getField("obj1.obj2.name");
         assertThat(f.name(), equalTo("obj1.obj2.name"));
@@ -69,7 +69,7 @@ public class PathMatchDynamicTemplateTests {
 
         fieldMappers = docMapper.mappers().fullName("obj1.obj2.name");
         assertThat(fieldMappers.mappers().size(), equalTo(1));
-        assertThat(fieldMappers.mapper().stored(), equalTo(false));
+        assertThat(fieldMappers.mapper().fieldType().stored(), equalTo(false));
 
         // verify more complex path_match expressions
 

@@ -207,7 +207,7 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
         if (context.sourceToParse().routing() != null) {
             String routing = context.sourceToParse().routing();
             if (routing != null) {
-                if (!indexed() && !stored()) {
+                if (!fieldType.indexed() && !fieldType.stored()) {
                     context.ignoredValue(names.indexName(), routing);
                     return null;
                 }
@@ -226,16 +226,16 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // if all are defaults, no sense to write it at all
-        if (indexed() == Defaults.FIELD_TYPE.indexed() &&
-                stored() == Defaults.FIELD_TYPE.stored() && required == Defaults.REQUIRED && path == Defaults.PATH) {
+        if (fieldType.indexed() == Defaults.FIELD_TYPE.indexed() &&
+                fieldType.stored() == Defaults.FIELD_TYPE.stored() && required == Defaults.REQUIRED && path == Defaults.PATH) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
-        if (indexed() != Defaults.FIELD_TYPE.indexed()) {
-            builder.field("index", indexed());
+        if (fieldType.indexed() != Defaults.FIELD_TYPE.indexed()) {
+            builder.field("index", fieldType.indexed());
         }
-        if (stored() != Defaults.FIELD_TYPE.stored()) {
-            builder.field("store", stored());
+        if (fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
+            builder.field("store", fieldType.stored());
         }
         if (required != Defaults.REQUIRED) {
             builder.field("required", required);

@@ -151,15 +151,15 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // all are defaults, no need to write it at all
-        if (enabled == Defaults.ENABLED && stored() == Defaults.SIZE_FIELD_TYPE.stored()) {
+        if (enabled == Defaults.ENABLED && fieldType().stored() == Defaults.SIZE_FIELD_TYPE.stored()) {
             return builder;
         }
         builder.startObject(contentType());
         if (enabled != Defaults.ENABLED) {
             builder.field("enabled", enabled);
         }
-        if (stored() != Defaults.SIZE_FIELD_TYPE.stored()) {
-            builder.field("store", stored());
+        if (fieldType().stored() != Defaults.SIZE_FIELD_TYPE.stored()) {
+            builder.field("store", fieldType().stored());
         }
         builder.endObject();
         return builder;

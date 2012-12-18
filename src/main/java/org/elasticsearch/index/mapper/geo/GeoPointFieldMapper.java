@@ -502,8 +502,8 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
         if (enableGeoHash != Defaults.ENABLE_GEOHASH) {
             builder.field("geohash", enableGeoHash);
         }
-        if (geoStringMapper.stored() != Defaults.STORE) {
-            builder.field("store", geoStringMapper.stored());
+        if (geoStringMapper.fieldType().stored() != Defaults.STORE) {
+            builder.field("store", geoStringMapper.fieldType().stored());
         }
         if (precision != Defaults.PRECISION) {
             builder.field("geohash_precision", precision);

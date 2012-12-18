@@ -357,7 +357,7 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
         private final NumberFieldMapper mapper;
 
         public CustomDoubleNumericField(NumberFieldMapper mapper, double number, FieldType fieldType) {
-            super(mapper, mapper.stored() ? Numbers.doubleToBytes(number) : null, fieldType);
+            super(mapper, mapper.fieldType().stored() ? Numbers.doubleToBytes(number) : null, fieldType);
             this.mapper = mapper;
             this.number = number;
         }

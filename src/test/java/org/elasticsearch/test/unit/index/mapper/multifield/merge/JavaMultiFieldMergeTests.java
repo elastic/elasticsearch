@@ -49,7 +49,7 @@ public class JavaMultiFieldMergeTests {
 
         DocumentMapper docMapper = parser.parse(mapping);
 
-        assertThat(docMapper.mappers().fullName("name").mapper().indexed(), equalTo(true));
+        assertThat(docMapper.mappers().fullName("name").mapper().fieldType().indexed(), equalTo(true));
         assertThat(docMapper.mappers().fullName("name.indexed"), nullValue());
 
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/mapper/multifield/merge/test-data.json"));
@@ -68,9 +68,9 @@ public class JavaMultiFieldMergeTests {
 
         docMapper.merge(docMapper2, mergeFlags().simulate(false));
 
-        assertThat(docMapper.mappers().name("name").mapper().indexed(), equalTo(true));
+        assertThat(docMapper.mappers().name("name").mapper().fieldType().indexed(), equalTo(true));
 
-        assertThat(docMapper.mappers().fullName("name").mapper().indexed(), equalTo(true));
+        assertThat(docMapper.mappers().fullName("name").mapper().fieldType().indexed(), equalTo(true));
         assertThat(docMapper.mappers().fullName("name.indexed").mapper(), notNullValue());
         assertThat(docMapper.mappers().fullName("name.not_indexed").mapper(), notNullValue());
         assertThat(docMapper.mappers().fullName("name.not_indexed2"), nullValue());
@@ -91,9 +91,9 @@ public class JavaMultiFieldMergeTests {
 
         docMapper.merge(docMapper3, mergeFlags().simulate(false));
 
-        assertThat(docMapper.mappers().name("name").mapper().indexed(), equalTo(true));
+        assertThat(docMapper.mappers().name("name").mapper().fieldType().indexed(), equalTo(true));
 
-        assertThat(docMapper.mappers().fullName("name").mapper().indexed(), equalTo(true));
+        assertThat(docMapper.mappers().fullName("name").mapper().fieldType().indexed(), equalTo(true));
         assertThat(docMapper.mappers().fullName("name.indexed").mapper(), notNullValue());
         assertThat(docMapper.mappers().fullName("name.not_indexed").mapper(), notNullValue());
         assertThat(docMapper.mappers().fullName("name.not_indexed2").mapper(), notNullValue());
@@ -108,9 +108,9 @@ public class JavaMultiFieldMergeTests {
 
         docMapper.merge(docMapper4, mergeFlags().simulate(false));
 
-        assertThat(docMapper.mappers().name("name").mapper().indexed(), equalTo(true));
+        assertThat(docMapper.mappers().name("name").mapper().fieldType().indexed(), equalTo(true));
 
-        assertThat(docMapper.mappers().fullName("name").mapper().indexed(), equalTo(true));
+        assertThat(docMapper.mappers().fullName("name").mapper().fieldType().indexed(), equalTo(true));
         assertThat(docMapper.mappers().fullName("name.indexed").mapper(), notNullValue());
         assertThat(docMapper.mappers().fullName("name.not_indexed").mapper(), notNullValue());
         assertThat(docMapper.mappers().fullName("name.not_indexed2").mapper(), notNullValue());

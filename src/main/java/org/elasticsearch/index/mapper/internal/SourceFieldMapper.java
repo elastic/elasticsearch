@@ -245,7 +245,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
         if (!enabled) {
             return null;
         }
-        if (!stored()) {
+        if (!fieldType.stored()) {
             return null;
         }
         if (context.flyweight()) {

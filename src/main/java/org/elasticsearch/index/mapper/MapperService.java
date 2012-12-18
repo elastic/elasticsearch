@@ -442,7 +442,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
                 useTermsFilter = false;
                 break;
             }
-            if (!docMapper.typeMapper().indexed()) {
+            if (!docMapper.typeMapper().fieldType().indexed()) {
                 useTermsFilter = false;
                 break;
             }

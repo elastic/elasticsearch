@@ -48,8 +48,6 @@ public interface FieldMapper<T> {
 
         private final String sourcePath;
 
-        private final Term indexNameTermFactory;
-
         public Names(String name) {
             this(name, name, name, name);
         }
@@ -64,7 +62,6 @@ public interface FieldMapper<T> {
             this.indexNameClean = indexNameClean.intern();
             this.fullName = fullName.intern();
             this.sourcePath = sourcePath == null ? this.fullName : sourcePath.intern();
-            this.indexNameTermFactory = new Term(indexName, "");
         }
 
         /**
@@ -101,13 +98,6 @@ public interface FieldMapper<T> {
          */
         public String sourcePath() {
             return sourcePath;
-        }
-
-        /**
-         * The index name term that can be used as a factory.
-         */
-        public Term indexNameTerm() {
-            return this.indexNameTermFactory;
         }
 
         /**

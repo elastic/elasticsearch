@@ -118,8 +118,6 @@ public interface FieldMapper<T> {
 
     Names names();
 
-    // LUCENE 4 UPGRADE Consider replacing these all with fieldType() and letting consumer pick and choose
-
     FieldType fieldType();
 
     float boost();

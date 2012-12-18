@@ -25,6 +25,7 @@ import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.PrefixFilter;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
@@ -35,7 +36,7 @@ public class NonNestedDocsFilter extends Filter {
 
     public static final NonNestedDocsFilter INSTANCE = new NonNestedDocsFilter();
 
-    private final PrefixFilter filter = new PrefixFilter(new Term(TypeFieldMapper.NAME, "__"));
+    private final PrefixFilter filter = new PrefixFilter(new Term(TypeFieldMapper.NAME, new BytesRef("__")));
 
     private final int hashCode = filter.hashCode();
 

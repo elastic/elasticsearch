@@ -25,6 +25,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
@@ -280,7 +281,8 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
 
     private final Nested nested;
 
-    private final String nestedTypePath;
+    private final String nestedTypePathAsString;
+    private final BytesRef nestedTypePathAsBytes;
 
     private final Filter nestedTypeFilter;
 
@@ -304,8 +306,9 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         if (mappers != null) {
             this.mappers = copyOf(mappers);
         }
-        this.nestedTypePath = "__" + fullPath;
-        this.nestedTypeFilter = new TermFilter(new Term(TypeFieldMapper.NAME, nestedTypePath));
+        this.nestedTypePathAsString = "__" + fullPath;
+        this.nestedTypePathAsBytes = new BytesRef(nestedTypePathAsString);
+        this.nestedTypeFilter = new TermFilter(new Term(TypeFieldMapper.NAME, nestedTypePathAsBytes));
     }
 
     @Override
@@ -377,8 +380,12 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         return this.fullPath;
     }
 
-    public String nestedTypePath() {
-        return nestedTypePath;
+    public BytesRef nestedTypePathAsBytes() {
+        return nestedTypePathAsBytes;
+    }
+
+    public String nestedTypePathAsString() {
+        return nestedTypePathAsString;
     }
 
     public final Dynamic dynamic() {
@@ -428,7 +435,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
             // the type of the nested doc starts with __, so we can identify that its a nested one in filters
             // note, we don't prefix it with the type of the doc since it allows us to execute a nested query
             // across types (for example, with similar nested objects)
-            nestedDoc.add(new Field(TypeFieldMapper.NAME, nestedTypePath, Field.Store.NO, Field.Index.NOT_ANALYZED));
+            nestedDoc.add(new Field(TypeFieldMapper.NAME, nestedTypePathAsString, Field.Store.NO, Field.Index.NOT_ANALYZED));
             restoreDoc = context.switchDoc(nestedDoc);
             context.addDoc(nestedDoc);
         }

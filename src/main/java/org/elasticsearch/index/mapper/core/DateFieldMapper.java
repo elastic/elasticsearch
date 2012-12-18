@@ -403,8 +403,8 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     protected void doXContentBody(XContentBuilder builder) throws IOException {
         super.doXContentBody(builder);
         if (indexed() != Defaults.DATE_FIELD_TYPE.indexed() ||
-                analyzed() != Defaults.DATE_FIELD_TYPE.tokenized()) {
-            builder.field("index", indexTokenizeOptionToString(indexed(), analyzed()));
+                tokenized() != Defaults.DATE_FIELD_TYPE.tokenized()) {
+            builder.field("index", indexTokenizeOptionToString(indexed(), tokenized()));
         }
         if (stored() != Defaults.DATE_FIELD_TYPE.stored()) {
             builder.field("store", stored());

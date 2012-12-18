@@ -331,8 +331,8 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
     protected void doXContentBody(XContentBuilder builder) throws IOException {
         super.doXContentBody(builder);
         if (indexed() != Defaults.SHORT_FIELD_TYPE.indexed() ||
-                analyzed() != Defaults.SHORT_FIELD_TYPE.tokenized()) {
-            builder.field("index", indexTokenizeOptionToString(indexed(), analyzed()));
+                tokenized() != Defaults.SHORT_FIELD_TYPE.tokenized()) {
+            builder.field("index", indexTokenizeOptionToString(indexed(), tokenized()));
         }
         if (stored() != Defaults.SHORT_FIELD_TYPE.stored()) {
             builder.field("store", stored());

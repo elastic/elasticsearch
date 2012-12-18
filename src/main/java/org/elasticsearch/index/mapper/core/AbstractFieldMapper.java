@@ -319,7 +319,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
     }
 
     @Override
-    public boolean analyzed() {
+    public boolean tokenized() {
         return fieldType.tokenized();
     }
 
@@ -524,13 +524,13 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
             return;
         }
         AbstractFieldMapper fieldMergeWith = (AbstractFieldMapper) mergeWith;
-        if (this.indexed() != fieldMergeWith.indexed() || this.analyzed() != fieldMergeWith.analyzed()) {
+        if (this.indexed() != fieldMergeWith.indexed() || this.tokenized() != fieldMergeWith.tokenized()) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different index values");
         }
         if (this.stored() != fieldMergeWith.stored()) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different store values");
         }
-        if (this.analyzed() != fieldMergeWith.analyzed()) {
+        if (this.tokenized() != fieldMergeWith.tokenized()) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different tokenize values");
         }
         if (this.storeTermVectors() != fieldMergeWith.storeTermVectors()) {

@@ -122,7 +122,7 @@ public interface FieldMapper<T> {
 
     boolean indexed();
 
-    boolean analyzed();
+    boolean tokenized();
 
     boolean stored();
 

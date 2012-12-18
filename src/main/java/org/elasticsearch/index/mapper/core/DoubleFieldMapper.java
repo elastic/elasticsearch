@@ -332,8 +332,8 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
     protected void doXContentBody(XContentBuilder builder) throws IOException {
         super.doXContentBody(builder);
         if (indexed() != Defaults.DOUBLE_FIELD_TYPE.indexed() ||
-                analyzed() != Defaults.DOUBLE_FIELD_TYPE.tokenized()) {
-            builder.field("index", indexTokenizeOptionToString(indexed(), analyzed()));
+                tokenized() != Defaults.DOUBLE_FIELD_TYPE.tokenized()) {
+            builder.field("index", indexTokenizeOptionToString(indexed(), tokenized()));
         }
         if (stored() != Defaults.DOUBLE_FIELD_TYPE.stored()) {
             builder.field("store", stored());

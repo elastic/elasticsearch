@@ -332,8 +332,8 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
     protected void doXContentBody(XContentBuilder builder) throws IOException {
         super.doXContentBody(builder);
         if (indexed() != Defaults.INTEGER_FIELD_TYPE.indexed() ||
-                analyzed() != Defaults.INTEGER_FIELD_TYPE.tokenized()) {
-            builder.field("index", indexTokenizeOptionToString(indexed(), analyzed()));
+                tokenized() != Defaults.INTEGER_FIELD_TYPE.tokenized()) {
+            builder.field("index", indexTokenizeOptionToString(indexed(), tokenized()));
         }
         if (stored() != Defaults.INTEGER_FIELD_TYPE.stored()) {
             builder.field("store", stored());

@@ -327,8 +327,8 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
     protected void doXContentBody(XContentBuilder builder) throws IOException {
         super.doXContentBody(builder);
         if (indexed() != Defaults.FLOAT_FIELD_TYPE.indexed() ||
-                analyzed() != Defaults.FLOAT_FIELD_TYPE.tokenized()) {
-            builder.field("index", indexTokenizeOptionToString(indexed(), analyzed()));
+                tokenized() != Defaults.FLOAT_FIELD_TYPE.tokenized()) {
+            builder.field("index", indexTokenizeOptionToString(indexed(), tokenized()));
         }
         if (stored() != Defaults.FLOAT_FIELD_TYPE.stored()) {
             builder.field("store", stored());

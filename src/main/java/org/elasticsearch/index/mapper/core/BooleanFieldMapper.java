@@ -225,8 +225,8 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
     protected void doXContentBody(XContentBuilder builder) throws IOException {
         super.doXContentBody(builder);
         if (indexed() != Defaults.BOOLEAN_FIELD_TYPE.indexed() ||
-                analyzed() != Defaults.BOOLEAN_FIELD_TYPE.tokenized()) {
-            builder.field("index", indexTokenizeOptionToString(indexed(), analyzed()));
+                tokenized() != Defaults.BOOLEAN_FIELD_TYPE.tokenized()) {
+            builder.field("index", indexTokenizeOptionToString(indexed(), tokenized()));
         }
         if (stored() != Defaults.BOOLEAN_FIELD_TYPE.stored()) {
             builder.field("store", stored());

@@ -163,7 +163,7 @@ public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
 
     @Override
     protected Field parseCreateField(ParseContext context) throws IOException {
-        if (!stored()) {
+        if (!fieldType().stored()) {
             return null;
         }
         byte[] value;

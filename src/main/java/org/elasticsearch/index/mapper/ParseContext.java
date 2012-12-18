@@ -244,7 +244,7 @@ public class ParseContext {
     }
 
     public boolean includeInAll(Boolean includeInAll, FieldMapper mapper) {
-        return includeInAll(includeInAll, mapper.indexed());
+        return includeInAll(includeInAll, mapper.fieldType().indexed());
     }
 
     /**

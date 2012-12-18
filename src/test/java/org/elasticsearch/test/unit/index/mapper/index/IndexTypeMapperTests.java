@@ -19,7 +19,6 @@
 
 package org.elasticsearch.test.unit.index.mapper.index;
 
-import org.apache.lucene.document.Field;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -43,7 +42,7 @@ public class IndexTypeMapperTests {
         DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
         IndexFieldMapper indexMapper = docMapper.rootMapper(IndexFieldMapper.class);
         assertThat(indexMapper.enabled(), equalTo(true));
-        assertThat(indexMapper.stored(), equalTo(true));
+        assertThat(indexMapper.fieldType().stored(), equalTo(true));
         assertThat(docMapper.mappers().indexName("_index").mapper(), instanceOf(IndexFieldMapper.class));
 
         ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
@@ -64,7 +63,7 @@ public class IndexTypeMapperTests {
         DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
         IndexFieldMapper indexMapper = docMapper.rootMapper(IndexFieldMapper.class);
         assertThat(indexMapper.enabled(), equalTo(false));
-        assertThat(indexMapper.stored(), equalTo(true));
+        assertThat(indexMapper.fieldType().stored(), equalTo(true));
 
         ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -83,7 +82,7 @@ public class IndexTypeMapperTests {
         DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
         IndexFieldMapper indexMapper = docMapper.rootMapper(IndexFieldMapper.class);
         assertThat(indexMapper.enabled(), equalTo(false));
-        assertThat(indexMapper.stored(), equalTo(false));
+        assertThat(indexMapper.fieldType().stored(), equalTo(false));
 
         ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()

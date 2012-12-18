@@ -203,7 +203,7 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
 
     @Override
     protected Field parseCreateField(ParseContext context) throws IOException {
-        if (!indexed() && !stored()) {
+        if (!fieldType().indexed() && !fieldType().stored()) {
             return null;
         }
         XContentParser.Token token = context.parser().currentToken();

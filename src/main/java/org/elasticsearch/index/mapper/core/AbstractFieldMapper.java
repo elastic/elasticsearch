@@ -311,53 +311,13 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
     public abstract FieldType defaultFieldType();
 
     @Override
-    public boolean stored() {
-        return fieldType.stored();
-    }
-
-    @Override
-    public boolean indexed() {
-        return fieldType.indexed();
-    }
-
-    @Override
-    public boolean tokenized() {
-        return fieldType.tokenized();
-    }
-
-    @Override
-    public boolean storeTermVectors() {
-        return fieldType.storeTermVectors();
-    }
-
-    @Override
-    public boolean storeTermVectorOffsets() {
-        return fieldType.storeTermVectorOffsets();
-    }
-
-    @Override
-    public boolean storeTermVectorPositions() {
-        return fieldType.storeTermVectorPositions();
-    }
-
-    @Override
-    public boolean storeTermVectorPayloads() {
-        return fieldType.storeTermVectorPayloads();
+    public FieldType fieldType() {
+        return fieldType;
     }
 
     @Override
     public float boost() {
         return this.boost;
-    }
-
-    @Override
-    public boolean omitNorms() {
-        return fieldType.omitNorms();
-    }
-
-    @Override
-    public IndexOptions indexOptions() {
-        return fieldType.indexOptions();
     }
 
     @Override
@@ -526,25 +486,25 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
             return;
         }
         AbstractFieldMapper fieldMergeWith = (AbstractFieldMapper) mergeWith;
-        if (this.indexed() != fieldMergeWith.indexed() || this.tokenized() != fieldMergeWith.tokenized()) {
+        if (this.fieldType().indexed() != fieldMergeWith.fieldType().indexed() || this.fieldType().tokenized() != fieldMergeWith.fieldType().tokenized()) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different index values");
         }
-        if (this.stored() != fieldMergeWith.stored()) {
+        if (this.fieldType().stored() != fieldMergeWith.fieldType().stored()) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different store values");
         }
-        if (this.tokenized() != fieldMergeWith.tokenized()) {
+        if (this.fieldType().tokenized() != fieldMergeWith.fieldType().tokenized()) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different tokenize values");
         }
-        if (this.storeTermVectors() != fieldMergeWith.storeTermVectors()) {
+        if (this.fieldType().storeTermVectors() != fieldMergeWith.fieldType().storeTermVectors()) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different store_term_vector values");
         }
-        if (this.storeTermVectorOffsets() != fieldMergeWith.storeTermVectorOffsets()) {
+        if (this.fieldType().storeTermVectorOffsets() != fieldMergeWith.fieldType().storeTermVectorOffsets()) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different store_term_vector_offsets values");
         }
-        if (this.storeTermVectorPositions() != fieldMergeWith.storeTermVectorPositions()) {
+        if (this.fieldType().storeTermVectorPositions() != fieldMergeWith.fieldType().storeTermVectorPositions()) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different store_term_vector_positions values");
         }
-        if (this.storeTermVectorPayloads() != fieldMergeWith.storeTermVectorPayloads()) {
+        if (this.fieldType().storeTermVectorPayloads() != fieldMergeWith.fieldType().storeTermVectorPayloads()) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different store_term_vector_payloads values");
         }
         if (this.indexAnalyzer == null) {
@@ -614,30 +574,30 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         }
 
         FieldType defaultFieldType = defaultFieldType();
-        if (indexed() != defaultFieldType.indexed() ||
-                tokenized() != defaultFieldType.tokenized()) {
-            builder.field("index", indexTokenizeOptionToString(indexed(), tokenized()));
+        if (fieldType.indexed() != defaultFieldType.indexed() ||
+                fieldType.tokenized() != defaultFieldType.tokenized()) {
+            builder.field("index", indexTokenizeOptionToString(fieldType.indexed(), fieldType.tokenized()));
         }
-        if (stored() != defaultFieldType.stored()) {
-            builder.field("store", stored());
+        if (fieldType.stored() != defaultFieldType.stored()) {
+            builder.field("store", fieldType.stored());
         }
-        if (storeTermVectors() != defaultFieldType.storeTermVectors()) {
-            builder.field("store_term_vector", storeTermVectors());
+        if (fieldType.storeTermVectors() != defaultFieldType.storeTermVectors()) {
+            builder.field("store_term_vector", fieldType.storeTermVectors());
         }
-        if (storeTermVectorOffsets() != defaultFieldType.storeTermVectorOffsets()) {
-            builder.field("store_term_vector_offsets", storeTermVectorOffsets());
+        if (fieldType.storeTermVectorOffsets() != defaultFieldType.storeTermVectorOffsets()) {
+            builder.field("store_term_vector_offsets", fieldType.storeTermVectorOffsets());
         }
-        if (storeTermVectorPositions() != defaultFieldType.storeTermVectorPositions()) {
-            builder.field("store_term_vector_positions", storeTermVectorPositions());
+        if (fieldType.storeTermVectorPositions() != defaultFieldType.storeTermVectorPositions()) {
+            builder.field("store_term_vector_positions", fieldType.storeTermVectorPositions());
         }
-        if (storeTermVectorPayloads() != defaultFieldType.storeTermVectorPayloads()) {
-            builder.field("store_term_vector_payloads", storeTermVectorPayloads());
+        if (fieldType.storeTermVectorPayloads() != defaultFieldType.storeTermVectorPayloads()) {
+            builder.field("store_term_vector_payloads", fieldType.storeTermVectorPayloads());
         }
-        if (omitNorms() != defaultFieldType.omitNorms()) {
-            builder.field("omit_norms", omitNorms());
+        if (fieldType.omitNorms() != defaultFieldType.omitNorms()) {
+            builder.field("omit_norms", fieldType.omitNorms());
         }
-        if (indexOptions() != defaultFieldType.indexOptions()) {
-            builder.field("index_options", indexOptionToString(indexOptions()));
+        if (fieldType.indexOptions() != defaultFieldType.indexOptions()) {
+            builder.field("index_options", indexOptionToString(fieldType.indexOptions()));
         }
 
         if (indexAnalyzer != null && searchAnalyzer != null && indexAnalyzer.name().equals(searchAnalyzer.name()) && !indexAnalyzer.name().startsWith("_") && !indexAnalyzer.name().equals("default")) {

@@ -126,7 +126,7 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
 
     @Override
     public Filter fieldFilter(String value, @Nullable QueryParseContext context) {
-        if (!indexed()) {
+        if (!fieldType.indexed()) {
             return new PrefixFilter(new Term(UidFieldMapper.NAME, Uid.typePrefix(value)));
         }
         return new TermFilter(names().createIndexNameTerm(value));
@@ -167,7 +167,7 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
 
     @Override
     protected Field parseCreateField(ParseContext context) throws IOException {
-        if (!indexed() && !stored()) {
+        if (!fieldType.indexed() && !fieldType.stored()) {
             return null;
         }
         return new Field(names.indexName(), context.type(), fieldType);
@@ -181,15 +181,15 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // if all are defaults, no sense to write it at all
-        if (stored() == Defaults.FIELD_TYPE.stored() && indexed() == Defaults.FIELD_TYPE.indexed()) {
+        if (fieldType.stored() == Defaults.FIELD_TYPE.stored() && fieldType.indexed() == Defaults.FIELD_TYPE.indexed()) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
-        if (stored() != Defaults.FIELD_TYPE.stored()) {
-            builder.field("store", stored());
+        if (fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
+            builder.field("store", fieldType.stored());
         }
-        if (indexed() != Defaults.FIELD_TYPE.indexed()) {
-            builder.field("index", indexed());
+        if (fieldType.indexed() != Defaults.FIELD_TYPE.indexed()) {
+            builder.field("index", fieldType.indexed());
         }
         builder.endObject();
         return builder;

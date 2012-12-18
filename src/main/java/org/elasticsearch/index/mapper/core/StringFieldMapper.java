@@ -293,7 +293,7 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
         if (context.includeInAll(includeInAll, this)) {
             context.allEntries().addText(names.fullName(), value, boost);
         }
-        if (!indexed() && !stored()) {
+        if (!fieldType().indexed() && !fieldType().stored()) {
             context.ignoredValue(names.indexName(), value);
             return null;
         }

@@ -197,18 +197,18 @@ public class ShardGetService extends AbstractIndexShardComponent {
                             continue;
                         }
                         Object value = null;
-                        if (field.equals(RoutingFieldMapper.NAME) && docMapper.routingFieldMapper().stored()) {
+                        if (field.equals(RoutingFieldMapper.NAME) && docMapper.routingFieldMapper().fieldType().stored()) {
                             value = source.routing;
-                        } else if (field.equals(ParentFieldMapper.NAME) && docMapper.parentFieldMapper() != null && docMapper.parentFieldMapper().stored()) {
+                        } else if (field.equals(ParentFieldMapper.NAME) && docMapper.parentFieldMapper() != null && docMapper.parentFieldMapper().fieldType().stored()) {
                             value = source.parent;
-                        } else if (field.equals(TimestampFieldMapper.NAME) && docMapper.timestampFieldMapper().stored()) {
+                        } else if (field.equals(TimestampFieldMapper.NAME) && docMapper.timestampFieldMapper().fieldType().stored()) {
                             value = source.timestamp;
-                        } else if (field.equals(TTLFieldMapper.NAME) && docMapper.TTLFieldMapper().stored()) {
+                        } else if (field.equals(TTLFieldMapper.NAME) && docMapper.TTLFieldMapper().fieldType().stored()) {
                             // Call value for search with timestamp + ttl here to display the live remaining ttl value and be consistent with the search result display
                             if (source.ttl > 0) {
                                 value = docMapper.TTLFieldMapper().valueForSearch(source.timestamp + source.ttl);
                             }
-                        } else if (field.equals(SizeFieldMapper.NAME) && docMapper.rootMapper(SizeFieldMapper.class).stored()) {
+                        } else if (field.equals(SizeFieldMapper.NAME) && docMapper.rootMapper(SizeFieldMapper.class).fieldType().stored()) {
                             value = source.source.length();
                         } else {
                             if (field.contains("_source.")) {
@@ -242,7 +242,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
 
                                 FieldMapper<?> x = docMapper.mappers().smartNameFieldMapper(field);
                                 // only if the field is stored or source is enabled we should add it..
-                                if (docMapper.sourceMapper().enabled() || x == null || x.stored()) {
+                                if (docMapper.sourceMapper().enabled() || x == null || x.fieldType().stored()) {
                                     value = searchLookup.source().extractValue(field);
                                 }
                             }
@@ -318,7 +318,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
                     }
                 } else {
                     FieldMappers x = docMapper.mappers().smartName(field);
-                    if (x == null || !x.mapper().stored()) {
+                    if (x == null || !x.mapper().fieldType().stored()) {
                         if (searchLookup == null) {
                             searchLookup = new SearchLookup(mapperService, indexCache.fieldData(), new String[]{type});
                             searchLookup.setNextReader(docIdAndVersion.reader);

@@ -51,7 +51,7 @@ public class GenericStoreDynamicTemplateTests {
 
         FieldMappers fieldMappers = docMapper.mappers().fullName("name");
         assertThat(fieldMappers.mappers().size(), equalTo(1));
-        assertThat(fieldMappers.mapper().stored(), equalTo(true));
+        assertThat(fieldMappers.mapper().fieldType().stored(), equalTo(true));
 
         f = doc.getField("age");
         assertThat(f.name(), equalTo("age"));
@@ -59,6 +59,6 @@ public class GenericStoreDynamicTemplateTests {
 
         fieldMappers = docMapper.mappers().fullName("age");
         assertThat(fieldMappers.mappers().size(), equalTo(1));
-        assertThat(fieldMappers.mapper().stored(), equalTo(true));
+        assertThat(fieldMappers.mapper().fieldType().stored(), equalTo(true));
     }
 }

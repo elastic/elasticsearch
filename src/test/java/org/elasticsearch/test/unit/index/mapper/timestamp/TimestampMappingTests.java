@@ -73,8 +73,8 @@ public class TimestampMappingTests {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().string();
         DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
         assertThat(docMapper.timestampFieldMapper().enabled(), equalTo(TimestampFieldMapper.Defaults.ENABLED));
-        assertThat(docMapper.timestampFieldMapper().stored(), equalTo(TimestampFieldMapper.Defaults.FIELD_TYPE.stored()));
-        assertThat(docMapper.timestampFieldMapper().indexed(), equalTo(TimestampFieldMapper.Defaults.FIELD_TYPE.indexed()));
+        assertThat(docMapper.timestampFieldMapper().fieldType().stored(), equalTo(TimestampFieldMapper.Defaults.FIELD_TYPE.stored()));
+        assertThat(docMapper.timestampFieldMapper().fieldType().indexed(), equalTo(TimestampFieldMapper.Defaults.FIELD_TYPE.indexed()));
         assertThat(docMapper.timestampFieldMapper().path(), equalTo(null));
         assertThat(docMapper.timestampFieldMapper().dateTimeFormatter().format(), equalTo(TimestampFieldMapper.DEFAULT_DATE_TIME_FORMAT));
     }
@@ -90,8 +90,8 @@ public class TimestampMappingTests {
                 .endObject().endObject().string();
         DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
         assertThat(docMapper.timestampFieldMapper().enabled(), equalTo(true));
-        assertThat(docMapper.timestampFieldMapper().stored(), equalTo(true));
-        assertThat(docMapper.timestampFieldMapper().indexed(), equalTo(false));
+        assertThat(docMapper.timestampFieldMapper().fieldType().stored(), equalTo(true));
+        assertThat(docMapper.timestampFieldMapper().fieldType().indexed(), equalTo(false));
         assertThat(docMapper.timestampFieldMapper().path(), equalTo("timestamp"));
         assertThat(docMapper.timestampFieldMapper().dateTimeFormatter().format(), equalTo("year"));
     }

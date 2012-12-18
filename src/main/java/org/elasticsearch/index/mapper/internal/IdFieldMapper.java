@@ -155,7 +155,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
 
     @Override
     public Query fieldQuery(String value, @Nullable QueryParseContext context) {
-        if (indexed() || context == null) {
+        if (fieldType.indexed() || context == null) {
             return super.fieldQuery(value, context);
         }
         UidFilter filter = new UidFilter(context.queryTypes(), ImmutableList.of(value));
@@ -165,7 +165,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
 
     @Override
     public Filter fieldFilter(String value, @Nullable QueryParseContext context) {
-        if (indexed() || context == null) {
+        if (fieldType.indexed() || context == null) {
             return super.fieldFilter(value, context);
         }
         return new UidFilter(context.queryTypes(), ImmutableList.of(value));
@@ -173,7 +173,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
 
     @Override
     public Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
-        if (indexed() || context == null) {
+        if (fieldType.indexed() || context == null) {
             return super.prefixQuery(value, method, context);
         }
         Collection<String> queryTypes = context.queryTypes();
@@ -197,7 +197,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
 
     @Override
     public Filter prefixFilter(String value, @Nullable QueryParseContext context) {
-        if (indexed() || context == null) {
+        if (fieldType.indexed() || context == null) {
             return super.prefixFilter(value, context);
         }
         Collection<String> queryTypes = context.queryTypes();
@@ -213,7 +213,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
 
     @Override
     public Query regexpQuery(String value, int flags, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
-        if (indexed() || context == null) {
+        if (fieldType.indexed() || context == null) {
             return super.regexpQuery(value, flags, method, context);
         }
         Collection<String> queryTypes = context.queryTypes();
@@ -236,7 +236,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
     }
 
     public Filter regexpFilter(String value, int flags, @Nullable QueryParseContext context) {
-        if (indexed() || context == null) {
+        if (fieldType.indexed() || context == null) {
             return super.regexpFilter(value, flags, context);
         }
         Collection<String> queryTypes = context.queryTypes();

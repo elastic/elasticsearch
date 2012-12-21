@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper.xcontent;
 
 import org.apache.lucene.document.Document;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -55,7 +56,7 @@ public class SimpleAttachmentMapperTests {
         DocumentMapper docMapper = mapperParser.parse(mapping);
         byte[] html = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/testXHTML.html");
 
-        byte[] json = jsonBuilder().startObject().field("_id", 1).field("file", html).endObject().copiedBytes();
+        BytesReference json = jsonBuilder().startObject().field("_id", 1).field("file", html).endObject().bytes();
 
         Document doc = docMapper.parse(json).rootDoc();
 
@@ -67,7 +68,7 @@ public class SimpleAttachmentMapperTests {
         String builtMapping = docMapper.mappingSource().string();
         docMapper = mapperParser.parse(builtMapping);
 
-        json = jsonBuilder().startObject().field("_id", 1).field("file", html).endObject().copiedBytes();
+        json = jsonBuilder().startObject().field("_id", 1).field("file", html).endObject().bytes();
 
         doc = docMapper.parse(json).rootDoc();
 

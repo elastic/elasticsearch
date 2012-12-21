@@ -284,6 +284,10 @@ public class TopChildrenQuery extends Query implements ScopePhase.TopDocsPhase {
 
         @Override
         public int docID() {
+            if (index == -1) {
+                return -1;
+            }
+
             if (index >= docs.length) {
                 return NO_MORE_DOCS;
             }

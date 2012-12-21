@@ -100,7 +100,7 @@ public class SimpleAttachmentIntegrationTests {
     public void testSimpleAttachmentContentLengthLimit() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/xcontent/test-mapping.json");
         byte[] txt = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/testContentLength.txt");
-        final int CONTENT_LENGTH_LIMIT = 18;
+        final int CONTENT_LENGTH_LIMIT = 20;
 
         node.client().admin().indices().putMapping(putMappingRequest("test").type("person").source(mapping)).actionGet();
 

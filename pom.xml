@@ -105,19 +105,6 @@
     </dependencies>
 
     <build>
-
-        <testResources>
-            <testResource>
-                <directory>${basedir}/src/test/java</directory>
-                <includes>
-                    <include>**/*.json</include>
-                    <include>**/*.yml</include>
-                    <include>**/*.html</include>
-                    <include>**/*.txt</include>
-                </includes>
-            </testResource>
-        </testResources>
-
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

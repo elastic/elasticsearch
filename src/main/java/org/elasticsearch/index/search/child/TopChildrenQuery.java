@@ -240,10 +240,6 @@ public class TopChildrenQuery extends Query implements ScopePhase.TopDocsPhase {
             return TopChildrenQuery.this;
         }
 
-        public float getValue() {
-            return getBoost();
-        }
-
         @Override
         public float getValueForNormalization() throws IOException {
             float sum = queryWeight.getValueForNormalization();

@@ -408,9 +408,17 @@ public class BlockJoinQuery extends Query {
         public Explanation explain(int docBase) throws IOException {
             int start = docBase + prevParentDoc + 1; // +1 b/c prevParentDoc is previous parent doc
             int end = docBase + parentDoc - 1; // -1 b/c parentDoc is parent doc
-            return new ComplexExplanation(
-                    true, score(), String.format(Locale.ROOT, "Score based on child doc range from %d to %d", start, end)
+            ComplexExplanation explanation = new ComplexExplanation(
+                    true, score(), String.format(Locale.ROOT, "Score based on score mode %s and child doc range from %d to %d", scoreMode, start, end)
             );
+
+            for (int i = 0; i < childDocUpto; i++) {
+                int childDoc = pendingChildDocs[i];
+                float childScore = pendingChildScores[i];
+                explanation.addDetail(new Explanation(childScore, String.format(Locale.ROOT, "Child[%d]", childDoc)));
+            }
+
+            return explanation;
         }
 
     }

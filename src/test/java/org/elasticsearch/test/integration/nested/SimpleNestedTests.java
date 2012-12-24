@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.integration.nested;
 
+import org.apache.lucene.search.Explanation;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -26,7 +27,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.index.query.FilterBuilders;
-import org.elasticsearch.index.query.FilteredQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.facet.FacetBuilders;
 import org.elasticsearch.search.facet.termsstats.TermsStatsFacet;
@@ -515,6 +515,50 @@ public class SimpleNestedTests extends AbstractNodesTests {
         // If this is 5 then only the parent has been removed
         assertThat(statusResponse.index("test").docs().numDocs(), equalTo(3l));
         assertThat(client.prepareGet("test", "type1", "1").execute().actionGet().exists(), equalTo(false));
+    }
+
+    @Test
+    public void testExplain() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+
+        client.admin().indices().prepareCreate("test")
+                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("nested1")
+                        .field("type", "nested")
+                        .endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
+
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        client.prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+                .field("field1", "value1")
+                .startArray("nested1")
+                .startObject()
+                .field("n_field1", "n_value1")
+                .endObject()
+                .startObject()
+                .field("n_field1", "n_value1")
+                .endObject()
+                .endArray()
+                .endObject())
+                .setRefresh(true)
+                .execute().actionGet();
+
+        SearchResponse searchResponse = client.prepareSearch("test")
+                .setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1")).scoreMode("total"))
+                .setExplain(true)
+                .execute().actionGet();
+        assertThat(Arrays.toString(searchResponse.shardFailures()), searchResponse.failedShards(), equalTo(0));
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+        Explanation explanation = searchResponse.hits().hits()[0].explanation();
+        assertThat(explanation.getValue(), equalTo(2f));
+        assertThat(explanation.getDescription(), equalTo("Score based on score mode Total and child doc range from 0 to 1"));
+        assertThat(explanation.getDetails().length, equalTo(2));
+        assertThat(explanation.getDetails()[0].getValue(), equalTo(1f));
+        assertThat(explanation.getDetails()[0].getDescription(), equalTo("Child[0]"));
+        assertThat(explanation.getDetails()[1].getValue(), equalTo(1f));
+        assertThat(explanation.getDetails()[1].getDescription(), equalTo("Child[1]"));
     }
 
 }

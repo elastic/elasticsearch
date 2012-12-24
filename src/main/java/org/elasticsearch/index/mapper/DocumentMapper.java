@@ -497,9 +497,11 @@ public class DocumentMapper implements ToXContent {
             // fire up any new mappers if exists
             if (!context.newFieldMappers().mappers.isEmpty()) {
                 addFieldMappers(context.newFieldMappers().mappers);
+                context.newFieldMappers().mappers.clear();
             }
             if (!context.newObjectMappers().mappers.isEmpty()) {
                 addObjectMappers(context.newObjectMappers().mappers);
+                context.newObjectMappers().mappers.clear();
             }
 
             for (RootMapper rootMapper : rootMappersOrdered) {
@@ -509,8 +511,20 @@ public class DocumentMapper implements ToXContent {
             for (RootMapper rootMapper : rootMappersOrdered) {
                 rootMapper.validate(context);
             }
-        } catch (IOException e) {
-            throw new MapperParsingException("Failed to parse", e);
+        } catch (Throwable e) {
+            // we have to fire up any new mappers even on a failure, because they
+            // have been added internally to each compound mapper...
+            // ... we have no option to "rollback" a change, which is very tricky in our copy on change system...
+            if (!context.newFieldMappers().mappers.isEmpty()) {
+                addFieldMappers(context.newFieldMappers().mappers);
+                context.newFieldMappers().mappers.clear();
+            }
+            if (!context.newObjectMappers().mappers.isEmpty()) {
+                addObjectMappers(context.newObjectMappers().mappers);
+                context.newObjectMappers().mappers.clear();
+            }
+
+            throw new MapperParsingException("failed to parse", e);
         } finally {
             // only close the parser when its not provided externally
             if (source.parser() == null && parser != null) {

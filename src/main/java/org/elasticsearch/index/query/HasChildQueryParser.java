@@ -20,13 +20,15 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.FilteredQuery;
+import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.search.child.ChildrenQuery;
 import org.elasticsearch.index.search.child.HasChildFilter;
+import org.elasticsearch.index.search.child.ScoreType;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -51,13 +53,14 @@ public class HasChildQueryParser implements QueryParser {
     public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        Query query = null;
+        Query innerQuery = null;
         boolean queryFound = false;
         float boost = 1.0f;
         String childType = null;
         String scope = null;
-
+        ScoreType scoreType = null;
         String executionType = "uid";
+
         String currentFieldName = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -69,7 +72,7 @@ public class HasChildQueryParser implements QueryParser {
                     // since we switch types, make sure we change the context
                     String[] origTypes = QueryParseContext.setTypesWithPrevious(childType == null ? null : new String[]{childType});
                     try {
-                        query = parseContext.parseInnerQuery();
+                        innerQuery = parseContext.parseInnerQuery();
                         queryFound = true;
                     } finally {
                         QueryParseContext.setTypes(origTypes);
@@ -82,10 +85,15 @@ public class HasChildQueryParser implements QueryParser {
                     childType = parser.text();
                 } else if ("_scope".equals(currentFieldName)) {
                     scope = parser.text();
+                } else if ("execution_type".equals(currentFieldName) || "executionType".equals(currentFieldName)) {
+                    scoreType = ScoreType.fromString(parser.text());
+                } else if ("score_type".equals(currentFieldName) || "scoreType".equals(currentFieldName)) {
+                    String scoreTypeValue = parser.text();
+                    if (!"none".equals(scoreTypeValue)) {
+                        scoreType = ScoreType.fromString(scoreTypeValue);
+                    }
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
-                } else if ("execution_type".equals(currentFieldName) || "executionType".equals(currentFieldName)) {// This option is experimental and will most likely be removed.
-                    executionType = parser.text();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[has_child] query does not support [" + currentFieldName + "]");
                 }
@@ -94,12 +102,13 @@ public class HasChildQueryParser implements QueryParser {
         if (!queryFound) {
             throw new QueryParsingException(parseContext.index(), "[has_child] requires 'query' field");
         }
-        if (query == null) {
+        if (innerQuery == null) {
             return null;
         }
         if (childType == null) {
             throw new QueryParsingException(parseContext.index(), "[has_child] requires 'type' field");
         }
+        innerQuery.setBoost(boost);
 
         DocumentMapper childDocMapper = parseContext.mapperService().documentMapper(childType);
         if (childDocMapper == null) {
@@ -109,17 +118,21 @@ public class HasChildQueryParser implements QueryParser {
             throw new QueryParsingException(parseContext.index(), "[has_child]  Type [" + childType + "] does not have parent mapping");
         }
         String parentType = childDocMapper.parentFieldMapper().type();
-
-        query.setBoost(boost);
-        // wrap the query with type query
-        query = new FilteredQuery(query, parseContext.cacheFilter(childDocMapper.typeFilter(), null));
+        DocumentMapper parentDocMapper = parseContext.mapperService().documentMapper(parentType);
 
         SearchContext searchContext = SearchContext.current();
-        HasChildFilter childFilter = HasChildFilter.create(query, scope, parentType, childType, searchContext, executionType);
-        // we don't need DeletionAwareConstantScore, since we filter deleted parent docs in the filter
-        ConstantScoreQuery childQuery = new ConstantScoreQuery(childFilter);
-        childQuery.setBoost(boost);
-        searchContext.addScopePhase(childFilter);
-        return childQuery;
+        Query query;
+        if (scoreType != null) {
+            Filter parentFilter = parseContext.cacheFilter(parentDocMapper.typeFilter(), null);
+            ChildrenQuery childrenQuery = new ChildrenQuery(searchContext, parentType, childType, parentFilter, scope, innerQuery, scoreType);
+            searchContext.addScopePhase(childrenQuery);
+            query = childrenQuery;
+        } else {
+            HasChildFilter hasChildFilter = HasChildFilter.create(innerQuery, scope, parentType, childType, searchContext, executionType);
+            searchContext.addScopePhase(hasChildFilter);
+            query = new ConstantScoreQuery(hasChildFilter);
+        }
+        query.setBoost(boost);
+        return query;
     }
 }

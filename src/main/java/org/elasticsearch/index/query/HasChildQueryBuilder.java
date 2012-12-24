@@ -36,6 +36,8 @@ public class HasChildQueryBuilder extends BaseQueryBuilder implements BoostableQ
 
     private float boost = 1.0f;
 
+    private String scoreType;
+
     private String executionType;
 
     public HasChildQueryBuilder(String type, QueryBuilder queryBuilder) {
@@ -62,8 +64,17 @@ public class HasChildQueryBuilder extends BaseQueryBuilder implements BoostableQ
     }
 
     /**
+     * Defines how the scores from the matching child documents are mapped into the parent document.
+     */
+    public HasChildQueryBuilder scoreType(String executionType) {
+        this.scoreType = executionType;
+        return this;
+    }
+
+    /**
      * Expert: Sets the low level child to parent filtering implementation. Can be: 'bitset' or 'uid'
-     *
+     * Only applicable when score_type is set to none.
+     * <p/>
      * This option is experimental and will be removed.
      */
     public HasChildQueryBuilder executionType(String executionType) {
@@ -83,8 +94,8 @@ public class HasChildQueryBuilder extends BaseQueryBuilder implements BoostableQ
         if (boost != 1.0f) {
             builder.field("boost", boost);
         }
-        if (executionType != null) {
-            builder.field("execution_type", executionType);
+        if (scoreType != null) {
+            builder.field("score_type", scoreType);
         }
         builder.endObject();
     }

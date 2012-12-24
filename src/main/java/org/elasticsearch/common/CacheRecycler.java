@@ -44,6 +44,7 @@ public class CacheRecycler {
         shortIntHashMap.clear();
         longIntHashMap.clear();
         objectIntHashMap.clear();
+        objectFloatHashMap.clear();
         objectArray.clear();
         intArray.clear();
     }
@@ -71,6 +72,7 @@ public class CacheRecycler {
 
     private static SoftWrapper<Queue<ExtTHashMap>> hashMap = new SoftWrapper<Queue<ExtTHashMap>>();
 
+    @SuppressWarnings("unchecked")
     public static <K, V> ExtTHashMap<K, V> popHashMap() {
         Queue<ExtTHashMap> ref = hashMap.get();
         if (ref == null) {
@@ -97,6 +99,7 @@ public class CacheRecycler {
 
     private static SoftWrapper<Queue<THashSet>> hashSet = new SoftWrapper<Queue<THashSet>>();
 
+    @SuppressWarnings("unchecked")
     public static <T> THashSet<T> popHashSet() {
         Queue<THashSet> ref = hashSet.get();
         if (ref == null) {
@@ -123,6 +126,7 @@ public class CacheRecycler {
 
     private static SoftWrapper<Queue<ExtTDoubleObjectHashMap>> doubleObjectHashMap = new SoftWrapper<Queue<ExtTDoubleObjectHashMap>>();
 
+    @SuppressWarnings("unchecked")
     public static <T> ExtTDoubleObjectHashMap<T> popDoubleObjectMap() {
         Queue<ExtTDoubleObjectHashMap> ref = doubleObjectHashMap.get();
         if (ref == null) {
@@ -149,6 +153,7 @@ public class CacheRecycler {
 
     private static SoftWrapper<Queue<ExtTLongObjectHashMap>> longObjectHashMap = new SoftWrapper<Queue<ExtTLongObjectHashMap>>();
 
+    @SuppressWarnings("unchecked")
     public static <T> ExtTLongObjectHashMap<T> popLongObjectMap() {
         Queue<ExtTLongObjectHashMap> ref = longObjectHashMap.get();
         if (ref == null) {
@@ -386,6 +391,33 @@ public class CacheRecycler {
         if (ref == null) {
             ref = ConcurrentCollections.newQueue();
             objectIntHashMap.set(ref);
+        }
+        map.clear();
+        ref.add(map);
+    }
+
+    // ------ TObjectFloatHashMap -----
+
+    private static SoftWrapper<Queue<TObjectFloatHashMap>> objectFloatHashMap = new SoftWrapper<Queue<TObjectFloatHashMap>>();
+
+    @SuppressWarnings({"unchecked"})
+    public static <T> TObjectFloatHashMap<T> popObjectFloatMap() {
+        Queue<TObjectFloatHashMap> ref = objectFloatHashMap.get();
+        if (ref == null) {
+            return new TObjectFloatHashMap();
+        }
+        TObjectFloatHashMap map = ref.poll();
+        if (map == null) {
+            return new TObjectFloatHashMap();
+        }
+        return map;
+    }
+
+    public static <T> void pushObjectFloatMap(TObjectFloatHashMap<T> map) {
+        Queue<TObjectFloatHashMap> ref = objectFloatHashMap.get();
+        if (ref == null) {
+            ref = ConcurrentCollections.newQueue();
+            objectFloatHashMap.set(ref);
         }
         map.clear();
         ref.add(map);

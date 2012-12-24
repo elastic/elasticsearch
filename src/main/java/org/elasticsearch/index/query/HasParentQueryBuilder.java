@@ -30,12 +30,13 @@ public class HasParentQueryBuilder extends BaseQueryBuilder implements Boostable
 
     private final QueryBuilder queryBuilder;
     private final String parentType;
-    private String scope;
+    private String scoreType;
     private String executionType;
+    private String scope;
     private float boost = 1.0f;
 
     /**
-     * @param parentType The parent type
+     * @param parentType  The parent type
      * @param parentQuery The query that will be matched with parent documents
      */
     public HasParentQueryBuilder(String parentType, QueryBuilder parentQuery) {
@@ -48,18 +49,27 @@ public class HasParentQueryBuilder extends BaseQueryBuilder implements Boostable
         return this;
     }
 
+    public HasParentQueryBuilder boost(float boost) {
+        this.boost = boost;
+        return this;
+    }
+
     /**
-     * Expert: Sets the low level parent to child filtering implementation. Can be: 'bitset' or 'uid'
-     *
+     * Defines how the parent score is mapped into the child documents.
+     */
+    public HasParentQueryBuilder scoreType(String scoreType) {
+        this.scoreType = scoreType;
+        return this;
+    }
+
+    /**
+     * Expert: Sets the low level child to parent filtering implementation. Can be: 'bitset' or 'uid'
+     * <p/>
+     * Only applicable when score_type is set to none.
      * This option is experimental and will be removed.
      */
     public HasParentQueryBuilder executionType(String executionType) {
         this.executionType = executionType;
-        return this;
-    }
-
-    public HasParentQueryBuilder boost(float boost) {
-        this.boost = boost;
         return this;
     }
 
@@ -70,6 +80,9 @@ public class HasParentQueryBuilder extends BaseQueryBuilder implements Boostable
         builder.field("parent_type", parentType);
         if (scope != null) {
             builder.field("_scope", scope);
+        }
+        if (scoreType != null) {
+            builder.field("score_type", scoreType);
         }
         if (executionType != null) {
             builder.field("execution_type", executionType);

@@ -111,7 +111,7 @@ public abstract class HasChildFilter extends Filter implements ScopePhase.Collec
 
         public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
             if (parentDocs == null) {
-                throw new ElasticSearchIllegalStateException("has_child filter/query hasn't executed properly");
+                throw new ElasticSearchIllegalStateException("has_child filter hasn't executed properly");
             }
 
             // np need to use acceptDocs, since the parentDocs were collected with a collector, which means those
@@ -145,7 +145,7 @@ public abstract class HasChildFilter extends Filter implements ScopePhase.Collec
 
         public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
             if (collectedUids == null) {
-                throw new ElasticSearchIllegalStateException("has_child filter/query hasn't executed properly");
+                throw new ElasticSearchIllegalStateException("has_child filter hasn't executed properly");
             }
 
             IdReaderTypeCache idReaderTypeCache = searchContext.idCache().reader(context.reader()).type(parentType);

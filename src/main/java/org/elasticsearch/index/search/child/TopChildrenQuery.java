@@ -24,7 +24,6 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.ToStringUtils;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.lucene.search.EmptyScorer;
@@ -38,23 +37,6 @@ import java.util.*;
  *
  */
 public class TopChildrenQuery extends Query implements ScopePhase.TopDocsPhase {
-
-    public static enum ScoreType {
-        MAX,
-        AVG,
-        SUM;
-
-        public static ScoreType fromString(String type) {
-            if ("max".equals(type)) {
-                return MAX;
-            } else if ("avg".equals(type)) {
-                return AVG;
-            } else if ("sum".equals(type)) {
-                return SUM;
-            }
-            throw new ElasticSearchIllegalArgumentException("No score type for child query [" + type + "] found");
-        }
-    }
 
     private Query query;
 

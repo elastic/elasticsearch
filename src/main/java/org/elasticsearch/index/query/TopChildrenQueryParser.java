@@ -25,6 +25,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.search.child.ScoreType;
 import org.elasticsearch.index.search.child.TopChildrenQuery;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -55,7 +56,7 @@ public class TopChildrenQueryParser implements QueryParser {
         float boost = 1.0f;
         String childType = null;
         String scope = null;
-        TopChildrenQuery.ScoreType scoreType = TopChildrenQuery.ScoreType.MAX;
+        ScoreType scoreType = ScoreType.MAX;
         int factor = 5;
         int incrementalFactor = 2;
 
@@ -84,7 +85,7 @@ public class TopChildrenQueryParser implements QueryParser {
                 } else if ("_scope".equals(currentFieldName)) {
                     scope = parser.text();
                 } else if ("score".equals(currentFieldName)) {
-                    scoreType = TopChildrenQuery.ScoreType.fromString(parser.text());
+                    scoreType = ScoreType.fromString(parser.text());
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else if ("factor".equals(currentFieldName)) {

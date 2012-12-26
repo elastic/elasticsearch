@@ -524,6 +524,11 @@ public class DocumentMapper implements ToXContent {
                 context.newObjectMappers().mappers.clear();
             }
 
+            // if its already a mapper parsing exception, no need to wrap it...
+            if (e instanceof MapperParsingException) {
+                throw (MapperParsingException) e;
+            }
+
             throw new MapperParsingException("failed to parse", e);
         } finally {
             // only close the parser when its not provided externally

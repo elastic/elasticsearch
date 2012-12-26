@@ -124,6 +124,10 @@ public class FilteredQueryParser implements QueryParser {
                 return Queries.NO_MATCH_QUERY;
             }
         }
+        if (filter == Queries.MATCH_ALL_FILTER) {
+            // this is an instance of match all filter, just execute the query
+            return query;
+        }
 
         // cache if required
         if (cache) {

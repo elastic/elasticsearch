@@ -228,10 +228,10 @@ public class CustomScoreSearchTests extends AbstractNodesTests {
         assertThat(response.hits().getAt(0).id(), equalTo("1"));
         assertThat(response.hits().getAt(1).id(), equalTo("2"));
     }
-    
+
     @Test
     public void testTriggerBooleanScorer() throws Exception {
-    	client.admin().indices().prepareDelete().execute().actionGet();
+        client.admin().indices().prepareDelete().execute().actionGet();
         client.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
 
         client.prepareIndex("test", "type", "1").setSource("field", "value1", "color", "red").execute().actionGet();
@@ -241,7 +241,7 @@ public class CustomScoreSearchTests extends AbstractNodesTests {
         client.admin().indices().prepareRefresh().execute().actionGet();
         SearchResponse searchResponse = client.prepareSearch("test")
                 .setQuery(customFiltersScoreQuery(fuzzyQuery("field", "value"))
-                		.add(FilterBuilders.idsFilter("type").addIds("1"), 3))
+                        .add(FilterBuilders.idsFilter("type").addIds("1"), 3))
                 .execute().actionGet();
         assertThat(Arrays.toString(searchResponse.shardFailures()), searchResponse.failedShards(), equalTo(0));
 
@@ -425,7 +425,5 @@ public class CustomScoreSearchTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().getAt(2).score(), equalTo(searchResponse.hits().getAt(2).explanation().getValue()));
         assertThat(searchResponse.hits().getAt(3).id(), equalTo("2"));
         assertThat(searchResponse.hits().getAt(3).score(), equalTo(searchResponse.hits().getAt(3).explanation().getValue()));
-
-
     }
 }

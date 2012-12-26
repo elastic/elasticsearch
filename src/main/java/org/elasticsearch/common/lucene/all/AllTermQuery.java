@@ -74,7 +74,6 @@ public class AllTermQuery extends SpanTermQuery {
             if (this.stats == null) {
                 return null;
             }
-            AtomicReader reader = context.reader();
             SloppySimScorer sloppySimScorer = similarity.sloppySimScorer(stats, context);
             return new AllTermSpanScorer((TermSpans) query.getSpans(context, acceptDocs, termContexts), this, sloppySimScorer);
         }

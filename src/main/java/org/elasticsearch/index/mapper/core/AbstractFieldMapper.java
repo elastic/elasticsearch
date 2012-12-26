@@ -354,7 +354,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
                 context.doc().add(field);
             }
         } catch (Exception e) {
-            throw new MapperParsingException("Failed to parse [" + names.fullName() + "]", e);
+            throw new MapperParsingException("failed to parse [" + names.fullName() + "]", e);
         }
     }
 

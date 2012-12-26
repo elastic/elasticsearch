@@ -20,10 +20,10 @@
 package org.elasticsearch.test.unit.index.mapper.geo;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.search.geo.GeoHashUtils;
 import org.elasticsearch.test.unit.index.mapper.MapperTests;
@@ -93,7 +93,7 @@ public class LatLonMappingGeoPointTests {
                     .endObject()
                     .bytes());
             assert false;
-        } catch (ElasticSearchIllegalArgumentException e) {
+        } catch (MapperParsingException e) {
 
         }
 
@@ -104,7 +104,7 @@ public class LatLonMappingGeoPointTests {
                     .endObject()
                     .bytes());
             assert false;
-        } catch (ElasticSearchIllegalArgumentException e) {
+        } catch (MapperParsingException e) {
 
         }
 
@@ -115,7 +115,7 @@ public class LatLonMappingGeoPointTests {
                     .endObject()
                     .bytes());
             assert false;
-        } catch (ElasticSearchIllegalArgumentException e) {
+        } catch (MapperParsingException e) {
 
         }
 
@@ -126,7 +126,7 @@ public class LatLonMappingGeoPointTests {
                     .endObject()
                     .bytes());
             assert false;
-        } catch (ElasticSearchIllegalArgumentException e) {
+        } catch (MapperParsingException e) {
 
         }
     }

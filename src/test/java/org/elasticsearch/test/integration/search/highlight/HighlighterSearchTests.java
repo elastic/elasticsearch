@@ -258,6 +258,30 @@ public class HighlighterSearchTests extends AbstractNodesTests {
     }
 
     @Test
+    public void testHighlightingOnWildcardFields() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+        client.admin().indices().prepareCreate("test").execute().actionGet();
+        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+
+        client.prepareIndex("test", "type1")
+                .setSource("field1", "this is a test", "field2", "this is another test")
+                .setRefresh(true).execute().actionGet();
+
+        logger.info("--> highlighting and searching on field*");
+        SearchSourceBuilder source = searchSource()
+                .query(termQuery("field1", "test"))
+                .from(0).size(60).explain(true)
+                .highlight(highlight().field("field*").order("score").preTags("<xxx>").postTags("</xxx>"));
+
+        SearchResponse searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+
+        assertThat(searchResponse.hits().getAt(0).highlightFields().get("field1").fragments()[0].string(), equalTo("this is a <xxx>test</xxx>"));
+        assertThat(searchResponse.hits().getAt(0).highlightFields().get("field2").fragments()[0].string(), equalTo("this is another <xxx>test</xxx>"));
+    }
+
+    @Test
     public void testPlainHighlighter() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();

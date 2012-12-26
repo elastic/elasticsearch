@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -226,6 +227,25 @@ public class CustomScoreSearchTests extends AbstractNodesTests {
         logger.info("Hit[1] {} Explanation {}", response.hits().getAt(1).id(), response.hits().getAt(1).explanation());
         assertThat(response.hits().getAt(0).id(), equalTo("1"));
         assertThat(response.hits().getAt(1).id(), equalTo("2"));
+    }
+    
+    @Test
+    public void testTriggerBooleanScorer() throws Exception {
+    	client.admin().indices().prepareDelete().execute().actionGet();
+        client.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+
+        client.prepareIndex("test", "type", "1").setSource("field", "value1", "color", "red").execute().actionGet();
+        client.prepareIndex("test", "type", "2").setSource("field", "value2", "color", "blue").execute().actionGet();
+        client.prepareIndex("test", "type", "3").setSource("field", "value3", "color", "red").execute().actionGet();
+        client.prepareIndex("test", "type", "4").setSource("field", "value4", "color", "blue").execute().actionGet();
+        client.admin().indices().prepareRefresh().execute().actionGet();
+        SearchResponse searchResponse = client.prepareSearch("test")
+                .setQuery(customFiltersScoreQuery(fuzzyQuery("field", "value"))
+                		.add(FilterBuilders.idsFilter("type").addIds("1"), 3))
+                .execute().actionGet();
+        assertThat(Arrays.toString(searchResponse.shardFailures()), searchResponse.failedShards(), equalTo(0));
+
+        assertThat(searchResponse.hits().totalHits(), equalTo(4l));
     }
 
     @Test

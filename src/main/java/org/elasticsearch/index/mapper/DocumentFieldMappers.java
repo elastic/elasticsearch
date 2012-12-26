@@ -129,9 +129,23 @@ public class DocumentFieldMappers implements Iterable<FieldMapper> {
             if (Regex.simpleMatch(pattern, fieldMapper.names().fullName())) {
                 fields.add(fieldMapper.names().indexName());
             } else if (Regex.simpleMatch(pattern, fieldMapper.names().indexName())) {
-                fields.add(fieldMapper.names().name());
+                fields.add(fieldMapper.names().indexName());
             } else if (Regex.simpleMatch(pattern, fieldMapper.names().name())) {
                 fields.add(fieldMapper.names().indexName());
+            }
+        }
+        return fields;
+    }
+
+    public Set<String> simpleMatchToFullName(String pattern) {
+        Set<String> fields = Sets.newHashSet();
+        for (FieldMapper fieldMapper : fieldMappers) {
+            if (Regex.simpleMatch(pattern, fieldMapper.names().fullName())) {
+                fields.add(fieldMapper.names().fullName());
+            } else if (Regex.simpleMatch(pattern, fieldMapper.names().indexName())) {
+                fields.add(fieldMapper.names().fullName());
+            } else if (Regex.simpleMatch(pattern, fieldMapper.names().name())) {
+                fields.add(fieldMapper.names().fullName());
             }
         }
         return fields;

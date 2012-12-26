@@ -163,7 +163,7 @@ public class Analysis {
         }
         List<String> pathLoadedStopWords = getWordList(env, settings, "stopwords");
         if (pathLoadedStopWords != null) {
-            return resolveNamedStopWords(stopWords, version, ignore_case);
+            return resolveNamedStopWords(pathLoadedStopWords, version, ignore_case);
         }
 
         return defaultStopWords;

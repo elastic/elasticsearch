@@ -159,6 +159,7 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
 
         return this;
     }
+
     private String[] parseArray(XContentParser parser) throws IOException {
         final List<String> list = new ArrayList<String>();
         assert parser.currentToken() == XContentParser.Token.START_ARRAY;

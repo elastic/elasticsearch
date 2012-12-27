@@ -122,6 +122,7 @@ public class SimpleThreadPoolTests extends AbstractNodesTests {
                 .put("threadpool.search.keep_alive", "15s")
                 .put("threadpool.search.capacity", "100")
                 .build()).execute().actionGet();
+        Thread.sleep(200);
         nodesInfoResponse = client2.admin().cluster().prepareNodesInfo().all().execute().actionGet();
         for (int i = 0; i < 2; i++) {
             NodeInfo nodeInfo = nodesInfoResponse.nodes()[i];

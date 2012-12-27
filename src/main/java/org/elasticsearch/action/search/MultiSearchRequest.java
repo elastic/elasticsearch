@@ -129,7 +129,7 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
                             } else if (token == XContentParser.Token.START_ARRAY) {
                                 if ("index".equals(currentFieldName) || "indices".equals(currentFieldName)) {
                                     searchRequest.indices(parseArray(parser));
-                                } else if ("type".equals(currentFieldName) || "type".equals(currentFieldName)) {
+                                } else if ("type".equals(currentFieldName) || "types".equals(currentFieldName)) {
                                     searchRequest.types(parseArray(parser));
                                 } else {
                                     throw new ElasticSearchParseException(currentFieldName + " doesn't support arrays");

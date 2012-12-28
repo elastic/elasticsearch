@@ -26,8 +26,11 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
@@ -67,7 +70,12 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
             @Override
             public void onResponse(ClusterUpdateSettingsResponse response) {
                 try {
-                    channel.sendResponse(new StringRestResponse(RestStatus.OK));
+                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
+                    builder
+                            .startObject()
+                                .field(Fields.OK, true)
+                            .endObject();
+                    channel.sendResponse(new XContentRestResponse(request, RestStatus.OK, builder));
                 } catch (Exception e) {
                     onFailure(e);
                 }
@@ -86,4 +94,9 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
             }
         });
     }
+
+    static final class Fields {
+        static final XContentBuilderString OK = new XContentBuilderString("ok");
+    }
+
 }

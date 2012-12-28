@@ -96,7 +96,7 @@ public abstract class GeoPointFieldData extends FieldData<GeoPointDocFieldData> 
 
     public double distanceGeohash(int docId, DistanceUnit unit, String geoHash) {
         GeoPointHash geoPointHash = geoHashCache.get().get();
-        if (geoPointHash.geoHash != geoHash) {
+        if (!geoPointHash.geoHash.equals(geoHash)) {
             geoPointHash.geoHash = geoHash;
             double[] decode = GeoHashUtils.decode(geoHash);
             geoPointHash.lat = decode[0];

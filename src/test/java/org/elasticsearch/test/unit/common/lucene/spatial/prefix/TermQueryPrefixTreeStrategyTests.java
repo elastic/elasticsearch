@@ -5,6 +5,7 @@ import com.spatial4j.core.shape.Shape;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -64,7 +65,7 @@ public class TermQueryPrefixTreeStrategyTests {
 
     private Document newDocument(String id, Shape shape) {
         Document document = new Document();
-        document.add(new Field("id", id, Field.Store.YES, Field.Index.NOT_ANALYZED));
+        document.add(new Field("id", id, StringField.TYPE_STORED));
         document.add(STRATEGY.createField(shape));
         return document;
     }

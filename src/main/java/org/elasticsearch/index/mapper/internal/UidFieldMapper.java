@@ -49,6 +49,7 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
         public static final String NAME = UidFieldMapper.NAME;
 
         public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
+        public static final FieldType NESTED_FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
 
         static {
             FIELD_TYPE.setIndexed(true);
@@ -57,6 +58,14 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS); // we store payload (otherwise, we really need just docs)
             FIELD_TYPE.freeze();
+
+            NESTED_FIELD_TYPE.setIndexed(true);
+            NESTED_FIELD_TYPE.setTokenized(false);
+            NESTED_FIELD_TYPE.setStored(false);
+            NESTED_FIELD_TYPE.setOmitNorms(true);
+            // we can set this to another index option when we move away from storing payload..
+            //NESTED_FIELD_TYPE.setIndexOptions(FieldInfo.IndexOptions.DOCS_ONLY);
+            NESTED_FIELD_TYPE.freeze();
         }
     }
 
@@ -148,7 +157,7 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
                 // we need to go over the docs and add it...
                 for (int i = 1; i < context.docs().size(); i++) {
                     // we don't need to add it as a full uid field in nested docs, since we don't need versioning
-                    context.docs().get(i).add(new Field(UidFieldMapper.NAME, uidField.uid(), Field.Store.NO, Field.Index.NOT_ANALYZED));
+                    context.docs().get(i).add(new Field(UidFieldMapper.NAME, uidField.uid(), Defaults.NESTED_FIELD_TYPE));
                 }
             }
         }

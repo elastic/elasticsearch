@@ -22,6 +22,7 @@ package org.elasticsearch.test.unit.common.lucene.search;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.*;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
@@ -48,8 +49,8 @@ public class TermsFilterTests {
         for (int i = 0; i < 100; i++) {
             Document doc = new Document();
             int term = i * 10; //terms are units of 10;
-            doc.add(new Field(fieldName, "" + term, Field.Store.NO, Field.Index.NOT_ANALYZED));
-            doc.add(new Field("all", "xxx", Field.Store.NO, Field.Index.NOT_ANALYZED));
+            doc.add(new Field(fieldName, "" + term, StringField.TYPE_NOT_STORED));
+            doc.add(new Field("all", "xxx", StringField.TYPE_NOT_STORED));
             w.addDocument(doc);
             if ((i % 40) == 0) {
                 w.commit();
@@ -82,8 +83,8 @@ public class TermsFilterTests {
         for (int i = 0; i < 100; i++) {
             Document doc = new Document();
             int term = i * 10; //terms are units of 10;
-            doc.add(new Field(fieldName, "" + term, Field.Store.NO, Field.Index.NOT_ANALYZED));
-            doc.add(new Field("all", "xxx", Field.Store.NO, Field.Index.NOT_ANALYZED));
+            doc.add(new Field(fieldName, "" + term, StringField.TYPE_NOT_STORED));
+            doc.add(new Field("all", "xxx", StringField.TYPE_NOT_STORED));
             w.addDocument(doc);
             if ((i % 40) == 0) {
                 w.commit();

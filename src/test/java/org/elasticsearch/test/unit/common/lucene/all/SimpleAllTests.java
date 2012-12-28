@@ -21,6 +21,7 @@ package org.elasticsearch.test.unit.common.lucene.all;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -78,7 +79,7 @@ public class SimpleAllTests {
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
 
         Document doc = new Document();
-        doc.add(new Field("_id", "1", Field.Store.YES, Field.Index.NO));
+        doc.add(new Field("_id", "1", StoredField.TYPE));
         AllEntries allEntries = new AllEntries();
         allEntries.addText("field1", "something", 1.0f);
         allEntries.addText("field2", "else", 1.0f);
@@ -88,7 +89,7 @@ public class SimpleAllTests {
         indexWriter.addDocument(doc);
 
         doc = new Document();
-        doc.add(new Field("_id", "2", Field.Store.YES, Field.Index.NO));
+        doc.add(new Field("_id", "2", StoredField.TYPE));
         allEntries = new AllEntries();
         allEntries.addText("field1", "else", 1.0f);
         allEntries.addText("field2", "something", 1.0f);
@@ -119,7 +120,7 @@ public class SimpleAllTests {
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
 
         Document doc = new Document();
-        doc.add(new Field("_id", "1", Field.Store.YES, Field.Index.NO));
+        doc.add(new Field("_id", "1", StoredField.TYPE));
         AllEntries allEntries = new AllEntries();
         allEntries.addText("field1", "something", 1.0f);
         allEntries.addText("field2", "else", 1.0f);
@@ -129,7 +130,7 @@ public class SimpleAllTests {
         indexWriter.addDocument(doc);
 
         doc = new Document();
-        doc.add(new Field("_id", "2", Field.Store.YES, Field.Index.NO));
+        doc.add(new Field("_id", "2", StoredField.TYPE));
         allEntries = new AllEntries();
         allEntries.addText("field1", "else", 2.0f);
         allEntries.addText("field2", "something", 1.0f);
@@ -161,7 +162,7 @@ public class SimpleAllTests {
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
 
         Document doc = new Document();
-        doc.add(new Field("_id", "1", Field.Store.YES, Field.Index.NO));
+        doc.add(new Field("_id", "1", StoredField.TYPE));
         AllEntries allEntries = new AllEntries();
         allEntries.addText("field1", "something moo", 1.0f);
         allEntries.addText("field2", "else koo", 1.0f);
@@ -171,7 +172,7 @@ public class SimpleAllTests {
         indexWriter.addDocument(doc);
 
         doc = new Document();
-        doc.add(new Field("_id", "2", Field.Store.YES, Field.Index.NO));
+        doc.add(new Field("_id", "2", StoredField.TYPE));
         allEntries = new AllEntries();
         allEntries.addText("field1", "else koo", 1.0f);
         allEntries.addText("field2", "something moo", 1.0f);
@@ -212,7 +213,7 @@ public class SimpleAllTests {
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
 
         Document doc = new Document();
-        doc.add(new Field("_id", "1", Field.Store.YES, Field.Index.NO));
+        doc.add(new Field("_id", "1", StoredField.TYPE));
         AllEntries allEntries = new AllEntries();
         allEntries.addText("field1", "something moo", 1.0f);
         allEntries.addText("field2", "else koo", 1.0f);
@@ -222,7 +223,7 @@ public class SimpleAllTests {
         indexWriter.addDocument(doc);
 
         doc = new Document();
-        doc.add(new Field("_id", "2", Field.Store.YES, Field.Index.NO));
+        doc.add(new Field("_id", "2", StoredField.TYPE));
         allEntries = new AllEntries();
         allEntries.addText("field1", "else koo", 2.0f);
         allEntries.addText("field2", "something moo", 1.0f);

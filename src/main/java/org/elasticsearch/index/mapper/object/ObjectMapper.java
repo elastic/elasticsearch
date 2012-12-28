@@ -420,22 +420,22 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         if (nested.isNested()) {
             Document nestedDoc = new Document();
             // pre add the uid field if possible (id was already provided)
-            Field uidField = (Field) context.doc().getField(UidFieldMapper.NAME);
+            IndexableField uidField = context.doc().getField(UidFieldMapper.NAME);
             if (uidField != null) {
                 // we don't need to add it as a full uid field in nested docs, since we don't need versioning
                 // we also rely on this for UidField#loadVersion
 
                 // this is a deeply nested field
                 if (uidField.stringValue() != null) {
-                    nestedDoc.add(new Field(UidFieldMapper.NAME, uidField.stringValue(), Field.Store.NO, Field.Index.NOT_ANALYZED));
+                    nestedDoc.add(new Field(UidFieldMapper.NAME, uidField.stringValue(), UidFieldMapper.Defaults.NESTED_FIELD_TYPE));
                 } else {
-                    nestedDoc.add(new Field(UidFieldMapper.NAME, ((UidField) uidField).uid(), Field.Store.NO, Field.Index.NOT_ANALYZED));
+                    nestedDoc.add(new Field(UidFieldMapper.NAME, ((UidField) uidField).uid(), UidFieldMapper.Defaults.NESTED_FIELD_TYPE));
                 }
             }
             // the type of the nested doc starts with __, so we can identify that its a nested one in filters
             // note, we don't prefix it with the type of the doc since it allows us to execute a nested query
             // across types (for example, with similar nested objects)
-            nestedDoc.add(new Field(TypeFieldMapper.NAME, nestedTypePathAsString, Field.Store.NO, Field.Index.NOT_ANALYZED));
+            nestedDoc.add(new Field(TypeFieldMapper.NAME, nestedTypePathAsString, TypeFieldMapper.Defaults.FIELD_TYPE));
             restoreDoc = context.switchDoc(nestedDoc);
             context.addDoc(nestedDoc);
         }

@@ -163,7 +163,7 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
     }
 
     @Override
-    public Query fieldQuery(String value, QueryParseContext context) {
+    public Query termQuery(String value, QueryParseContext context) {
         return queryStringTermQuery(names().createIndexNameTerm(value));
 
     }

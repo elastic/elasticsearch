@@ -179,7 +179,7 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
     }
 
     @Override
-    public Query fieldQuery(String value, @Nullable QueryParseContext context) {
+    public Query termQuery(String value, @Nullable QueryParseContext context) {
         float fValue = Float.parseFloat(value);
         return NumericRangeQuery.newFloatRange(names.indexName(), precisionStep,
                 fValue, fValue, true, true);
@@ -194,7 +194,7 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
     }
 
     @Override
-    public Filter fieldFilter(String value, @Nullable QueryParseContext context) {
+    public Filter termFilter(String value, @Nullable QueryParseContext context) {
         float fValue = Float.parseFloat(value);
         return NumericRangeFilter.newFloatRange(names.indexName(), precisionStep,
                 fValue, fValue, true, true);

@@ -125,7 +125,7 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
     }
 
     @Override
-    public Filter fieldFilter(String value, @Nullable QueryParseContext context) {
+    public Filter termFilter(String value, @Nullable QueryParseContext context) {
         if (!fieldType.indexed()) {
             return new PrefixFilter(new Term(UidFieldMapper.NAME, Uid.typePrefix(value)));
         }
@@ -133,12 +133,12 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
     }
 
     @Override
-    public Query fieldQuery(String value, @Nullable QueryParseContext context) {
-        return new XConstantScoreQuery(context.cacheFilter(fieldFilter(value, context), null));
+    public Query termQuery(String value, @Nullable QueryParseContext context) {
+        return new XConstantScoreQuery(context.cacheFilter(termFilter(value, context), null));
     }
 
     @Override
-    public boolean useFieldQueryWithQueryString() {
+    public boolean useTermQueryWithQueryString() {
         return true;
     }
 

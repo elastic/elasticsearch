@@ -253,7 +253,7 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
         if (nullValue == null) {
             return null;
         }
-        return fieldFilter(nullValue, null);
+        return termFilter(nullValue, null);
     }
 
     @Override

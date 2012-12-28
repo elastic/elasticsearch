@@ -206,17 +206,17 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
     }
 
     @Override
-    public Query fieldQuery(String value, @Nullable QueryParseContext context) {
+    public Query termQuery(String value, @Nullable QueryParseContext context) {
         if (context == null) {
-            return super.fieldQuery(value, context);
+            return super.termQuery(value, context);
         }
-        return new ConstantScoreQuery(fieldFilter(value, context));
+        return new ConstantScoreQuery(termFilter(value, context));
     }
 
     @Override
-    public Filter fieldFilter(String value, @Nullable QueryParseContext context) {
+    public Filter termFilter(String value, @Nullable QueryParseContext context) {
         if (context == null) {
-            return super.fieldFilter(value, context);
+            return super.termFilter(value, context);
         }
         // we use all types, cause we don't know if its exact or not...
         Term[] typesTerms = new Term[context.mapperService().types().size()];
@@ -231,7 +231,7 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
      * We don't need to analyzer the text, and we need to convert it to UID...
      */
     @Override
-    public boolean useFieldQueryWithQueryString() {
+    public boolean useTermQueryWithQueryString() {
         return true;
     }
 

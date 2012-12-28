@@ -143,16 +143,16 @@ public interface FieldMapper<T> {
     SimilarityProvider similarity();
 
     /**
-     * Returns the value that will be used as a result for search. Can be only of specific types... .
-     */
-    Object valueForSearch(Object value);
-
-    /**
      * Returns the actual value of the field.
      */
     T value(Object value);
 
     T valueFromString(String value);
+
+    /**
+     * Returns the value that will be used as a result for search. Can be only of specific types... .
+     */
+    Object valueForSearch(Object value);
 
     /**
      * Returns the actual value of the field as string.
@@ -165,17 +165,21 @@ public interface FieldMapper<T> {
     BytesRef indexedValue(String value);
 
     /**
-     * Should the field query {@link #fieldQuery(String, org.elasticsearch.index.query.QueryParseContext)}  be used when detecting this
+     * Should the field query {@link #termQuery(String, org.elasticsearch.index.query.QueryParseContext)}  be used when detecting this
      * field in query string.
      */
-    boolean useFieldQueryWithQueryString();
+    boolean useTermQueryWithQueryString();
 
     /**
      * A field query for the specified value.
      */
-    Query fieldQuery(String value, @Nullable QueryParseContext context);
+    Query termQuery(String value, @Nullable QueryParseContext context);
 
-    Filter fieldFilter(String value, @Nullable QueryParseContext context);
+    Filter termFilter(String value, @Nullable QueryParseContext context);
+
+    Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context);
+
+    Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context);
 
     Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions, boolean transpositions);
 
@@ -192,17 +196,8 @@ public interface FieldMapper<T> {
     /**
      * A term query to use when parsing a query string. Can return <tt>null</tt>.
      */
+    @Nullable
     Query queryStringTermQuery(Term term);
-
-    /**
-     * Constructs a range query based on the mapper.
-     */
-    Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context);
-
-    /**
-     * Constructs a range query filter based on the mapper.
-     */
-    Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context);
 
     /**
      * Null value filter, returns <tt>null</tt> if there is no null value associated with the field.
@@ -213,5 +208,4 @@ public interface FieldMapper<T> {
     FieldDataType fieldDataType();
 
     PostingsFormatProvider postingsFormatProvider();
-
 }

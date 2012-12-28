@@ -132,7 +132,7 @@ public class TermsFilterParser implements FilterParser {
                 XBooleanFilter boolFiler = new XBooleanFilter();
                 if (fieldMapper != null) {
                     for (String term : terms) {
-                        boolFiler.add(parseContext.cacheFilter(fieldMapper.fieldFilter(term, parseContext), null), BooleanClause.Occur.SHOULD);
+                        boolFiler.add(parseContext.cacheFilter(fieldMapper.termFilter(term, parseContext), null), BooleanClause.Occur.SHOULD);
                     }
                 } else {
                     for (String term : terms) {
@@ -148,7 +148,7 @@ public class TermsFilterParser implements FilterParser {
                 XBooleanFilter boolFiler = new XBooleanFilter();
                 if (fieldMapper != null) {
                     for (String term : terms) {
-                        boolFiler.add(fieldMapper.fieldFilter(term, parseContext), BooleanClause.Occur.SHOULD);
+                        boolFiler.add(fieldMapper.termFilter(term, parseContext), BooleanClause.Occur.SHOULD);
                     }
                 } else {
                     for (String term : terms) {
@@ -164,7 +164,7 @@ public class TermsFilterParser implements FilterParser {
                 List<Filter> filters = Lists.newArrayList();
                 if (fieldMapper != null) {
                     for (String term : terms) {
-                        filters.add(parseContext.cacheFilter(fieldMapper.fieldFilter(term, parseContext), null));
+                        filters.add(parseContext.cacheFilter(fieldMapper.termFilter(term, parseContext), null));
                     }
                 } else {
                     for (String term : terms) {
@@ -180,7 +180,7 @@ public class TermsFilterParser implements FilterParser {
                 List<Filter> filters = Lists.newArrayList();
                 if (fieldMapper != null) {
                     for (String term : terms) {
-                        filters.add(fieldMapper.fieldFilter(term, parseContext));
+                        filters.add(fieldMapper.termFilter(term, parseContext));
                     }
                 } else {
                     for (String term : terms) {
@@ -196,7 +196,7 @@ public class TermsFilterParser implements FilterParser {
                 List<Filter> filters = Lists.newArrayList();
                 if (fieldMapper != null) {
                     for (String term : terms) {
-                        filters.add(parseContext.cacheFilter(fieldMapper.fieldFilter(term, parseContext), null));
+                        filters.add(parseContext.cacheFilter(fieldMapper.termFilter(term, parseContext), null));
                     }
                 } else {
                     for (String term : terms) {
@@ -212,7 +212,7 @@ public class TermsFilterParser implements FilterParser {
                 List<Filter> filters = Lists.newArrayList();
                 if (fieldMapper != null) {
                     for (String term : terms) {
-                        filters.add(fieldMapper.fieldFilter(term, parseContext));
+                        filters.add(fieldMapper.termFilter(term, parseContext));
                     }
                 } else {
                     for (String term : terms) {

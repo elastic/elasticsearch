@@ -149,14 +149,14 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
     }
 
     @Override
-    public boolean useFieldQueryWithQueryString() {
+    public boolean useTermQueryWithQueryString() {
         return true;
     }
 
     @Override
-    public Query fieldQuery(String value, @Nullable QueryParseContext context) {
+    public Query termQuery(String value, @Nullable QueryParseContext context) {
         if (fieldType.indexed() || context == null) {
-            return super.fieldQuery(value, context);
+            return super.termQuery(value, context);
         }
         UidFilter filter = new UidFilter(context.queryTypes(), ImmutableList.of(value));
         // no need for constant score filter, since we don't cache the filter, and it always takes deletes into account
@@ -164,9 +164,9 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
     }
 
     @Override
-    public Filter fieldFilter(String value, @Nullable QueryParseContext context) {
+    public Filter termFilter(String value, @Nullable QueryParseContext context) {
         if (fieldType.indexed() || context == null) {
-            return super.fieldFilter(value, context);
+            return super.termFilter(value, context);
         }
         return new UidFilter(context.queryTypes(), ImmutableList.of(value));
     }

@@ -93,12 +93,12 @@ public class TermQueryParser implements QueryParser {
             if (smartNameFieldMappers.explicitTypeInNameWithDocMapper()) {
                 String[] previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{smartNameFieldMappers.docMapper().type()});
                 try {
-                    query = smartNameFieldMappers.mapper().fieldQuery(value, parseContext);
+                    query = smartNameFieldMappers.mapper().termQuery(value, parseContext);
                 } finally {
                     QueryParseContext.setTypes(previousTypes);
                 }
             } else {
-                query = smartNameFieldMappers.mapper().fieldQuery(value, parseContext);
+                query = smartNameFieldMappers.mapper().termQuery(value, parseContext);
             }
         }
         if (query == null) {

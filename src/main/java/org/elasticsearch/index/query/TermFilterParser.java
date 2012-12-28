@@ -112,12 +112,12 @@ public class TermFilterParser implements FilterParser {
             if (smartNameFieldMappers.explicitTypeInNameWithDocMapper()) {
                 String[] previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{smartNameFieldMappers.docMapper().type()});
                 try {
-                    filter = smartNameFieldMappers.mapper().fieldFilter(value, parseContext);
+                    filter = smartNameFieldMappers.mapper().termFilter(value, parseContext);
                 } finally {
                     QueryParseContext.setTypes(previousTypes);
                 }
             } else {
-                filter = smartNameFieldMappers.mapper().fieldFilter(value, parseContext);
+                filter = smartNameFieldMappers.mapper().termFilter(value, parseContext);
             }
         }
         if (filter == null) {

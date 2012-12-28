@@ -181,7 +181,7 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
     }
 
     @Override
-    public Query fieldQuery(String value, @Nullable QueryParseContext context) {
+    public Query termQuery(String value, @Nullable QueryParseContext context) {
         double dValue = Double.parseDouble(value);
         return NumericRangeQuery.newDoubleRange(names.indexName(), precisionStep,
                 dValue, dValue, true, true);
@@ -196,7 +196,7 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
     }
 
     @Override
-    public Filter fieldFilter(String value, @Nullable QueryParseContext context) {
+    public Filter termFilter(String value, @Nullable QueryParseContext context) {
         double dValue = Double.parseDouble(value);
         return NumericRangeFilter.newDoubleRange(names.indexName(), precisionStep,
                 dValue, dValue, true, true);

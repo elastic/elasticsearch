@@ -20,6 +20,7 @@
 package org.elasticsearch.search.highlight.vectorhighlight;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.vectorhighlight.BoundaryScanner;
@@ -57,7 +58,7 @@ public class SourceScoreOrderFragmentsBuilder extends XScoreOrderFragmentsBuilde
         List<Object> values = lookup.source().extractRawValues(mapper.names().sourcePath());
         Field[] fields = new Field[values.size()];
         for (int i = 0; i < values.size(); i++) {
-            fields[i] = new Field(mapper.names().indexName(), values.get(i).toString(), Field.Store.NO, Field.Index.ANALYZED);
+            fields[i] = new Field(mapper.names().indexName(), values.get(i).toString(), TextField.TYPE_NOT_STORED);
         }
         return fields;
     }

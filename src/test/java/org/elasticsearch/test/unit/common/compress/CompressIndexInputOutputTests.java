@@ -20,9 +20,7 @@
 package org.elasticsearch.test.unit.common.compress;
 
 import jsr166y.ThreadLocalRandom;
-import org.apache.lucene.document.Document;
-import org.apache.lucene.document.DocumentStoredFieldVisitor;
-import org.apache.lucene.document.Field;
+import org.apache.lucene.document.*;
 import org.apache.lucene.index.*;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.Bits;
@@ -297,9 +295,9 @@ public class CompressIndexInputOutputTests {
 
     private Document createDoc(int id, int size) {
         Document doc = new Document();
-        doc.add(new Field("id", Integer.toString(id), Field.Store.YES, Field.Index.NOT_ANALYZED));
-        doc.add(new Field("size", Integer.toString(size), Field.Store.YES, Field.Index.NOT_ANALYZED));
-        doc.add(new Field("skip", RandomStringGenerator.random(50), Field.Store.YES, Field.Index.NO));
+        doc.add(new Field("id", Integer.toString(id), StringField.TYPE_STORED));
+        doc.add(new Field("size", Integer.toString(size), StringField.TYPE_STORED));
+        doc.add(new Field("skip", RandomStringGenerator.random(50), StoredField.TYPE));
         StringBuilder sb = new StringBuilder();
         int count = 0;
         while (true) {
@@ -310,9 +308,9 @@ public class CompressIndexInputOutputTests {
                 break;
             }
         }
-        doc.add(new Field("count", Integer.toString(count), Field.Store.YES, Field.Index.NOT_ANALYZED));
-        doc.add(new Field("field", sb.toString(), Field.Store.YES, Field.Index.NOT_ANALYZED));
-        doc.add(new Field("skip", RandomStringGenerator.random(50), Field.Store.YES, Field.Index.NO));
+        doc.add(new Field("count", Integer.toString(count), StringField.TYPE_STORED));
+        doc.add(new Field("field", sb.toString(), StringField.TYPE_STORED));
+        doc.add(new Field("skip", RandomStringGenerator.random(50), StoredField.TYPE));
         return doc;
     }
 }

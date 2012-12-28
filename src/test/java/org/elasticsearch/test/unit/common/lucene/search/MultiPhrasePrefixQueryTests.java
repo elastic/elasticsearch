@@ -21,6 +21,7 @@ package org.elasticsearch.test.unit.common.lucene.search;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -41,7 +42,7 @@ public class MultiPhrasePrefixQueryTests {
     public void simpleTests() throws Exception {
         IndexWriter writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
         Document doc = new Document();
-        doc.add(new Field("field", "aaa bbb ccc ddd", Field.Store.NO, Field.Index.ANALYZED));
+        doc.add(new Field("field", "aaa bbb ccc ddd", TextField.TYPE_NOT_STORED));
         writer.addDocument(doc);
         IndexReader reader = IndexReader.open(writer, true);
         IndexSearcher searcher = new IndexSearcher(reader);

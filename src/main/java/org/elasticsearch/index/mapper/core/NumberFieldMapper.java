@@ -206,7 +206,7 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
      * Use the field query created here when matching on numbers.
      */
     @Override
-    public boolean useFieldQueryWithQueryString() {
+    public boolean useTermQueryWithQueryString() {
         return true;
     }
 
@@ -215,7 +215,7 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
      * way to execute it.
      */
     @Override
-    public Query fieldQuery(String value, @Nullable QueryParseContext context) {
+    public Query termQuery(String value, @Nullable QueryParseContext context) {
         return rangeQuery(value, value, true, true, context);
     }
 
@@ -230,7 +230,7 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
      * way to execute it.
      */
     @Override
-    public Filter fieldFilter(String value, @Nullable QueryParseContext context) {
+    public Filter termFilter(String value, @Nullable QueryParseContext context) {
         return rangeFilter(value, value, true, true, context);
     }
 

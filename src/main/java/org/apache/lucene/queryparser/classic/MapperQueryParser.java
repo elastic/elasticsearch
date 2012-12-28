@@ -215,17 +215,17 @@ public class MapperQueryParser extends QueryParser {
                 currentMapper = fieldMappers.fieldMappers().mapper();
                 if (currentMapper != null) {
                     Query query = null;
-                    if (currentMapper.useFieldQueryWithQueryString()) {
+                    if (currentMapper.useTermQueryWithQueryString()) {
                         try {
                             if (fieldMappers.explicitTypeInNameWithDocMapper()) {
                                 String[] previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{fieldMappers.docMapper().type()});
                                 try {
-                                    query = currentMapper.fieldQuery(queryText, parseContext);
+                                    query = currentMapper.termQuery(queryText, parseContext);
                                 } finally {
                                     QueryParseContext.setTypes(previousTypes);
                                 }
                             } else {
-                                query = currentMapper.fieldQuery(queryText, parseContext);
+                                query = currentMapper.termQuery(queryText, parseContext);
                             }
                         } catch (RuntimeException e) {
                             if (settings.lenient()) {
@@ -471,7 +471,7 @@ public class MapperQueryParser extends QueryParser {
                 currentMapper = fieldMappers.fieldMappers().mapper();
                 if (currentMapper != null) {
                     Query query = null;
-                    if (currentMapper.useFieldQueryWithQueryString()) {
+                    if (currentMapper.useTermQueryWithQueryString()) {
                         if (fieldMappers.explicitTypeInNameWithDocMapper()) {
                             String[] previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{fieldMappers.docMapper().type()});
                             try {

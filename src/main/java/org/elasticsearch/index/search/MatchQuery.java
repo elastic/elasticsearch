@@ -74,7 +74,7 @@ public class MatchQuery {
     protected int maxExpansions = FuzzyQuery.defaultMaxExpansions;
     //LUCENE 4 UPGRADE we need a default value for this!
     protected boolean transpositions = false;
-    
+
 
     protected MultiTermQuery.RewriteMethod rewriteMethod;
     protected MultiTermQuery.RewriteMethod fuzzyRewriteMethod;
@@ -114,7 +114,7 @@ public class MatchQuery {
     public void setMaxExpansions(int maxExpansions) {
         this.maxExpansions = maxExpansions;
     }
-    
+
     public void setTranspositions(boolean transpositions) {
         this.transpositions = transpositions;
     }
@@ -146,11 +146,11 @@ public class MatchQuery {
             field = fieldName;
         }
 
-        if (mapper != null && mapper.useFieldQueryWithQueryString()) {
+        if (mapper != null && mapper.useTermQueryWithQueryString()) {
             if (smartNameFieldMappers.explicitTypeInNameWithDocMapper()) {
                 String[] previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{smartNameFieldMappers.docMapper().type()});
                 try {
-                    return wrapSmartNameQuery(mapper.fieldQuery(text, parseContext), smartNameFieldMappers, parseContext);
+                    return wrapSmartNameQuery(mapper.termQuery(text, parseContext), smartNameFieldMappers, parseContext);
                 } catch (RuntimeException e) {
                     if (lenient) {
                         return null;
@@ -161,7 +161,7 @@ public class MatchQuery {
                 }
             } else {
                 try {
-                    return wrapSmartNameQuery(mapper.fieldQuery(text, parseContext), smartNameFieldMappers, parseContext);
+                    return wrapSmartNameQuery(mapper.termQuery(text, parseContext), smartNameFieldMappers, parseContext);
                 } catch (RuntimeException e) {
                     if (lenient) {
                         return null;
@@ -199,7 +199,7 @@ public class MatchQuery {
             source = analyzer.tokenStream(field, new FastStringReader(text));
             source.reset();
             success = true;
-        } catch(IOException ex) {
+        } catch (IOException ex) {
             //LUCENE 4 UPGRADE not sure what todo here really lucene 3.6 had a tokenStream that didn't throw an exc.
             // success==false if we hit an exception
         }
@@ -390,8 +390,8 @@ public class MatchQuery {
             }
             String text = term.text();
             //LUCENE 4 UPGRADE we need to document that this should now be an int rather than a float
-            int edits = FuzzyQuery.floatToEdits(Float.parseFloat(fuzziness), 
-              text.codePointCount(0, text.length()));
+            int edits = FuzzyQuery.floatToEdits(Float.parseFloat(fuzziness),
+                    text.codePointCount(0, text.length()));
             FuzzyQuery query = new FuzzyQuery(term, edits, fuzzyPrefixLength, maxExpansions, transpositions);
             QueryParsers.setRewriteMethod(query, rewriteMethod);
             return query;
@@ -404,7 +404,7 @@ public class MatchQuery {
         }
         return new TermQuery(term);
     }
-    
+
     private static BytesRef termToByteRef(CharTermAttribute attr, BytesRef ref) {
         UnicodeUtil.UTF16toUTF8WithHash(attr.buffer(), 0, attr.length(), ref);
         return ref;

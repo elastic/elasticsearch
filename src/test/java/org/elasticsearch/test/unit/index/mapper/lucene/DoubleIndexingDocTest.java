@@ -47,25 +47,25 @@ public class DoubleIndexingDocTest {
         IndexReader reader = IndexReader.open(writer, true);
         IndexSearcher searcher = new IndexSearcher(reader);
 
-        TopDocs topDocs = searcher.search(mapper.mappers().smartName("field1").mapper().fieldQuery("value1", null), 10);
+        TopDocs topDocs = searcher.search(mapper.mappers().smartName("field1").mapper().termQuery("value1", null), 10);
         assertThat(topDocs.totalHits, equalTo(2));
 
-        topDocs = searcher.search(mapper.mappers().smartName("field2").mapper().fieldQuery("1", null), 10);
+        topDocs = searcher.search(mapper.mappers().smartName("field2").mapper().termQuery("1", null), 10);
         assertThat(topDocs.totalHits, equalTo(2));
 
-        topDocs = searcher.search(mapper.mappers().smartName("field3").mapper().fieldQuery("1.1", null), 10);
+        topDocs = searcher.search(mapper.mappers().smartName("field3").mapper().termQuery("1.1", null), 10);
         assertThat(topDocs.totalHits, equalTo(2));
 
-        topDocs = searcher.search(mapper.mappers().smartName("field4").mapper().fieldQuery("2010-01-01", null), 10);
+        topDocs = searcher.search(mapper.mappers().smartName("field4").mapper().termQuery("2010-01-01", null), 10);
         assertThat(topDocs.totalHits, equalTo(2));
 
-        topDocs = searcher.search(mapper.mappers().smartName("field5").mapper().fieldQuery("1", null), 10);
+        topDocs = searcher.search(mapper.mappers().smartName("field5").mapper().termQuery("1", null), 10);
         assertThat(topDocs.totalHits, equalTo(2));
 
-        topDocs = searcher.search(mapper.mappers().smartName("field5").mapper().fieldQuery("2", null), 10);
+        topDocs = searcher.search(mapper.mappers().smartName("field5").mapper().termQuery("2", null), 10);
         assertThat(topDocs.totalHits, equalTo(2));
 
-        topDocs = searcher.search(mapper.mappers().smartName("field5").mapper().fieldQuery("3", null), 10);
+        topDocs = searcher.search(mapper.mappers().smartName("field5").mapper().termQuery("3", null), 10);
         assertThat(topDocs.totalHits, equalTo(2));
     }
 }

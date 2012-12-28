@@ -20,9 +20,7 @@
 package org.elasticsearch.common;
 
 /**
- * A set of utlities around numbers.
- *
- *
+ * A set of utilities for numbers.
  */
 public final class Numbers {
 

@@ -112,7 +112,7 @@ public class TermsQueryParser implements QueryParser {
             BooleanQuery query = new BooleanQuery(disableCoord);
             for (String value : values) {
                 if (mapper != null) {
-                    query.add(new BooleanClause(mapper.fieldQuery(value, parseContext), BooleanClause.Occur.SHOULD));
+                    query.add(new BooleanClause(mapper.termQuery(value, parseContext), BooleanClause.Occur.SHOULD));
                 } else {
                     query.add(new TermQuery(new Term(fieldName, value)), BooleanClause.Occur.SHOULD);
                 }

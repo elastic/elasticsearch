@@ -183,7 +183,7 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
     }
 
     @Override
-    public Query fieldQuery(String value, @Nullable QueryParseContext context) {
+    public Query termQuery(String value, @Nullable QueryParseContext context) {
         int iValue = Integer.parseInt(value);
         return NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
                 iValue, iValue, true, true);
@@ -198,7 +198,7 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
     }
 
     @Override
-    public Filter fieldFilter(String value, @Nullable QueryParseContext context) {
+    public Filter termFilter(String value, @Nullable QueryParseContext context) {
         int iValue = Integer.parseInt(value);
         return NumericRangeFilter.newIntRange(names.indexName(), precisionStep,
                 iValue, iValue, true, true);

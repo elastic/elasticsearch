@@ -32,6 +32,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.RegexpFilter;
 import org.elasticsearch.common.lucene.search.TermFilter;
+import org.elasticsearch.common.lucene.search.XTermsFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.codec.postingsformat.PostingFormats;
@@ -42,6 +43,7 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  *
@@ -406,6 +408,15 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
     @Override
     public Filter termFilter(Object value, @Nullable QueryParseContext context) {
         return new TermFilter(names().createIndexNameTerm(indexedValueForSearch(value)));
+    }
+
+    @Override
+    public Filter termsFilter(List<Object> values, @Nullable QueryParseContext context) {
+        Term[] terms = new Term[values.size()];
+        for (int i = 0; i < terms.length; i++) {
+            terms[i] = names().createIndexNameTerm(indexedValueForSearch(values.get(i)));
+        }
+        return new XTermsFilter(terms);
     }
 
     @Override

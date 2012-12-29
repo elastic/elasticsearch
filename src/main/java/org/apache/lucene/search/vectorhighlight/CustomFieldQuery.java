@@ -20,11 +20,13 @@
 package org.apache.lucene.search.vectorhighlight;
 
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.FilterClause;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.spans.SpanTermQuery;
-import org.elasticsearch.common.lucene.search.*;
+import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.common.lucene.search.TermFilter;
+import org.elasticsearch.common.lucene.search.XBooleanFilter;
+import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 
@@ -107,11 +109,6 @@ public class CustomFieldQuery extends FieldQuery {
         }
         if (sourceFilter instanceof TermFilter) {
             flatten(new TermQuery(((TermFilter) sourceFilter).getTerm()), reader, flatQueries);
-        } else if (sourceFilter instanceof XTermsFilter) {
-            XTermsFilter termsFilter = (XTermsFilter) sourceFilter;
-            for (Term term : termsFilter.getTerms()) {
-                flatten(new TermQuery(term), reader, flatQueries);
-            }
         } else if (sourceFilter instanceof MultiTermQueryWrapperFilter) {
             if (multiTermQueryWrapperFilterQueryField != null) {
                 try {

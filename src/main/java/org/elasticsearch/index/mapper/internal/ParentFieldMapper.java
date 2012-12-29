@@ -29,6 +29,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.XTermsFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -38,6 +39,8 @@ import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -229,19 +232,30 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
         if (context == null) {
             return super.termFilter(value, context);
         }
-        BytesRef bValue;
-        if (value instanceof BytesRef) {
-            bValue = (BytesRef) value;
-        } else {
-            bValue = new BytesRef(value.toString());
-        }
+        BytesRef bValue = BytesRefs.toBytesRef(value);
         // we use all types, cause we don't know if its exact or not...
-        Term[] typesTerms = new Term[context.mapperService().types().size()];
+        BytesRef[] typesValues = new BytesRef[context.mapperService().types().size()];
         int i = 0;
         for (String type : context.mapperService().types()) {
-            typesTerms[i++] = names.createIndexNameTerm(Uid.createUidAsBytes(type, bValue));
+            typesValues[i++] = Uid.createUidAsBytes(type, bValue);
         }
-        return new XTermsFilter(typesTerms);
+        return new XTermsFilter(names.indexName(), typesValues);
+    }
+
+    @Override
+    public Filter termsFilter(List<Object> values, @Nullable QueryParseContext context) {
+        if (context == null) {
+            return super.termFilter(values, context);
+        }
+        List<BytesRef> bValues = new ArrayList<BytesRef>(values.size());
+        for (Object value : values) {
+            BytesRef bValue = BytesRefs.toBytesRef(value);
+            // we use all types, cause we don't know if its exact or not...
+            for (String type : context.mapperService().types()) {
+                bValues.add(Uid.createUidAsBytes(type, bValue));
+            }
+        }
+        return new XTermsFilter(names.indexName(), bValues);
     }
 
     /**

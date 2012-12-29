@@ -141,12 +141,13 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
         if (value == null) {
             return null;
         }
-        return Numbers.bytesToFloat((byte[]) value);
-    }
-
-    @Override
-    public Float valueFromString(String value) {
-        return Float.parseFloat(value);
+        if (value instanceof Number) {
+            return ((Number) value).floatValue();
+        }
+        if (value instanceof BytesRef) {
+            return Numbers.bytesToFloat((BytesRef) value);
+        }
+        return Float.parseFloat(value.toString());
     }
 
     @Override

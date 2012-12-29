@@ -185,16 +185,6 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
         throw new UnsupportedOperationException("GeoShape fields cannot be converted to String values");
     }
 
-    @Override
-    public String valueFromString(String value) {
-        throw new UnsupportedOperationException("GeoShape fields cannot be converted to String values");
-    }
-
-    @Override
-    public String valueAsString(Object value) {
-        throw new UnsupportedOperationException("GeoShape fields cannot be converted to String values");
-    }
-
     public SpatialStrategy spatialStrategy() {
         return this.spatialStrategy;
     }

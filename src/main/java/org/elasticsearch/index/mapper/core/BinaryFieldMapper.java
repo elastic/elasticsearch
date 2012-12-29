@@ -21,10 +21,12 @@ package org.elasticsearch.index.mapper.core;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.CachedStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -139,26 +141,26 @@ public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
         if (value == null) {
             return null;
         }
+
+        BytesReference bytes;
+        if (value instanceof BytesRef) {
+            bytes = new BytesArray((BytesRef) value);
+        } else if (value instanceof BytesReference) {
+            bytes = (BytesReference) value;
+        } else if (value instanceof byte[]) {
+            bytes = new BytesArray((byte[]) value);
+        } else {
+            try {
+                bytes = new BytesArray(Base64.decode(value.toString()));
+            } catch (IOException e) {
+                throw new ElasticSearchParseException("failed to convert bytes", e);
+            }
+        }
         try {
-            return CompressorFactory.uncompressIfNeeded(new BytesArray((byte[]) value)).toBytes();
+            return CompressorFactory.uncompressIfNeeded(bytes).toBytes();
         } catch (IOException e) {
             throw new ElasticSearchParseException("failed to decompress source", e);
         }
-    }
-
-    @Override
-    public byte[] valueFromString(String value) {
-        // assume its base64 (json)
-        try {
-            return Base64.decode(value);
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    @Override
-    public String valueAsString(Object value) {
-        return null;
     }
 
     @Override

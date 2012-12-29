@@ -148,12 +148,10 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
 
     @Override
     public String value(Object value) {
-        return String.valueOf(value);
-    }
-
-    @Override
-    public String valueFromString(String value) {
-        return value;
+        if (value == null) {
+            return null;
+        }
+        return value.toString();
     }
 
     @Override

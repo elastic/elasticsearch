@@ -256,12 +256,6 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
     }
 
     @Override
-    public String valueAsString(Object value) {
-        Number num = value(value);
-        return num == null ? null : num.toString();
-    }
-
-    @Override
     public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
         super.merge(mergeWith, mergeContext);
         if (!this.getClass().equals(mergeWith.getClass())) {

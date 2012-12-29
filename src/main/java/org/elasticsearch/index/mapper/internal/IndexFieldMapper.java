@@ -23,7 +23,6 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
-import org.apache.lucene.index.Term;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -134,16 +133,10 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
 
     @Override
     public String value(Object value) {
-        return String.valueOf(value);
-    }
-
-    @Override
-    public String valueFromString(String value) {
-        return value;
-    }
-
-    public Term term(String value) {
-        return names().createIndexNameTerm(value);
+        if (value == null) {
+            return null;
+        }
+        return value.toString();
     }
 
     @Override

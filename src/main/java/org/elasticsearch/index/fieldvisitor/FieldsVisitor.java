@@ -21,6 +21,7 @@ package org.elasticsearch.index.fieldvisitor;
 
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.*;
@@ -85,7 +86,7 @@ public abstract class FieldsVisitor extends StoredFieldVisitor {
         if (SourceFieldMapper.NAME.equals(fieldInfo.name)) {
             source = new BytesArray(value);
         } else {
-            addValue(fieldInfo.name, new BytesArray(value));
+            addValue(fieldInfo.name, new BytesRef(value));
         }
     }
 

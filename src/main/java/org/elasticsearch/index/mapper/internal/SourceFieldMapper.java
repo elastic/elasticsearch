@@ -20,13 +20,14 @@
 package org.elasticsearch.index.mapper.internal;
 
 import com.google.common.base.Objects;
-import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedStreamInput;
@@ -346,36 +347,22 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
         return new StoredField(names().indexName(), source.array(), source.arrayOffset(), source.length());
     }
 
-    public byte[] value(Document document) {
-        Field field = (Field) document.getField(names.indexName());
-        return field == null ? null : value(field);
-    }
-
-    public byte[] nativeValue(Field field) {
-        return field.binaryValue().bytes;
-    }
-
     @Override
     public byte[] value(Object value) {
-        BytesReference val = (BytesReference) value;
-        if (val == null) {
+        if (value == null) {
             return null;
         }
+        BytesReference bValue;
+        if (value instanceof BytesRef) {
+            bValue = new BytesArray((BytesRef) value);
+        } else {
+            bValue = (BytesReference) value;
+        }
         try {
-            return CompressorFactory.uncompressIfNeeded(val).toBytes();
+            return CompressorFactory.uncompressIfNeeded(bValue).toBytes();
         } catch (IOException e) {
             throw new ElasticSearchParseException("failed to decompress source", e);
         }
-    }
-
-    @Override
-    public byte[] valueFromString(String value) {
-        return null;
-    }
-
-    @Override
-    public String valueAsString(Object value) {
-        throw new UnsupportedOperationException();
     }
 
     @Override

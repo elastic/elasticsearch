@@ -120,8 +120,8 @@ public class HistogramFacetProcessor extends AbstractComponent implements FacetP
             if (mapper == null) {
                 throw new FacetPhaseExecutionException(facetName, "No mapping found for key_field [" + keyField + "]");
             }
-            long from = ((Number) mapper.valueFromString(sFrom)).longValue();
-            long to = ((Number) mapper.valueFromString(sTo)).longValue();
+            long from = ((Number) mapper.value(sFrom)).longValue();
+            long to = ((Number) mapper.value(sTo)).longValue();
 
             if (valueField != null) {
                 return new BoundedValueHistogramFacetCollector(facetName, keyField, valueField, interval, from, to, comparatorType, context);

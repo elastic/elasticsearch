@@ -176,25 +176,26 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
 
     @Override
     public Uid value(Object value) {
-        return Uid.createUid(String.valueOf(value));
-    }
-
-    @Override
-    public Uid valueFromString(String value) {
-        return Uid.createUid(value);
+        if (value == null) {
+            return null;
+        }
+        return Uid.createUid(value.toString());
     }
 
     @Override
     public Object valueForSearch(Object value) {
-        String fieldValue = String.valueOf(value);
-        if (fieldValue == null) {
+        if (value == null) {
             return null;
         }
-        int index = fieldValue.indexOf(Uid.DELIMITER);
-        if (index == -1) {
-            return fieldValue;
+        String sValue = value.toString();
+        if (sValue == null) {
+            return null;
         }
-        return fieldValue.substring(index + 1);
+        int index = sValue.indexOf(Uid.DELIMITER);
+        if (index == -1) {
+            return sValue;
+        }
+        return sValue.substring(index + 1);
     }
 
     @Override

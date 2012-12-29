@@ -20,6 +20,7 @@
 package org.elasticsearch.common.bytes;
 
 import com.google.common.base.Charsets;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
@@ -121,6 +122,18 @@ public class HashedBytesArray implements BytesReference {
             return "";
         }
         return new String(bytes, Charsets.UTF_8);
+    }
+
+    @Override
+    public BytesRef toBytesRef() {
+        return new BytesRef(bytes);
+    }
+
+    @Override
+    public BytesRef copyBytesRef() {
+        byte[] copy = new byte[bytes.length];
+        System.arraycopy(bytes, 0, copy, 0, bytes.length);
+        return new BytesRef(copy);
     }
 
     @Override

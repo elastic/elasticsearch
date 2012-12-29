@@ -32,6 +32,8 @@ import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
+import java.util.List;
+
 /**
  *
  */
@@ -166,6 +168,8 @@ public interface FieldMapper<T> {
     Query termQuery(Object value, @Nullable QueryParseContext context);
 
     Filter termFilter(Object value, @Nullable QueryParseContext context);
+
+    Filter termsFilter(List<Object> values, @Nullable QueryParseContext context);
 
     Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context);
 

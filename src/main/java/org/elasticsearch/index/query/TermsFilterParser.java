@@ -114,17 +114,15 @@ public class TermsFilterParser implements FilterParser {
         try {
             Filter filter;
             if ("plain".equals(execution)) {
-                Term[] filterTerms = new Term[terms.size()];
                 if (fieldMapper != null) {
-                    for (int i = 0; i < filterTerms.length; i++) {
-                        filterTerms[i] = fieldMapper.names().createIndexNameTerm(fieldMapper.indexedValueForSearch(terms.get(i)));
-                    }
+                    filter = fieldMapper.termsFilter(terms, parseContext);
                 } else {
+                    Term[] filterTerms = new Term[terms.size()];
                     for (int i = 0; i < filterTerms.length; i++) {
                         filterTerms[i] = new Term(fieldName, BytesRefs.toBytesRef(terms.get(i)));
                     }
+                    filter = new XTermsFilter(filterTerms);
                 }
-                filter = new XTermsFilter(filterTerms);
                 // cache the whole filter by default, or if explicitly told to
                 if (cache == null || cache) {
                     filter = parseContext.cacheFilter(filter, cacheKey);

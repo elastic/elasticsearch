@@ -29,6 +29,7 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.RegexpFilter;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
@@ -41,7 +42,9 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.search.UidFilter;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.mapper.MapperBuilders.id;
@@ -166,13 +169,19 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         if (fieldType.indexed() || context == null) {
             return super.termFilter(value, context);
         }
-        BytesRef bytesRef;
-        if (value instanceof BytesRef) {
-            bytesRef = (BytesRef) value;
-        } else {
-            bytesRef = new BytesRef(value.toString());
+        return new UidFilter(context.queryTypes(), ImmutableList.of(BytesRefs.toBytesRef(value)));
+    }
+
+    @Override
+    public Filter termsFilter(List<Object> values, @Nullable QueryParseContext context) {
+        if (fieldType.indexed() || context == null) {
+            return super.termsFilter(values, context);
         }
-        return new UidFilter(context.queryTypes(), ImmutableList.of(bytesRef));
+        List<BytesRef> bytesRefs = new ArrayList<BytesRef>(values.size());
+        for (Object value : values) {
+            bytesRefs.add(BytesRefs.toBytesRef(value));
+        }
+        return new UidFilter(context.queryTypes(), bytesRefs);
     }
 
     @Override

@@ -21,8 +21,8 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
 
@@ -60,8 +60,8 @@ public class RangeQueryParser implements QueryParser {
             throw new QueryParsingException(parseContext.index(), "[range] query malformed, after field missing start object");
         }
 
-        BytesRef from = null;
-        BytesRef to = null;
+        Object from = null;
+        Object to = null;
         boolean includeLower = true;
         boolean includeUpper = true;
         float boost = 1.0f;
@@ -72,9 +72,9 @@ public class RangeQueryParser implements QueryParser {
                 currentFieldName = parser.currentName();
             } else {
                 if ("from".equals(currentFieldName)) {
-                    from = parser.bytesOrNull();
+                    from = parser.objectBytes();
                 } else if ("to".equals(currentFieldName)) {
-                    to = parser.bytesOrNull();
+                    to = parser.objectBytes();
                 } else if ("include_lower".equals(currentFieldName) || "includeLower".equals(currentFieldName)) {
                     includeLower = parser.booleanValue();
                 } else if ("include_upper".equals(currentFieldName) || "includeUpper".equals(currentFieldName)) {
@@ -82,16 +82,16 @@ public class RangeQueryParser implements QueryParser {
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else if ("gt".equals(currentFieldName)) {
-                    from = parser.bytesOrNull();
+                    from = parser.objectBytes();
                     includeLower = false;
                 } else if ("gte".equals(currentFieldName) || "ge".equals(currentFieldName)) {
-                    from = parser.bytesOrNull();
+                    from = parser.objectBytes();
                     includeLower = true;
                 } else if ("lt".equals(currentFieldName)) {
-                    to = parser.bytesOrNull();
+                    to = parser.objectBytes();
                     includeUpper = false;
                 } else if ("lte".equals(currentFieldName) || "le".equals(currentFieldName)) {
-                    to = parser.bytesOrNull();
+                    to = parser.objectBytes();
                     includeUpper = true;
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[range] query does not support [" + currentFieldName + "]");
@@ -110,11 +110,11 @@ public class RangeQueryParser implements QueryParser {
         if (smartNameFieldMappers != null) {
             if (smartNameFieldMappers.hasMapper()) {
                 //LUCENE 4 UPGRADE Mapper#rangeQuery should use bytesref as well? 
-                query = smartNameFieldMappers.mapper().rangeQuery(from != null ? from.utf8ToString() : null, to != null ? to.utf8ToString() : null, includeLower, includeUpper, parseContext);
+                query = smartNameFieldMappers.mapper().rangeQuery(from, to, includeLower, includeUpper, parseContext);
             }
         }
         if (query == null) {
-            query = new TermRangeQuery(fieldName, from, to, includeLower, includeUpper);
+            query = new TermRangeQuery(fieldName, BytesRefs.toBytesRef(from), BytesRefs.toBytesRef(to), includeLower, includeUpper);
         }
         query.setBoost(boost);
         return wrapSmartNameQuery(query, smartNameFieldMappers, parseContext);

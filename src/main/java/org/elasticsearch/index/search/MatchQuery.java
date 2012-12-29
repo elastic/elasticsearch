@@ -135,7 +135,7 @@ public class MatchQuery {
         this.zeroTermsQuery = zeroTermsQuery;
     }
 
-    public Query parse(Type type, String fieldName, String text) {
+    public Query parse(Type type, String fieldName, Object value) {
         FieldMapper mapper = null;
         final String field;
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
@@ -150,7 +150,7 @@ public class MatchQuery {
             if (smartNameFieldMappers.explicitTypeInNameWithDocMapper()) {
                 String[] previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{smartNameFieldMappers.docMapper().type()});
                 try {
-                    return wrapSmartNameQuery(mapper.termQuery(text, parseContext), smartNameFieldMappers, parseContext);
+                    return wrapSmartNameQuery(mapper.termQuery(value, parseContext), smartNameFieldMappers, parseContext);
                 } catch (RuntimeException e) {
                     if (lenient) {
                         return null;
@@ -161,7 +161,7 @@ public class MatchQuery {
                 }
             } else {
                 try {
-                    return wrapSmartNameQuery(mapper.termQuery(text, parseContext), smartNameFieldMappers, parseContext);
+                    return wrapSmartNameQuery(mapper.termQuery(value, parseContext), smartNameFieldMappers, parseContext);
                 } catch (RuntimeException e) {
                     if (lenient) {
                         return null;
@@ -196,7 +196,7 @@ public class MatchQuery {
         PositionIncrementAttribute posIncrAtt = null;
         boolean success = false;
         try {
-            source = analyzer.tokenStream(field, new FastStringReader(text));
+            source = analyzer.tokenStream(field, new FastStringReader(value.toString()));
             source.reset();
             success = true;
         } catch (IOException ex) {

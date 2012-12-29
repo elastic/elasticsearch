@@ -21,6 +21,8 @@ package org.elasticsearch.common.xcontent.json;
 
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
@@ -81,6 +83,49 @@ public class JsonXContentParser extends AbstractXContentParser {
     @Override
     public String text() throws IOException {
         return parser.getText();
+    }
+
+    @Override
+    public BytesRef bytes() throws IOException {
+        BytesRef bytes = new BytesRef();
+        UnicodeUtil.UTF16toUTF8(parser.getTextCharacters(), parser.getTextOffset(), parser.getTextLength(), bytes);
+        return bytes;
+    }
+
+    @Override
+    public Object objectText() throws IOException {
+        JsonToken currentToken = parser.getCurrentToken();
+        if (currentToken == JsonToken.VALUE_STRING) {
+            return text();
+        } else if (currentToken == JsonToken.VALUE_NUMBER_INT || currentToken == JsonToken.VALUE_NUMBER_FLOAT) {
+            return parser.getNumberValue();
+        } else if (currentToken == JsonToken.VALUE_TRUE) {
+            return Boolean.TRUE;
+        } else if (currentToken == JsonToken.VALUE_FALSE) {
+            return Boolean.FALSE;
+        } else if (currentToken == JsonToken.VALUE_NULL) {
+            return null;
+        } else {
+            return text();
+        }
+    }
+
+    @Override
+    public Object objectBytes() throws IOException {
+        JsonToken currentToken = parser.getCurrentToken();
+        if (currentToken == JsonToken.VALUE_STRING) {
+            return bytes();
+        } else if (currentToken == JsonToken.VALUE_NUMBER_INT || currentToken == JsonToken.VALUE_NUMBER_FLOAT) {
+            return parser.getNumberValue();
+        } else if (currentToken == JsonToken.VALUE_TRUE) {
+            return Boolean.TRUE;
+        } else if (currentToken == JsonToken.VALUE_FALSE) {
+            return Boolean.FALSE;
+        } else if (currentToken == JsonToken.VALUE_NULL) {
+            return null;
+        } else {
+            return bytes();
+        }
     }
 
     @Override

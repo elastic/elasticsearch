@@ -77,6 +77,13 @@ public final class Uid {
         return type + DELIMITER;
     }
 
+    public static BytesRef typePrefixAsBytes(BytesRef type) {
+        BytesRef bytesRef = new BytesRef(type.length + 1);
+        bytesRef.append(type);
+        bytesRef.append(DELIMITER_BYTES);
+        return bytesRef;
+    }
+
     public static String idFromUid(String uid) {
         int delimiterIndex = uid.indexOf(DELIMITER); // type is not allowed to have # in it..., ids can
         return uid.substring(delimiterIndex + 1);
@@ -108,12 +115,37 @@ public final class Uid {
         return ref;
     }
 
+    public static BytesRef createUidAsBytes(String type, BytesRef id) {
+        BytesRef ref = new BytesRef(type.length() + 1 + id.length);
+        ref.copyChars(type);
+        ref.append(DELIMITER_BYTES);
+        ref.append(id);
+        return ref;
+    }
+
+    public static BytesRef createUidAsBytes(BytesRef type, BytesRef id) {
+        BytesRef ref = new BytesRef(type.length + 1 + id.length);
+        ref.append(type);
+        ref.append(DELIMITER_BYTES);
+        ref.append(id);
+        return ref;
+    }
+
     public static String createUid(String type, String id) {
         return createUid(new StringBuilder(), type, id);
     }
 
     public static String createUid(StringBuilder sb, String type, String id) {
         return sb.append(type).append(DELIMITER).append(id).toString();
+    }
+
+    public static boolean hasDelimiter(BytesRef uid) {
+        for (int i = uid.offset; i < uid.length; i++) {
+            if (uid.bytes[i] == DELIMITER_BYTE) { // 0x23 is equal to '#'
+                return true;
+            }
+        }
+        return false;
     }
 
     // LUCENE 4 UPGRADE: HashedBytesArray or BytesRef as return type?

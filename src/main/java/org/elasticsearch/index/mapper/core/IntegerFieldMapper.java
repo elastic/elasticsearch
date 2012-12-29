@@ -150,10 +150,20 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
     }
 
     @Override
-    public BytesRef indexedValue(String value) {
+    public BytesRef indexedValueForSearch(Object value) {
         BytesRef bytesRef = new BytesRef();
-        NumericUtils.intToPrefixCoded(Integer.parseInt(value), precisionStep(), bytesRef);
+        NumericUtils.intToPrefixCoded(parseValue(value), precisionStep(), bytesRef);
         return bytesRef;
+    }
+
+    private int parseValue(Object value) {
+        if (value instanceof Number) {
+            return ((Number) value).intValue();
+        }
+        if (value instanceof BytesRef) {
+            return Integer.parseInt(((BytesRef) value).utf8ToString());
+        }
+        return Integer.parseInt(value.toString());
     }
 
     @Override
@@ -182,40 +192,40 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
     }
 
     @Override
-    public Query termQuery(String value, @Nullable QueryParseContext context) {
-        int iValue = Integer.parseInt(value);
+    public Query termQuery(Object value, @Nullable QueryParseContext context) {
+        int iValue = parseValue(value);
         return NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
                 iValue, iValue, true, true);
     }
 
     @Override
-    public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
-                lowerTerm == null ? null : Integer.parseInt(lowerTerm),
-                upperTerm == null ? null : Integer.parseInt(upperTerm),
-                includeLower, includeUpper);
-    }
-
-    @Override
-    public Filter termFilter(String value, @Nullable QueryParseContext context) {
-        int iValue = Integer.parseInt(value);
+    public Filter termFilter(Object value, @Nullable QueryParseContext context) {
+        int iValue = parseValue(value);
         return NumericRangeFilter.newIntRange(names.indexName(), precisionStep,
                 iValue, iValue, true, true);
     }
 
     @Override
-    public Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return NumericRangeFilter.newIntRange(names.indexName(), precisionStep,
-                lowerTerm == null ? null : Integer.parseInt(lowerTerm),
-                upperTerm == null ? null : Integer.parseInt(upperTerm),
+    public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
+        return NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
+                lowerTerm == null ? null : parseValue(lowerTerm),
+                upperTerm == null ? null : parseValue(upperTerm),
                 includeLower, includeUpper);
     }
 
     @Override
-    public Filter rangeFilter(FieldDataCache fieldDataCache, String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
+    public Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
+        return NumericRangeFilter.newIntRange(names.indexName(), precisionStep,
+                lowerTerm == null ? null : parseValue(lowerTerm),
+                upperTerm == null ? null : parseValue(upperTerm),
+                includeLower, includeUpper);
+    }
+
+    @Override
+    public Filter rangeFilter(FieldDataCache fieldDataCache, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         return NumericRangeFieldDataFilter.newIntRange(fieldDataCache, names.indexName(),
-                lowerTerm == null ? null : Integer.parseInt(lowerTerm),
-                upperTerm == null ? null : Integer.parseInt(upperTerm),
+                lowerTerm == null ? null : parseValue(lowerTerm),
+                upperTerm == null ? null : parseValue(upperTerm),
                 includeLower, includeUpper);
     }
 

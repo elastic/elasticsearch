@@ -215,9 +215,24 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
      * way to execute it.
      */
     @Override
-    public Query termQuery(String value, @Nullable QueryParseContext context) {
+    public Query termQuery(Object value, @Nullable QueryParseContext context) {
         return rangeQuery(value, value, true, true, context);
     }
+
+    /**
+     * Numeric field level filter are basically range queries with same value and included. That's the recommended
+     * way to execute it.
+     */
+    @Override
+    public Filter termFilter(Object value, @Nullable QueryParseContext context) {
+        return rangeFilter(value, value, true, true, context);
+    }
+
+    @Override
+    public abstract Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context);
+
+    @Override
+    public abstract Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context);
 
     @Override
     public abstract Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions, boolean transpositions);
@@ -226,24 +241,9 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
     public abstract Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions, boolean transpositions);
 
     /**
-     * Numeric field level filter are basically range queries with same value and included. That's the recommended
-     * way to execute it.
-     */
-    @Override
-    public Filter termFilter(String value, @Nullable QueryParseContext context) {
-        return rangeFilter(value, value, true, true, context);
-    }
-
-    @Override
-    public abstract Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context);
-
-    @Override
-    public abstract Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context);
-
-    /**
      * A range filter based on the field data cache.
      */
-    public abstract Filter rangeFilter(FieldDataCache fieldDataCache, String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context);
+    public abstract Filter rangeFilter(FieldDataCache fieldDataCache, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context);
 
     /**
      * Override the default behavior (to return the string, and return the actual Number instance).

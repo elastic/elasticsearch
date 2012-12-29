@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.search.UidFilter;
@@ -52,7 +53,7 @@ public class IdsQueryParser implements QueryParser {
     public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        List<String> ids = new ArrayList<String>();
+        List<BytesRef> ids = new ArrayList<BytesRef>();
         Collection<String> types = null;
         String currentFieldName = null;
         float boost = 1.0f;
@@ -63,7 +64,7 @@ public class IdsQueryParser implements QueryParser {
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("values".equals(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        String value = parser.textOrNull();
+                        BytesRef value = parser.bytesOrNull();
                         if (value == null) {
                             throw new QueryParsingException(parseContext.index(), "No value specified for term filter");
                         }

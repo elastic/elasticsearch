@@ -116,7 +116,7 @@ public class TermsFilterParser implements FilterParser {
                 Term[] filterTerms = new Term[terms.size()];
                 if (fieldMapper != null) {
                     for (int i = 0; i < filterTerms.length; i++) {
-                        filterTerms[i] = fieldMapper.names().createIndexNameTerm(fieldMapper.indexedValue(terms.get(i)));
+                        filterTerms[i] = fieldMapper.names().createIndexNameTerm(fieldMapper.indexedValueForSearch(terms.get(i)));
                     }
                 } else {
                     for (int i = 0; i < filterTerms.length; i++) {

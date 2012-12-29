@@ -153,26 +153,23 @@ public interface FieldMapper<T> {
     Object valueForSearch(Object value);
 
     /**
-     * Returns the indexed value.
+     * Returns the indexed value used to construct search "values".
      */
-    BytesRef indexedValue(String value);
+    BytesRef indexedValueForSearch(Object value);
 
     /**
-     * Should the field query {@link #termQuery(String, org.elasticsearch.index.query.QueryParseContext)}  be used when detecting this
+     * Should the field query {@link #termQuery(Object, org.elasticsearch.index.query.QueryParseContext)}  be used when detecting this
      * field in query string.
      */
     boolean useTermQueryWithQueryString();
 
-    /**
-     * A field query for the specified value.
-     */
-    Query termQuery(String value, @Nullable QueryParseContext context);
+    Query termQuery(Object value, @Nullable QueryParseContext context);
 
-    Filter termFilter(String value, @Nullable QueryParseContext context);
+    Filter termFilter(Object value, @Nullable QueryParseContext context);
 
-    Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context);
+    Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context);
 
-    Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context);
+    Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context);
 
     Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions, boolean transpositions);
 

@@ -23,6 +23,7 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
@@ -37,12 +38,12 @@ public class UidFilter extends Filter {
 
     final Term[] uids;
 
-    public UidFilter(Collection<String> types, List<String> ids) {
+    public UidFilter(Collection<String> types, List<BytesRef> ids) {
         this.uids = new Term[types.size() * ids.size()];
         int i = 0;
         for (String type : types) {
-            for (String id : ids) {
-                uids[i++] = new Term(UidFieldMapper.NAME, Uid.createUid(type, id));
+            for (BytesRef id : ids) {
+                uids[i++] = new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(type, id));
             }
         }
         if (this.uids.length > 1) {

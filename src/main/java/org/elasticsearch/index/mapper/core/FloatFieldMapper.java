@@ -148,11 +148,21 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
     }
 
     @Override
-    public BytesRef indexedValue(String value) {
-        int intValue = NumericUtils.floatToSortableInt(Float.parseFloat(value));
+    public BytesRef indexedValueForSearch(Object value) {
+        int intValue = NumericUtils.floatToSortableInt(parseValue(value));
         BytesRef bytesRef = new BytesRef();
         NumericUtils.intToPrefixCoded(intValue, precisionStep(), bytesRef);
         return bytesRef;
+    }
+
+    private float parseValue(Object value) {
+        if (value instanceof Number) {
+            return ((Number) value).floatValue();
+        }
+        if (value instanceof BytesRef) {
+            return Float.parseFloat(((BytesRef) value).utf8ToString());
+        }
+        return Float.parseFloat(value.toString());
     }
 
     @Override
@@ -176,40 +186,40 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
     }
 
     @Override
-    public Query termQuery(String value, @Nullable QueryParseContext context) {
-        float fValue = Float.parseFloat(value);
+    public Query termQuery(Object value, @Nullable QueryParseContext context) {
+        float fValue = parseValue(value);
         return NumericRangeQuery.newFloatRange(names.indexName(), precisionStep,
                 fValue, fValue, true, true);
     }
 
     @Override
-    public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
+    public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         return NumericRangeQuery.newFloatRange(names.indexName(), precisionStep,
-                lowerTerm == null ? null : Float.parseFloat(lowerTerm),
-                upperTerm == null ? null : Float.parseFloat(upperTerm),
+                lowerTerm == null ? null : parseValue(lowerTerm),
+                upperTerm == null ? null : parseValue(upperTerm),
                 includeLower, includeUpper);
     }
 
     @Override
-    public Filter termFilter(String value, @Nullable QueryParseContext context) {
-        float fValue = Float.parseFloat(value);
+    public Filter termFilter(Object value, @Nullable QueryParseContext context) {
+        float fValue = parseValue(value);
         return NumericRangeFilter.newFloatRange(names.indexName(), precisionStep,
                 fValue, fValue, true, true);
     }
 
     @Override
-    public Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
+    public Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         return NumericRangeFilter.newFloatRange(names.indexName(), precisionStep,
-                lowerTerm == null ? null : Float.parseFloat(lowerTerm),
-                upperTerm == null ? null : Float.parseFloat(upperTerm),
+                lowerTerm == null ? null : parseValue(lowerTerm),
+                upperTerm == null ? null : parseValue(upperTerm),
                 includeLower, includeUpper);
     }
 
     @Override
-    public Filter rangeFilter(FieldDataCache fieldDataCache, String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
+    public Filter rangeFilter(FieldDataCache fieldDataCache, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         return NumericRangeFieldDataFilter.newFloatRange(fieldDataCache, names.indexName(),
-                lowerTerm == null ? null : Float.parseFloat(lowerTerm),
-                upperTerm == null ? null : Float.parseFloat(upperTerm),
+                lowerTerm == null ? null : parseValue(lowerTerm),
+                upperTerm == null ? null : parseValue(upperTerm),
                 includeLower, includeUpper);
     }
 

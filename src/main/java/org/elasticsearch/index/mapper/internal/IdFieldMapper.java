@@ -324,7 +324,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
             builder.field("store", fieldType.stored());
         }
         if (fieldType.indexed() != Defaults.FIELD_TYPE.indexed()) {
-            builder.field("index", fieldType.indexed());
+            builder.field("index", indexTokenizeOptionToString(fieldType.indexed(), fieldType.tokenized()));
         }
         if (path != Defaults.PATH) {
             builder.field("path", path);

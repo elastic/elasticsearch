@@ -169,7 +169,7 @@ public class MultiPhrasePrefixQuery extends Query {
                 continue;
             }
 
-            for (BytesRef term  = termsEnum.term(); term != null; term = termsEnum.next()) {
+            for (BytesRef term = termsEnum.term(); term != null; term = termsEnum.next()) {
                 if (!StringHelper.startsWith(term, prefix.bytes())) {
                     break;
                 }

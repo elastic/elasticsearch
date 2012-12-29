@@ -28,6 +28,7 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.RegexpFilter;
 import org.elasticsearch.common.lucene.search.TermFilter;
@@ -384,10 +385,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
 
     @Override
     public BytesRef indexedValueForSearch(Object value) {
-        if (value instanceof BytesRef) {
-            return (BytesRef) value;
-        }
-        return new BytesRef(value.toString());
+        return BytesRefs.toBytesRef(value);
     }
 
     @Override

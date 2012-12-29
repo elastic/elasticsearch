@@ -135,6 +135,10 @@ public interface XContentParser extends Closeable {
 
     BytesRef bytes() throws IOException;
 
+    Object objectText() throws IOException;
+
+    Object objectBytes() throws IOException;
+
     boolean hasTextCharacters();
 
     char[] textCharacters() throws IOException;

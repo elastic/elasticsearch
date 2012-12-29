@@ -68,7 +68,7 @@ public class MatchQueryParser implements QueryParser {
         }
         String fieldName = parser.currentName();
 
-        String text = null;
+        Object value = null;
         float boost = 1.0f;
         MatchQuery matchQuery = new MatchQuery(parseContext);
         String minimumShouldMatch = null;
@@ -81,7 +81,7 @@ public class MatchQueryParser implements QueryParser {
                     currentFieldName = parser.currentName();
                 } else if (token.isValue()) {
                     if ("query".equals(currentFieldName)) {
-                        text = parser.text();
+                        value = parser.objectText();
                     } else if ("type".equals(currentFieldName)) {
                         String tStr = parser.text();
                         if ("boolean".equals(tStr)) {
@@ -142,7 +142,7 @@ public class MatchQueryParser implements QueryParser {
             }
             parser.nextToken();
         } else {
-            text = parser.text();
+            value = parser.objectText();
             // move to the next token
             token = parser.nextToken();
             if (token != XContentParser.Token.END_OBJECT) {
@@ -150,11 +150,11 @@ public class MatchQueryParser implements QueryParser {
             }
         }
 
-        if (text == null) {
+        if (value == null) {
             throw new QueryParsingException(parseContext.index(), "No text specified for text query");
         }
 
-        Query query = matchQuery.parse(type, fieldName, text);
+        Query query = matchQuery.parse(type, fieldName, value);
         if (query == null) {
             return null;
         }

@@ -56,7 +56,7 @@ public class MultiMatchQueryParser implements QueryParser {
     public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        String text = null;
+        Object value = null;
         float boost = 1.0f;
         MatchQuery.Type type = MatchQuery.Type.BOOLEAN;
         MultiMatchQuery multiMatchQuery = new MultiMatchQuery(parseContext);
@@ -100,7 +100,7 @@ public class MultiMatchQueryParser implements QueryParser {
                 }
             } else if (token.isValue()) {
                 if ("query".equals(currentFieldName)) {
-                    text = parser.text();
+                    value = parser.objectText();
                 } else if ("type".equals(currentFieldName)) {
                     String tStr = parser.text();
                     if ("boolean".equals(tStr)) {
@@ -153,7 +153,7 @@ public class MultiMatchQueryParser implements QueryParser {
             }
         }
 
-        if (text == null) {
+        if (value == null) {
             throw new QueryParsingException(parseContext.index(), "No text specified for match_all query");
         }
 
@@ -161,7 +161,7 @@ public class MultiMatchQueryParser implements QueryParser {
             throw new QueryParsingException(parseContext.index(), "No fields specified for match_all query");
         }
 
-        Query query = multiMatchQuery.parse(type, fieldNameWithBoosts, text);
+        Query query = multiMatchQuery.parse(type, fieldNameWithBoosts, value);
         if (query == null) {
             return null;
         }

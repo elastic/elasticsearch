@@ -53,8 +53,6 @@ public class Lucene {
 
     public static ScoreDoc[] EMPTY_SCORE_DOCS = new ScoreDoc[0];
 
-    public static final int BATCH_ENUM_DOCS = 32;
-
     public static Version parseVersion(@Nullable String version, Version defaultVersion, ESLogger logger) {
         if (version == null) {
             return defaultVersion;

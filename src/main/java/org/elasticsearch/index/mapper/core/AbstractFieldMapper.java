@@ -412,11 +412,11 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
 
     @Override
     public Filter termsFilter(List<Object> values, @Nullable QueryParseContext context) {
-        Term[] terms = new Term[values.size()];
-        for (int i = 0; i < terms.length; i++) {
-            terms[i] = names().createIndexNameTerm(indexedValueForSearch(values.get(i)));
+        BytesRef[] bytesRefs = new BytesRef[values.size()];
+        for (int i = 0; i < bytesRefs.length; i++) {
+            bytesRefs[i] = indexedValueForSearch(values.get(i));
         }
-        return new XTermsFilter(terms);
+        return new XTermsFilter(names.indexName(), bytesRefs);
     }
 
     @Override

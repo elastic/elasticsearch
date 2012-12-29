@@ -23,6 +23,7 @@ import com.google.common.collect.Lists;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.search.*;
@@ -117,11 +118,11 @@ public class TermsFilterParser implements FilterParser {
                 if (fieldMapper != null) {
                     filter = fieldMapper.termsFilter(terms, parseContext);
                 } else {
-                    Term[] filterTerms = new Term[terms.size()];
-                    for (int i = 0; i < filterTerms.length; i++) {
-                        filterTerms[i] = new Term(fieldName, BytesRefs.toBytesRef(terms.get(i)));
+                    BytesRef[] filterValues = new BytesRef[terms.size()];
+                    for (int i = 0; i < filterValues.length; i++) {
+                        filterValues[i] = BytesRefs.toBytesRef(terms.get(i));
                     }
-                    filter = new XTermsFilter(filterTerms);
+                    filter = new XTermsFilter(fieldName, filterValues);
                 }
                 // cache the whole filter by default, or if explicitly told to
                 if (cache == null || cache) {

@@ -30,6 +30,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.FilterClause;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
@@ -448,11 +449,11 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             }
         }
         if (useTermsFilter) {
-            Term[] typesTerms = new Term[types.length];
-            for (int i = 0; i < typesTerms.length; i++) {
-                typesTerms[i] = new Term(TypeFieldMapper.NAME, types[i]);
+            BytesRef[] typesBytes = new BytesRef[types.length];
+            for (int i = 0; i < typesBytes.length; i++) {
+                typesBytes[i] = new BytesRef(types[i]);
             }
-            return new XTermsFilter(typesTerms);
+            return new XTermsFilter(TypeFieldMapper.NAME, typesBytes);
         } else {
             XBooleanFilter bool = new XBooleanFilter();
             for (String type : types) {

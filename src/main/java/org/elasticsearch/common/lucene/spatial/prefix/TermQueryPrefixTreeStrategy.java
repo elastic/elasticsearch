@@ -5,8 +5,8 @@ import com.spatial4j.core.shape.jts.JtsGeometry;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.operation.buffer.BufferOp;
 import com.vividsolutions.jts.operation.buffer.BufferParameters;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoShapeConstants;
 import org.elasticsearch.common.geo.ShapeBuilder;
 import org.elasticsearch.common.lucene.search.TermFilter;
@@ -49,11 +49,11 @@ public class TermQueryPrefixTreeStrategy extends SpatialStrategy {
                 calcDistanceFromErrPct(shape, getDistanceErrorPct(), GeoShapeConstants.SPATIAL_CONTEXT));
         List<Node> nodes = getPrefixTree().getNodes(shape, detailLevel, false);
 
-        Term[] nodeTerms = new Term[nodes.size()];
+        BytesRef[] nodeTerms = new BytesRef[nodes.size()];
         for (int i = 0; i < nodes.size(); i++) {
-            nodeTerms[i] = getFieldName().createIndexNameTerm(nodes.get(i).getTokenString());
+            nodeTerms[i] = new BytesRef(nodes.get(i).getTokenString());
         }
-        return new XTermsFilter(nodeTerms);
+        return new XTermsFilter(getFieldName().indexName(), nodeTerms);
     }
 
     /**

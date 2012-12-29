@@ -19,12 +19,12 @@
 
 package org.elasticsearch.common.bytes;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.jboss.netty.buffer.ChannelBuffer;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.util.Comparator;
 
 /**
  * A reference to bytes.
@@ -136,5 +136,13 @@ public interface BytesReference {
      */
     String toUtf8();
 
+    /**
+     * Converts to Lucene BytesRef.
+     */
+    BytesRef toBytesRef();
 
+    /**
+     * Converts to a copied Lucene BytesRef.
+     */
+    BytesRef copyBytesRef();
 }

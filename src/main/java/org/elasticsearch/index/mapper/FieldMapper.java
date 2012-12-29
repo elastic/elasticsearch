@@ -147,17 +147,10 @@ public interface FieldMapper<T> {
      */
     T value(Object value);
 
-    T valueFromString(String value);
-
     /**
      * Returns the value that will be used as a result for search. Can be only of specific types... .
      */
     Object valueForSearch(Object value);
-
-    /**
-     * Returns the actual value of the field as string.
-     */
-    String valueAsString(Object value);
 
     /**
      * Returns the indexed value.

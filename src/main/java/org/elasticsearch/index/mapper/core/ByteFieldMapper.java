@@ -32,7 +32,6 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -141,13 +140,10 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
         if (value instanceof Number) {
             return ((Number) value).byteValue();
         }
-        BytesReference bytesReference = (BytesReference) value;
-        return bytesReference.get(bytesReference.arrayOffset());
-    }
-
-    @Override
-    public Byte valueFromString(String value) {
-        return Byte.valueOf(value);
+        if (value instanceof BytesRef) {
+            return ((BytesRef) value).bytes[((BytesRef) value).offset];
+        }
+        return Byte.parseByte(value.toString());
     }
 
     @Override

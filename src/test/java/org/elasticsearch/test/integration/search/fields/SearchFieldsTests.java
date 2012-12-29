@@ -342,7 +342,7 @@ public class SearchFieldsTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().getAt(0).fields().get("double_field").value(), equalTo((Object) 6.0d));
         String dateTime = Joda.forPattern("dateOptionalTime").printer().print(new DateTime(2012, 3, 22, 0, 0, DateTimeZone.UTC));
         assertThat(searchResponse.hits().getAt(0).fields().get("date_field").value(), equalTo((Object) dateTime));
-        assertThat(searchResponse.hits().getAt(0).fields().get("boolean_field").value(), equalTo((Object) "true"));
+        assertThat(searchResponse.hits().getAt(0).fields().get("boolean_field").value(), equalTo((Object) Boolean.TRUE));
         assertThat(searchResponse.hits().getAt(0).fields().get("binary_field").value().toString(), equalTo(Base64.encodeBytes("testing text".getBytes("UTF8"))));
 
     }

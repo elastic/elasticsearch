@@ -166,17 +166,25 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
 
     @Override
     public Boolean value(Object value) {
-        return valueFromString((String) value);
+        if (value == null) {
+            return Boolean.FALSE;
+        }
+        String sValue = value.toString();
+        if (sValue.length() == 0) {
+            return Boolean.FALSE;
+        }
+        if (sValue.length() == 1 && sValue.charAt(0) == 'F') {
+            return Boolean.FALSE;
+        }
+        if (Booleans.parseBoolean(sValue, false)) {
+            return Boolean.TRUE;
+        }
+        return Boolean.FALSE;
     }
 
     @Override
-    public Boolean valueFromString(String value) {
-        return value.charAt(0) == 'T' ? Boolean.TRUE : Boolean.FALSE;
-    }
-
-    @Override
-    public String valueAsString(Object value) {
-        return ((String) value).charAt(0) == 'T' ? "true" : "false";
+    public Object valueForSearch(Object value) {
+        return value(value);
     }
 
     @Override

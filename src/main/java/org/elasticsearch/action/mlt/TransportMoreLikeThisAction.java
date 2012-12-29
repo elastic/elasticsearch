@@ -272,7 +272,7 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
                 if (fieldMapper instanceof InternalMapper) {
                     return true;
                 }
-                String value = fieldMapper.valueAsString(convertField(field));
+                String value = fieldMapper.value(convertField(field)).toString();
                 if (value == null) {
                     return false;
                 }
@@ -299,7 +299,7 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
     }
 
     private void addMoreLikeThis(MoreLikeThisRequest request, BoolQueryBuilder boolBuilder, FieldMapper fieldMapper, Field field) {
-        addMoreLikeThis(request, boolBuilder, field.name(), fieldMapper.valueAsString(convertField(field)));
+        addMoreLikeThis(request, boolBuilder, field.name(), fieldMapper.value(convertField(field)).toString());
     }
 
     private void addMoreLikeThis(MoreLikeThisRequest request, BoolQueryBuilder boolBuilder, String fieldName, String likeText) {

@@ -226,12 +226,10 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
 
     @Override
     public String value(Object value) {
-        return String.valueOf(value);
-    }
-
-    @Override
-    public String valueFromString(String value) {
-        return value;
+        if (value == null) {
+            return null;
+        }
+        return value.toString();
     }
 
     @Override

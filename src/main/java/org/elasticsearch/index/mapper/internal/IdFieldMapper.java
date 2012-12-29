@@ -140,12 +140,10 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
 
     @Override
     public String value(Object value) {
-        return String.valueOf(value);
-    }
-
-    @Override
-    public String valueFromString(String value) {
-        return value;
+        if (value == null) {
+            return null;
+        }
+        return value.toString();
     }
 
     @Override

@@ -127,10 +127,10 @@ public class RangeFacetProcessor extends AbstractComponent implements FacetProce
             }
             for (RangeFacet.Entry entry : rangeEntries) {
                 if (entry.fromAsString != null) {
-                    entry.from = ((Number) mapper.valueFromString(entry.fromAsString)).doubleValue();
+                    entry.from = ((Number) mapper.value(entry.fromAsString)).doubleValue();
                 }
                 if (entry.toAsString != null) {
-                    entry.to = ((Number) mapper.valueFromString(entry.toAsString)).doubleValue();
+                    entry.to = ((Number) mapper.value(entry.toAsString)).doubleValue();
                 }
             }
         }

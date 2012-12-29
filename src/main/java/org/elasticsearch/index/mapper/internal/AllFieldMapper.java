@@ -231,16 +231,6 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
     }
 
     @Override
-    public Void valueFromString(String value) {
-        return null;
-    }
-
-    @Override
-    public String valueAsString(Object value) {
-        return null;
-    }
-
-    @Override
     public Object valueForSearch(Object value) {
         return null;
     }

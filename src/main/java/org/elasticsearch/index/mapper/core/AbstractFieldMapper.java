@@ -379,17 +379,12 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
 
     @Override
     public Object valueForSearch(Object value) {
-        return valueAsString(value);
+        return value;
     }
 
     @Override
     public BytesRef indexedValue(String value) {
         return new BytesRef(value);
-    }
-
-    @Override
-    public String valueAsString(Object value) {
-        return String.valueOf(value);
     }
 
     @Override

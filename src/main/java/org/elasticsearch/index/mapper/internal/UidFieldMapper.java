@@ -190,12 +190,10 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
 
     @Override
     public Uid value(Object value) {
-        return Uid.createUid(String.valueOf(value));
-    }
-
-    @Override
-    public Uid valueFromString(String value) {
-        return Uid.createUid(value);
+        if (value == null) {
+            return null;
+        }
+        return Uid.createUid(value.toString());
     }
 
     public Term term(String type, String id) {

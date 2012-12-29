@@ -162,21 +162,10 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
 
     /**
      * Override the default behavior to return a timestamp
-     *
-     * @param value
      */
     @Override
     public Object valueForSearch(Object value) {
         return value(value);
-    }
-
-    @Override
-    public String valueAsString(Object value) {
-        Long val = value(value);
-        if (val == null) {
-            return null;
-        }
-        return val.toString();
     }
 
     @Override

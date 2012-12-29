@@ -33,7 +33,6 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -144,12 +143,10 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
         if (value instanceof Number) {
             return ((Number) value).shortValue();
         }
-        return Numbers.bytesToShort(((BytesReference) value).array());
-    }
-
-    @Override
-    public Short valueFromString(String value) {
-        return Short.valueOf(value);
+        if (value instanceof BytesRef) {
+            return Numbers.bytesToShort((BytesRef) value);
+        }
+        return Short.parseShort(value.toString());
     }
 
     @Override

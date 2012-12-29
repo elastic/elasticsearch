@@ -150,10 +150,24 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
     }
 
     @Override
-    public BytesRef indexedValue(String value) {
+    public BytesRef indexedValueForSearch(Object value) {
         BytesRef bytesRef = new BytesRef();
-        NumericUtils.intToPrefixCoded(Short.parseShort(value), precisionStep(), bytesRef);
+        NumericUtils.intToPrefixCoded(parseValue(value), precisionStep(), bytesRef);
         return bytesRef;
+    }
+
+    private short parseValue(Object value) {
+        if (value instanceof Number) {
+            return ((Number) value).shortValue();
+        }
+        if (value instanceof BytesRef) {
+            return Short.parseShort(((BytesRef) value).utf8ToString());
+        }
+        return Short.parseShort(value.toString());
+    }
+
+    private int parseValueAsInt(Object value) {
+        return parseValue(value);
     }
 
     @Override
@@ -182,40 +196,40 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
     }
 
     @Override
-    public Query termQuery(String value, @Nullable QueryParseContext context) {
-        int iValue = Integer.parseInt(value);
+    public Query termQuery(Object value, @Nullable QueryParseContext context) {
+        int iValue = parseValueAsInt(value);
         return NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
                 iValue, iValue, true, true);
     }
 
     @Override
-    public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
+    public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         return NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
-                lowerTerm == null ? null : Integer.parseInt(lowerTerm),
-                upperTerm == null ? null : Integer.parseInt(upperTerm),
+                lowerTerm == null ? null : parseValueAsInt(lowerTerm),
+                upperTerm == null ? null : parseValueAsInt(upperTerm),
                 includeLower, includeUpper);
     }
 
     @Override
-    public Filter termFilter(String value, @Nullable QueryParseContext context) {
-        int iValue = Integer.parseInt(value);
+    public Filter termFilter(Object value, @Nullable QueryParseContext context) {
+        int iValue = parseValueAsInt(value);
         return NumericRangeFilter.newIntRange(names.indexName(), precisionStep,
                 iValue, iValue, true, true);
     }
 
     @Override
-    public Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
+    public Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         return NumericRangeFilter.newIntRange(names.indexName(), precisionStep,
-                lowerTerm == null ? null : Integer.parseInt(lowerTerm),
-                upperTerm == null ? null : Integer.parseInt(upperTerm),
+                lowerTerm == null ? null : parseValueAsInt(lowerTerm),
+                upperTerm == null ? null : parseValueAsInt(upperTerm),
                 includeLower, includeUpper);
     }
 
     @Override
-    public Filter rangeFilter(FieldDataCache fieldDataCache, String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
+    public Filter rangeFilter(FieldDataCache fieldDataCache, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         return NumericRangeFieldDataFilter.newShortRange(fieldDataCache, names.indexName(),
-                lowerTerm == null ? null : Short.parseShort(lowerTerm),
-                upperTerm == null ? null : Short.parseShort(upperTerm),
+                lowerTerm == null ? null : parseValue(lowerTerm),
+                upperTerm == null ? null : parseValue(upperTerm),
                 includeLower, includeUpper);
     }
 

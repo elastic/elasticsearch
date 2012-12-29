@@ -383,8 +383,11 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
     }
 
     @Override
-    public BytesRef indexedValue(String value) {
-        return new BytesRef(value);
+    public BytesRef indexedValueForSearch(Object value) {
+        if (value instanceof BytesRef) {
+            return (BytesRef) value;
+        }
+        return new BytesRef(value.toString());
     }
 
     @Override
@@ -398,30 +401,46 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
     }
 
     @Override
-    public Query termQuery(String value, @Nullable QueryParseContext context) {
-        return new TermQuery(names().createIndexNameTerm(indexedValue(value)));
+    public Query termQuery(Object value, @Nullable QueryParseContext context) {
+        return new TermQuery(names().createIndexNameTerm(indexedValueForSearch(value)));
     }
 
     @Override
-    public Filter termFilter(String value, @Nullable QueryParseContext context) {
-        return new TermFilter(names().createIndexNameTerm(indexedValue(value)));
+    public Filter termFilter(Object value, @Nullable QueryParseContext context) {
+        return new TermFilter(names().createIndexNameTerm(indexedValueForSearch(value)));
+    }
+
+    @Override
+    public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
+        return new TermRangeQuery(names.indexName(),
+                lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
+                upperTerm == null ? null : indexedValueForSearch(upperTerm),
+                includeLower, includeUpper);
+    }
+
+    @Override
+    public Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
+        return new TermRangeFilter(names.indexName(),
+                lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
+                upperTerm == null ? null : indexedValueForSearch(upperTerm),
+                includeLower, includeUpper);
     }
 
     @Override
     public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions, boolean transpositions) {
         int edits = FuzzyQuery.floatToEdits(Float.parseFloat(minSim), value.codePointCount(0, value.length()));
-        return new FuzzyQuery(names.createIndexNameTerm(indexedValue(value)), edits, prefixLength, maxExpansions, transpositions);
+        return new FuzzyQuery(names.createIndexNameTerm(indexedValueForSearch(value)), edits, prefixLength, maxExpansions, transpositions);
     }
 
     @Override
     public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions, boolean transpositions) {
         int edits = FuzzyQuery.floatToEdits((float) minSim, value.codePointCount(0, value.length()));
-        return new FuzzyQuery(names.createIndexNameTerm(indexedValue(value)), edits, prefixLength, maxExpansions, transpositions);
+        return new FuzzyQuery(names.createIndexNameTerm(indexedValueForSearch(value)), edits, prefixLength, maxExpansions, transpositions);
     }
 
     @Override
     public Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
-        PrefixQuery query = new PrefixQuery(names().createIndexNameTerm(indexedValue(value)));
+        PrefixQuery query = new PrefixQuery(names().createIndexNameTerm(indexedValueForSearch(value)));
         if (method != null) {
             query.setRewriteMethod(method);
         }
@@ -430,12 +449,12 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
 
     @Override
     public Filter prefixFilter(String value, @Nullable QueryParseContext context) {
-        return new PrefixFilter(names().createIndexNameTerm(indexedValue(value)));
+        return new PrefixFilter(names().createIndexNameTerm(indexedValueForSearch(value)));
     }
 
     @Override
     public Query regexpQuery(String value, int flags, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
-        RegexpQuery query = new RegexpQuery(names().createIndexNameTerm(indexedValue(value)), flags);
+        RegexpQuery query = new RegexpQuery(names().createIndexNameTerm(indexedValueForSearch(value)), flags);
         if (method != null) {
             query.setRewriteMethod(method);
         }
@@ -444,24 +463,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
 
     @Override
     public Filter regexpFilter(String value, int flags, @Nullable QueryParseContext parseContext) {
-        return new RegexpFilter(names().createIndexNameTerm(indexedValue(value)), flags);
-    }
-
-    @Override
-    public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        // LUCENE 4 UPGRADE: Perhaps indexedValue() should return a BytesRef?
-        return new TermRangeQuery(names.indexName(),
-                lowerTerm == null ? null : indexedValue(lowerTerm),
-                upperTerm == null ? null : indexedValue(upperTerm),
-                includeLower, includeUpper);
-    }
-
-    @Override
-    public Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return new TermRangeFilter(names.indexName(),
-                lowerTerm == null ? null : indexedValue(lowerTerm),
-                upperTerm == null ? null : indexedValue(upperTerm),
-                includeLower, includeUpper);
+        return new RegexpFilter(names().createIndexNameTerm(indexedValueForSearch(value)), flags);
     }
 
     @Override

@@ -188,14 +188,26 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
     }
 
     @Override
-    public BytesRef indexedValue(String value) {
-        if (value == null || value.length() == 0) {
+    public BytesRef indexedValueForSearch(Object value) {
+        if (value == null) {
             return Values.FALSE;
         }
-        if (value.length() == 1 && value.charAt(0) == 'F') {
+        if (value instanceof Boolean) {
+            return ((Boolean) value) ? Values.TRUE : Values.FALSE;
+        }
+        String sValue;
+        if (value instanceof BytesRef) {
+            sValue = ((BytesRef) value).utf8ToString();
+        } else {
+            sValue = value.toString();
+        }
+        if (sValue.length() == 0) {
             return Values.FALSE;
         }
-        if (Booleans.parseBoolean(value, false)) {
+        if (sValue.length() == 1 && sValue.charAt(0) == 'F') {
+            return Values.FALSE;
+        }
+        if (Booleans.parseBoolean(sValue, false)) {
             return Values.TRUE;
         }
         return Values.FALSE;

@@ -147,10 +147,24 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
     }
 
     @Override
-    public BytesRef indexedValue(String value) {
+    public BytesRef indexedValueForSearch(Object value) {
         BytesRef bytesRef = new BytesRef();
-        NumericUtils.intToPrefixCoded(Byte.parseByte(value), precisionStep(), bytesRef);
+        NumericUtils.intToPrefixCoded(parseValue(value), precisionStep(), bytesRef);
         return bytesRef;
+    }
+
+    private byte parseValue(Object value) {
+        if (value instanceof Number) {
+            return ((Number) value).byteValue();
+        }
+        if (value instanceof BytesRef) {
+            return Byte.parseByte(((BytesRef) value).utf8ToString());
+        }
+        return Byte.parseByte(value.toString());
+    }
+
+    private int parseValueAsInt(Object value) {
+        return parseValue(value);
     }
 
     @Override
@@ -179,40 +193,40 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
     }
 
     @Override
-    public Query termQuery(String value, @Nullable QueryParseContext context) {
-        int iValue = Integer.parseInt(value);
+    public Query termQuery(Object value, @Nullable QueryParseContext context) {
+        int iValue = parseValue(value);
         return NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
                 iValue, iValue, true, true);
     }
 
     @Override
-    public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
+    public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         return NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
-                lowerTerm == null ? null : Integer.parseInt(lowerTerm),
-                upperTerm == null ? null : Integer.parseInt(upperTerm),
+                lowerTerm == null ? null : parseValueAsInt(lowerTerm),
+                upperTerm == null ? null : parseValueAsInt(upperTerm),
                 includeLower, includeUpper);
     }
 
     @Override
-    public Filter termFilter(String value, @Nullable QueryParseContext context) {
-        int iValue = Integer.parseInt(value);
+    public Filter termFilter(Object value, @Nullable QueryParseContext context) {
+        int iValue = parseValueAsInt(value);
         return NumericRangeFilter.newIntRange(names.indexName(), precisionStep,
                 iValue, iValue, true, true);
     }
 
     @Override
-    public Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
+    public Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         return NumericRangeFilter.newIntRange(names.indexName(), precisionStep,
-                lowerTerm == null ? null : Integer.parseInt(lowerTerm),
-                upperTerm == null ? null : Integer.parseInt(upperTerm),
+                lowerTerm == null ? null : parseValueAsInt(lowerTerm),
+                upperTerm == null ? null : parseValueAsInt(upperTerm),
                 includeLower, includeUpper);
     }
 
     @Override
-    public Filter rangeFilter(FieldDataCache fieldDataCache, String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
+    public Filter rangeFilter(FieldDataCache fieldDataCache, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         return NumericRangeFieldDataFilter.newByteRange(fieldDataCache, names.indexName(),
-                lowerTerm == null ? null : Byte.parseByte(lowerTerm),
-                upperTerm == null ? null : Byte.parseByte(upperTerm),
+                lowerTerm == null ? null : parseValue(lowerTerm),
+                upperTerm == null ? null : parseValue(upperTerm),
                 includeLower, includeUpper);
     }
 

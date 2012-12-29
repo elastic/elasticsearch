@@ -215,10 +215,27 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
-    public BytesRef indexedValue(String value) {
+    public BytesRef indexedValueForSearch(Object value) {
         BytesRef bytesRef = new BytesRef();
-        NumericUtils.longToPrefixCoded(dateTimeFormatter.parser().parseMillis(value), precisionStep(), bytesRef);
+        NumericUtils.longToPrefixCoded(parseValue(value), precisionStep(), bytesRef);
         return bytesRef;
+    }
+
+    private long parseValue(Object value) {
+        if (value instanceof Number) {
+            return ((Number) value).longValue();
+        }
+        if (value instanceof BytesRef) {
+            return dateTimeFormatter.parser().parseMillis(((BytesRef) value).utf8ToString());
+        }
+        return dateTimeFormatter.parser().parseMillis(value.toString());
+    }
+
+    private String convertToString(Object value) {
+        if (value instanceof BytesRef) {
+            return ((BytesRef) value).utf8ToString();
+        }
+        return value.toString();
     }
 
     @Override
@@ -248,45 +265,45 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
-    public Query termQuery(String value, @Nullable QueryParseContext context) {
+    public Query termQuery(Object value, @Nullable QueryParseContext context) {
         long now = context == null ? System.currentTimeMillis() : context.nowInMillis();
-        long lValue = dateMathParser.parse(value, now);
+        long lValue = dateMathParser.parse(convertToString(value), now);
         return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
                 lValue, lValue, true, true);
     }
 
     @Override
-    public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
+    public Filter termFilter(Object value, @Nullable QueryParseContext context) {
         long now = context == null ? System.currentTimeMillis() : context.nowInMillis();
-        return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
-                lowerTerm == null ? null : dateMathParser.parse(lowerTerm, now),
-                upperTerm == null ? null : (includeUpper && parseUpperInclusive) ? dateMathParser.parseUpperInclusive(upperTerm, now) : dateMathParser.parse(upperTerm, now),
-                includeLower, includeUpper);
-    }
-
-    @Override
-    public Filter termFilter(String value, @Nullable QueryParseContext context) {
-        long now = context == null ? System.currentTimeMillis() : context.nowInMillis();
-        long lValue = dateMathParser.parse(value, now);
+        long lValue = dateMathParser.parse(convertToString(value), now);
         return NumericRangeFilter.newLongRange(names.indexName(), precisionStep,
                 lValue, lValue, true, true);
     }
 
     @Override
-    public Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
+    public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         long now = context == null ? System.currentTimeMillis() : context.nowInMillis();
-        return NumericRangeFilter.newLongRange(names.indexName(), precisionStep,
-                lowerTerm == null ? null : dateMathParser.parse(lowerTerm, now),
-                upperTerm == null ? null : (includeUpper && parseUpperInclusive) ? dateMathParser.parseUpperInclusive(upperTerm, now) : dateMathParser.parse(upperTerm, now),
+        return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
+                lowerTerm == null ? null : dateMathParser.parse(convertToString(lowerTerm), now),
+                upperTerm == null ? null : (includeUpper && parseUpperInclusive) ? dateMathParser.parseUpperInclusive(convertToString(upperTerm), now) : dateMathParser.parse(convertToString(upperTerm), now),
                 includeLower, includeUpper);
     }
 
     @Override
-    public Filter rangeFilter(FieldDataCache fieldDataCache, String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
+    public Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
+        long now = context == null ? System.currentTimeMillis() : context.nowInMillis();
+        return NumericRangeFilter.newLongRange(names.indexName(), precisionStep,
+                lowerTerm == null ? null : dateMathParser.parse(convertToString(lowerTerm), now),
+                upperTerm == null ? null : (includeUpper && parseUpperInclusive) ? dateMathParser.parseUpperInclusive(convertToString(upperTerm), now) : dateMathParser.parse(convertToString(upperTerm), now),
+                includeLower, includeUpper);
+    }
+
+    @Override
+    public Filter rangeFilter(FieldDataCache fieldDataCache, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         long now = context == null ? System.currentTimeMillis() : context.nowInMillis();
         return NumericRangeFieldDataFilter.newLongRange(fieldDataCache, names.indexName(),
-                lowerTerm == null ? null : dateMathParser.parse(lowerTerm, now),
-                upperTerm == null ? null : (includeUpper && parseUpperInclusive) ? dateMathParser.parseUpperInclusive(upperTerm, now) : dateMathParser.parse(upperTerm, now),
+                lowerTerm == null ? null : dateMathParser.parse(convertToString(lowerTerm), now),
+                upperTerm == null ? null : (includeUpper && parseUpperInclusive) ? dateMathParser.parseUpperInclusive(convertToString(upperTerm), now) : dateMathParser.parse(convertToString(upperTerm), now),
                 includeLower, includeUpper);
     }
 

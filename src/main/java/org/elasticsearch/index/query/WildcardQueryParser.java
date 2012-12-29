@@ -95,7 +95,7 @@ public class WildcardQueryParser implements QueryParser {
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
         if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
             fieldName = smartNameFieldMappers.mapper().names().indexName();
-            valueBytes = smartNameFieldMappers.mapper().indexedValue(value);
+            valueBytes = smartNameFieldMappers.mapper().indexedValueForSearch(value);
         } else {
             valueBytes = new BytesRef(value);
         }

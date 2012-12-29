@@ -96,7 +96,7 @@ public class SpanTermQueryParser implements QueryParser {
         if (smartNameFieldMappers != null) {
             if (smartNameFieldMappers.hasMapper()) {
                 fieldName = smartNameFieldMappers.mapper().names().indexName();
-                valueBytes = smartNameFieldMappers.mapper().indexedValue(value);
+                valueBytes = smartNameFieldMappers.mapper().indexedValueForSearch(value);
             }
         }
         if (valueBytes == null) {

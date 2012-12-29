@@ -114,11 +114,13 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
     }
 
     private final String type;
+    private final BytesRef typeAsBytes;
 
     protected ParentFieldMapper(String name, String indexName, String type, PostingsFormatProvider postingsFormat) {
         super(new Names(name, indexName, indexName, name), Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE),
                 Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, postingsFormat, null);
         this.type = type;
+        this.typeAsBytes = new BytesRef(type);
     }
 
     public String type() {
@@ -199,15 +201,23 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
     }
 
     @Override
-    public BytesRef indexedValue(String value) {
-        if (value.indexOf(Uid.DELIMITER) == -1) {
-            return Uid.createUidAsBytes(type, value);
+    public BytesRef indexedValueForSearch(Object value) {
+        if (value instanceof BytesRef) {
+            BytesRef bytesRef = (BytesRef) value;
+            if (Uid.hasDelimiter(bytesRef)) {
+                return bytesRef;
+            }
+            return Uid.createUidAsBytes(typeAsBytes, bytesRef);
         }
-        return super.indexedValue(value);
+        String sValue = value.toString();
+        if (sValue.indexOf(Uid.DELIMITER) == -1) {
+            return Uid.createUidAsBytes(type, sValue);
+        }
+        return super.indexedValueForSearch(value);
     }
 
     @Override
-    public Query termQuery(String value, @Nullable QueryParseContext context) {
+    public Query termQuery(Object value, @Nullable QueryParseContext context) {
         if (context == null) {
             return super.termQuery(value, context);
         }
@@ -215,15 +225,21 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
     }
 
     @Override
-    public Filter termFilter(String value, @Nullable QueryParseContext context) {
+    public Filter termFilter(Object value, @Nullable QueryParseContext context) {
         if (context == null) {
             return super.termFilter(value, context);
+        }
+        BytesRef bValue;
+        if (value instanceof BytesRef) {
+            bValue = (BytesRef) value;
+        } else {
+            bValue = new BytesRef(value.toString());
         }
         // we use all types, cause we don't know if its exact or not...
         Term[] typesTerms = new Term[context.mapperService().types().size()];
         int i = 0;
         for (String type : context.mapperService().types()) {
-            typesTerms[i++] = names.createIndexNameTerm(Uid.createUid(type, value));
+            typesTerms[i++] = names.createIndexNameTerm(Uid.createUidAsBytes(type, bValue));
         }
         return new XTermsFilter(typesTerms);
     }

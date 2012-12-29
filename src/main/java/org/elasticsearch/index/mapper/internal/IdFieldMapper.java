@@ -26,6 +26,7 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
@@ -152,21 +153,26 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
     }
 
     @Override
-    public Query termQuery(String value, @Nullable QueryParseContext context) {
+    public Query termQuery(Object value, @Nullable QueryParseContext context) {
         if (fieldType.indexed() || context == null) {
             return super.termQuery(value, context);
         }
-        UidFilter filter = new UidFilter(context.queryTypes(), ImmutableList.of(value));
         // no need for constant score filter, since we don't cache the filter, and it always takes deletes into account
-        return new ConstantScoreQuery(filter);
+        return new ConstantScoreQuery(termFilter(value, context));
     }
 
     @Override
-    public Filter termFilter(String value, @Nullable QueryParseContext context) {
+    public Filter termFilter(Object value, @Nullable QueryParseContext context) {
         if (fieldType.indexed() || context == null) {
             return super.termFilter(value, context);
         }
-        return new UidFilter(context.queryTypes(), ImmutableList.of(value));
+        BytesRef bytesRef;
+        if (value instanceof BytesRef) {
+            bytesRef = (BytesRef) value;
+        } else {
+            bytesRef = new BytesRef(value.toString());
+        }
+        return new UidFilter(context.queryTypes(), ImmutableList.of(bytesRef));
     }
 
     @Override

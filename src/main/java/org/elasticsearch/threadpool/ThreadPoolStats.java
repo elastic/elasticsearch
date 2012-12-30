@@ -153,7 +153,7 @@ public class ThreadPoolStats implements Streamable, ToXContent, Iterable<ThreadP
                 builder.field(Fields.REJECTED, rejected);
             }
             if (largest != -1) {
-                builder.field(Fields.LARGEST, rejected);
+                builder.field(Fields.LARGEST, largest);
             }
             if (completed != -1) {
                 builder.field(Fields.COMPLETED, completed);

@@ -225,13 +225,13 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
     }
 
     @Override
-    public Query regexpQuery(String value, int flags, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
+    public Query regexpQuery(Object value, int flags, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
         if (fieldType.indexed() || context == null) {
             return super.regexpQuery(value, flags, method, context);
         }
         Collection<String> queryTypes = context.queryTypes();
         if (queryTypes.size() == 1) {
-            RegexpQuery regexpQuery = new RegexpQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(Iterables.getFirst(queryTypes, null), value)), flags);
+            RegexpQuery regexpQuery = new RegexpQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(Iterables.getFirst(queryTypes, null), BytesRefs.toBytesRef(value))), flags);
             if (method != null) {
                 regexpQuery.setRewriteMethod(method);
             }
@@ -239,7 +239,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         }
         BooleanQuery query = new BooleanQuery();
         for (String queryType : queryTypes) {
-            RegexpQuery regexpQuery = new RegexpQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(queryType, value)), flags);
+            RegexpQuery regexpQuery = new RegexpQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(queryType, BytesRefs.toBytesRef(value))), flags);
             if (method != null) {
                 regexpQuery.setRewriteMethod(method);
             }
@@ -248,17 +248,17 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         return query;
     }
 
-    public Filter regexpFilter(String value, int flags, @Nullable QueryParseContext context) {
+    public Filter regexpFilter(Object value, int flags, @Nullable QueryParseContext context) {
         if (fieldType.indexed() || context == null) {
             return super.regexpFilter(value, flags, context);
         }
         Collection<String> queryTypes = context.queryTypes();
         if (queryTypes.size() == 1) {
-            return new RegexpFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(Iterables.getFirst(queryTypes, null), value)), flags);
+            return new RegexpFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(Iterables.getFirst(queryTypes, null), BytesRefs.toBytesRef(value))), flags);
         }
         XBooleanFilter filter = new XBooleanFilter();
         for (String queryType : queryTypes) {
-            filter.add(new RegexpFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(queryType, value)), flags), BooleanClause.Occur.SHOULD);
+            filter.add(new RegexpFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(queryType, BytesRefs.toBytesRef(value))), flags), BooleanClause.Occur.SHOULD);
         }
         return filter;
     }

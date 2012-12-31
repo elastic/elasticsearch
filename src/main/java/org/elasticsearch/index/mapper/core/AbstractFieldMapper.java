@@ -462,7 +462,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
     }
 
     @Override
-    public Query regexpQuery(String value, int flags, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
+    public Query regexpQuery(Object value, int flags, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
         RegexpQuery query = new RegexpQuery(names().createIndexNameTerm(indexedValueForSearch(value)), flags);
         if (method != null) {
             query.setRewriteMethod(method);
@@ -471,7 +471,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
     }
 
     @Override
-    public Filter regexpFilter(String value, int flags, @Nullable QueryParseContext parseContext) {
+    public Filter regexpFilter(Object value, int flags, @Nullable QueryParseContext parseContext) {
         return new RegexpFilter(names().createIndexNameTerm(indexedValueForSearch(value)), flags);
     }
 

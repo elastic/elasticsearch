@@ -50,8 +50,6 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
 
     public static final String NAME = "_type";
 
-    public static final Term TERM_FACTORY = new Term(NAME, "");
-
     public static final String CONTENT_TYPE = "_type";
 
     public static class Defaults extends AbstractFieldMapper.Defaults {

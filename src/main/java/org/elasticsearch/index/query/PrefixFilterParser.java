@@ -23,6 +23,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.PrefixFilter;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.mapper.MapperService;
@@ -54,7 +55,7 @@ public class PrefixFilterParser implements FilterParser {
         boolean cache = true;
         CacheKeyFilter.Key cacheKey = null;
         String fieldName = null;
-        String value = null;
+        Object value = null;
 
         String filterName = null;
         String currentFieldName = null;
@@ -71,7 +72,7 @@ public class PrefixFilterParser implements FilterParser {
                     cacheKey = new CacheKeyFilter.Key(parser.text());
                 } else {
                     fieldName = currentFieldName;
-                    value = parser.text();
+                    value = parser.objectBytes();
                 }
             }
         }
@@ -96,7 +97,7 @@ public class PrefixFilterParser implements FilterParser {
             }
         }
         if (filter == null) {
-            filter = new PrefixFilter(new Term(fieldName, value));
+            filter = new PrefixFilter(new Term(fieldName, BytesRefs.toBytesRef(value)));
         }
 
         if (cache) {

@@ -185,13 +185,13 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
     }
 
     @Override
-    public Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
+    public Query prefixQuery(Object value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
         if (fieldType.indexed() || context == null) {
             return super.prefixQuery(value, method, context);
         }
         Collection<String> queryTypes = context.queryTypes();
         if (queryTypes.size() == 1) {
-            PrefixQuery prefixQuery = new PrefixQuery(new Term(UidFieldMapper.NAME, Uid.createUid(Iterables.getFirst(queryTypes, null), value)));
+            PrefixQuery prefixQuery = new PrefixQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(Iterables.getFirst(queryTypes, null), BytesRefs.toBytesRef(value))));
             if (method != null) {
                 prefixQuery.setRewriteMethod(method);
             }
@@ -199,7 +199,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         }
         BooleanQuery query = new BooleanQuery();
         for (String queryType : queryTypes) {
-            PrefixQuery prefixQuery = new PrefixQuery(new Term(UidFieldMapper.NAME, Uid.createUid(queryType, value)));
+            PrefixQuery prefixQuery = new PrefixQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(queryType, BytesRefs.toBytesRef(value))));
             if (method != null) {
                 prefixQuery.setRewriteMethod(method);
             }
@@ -209,17 +209,17 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
     }
 
     @Override
-    public Filter prefixFilter(String value, @Nullable QueryParseContext context) {
+    public Filter prefixFilter(Object value, @Nullable QueryParseContext context) {
         if (fieldType.indexed() || context == null) {
             return super.prefixFilter(value, context);
         }
         Collection<String> queryTypes = context.queryTypes();
         if (queryTypes.size() == 1) {
-            return new PrefixFilter(new Term(UidFieldMapper.NAME, Uid.createUid(Iterables.getFirst(queryTypes, null), value)));
+            return new PrefixFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(Iterables.getFirst(queryTypes, null), BytesRefs.toBytesRef(value))));
         }
         XBooleanFilter filter = new XBooleanFilter();
         for (String queryType : queryTypes) {
-            filter.add(new PrefixFilter(new Term(UidFieldMapper.NAME, Uid.createUid(queryType, value))), BooleanClause.Occur.SHOULD);
+            filter.add(new PrefixFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(queryType, BytesRefs.toBytesRef(value)))), BooleanClause.Occur.SHOULD);
         }
         return filter;
     }
@@ -231,7 +231,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         }
         Collection<String> queryTypes = context.queryTypes();
         if (queryTypes.size() == 1) {
-            RegexpQuery regexpQuery = new RegexpQuery(new Term(UidFieldMapper.NAME, Uid.createUid(Iterables.getFirst(queryTypes, null), value)), flags);
+            RegexpQuery regexpQuery = new RegexpQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(Iterables.getFirst(queryTypes, null), value)), flags);
             if (method != null) {
                 regexpQuery.setRewriteMethod(method);
             }
@@ -239,7 +239,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         }
         BooleanQuery query = new BooleanQuery();
         for (String queryType : queryTypes) {
-            RegexpQuery regexpQuery = new RegexpQuery(new Term(UidFieldMapper.NAME, Uid.createUid(queryType, value)), flags);
+            RegexpQuery regexpQuery = new RegexpQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(queryType, value)), flags);
             if (method != null) {
                 regexpQuery.setRewriteMethod(method);
             }
@@ -254,11 +254,11 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         }
         Collection<String> queryTypes = context.queryTypes();
         if (queryTypes.size() == 1) {
-            return new RegexpFilter(new Term(UidFieldMapper.NAME, Uid.createUid(Iterables.getFirst(queryTypes, null), value)), flags);
+            return new RegexpFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(Iterables.getFirst(queryTypes, null), value)), flags);
         }
         XBooleanFilter filter = new XBooleanFilter();
         for (String queryType : queryTypes) {
-            filter.add(new RegexpFilter(new Term(UidFieldMapper.NAME, Uid.createUid(queryType, value)), flags), BooleanClause.Occur.SHOULD);
+            filter.add(new RegexpFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(queryType, value)), flags), BooleanClause.Occur.SHOULD);
         }
         return filter;
     }

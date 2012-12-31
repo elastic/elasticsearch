@@ -218,7 +218,7 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
         if (nullValue == null) {
             return null;
         }
-        return new TermFilter(names().createIndexNameTerm(nullValue ? "T" : "F"));
+        return new TermFilter(names().createIndexNameTerm(nullValue ? Values.TRUE : Values.FALSE));
     }
 
     @Override

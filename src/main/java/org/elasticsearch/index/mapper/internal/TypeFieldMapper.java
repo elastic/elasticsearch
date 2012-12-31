@@ -26,8 +26,8 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.PrefixFilter;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
@@ -124,16 +124,10 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
 
     @Override
     public Filter termFilter(Object value, @Nullable QueryParseContext context) {
-        BytesRef bytesRef;
-        if (value instanceof BytesRef) {
-            bytesRef = (BytesRef) value;
-        } else {
-            bytesRef = new BytesRef(value.toString());
-        }
         if (!fieldType.indexed()) {
-            return new PrefixFilter(new Term(UidFieldMapper.NAME, Uid.typePrefixAsBytes(bytesRef)));
+            return new PrefixFilter(new Term(UidFieldMapper.NAME, Uid.typePrefixAsBytes(BytesRefs.toBytesRef(value))));
         }
-        return new TermFilter(names().createIndexNameTerm(bytesRef));
+        return new TermFilter(names().createIndexNameTerm(BytesRefs.toBytesRef(value)));
     }
 
     @Override

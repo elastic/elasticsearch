@@ -35,6 +35,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.text.StringAndBytesText;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.internal.*;
@@ -237,6 +239,7 @@ public class DocumentMapper implements ToXContent {
     private final Settings indexSettings;
 
     private final String type;
+    private final StringAndBytesText typeText;
 
     private final DocumentMapperParser docMapperParser;
 
@@ -279,6 +282,7 @@ public class DocumentMapper implements ToXContent {
         this.index = index;
         this.indexSettings = indexSettings;
         this.type = rootObjectMapper.name();
+        this.typeText = new StringAndBytesText(this.type);
         this.docMapperParser = docMapperParser;
         this.meta = meta;
         this.rootObjectMapper = rootObjectMapper;
@@ -339,6 +343,10 @@ public class DocumentMapper implements ToXContent {
 
     public String type() {
         return this.type;
+    }
+
+    public Text typeText() {
+        return this.typeText;
     }
 
     public ImmutableMap<String, Object> meta() {

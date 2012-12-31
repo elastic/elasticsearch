@@ -198,6 +198,10 @@ public abstract class StreamInput extends InputStream {
         return new StringAndBytesText(readBytesReference(length));
     }
 
+    public Text readSharedText() throws IOException {
+        return readText();
+    }
+
     @Nullable
     public String readOptionalString() throws IOException {
         if (readBoolean()) {

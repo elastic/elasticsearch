@@ -63,9 +63,8 @@ public class InternalSearchHit implements SearchHit {
 
     private float score = Float.NEGATIVE_INFINITY;
 
-    private String id;
-
-    private String type;
+    private Text id;
+    private Text type;
 
     private long version = -1;
 
@@ -91,9 +90,9 @@ public class InternalSearchHit implements SearchHit {
 
     }
 
-    public InternalSearchHit(int docId, String id, String type, BytesReference source, Map<String, SearchHitField> fields) {
+    public InternalSearchHit(int docId, String id, Text type, BytesReference source, Map<String, SearchHitField> fields) {
         this.docId = docId;
-        this.id = id;
+        this.id = new StringAndBytesText(id);
         this.type = type;
         this.source = source;
         this.fields = fields;
@@ -147,7 +146,7 @@ public class InternalSearchHit implements SearchHit {
 
     @Override
     public String id() {
-        return id;
+        return id.string();
     }
 
     @Override
@@ -157,7 +156,7 @@ public class InternalSearchHit implements SearchHit {
 
     @Override
     public String type() {
-        return type;
+        return type.string();
     }
 
     @Override
@@ -381,9 +380,9 @@ public class InternalSearchHit implements SearchHit {
         builder.startObject();
         if (explanation() != null) {
             builder.field("_shard", shard.shardId());
-            builder.field("_node", shard.nodeId());
+            builder.field("_node", shard.nodeIdText());
         }
-        builder.field(Fields._INDEX, shard.index());
+        builder.field(Fields._INDEX, shard.indexText());
         builder.field(Fields._TYPE, type);
         builder.field(Fields._ID, id);
         if (version != -1) {
@@ -482,8 +481,8 @@ public class InternalSearchHit implements SearchHit {
 
     public void readFrom(StreamInput in, InternalSearchHits.StreamContext context) throws IOException {
         score = in.readFloat();
-        id = in.readString();
-        type = in.readString();
+        id = in.readText();
+        type = in.readSharedText();
         version = in.readLong();
         source = in.readBytesReference();
         if (source.length() == 0) {
@@ -617,8 +616,8 @@ public class InternalSearchHit implements SearchHit {
 
     public void writeTo(StreamOutput out, InternalSearchHits.StreamContext context) throws IOException {
         out.writeFloat(score);
-        out.writeString(id);
-        out.writeString(type);
+        out.writeText(id);
+        out.writeSharedText(type);
         out.writeLong(version);
         out.writeBytesReference(source);
         if (explanation == null) {

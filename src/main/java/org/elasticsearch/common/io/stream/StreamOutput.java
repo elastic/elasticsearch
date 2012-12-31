@@ -204,6 +204,10 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
+    public void writeSharedText(Text text) throws IOException {
+        writeText(text);
+    }
+
     public void writeString(String str) throws IOException {
         int charCount = str.length();
         writeVInt(charCount);

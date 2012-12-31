@@ -24,10 +24,13 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.text.StringAndBytesText;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.fieldvisitor.JustUidFieldsVisitor;
 import org.elasticsearch.index.fieldvisitor.UidAndSourceFieldsVisitor;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.search.SearchHitField;
@@ -149,7 +152,14 @@ public class FetchPhase implements SearchPhase {
                 }
             }
 
-            InternalSearchHit searchHit = new InternalSearchHit(docId, fieldsVisitor.uid().id(), fieldsVisitor.uid().type(), sourceRequested ? fieldsVisitor.source() : null, searchFields);
+            DocumentMapper documentMapper = context.mapperService().documentMapper(fieldsVisitor.uid().type());
+            Text typeText;
+            if (documentMapper == null) {
+                typeText = new StringAndBytesText(fieldsVisitor.uid().type());
+            } else {
+                typeText = documentMapper.typeText();
+            }
+            InternalSearchHit searchHit = new InternalSearchHit(docId, fieldsVisitor.uid().id(), typeText, sourceRequested ? fieldsVisitor.source() : null, searchFields);
 
             hits[index] = searchHit;
 

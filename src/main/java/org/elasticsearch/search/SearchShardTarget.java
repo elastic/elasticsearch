@@ -23,21 +23,19 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.text.StringAndBytesText;
+import org.elasticsearch.common.text.Text;
 
 import java.io.IOException;
 import java.io.Serializable;
 
 /**
  * The target that the search request was executed on.
- *
- *
  */
 public class SearchShardTarget implements Streamable, Serializable, Comparable<SearchShardTarget> {
 
-    private String nodeId;
-
-    private String index;
-
+    private Text nodeId;
+    private Text index;
     private int shardId;
 
     private SearchShardTarget() {
@@ -45,27 +43,35 @@ public class SearchShardTarget implements Streamable, Serializable, Comparable<S
     }
 
     public SearchShardTarget(String nodeId, String index, int shardId) {
-        this.nodeId = nodeId;
-        this.index = index;
+        this.nodeId = nodeId == null ? null : new StringAndBytesText(nodeId);
+        this.index = new StringAndBytesText(index);
         this.shardId = shardId;
     }
 
     @Nullable
     public String nodeId() {
-        return nodeId;
+        return nodeId.string();
     }
 
     @Nullable
     public String getNodeId() {
-        return nodeId;
+        return nodeId();
+    }
+
+    public Text nodeIdText() {
+        return this.nodeId;
     }
 
     public String index() {
-        return index;
+        return index.string();
     }
 
     public String getIndex() {
-        return index;
+        return index();
+    }
+
+    public Text indexText() {
+        return this.index;
     }
 
     public int shardId() {
@@ -84,7 +90,7 @@ public class SearchShardTarget implements Streamable, Serializable, Comparable<S
 
     @Override
     public int compareTo(SearchShardTarget o) {
-        int i = index.compareTo(o.index());
+        int i = index.string().compareTo(o.index());
         if (i == 0) {
             i = shardId - o.shardId;
         }
@@ -94,9 +100,9 @@ public class SearchShardTarget implements Streamable, Serializable, Comparable<S
     @Override
     public void readFrom(StreamInput in) throws IOException {
         if (in.readBoolean()) {
-            nodeId = in.readUTF();
+            nodeId = in.readSharedText();
         }
-        index = in.readUTF();
+        index = in.readSharedText();
         shardId = in.readVInt();
     }
 
@@ -106,9 +112,9 @@ public class SearchShardTarget implements Streamable, Serializable, Comparable<S
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeUTF(nodeId);
+            out.writeSharedText(nodeId);
         }
-        out.writeUTF(index);
+        out.writeSharedText(index);
         out.writeVInt(shardId);
     }
 

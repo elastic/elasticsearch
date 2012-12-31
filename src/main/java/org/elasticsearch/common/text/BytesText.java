@@ -28,6 +28,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 public class BytesText implements Text {
 
     private BytesReference bytes;
+    private int hash;
 
     public BytesText(BytesReference bytes) {
         this.bytes = bytes;
@@ -64,7 +65,10 @@ public class BytesText implements Text {
 
     @Override
     public int hashCode() {
-        return bytes().hashCode();
+        if (hash == 0) {
+            hash = bytes.hashCode();
+        }
+        return hash;
     }
 
     @Override

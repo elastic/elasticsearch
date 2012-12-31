@@ -44,6 +44,7 @@ public class StringAndBytesText implements Text {
 
     private BytesReference bytes;
     private String text;
+    private int hash;
 
     public StringAndBytesText(BytesReference bytes) {
         this.bytes = bytes;
@@ -90,7 +91,10 @@ public class StringAndBytesText implements Text {
 
     @Override
     public int hashCode() {
-        return bytes().hashCode();
+        if (hash == 0) {
+            hash = bytes().hashCode();
+        }
+        return hash;
     }
 
     @Override

@@ -142,6 +142,11 @@ public class AdapterStreamOutput extends StreamOutput {
     }
 
     @Override
+    public void writeSharedText(Text text) throws IOException {
+        out.writeSharedText(text);
+    }
+
+    @Override
     public void writeFloat(float v) throws IOException {
         out.writeFloat(v);
     }

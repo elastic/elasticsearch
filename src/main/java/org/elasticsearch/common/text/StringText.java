@@ -42,6 +42,7 @@ public class StringText implements Text {
     }
 
     private final String text;
+    private int hash;
 
     public StringText(String text) {
         this.text = text;
@@ -75,7 +76,10 @@ public class StringText implements Text {
     @Override
     public int hashCode() {
         // we use bytes here so we can be consistent with other text implementations
-        return bytes().hashCode();
+        if (hash == 0) {
+            hash = bytes().hashCode();
+        }
+        return hash;
     }
 
     @Override

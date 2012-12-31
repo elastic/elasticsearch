@@ -114,6 +114,11 @@ public abstract class AdapterStreamInput extends StreamInput {
     }
 
     @Override
+    public Text readSharedText() throws IOException {
+        return in.readSharedText();
+    }
+
+    @Override
     public int read(byte[] b) throws IOException {
         return in.read(b);
     }

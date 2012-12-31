@@ -117,10 +117,6 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
         return value.toString();
     }
 
-    public Term term(String value) {
-        return names().createIndexNameTerm(value);
-    }
-
     @Override
     public Query termQuery(Object value, @Nullable QueryParseContext context) {
         return new XConstantScoreQuery(context.cacheFilter(termFilter(value, context), null));

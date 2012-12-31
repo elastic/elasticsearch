@@ -70,7 +70,11 @@ public final class Uid {
 
     @Override
     public String toString() {
-        return type + DELIMITER + id;
+        return createUid(type, id);
+    }
+
+    public BytesRef toBytesRef() {
+        return createUidAsBytes(type, id);
     }
 
     public static String typePrefix(String type) {

@@ -24,6 +24,7 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.support.QueryParsers;
@@ -59,7 +60,7 @@ public class PrefixQueryParser implements QueryParser {
         String fieldName = parser.currentName();
         String rewriteMethod = null;
 
-        String value = null;
+        Object value = null;
         float boost = 1.0f;
         token = parser.nextToken();
         if (token == XContentParser.Token.START_OBJECT) {
@@ -69,7 +70,7 @@ public class PrefixQueryParser implements QueryParser {
                     currentFieldName = parser.currentName();
                 } else if (token.isValue()) {
                     if ("prefix".equals(currentFieldName)) {
-                        value = parser.text();
+                        value = parser.objectBytes();
                     } else if ("value".equals(currentFieldName)) {
                         value = parser.text();
                     } else if ("boost".equals(currentFieldName)) {
@@ -108,7 +109,7 @@ public class PrefixQueryParser implements QueryParser {
             }
         }
         if (query == null) {
-            PrefixQuery prefixQuery = new PrefixQuery(new Term(fieldName, value));
+            PrefixQuery prefixQuery = new PrefixQuery(new Term(fieldName, BytesRefs.toBytesRef(value)));
             if (method != null) {
                 prefixQuery.setRewriteMethod(method);
             }

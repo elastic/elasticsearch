@@ -448,7 +448,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
     }
 
     @Override
-    public Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
+    public Query prefixQuery(Object value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
         PrefixQuery query = new PrefixQuery(names().createIndexNameTerm(indexedValueForSearch(value)));
         if (method != null) {
             query.setRewriteMethod(method);
@@ -457,7 +457,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
     }
 
     @Override
-    public Filter prefixFilter(String value, @Nullable QueryParseContext context) {
+    public Filter prefixFilter(Object value, @Nullable QueryParseContext context) {
         return new PrefixFilter(names().createIndexNameTerm(indexedValueForSearch(value)));
     }
 

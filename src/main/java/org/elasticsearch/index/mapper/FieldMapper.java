@@ -179,9 +179,9 @@ public interface FieldMapper<T> {
 
     Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions, boolean transpositions);
 
-    Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context);
+    Query prefixQuery(Object value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context);
 
-    Filter prefixFilter(String value, @Nullable QueryParseContext context);
+    Filter prefixFilter(Object value, @Nullable QueryParseContext context);
 
     Query regexpQuery(String value, int flags, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context);
 

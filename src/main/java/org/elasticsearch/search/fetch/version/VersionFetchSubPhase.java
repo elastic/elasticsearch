@@ -62,7 +62,7 @@ public class VersionFetchSubPhase implements FetchSubPhase {
         // the case below...
         long version = UidField.loadVersion(
                 hitContext.readerContext(),
-                new Term(UidFieldMapper.NAME, hitContext.fieldVisitor().uid().toString())
+                new Term(UidFieldMapper.NAME, hitContext.fieldVisitor().uid().toBytesRef())
         );
         if (version < 0) {
             version = -1;

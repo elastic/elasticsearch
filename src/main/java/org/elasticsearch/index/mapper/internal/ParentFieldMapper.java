@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
@@ -264,14 +263,6 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
     @Override
     public boolean useTermQueryWithQueryString() {
         return true;
-    }
-
-    public Term term(String type, String id) {
-        return term(Uid.createUid(type, id));
-    }
-
-    public Term term(String uid) {
-        return names().createIndexNameTerm(uid);
     }
 
     @Override

@@ -86,7 +86,7 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
     protected ExplainResponse shardOperation(ExplainRequest request, int shardId) throws ElasticSearchException {
         IndexService indexService = indicesService.indexService(request.index());
         IndexShard indexShard = indexService.shardSafe(shardId);
-        Term uidTerm = new Term(UidFieldMapper.NAME, Uid.createUid(request.type(), request.id()));
+        Term uidTerm = new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(request.type(), request.id()));
         Engine.GetResult result = indexShard.get(new Engine.Get(false, uidTerm));
         if (!result.exists()) {
             return new ExplainResponse(false);

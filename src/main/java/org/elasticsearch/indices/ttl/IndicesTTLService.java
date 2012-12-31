@@ -241,7 +241,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
                 UidAndRoutingFieldsVisitor fieldsVisitor = new UidAndRoutingFieldsVisitor();
                 context.reader().document(doc, fieldsVisitor);
                 Uid uid = fieldsVisitor.uid();
-                long version = UidField.loadVersion(context, new Term(UidFieldMapper.NAME, uid.toString()));
+                long version = UidField.loadVersion(context, new Term(UidFieldMapper.NAME, uid.toBytesRef()));
                 docsToPurge.add(new DocToPurge(uid.type(), uid.id(), version, fieldsVisitor.routing()));
             } catch (Exception e) {
                 logger.trace("failed to collect doc", e);

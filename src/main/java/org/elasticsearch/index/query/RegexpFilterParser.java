@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.search.RegexpFilter;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
@@ -44,7 +45,7 @@ public class RegexpFilterParser implements FilterParser {
 
     @Override
     public String[] names() {
-        return new String[]{ NAME };
+        return new String[]{NAME};
     }
 
     @Override
@@ -55,8 +56,8 @@ public class RegexpFilterParser implements FilterParser {
         CacheKeyFilter.Key cacheKey = null;
         String fieldName = null;
         String secondaryFieldName = null;
-        String value = null;
-        String secondaryValue = null;
+        Object value = null;
+        Object secondaryValue = null;
         int flagsValue = -1;
 
         String filterName = null;
@@ -72,7 +73,7 @@ public class RegexpFilterParser implements FilterParser {
                         currentFieldName = parser.currentName();
                     } else {
                         if ("value".equals(currentFieldName)) {
-                            value = parser.text();
+                            value = parser.objectBytes();
                         } else if ("flags".equals(currentFieldName)) {
                             String flags = parser.textOrNull();
                             flagsValue = RegexpFlag.resolveValue(flags);
@@ -92,7 +93,7 @@ public class RegexpFilterParser implements FilterParser {
                     cacheKey = new CacheKeyFilter.Key(parser.text());
                 } else {
                     secondaryFieldName = currentFieldName;
-                    secondaryValue = parser.text();
+                    secondaryValue = parser.objectBytes();
                 }
             }
         }
@@ -122,7 +123,7 @@ public class RegexpFilterParser implements FilterParser {
             }
         }
         if (filter == null) {
-            filter = new RegexpFilter(new Term(fieldName, value), flagsValue);
+            filter = new RegexpFilter(new Term(fieldName, BytesRefs.toBytesRef(value)), flagsValue);
         }
 
         if (cache) {

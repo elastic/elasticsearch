@@ -496,6 +496,8 @@ public class AnalysisModule extends AbstractModule {
 
             tokenFiltersBindings.processTokenFilter("keyword_marker", KeywordMarkerTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("stemmer_override", StemmerOverrideTokenFilterFactory.class);
+
+            tokenFiltersBindings.processTokenFilter("hunspell", HunspellTokenFilterFactory.class);
         }
 
         @Override

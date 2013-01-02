@@ -19,12 +19,29 @@
 
 package org.elasticsearch.indices.analysis;
 
+import com.google.common.collect.Maps;
+import org.apache.lucene.analysis.hunspell.HunspellDictionary;
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.multibindings.MapBinder;
+
+import java.util.Map;
 
 public class IndicesAnalysisModule extends AbstractModule {
+
+    private final Map<String, HunspellDictionary> hunspellDictionaries =  Maps.newHashMap();
+
+    public void addHunspellDictionary(String lang, HunspellDictionary dictionary) {
+        hunspellDictionaries.put(lang, dictionary);
+    }
 
     @Override
     protected void configure() {
         bind(IndicesAnalysisService.class).asEagerSingleton();
+
+        MapBinder<String, HunspellDictionary> dictionariesBinder = MapBinder.newMapBinder(binder(), String.class, HunspellDictionary.class);
+        for (Map.Entry<String, HunspellDictionary> entry : hunspellDictionaries.entrySet()) {
+            dictionariesBinder.addBinding(entry.getKey()).toInstance(entry.getValue());
+        }
+        bind(HunspellService.class).asEagerSingleton();
     }
 }

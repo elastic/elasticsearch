@@ -784,6 +784,18 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         }
         ObjectMapper mergeWithObject = (ObjectMapper) mergeWith;
 
+        if (nested().isNested()) {
+            if (!mergeWithObject.nested().isNested()) {
+                mergeContext.addConflict("object mapping [" + name() + "] can't be changed from nested to non-nested");
+                return;
+            }
+        } else {
+            if (mergeWithObject.nested().isNested()) {
+                mergeContext.addConflict("object mapping [" + name() + "] can't be changed from non-nested to nested");
+                return;
+            }
+        }
+
         doMerge(mergeWithObject, mergeContext);
 
         List<Mapper> mappersToTraverse = new ArrayList<Mapper>();

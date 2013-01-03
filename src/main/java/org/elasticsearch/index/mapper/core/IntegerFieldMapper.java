@@ -364,7 +364,7 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
         private final NumberFieldMapper mapper;
 
         public CustomIntegerNumericField(NumberFieldMapper mapper, int number, FieldType fieldType) {
-            super(mapper, mapper.fieldType().stored() ? Numbers.intToBytes(number) : null, fieldType);
+            super(mapper, mapper.fieldType().stored() ? number : null, fieldType);
             this.mapper = mapper;
             this.number = number;
         }

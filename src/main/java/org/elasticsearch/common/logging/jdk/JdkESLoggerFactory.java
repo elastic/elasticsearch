@@ -22,10 +22,17 @@ package org.elasticsearch.common.logging.jdk;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 
+import java.util.logging.LogManager;
+
 /**
  *
  */
 public class JdkESLoggerFactory extends ESLoggerFactory {
+
+    @Override
+    protected ESLogger rootLogger() {
+        return getLogger("");
+    }
 
     @Override
     protected ESLogger newInstance(String prefix, String name) {

@@ -66,9 +66,15 @@ public abstract class ESLoggerFactory {
         return defaultFactory.newInstance(name.intern());
     }
 
+    public static ESLogger getRootLogger() {
+        return defaultFactory.rootLogger();
+    }
+
     public ESLogger newInstance(String name) {
         return newInstance(null, name);
     }
+
+    protected abstract ESLogger rootLogger();
 
     protected abstract ESLogger newInstance(String prefix, String name);
 }

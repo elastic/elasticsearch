@@ -79,7 +79,11 @@ public class NodeSettingsService extends AbstractComponent implements ClusterSta
             for (Map.Entry<String, String> entry : event.state().metaData().settings().getAsMap().entrySet()) {
                 if (entry.getKey().startsWith("logger.")) {
                     String component = entry.getKey().substring("logger.".length());
-                    ESLoggerFactory.getLogger(component).setLevel(entry.getValue());
+                    if ("_root".equals(component)) {
+                        ESLoggerFactory.getRootLogger().setLevel(entry.getValue());
+                    } else {
+                        ESLoggerFactory.getLogger(component).setLevel(entry.getValue());
+                    }
                 }
             }
         } catch (Exception e) {

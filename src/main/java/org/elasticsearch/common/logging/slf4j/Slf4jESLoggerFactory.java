@@ -21,12 +21,18 @@ package org.elasticsearch.common.logging.slf4j;
 
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
  *
  */
 public class Slf4jESLoggerFactory extends ESLoggerFactory {
+
+    @Override
+    protected ESLogger rootLogger() {
+        return getLogger(Logger.ROOT_LOGGER_NAME);
+    }
 
     @Override
     protected ESLogger newInstance(String prefix, String name) {

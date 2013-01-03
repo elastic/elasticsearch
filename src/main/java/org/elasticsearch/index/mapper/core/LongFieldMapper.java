@@ -363,7 +363,7 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
         private final NumberFieldMapper mapper;
 
         public CustomLongNumericField(NumberFieldMapper mapper, long number, FieldType fieldType) {
-            super(mapper, mapper.fieldType.stored() ? Numbers.longToBytes(number) : null, fieldType);
+            super(mapper, mapper.fieldType.stored() ? number : null, fieldType);
             this.mapper = mapper;
             this.number = number;
         }

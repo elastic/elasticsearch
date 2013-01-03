@@ -25,7 +25,6 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
@@ -290,11 +289,11 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
 
         protected final NumberFieldMapper mapper;
 
-        public CustomNumericField(NumberFieldMapper mapper, byte[] value, FieldType fieldType) {
+        public CustomNumericField(NumberFieldMapper mapper, Number value, FieldType fieldType) {
             super(mapper.names().indexName(), fieldType);
             this.mapper = mapper;
             if (value != null) {
-                this.fieldsData = new BytesRef(value);
+                this.fieldsData = value;
             }
         }
 

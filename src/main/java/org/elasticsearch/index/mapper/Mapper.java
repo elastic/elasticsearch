@@ -20,6 +20,8 @@
 package org.elasticsearch.index.mapper;
 
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -54,6 +56,14 @@ public interface Mapper extends ToXContent {
         @Nullable
         public Settings indexSettings() {
             return this.indexSettings;
+        }
+
+        @Nullable
+        public Version indexCreatedVersion() {
+            if (indexSettings == null) {
+                return null;
+            }
+            return indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null);
         }
     }
 

@@ -28,8 +28,7 @@ import org.elasticsearch.indices.analysis.HunspellService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.AfterTest;
+import org.testng.annotations.AfterMethod;
 import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -42,7 +41,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class HunspellServiceTests extends AbstractNodesTests {
 
 
-    @AfterTest
+    @AfterMethod
     public void closeNodes() {
         closeAllNodes();
     }

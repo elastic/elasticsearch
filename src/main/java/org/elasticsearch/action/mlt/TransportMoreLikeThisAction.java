@@ -263,7 +263,7 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
     }
 
     private void parseSource(GetResponse getResponse, final BoolQueryBuilder boolBuilder, DocumentMapper docMapper, final Set<String> fields, final MoreLikeThisRequest request) {
-        if (getResponse.source() == null) {
+        if (getResponse.isSourceEmpty()) {
             return;
         }
         docMapper.parse(SourceToParse.source(getResponse.sourceRef()).type(request.type()).id(request.id()), new DocumentMapper.ParseListenerAdapter() {

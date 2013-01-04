@@ -95,6 +95,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         assertThat(clusterHealth.timedOut(), equalTo(false));
         assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.YELLOW));
 
+        node1.client().admin().indices().prepareRefresh().execute().actionGet();
         assertThat(node1.client().prepareCount().setQuery(termQuery("appAccountIds", 179)).execute().actionGet().count(), equalTo(2l));
 
         closeNode("node1");
@@ -106,6 +107,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         assertThat(clusterHealth.timedOut(), equalTo(false));
         assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.YELLOW));
 
+        node1.client().admin().indices().prepareRefresh().execute().actionGet();
         assertThat(node1.client().prepareCount().setQuery(termQuery("appAccountIds", 179)).execute().actionGet().count(), equalTo(2l));
     }
 

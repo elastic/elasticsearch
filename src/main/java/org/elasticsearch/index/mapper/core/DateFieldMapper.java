@@ -207,6 +207,10 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
      */
     @Override
     public Object valueForSearch(Object value) {
+        if (value instanceof String) {
+            // assume its the string that was indexed, just return it... (for example, with get)
+            return value;
+        }
         Long val = value(value);
         if (val == null) {
             return null;

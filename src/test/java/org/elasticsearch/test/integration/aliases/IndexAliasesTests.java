@@ -531,28 +531,6 @@ public class IndexAliasesTests extends AbstractNodesTests {
 
 
     @Test
-    public void testWaitForAliasTimeout() throws Exception {
-        client1.admin().indices().prepareDelete().execute().actionGet();
-
-        logger.info("--> creating index [test]");
-        client1.admin().indices().create(createIndexRequest("test")).actionGet();
-
-        logger.info("--> running cluster_health");
-        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        logger.info("--> done cluster_health, status " + clusterHealth.status());
-        assertThat(clusterHealth.timedOut(), equalTo(false));
-        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
-
-        assertThat(client2.admin().indices().prepareAliases().addAlias("test", "alias1").setTimeout(TimeValue.timeValueMillis(0)).execute().actionGet().acknowledged(), equalTo(false));
-        assertThat(client1.admin().indices().prepareAliases().addAlias("test", "alias2").setTimeout(TimeValue.timeValueMillis(0)).execute().actionGet().acknowledged(), equalTo(false));
-        assertThat(client2.admin().indices().prepareAliases().addAlias("test", "alias3").execute().actionGet().acknowledged(), equalTo(true));
-        client1.index(indexRequest("alias1").type("type1").id("1").source(source("1", "test")).refresh(true)).actionGet();
-        client1.index(indexRequest("alias2").type("type1").id("1").source(source("1", "test")).refresh(true)).actionGet();
-        client1.index(indexRequest("alias3").type("type1").id("1").source(source("1", "test")).refresh(true)).actionGet();
-
-    }
-
-    @Test
     public void testSameAlias() throws Exception {
         client1.admin().indices().prepareDelete().execute().actionGet();
 

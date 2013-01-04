@@ -271,7 +271,7 @@ public class GetActionTests extends AbstractNodesTests {
         getResponse = client.prepareGet("test", "type1", "1").setFields("str", "int", "date").execute().actionGet();
         assertThat(getResponse.exists(), equalTo(true));
         assertThat((String) getResponse.field("str").getValue(), equalTo("test"));
-        assertThat((Integer) getResponse.field("int").getValue(), equalTo(42));
+        assertThat((Long) getResponse.field("int").getValue(), equalTo(42l));
         assertThat((String) getResponse.field("date").getValue(), equalTo("2012-11-13T15:26:14.000Z"));
 
         logger.info("--> non realtime get (from stored fields)");

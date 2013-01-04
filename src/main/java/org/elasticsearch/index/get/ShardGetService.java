@@ -325,6 +325,10 @@ public class ShardGetService extends AbstractIndexShardComponent {
                             searchLookup.setNextDocId(docIdAndVersion.docId);
                         }
                         value = searchLookup.source().extractValue(field);
+                        // normalize the data if needed (mainly for binary fields, to convert from base64 strings to bytes)
+                        if (value != null) {
+                            value = x.mapper().valueForSearch(value);
+                        }
                     }
                 }
 

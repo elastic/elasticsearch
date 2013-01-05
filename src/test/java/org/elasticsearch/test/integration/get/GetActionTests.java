@@ -26,7 +26,10 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.integration.AbstractNodesTests;
@@ -39,8 +42,7 @@ import java.util.List;
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 
 public class GetActionTests extends AbstractNodesTests {
 
@@ -238,6 +240,7 @@ public class GetActionTests extends AbstractNodesTests {
                         .startObject("str").field("type", "string").field("store", "yes").endObject()
                         .startObject("int").field("type", "integer").field("store", "yes").endObject()
                         .startObject("date").field("type", "date").field("store", "yes").endObject()
+                        .startObject("binary").field("type", "binary").field("store", "yes").endObject()
                         .endObject()
                         .endObject().endObject())
                 .execute().actionGet();
@@ -246,40 +249,44 @@ public class GetActionTests extends AbstractNodesTests {
         assertThat(clusterHealth.timedOut(), equalTo(false));
         assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
 
-        client.prepareIndex("test", "type1", "1").setSource("str", "test", "int", 42, "date", "2012-11-13T15:26:14.000Z").execute().actionGet();
-        client.prepareIndex("test", "type2", "1").setSource("str", "test", "int", 42, "date", "2012-11-13T15:26:14.000Z").execute().actionGet();
+        client.prepareIndex("test", "type1", "1").setSource("str", "test", "int", 42, "date", "2012-11-13T15:26:14.000Z", "binary", Base64.encodeBytes(new byte[]{1, 2, 3})).execute().actionGet();
+        client.prepareIndex("test", "type2", "1").setSource("str", "test", "int", 42, "date", "2012-11-13T15:26:14.000Z", "binary", Base64.encodeBytes(new byte[]{1, 2, 3})).execute().actionGet();
 
         // realtime get with stored source
         logger.info("--> realtime get (from source)");
-        GetResponse getResponse = client.prepareGet("test", "type1", "1").setFields("str", "int", "date").execute().actionGet();
+        GetResponse getResponse = client.prepareGet("test", "type1", "1").setFields("str", "int", "date", "binary").execute().actionGet();
         assertThat(getResponse.exists(), equalTo(true));
         assertThat((String) getResponse.field("str").getValue(), equalTo("test"));
-        assertThat((Integer) getResponse.field("int").getValue(), equalTo(42));
+        assertThat((Long) getResponse.field("int").getValue(), equalTo(42l));
         assertThat((String) getResponse.field("date").getValue(), equalTo("2012-11-13T15:26:14.000Z"));
+        assertThat(getResponse.field("binary").getValue(), instanceOf(String.class)); // its a String..., not binary mapped
 
         logger.info("--> realtime get (from stored fields)");
-        getResponse = client.prepareGet("test", "type2", "1").setFields("str", "int", "date").execute().actionGet();
+        getResponse = client.prepareGet("test", "type2", "1").setFields("str", "int", "date", "binary").execute().actionGet();
         assertThat(getResponse.exists(), equalTo(true));
         assertThat((String) getResponse.field("str").getValue(), equalTo("test"));
         assertThat((Integer) getResponse.field("int").getValue(), equalTo(42));
         assertThat((String) getResponse.field("date").getValue(), equalTo("2012-11-13T15:26:14.000Z"));
+        assertThat((BytesReference) getResponse.field("binary").getValue(), equalTo((BytesReference) new BytesArray(new byte[]{1, 2, 3})));
 
         logger.info("--> flush the index, so we load it from it");
         client.admin().indices().prepareFlush().execute().actionGet();
 
         logger.info("--> non realtime get (from source)");
-        getResponse = client.prepareGet("test", "type1", "1").setFields("str", "int", "date").execute().actionGet();
+        getResponse = client.prepareGet("test", "type1", "1").setFields("str", "int", "date", "binary").execute().actionGet();
         assertThat(getResponse.exists(), equalTo(true));
         assertThat((String) getResponse.field("str").getValue(), equalTo("test"));
         assertThat((Long) getResponse.field("int").getValue(), equalTo(42l));
         assertThat((String) getResponse.field("date").getValue(), equalTo("2012-11-13T15:26:14.000Z"));
+        assertThat(getResponse.field("binary").getValue(), instanceOf(String.class)); // its a String..., not binary mapped
 
         logger.info("--> non realtime get (from stored fields)");
-        getResponse = client.prepareGet("test", "type2", "1").setFields("str", "int", "date").execute().actionGet();
+        getResponse = client.prepareGet("test", "type2", "1").setFields("str", "int", "date", "binary").execute().actionGet();
         assertThat(getResponse.exists(), equalTo(true));
         assertThat((String) getResponse.field("str").getValue(), equalTo("test"));
         assertThat((Integer) getResponse.field("int").getValue(), equalTo(42));
         assertThat((String) getResponse.field("date").getValue(), equalTo("2012-11-13T15:26:14.000Z"));
+        assertThat((BytesReference) getResponse.field("binary").getValue(), equalTo((BytesReference) new BytesArray(new byte[]{1, 2, 3})));
     }
 
     @Test

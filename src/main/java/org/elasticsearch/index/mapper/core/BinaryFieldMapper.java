@@ -46,7 +46,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 /**
  *
  */
-public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
+public class BinaryFieldMapper extends AbstractFieldMapper<BytesReference> {
 
     public static final String CONTENT_TYPE = "binary";
 
@@ -55,7 +55,8 @@ public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
         public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
 
         static {
-            FIELD_TYPE.setStored(false);
+            FIELD_TYPE.setIndexed(false);
+            FIELD_TYPE.setStored(true);
             FIELD_TYPE.freeze();
         }
     }
@@ -137,7 +138,7 @@ public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
     }
 
     @Override
-    public byte[] value(Object value) {
+    public BytesReference value(Object value) {
         if (value == null) {
             return null;
         }
@@ -157,7 +158,7 @@ public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
             }
         }
         try {
-            return CompressorFactory.uncompressIfNeeded(bytes).toBytes();
+            return CompressorFactory.uncompressIfNeeded(bytes);
         } catch (IOException e) {
             throw new ElasticSearchParseException("failed to decompress source", e);
         }
@@ -209,6 +210,9 @@ public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
         }
         if (compressThreshold != -1) {
             builder.field("compress_threshold", new ByteSizeValue(compressThreshold).toString());
+        }
+        if (fieldType.stored() != defaultFieldType().stored()) {
+            builder.field("store", fieldType.stored());
         }
         builder.endObject();
         return builder;

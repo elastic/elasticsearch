@@ -244,6 +244,10 @@ public class ShardGetService extends AbstractIndexShardComponent {
                                 // only if the field is stored or source is enabled we should add it..
                                 if (docMapper.sourceMapper().enabled() || x == null || x.fieldType().stored()) {
                                     value = searchLookup.source().extractValue(field);
+                                    // normalize the data if needed (mainly for binary fields, to convert from base64 strings to bytes)
+                                    if (value != null && x != null) {
+                                        value = x.valueForSearch(value);
+                                    }
                                 }
                             }
                         }
@@ -326,7 +330,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
                         }
                         value = searchLookup.source().extractValue(field);
                         // normalize the data if needed (mainly for binary fields, to convert from base64 strings to bytes)
-                        if (value != null) {
+                        if (value != null && x != null) {
                             value = x.mapper().valueForSearch(value);
                         }
                     }

@@ -21,7 +21,6 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.type.*;
-import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -90,7 +89,7 @@ public class TransportSearchAction extends TransportAction<SearchRequest, Search
                 ClusterState clusterState = clusterService.state();
                 String[] concreteIndices = clusterState.metaData().concreteIndices(searchRequest.indices(), searchRequest.ignoreIndices(), true);
                 Map<String, Set<String>> routingMap = clusterState.metaData().resolveSearchRouting(searchRequest.routing(), searchRequest.indices());
-                int shardCount = clusterService.operationRouting().searchShardsCount(clusterState, searchRequest.indices(), concreteIndices, searchRequest.queryHint(), routingMap, searchRequest.preference());
+                int shardCount = clusterService.operationRouting().searchShardsCount(clusterState, searchRequest.indices(), concreteIndices, routingMap, searchRequest.preference());
                 if (shardCount == 1) {
                     // if we only have one group, then we always want Q_A_F, no need for DFS, and no need to do THEN since we hit one shard
                     searchRequest.searchType(QUERY_AND_FETCH);

@@ -121,8 +121,6 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
                                     searchRequest.preference(parser.text());
                                 } else if ("routing".equals(currentFieldName)) {
                                     searchRequest.routing(parser.text());
-                                } else if ("query_hint".equals(currentFieldName) || "queryHint".equals(currentFieldName)) {
-                                    searchRequest.queryHint(parser.text());
                                 } else if ("ignore_indices".equals(currentFieldName) || "ignoreIndices".equals(currentFieldName)) {
                                     searchRequest.ignoreIndices(IgnoreIndices.fromString(parser.text()));
                                 }

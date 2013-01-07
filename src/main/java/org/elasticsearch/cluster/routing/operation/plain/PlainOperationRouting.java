@@ -111,7 +111,7 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
     }
 
     @Override
-    public int searchShardsCount(ClusterState clusterState, String[] indices, String[] concreteIndices, @Nullable String queryHint, @Nullable Map<String, Set<String>> routing, @Nullable String preference) throws IndexMissingException {
+    public int searchShardsCount(ClusterState clusterState, String[] indices, String[] concreteIndices, @Nullable Map<String, Set<String>> routing, @Nullable String preference) throws IndexMissingException {
         if (concreteIndices == null || concreteIndices.length == 0) {
             concreteIndices = clusterState.metaData().concreteAllOpenIndices();
         }
@@ -145,7 +145,7 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
     }
 
     @Override
-    public GroupShardsIterator searchShards(ClusterState clusterState, String[] indices, String[] concreteIndices, @Nullable String queryHint, @Nullable Map<String, Set<String>> routing, @Nullable String preference) throws IndexMissingException {
+    public GroupShardsIterator searchShards(ClusterState clusterState, String[] indices, String[] concreteIndices, @Nullable Map<String, Set<String>> routing, @Nullable String preference) throws IndexMissingException {
         if (concreteIndices == null || concreteIndices.length == 0) {
             concreteIndices = clusterState.metaData().concreteAllOpenIndices();
         }

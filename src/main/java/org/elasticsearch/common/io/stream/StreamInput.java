@@ -192,6 +192,15 @@ public abstract class StreamInput extends InputStream {
         return null;
     }
 
+    @Nullable
+    public Text readOptionalText() throws IOException {
+        int length = readInt();
+        if (length == -1) {
+            return null;
+        }
+        return new StringAndBytesText(readBytesReference(length));
+    }
+
     public Text readText() throws IOException {
         // use StringAndBytes so we can cache the string if its ever converted to it
         int length = readInt();

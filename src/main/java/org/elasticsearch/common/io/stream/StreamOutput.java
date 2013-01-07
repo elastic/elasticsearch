@@ -184,6 +184,14 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
+    public void writeOptionalText(@Nullable Text text) throws IOException {
+        if (text == null) {
+            writeInt(-1);
+        } else {
+            writeText(text);
+        }
+    }
+
     public void writeText(Text text) throws IOException {
         if (!text.hasBytes() && seekPositionSupported()) {
             long pos1 = position();

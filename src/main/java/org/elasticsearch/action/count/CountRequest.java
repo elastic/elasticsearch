@@ -60,8 +60,6 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
     private float minScore = DEFAULT_MIN_SCORE;
 
     @Nullable
-    protected String queryHint;
-    @Nullable
     protected String routing;
 
     private BytesReference querySource;
@@ -78,7 +76,6 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
      */
     public CountRequest(String... indices) {
         super(indices);
-        this.queryHint = null;
     }
 
     @Override
@@ -87,24 +84,12 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
         return validationException;
     }
 
-    public String queryHint() {
-        return queryHint;
-    }
-
     @Override
     protected void beforeStart() {
         if (querySourceUnsafe) {
             querySource = querySource.copyBytesArray();
             querySourceUnsafe = false;
         }
-    }
-
-    /**
-     * A query hint to optionally later be used when routing the request.
-     */
-    public CountRequest queryHint(String queryHint) {
-        this.queryHint = queryHint;
-        return this;
     }
 
     /**
@@ -239,50 +224,19 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         minScore = in.readFloat();
-
-        if (in.readBoolean()) {
-            queryHint = in.readUTF();
-        }
-        if (in.readBoolean()) {
-            routing = in.readUTF();
-        }
-
+        routing = in.readOptionalString();
         querySourceUnsafe = false;
         querySource = in.readBytesReference();
-
-        int typesSize = in.readVInt();
-        if (typesSize > 0) {
-            types = new String[typesSize];
-            for (int i = 0; i < typesSize; i++) {
-                types[i] = in.readUTF();
-            }
-        }
+        types = in.readStringArray();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeFloat(minScore);
-
-        if (queryHint == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeUTF(queryHint);
-        }
-        if (routing == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeUTF(routing);
-        }
-
+        out.writeOptionalString(routing);
         out.writeBytesReference(querySource);
-
-        out.writeVInt(types.length);
-        for (String type : types) {
-            out.writeUTF(type);
-        }
+        out.writeStringArray(types);
     }
 
     @Override

@@ -86,7 +86,6 @@ public class RestCountAction extends BaseRestHandler {
                     }
                 }
             }
-            countRequest.queryHint(request.param("query_hint"));
             countRequest.routing(request.param("routing"));
             countRequest.minScore(request.paramAsFloat("min_score", DEFAULT_MIN_SCORE));
             countRequest.types(splitTypes(request.param("type")));

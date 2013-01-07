@@ -45,6 +45,7 @@ public class JsonXContent implements XContent {
         jsonFactory = new JsonFactory();
         jsonFactory.configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true);
         jsonFactory.configure(JsonGenerator.Feature.QUOTE_FIELD_NAMES, true);
+        jsonFactory.configure(JsonParser.Feature.ALLOW_COMMENTS, true);
         jsonXContent = new JsonXContent();
     }
 
